@@ -105,33 +105,53 @@ Everything runs **in your browser tab** — including the backend.
 
 ---
 
-## Quick Start (conceptual)
+## Try it now
 
 ```bash
-# Clone the starter
-git clone <your-facilis-starter> my-app && cd my-app
-
-# Install
 pnpm install
-
-# Run — Vite is the entry point; Nitro mounts inside it
-pnpm dev    # → vite dev
+cd examples/todo-app
+FACILIS_INITIAL_ADMIN=admin@example.com PORT=5199 pnpm dev   # → vite dev
 ```
 
-That's it. One command. One port. Vite serves the React app, the Nitro plugin serves `/api/*` and `/__facilis/manifest`, and PGlite boots inside the Nitro worker.
+That's it. One command. One port. Vite serves the React app, the Nitro plugin serves `/api/*`
+and `/__facilis/*`, and PGlite boots inside the Nitro worker. Open
+`http://localhost:5199`, register the `FACILIS_INITIAL_ADMIN` email to get `admin`, and watch
+`/_openapi.json` carry `x-db-tables` for every route.
+
+```bash
+# or verify the whole contract headlessly (auth, RLS, manifest, OpenAPI, guards):
+cd examples/todo-app && ./scripts/verify-headless.sh
+```
+
+The starter template (`starter/`) is Phase 2 work; `examples/todo-app` is the hand-written
+reference the generator will reproduce.
 
 ---
 
 ## Status
 
-**Design complete. Phase 0 headless spike complete; browser/WebContainer items pending.**
+**Phase 1 implemented and verified headlessly. Browser/WebContainer items (Phase 0 A1-A3,
+A6, A8-A12) still need a browser harness.**
+
+What exists today, runnable in this repo:
+
+| Piece | Where | Evidence |
+|---|---|---|
+| Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
+| Studio fork (Vivari, MIT, pinned commit) | `studio/` | vendored + provenance/sync notes in [`studio/FACILIS.md`](studio/FACILIS.md) |
+| Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
+
+The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
+`facilis()` plugin owns an AST pass over `server/routes`, and `/_openapi.json` is a facade
+that merges `x-permission`/`x-db-tables`/`x-db-columns` into Nitro's generated spec.
+Decisions and deviations are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 The full specification — architecture, types, endpoint contracts, security model, role lifecycle, AI orchestration, release tooling, phased plan, and acceptance criteria — lives in [`docs/SPEC.md`](docs/SPEC.md).
 
 | Phase | Goal | Est. |
 |---|---|---|
-| **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk |
-| **1** | Core packages (`@facilis/*`) | 2–3 wk |
+| **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk — headless ✅, browser items pending |
+| **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk |
 | **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk |
 | **4** | AI orchestration + patch validator | 2–3 wk |
@@ -177,7 +197,9 @@ Highlights inside:
 
 ## Contributing
 
-Currently in pre-development. Contributions welcome once Phase 0 lands.
+Early but real: the framework packages and the acceptance app run today. Contributions
+welcome — start with [`AGENTS.md`](AGENTS.md) for conventions and
+[`docs/DECISIONS.md`](docs/DECISIONS.md) for the current decision log.
 
 For now, the most useful thing you can do is **read `docs/SPEC.md` and file issues** on anything ambiguous, contradictory, or under-specified.
 

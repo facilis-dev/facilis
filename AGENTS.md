@@ -56,6 +56,10 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 - **Nitro file router naming is mandatory**: `index.get.ts`, `[id].patch.ts`,
   `manifest.get.ts` (spec §4.2).
 - Imports between packages use the package name (`@facilis/db`), never `../../packages/...`.
+- **Relative imports inside `packages/*/src` carry the `.ts` extension** (`from "./config.ts"`).
+  Packages ship their `src` and a Vite config is loaded by Node's native ESM loader, which
+  requires explicit extensions; `tsc` rewrites them to `.js` on emit
+  (`allowImportingTsExtensions` + `rewriteRelativeImportExtensions`).
 - No `any` (use `unknown` + narrowing). No non-null assertions without a one-line `why`.
 - Comments explain **why**, not what. No commented-out code, no dead code.
 - API responses are **codes, not prose**; every user-facing string goes through
