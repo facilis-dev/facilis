@@ -8,7 +8,7 @@
 // every PR, instead of in a browser test that gates nothing.
 
 import type * as Monaco from "monaco-editor";
-import { registerPythonLanguage as register } from "../../../runtime/builtins/python-lsp.js";
+import { registerPythonLanguage as register } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 
 export interface PythonServiceHost {
   /** One round trip to the language service. Resolves to the driver's reply. */

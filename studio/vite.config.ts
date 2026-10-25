@@ -287,19 +287,21 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      // Consume the SDK from source in the monorepo: Vite compiles @vivari/core's
+      // Consume the pinned upstream kernel from source: Vite compiles @vivari/core's
       // TS and follows its nested `new Worker(new URL(...))` + `new URL(*.wasm)`
-      // references into packages/core/src/workers and the sibling crate pkg dirs —
-      // exactly how Studio bundled these before they moved into the core package.
-      "@vivari/core": fileURLToPath(new URL("../core/src/index.ts", import.meta.url)),
+      // references into vendor/vivari/packages/core/src/workers and the sibling crate
+      // pkg dirs. The kernel is vendored under vendor/vivari/ (see FACILIS.md there).
+      "@vivari/core": fileURLToPath(
+        new URL("../vendor/vivari/packages/core/src/index.ts", import.meta.url),
+      ),
     },
   },
   server: {
     headers: isolation,
-    // The kernel worker (in src/workers/) and its nested workers import from
-    // sibling packages (packages/kernel-host, packages/runtime, packages/vfs|codec|
-    // crypto/pkg). Let Vite's dev server read + bundle them from the monorepo root.
-    fs: { allow: [fileURLToPath(new URL("../../", import.meta.url))] },
+    // The kernel worker and its nested workers live in vendor/vivari/packages
+    // (kernel-host, runtime, vfs|codec|crypto/pkg). Let Vite's dev server read and
+    // bundle them from the repository root.
+    fs: { allow: [fileURLToPath(new URL("../", import.meta.url))] },
   },
   preview: { headers: isolation },
   worker: { format: "es" },

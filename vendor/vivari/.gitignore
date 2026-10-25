@@ -1,0 +1,41 @@
+# Vendored from Vivari's root .gitignore at commit 1f00a48. The leading '/' patterns are
+# relative to this file, so they point at studio/... exactly as they did upstream.
+# Rust
+/packages/codec/target
+/packages/crypto/target
+/packages/vfs/target
+/packages/wasi-demo/target
+/target
+
+# Node
+node_modules
+
+# Built SDK packages (rebuild with `npm run build:sdk`)
+/packages/core/dist
+/packages/react/dist
+
+# Unified Cloudflare Pages output (rebuild with `npm run build:site`)
+/dist
+
+# Separate preview origin output — mode B (rebuild with `npm run build:preview`)
+/dist-preview
+
+# Wildcard preview Worker assets — mode C (rebuild with `npm run build:worker`)
+/worker/public
+/worker/.wrangler
+/worker/node_modules
+
+# Vendored real-npm delivery asset (rebuild with `npm run vendor:npm`)
+/packages/studio/public/vendor
+
+# Generated wasm packages (rebuild with `npm run build`)
+/packages/codec/pkg
+/packages/codec/pkg-node
+/packages/crypto/pkg
+/packages/crypto/pkg-node
+/packages/vfs/pkg
+/packages/vfs/pkg-node
+/packages/wasi-demo/pkg
+
+# OS
+.DS_Store

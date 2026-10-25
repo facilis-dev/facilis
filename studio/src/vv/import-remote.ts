@@ -9,8 +9,8 @@
 // So we fetch them directly from the main thread; the in-VM Fetcher Worker is
 // not involved.
 
-import { gunzip } from "../../../kernel-host/archive.js";
-import { parseTar, stripFirstSegment } from "../../../kernel-host/tar.js";
+import { gunzip } from "../../../vendor/vivari/packages/kernel-host/archive.js";
+import { parseTar, stripFirstSegment } from "../../../vendor/vivari/packages/kernel-host/tar.js";
 import type { FileTree, ImportTree } from "./controller";
 
 export type RemoteTree = ImportTree & { truncated?: boolean };

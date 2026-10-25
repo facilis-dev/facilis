@@ -21,7 +21,7 @@ import { DebugSession } from "./debug-session";
 import { ScmSession } from "./scm-session";
 import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
-import { stateLabel } from "../../../runtime/builtins/python-lsp.js";
+import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
 import { loadTemplates } from "./templates-lazy";
@@ -30,7 +30,7 @@ import {
   advance, fallBackToInstall, formatProgress, isInstallFallbackLine, isRestoreLine, readFetchProgress,
   warmRegistryConnection, type RunPhase,
 } from "./run-phase";
-import { createZip, encodeShare, decodeShare } from "../../../kernel-host/archive.js";
+import { createZip, encodeShare, decodeShare } from "../../../vendor/vivari/packages/kernel-host/archive.js";
 import {
   parseGithubSpec, fetchGithubRepo, parseNpmSpec, fetchNpmPackage, type ProgressFn,
 } from "./import-remote";

@@ -19,9 +19,11 @@ const IGNORED_SEGMENTS = new Set([
   ".turbo",
   ".git",
   "generated",
-  // studio/ is the vendored Vivari fork: upstream-owned code, kept as-is so
-  // upstream syncs stay trivial. Facilis code lives outside it.
+  // studio/ (the Studio app fork) and vendor/ (the pinned Vivari kernel) are
+  // upstream-owned code, kept as-is so upstream syncs stay trivial. Facilis code
+  // lives outside them.
   "studio",
+  "vendor",
   ".worktrees",
 ]);
 

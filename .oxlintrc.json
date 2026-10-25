@@ -17,6 +17,7 @@
     "**/coverage/**",
     "**/.turbo/**",
     "studio/**/*",
+    "vendor/**/*",
     ".worktrees/**"
   ],
   "overrides": [

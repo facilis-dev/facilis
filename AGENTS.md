@@ -18,7 +18,8 @@ Repository layout (see spec §4):
 
 ```
 packages/    @facilis/core, db, auth, blocks, ai, nitro
-studio/      Facilis Studio (fork of Vivari Studio)         [Phase 0+]
+studio/      Facilis Studio app (MIT fork of Vivari Studio)  [Phase 0+]
+vendor/vivari/  pinned upstream Vivari kernel sources (MIT)  [never shipped, never edited]
 starter/     template cloned by users                        [Phase 1+]
 examples/    example generated apps
 spikes/      throwaway Phase 0 feasibility spikes (never shipped)

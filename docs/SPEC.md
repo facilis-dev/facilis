@@ -289,12 +289,18 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       │           └── config.ts
 │       └── package.json
 │
-├── studio/                   Forked Vivari Studio → Facilis Studio
+├── studio/                   Facilis Studio app (fork of Vivari's packages/studio)
 │   ├── src/
 │   │   ├── components/       (existing + new panels)
 │   │   ├── vv/               (IdeController — extend)
 │   │   └── ...
 │   └── vite.config.ts        (COOP/COEP headers)
+│
+├── vendor/
+│   └── vivari/               Pinned upstream Vivari sources, MIT (never shipped)
+│       ├── packages/         core, kernel-host, runtime, protocol, vfs, codec, crypto, …
+│       ├── scripts/          in-browser npm/pnpm vendoring harnesses
+│       └── FACILIS.md        provenance, patch set and upstream sync procedure
 │
 ├── starter/                  Template repo users clone
 │   ├── server/               (Nitro server dir)

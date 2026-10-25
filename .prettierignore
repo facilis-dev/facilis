@@ -21,4 +21,5 @@ LICENSE
 # spikes are throwaway feasibility probes; studio/starter/examples land later.
 spikes/
 studio/
+vendor/
 starter/

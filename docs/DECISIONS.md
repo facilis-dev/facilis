@@ -116,7 +116,7 @@ package:
 corrected in the Phase 1 docs pass. No behaviour change to the design.
 
 ### D-011 — Vivari Studio is a vendored fork in `studio/`
-**Status:** accepted (2026-10-25)
+**Status:** accepted (2026-10-25); the layout inside it was refined by D-017
 
 `studio/` contains an import of `github.com/maitrungduc1410/vivari` (MIT) pinned to a single
 upstream commit, imported as one commit with provenance in `studio/FACILIS.md`. Upstream CI,
@@ -224,9 +224,49 @@ also sets `types: ["node"]` (source-exporting packages are typechecked by their 
 the lib/types surface must be uniform).
 
 `examples/*` is a pnpm-workspace glob so the acceptance app is linted, typechecked, tested and
-built by the same gates as the packages. `studio/` (the vendored Vivari fork) is explicitly
-excluded from the workspace, the file-length check, oxlint and Prettier: it is upstream-owned
-code with its own toolchain.
+built by the same gates as the packages. `studio/` (the app fork) and `vendor/vivari/` (the
+pinned kernel) are explicitly excluded from the workspace, the file-length check, oxlint and
+Prettier: they are upstream-owned code with their own toolchain (D-017).
+
+### D-017 — Project site and canonical domain: facilis.dev
+**Status:** accepted (2026-10-25)
+
+`facilis.dev` is registered and becomes the canonical project home — the site, the docs at
+`/docs`, and the identity used in public naming. `.dev` is the right signal for a developer tool,
+and the domain is short enough to say out loud.
+
+**Context:** "Facilis" collides with three existing products (facilis.com media storage,
+facilis.ai agentic manufacturing, Facilisgroup), so the wordmark alone is not searchable.
+
+**Consequences:** every page title carries a descriptor ("Facilis — …"); `www` 301s to the apex;
+docs stay on the apex path until they outgrow it; GitHub org, npm scope `@facilis` (O-006),
+social handles and `hello@facilis.dev` must be claimed early. Site strategy — including the
+two-pillar message architecture — lives in [`docs/WEBSITE.md`](./WEBSITE.md) (W-1, W-9).
+
+### D-017 — The Studio app and the vendored Vivari kernel are separate trees
+**Status:** accepted (2026-10-25), supersedes the layout part of D-011
+
+Vendoring the whole Vivari monorepo as `studio/` made the repository contain a second npm
+workspace root: `studio/packages/studio` was the app, `studio/packages/*` was the kernel, and
+`studio/{scripts,worker,examples,package-lock}` belonged to neither. Ambiguous ownership is a
+real maintenance cost (which `package.json`/workspace/ignore applies where?), so the tree was
+partitioned by *role*:
+
+| Path | Contents | Owned by |
+|---|---|---|
+| `studio/` | upstream `packages/studio` only — the app we fork | Facilis (patch set documented) |
+| `vendor/vivari/` | pinned upstream kernel: `packages/{core,kernel-host,runtime,protocol,vfs,codec,crypto,react,wasi-demo}`, `scripts/`, `worker/`, `examples/basic`, upstream root/legal files | upstream (read-only) |
+
+No file is duplicated: each upstream file appears once, just partitioned. The app needs a small
+patch set to see the kernel at its new path — the `@vivari/core` alias in `vite.config.ts` and
+`tsconfig.app.json`, `fs.allow` widened to the repo root, and five deep imports in `studio/src/vv`
+— documented in `studio/README.md` and `vendor/vivari/FACILIS.md` §5, which is also the recipe for
+upstream syncs. This matches SPEC §4.1, which always described `studio/` as the app.
+
+**Consequences:** `pnpm-workspace.yaml` stays `packages/*` + `examples/*`; `studio/` and
+`vendor/` are excluded from lint/format/file-length/typecheck; the Studio installs separately
+(`pnpm install --ignore-workspace`). Upstream sync = copy paths back into place, re-apply the
+documented patch set, re-run the checks.
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)

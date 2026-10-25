@@ -138,7 +138,8 @@ What exists today, runnable in this repo:
 | Piece | Where | Evidence |
 |---|---|---|
 | Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
-| Studio fork (Vivari, MIT, pinned commit) | `studio/` | vendored + provenance/sync notes in [`studio/FACILIS.md`](studio/FACILIS.md) |
+| Studio app (Vivari fork, MIT, pinned commit) | `studio/` | provenance/sync notes in [`vendor/vivari/FACILIS.md`](vendor/vivari/FACILIS.md) |
+| Vivari kernel sources (pinned, vendored) | `vendor/vivari/` | upstream tree, excluded from all gates |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 
 The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
