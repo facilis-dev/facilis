@@ -289,7 +289,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       │           └── config.ts
 │       └── package.json
 │
-├── studio/                   Facilis Studio app (fork of Vivari's packages/studio)
+├── ide/                      Facilis IDE app (fork of Vivari's packages/studio)
 │   ├── src/
 │   │   ├── components/       (existing + new panels)
 │   │   ├── vv/               (IdeController — extend)
@@ -297,10 +297,10 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   └── vite.config.ts        (COOP/COEP headers)
 │
 ├── vendor/
-│   └── vivari/               Pinned upstream Vivari sources, MIT (never shipped)
+│   └── vivari/               Vivari upstream — git SUBMODULE, pinned tag (MIT, never edited)
 │       ├── packages/         core, kernel-host, runtime, protocol, vfs, codec, crypto, …
 │       ├── scripts/          in-browser npm/pnpm vendoring harnesses
-│       └── FACILIS.md        provenance, patch set and upstream sync procedure
+│       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
 │
 ├── starter/                  Template repo users clone
 │   ├── server/               (Nitro server dir)
@@ -1344,7 +1344,11 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 
 ---
 
-## 10. Studio (Vivari Fork)
+## 10. IDE (fork of Vivari Studio)
+
+Folder: `ide/`. Starts as the full upstream `packages/studio` at the pinned Vivari tag, then
+follows this repository's toolchain (D-019). The kernel it runs on is the `vendor/vivari`
+submodule (D-018).
 
 ### 10.1 What We Inherit
 

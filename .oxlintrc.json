@@ -8,7 +8,7 @@
   "rules": {
     "no-console": "warn",
     "no-var": "error",
-    "eqeqeq": "error",
+    "eqeqeq": ["error", "smart"],
     "prefer-const": "error"
   },
   "ignorePatterns": [
@@ -16,7 +16,6 @@
     "**/dist/**",
     "**/coverage/**",
     "**/.turbo/**",
-    "studio/**/*",
     "vendor/**/*",
     ".worktrees/**"
   ],

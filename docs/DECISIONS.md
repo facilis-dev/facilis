@@ -243,30 +243,58 @@ docs stay on the apex path until they outgrow it; GitHub org, npm scope `@facili
 social handles and `hello@facilis.dev` must be claimed early. Site strategy — including the
 two-pillar message architecture — lives in [`docs/WEBSITE.md`](./WEBSITE.md) (W-1, W-9).
 
-### D-017 — The Studio app and the vendored Vivari kernel are separate trees
-**Status:** accepted (2026-10-25), supersedes the layout part of D-011
+### D-017 — The IDE app and the upstream Vivari sources are separate trees
+**Status:** superseded by D-018 and D-019
 
-Vendoring the whole Vivari monorepo as `studio/` made the repository contain a second npm
-workspace root: `studio/packages/studio` was the app, `studio/packages/*` was the kernel, and
-`studio/{scripts,worker,examples,package-lock}` belonged to neither. Ambiguous ownership is a
-real maintenance cost (which `package.json`/workspace/ignore applies where?), so the tree was
-partitioned by *role*:
+Vendoring Vivari as one tree under `studio/` left a second npm workspace root inside the repo
+(`studio/packages/studio` = app, `studio/packages/*` = kernel, `studio/{scripts,worker,examples}`
+in neither), so the tree was partitioned by role. D-018 then made the upstream half a real
+git clone (submodule) instead of a copied tree, and renamed the app folder to `ide/`; D-019
+brought that app under the repository's own toolchain. The split itself stands: one upstream
+tree, one app tree, no duplicated files.
 
-| Path | Contents | Owned by |
-|---|---|---|
-| `studio/` | upstream `packages/studio` only — the app we fork | Facilis (patch set documented) |
-| `vendor/vivari/` | pinned upstream kernel: `packages/{core,kernel-host,runtime,protocol,vfs,codec,crypto,react,wasi-demo}`, `scripts/`, `worker/`, `examples/basic`, upstream root/legal files | upstream (read-only) |
+### D-018 — Upstream Vivari is a git submodule; the app folder is `ide/`
+**Status:** accepted (2026-10-25)
 
-No file is duplicated: each upstream file appears once, just partitioned. The app needs a small
-patch set to see the kernel at its new path — the `@vivari/core` alias in `vite.config.ts` and
-`tsconfig.app.json`, `fs.allow` widened to the repo root, and five deep imports in `studio/src/vv`
-— documented in `studio/README.md` and `vendor/vivari/FACILIS.md` §5, which is also the recipe for
-upstream syncs. This matches SPEC §4.1, which always described `studio/` as the app.
+A copied tree is bad at the one operation that matters: staying aligned. `vendor/vivari` is now
+a **git submodule** of `github.com/maitrungduc1410/vivari` (MIT), pinned in `.gitmodules` +
+gitlink at `1f00a48…` (tag `v1.1.2`), with `.gitmodules` `branch = master`. Updating upstream
+is therefore one command (`git submodule update --remote vendor/vivari`), `git status` shows a
+single changed pointer, and nothing upstream is copied into our history.
 
-**Consequences:** `pnpm-workspace.yaml` stays `packages/*` + `examples/*`; `studio/` and
-`vendor/` are excluded from lint/format/file-length/typecheck; the Studio installs separately
-(`pnpm install --ignore-workspace`). Upstream sync = copy paths back into place, re-apply the
-documented patch set, re-run the checks.
+The app folder is renamed `studio/` -> `ide/`: it is the Facilis IDE (the product is the IDE;
+"Studio" was the upstream/vendor name), it starts as the full upstream `packages/studio` at the
+pinned tag, and from there it is a fork that follows our conventions (D-019). The kernel is
+consumed from the submodule by source: `@vivari/core` alias, `fs.allow` widened to the repo
+root, and five deep imports — the complete patch set is in `ide/README.md` and
+`vendor/README.md`.
+
+**Consequences:** a fresh checkout needs `git submodule update --init vendor/vivari` before the
+IDE typechecks (CI checks out submodules recursively); `vendor/` stays out of the pnpm
+workspace and out of every gate; `ide/` **is** a workspace member (D-019).
+
+### D-019 — The IDE follows the repository toolchain, not upstream's
+**Status:** accepted (2026-10-25)
+
+`ide/` is a pnpm-workspace member and is held to AGENTS.md like the framework packages:
+**TypeScript strict** (`tsc --strict` and the pinned TypeScript 7: 0 errors on 756 files), the
+root **oxlint** config (the upstream per-app `.oxlintrc.json` was removed; its 89 rule errors
+were fixed — mostly `eqeqeq`, with the repo rule refined to `"smart"` so `== null` stays
+idiomatic), repo **Prettier** (print width 100; the tree was formatted once when the fork
+started, a mechanical no-behaviour-change commit), and **vitest** (`src/vv/run-phase.test.ts`,
+the pure phase machine). Scripts: `build` = `tsc -b` (passes everywhere), `build:app` = the
+full `vite build` which stays blocked on the missing Rust->Wasm `pkg/` outputs.
+
+The 300-line limit is a hard rule for new code. Fourteen inherited files are above it
+(`templates.ts` 11.4k lines of template payloads, `controller.ts` 4.3k, ten components,
+`vite.config.ts`); they are recorded in `scripts/file-length-baseline.json` and
+`scripts/check-file-length.mjs` enforces a **ratchet**: listed files may shrink but not grow,
+entries must be deleted when a file drops under the limit, and nothing new can be added.
+Splitting them (starting with `controller.ts`) is Phase 2 refactor work.
+
+**Consequences:** `pnpm lint/typecheck/test/build/format:check` cover the IDE (217 files linted,
+12 typecheck tasks, 222 tests, 8 build tasks); CI checks out submodules; `ide/README.md` carries
+the complete delta vs upstream so an upstream bump stays a mechanical diff.
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)

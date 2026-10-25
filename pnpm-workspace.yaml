@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "examples/*"
+  - "ide"
 
 catalog:
   "@types/node": 22.20.5

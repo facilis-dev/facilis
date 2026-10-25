@@ -17,7 +17,7 @@ import cycles or API drift.
 | Core contract | `packages/core/**` | core-impl |
 | Data + auth | `packages/db/**`, `packages/auth/**` | data-auth |
 | Framework runtime | `packages/nitro/**` | nitro-impl |
-| Studio fork | `studio/**` | studio-forker |
+| IDE fork | `ide/**` (was `studio/` during the import) | studio-forker |
 | Integration app, docs, root configs, git, PRs | everything else | Lead |
 
 ## 2. Ground rules

@@ -1,0 +1,4294 @@
+// IDE controller — the imperative core, ported from the original raw-ESM demo UI (host.js).
+//
+// React owns the *chrome* (declarative: title bar, activity bar, explorer, tabs,
+// status bar, command palette) and subscribes to an immutable snapshot exposed
+// here via useSyncExternalStore. This controller owns the *imperative* pieces
+// that don't belong in React's render cycle: the kernel worker bridge, the Monaco
+// editor + its models, the xterm terminals (Console + interactive shells), the
+// project "Run" lifecycle, and the preview wiring. Components hand it DOM mount
+// points (editor host, terminal containers, preview iframe) and call its methods.
+//
+// Since the multi-root rewrite, the workspace is a set of folders (roots), the
+// Explorer reads the VFS live, and every open file / tab / model is keyed by its
+// ABSOLUTE path so files from different roots never collide.
+
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { toast } from "sonner";
+import type * as Monaco from "monaco-editor";
+import { KernelBridge, resetVfs } from "./kernel";
+import { DebugSession } from "./debug-session";
+import { ScmSession } from "./scm-session";
+import { EditorStatus } from "./editor-status";
+import { loadWordWrap, saveWordWrap } from "./editor-prefs";
+import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
+import { StatusMessage } from "./status-message";
+import type { TemplateManifest } from "./templates";
+import { loadTemplates } from "./templates-lazy";
+import { markBoot } from "./boot-marks";
+import {
+  advance,
+  fallBackToInstall,
+  formatProgress,
+  isInstallFallbackLine,
+  isRestoreLine,
+  readFetchProgress,
+  warmRegistryConnection,
+  type RunPhase,
+} from "./run-phase";
+import {
+  createZip,
+  encodeShare,
+  decodeShare,
+} from "../../../vendor/vivari/packages/kernel-host/archive.js";
+import {
+  parseGithubSpec,
+  fetchGithubRepo,
+  parseNpmSpec,
+  fetchNpmPackage,
+  type ProgressFn,
+} from "./import-remote";
+import { NotebookDoc } from "./notebook/doc.js";
+import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
+import { NotebookSession } from "./notebook/session.js";
+import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
+
+/** How an open tab renders. Named rather than spelled out at each use: it was
+ *  written twice, and adding `notebook` to one of them type-checked everywhere
+ *  except the assignment between them. */
+export type TabKind = "text" | "image" | "directory" | "diff" | "notebook";
+
+/** One open `.ipynb`: its document, the interpreter running it, and the actions
+ *  the view drives. Handed out by `IdeController.notebook(abs)`. */
+export interface NotebookHandle {
+  readonly abs: string;
+  readonly doc: NotebookDoc;
+  readonly session: NotebookSession;
+  readonly kernel: NotebookKernel;
+  /** The cells' Monaco editors and models. Null until the first cell asks for
+   *  one, because Monaco is imported on demand. Owned by the HANDLE and not by
+   *  the effect that asked — see notebook/cell-editors.js for what went wrong
+   *  when it was the other way round. */
+  editors: CellEditors | null;
+  dispose(): void;
+  run(cellId: string): void;
+  runSelected(): void;
+  runAll(): void;
+  interrupt(): void;
+  restart(): void;
+  /** Move to the cell below after a Shift-Enter, appending one if there is none. */
+  focusAfter(cellId: string): void;
+  /**
+   * Build the editor for one cell. Resolves null — never rejects — when there is
+   * no editor to show: either the cell was deleted while Monaco loaded, or the
+   * build failed, in which case it has already been reported (status bar +
+   * console) rather than dropped. Both cases leave an empty box on screen, and
+   * an empty box that says nothing anywhere is how the first version of this
+   * feature looked merely "dead".
+   */
+  createCellEditor(
+    el: HTMLElement,
+    cellId: string,
+    language: "python" | "markdown",
+  ): Promise<CellEditorSlot | null>;
+}
+
+// The optional network relay is opted into per page load with `?net=ws://…`
+// (BootOptions.netRelay). Only a ws:/wss: URL on a LOOPBACK host counts: the
+// studio is public, and a relay carries every outbound TCP byte and every inbound
+// connection of the VM, so a crafted link naming someone else's relay must not
+// be able to route a visitor's VM through it. Anything else is ignored.
+function readNetRelayParam(): string | undefined {
+  if (typeof location === "undefined") return undefined;
+  const raw = new URLSearchParams(location.search).get("net");
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "ws:" && u.protocol !== "wss:") return undefined;
+    const host = u.hostname;
+    const loopback =
+      host === "localhost" || host === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+    return loopback ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Validate + normalize the build-time VITE_PREVIEW_ORIGIN (mode B). Returns the
+// bare origin (scheme+host+port) of a same-scheme, cross-origin absolute URL, or
+// undefined for anything falsy / malformed / same-origin (→ mode A, the default).
+function normalizePreviewOrigin(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const origin = new URL(raw).origin;
+    if (typeof location !== "undefined" && origin === location.origin) return undefined;
+    return origin;
+  } catch {
+    return undefined;
+  }
+}
+
+// Build-time pop-out behavior (VITE_PREVIEW_POPOUT). Anything other than the
+// explicit "isolated" opt-in falls back to the frictionless same-origin default.
+function normalizePreviewPopout(raw: string | undefined): "same-origin" | "isolated" {
+  return raw === "isolated" ? "isolated" : "same-origin";
+}
+
+// Build-time wildcard base domain (VITE_PREVIEW_WILDCARD_DOMAIN, mode C). Returns
+// a bare base domain (e.g. "vivari.run") or undefined. When set, previews are
+// served one origin per port (`<token>--<port>.<domain>`); takes precedence
+// over VITE_PREVIEW_ORIGIN. Unset in the default deploy + local dev (→ mode A/B).
+function normalizePreviewWildcardDomain(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  let d = raw.trim().toLowerCase();
+  try {
+    if (d.includes("://")) d = new URL(d).hostname;
+  } catch {
+    /* fall through */
+  }
+  d = d.replace(/^\/+|\/+$/g, "").replace(/\/.*$/, "");
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : undefined;
+}
+
+// Rewrite a keep-prefix template's framework **base** config (`base` / `basename`
+// / `baseUrl` / `rootURL` set to `"/preview/<port>/"`) to the origin root `"/"`.
+// Keep-prefix templates (Docusaurus, VitePress, Rspress, Starlight, React Router 7,
+// TanStack Router, Ember) hardcode that base for the path-multiplexed modes A/B; in
+// mode C each port is its OWN origin served at `/`, so the hardcoded base would 404.
+// We touch ONLY those config keys, so legitimate cross-service URLs in app code (e.g.
+// `'/preview/' + PORT + '/api'`, which still route via the SW/shim in mode C) are
+// left intact. `rootURL` is Ember's spelling of the same setting, and it has to be
+// listed for the same reason as the others: the template sets Vite `base` AND the
+// router's rootURL, and rewriting only the first leaves the router looking for a
+// prefix the server no longer serves. It also brings `=` into the separator, because
+// Ember writes it as a class field (`rootURL = '/preview/4200/'`) rather than an
+// object key — still only ever matched against a literal `/preview/<port>/` value.
+function rewritePreviewBaseToRoot(files: Record<string, string>): Record<string, string> {
+  const re = /((?:base|basename|baseUrl|rootURL)\s*[:=]\s*)(['"`])\/preview\/\d+\/\2/g;
+  const out: Record<string, string> = {};
+  for (const [path, content] of Object.entries(files)) {
+    out[path] = content.replace(re, (_m, key: string, q: string) => `${key}${q}/${q}`);
+  }
+  return out;
+}
+
+// ── Demo matrix (UI side) ────────────────────────────────────────────────────
+// The two hard-coded example projects the kernel worker still scaffolds on demand
+// (the "Run" button's legacy path). New projects come from Home (blank/template).
+export interface DemoOption {
+  id: string;
+  title: string;
+  runLabel: string;
+}
+export const DEMOS: DemoOption[] = [
+  { id: "react", title: "React + Vite + React Compiler", runLabel: "npm run dev" },
+  { id: "nest", title: "NestJS", runLabel: "npm run start:dev" },
+];
+
+export interface TerminalMeta {
+  id: string;
+  label: string;
+  kind: "console" | "shell";
+  alive: boolean;
+}
+
+export interface PortInfo {
+  port: number;
+  pid: number;
+}
+
+export interface Clipboard {
+  mode: "copy" | "cut";
+  paths: string[]; // absolute paths of the copied/cut entries (multi-select)
+}
+
+// A root folder open in the workspace (VSCode-style multi-root).
+export interface WorkspaceFolder {
+  id: string;
+  name: string;
+  rootPath: string; // absolute, no trailing slash
+}
+
+// A persisted project (Home "recent projects" list). Content lives in the VFS
+// (OPFS); this registry just tracks what exists + when it was last touched.
+export interface ProjectMeta {
+  name: string;
+  rootPath: string;
+  template: string | null;
+  createdAt: number;
+  lastModified: number;
+}
+
+// One browser tab in the Preview panel.
+export interface PreviewTab {
+  id: string;
+  url: string; // editable address-bar text (what the user sees / types)
+  port: number | null; // the in-VM dev-server port this tab mirrors (null = empty tab)
+  path: string; // the request path within the dev server (starts with "/")
+  nonce: number; // per-tab reload counter (bump to force the iframe to reload)
+  title?: string; // the running app's real document.title (reported by the preview)
+}
+
+// ── Full-text search (VS Code-style) ─────────────────────────────────────────
+export interface SearchOptions {
+  query: string;
+  matchCase: boolean;
+  wholeWord: boolean;
+  regex: boolean;
+  includeGlob: string;
+  excludeGlob: string;
+}
+export interface SearchMatch {
+  line: number; // 1-based
+  column: number; // 1-based
+  length: number;
+  preview: string; // the full (capped) source line, for highlighting
+}
+export interface SearchFileResult {
+  file: string; // absolute path
+  root: string; // the workspace root it was found under
+  matches: SearchMatch[];
+}
+export interface SearchDone {
+  matchCount: number;
+  fileCount: number;
+  limitHit: boolean;
+  error?: string;
+}
+
+export interface IdeSnapshot {
+  booted: boolean;
+  kernelReady: boolean; // kernel + VFS up (can create/open projects) — earlier than `booted`
+  // Cold-boot progress shown on Home until `kernelReady`. `bootPhase` is one of
+  // "init" | "restore" | "finalize" (""=not started); during "restore",
+  // bootDone/bootTotal drive a determinate progress bar (OPFS re-hydration).
+  bootPhase: string;
+  bootDone: number;
+  bootTotal: number;
+  // The runtime died on the way up, and is not coming back on its own. Set from
+  // the kernel's own fatal `error` and from the bridge's worker-error channel
+  // (a kernel worker that never evaluated its module graph). Null in the normal
+  // case; when it isn't, Home says so instead of spinning on a progress bar that
+  // will never finish — the studio used to have no listener on either channel,
+  // so a dead runtime and a slow one looked identical forever.
+  bootError: string | null;
+  // The project currently installing/starting, if any — what the preview shell
+  // and the status bar narrate while there is nothing to preview yet. Null once
+  // the preview paints (or the run tab exits).
+  runPhase: RunPhase | null;
+  view: "home" | "workspace";
+  // A shared link (#share=) is bootstrapping: show a full-screen blocking overlay.
+  shareLoading: boolean;
+  shareMessage: string;
+  // The "Import from GitHub or npm" dialog is open.
+  importRemoteOpen: boolean;
+  projectTitle: string | null;
+  workspaceFolders: WorkspaceFolder[];
+  activeFolderId: string | null;
+  recentProjects: ProjectMeta[];
+  treeVersion: number; // bump to make the Explorer re-read expanded dirs
+  files: string[]; // absolute paths (flat index for quick-open + search)
+  openTabs: string[]; // absolute paths
+  activeTab: string | null;
+  tabKinds: Record<string, TabKind>; // how each open tab renders
+  previewTab: string | null; // the single "preview" (italic, single-click) tab
+  dirty: string[]; // absolute paths with unsaved edits
+  terminals: TerminalMeta[];
+  activeTermId: string | null;
+  ports: PortInfo[];
+  previewTabs: PreviewTab[];
+  activePreviewId: string | null;
+  devtoolsOpen: boolean; // the chii DevTools panel (bottom split of the preview)
+  devtoolsNonce: number; // bump to reload the DevTools frontend (re-attach to a new target)
+  selectedDemo: string;
+  activeView: "explorer" | "search" | "debug" | "scm";
+  sidebarCollapsed: boolean;
+  panelCollapsed: boolean;
+  previewCollapsed: boolean;
+  // Soft-wrap long lines in the text editor AND the diff editor. Persisted, since a
+  // reload that silently forgot it would read as the toggle not having worked.
+  wordWrap: boolean;
+  panelTab: "console" | "terminal" | "ports";
+  clipboard: Clipboard | null;
+  paletteOpen: boolean;
+  paletteMode: "command" | "file";
+  problems: { errors: number; warnings: number }; // live TS/JS diagnostics (status bar)
+  memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
+}
+
+// A snapshot of the tab's memory, produced by measureMemory(). `total` is the
+// whole-page estimate (performance.measureUserAgentSpecificMemory, which covers
+// dedicated workers); `vfsBytes`/`vfsFiles` are the VFS's in-RAM content size
+// reported by the File System Worker. `measuring` gates the StatusBar spinner.
+export interface MemInfo {
+  total: number | null;
+  vfsBytes: number;
+  vfsFiles: number;
+  // Uncompressed VFS footprint; equals vfsBytes when compression is off. When
+  // compression is on, vfsBytes/vfsLogicalBytes is the realized ratio.
+  vfsLogicalBytes: number;
+  ts: number;
+}
+
+// Per-Process-Worker memory row for the "Measure Memory" breakdown. `heap` is the
+// worker's own JS heap (performance.memory, Chrome-only; -1 if unavailable),
+// `modules` the guest module-cache entry count, `esbuildInproc` whether it hosts
+// the resident esbuild Go wasm service.
+export interface ProcMem {
+  pid: number;
+  name: string;
+  heap: number;
+  modules: number;
+  esbuildInproc: boolean;
+  // Bytes of the in-process esbuild Go wasm heap (0 if not hosted in this PID).
+  esbuildBytes: number;
+}
+
+// Render the esbuild-wasm annotation for a per-PID memory row: the resident Go
+// heap size when known (grows-and-stays for the worker's life), else just a flag.
+function esbuildLabel(p: ProcMem): string {
+  if (!p.esbuildInproc) return "";
+  const bytes = Number(p.esbuildBytes);
+  return bytes > 0 ? `, esbuild-wasm ${fmtBytes(bytes)}` : ", esbuild-wasm";
+}
+
+const TERM_THEME_DARK = {
+  background: "#181818",
+  foreground: "#cccccc",
+  cursor: "#aeafad",
+  selectionBackground: "#264f78",
+  black: "#000000",
+  red: "#cd3131",
+  green: "#0dbc79",
+  yellow: "#e5e510",
+  blue: "#2472c8",
+  magenta: "#bc3fbc",
+  cyan: "#11a8cd",
+  white: "#e5e5e5",
+  brightBlack: "#666666",
+  brightRed: "#f14c4c",
+  brightGreen: "#23d18b",
+  brightYellow: "#f5f543",
+  brightBlue: "#3b8eea",
+  brightMagenta: "#d670d6",
+  brightCyan: "#29b8db",
+  brightWhite: "#ffffff",
+};
+
+// Light terminal palette mirrors VS Code's default light theme so the terminal
+// stays legible when the UI switches to light mode.
+const TERM_THEME_LIGHT = {
+  background: "#ffffff",
+  foreground: "#3b3b3b",
+  cursor: "#3b3b3b",
+  selectionBackground: "#add6ff",
+  black: "#000000",
+  red: "#cd3131",
+  green: "#00bc00",
+  yellow: "#949800",
+  blue: "#0451a5",
+  magenta: "#bc05bc",
+  cyan: "#0598bc",
+  white: "#555555",
+  brightBlack: "#666666",
+  brightRed: "#cd3131",
+  brightGreen: "#14ce14",
+  brightYellow: "#b5ba00",
+  brightBlue: "#0451a5",
+  brightMagenta: "#bc05bc",
+  brightCyan: "#0598bc",
+  brightWhite: "#a5a5a5",
+};
+
+type UiTheme = "light" | "dark";
+const termThemeFor = (t: UiTheme) => (t === "light" ? TERM_THEME_LIGHT : TERM_THEME_DARK);
+const monacoThemeFor = (t: UiTheme) => (t === "light" ? "vs" : "vs-dark");
+
+/**
+ * The one node every Monaco editor here reparents its overflowing widgets into
+ * — hover, suggest, signature help, the context menu.
+ *
+ * Monaco already lifts those out of the editor's scrolling box into an
+ * `.overflowingContentWidgets` div, which is why a hover can extend past the
+ * gutter. What it cannot do on its own is lift them out of the PAGE: that div
+ * stays inside the editor's DOM, and the editor pane is an EARLIER sibling of
+ * the preview pane, whose iframe is positioned and so paints over anything
+ * reaching in from an earlier sibling. A hover on a long line was cut off at
+ * that seam.
+ *
+ * Reparenting is the part that fixes it (view.js moves both overflow containers
+ * into the supplied node), because this node is a later sibling of the whole app.
+ * `fixedOverflowWidgets` alone does NOT — measured against 0.55.1 in a browser,
+ * not assumed: it changes where a widget is laid out, not what paints over it,
+ * and the rendering was pixel-identical to the bug. It is still set, because it
+ * is the mode an external host implies: Monaco then lays widgets out in page
+ * coordinates clamped to the window rather than against the editor. With this
+ * node pinned at the viewport origin the two placements coincide for a hover
+ * that is already on screen (also measured), so the flag is about behaviour at
+ * the window edges, not about the fix.
+ *
+ * Two properties of this node are load-bearing:
+ * - `monaco-editor` is not decoration. The standalone theme service emits every
+ *   `--vscode-*` colour as a rule on `.monaco-editor, .monaco-diff-editor,
+ *   .monaco-component`, so a widget that lives outside one of those renders with
+ *   no background at all, over whatever it happens to cover. Verified by reading
+ *   `--vscode-editorHoverWidget-background` back off this node.
+ * - No z-index, deliberately. At `auto` it already beats the panes, which are
+ *   also `auto`, while still losing to the app's real overlays (HomeView's z-40,
+ *   the share overlay's z-50) — a modal should cover a tooltip, not the reverse.
+ */
+let overflowWidgetsHost: HTMLElement | null = null;
+function overflowWidgetsNode(): HTMLElement {
+  if (overflowWidgetsHost?.isConnected) return overflowWidgetsHost;
+  const node = document.createElement("div");
+  node.className = "vv-overflow-widgets monaco-editor";
+  document.body.appendChild(node);
+  overflowWidgetsHost = node;
+  return node;
+}
+
+// A diff tab is a synthetic open-tab id: `vv-diff:<abs>`. It reuses the tab strip
+// (kind "diff") but must never be treated as a real file path (no read/save). The
+// filename still renders because baseName() splits on "/".
+const DIFF_PREFIX = "vv-diff:";
+export const diffTabId = (abs: string): string => DIFF_PREFIX + abs;
+export const isDiffTabId = (id: string | null): boolean => !!id && id.startsWith(DIFF_PREFIX);
+export const diffTargetOf = (id: string): string => id.slice(DIFF_PREFIX.length);
+
+const ESC = "\x1b[";
+const REGISTRY_KEY = "vv-workspace-projects";
+
+const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
+const parentOf = (p: string) => p.slice(0, p.lastIndexOf("/")) || "/";
+
+// Drag-and-drop wire format: an internal Explorer drag carries the source's
+// absolute path under this MIME type; an OS drag carries File entries instead.
+export const VV_PATH_MIME = "application/x-vv-path";
+
+// A flat, path-keyed file tree used by import/export/share.
+export type FileTree = { path: string; bytes: Uint8Array }[];
+
+// The result of reading an OS folder/drop into a project tree: the files plus a
+// flag noting whether a (skipped) node_modules was present, so import can say so.
+export type ImportTree = { name: string; files: FileTree; excludedNodeModules: boolean };
+
+// Practical cap on a shareable-URL length; beyond this the link is unwieldy.
+const MAX_SHARE_URL_LEN = 1_800_000;
+
+// True when the current URL carries a #share= payload (opened a shared link).
+function hasSharePayload(): boolean {
+  return typeof location !== "undefined" && (location.hash || "").includes("#share=");
+}
+
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// Download an in-memory Blob to the user's disk (zip export).
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Never import these into a project — at ANY depth (monorepos have many nested
+// node_modules), since they're regenerated, huge, or VCS metadata.
+function skipImportPath(path: string): boolean {
+  return path.split("/").some((seg) => seg === "node_modules" || seg === ".git");
+}
+function hasNodeModules(path: string): boolean {
+  return path.split("/").some((seg) => seg === "node_modules");
+}
+
+// Read a <input type="file" webkitdirectory> selection into a flat file tree.
+// webkitRelativePath is "<pickedDir>/a/b.js"; strip the leading picked-dir
+// segment so the project root holds a/b.js directly. Returns a suggested name.
+export async function treeFromFileList(list: FileList): Promise<ImportTree> {
+  let top = "";
+  let excludedNodeModules = false;
+  const files: FileTree = [];
+  for (const file of Array.from(list)) {
+    const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    const parts = rel.split("/").filter(Boolean);
+    if (parts.length > 1 && !top) top = parts[0];
+    const path = parts.length > 1 && parts[0] === top ? parts.slice(1).join("/") : rel;
+    if (!path || skipImportPath(path)) {
+      if (path && hasNodeModules(path)) excludedNodeModules = true;
+      continue;
+    }
+    files.push({ path, bytes: new Uint8Array(await file.arrayBuffer()) });
+  }
+  return { name: top || "imported-project", files, excludedNodeModules };
+}
+
+// Read an OS drop (DataTransfer entries) into a flat file tree. A single dropped
+// folder becomes the project; loose files / multiple items land at the root.
+export async function treeFromDrop(entries: FileSystemEntry[]): Promise<ImportTree> {
+  const files: FileTree = [];
+  let excludedNodeModules = false;
+  const single = entries.length === 1 && entries[0].isDirectory ? entries[0] : null;
+  const roots = single ? await readDirEntries(single as FileSystemDirectoryEntry) : entries;
+  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
+    const path = prefix ? prefix + "/" + entry.name : entry.name;
+    if (skipImportPath(path)) {
+      if (hasNodeModules(path)) excludedNodeModules = true;
+      return;
+    }
+    if (entry.isFile) {
+      const file = await new Promise<File>((res, rej) =>
+        (entry as FileSystemFileEntry).file(res, rej),
+      );
+      files.push({ path, bytes: new Uint8Array(await file.arrayBuffer()) });
+    } else if (entry.isDirectory) {
+      const children = await readDirEntries(entry as FileSystemDirectoryEntry);
+      for (const c of children) await walk(c, path);
+    }
+  };
+  for (const r of roots) await walk(r, "");
+  return { name: single ? single.name : "imported-project", files, excludedNodeModules };
+}
+
+// Extract OS FileSystemEntry objects from a drop's DataTransfer. MUST be called
+// SYNCHRONOUSLY inside the drop handler — the DataTransferItemList (and thus
+// webkitGetAsEntry) is invalidated once the handler yields to an await.
+export function entriesFromDataTransfer(dt: DataTransfer): FileSystemEntry[] {
+  const out: FileSystemEntry[] = [];
+  const items = dt.items;
+  if (!items) return out;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.kind !== "file") continue;
+    const entry = (
+      it as DataTransferItem & { webkitGetAsEntry?: () => FileSystemEntry | null }
+    ).webkitGetAsEntry?.();
+    if (entry) out.push(entry);
+  }
+  return out;
+}
+
+// Read every child of a directory entry (createReader is paginated — keep
+// reading until a batch comes back empty).
+function readDirEntries(dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> {
+  const reader = dir.createReader();
+  const all: FileSystemEntry[] = [];
+  return new Promise((resolve, reject) => {
+    const readBatch = () =>
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(all);
+          return;
+        }
+        all.push(...batch);
+        readBatch();
+      }, reject);
+    readBatch();
+  });
+}
+// Human-readable byte size for the memory readout (MB/GB with one decimal).
+export const fmtBytes = (n: number): string => {
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+};
+const normDir = (p: string) => {
+  const n =
+    "/" +
+    p
+      .split("/")
+      .filter((s) => s && s !== ".")
+      .join("/");
+  return n === "/" ? "/" : n.replace(/\/+$/, "");
+};
+const folderIdFor = (rootPath: string) => "wf:" + rootPath;
+
+// Extensions we render in the image viewer instead of the text editor. SVG is
+// grouped here too (it's an image); flip it to text if you'd rather edit it.
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "avif", "svg"]);
+function isImagePath(path: string): boolean {
+  const dot = path.lastIndexOf(".");
+  return dot > 0 && IMAGE_EXTS.has(path.slice(dot + 1).toLowerCase());
+}
+/** Files that open as a notebook rather than as their JSON. */
+export function isNotebookPath(path: string): boolean {
+  return path.toLowerCase().endsWith(".ipynb");
+}
+// The MIME type for an image path, so the viewer's Blob renders correctly.
+function imageMime(path: string): string {
+  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  if (ext === "svg") return "image/svg+xml";
+  if (ext === "jpg") return "image/jpeg";
+  if (ext === "ico") return "image/x-icon";
+  return "image/" + ext;
+}
+
+function languageFor(path: string): string {
+  // JS files use the `typescript` language too (the TS worker handles JS via
+  // allowJs). This runs ONE language service instead of a second full ~310 MB
+  // `javascript` ts.worker fed the same dependency .d.ts payload. See
+  // configureLanguageService.
+  if (/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) return "typescript";
+  if (path.endsWith(".css")) return "css";
+  if (path.endsWith(".scss")) return "scss";
+  if (path.endsWith(".less")) return "less";
+  // .gjs/.gts (Ember) join .vue/.svelte here rather than in the `typescript` line
+  // above: they embed a `<template>` block the TS worker parses as a syntax error, so
+  // routing them to a Monarch-only language buys highlighting without red squiggles
+  // over the markup. `.gjs` is the Ember template's `entry`, so it opens immediately.
+  if (/\.(html?|vue|svelte|g[jt]s)$/.test(path)) return "html";
+  if (/\.json[5c]?$/.test(path)) return "json";
+  if (path.endsWith(".md")) return "markdown";
+  // Python: Monarch highlights on the main thread, and — unlike every language
+  // below it — a real language service, from jedi and black running on a
+  // long-lived Pyodide. Registered lazily, on the first Python model: see
+  // ensurePythonLanguage(). Everything after this line is Monarch only.
+  if (/\.pyi?$/.test(path)) return "python";
+  if (/\.ya?ml$/.test(path)) return "yaml";
+  if (/\.(sh|bash|zsh|ksh)$/.test(path)) return "shell";
+  if (path.endsWith(".sql")) return "sql";
+  if (/\.(xml|xsd|xsl|plist)$/.test(path)) return "xml";
+  if (/(^|\/)Dockerfile[^/]*$|\.dockerfile$/.test(path)) return "dockerfile";
+  if (path.endsWith(".go")) return "go";
+  if (path.endsWith(".rs")) return "rust";
+  if (path.endsWith(".java")) return "java";
+  if (path.endsWith(".php")) return "php";
+  if (path.endsWith(".rb")) return "ruby";
+  if (/\.(ini|toml|cfg|conf|properties)$/.test(path)) return "ini";
+  return "plaintext";
+}
+
+/** The language modes the "Select Language Mode" status-bar picker offers, in
+ * display order. Every id is a grammar Monaco already bundles, so listing one
+ * costs nothing beyond this entry — but the list is deliberately limited to what
+ * `languageFor` can auto-detect, so picking a mode and re-opening the file behave
+ * consistently. Anything unrecognised falls back to Plain Text.
+ *
+ * There is intentionally NO `javascript` entry: `languageFor` maps .js/.jsx/.mjs
+ * to `typescript` so the TS worker serves both (see the comment above), and
+ * selecting a real `javascript` mode would have Monaco spin up a SECOND full
+ * ~310 MB ts.worker for it. .js files therefore report "TypeScript". */
+export const LANGUAGE_MODES: { id: string; label: string }[] = [
+  { id: "typescript", label: "TypeScript" },
+  { id: "css", label: "CSS" },
+  { id: "scss", label: "SCSS" },
+  { id: "less", label: "Less" },
+  { id: "html", label: "HTML" },
+  { id: "json", label: "JSON" },
+  { id: "markdown", label: "Markdown" },
+  { id: "python", label: "Python" },
+  { id: "yaml", label: "YAML" },
+  { id: "shell", label: "Shell Script" },
+  { id: "sql", label: "SQL" },
+  { id: "xml", label: "XML" },
+  { id: "dockerfile", label: "Dockerfile" },
+  { id: "go", label: "Go" },
+  { id: "rust", label: "Rust" },
+  { id: "java", label: "Java" },
+  { id: "php", label: "PHP" },
+  { id: "ruby", label: "Ruby" },
+  { id: "ini", label: "Ini" },
+  { id: "plaintext", label: "Plain Text" },
+];
+
+/** Human label for a monaco language id (status-bar readout). */
+export function languageLabel(id: string | null): string {
+  if (!id) return "Plain Text";
+  return LANGUAGE_MODES.find((l) => l.id === id)?.label ?? id;
+}
+
+interface TermEntry {
+  term: Terminal;
+  fit: FitAddon;
+  kind: "console" | "shell";
+  label: string;
+  demo: string | null;
+  cwd: string | null;
+  run: string | null; // explicit VV_RUN (created/opened project run shells)
+  pid: number | null;
+  alive: boolean;
+  started: boolean;
+  opened: boolean;
+  openedAt: number;
+  pendingInput: string[];
+}
+
+export class IdeController {
+  readonly bridge: KernelBridge;
+  // Breakpoint debugger session (CDP client for Node guest targets). Drives the
+  // Monaco gutter breakpoints, paused-line highlight, and the Debug panel.
+  readonly debug: DebugSession;
+  // Source Control (git) session — local-only isomorphic-git over the VFS. Drives
+  // the Source Control panel + the diff tab.
+  readonly scm: ScmSession;
+  // Cursor / indentation / language readouts for the status bar. Its own store so
+  // per-keystroke cursor updates don't re-render every useIde() consumer.
+  readonly editorStatus = new EditorStatus();
+  // The status bar's transient message slot. Also its own store: `demo-status`
+  // pushes one message per line of dev-server output.
+  readonly statusMessage = new StatusMessage();
+
+  // ── external store ──
+  private listeners = new Set<() => void>();
+  private snap: IdeSnapshot = {
+    booted: false,
+    kernelReady: false,
+    bootPhase: "init",
+    bootDone: 0,
+    bootTotal: 0,
+    bootError: null,
+    runPhase: null,
+    // A shared link lands straight on the (loading) workspace, never Home — so the
+    // user can't accidentally start a new project while it bootstraps.
+    view: hasSharePayload() ? "workspace" : "home",
+    shareLoading: hasSharePayload(),
+    shareMessage: "Booting the runtime…",
+    importRemoteOpen: false,
+    projectTitle: null,
+    workspaceFolders: [],
+    activeFolderId: null,
+    recentProjects: [],
+    treeVersion: 0,
+    files: [],
+    openTabs: [],
+    activeTab: null,
+    tabKinds: {},
+    previewTab: null,
+    dirty: [],
+    terminals: [],
+    activeTermId: null,
+    ports: [],
+    previewTabs: [],
+    activePreviewId: null,
+    devtoolsOpen: false,
+    devtoolsNonce: 0,
+    selectedDemo: DEMOS[0].id,
+    activeView: "explorer",
+    sidebarCollapsed: false,
+    panelCollapsed: true,
+    previewCollapsed: false,
+    wordWrap: loadWordWrap(),
+    panelTab: "console",
+    clipboard: null,
+    paletteOpen: false,
+    paletteMode: "command",
+    problems: { errors: 0, warnings: 0 },
+    memInfo: null,
+  };
+
+  // ── imperative state (not reactive) ──
+  private terms = new Map<string, TermEntry>();
+  private termOrder: string[] = [];
+  private termSeq = 0;
+  private monaco: typeof Monaco | null = null;
+  private editor: Monaco.editor.IStandaloneCodeEditor | null = null;
+  private editorMounting = false; // guards the async create against StrictMode double-mount
+  private editorOpener: Monaco.IDisposable | null = null; // cross-file go-to-definition hook
+  private models = new Map<string, Monaco.editor.ITextModel>(); // abs -> model
+  // Language modes chosen by hand from the status bar (abs -> monaco language id).
+  // Re-applied in ensureModel so the choice survives closing + reopening the tab.
+  private languageOverrides = new Map<string, string>();
+  // Per-model subscription feeding `editorStatus` (indent/language). Swapped on
+  // every model change so we only ever listen to the attached model.
+  private modelStatusSub: Monaco.IDisposable | null = null;
+  private diffEditor: Monaco.editor.IStandaloneDiffEditor | null = null; // Source Control diff tab
+  private diffModels: Monaco.editor.ITextModel[] = []; // throwaway [original, modified] for the diff editor
+  private imageUrls = new Map<string, string>(); // abs -> object URL (image viewer)
+  private notebooks = new Map<string, NotebookHandle>(); // abs -> open .ipynb (doc + kernel)
+  private depLibsByRoot = new Map<string, Map<string, string>>(); // root -> (extra-lib uri -> content)
+  private depsSig = new Map<string, string>(); // root -> last node_modules fingerprint
+  private dtsWarnedNoNM = new Set<string>(); // roots we've already noted lack node_modules
+  private tsCompilerOptions: Monaco.typescript.CompilerOptions | null = null; // re-applied to force a worker rebuild after extra libs load
+  private dtsTimer: ReturnType<typeof setTimeout> | null = null; // debounce dependency-type loads
+  private dtsSeq = 0; // supersede in-flight dependency-type refreshes
+  private previewFrames = new Map<string, HTMLIFrameElement>(); // preview tab id -> iframe
+  private previewSeq = 0;
+  private devtoolsFrame: HTMLIFrameElement | null = null; // the chii DevTools frontend iframe
+  private devtoolsTargetId: string | null = null; // which preview tab DevTools is attached to
+  private localFiles: Record<string, string> = {}; // abs -> latest saved text (editor cache)
+  private pendingReveal: { abs: string; line: number; column: number; length: number } | null =
+    null;
+  private searchSeq = 0;
+  private searchCbs: {
+    token: number;
+    onBatch: (files: SearchFileResult[]) => void;
+    onDone: (d: SearchDone) => void;
+  } | null = null;
+  private fileIndex = new Map<string, string[]>(); // rootPath -> abs files (quick-open/search)
+  private folderManifests = new Map<string, TemplateManifest>(); // rootPath -> run manifest
+  private runningProjects = new Map<string, { terminalId: string | null; port: number | null }>();
+  private runningDemos = new Map<string, { terminalId: string | null; port: number | null }>();
+  private portMap = new Map<number, number>(); // port -> pid (live listeners)
+  private treeBump: ReturnType<typeof setTimeout> | null = null;
+  private started = false;
+  // Current resolved UI theme, seeded from the pre-paint <html> class the
+  // no-flash script sets, then kept in sync with next-themes via applyUiTheme.
+  private uiTheme: UiTheme =
+    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+
+  // Preview origin mode (see KernelBridge.mode): "same-origin" (default / local
+  // dev), "shared" (mode B, VITE_PREVIEW_ORIGIN) or "wildcard" (mode C,
+  // VITE_PREVIEW_WILDCARD_DOMAIN — one origin per port).
+  private readonly previewMode: "same-origin" | "shared" | "wildcard";
+  // Mode B/C pop-out behavior. When true, "Open in new tab" opens on an isolated
+  // preview origin; otherwise it opens same-origin with the IDE. Always true in
+  // mode C, false in mode A. See openExternalPreview.
+  private readonly popoutIsolated: boolean;
+
+  constructor() {
+    const previewOrigin = normalizePreviewOrigin(import.meta.env.VITE_PREVIEW_ORIGIN);
+    const previewPopout = normalizePreviewPopout(import.meta.env.VITE_PREVIEW_POPOUT);
+    const previewWildcardDomain = normalizePreviewWildcardDomain(
+      import.meta.env.VITE_PREVIEW_WILDCARD_DOMAIN,
+    );
+    this.bridge = new KernelBridge({ previewOrigin, previewWildcardDomain, previewPopout });
+    this.previewMode = this.bridge.mode;
+    this.popoutIsolated = this.bridge.popoutIsolated;
+    this.debug = new DebugSession(this.bridge);
+    // When execution pauses (or a frame is selected), open the file + reveal the line.
+    this.debug.onReveal = (path, line) => void this.openFileAt(path, line);
+    this.scm = new ScmSession(this.bridge);
+    // A checkout/discard rewrote the working tree via the silent git RPC (no
+    // vv-fs-changed), so refresh the Explorer tree and reload any open editors.
+    this.scm.onWorkdirChanged = () => this.reloadWorkdir();
+    this.snap.recentProjects = this.loadRegistry();
+    this.createConsole();
+    this.wireBridge();
+    this.wirePreviewMessages();
+  }
+
+  // ── store plumbing ──
+  subscribe = (cb: () => void): (() => void) => {
+    this.listeners.add(cb);
+    return () => this.listeners.delete(cb);
+  };
+  getSnapshot = (): IdeSnapshot => this.snap;
+  private set(partial: Partial<IdeSnapshot>) {
+    const prevActive = this.snap.activePreviewId;
+    this.snap = { ...this.snap, ...partial };
+    // DevTools follows the active preview tab. If the active tab changed while the
+    // panel is open, re-attach the (shared) frontend to the new target: close it
+    // when there's no tab left, else reload the frontend against the new tab.
+    if (this.snap.devtoolsOpen && this.snap.activePreviewId !== prevActive) {
+      if (this.snap.activePreviewId == null) {
+        this.devtoolsTargetId = null;
+        this.snap = { ...this.snap, devtoolsOpen: false };
+      } else if (this.snap.activePreviewId !== this.devtoolsTargetId) {
+        this.devtoolsTargetId = this.snap.activePreviewId;
+        this.snap = { ...this.snap, devtoolsNonce: this.snap.devtoolsNonce + 1 };
+      }
+    }
+    for (const l of this.listeners) l();
+  }
+  /** Post a transient message to the status bar. For routine, high-frequency
+   * feedback (a save, a dev-server restart); failures still raise a toast. */
+  private status(text: string) {
+    this.statusMessage.show(text);
+  }
+  private syncTerminals() {
+    this.set({
+      terminals: this.termOrder.map((id) => {
+        const t = this.terms.get(id)!;
+        return { id, label: t.label, kind: t.kind, alive: t.alive };
+      }),
+    });
+  }
+  private syncPorts() {
+    this.set({
+      ports: [...this.portMap]
+        .map(([port, pid]) => ({ port, pid }))
+        .sort((a, b) => a.port - b.port),
+    });
+  }
+
+  // ── boot ──
+  async start() {
+    if (this.started) return;
+    this.started = true;
+    // Opened via a shared link: show a full-screen blocking overlay immediately so
+    // the (blank) workspace doesn't look idle while the kernel boots + unpacks.
+    if (hasSharePayload()) {
+      this.set({ shareLoading: true, shareMessage: "Booting the runtime…" });
+      this.status("opening shared project…");
+    }
+    // Service Worker registration is NOT here — it happens on `kernel-online`
+    // (see wireBridge). It was here, and not awaited, for a good reason: the SW is
+    // preview-only, the kernel's cross-origin isolation comes from the COOP/COEP
+    // response headers rather than from the SW, and making the kernel worker and
+    // three Wasm modules queue behind an install/activate bought nothing. But not
+    // awaiting it is not the same as it being harmless. Registering it here made
+    // the SW activate and call clients.claim() *while the kernel worker's module
+    // graph was still streaming in* — measured at ~10ms after the worker was
+    // created, on every run. That hands the page a service-worker controller
+    // change mid-load, and on Firefox the kernel worker never finished loading
+    // afterwards.
+    //
+    // Nothing needs the SW before the kernel is up: it exists to proxy previews,
+    // and there are no previews until a project runs. Preview routing is
+    // re-announced on every `listen` (the bridge handler calls
+    // `announceKernelHost()`), so a server that binds a port before the SW has
+    // claimed still gets routed once it has. Both orderings are equally good for
+    // everything the SW actually does, and only one of them has the race — so
+    // take the one that does not, rather than trying to survive the transition.
+    //
+    // `?net=<ws url>` opts into the optional network relay (BootOptions.netRelay):
+    // a local agent (`node scripts/net-relay.mjs`) that gives the VM real outbound
+    // TCP and binds in-VM listen() ports on the developer's machine. Off otherwise.
+    this.bridge.boot(true, readNetRelayParam());
+  }
+
+  /**
+   * Resolves once the kernel + VFS are up. Lets UI accept an action before the
+   * runtime is ready and queue it, rather than disabling the control and making
+   * the user come back to it — the wait is the same either way, but only one of
+   * them lets the wait overlap with the user's own thinking.
+   */
+  whenKernelReady(): Promise<void> {
+    if (this.snap.kernelReady) return Promise.resolve();
+    return new Promise((resolve) => {
+      const off = this.subscribe(() => {
+        if (!this.snap.kernelReady) return;
+        off();
+        resolve();
+      });
+    });
+  }
+
+  // ── VFS queries (request/response over the bridge) ─────────────────────────
+  async readdir(absPath: string): Promise<{ name: string; dir: boolean }[]> {
+    const m = await this.bridge.request("vv-readdir", { path: absPath });
+    return m.ok ? ((m.entries as { name: string; dir: boolean }[]) ?? []) : [];
+  }
+  async readFileText(absPath: string): Promise<string> {
+    const m = await this.bridge.request("vv-read", { path: absPath });
+    return m.ok ? String(m.contents ?? "") : "";
+  }
+  async readFileBytes(absPath: string): Promise<Uint8Array> {
+    const m = await this.bridge.request("vv-read-bytes", { path: absPath });
+    return m.ok && m.bytes instanceof Uint8Array ? m.bytes : new Uint8Array();
+  }
+  // The object URL for an open image tab (created lazily in openEntry).
+  imageUrlFor(abs: string): string | undefined {
+    return this.imageUrls.get(abs);
+  }
+  async pathInfo(absPath: string): Promise<{ exists: boolean; isDir: boolean }> {
+    const m = await this.bridge.request("vv-stat", { path: absPath });
+    return { exists: !!m.exists, isDir: !!m.isDir };
+  }
+
+  // ── workspace registry (localStorage) ──────────────────────────────────────
+  private loadRegistry(): ProjectMeta[] {
+    try {
+      const raw = localStorage.getItem(REGISTRY_KEY);
+      const list = raw ? (JSON.parse(raw) as ProjectMeta[]) : [];
+      return list.sort((a, b) => b.lastModified - a.lastModified);
+    } catch {
+      return [];
+    }
+  }
+  private saveRegistry(list: ProjectMeta[]) {
+    const sorted = [...list].sort((a, b) => b.lastModified - a.lastModified);
+    try {
+      localStorage.setItem(REGISTRY_KEY, JSON.stringify(sorted));
+    } catch {
+      /* storage full / disabled — the in-memory list still works this session */
+    }
+    this.set({ recentProjects: sorted });
+  }
+  private upsertProjectMeta(meta: { name: string; rootPath: string; template: string | null }) {
+    const now = Date.now();
+    const list = this.snap.recentProjects.filter((p) => p.rootPath !== meta.rootPath);
+    const existing = this.snap.recentProjects.find((p) => p.rootPath === meta.rootPath);
+    list.push({
+      name: meta.name,
+      rootPath: meta.rootPath,
+      template: meta.template,
+      createdAt: existing?.createdAt ?? now,
+      lastModified: now,
+    });
+    this.saveRegistry(list);
+  }
+  private touchProject(rootPath: string) {
+    const list = this.snap.recentProjects.map((p) =>
+      p.rootPath === rootPath ? { ...p, lastModified: Date.now() } : p,
+    );
+    if (list.some((p) => p.rootPath === rootPath)) this.saveRegistry(list);
+  }
+  removeProjectMeta(rootPath: string) {
+    this.saveRegistry(this.snap.recentProjects.filter((p) => p.rootPath !== rootPath));
+  }
+
+  // ── console + terminals ───────────────────────────────────────────────────
+  private consoleWrite(chunk: string) {
+    this.terms.get("console")?.term.write(chunk);
+  }
+  private consoleLine(text: string, color?: string) {
+    this.terms
+      .get("console")
+      ?.term.write((color ? `${ESC}${color}m${text}${ESC}0m` : text) + "\r\n");
+  }
+
+  // Switch the editor + all live terminals to the given resolved theme. Called
+  // from a React effect that mirrors next-themes' resolvedTheme.
+  applyUiTheme(theme: UiTheme) {
+    if (theme === this.uiTheme) return;
+    this.uiTheme = theme;
+    this.monaco?.editor.setTheme(monacoThemeFor(theme));
+    const termTheme = termThemeFor(theme);
+    for (const { term } of this.terms.values()) {
+      term.options.theme = termTheme;
+    }
+  }
+
+  private makeTerm(): { term: Terminal; fit: FitAddon } {
+    const term = new Terminal({
+      convertEol: true,
+      cursorBlink: true,
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+      // Each terminal retains `scrollback` lines of parsed buffer; with several
+      // terminals (console + shells) 8000 each adds up. 2000 keeps ample history
+      // while cutting the per-terminal buffer footprint.
+      fontSize: 12.5,
+      scrollback: 2000,
+      theme: termThemeFor(this.uiTheme),
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    // Cmd+K (macOS) / Ctrl+K (Win/Linux) clears the focused terminal, mirroring
+    // VS Code's integrated terminal. Scoped to the focused xterm (not a global
+    // shortcut) so it never clobbers the editor's Cmd+K chord bindings.
+    term.attachCustomKeyEventHandler((e) => {
+      if (
+        e.type === "keydown" &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "k"
+      ) {
+        term.clear();
+        return false;
+      }
+      return true;
+    });
+    return { term, fit };
+  }
+
+  private createConsole() {
+    const { term, fit } = this.makeTerm();
+    this.terms.set("console", {
+      term,
+      fit,
+      kind: "console",
+      label: "Console",
+      demo: null,
+      cwd: null,
+      run: null,
+      pid: null,
+      alive: true,
+      started: true,
+      opened: false,
+      openedAt: 0,
+      pendingInput: [],
+    });
+    this.termOrder.push("console");
+  }
+
+  // Create a shell terminal tab (defer = spawn the Process Worker lazily, off the
+  // cold-boot burst; explicit New Terminal / Run start it right away). `activate`
+  // = switch the panel to this terminal (false for the background boot shell).
+  // `cwd`/`run` = start the shell in a project dir and (optionally) auto-run its
+  // dev command (created/opened projects).
+  newShellTerminal({
+    defer = false,
+    demo = null,
+    label = null,
+    activate = true,
+    cwd = null,
+    run = null,
+  }: {
+    defer?: boolean;
+    demo?: string | null;
+    label?: string | null;
+    activate?: boolean;
+    cwd?: string | null;
+    run?: string | null;
+  } = {}): string {
+    const id = "sh" + ++this.termSeq;
+    const { term, fit } = this.makeTerm();
+    const entry: TermEntry = {
+      term,
+      fit,
+      kind: "shell",
+      label: label || "sh " + this.termSeq,
+      demo,
+      cwd,
+      run,
+      pid: null,
+      alive: true,
+      started: false,
+      opened: false,
+      openedAt: 0,
+      pendingInput: [],
+    };
+    this.terms.set(id, entry);
+    this.termOrder.push(id);
+    term.onData((data) => {
+      if (!entry.started) {
+        this.startShell(id);
+        entry.pendingInput.push(data);
+        return;
+      }
+      this.bridge.post("term-input", { terminalId: id, chunk: data });
+    });
+    // Adopt as the active shell if none is selected yet (keeps the Terminal tab
+    // pointing at a real shell even for the background boot terminal).
+    if (this.snap.activeTermId === null) this.set({ activeTermId: id });
+    this.syncTerminals();
+    if (activate) this.switchTerminal(id);
+    if (defer) {
+      if (typeof requestIdleCallback === "function")
+        requestIdleCallback(() => this.startShell(id), { timeout: 2500 });
+      else setTimeout(() => this.startShell(id), 1500);
+    } else {
+      this.startShell(id);
+    }
+    return id;
+  }
+
+  private startShell(id: string) {
+    const entry = this.terms.get(id);
+    if (!entry || entry.kind !== "shell" || entry.started) return;
+    entry.started = true;
+    entry.openedAt = performance.now();
+    const cwd = entry.cwd ?? this.activeFolder?.rootPath ?? undefined;
+    this.bridge.post("term-open", {
+      terminalId: id,
+      demo: entry.demo,
+      cwd,
+      run: entry.run ?? undefined,
+    });
+  }
+
+  switchTerminal(id: string) {
+    const t0 = this.terms.get(id);
+    if (!t0) return;
+    // The console has its own panel tab; shells live under the Terminal tab.
+    const patch: Partial<IdeSnapshot> =
+      t0.kind === "console"
+        ? { panelTab: "console", panelCollapsed: false }
+        : { panelTab: "terminal", activeTermId: id, panelCollapsed: false };
+    this.set(patch);
+    // Fit + focus once React has flipped visibility.
+    requestAnimationFrame(() => {
+      const t = this.terms.get(id);
+      if (!t) return;
+      try {
+        t.fit.fit();
+      } catch {
+        /* not visible */
+      }
+      t.term.focus();
+    });
+  }
+
+  setPanelTab(tab: "console" | "terminal" | "ports") {
+    this.set({ panelTab: tab, panelCollapsed: false });
+    if (tab === "console" || tab === "terminal") {
+      const id = tab === "console" ? "console" : this.snap.activeTermId;
+      requestAnimationFrame(() => {
+        if (!id) return;
+        const t = this.terms.get(id);
+        if (!t) return;
+        try {
+          t.fit.fit();
+        } catch {
+          /* hidden */
+        }
+        t.term.focus();
+      });
+    }
+  }
+
+  setActiveView(view: "explorer" | "search" | "debug" | "scm") {
+    this.set({ activeView: view, sidebarCollapsed: false });
+    // Opening Source Control: point it at all workspace folders and refresh NOW.
+    // Status walks only run while the panel is shown (they contend with the terminal
+    // on the kernel worker thread), so this on-demand refresh is where they happen.
+    if (view === "scm") {
+      this.syncScmRoots();
+      void this.scm.refresh();
+    }
+  }
+
+  /** Keep the Source Control panel's repo list in sync with the open workspace
+   * folders (one repo section per folder, like VS Code). */
+  private syncScmRoots() {
+    this.scm.setRoots(this.snap.workspaceFolders.map((f) => ({ root: f.rootPath, name: f.name })));
+  }
+
+  /** Re-read git after the workspace changed. A full status walk only happens while
+   * the Source Control panel is shown; otherwise we just resolve each repo's branch,
+   * which is all the status bar needs and costs a `.git/HEAD` read. */
+  private refreshScm() {
+    if (this.snap.activeView === "scm") void this.scm.refresh();
+    else void this.scm.refreshBranches();
+  }
+
+  closeTerminal(id: string) {
+    const t = this.terms.get(id);
+    if (!t || t.kind === "console") return;
+    this.bridge.post("term-close", { terminalId: id });
+    t.term.dispose();
+    this.terms.delete(id);
+    this.termOrder = this.termOrder.filter((x) => x !== id);
+    if (this.snap.activeTermId === id) {
+      const nextShell =
+        [...this.termOrder].reverse().find((x) => this.terms.get(x)?.kind === "shell") ?? null;
+      if (nextShell) this.switchTerminal(nextShell);
+      else this.set({ activeTermId: null, panelTab: "console" });
+    }
+    this.syncTerminals();
+  }
+
+  // React hands us the container for a terminal tab; mount xterm into it once.
+  mountTerminal(id: string, el: HTMLElement | null) {
+    const t = this.terms.get(id);
+    if (!t || !el) return;
+    if (t.opened) {
+      // Re-parent if React remounted the node.
+      if (t.term.element && t.term.element.parentElement !== el) el.appendChild(t.term.element);
+      return;
+    }
+    t.term.open(el);
+    t.opened = true;
+    requestAnimationFrame(() => {
+      try {
+        t.fit.fit();
+      } catch {
+        /* hidden */
+      }
+    });
+  }
+
+  fitTerminal(id: string | null) {
+    if (!id) return;
+    const t = this.terms.get(id);
+    if (!t) return;
+    try {
+      t.fit.fit();
+    } catch {
+      /* hidden */
+    }
+  }
+
+  clearActiveTerminal() {
+    const id = this.snap.panelTab === "console" ? "console" : this.snap.activeTermId;
+    this.terms.get(id ?? "")?.term.clear();
+  }
+
+  // ── editor ──────────────────────────────────────────────────────────────
+  async mountEditor(el: HTMLElement) {
+    if (this.editor || this.editorMounting) return;
+    this.editorMounting = true;
+    // Real language intelligence: wire Monaco's own web workers. Vite bundles each
+    // `?worker` entry into a same-origin chunk (COEP-safe), and we run them
+    // off-main-thread so completions, hover, signature help, go-to-definition and
+    // diagnostics never block the UI. The editor worker backs cross-file services;
+    // the typescript worker hosts a full TS language service (bundled TS compiler).
+    const [editorWorker, tsWorker, jsonWorker, cssWorker, htmlWorker] = await Promise.all([
+      import("monaco-editor/esm/vs/editor/editor.worker?worker"),
+      import("monaco-editor/esm/vs/language/typescript/ts.worker?worker"),
+      import("monaco-editor/esm/vs/language/json/json.worker?worker"),
+      import("monaco-editor/esm/vs/language/css/css.worker?worker"),
+      import("monaco-editor/esm/vs/language/html/html.worker?worker"),
+    ]);
+    (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+      getWorker(_workerId: string, label: string): Worker {
+        switch (label) {
+          case "typescript":
+          case "javascript":
+            return new tsWorker.default();
+          case "json":
+            return new jsonWorker.default();
+          case "css":
+          case "scss":
+          case "less":
+            return new cssWorker.default();
+          case "html":
+          case "handlebars":
+          case "razor":
+            return new htmlWorker.default();
+          default:
+            return new editorWorker.default();
+        }
+      },
+    };
+    const monaco = await import("monaco-editor");
+    this.monaco = monaco;
+    this.configureLanguageService(monaco);
+    this.wireGoToDefinition(monaco);
+    this.editor = monaco.editor.create(el, {
+      model: null,
+      theme: monacoThemeFor(this.uiTheme),
+      automaticLayout: true,
+      fontSize: 13,
+      // Minimap renders (and retains) a second tokenized view of the whole file;
+      // disabling it trims per-editor memory at no real usability cost here.
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      // Go-to-definition should NAVIGATE, not peek. The Peek widget's preview pane
+      // can only render an existing Monaco model, but dependency types live only as
+      // extra libs (see loadDependencyTypes) — never as models — so peeking a
+      // node_modules definition shows an empty preview. Jumping straight to the
+      // first location routes through our editor opener, which reads the target
+      // from the VFS and opens it as a real tab (so .d.ts targets render fine).
+      gotoLocation: {
+        multipleDefinitions: "goto",
+        multipleTypeDefinitions: "goto",
+        multipleDeclarations: "goto",
+        multipleImplementations: "goto",
+      },
+      // We handle drops onto the editor ourselves (open the dropped entry), so
+      // turn off Monaco's built-in "drop text into the buffer" behavior.
+      dropIntoEditor: { enabled: false },
+      // Breakpoint debugger: the glyph margin hosts breakpoint dots + the paused
+      // arrow, and a click there toggles a breakpoint (see DebugSession).
+      glyphMargin: true,
+      // Don't over-reserve the line-number column (Monaco defaults to 5 chars,
+      // which right-aligns single digits and leaves a big gap to their left).
+      lineNumbersMinChars: 2,
+      // Seeded from the persisted preference rather than set afterwards, so a wrapped
+      // session does not flash one unwrapped frame on every cold boot.
+      wordWrap: this.snap.wordWrap ? "on" : "off",
+      // Hovers and suggest lists have to survive leaving the editor pane — the
+      // preview iframe next door paints over anything that does not. See
+      // overflowWidgetsNode.
+      fixedOverflowWidgets: true,
+      overflowWidgetsDomNode: overflowWidgetsNode(),
+    });
+    // Breakpoint debugger: wire gutter breakpoints + paused-line decorations.
+    this.debug.attachEditor(this.editor, monaco);
+    this.editor.onDidChangeModelContent(() => this.enableTsIntelligence());
+    this.wireEditorStatus(this.editor);
+    // Seed the language service with any folders indexed before the editor was
+    // ready (source files as models for cross-file IntelliSense; dependency types
+    // as extra libs), then open whatever tab was requested during load.
+    for (const list of this.fileIndex.values()) this.ensureBackgroundModels(list);
+    this.scheduleDependencyTypes();
+    if (this.snap.activeTab) void this.openFile(this.snap.activeTab);
+  }
+
+  // ── status-bar readouts (Ln/Col · indentation · language mode) ──────────────
+  // Mirror Monaco's cursor, indentation and language onto the EditorStatus store
+  // that the StatusBar subscribes to. Model-scoped listeners are re-bound on every
+  // model swap so we only ever watch the attached model.
+  private wireEditorStatus(editor: Monaco.editor.IStandaloneCodeEditor) {
+    const pushCursor = () => {
+      const model = editor.getModel();
+      const pos = editor.getPosition();
+      if (!model || !pos) return;
+      const selections = editor.getSelections() ?? [];
+      let selected = 0;
+      for (const s of selections) selected += model.getValueLengthInRange(s);
+      this.editorStatus.set({
+        cursor: {
+          line: pos.lineNumber,
+          column: pos.column,
+          selected,
+          selections: selections.length,
+        },
+        lineCount: model.getLineCount(),
+      });
+    };
+    const pushModelInfo = () => {
+      const model = editor.getModel();
+      if (!model) {
+        this.editorStatus.clear();
+        return;
+      }
+      const { insertSpaces, tabSize } = model.getOptions();
+      this.editorStatus.set({
+        indent: { insertSpaces, tabSize },
+        language: model.getLanguageId(),
+        lineCount: model.getLineCount(),
+      });
+    };
+    const rebindModel = () => {
+      this.modelStatusSub?.dispose();
+      this.modelStatusSub = null;
+      const model = editor.getModel();
+      pushModelInfo();
+      if (!model) return;
+      const subs = [
+        model.onDidChangeOptions(pushModelInfo),
+        model.onDidChangeLanguage(pushModelInfo),
+        // Line count feeds the Go to Line hint, so it has to track edits.
+        model.onDidChangeContent(pushCursor),
+      ];
+      this.modelStatusSub = { dispose: () => subs.forEach((s) => s.dispose()) };
+      pushCursor();
+    };
+    editor.onDidChangeModel(rebindModel);
+    editor.onDidChangeCursorPosition(pushCursor);
+    editor.onDidChangeCursorSelection(pushCursor);
+    rebindModel();
+  }
+
+  /** Jump the cursor to a 1-based line/column in the ACTIVE editor (status-bar
+   * "Ln x, Col y" → Go to Line). Clamped to the model's bounds. */
+  gotoLine(line: number, column = 1) {
+    const model = this.editor?.getModel();
+    if (!model) return;
+    const l = Math.min(Math.max(1, Math.trunc(line)), model.getLineCount());
+    const c = Math.min(Math.max(1, Math.trunc(column)), model.getLineMaxColumn(l));
+    this.revealInEditor(l, c, 0);
+  }
+
+  /** Set the active tab's language mode. `null` restores auto-detection from the
+   * file extension and forgets the override. */
+  setLanguageMode(id: string | null) {
+    const abs = this.snap.activeTab;
+    const model = this.editor?.getModel();
+    if (!abs || !model || !this.monaco) return;
+    if (id) this.languageOverrides.set(abs, id);
+    else this.languageOverrides.delete(abs);
+    this.monaco.editor.setModelLanguage(model, id ?? languageFor(abs));
+    this.editor?.focus();
+  }
+
+  /** Change the active model's indentation (status-bar "Spaces: n" picker). */
+  setIndentation(opts: { insertSpaces?: boolean; tabSize?: number }) {
+    this.editor?.getModel()?.updateOptions(opts);
+    this.editor?.focus();
+  }
+
+  /** Guess indentation from the file's own content, like VS Code's
+   * "Detect Indentation from Content". Falls back to the editor defaults. */
+  detectIndentation() {
+    const model = this.editor?.getModel();
+    if (!model) return;
+    const current = model.getOptions();
+    model.detectIndentation(current.insertSpaces, current.tabSize);
+    this.editor?.focus();
+  }
+
+  /** Run a built-in Monaco editor action by id (indentation conversion + trim
+   * trailing whitespace in the status-bar picker). */
+  runEditorAction(id: string) {
+    void this.editor?.getAction(id)?.run();
+    this.editor?.focus();
+  }
+
+  // ── language service (IntelliSense) ─────────────────────────────────────────
+  // Turn on the TS/JS language service: sensible compiler options, semantic +
+  // syntax diagnostics, and eager model sync so every model we create (open tabs
+  // AND the seeded project files) is visible to the worker for cross-file
+  // completion/navigation. Installed-package types are fed in separately as extra
+  // libs (see loadDependencyTypes).
+  private configureLanguageService(monaco: typeof Monaco) {
+    const ts = monaco.typescript; // typed re-export of the TS language contribution
+    if (!ts) return;
+    const compilerOptions: Monaco.typescript.CompilerOptions = {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      jsx: ts.JsxEmit.ReactJSX,
+      allowJs: true,
+      checkJs: false,
+      allowNonTsExtensions: true,
+      allowSyntheticDefaultImports: true,
+      esModuleInterop: true,
+      resolveJsonModule: true,
+      skipLibCheck: true,
+      // Vite templates import with explicit extensions (`import App from "./App.tsx"`);
+      // allow it (requires noEmit, which the language service is anyway).
+      allowImportingTsExtensions: true,
+      noEmit: true,
+      // NB: do NOT set an explicit `lib` array — Monaco's worker then fails to load
+      // the individual lib.*.d.ts files (DOM globals, iterators… all vanish). Letting
+      // `target: ESNext` pick the default `lib.esnext.full.d.ts` (which bundles ESNext
+      // + DOM + iterable) is what actually works.
+    };
+    this.tsCompilerOptions = compilerOptions;
+    // Run a SINGLE TS language service. Every JS/TS model uses the `typescript`
+    // language (see languageFor) with allowJs, so only the `typescript` ts.worker
+    // ever spawns. Monaco otherwise runs a SECOND full language service for the
+    // `javascript` mode — a duplicate ~310 MB worker fed the same dependency
+    // .d.ts payload. Keep the `javascript` defaults inert (diagnostics off, no
+    // eager sync, no extra libs) so its WorkerManager — created lazily on first
+    // JS-model use — never starts.
+    ts.typescriptDefaults.setCompilerOptions(compilerOptions);
+    this.applyTsIntelligence(this.snap.runPhase == null);
+    ts.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: true,
+      onlyVisible: false,
+    });
+    ts.javascriptDefaults.setEagerModelSync(false);
+    // Mirror the worker's markers into a Problems count in the status bar.
+    monaco.editor.onDidChangeMarkers(() => this.recomputeProblems());
+  }
+
+  // Whether the TypeScript language service is allowed to run. Off while a
+  // project installs.
+  //
+  // The service lives in ts.worker, a 1.36 MB (brotli) bundle that Monaco spawns
+  // the moment diagnostics or eager sync touch a TS model — which, after a
+  // create-from-template, is immediately, in the middle of the install. It then
+  // competes for bandwidth with the thing the user is actually waiting for, to
+  // type-check a project whose `node_modules` does not exist yet: every import
+  // is unresolved, so the answers it produces are wrong until the install ends
+  // anyway. Turned on by the run finishing, or by the first keystroke — whoever
+  // gets there first, because a user who starts editing wants it regardless.
+  private tsIntelligence = true;
+  private applyTsIntelligence(on: boolean) {
+    this.tsIntelligence = on;
+    const ts = this.monaco?.typescript;
+    if (!ts) return;
+    ts.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: !on,
+      noSyntaxValidation: !on,
+      onlyVisible: false,
+    });
+    ts.typescriptDefaults.setEagerModelSync(on);
+  }
+  private enableTsIntelligence() {
+    if (!this.tsIntelligence) this.applyTsIntelligence(true);
+  }
+
+  // Wire cross-file "go to definition" (⌘/Ctrl+click, F12) into our tab system.
+  // A Monaco standalone editor does NOTHING for a resource other than the model
+  // it currently has attached unless an opener is registered — so a definition in
+  // another file (or an installed package's .d.ts) silently no-ops. We intercept
+  // it and route through openFileAt, which opens/activates the React tab AND
+  // reveals the target line/column. (Same-file definitions are handled by Monaco
+  // internally and never reach this hook.)
+  private wireGoToDefinition(monaco: typeof Monaco) {
+    if (this.editorOpener) return;
+    this.editorOpener = monaco.editor.registerEditorOpener({
+      openCodeEditor: (_source, resource, selectionOrPosition) => {
+        const abs = resource.path; // Uri.file(abs).path === abs
+        let line = 1,
+          column = 1,
+          length = 0;
+        if (selectionOrPosition) {
+          if ("startLineNumber" in selectionOrPosition) {
+            line = selectionOrPosition.startLineNumber;
+            column = selectionOrPosition.startColumn;
+            if (selectionOrPosition.endLineNumber === selectionOrPosition.startLineNumber) {
+              length = selectionOrPosition.endColumn - selectionOrPosition.startColumn;
+            }
+          } else {
+            line = selectionOrPosition.lineNumber;
+            column = selectionOrPosition.column;
+          }
+        }
+        void this.openFileAt(abs, line, column, length);
+        return true; // handled — suppress Monaco's default no-op
+      },
+    });
+  }
+
+  private recomputeProblems() {
+    if (!this.monaco) return;
+    const Severity = this.monaco.MarkerSeverity;
+    let errors = 0,
+      warnings = 0;
+    for (const mk of this.monaco.editor.getModelMarkers({})) {
+      if (mk.severity === Severity.Error) errors++;
+      else if (mk.severity === Severity.Warning) warnings++;
+    }
+    if (errors !== this.snap.problems.errors || warnings !== this.snap.problems.warnings) {
+      this.set({ problems: { errors, warnings } });
+    }
+  }
+
+  // Create Monaco models for a folder's own source files so the language service
+  // can resolve cross-file imports (and power go-to-definition) even before a
+  // file is opened. Bounded, and only creates models that don't already exist —
+  // node_modules is excluded from the file index, so this is just user code.
+  private ensureBackgroundModels(files: string[]) {
+    if (!this.monaco) return;
+    const monaco = this.monaco;
+    let created = 0;
+    for (const abs of files) {
+      if (created >= 800) break;
+      if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(abs)) continue;
+      if (this.models.has(abs) || monaco.editor.getModel(monaco.Uri.file(abs))) continue;
+      created++;
+      void this.seedModel(abs);
+    }
+  }
+
+  // The Python language service, brought up the first time a Python file exists
+  // in the editor and not before. Pyodide is ~30 MB; a session spent in .ts must
+  // not fetch it, so both the provider module and the worker behind it are
+  // dynamic imports off this path.
+  private pythonLanguageOff: (() => void) | null = null;
+  private pythonServiceState = "";
+
+  private ensurePythonLanguage(abs: string) {
+    if (this.pythonLanguageOff || !this.monaco) return;
+    if (languageFor(abs) !== "python") return;
+    const monaco = this.monaco;
+    this.pythonLanguageOff = () => {}; // claim the slot before the await
+    void import("./python-language").then(({ registerPythonLanguage }) => {
+      this.pythonLanguageOff = registerPythonLanguage(monaco, {
+        request: async (root, req) => {
+          const m = await this.bridge.request("vv-py-lsp", { root, req });
+          return { ok: !!m.ok, result: m.result ?? null, error: String(m.error ?? "") };
+        },
+        // The workspace folder the file sits in — jedi resolves `import helper`
+        // relative to it. Longest match, so a root nested inside another wins.
+        rootFor: (path: string) => {
+          let best = "";
+          for (const f of this.snap.workspaceFolders) {
+            const r = f.rootPath.replace(/\/+$/, "");
+            if ((path === r || path.startsWith(r + "/")) && r.length > best.length) best = r;
+          }
+          return best || "/";
+        },
+        notify: (message: string) => this.statusMessage.show(message),
+        openFileAt: (path: string, line: number, column: number) =>
+          void this.openFileAt(path, line, column),
+        setState: (state: string, detail?: string) => this.setPythonServiceState(state, detail),
+      });
+    });
+    // The boot itself is reported by the worker over the bridge, not guessed at
+    // here — the studio does not know how far along a 30 MB fetch is.
+    this.bridge.on("py-lsp-state", (m: Record<string, unknown>) =>
+      this.setPythonServiceState(String(m.state ?? ""), String(m.detail ?? "")),
+    );
+  }
+
+  private setPythonServiceState(state: string, detail?: string) {
+    const label = stateLabel(state, detail);
+    if (label === this.pythonServiceState) return;
+    this.pythonServiceState = label ?? "";
+    this.editorStatus.set({ pythonService: label });
+  }
+
+  private async seedModel(abs: string) {
+    if (!this.monaco || this.models.has(abs)) return;
+    const monaco = this.monaco;
+    const uri = monaco.Uri.file(abs);
+    if (monaco.editor.getModel(uri)) return;
+    const text = await this.readFileText(abs);
+    // The file may have been opened (→ has a real model) while we awaited the read.
+    if (this.models.has(abs) || monaco.editor.getModel(uri)) return;
+    monaco.editor.createModel(text, languageFor(abs), uri);
+    this.ensurePythonLanguage(abs);
+  }
+
+  // Debounced load of dependency type declarations (node_modules **/*.d.ts +
+  // package.json) into the language service as "extra libs" so imports of
+  // installed packages resolve with real types. The bulk VFS scan happens in the
+  // kernel worker (sole holder of the sync Wasm VFS) to avoid thousands of read
+  // round-trips; we just register the returned files. Re-runs after installs
+  // (every fs change re-indexes the folder, which reschedules this).
+  private scheduleDependencyTypes() {
+    if (!this.monaco) return;
+    if (this.dtsTimer) clearTimeout(this.dtsTimer);
+    this.dtsTimer = setTimeout(() => void this.loadDependencyTypes(), 1200);
+  }
+
+  private async loadDependencyTypes() {
+    if (!this.monaco) return;
+    const monaco = this.monaco;
+    const seq = ++this.dtsSeq;
+    const roots = new Set(this.snap.workspaceFolders.map((f) => f.rootPath));
+    let changed = false;
+    // Forget libs for roots that are no longer open.
+    for (const r of Array.from(this.depLibsByRoot.keys())) {
+      if (!roots.has(r)) {
+        this.depLibsByRoot.delete(r);
+        this.depsSig.delete(r);
+        changed = true;
+      }
+    }
+    // Harvest each root, passing its last node_modules fingerprint so an unchanged
+    // tree short-circuits in the worker (no file reads).
+    for (const root of roots) {
+      const res = await this.bridge.request("vv-collect-dts", {
+        root,
+        sig: this.depsSig.get(root) ?? "",
+      });
+      if (seq !== this.dtsSeq) return; // a newer refresh superseded us
+      if (!res.ok) continue;
+      const sig = typeof res.sig === "string" ? res.sig : "";
+      this.depsSig.set(root, sig);
+      // sig === "" ⟺ no node_modules on disk yet. Nudge the user once (types come
+      // from installed packages — nothing to resolve until deps are installed).
+      if (sig === "") {
+        if (!this.dtsWarnedNoNM.has(root)) {
+          this.dtsWarnedNoNM.add(root);
+          this.consoleLine(
+            `[intellisense] ${baseName(root)}: no node_modules yet — run \`npm install\` for dependency types`,
+            "33",
+          );
+        }
+        continue;
+      }
+      this.dtsWarnedNoNM.delete(root);
+      if (res.unchanged) continue;
+      const map = new Map<string, string>();
+      for (const f of (res.files as { path: string; content: string }[]) ?? []) {
+        // toString(TRUE) = skip encoding. Monaco's Uri.toString() percent-encodes
+        // '@' → '%40', but TS's module resolver looks up '@types/…'/'@scope/…'
+        // with a LITERAL '@'. Encoded keys never match the resolver's queries, so
+        // every @types-backed import (react, react-dom, jsx-runtime) fails. Keep
+        // '@' literal so extra-lib keys line up with what the worker asks for.
+        map.set(monaco.Uri.file(f.path).toString(true), f.content);
+      }
+      this.depLibsByRoot.set(root, map);
+      changed = true;
+      this.consoleLine(
+        `[intellisense] ${baseName(root)}: loaded ${map.size} dependency type file(s)${res.truncated ? " (capped)" : ""}`,
+        "36",
+      );
+    }
+    if (!changed) return;
+    const libs: { filePath: string; content: string }[] = [];
+    for (const map of this.depLibsByRoot.values()) {
+      for (const [filePath, content] of map) libs.push({ filePath, content });
+    }
+    // Only the `typescript` service is live (see configureLanguageService), so
+    // feed the dependency .d.ts to it alone — no duplicate payload to a second
+    // worker.
+    monaco.typescript.typescriptDefaults.setExtraLibs(libs);
+    // Critical: the TS worker/LanguageService was created (and validated open
+    // files) BEFORE these types existed. Monaco pushes the new libs to the live
+    // worker, but a worker created with an empty `node_modules` view can keep
+    // serving stale "Cannot find module" results. Re-applying the compiler
+    // options fires `onDidChange`, which makes Monaco's WorkerManager tear the
+    // worker down; the next validation spins up a fresh LanguageService that is
+    // born already seeing every dependency .d.ts — so imports resolve cleanly.
+    if (this.tsCompilerOptions) {
+      monaco.typescript.typescriptDefaults.setCompilerOptions(this.tsCompilerOptions);
+    }
+  }
+
+  // Ensure a Monaco model exists for `abs` (loading its content from the VFS on
+  // first open). Wires dirty tracking against the last-saved text.
+  private async ensureModel(abs: string): Promise<Monaco.editor.ITextModel | null> {
+    if (!this.monaco) return null;
+    const cached = this.models.get(abs);
+    if (cached) return cached;
+    if (!(abs in this.localFiles)) this.localFiles[abs] = await this.readFileText(abs);
+    const monaco = this.monaco;
+    const uri = monaco.Uri.file(abs);
+    // A language mode picked by hand from the status bar wins over the extension.
+    const language = this.languageOverrides.get(abs) ?? languageFor(abs);
+    const existing = monaco.editor.getModel(uri);
+    const model = existing ?? monaco.editor.createModel(this.localFiles[abs] ?? "", language, uri);
+    // A background/seeded model already exists (created with the auto-detected
+    // language) — re-apply the override so reopening the tab keeps the choice.
+    if (existing && existing.getLanguageId() !== language) {
+      monaco.editor.setModelLanguage(existing, language);
+    }
+    // Opening a Python file is what brings the language service up. Also called
+    // from seedModel, so a background model counts too: by the time someone
+    // clicks the tab, the interpreter has had a head start.
+    if (language === "python") this.ensurePythonLanguage(abs);
+    model.onDidChangeContent(() => {
+      const changed = model.getValue() !== (this.localFiles[abs] ?? "");
+      const isDirty = this.snap.dirty.includes(abs);
+      if (changed && !isDirty) this.set({ dirty: [...this.snap.dirty, abs] });
+      else if (!changed && isDirty) this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+      if (changed && this.snap.previewTab === abs) this.set({ previewTab: null }); // editing pins the tab
+    });
+    this.models.set(abs, model);
+    return model;
+  }
+
+  // Open any Explorer entry by ABSOLUTE path, choosing how it renders: a
+  // directory shows the "…is a directory" message, an image opens the image
+  // viewer, everything else opens in Monaco. Use this (not openFile) wherever a
+  // path could be a folder or an image (Explorer clicks, drag-to-editor).
+  async openEntry(
+    abs: string,
+    { preview = false, focus = true }: { preview?: boolean; focus?: boolean } = {},
+  ) {
+    let kind = this.snap.tabKinds[abs];
+    if (!kind) {
+      const info = await this.pathInfo(abs);
+      kind = info.isDir
+        ? "directory"
+        : isImagePath(abs)
+          ? "image"
+          : isNotebookPath(abs)
+            ? "notebook"
+            : "text";
+      this.set({ tabKinds: { ...this.snap.tabKinds, [abs]: kind } });
+    }
+    if (kind === "image" && !this.imageUrls.has(abs)) {
+      const bytes = await this.readFileBytes(abs);
+      this.imageUrls.set(
+        abs,
+        URL.createObjectURL(new Blob([bytes as BlobPart], { type: imageMime(abs) })),
+      );
+    }
+    // A notebook is opened (and, if it will not parse, downgraded to text) in
+    // openFile, which is where every other way of opening a file also lands.
+    await this.openFile(abs, { preview, focus });
+  }
+
+  // Open a file by ABSOLUTE path. `preview` (single-click from the Explorer)
+  // reuses a single italic "preview" tab; a permanent open (double-click, or an
+  // edit) pins it.
+  async openFile(
+    abs: string,
+    { preview = false, focus = true }: { preview?: boolean; focus?: boolean } = {},
+  ) {
+    // A diff tab carries no real file — just activate it; EditorGroup mounts the
+    // Monaco diff editor. Detach the standard editor so it doesn't show stale text.
+    if (isDiffTabId(abs)) {
+      if (!this.snap.openTabs.includes(abs)) return;
+      this.set({ activeTab: abs });
+      if (this.editor) this.editor.setModel(null);
+      return;
+    }
+    // Reconcile the tab strip + preview slot.
+    const already = this.snap.openTabs.includes(abs);
+    let openTabs = this.snap.openTabs;
+    let previewTab = this.snap.previewTab;
+    if (preview) {
+      if (already) {
+        // existing tab — activate it; a permanent tab stays permanent.
+      } else if (previewTab && this.snap.openTabs.includes(previewTab)) {
+        openTabs = this.snap.openTabs.map((t) => (t === previewTab ? abs : t)); // reuse the slot
+        previewTab = abs;
+      } else {
+        openTabs = [...this.snap.openTabs, abs];
+        previewTab = abs;
+      }
+    } else {
+      if (!already) openTabs = [...this.snap.openTabs, abs];
+      if (previewTab === abs) previewTab = null; // promote to permanent
+    }
+    this.set({ openTabs, previewTab, activeTab: abs });
+
+    // A `.ipynb` has to become a notebook tab HERE and not only in openEntry.
+    // openEntry is the Explorer's path, and it is far from the only one: ⌘P, a
+    // template's `entry` after create, and restoring a tab on reload all arrive
+    // straight at openFile — which would have shown the notebook's raw JSON.
+    // A notebook that will not parse falls back to text, the one view that can
+    // repair it.
+    // `!== "text"` rather than "has no kind": a notebook that failed to parse was
+    // downgraded once already, and must not be retried on every tab switch.
+    if (isNotebookPath(abs) && this.snap.tabKinds[abs] !== "text" && !this.notebooks.has(abs)) {
+      const opened = await this.openNotebook(abs);
+      this.set({ tabKinds: { ...this.snap.tabKinds, [abs]: opened ? "notebook" : "text" } });
+    }
+
+    if (!this.editor || !this.monaco) return; // editor still loading — intent remembered
+    // Image / directory / notebook tabs don't get a Monaco model — the EditorGroup
+    // renders a custom pane. Detach the editor's model so it doesn't show stale text.
+    const kind = this.snap.tabKinds[abs] ?? "text";
+    if (kind !== "text") {
+      if (this.snap.activeTab === abs) this.editor.setModel(null);
+      return;
+    }
+    const model = await this.ensureModel(abs);
+    if (model && this.snap.activeTab === abs) {
+      this.editor.setModel(model);
+      if (focus) this.editor.focus();
+      if (this.pendingReveal && this.pendingReveal.abs === abs) {
+        const r = this.pendingReveal;
+        this.pendingReveal = null;
+        this.revealInEditor(r.line, r.column, r.length);
+      }
+    }
+  }
+
+  // Open a file and jump to a 1-based line/column, selecting `length` chars (used
+  // by Search results + quick-open's `:line` suffix). If the editor is still
+  // loading, the reveal is remembered and applied once its model is set.
+  async openFileAt(abs: string, line: number, column = 1, length = 0) {
+    this.pendingReveal = { abs, line, column, length };
+    await this.openFile(abs);
+    if (this.pendingReveal && this.pendingReveal.abs === abs && this.editor) {
+      this.pendingReveal = null;
+      this.revealInEditor(line, column, length);
+    }
+  }
+
+  private revealInEditor(line: number, column: number, length: number) {
+    if (!this.editor || !this.monaco) return;
+    const range = new this.monaco.Range(line, column, line, column + (length || 0));
+    this.editor.setSelection(range);
+    this.editor.revealRangeInCenterIfOutsideViewport(range);
+    this.editor.focus();
+  }
+
+  // ── full-text search / replace (delegated to the kernel worker) ─────────────
+  // Stream a search across every open workspace root. Results arrive via
+  // `onBatch` (partial, progressive) then a final `onDone`. Returns a cancel fn.
+  runSearch(
+    opts: SearchOptions,
+    cb: { onBatch: (files: SearchFileResult[]) => void; onDone: (d: SearchDone) => void },
+  ): () => void {
+    const token = ++this.searchSeq;
+    this.searchCbs = { token, onBatch: cb.onBatch, onDone: cb.onDone };
+    this.bridge.post("vv-search", {
+      token,
+      roots: this.snap.workspaceFolders.map((f) => f.rootPath),
+      query: opts.query,
+      matchCase: opts.matchCase,
+      wholeWord: opts.wholeWord,
+      regex: opts.regex,
+      includeGlob: opts.includeGlob,
+      excludeGlob: opts.excludeGlob,
+    });
+    return () => {
+      if (this.searchCbs?.token === token) this.searchCbs = null;
+      this.bridge.post("vv-search-cancel", {});
+    };
+  }
+
+  // Apply a replacement. Scope is either a single `match`, or an explicit list of
+  // `files` (Replace All / per-file). Refreshes any affected open editor models
+  // from disk so the buffer + dirty state stay in sync.
+  async replace(params: {
+    query: string;
+    matchCase: boolean;
+    wholeWord: boolean;
+    regex: boolean;
+    replacement: string;
+    preserveCase: boolean;
+    files?: string[];
+    match?: { file: string; line: number; column: number; length: number };
+  }): Promise<{ ok: boolean; filesChanged: number; replaced: number; error?: string }> {
+    const res = await this.bridge.request("vv-replace", {
+      query: params.query,
+      matchCase: params.matchCase,
+      wholeWord: params.wholeWord,
+      regex: params.regex,
+      replacement: params.replacement,
+      preserveCase: params.preserveCase,
+      files: params.files,
+      match: params.match,
+    });
+    if (res.ok) {
+      const affected = params.match ? [params.match.file] : (params.files ?? []);
+      for (const abs of affected) await this.refreshFileFromDisk(abs);
+    } else {
+      toast.error(`Replace failed: ${res.error ?? "unknown error"}`);
+    }
+    return {
+      ok: !!res.ok,
+      filesChanged: Number(res.filesChanged ?? 0),
+      replaced: Number(res.replaced ?? 0),
+      error: res.error as string | undefined,
+    };
+  }
+
+  // Re-sync an open model + cache with the VFS after an out-of-band write.
+  private async refreshFileFromDisk(abs: string) {
+    const text = await this.readFileText(abs);
+    this.localFiles[abs] = text;
+    const model = this.models.get(abs);
+    if (model && model.getValue() !== text) model.setValue(text);
+    if (this.snap.dirty.includes(abs))
+      this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+  }
+
+  // Double-clicking a preview tab (or Explorer entry) pins it permanently.
+  pinTab(abs: string) {
+    if (this.snap.previewTab === abs) this.set({ previewTab: null });
+  }
+
+  // Reorder the open-tabs strip (VSCode-style drag): move `fromAbs` to sit
+  // immediately before/after `toAbs`. Doesn't change which tab is active.
+  reorderTab(fromAbs: string, toAbs: string, placeAfter: boolean) {
+    if (fromAbs === toAbs) return;
+    const tabs = [...this.snap.openTabs];
+    const fromIdx = tabs.indexOf(fromAbs);
+    if (fromIdx === -1) return;
+    tabs.splice(fromIdx, 1);
+    let toIdx = tabs.indexOf(toAbs);
+    if (toIdx === -1) return;
+    if (placeAfter) toIdx += 1;
+    tabs.splice(toIdx, 0, fromAbs);
+    this.set({ openTabs: tabs });
+  }
+
+  // Revoke + forget an image tab's object URL (freeing the decoded bitmap).
+  private revokeImage(abs: string) {
+    const url = this.imageUrls.get(abs);
+    if (url) {
+      URL.revokeObjectURL(url);
+      this.imageUrls.delete(abs);
+    }
+  }
+  // Drop the render-kind entry for a closed/removed tab (image URLs revoked too).
+  private forgetKind(abs: string): Record<string, TabKind> {
+    this.revokeImage(abs);
+    if (!(abs in this.snap.tabKinds)) return this.snap.tabKinds;
+    const next = { ...this.snap.tabKinds };
+    delete next[abs];
+    return next;
+  }
+
+  closeTab(abs: string) {
+    const i = this.snap.openTabs.indexOf(abs);
+    if (i === -1) return;
+    // Closing a notebook stops its interpreter. A kernel with no window is a
+    // process holding a Pyodide heap that nothing can reach or stop.
+    const nb = this.notebooks.get(abs);
+    if (nb) {
+      nb.dispose();
+      this.notebooks.delete(abs);
+    }
+    const openTabs = this.snap.openTabs.filter((x) => x !== abs);
+    const previewTab = this.snap.previewTab === abs ? null : this.snap.previewTab;
+    const tabKinds = this.forgetKind(abs);
+    if (this.snap.activeTab === abs) {
+      const next = openTabs[i] || openTabs[i - 1] || null;
+      this.set({ openTabs, previewTab, tabKinds, activeTab: next });
+      if (next) void this.openFile(next);
+      else this.editor?.setModel(null);
+    } else {
+      this.set({ openTabs, previewTab, tabKinds });
+    }
+  }
+
+  // Persist a file to the VFS (⌘S, or "Save" in the close prompt). The dev server
+  // hot-updates/recompiles off the resulting notifyWatch.
+  saveFile(abs: string) {
+    if (!this.snap.dirty.includes(abs)) return;
+    // A notebook's text is generated from its cells, not held in a Monaco buffer.
+    if (this.saveNotebook(abs)) return;
+    const contents = this.models.get(abs)?.getValue() ?? this.localFiles[abs] ?? "";
+    this.localFiles[abs] = contents;
+    this.bridge.post("vv-write", { path: abs, contents });
+    const folder = this.folderForPath(abs);
+    if (folder) this.touchProject(folder.rootPath);
+    const reload = folder ? this.folderManifests.get(folder.rootPath)?.reload : false;
+    this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+    this.status(
+      reload ? `saved ${baseName(abs)} — recompiling…` : `saved ${baseName(abs)} — hot-updating…`,
+    );
+  }
+
+  // ── notebooks ──────────────────────────────────────────────────────────────
+  //
+  // A `.ipynb` opens as a notebook tab rather than as the JSON it is on disk.
+  // The document, the execution queue and the format live in `vv/notebook/*.js`,
+  // which `scripts/spike-notebook.mjs` drives directly; what is here is the part
+  // that needs the studio — the VFS, Monaco, and the terminal the kernel runs in.
+
+  /** Open (or reuse) the notebook for `abs`. False if the file will not parse,
+   *  which sends the caller back to the text editor. */
+  async openNotebook(abs: string): Promise<boolean> {
+    if (this.notebooks.has(abs)) return true;
+    if (!(abs in this.localFiles)) this.localFiles[abs] = await this.readFileText(abs);
+    let doc: NotebookDoc;
+    try {
+      const text = this.localFiles[abs] ?? "";
+      doc = text.trim() ? NotebookDoc.fromText(text) : new NotebookDoc();
+    } catch (err) {
+      this.status(
+        `${baseName(abs)} is not a notebook this can open (${(err as Error).message}) — showing the raw file`,
+      );
+      return false;
+    }
+    const handle = this.makeNotebook(abs, doc);
+    this.notebooks.set(abs, handle);
+    return true;
+  }
+
+  /** The handle for an open notebook, for the view. */
+  notebook(abs: string): NotebookHandle | null {
+    return this.notebooks.get(abs) ?? null;
+  }
+
+  /** Which open notebook owns a terminal id, if any. */
+  private notebookTerminal(terminalId: string): NotebookHandle | null {
+    if (!isNotebookTerminal(terminalId)) return null;
+    for (const h of this.notebooks.values()) if (h.kernel.terminalId === terminalId) return h;
+    return null;
+  }
+
+  private makeNotebook(abs: string, doc: NotebookDoc): NotebookHandle {
+    const dir = abs.slice(0, abs.lastIndexOf("/")) || "/";
+    const kernel = new NotebookKernel({
+      bridge: this.bridge,
+      cwd: this.folderForPath(abs)?.rootPath ?? dir,
+      onOutput: (chunk) => session.feed(chunk),
+      onExit: (code) => {
+        const alive = session.status !== "off";
+        session.onExit(code);
+        // The status bar, as well as the notebook's own banner. A kernel dying is
+        // the kind of thing a user should not have to be looking at the right tab
+        // to find out about — and for a long time it produced no report anywhere,
+        // because the shell outlived the kernel and this never even ran.
+        if (!alive) return;
+        const why = session.exit?.ename
+          ? `${session.exit.ename}${session.exit.evalue ? `: ${session.exit.evalue}` : ""}`
+          : `exit code ${code}`;
+        this.status(
+          `${baseName(abs)} — the Python kernel stopped (${why}); press Restart to run cells again`,
+        );
+      },
+    });
+    const session = new NotebookSession(kernel, doc.sink());
+
+    // The notebook's dirty flag rides the same tab-strip state as a text file's,
+    // so ⌘S, the close prompt and the dot on the tab all work unchanged.
+    const unsubscribe = doc.subscribe(() => {
+      const isDirty = this.snap.dirty.includes(abs);
+      if (doc.dirty && !isDirty) this.set({ dirty: [...this.snap.dirty, abs] });
+      else if (!doc.dirty && isDirty) this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+      if (doc.dirty && this.snap.previewTab === abs) this.set({ previewTab: null });
+    });
+
+    const handle: NotebookHandle = {
+      abs,
+      doc,
+      session,
+      kernel,
+      dispose: () => {
+        unsubscribe();
+        session.shutdown();
+        handle.editors?.disposeAll();
+        handle.editors = null;
+      },
+      editors: null,
+      run: (id) => {
+        const cell = doc.cell(id);
+        if (!cell) return;
+        if (cell.type !== "code") {
+          // Not silence. The toolbar's Run is `runSelected`, and a freshly opened
+          // notebook's selection is its FIRST cell — which is markdown in every
+          // template we ship, including the one the Python project starts with.
+          // So the most obvious button in the notebook did nothing at all, and
+          // said nothing about why, which reads as a broken kernel rather than as
+          // a cell with nothing to run.
+          this.status("markdown cells have nothing to run — select a code cell, or press its ▶");
+          return;
+        }
+        // The model is the truth while a cell is being typed in: `setSource` runs
+        // on change, but reading it here means a Run never sends stale text.
+        const model = handle.editors?.modelFor(id);
+        if (model) doc.setSource(id, model.getValue());
+        session.run(id, doc.cell(id)?.source ?? "");
+      },
+      runSelected: () => {
+        if (doc.selected) handle.run(doc.selected);
+      },
+      runAll: () => {
+        for (const cell of doc.cells) if (cell.type === "code") handle.run(cell.id);
+      },
+      interrupt: () => {
+        if (!session.interrupt()) this.status("nothing is running to interrupt");
+      },
+      restart: () => {
+        session.restart();
+        this.status(`${baseName(abs)} — restarting the interpreter`);
+      },
+      focusAfter: (id) => {
+        const next = doc.cells[doc.indexOf(id) + 1];
+        if (next) doc.select(next.id);
+        else doc.insert("code");
+      },
+      createCellEditor: (el, id, language) =>
+        this.createCellEditor(handle, el, id, language).catch((err: unknown) => {
+          // There is no error state for a cell. A cell whose editor did not get
+          // built renders as an empty bordered box and nothing else happens —
+          // which is indistinguishable, on screen, from a notebook that is simply
+          // broken. This promise had no rejection handler at all, anywhere, so
+          // whatever threw inside it never reached the console either.
+          console.error(
+            `[notebook] ${baseName(abs)}: could not build the editor for cell ${id}`,
+            err,
+          );
+          this.status(`${baseName(abs)} — a cell editor failed to load (details in the console)`);
+          return null;
+        }),
+    };
+    return handle;
+  }
+
+  /**
+   * A Monaco editor for one cell.
+   *
+   * All of the async is HERE and none of it is in the lifetime rules: Monaco is
+   * imported on demand, and once it has arrived `CellEditors.mount` is a
+   * synchronous step whose ordering guarantees hold whichever of two overlapping
+   * mounts lands first. That split is the fix for the dead-editor bug — see
+   * notebook/cell-editors.js, which is where the rules and the evidence live.
+   */
+  private async createCellEditor(
+    handle: NotebookHandle,
+    el: HTMLElement,
+    id: string,
+    language: "python" | "markdown",
+  ): Promise<CellEditorSlot | null> {
+    const monaco = this.monaco ?? (await import("monaco-editor"));
+    this.monaco ??= monaco;
+    // The one benign null: the cell was deleted while Monaco was loading, so
+    // there is nothing to build. Everything else throws and is reported by the
+    // wrapper in makeNotebook.
+    const cell = handle.doc.cell(id);
+    if (!cell) return null;
+    const editors = (handle.editors ??= new CellEditors(monaco, handle.abs));
+    if (language === "python") this.ensurePythonLanguage(editors.uriFor(id, language).path);
+    return editors.mount(el, id, language, cell.source, {
+      theme: monacoThemeFor(this.uiTheme),
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      // A notebook renders in the same pane as the text editor, so its cells have
+      // the same preview iframe beside them. `cellEditorOptions` already sets
+      // `fixedOverflowWidgets` for its own reasons; supplying the host here is
+      // what carries the widget out of the pane. Passed in rather than imported
+      // by cell-editors.js, which takes Monaco as a parameter precisely so it
+      // stays drivable without a DOM.
+      overflowWidgetsDomNode: overflowWidgetsNode(),
+    });
+  }
+
+  /** ⌘S on a notebook tab: serialise the document rather than a Monaco buffer. */
+  private saveNotebook(abs: string): boolean {
+    const handle = this.notebooks.get(abs);
+    if (!handle) return false;
+    const contents = handle.doc.toText();
+    this.localFiles[abs] = contents;
+    this.bridge.post("vv-write", { path: abs, contents });
+    handle.doc.dirty = false;
+    handle.doc.changed({ dirty: false });
+    this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+    this.status(`saved ${baseName(abs)}`);
+    return true;
+  }
+
+  // ── Source Control: diff tab + working-tree reload ──
+
+  /** Open a read-only diff (HEAD ↔ working tree) for a file as its own tab. */
+  openDiff(abs: string) {
+    const id = diffTabId(abs);
+    const openTabs = this.snap.openTabs.includes(id)
+      ? this.snap.openTabs
+      : [...this.snap.openTabs, id];
+    const tabKinds = { ...this.snap.tabKinds, [id]: "diff" as const };
+    this.set({ openTabs, tabKinds, activeTab: id, previewTab: null });
+  }
+
+  /** Mount (or re-target) the Monaco diff editor for a diff tab. Called by the
+   * EditorGroup's DiffView, which remounts per diff tab (keyed by tab id). */
+  async mountDiffEditor(el: HTMLElement, id: string) {
+    const abs = diffTargetOf(id);
+    const monaco = this.monaco ?? (await import("monaco-editor"));
+    this.monaco = monaco;
+    // One diff editor instance, rebound per mount. Dispose the previous editor +
+    // its throwaway models so we don't leak on every open.
+    this.disposeDiffEditor();
+    const diff = monaco.editor.createDiffEditor(el, {
+      readOnly: true,
+      automaticLayout: true,
+      theme: monacoThemeFor(this.uiTheme),
+      fontSize: 13,
+      minimap: { enabled: false },
+      renderSideBySide: true,
+      scrollBeyondLastLine: false,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      // Wrapping matters MORE here than in the text editor: a side-by-side diff gives
+      // each version half the width, so a long line is cut off twice over.
+      wordWrap: this.snap.wordWrap ? "on" : "off",
+      // Same pane, same preview iframe next to it — see overflowWidgetsNode.
+      fixedOverflowWidgets: true,
+      overflowWidgetsDomNode: overflowWidgetsNode(),
+    });
+    this.diffEditor = diff;
+    const [head, work] = await Promise.all([
+      this.scm.headBlobText(abs),
+      this.readFileText(abs).catch(() => ""),
+    ]);
+    // A resume/tab-switch may have torn this editor down while we awaited.
+    if (this.diffEditor !== diff) return;
+    const lang = languageFor(abs);
+    const original = monaco.editor.createModel(head, lang);
+    const modified = monaco.editor.createModel(work, lang);
+    this.diffModels = [original, modified];
+    diff.setModel({ original, modified });
+  }
+
+  private disposeDiffEditor() {
+    this.diffEditor?.dispose();
+    this.diffEditor = null;
+    for (const m of this.diffModels) m.dispose();
+    this.diffModels = [];
+  }
+
+  /** After a checkout/discard rewrote files via the silent git RPC, refresh the
+   * Explorer tree and reload any open editor models whose bytes changed on disk. */
+  private async reloadWorkdir() {
+    this.bumpTree();
+    for (const abs of this.snap.openTabs) {
+      if (isDiffTabId(abs)) continue;
+      if ((this.snap.tabKinds[abs] ?? "text") !== "text") continue;
+      const model = this.models.get(abs);
+      if (!model) continue;
+      try {
+        const text = await this.readFileText(abs);
+        this.localFiles[abs] = text;
+        if (model.getValue() !== text) model.setValue(text);
+      } catch {
+        /* the checkout may have deleted this file — leave the stale buffer */
+      }
+    }
+  }
+
+  saveActiveFile() {
+    if (this.snap.activeTab) this.saveFile(this.snap.activeTab);
+  }
+
+  // Throw away unsaved edits, reverting the model to the last-saved text.
+  discardFile(abs: string) {
+    const nb = this.notebooks.get(abs);
+    if (nb) {
+      // Rebuilt from the saved bytes rather than undone cell by cell: the edits
+      // being discarded include inserts, deletes and reorders, which no per-model
+      // revert would put back.
+      nb.dispose();
+      this.notebooks.delete(abs);
+      this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+      void this.openNotebook(abs);
+      return;
+    }
+    const model = this.models.get(abs);
+    const saved = this.localFiles[abs] ?? "";
+    if (model && model.getValue() !== saved) model.setValue(saved); // fires onDidChangeContent → clears dirty
+    this.set({ dirty: this.snap.dirty.filter((x) => x !== abs) });
+  }
+
+  // ── workspace folders ──────────────────────────────────────────────────────
+  get activeFolder(): WorkspaceFolder | null {
+    return this.snap.workspaceFolders.find((f) => f.id === this.snap.activeFolderId) ?? null;
+  }
+  private folderForPath(abs: string): WorkspaceFolder | null {
+    let best: WorkspaceFolder | null = null;
+    for (const f of this.snap.workspaceFolders) {
+      if (abs === f.rootPath || abs.startsWith(f.rootPath + "/")) {
+        if (!best || f.rootPath.length > best.rootPath.length) best = f;
+      }
+    }
+    return best;
+  }
+
+  // Add a root to the workspace (or focus it if already open) and show it.
+  openFolder(rootPath: string, name?: string): WorkspaceFolder {
+    const root = normDir(rootPath);
+    const id = folderIdFor(root);
+    let folder = this.snap.workspaceFolders.find((f) => f.id === id);
+    if (!folder) {
+      folder = { id, name: name || baseName(root) || root, rootPath: root };
+      this.set({ workspaceFolders: [...this.snap.workspaceFolders, folder] });
+    }
+    this.set({
+      activeFolderId: id,
+      view: "workspace",
+      projectTitle: folder.name,
+      treeVersion: this.snap.treeVersion + 1,
+    });
+    void this.indexFolder(root);
+    this.syncScmRoots();
+    this.refreshScm();
+    return folder;
+  }
+
+  closeFolder(id: string) {
+    const folder = this.snap.workspaceFolders.find((f) => f.id === id);
+    if (!folder) return;
+    const root = folder.rootPath;
+    // Drop the folder's open tabs/models + its file index.
+    const tabKinds = { ...this.snap.tabKinds };
+    for (const abs of Array.from(this.snap.openTabs)) {
+      if (abs === root || abs.startsWith(root + "/")) {
+        this.disposeModel(abs);
+        delete this.localFiles[abs];
+        this.revokeImage(abs);
+        delete tabKinds[abs];
+      }
+    }
+    const keep = (p: string) => !(p === root || p.startsWith(root + "/"));
+    const openTabs = this.snap.openTabs.filter(keep);
+    const activeTab =
+      this.snap.activeTab && keep(this.snap.activeTab)
+        ? this.snap.activeTab
+        : (openTabs[openTabs.length - 1] ?? null);
+    this.fileIndex.delete(root);
+    this.folderManifests.delete(root);
+    const folders = this.snap.workspaceFolders.filter((f) => f.id !== id);
+    const activeFolderId =
+      this.snap.activeFolderId === id
+        ? (folders[folders.length - 1]?.id ?? null)
+        : this.snap.activeFolderId;
+    this.set({
+      workspaceFolders: folders,
+      activeFolderId,
+      openTabs,
+      activeTab,
+      tabKinds,
+      previewTab: this.snap.previewTab && keep(this.snap.previewTab) ? this.snap.previewTab : null,
+      dirty: this.snap.dirty.filter(keep),
+      files: this.rebuildFileIndex(),
+      view: folders.length ? "workspace" : "home",
+      projectTitle: folders.length
+        ? (folders.find((f) => f.id === activeFolderId)?.name ?? null)
+        : null,
+    });
+    if (activeTab) void this.openFile(activeTab);
+    else this.editor?.setModel(null);
+    // A folder was removed: drop its Source Control section.
+    this.syncScmRoots();
+    this.refreshScm();
+  }
+
+  setActiveFolder(id: string) {
+    const f = this.snap.workspaceFolders.find((x) => x.id === id);
+    if (f) {
+      this.set({ activeFolderId: id, projectTitle: f.name });
+    }
+  }
+
+  // Recursively index a folder's files (skipping heavy dirs) for quick-open +
+  // filename search. Bounded so a giant tree can't lock up the UI.
+  private async indexFolder(root: string) {
+    const skip = new Set(["node_modules", ".git", "dist", ".vite", ".next", "build", ".cache"]);
+    const out: string[] = [];
+    const walk = async (dir: string, depth: number) => {
+      if (depth > 8 || out.length > 4000) return;
+      const entries = await this.readdir(dir);
+      for (const e of entries) {
+        const abs = dir + "/" + e.name;
+        if (e.dir) {
+          if (!skip.has(e.name)) await walk(abs, depth + 1);
+        } else {
+          out.push(abs);
+        }
+      }
+    };
+    await walk(root, 0);
+    this.fileIndex.set(root, out);
+    this.set({ files: this.rebuildFileIndex() });
+    // Feed the language service: this folder's source files (cross-file
+    // IntelliSense) + a debounced refresh of installed-package types.
+    this.ensureBackgroundModels(out);
+    this.scheduleDependencyTypes();
+  }
+  private rebuildFileIndex(): string[] {
+    const all: string[] = [];
+    for (const list of this.fileIndex.values()) all.push(...list);
+    return all.sort();
+  }
+
+  // ── project creation / opening (Home) ──────────────────────────────────────
+  private slug(name: string): string {
+    return (
+      name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "project"
+    );
+  }
+  // A sensible default directory for a new project of the given name.
+  defaultDirFor(name: string): string {
+    return "/home/user/projects/" + this.slug(name);
+  }
+
+  // Validate a target directory for a NEW project. Returns an error string or null.
+  async validateNewDir(dir: string): Promise<string | null> {
+    const abs = normDir(dir);
+    if (!abs.startsWith("/")) return "Path must be absolute (start with /).";
+    if (abs === "/" || this.snap.workspaceFolders.some((f) => f.rootPath === abs))
+      return "That directory is already open in the workspace.";
+    if (this.snap.recentProjects.some((p) => p.rootPath === abs))
+      return "A project already exists at that path.";
+    const info = await this.pathInfo(abs);
+    if (info.exists && !info.isDir) return "A file already exists at that path.";
+    if (info.exists && info.isDir) {
+      const entries = await this.readdir(abs);
+      if (entries.length) return "That directory is not empty.";
+    }
+    return null;
+  }
+
+  async createBlankProject({ name, dir }: { name: string; dir: string }) {
+    const root = normDir(dir);
+    const files: Record<string, string> = {
+      "package.json":
+        JSON.stringify(
+          {
+            name: this.slug(name),
+            version: "0.0.0",
+            private: true,
+            type: "module",
+            scripts: { start: "node index.js" },
+          },
+          null,
+          2,
+        ) + "\n",
+      "index.js": `console.log("Hello from ${name}!");\n`,
+      "README.md": `# ${name}\n\nA blank project created in Vivari Studio.\n`,
+    };
+    const res = await this.bridge.request("vv-create-project", { dir: root, files, title: name });
+    if (!res.ok) {
+      toast.error(`Couldn't create project: ${res.error ?? "unknown error"}`);
+      return;
+    }
+    this.upsertProjectMeta({ name, rootPath: root, template: null });
+    this.openFolder(root, name);
+    void this.openFile(root + "/index.js");
+    this.status(`created ${name}`);
+  }
+
+  async createFromTemplate({
+    templateId,
+    name,
+    dir,
+    runInit,
+  }: {
+    templateId: string;
+    name: string;
+    dir: string;
+    runInit: boolean;
+  }) {
+    const t = (await loadTemplates()).getTemplate(templateId);
+    if (!t) {
+      toast.error("Unknown template");
+      return;
+    }
+    const root = normDir(dir);
+    const title = `${t.manifest.name} · ${t.manifest.language}`;
+    // Mode C serves each port at its own origin root, so a keep-prefix template's
+    // hardcoded `/preview/<port>/` base (built for modes A/B) would 404. Rewrite it
+    // to "/" and drop the now-irrelevant flag so the app runs at the origin root.
+    // Modes A/B keep the template verbatim.
+    const wildcard = this.previewMode === "wildcard" && !!t.manifest.keepPreviewPrefix;
+    const files = wildcard ? rewritePreviewBaseToRoot(t.files) : t.files;
+    const manifest = wildcard ? { ...t.manifest, keepPreviewPrefix: false } : t.manifest;
+    const res = await this.bridge.request("vv-create-project", {
+      dir: root,
+      files,
+      manifest,
+      title,
+    });
+    if (!res.ok) {
+      toast.error(`Couldn't create project: ${res.error ?? "unknown error"}`);
+      return;
+    }
+    this.folderManifests.set(root, manifest);
+    this.upsertProjectMeta({ name, rootPath: root, template: templateId });
+    this.openFolder(root, name);
+    void this.openFile(root + "/" + t.manifest.entry);
+    if (runInit) {
+      this.runProject(root);
+    } else {
+      this.status(`${name} created — run \`${t.manifest.install}\` then \`${t.manifest.dev}\``);
+    }
+  }
+
+  // Open a previously-created project from the Home recent list.
+  async openProject(meta: ProjectMeta) {
+    // Until the kernel is ready the VFS hasn't finished restoring from OPFS, so
+    // the project's files legitimately aren't on disk *yet*. Don't mistake that
+    // for a deleted project (which would wrongly drop it from the recent list) —
+    // just tell the user to wait for the restore to finish.
+    if (!this.snap.kernelReady) {
+      toast.info(
+        "Still restoring your saved project — please wait until Studio finishes loading, then try again.",
+      );
+      return;
+    }
+    const root = normDir(meta.rootPath);
+    const info = await this.pathInfo(root);
+    if (!info.exists) {
+      toast.error("This project's files are no longer on disk.");
+      this.removeProjectMeta(root);
+      return;
+    }
+    if (meta.template) {
+      const t = (await loadTemplates()).getTemplate(meta.template);
+      if (t) {
+        this.folderManifests.set(root, t.manifest);
+        this.bridge.post("vv-register-project", {
+          dir: root,
+          manifest: t.manifest,
+          title: meta.name,
+        });
+      }
+    }
+    this.touchProject(root);
+    this.openFolder(root, meta.name);
+    const manifest = this.folderManifests.get(root);
+    if (manifest) void this.openFile(root + "/" + manifest.entry);
+    // node_modules is no longer mirrored file-by-file — it's restored from the
+    // dependency-cache snapshot on demand. Bring it back now the project is open
+    // (one blob read), then refresh the Explorer + IntelliSense to reflect it.
+    void this.bridge.request("vv-ensure-deps", { dir: root }).then((res) => {
+      if ((res as { restored?: boolean }).restored) {
+        this.bumpTree();
+        this.scheduleDependencyTypes();
+      }
+    });
+  }
+
+  // Run a project: open a shell in its dir and auto-run install && dev. Re-uses
+  // the existing run terminal if it's still alive.
+  runProject(rootPath: string) {
+    const root = normDir(rootPath);
+    const manifest = this.folderManifests.get(root);
+    this.set({ panelCollapsed: false });
+    const running = this.runningProjects.get(root);
+    if (running && running.terminalId && this.terms.has(running.terminalId)) {
+      this.switchTerminal(running.terminalId);
+      if (running.port) this.pointPreview(running.port);
+      return;
+    }
+    if (!manifest) {
+      // No known dev command — just drop the user into a shell in the project.
+      this.openTerminalIn(root);
+      return;
+    }
+    markBoot("install-start");
+    warmRegistryConnection();
+    const tid = this.newShellTerminal({ cwd: root, run: manifest.dev, label: manifest.dev });
+    this.runningProjects.set(root, { terminalId: tid, port: null });
+    this.beginRunPhase(root);
+  }
+
+  // ── run narration ──────────────────────────────────────────────────────────
+  // A run's phase, kept in the snapshot so the preview panel and the status bar
+  // say the same thing. `runTerminalId` is what ties terminal output back to the
+  // run: the fetch counters arrive as bytes on a terminal, and every other
+  // terminal's bytes must be ignored.
+  private runTerminalId: string | null = null;
+
+  private beginRunPhase(root: string) {
+    const running = this.runningProjects.get(root);
+    this.runTerminalId = running?.terminalId ?? null;
+    this.applyTsIntelligence(false);
+    const phase: RunPhase = {
+      rootPath: root,
+      name: this.snap.workspaceFolders.find((f) => f.rootPath === root)?.name || baseName(root),
+      phase: "installing",
+      detail: "",
+      startedAt: Date.now(),
+    };
+    this.set({ runPhase: phase });
+    this.status(`${phase.name}: installing dependencies…`);
+  }
+
+  private updateRunPhase(next: (cur: RunPhase) => RunPhase) {
+    const cur = this.snap.runPhase;
+    if (!cur) return;
+    const updated = next(cur);
+    if (updated !== cur) this.set({ runPhase: updated });
+  }
+
+  /** The run reached its end — a preview painted, or the run tab died. */
+  private endRunPhase(root?: string) {
+    if (!this.snap.runPhase) return;
+    if (root && this.snap.runPhase.rootPath !== root) return;
+    this.runTerminalId = null;
+    this.set({ runPhase: null });
+    this.enableTsIntelligence();
+    // node_modules exists now (or never will), so the types harvest is finally
+    // able to find something.
+    this.scheduleDependencyTypes();
+  }
+
+  // Run the currently-focused folder (TitleBar / command palette Run).
+  runActiveFolder() {
+    const f = this.activeFolder;
+    if (f) this.runProject(f.rootPath);
+    else toast.error("Open a project first");
+  }
+
+  // Open a new terminal rooted at `absDir` (Explorer "Open in Integrated Terminal").
+  openTerminalIn(absDir: string) {
+    const dir = normDir(absDir);
+    this.set({ panelCollapsed: false });
+    this.newShellTerminal({ cwd: dir, label: baseName(dir) || "sh", activate: true });
+  }
+
+  goHome() {
+    this.set({ view: "home" });
+  }
+  showWorkspace() {
+    if (this.snap.workspaceFolders.length) this.set({ view: "workspace" });
+  }
+
+  // ── file operations (Explorer) — all absolute-path based ──────────────────
+  private disposeModel(abs: string) {
+    const model = this.models.get(abs);
+    if (!model) return;
+    if (this.editor && this.editor.getModel() === model) this.editor.setModel(null);
+    model.dispose();
+    this.models.delete(abs);
+  }
+
+  private bumpTree() {
+    if (this.treeBump) clearTimeout(this.treeBump);
+    this.treeBump = setTimeout(() => {
+      this.treeBump = null;
+      const root = this.activeFolder?.rootPath;
+      if (root) void this.indexFolder(root);
+      // Refresh Source Control status ONLY while its panel is open — a status walk
+      // pushes many synchronous fs ops onto the kernel worker thread, which also
+      // drives the terminal, so running it in the background would stall commands.
+      // (git's own .git writes use the silent RPC and never reach here anyway.)
+      if (this.snap.activeView === "scm") void this.scm.refresh();
+      this.set({ treeVersion: this.snap.treeVersion + 1 });
+    }, 60);
+  }
+
+  // Remap every open path that is `oldAbs` (or lives under it) onto `newAbs`.
+  private remapOpenPaths(oldAbs: string, newAbs: string) {
+    const map = (p: string) =>
+      p === oldAbs ? newAbs : p.startsWith(oldAbs + "/") ? newAbs + p.slice(oldAbs.length) : p;
+    const tabKinds = { ...this.snap.tabKinds };
+    for (const abs of this.snap.openTabs) {
+      if (abs === oldAbs || abs.startsWith(oldAbs + "/")) {
+        const dest = map(abs);
+        this.disposeModel(abs);
+        if (abs in this.localFiles) {
+          this.localFiles[dest] = this.localFiles[abs];
+          delete this.localFiles[abs];
+        }
+        // Carry the render-kind + any image object URL over to the new path.
+        if (abs in tabKinds) {
+          tabKinds[dest] = tabKinds[abs];
+          delete tabKinds[abs];
+        }
+        const url = this.imageUrls.get(abs);
+        if (url) {
+          this.imageUrls.set(dest, url);
+          this.imageUrls.delete(abs);
+        }
+      }
+    }
+    this.set({
+      openTabs: this.snap.openTabs.map(map),
+      activeTab: this.snap.activeTab ? map(this.snap.activeTab) : null,
+      tabKinds,
+      previewTab: this.snap.previewTab ? map(this.snap.previewTab) : null,
+      dirty: this.snap.dirty.map(map),
+    });
+    if (this.snap.activeTab)
+      void this.openFile(this.snap.activeTab, {
+        preview: this.snap.previewTab === this.snap.activeTab,
+      });
+  }
+
+  private dropOpenPaths(abs: string) {
+    const affected = new Set(
+      this.snap.openTabs.filter((p) => p === abs || p.startsWith(abs + "/")),
+    );
+    const tabKinds = { ...this.snap.tabKinds };
+    for (const p of affected) {
+      this.disposeModel(p);
+      delete this.localFiles[p];
+      this.revokeImage(p);
+      delete tabKinds[p];
+    }
+    const openTabs = this.snap.openTabs.filter((p) => !affected.has(p));
+    let activeTab = this.snap.activeTab;
+    if (activeTab && affected.has(activeTab)) activeTab = openTabs[openTabs.length - 1] ?? null;
+    this.set({
+      openTabs,
+      activeTab,
+      tabKinds,
+      previewTab:
+        this.snap.previewTab && affected.has(this.snap.previewTab) ? null : this.snap.previewTab,
+      dirty: this.snap.dirty.filter((p) => !affected.has(p)),
+    });
+    if (activeTab) void this.openFile(activeTab);
+    else this.editor?.setModel(null);
+  }
+
+  copyEntry(abs: string) {
+    this.copyEntries([abs]);
+  }
+  cutEntry(abs: string) {
+    this.cutEntries([abs]);
+  }
+  copyEntries(paths: string[]) {
+    if (paths.length) this.set({ clipboard: { mode: "copy", paths: [...paths] } });
+  }
+  cutEntries(paths: string[]) {
+    if (paths.length) this.set({ clipboard: { mode: "cut", paths: [...paths] } });
+  }
+
+  renameEntry(oldAbs: string, newName: string) {
+    const name = newName.trim();
+    if (!name || name === baseName(oldAbs)) return;
+    const parent = oldAbs.slice(0, oldAbs.lastIndexOf("/"));
+    const newAbs = parent + "/" + name;
+    this.bridge.post("vv-rename", { from: oldAbs, to: newAbs });
+    this.remapOpenPaths(oldAbs, newAbs);
+    if (this.snap.clipboard?.paths.includes(oldAbs)) this.set({ clipboard: null });
+    this.bumpTree();
+  }
+
+  deleteEntry(abs: string) {
+    this.deleteEntries([abs]);
+  }
+  // Delete every entry in `paths` (batch delete from a multi-selection).
+  deleteEntries(paths: string[]) {
+    if (!paths.length) return;
+    for (const abs of paths) {
+      this.bridge.post("vv-rm", { path: abs });
+      this.dropOpenPaths(abs);
+    }
+    const cb = this.snap.clipboard;
+    if (cb) {
+      const remaining = cb.paths.filter((p) => !paths.includes(p));
+      if (remaining.length !== cb.paths.length) {
+        this.set({ clipboard: remaining.length ? { ...cb, paths: remaining } : null });
+      }
+    }
+    this.bumpTree();
+  }
+
+  // Paste every clipboard entry into `destDirAbs`.
+  async pasteInto(destDirAbs: string) {
+    const cb = this.snap.clipboard;
+    if (!cb) return;
+    const dest = normDir(destDirAbs);
+    for (const src of cb.paths) {
+      // Cutting into itself/descendant/current parent is a no-op — skip.
+      if (
+        cb.mode === "cut" &&
+        (dest === src || dest.startsWith(src + "/") || dest === parentOf(src))
+      )
+        continue;
+      const target = await this.uniqueChild(dest, baseName(src));
+      if (cb.mode === "copy") {
+        this.bridge.post("vv-copy", { from: src, to: target });
+      } else {
+        this.bridge.post("vv-rename", { from: src, to: target });
+        this.remapOpenPaths(src, target);
+      }
+    }
+    if (cb.mode === "cut") this.set({ clipboard: null });
+    this.bumpTree();
+  }
+
+  // ── drag & drop (Explorer reorg + OS import + open-in-editor) ──────────────
+  // Compute a non-colliding child path in `destDir` for `name`, appending
+  // -copy, -copy-2, … (matches pasteInto's clobber-avoidance).
+  private async uniqueChild(destDir: string, name: string): Promise<string> {
+    const target = destDir + "/" + name;
+    if (!(await this.pathInfo(target)).exists) return target;
+    const dot = name.lastIndexOf(".");
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : "";
+    for (let n = 1; ; n++) {
+      const cand = `${destDir}/${stem}-copy${n > 1 ? `-${n}` : ""}${ext}`;
+      if (!(await this.pathInfo(cand)).exists) return cand;
+    }
+  }
+
+  // Move an entry into `destDirAbs` (default Explorer drag). No-ops for a drop
+  // into the current parent or a folder dropped into itself/a descendant.
+  async moveEntry(fromAbs: string, destDirAbs: string) {
+    const from = fromAbs.replace(/\/+$/, "");
+    const dest = normDir(destDirAbs);
+    if (dest === parentOf(from)) return;
+    if (dest === from || dest.startsWith(from + "/")) return;
+    const target = await this.uniqueChild(dest, baseName(from));
+    this.bridge.post("vv-rename", { from, to: target });
+    this.remapOpenPaths(from, target);
+    if (this.snap.clipboard?.paths.includes(from)) this.set({ clipboard: null });
+    this.bumpTree();
+  }
+
+  // Copy an entry into `destDirAbs` (Ctrl/Cmd-drag). A folder can't be copied
+  // into itself or a descendant.
+  async copyEntryTo(fromAbs: string, destDirAbs: string) {
+    const from = fromAbs.replace(/\/+$/, "");
+    const dest = normDir(destDirAbs);
+    if (dest === from || dest.startsWith(from + "/")) return;
+    const target = await this.uniqueChild(dest, baseName(from));
+    this.bridge.post("vv-copy", { from, to: target });
+    this.bumpTree();
+  }
+
+  // Batch move/copy for a multi-selection drag. Sequential so per-item
+  // collision suffixes (-copy, -copy-2, …) resolve against prior writes.
+  async moveEntries(paths: string[], destDirAbs: string) {
+    for (const p of paths) await this.moveEntry(p, destDirAbs);
+  }
+  async copyEntriesTo(paths: string[], destDirAbs: string) {
+    for (const p of paths) await this.copyEntryTo(p, destDirAbs);
+  }
+
+  // Import OS files/folders (dragged from the desktop) into `destDirAbs`.
+  // `entries` come from entriesFromDataTransfer (extracted synchronously in the
+  // drop handler). Returns the created top-level target paths.
+  async importInto(destDirAbs: string, entries: FileSystemEntry[]): Promise<string[]> {
+    const dest = normDir(destDirAbs);
+    const targets: string[] = [];
+    let count = 0;
+    for (const entry of entries) {
+      const target = await this.uniqueChild(dest, entry.name);
+      count += await this.writeEntry(entry, target);
+      targets.push(target);
+    }
+    if (count) {
+      this.bumpTree();
+      this.status(`imported ${count} file${count === 1 ? "" : "s"} into ${baseName(dest) || "/"}`);
+    }
+    return targets;
+  }
+
+  // Recursively write one OS FileSystemEntry to `targetAbs` in the VFS. Returns
+  // the number of files written.
+  private async writeEntry(entry: FileSystemEntry, targetAbs: string): Promise<number> {
+    if (entry.isFile) {
+      const file = await new Promise<File>((res, rej) =>
+        (entry as FileSystemFileEntry).file(res, rej),
+      );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      await this.bridge.request("vv-write", { path: targetAbs, bytes });
+      return 1;
+    }
+    if (entry.isDirectory) {
+      await this.bridge.request("vv-mkdirp", { path: targetAbs });
+      const children = await readDirEntries(entry as FileSystemDirectoryEntry);
+      let n = 0;
+      for (const child of children) n += await this.writeEntry(child, targetAbs + "/" + child.name);
+      return n;
+    }
+    return 0;
+  }
+
+  // A drop landed on the Monaco editor. Internal entries open directly; OS
+  // files are imported into the active folder's root, then opened.
+  async dropOnEditor({ paths, entries }: { paths: string[]; entries: FileSystemEntry[] }) {
+    if (paths.length) {
+      for (const p of paths) void this.openEntry(p);
+      return;
+    }
+    if (!entries.length) return;
+    const root = this.activeFolder?.rootPath;
+    if (!root) {
+      toast.error("Open a project first to view dropped files");
+      return;
+    }
+    const targets = await this.importInto(root, entries);
+    if (targets[0]) void this.openEntry(targets[0]);
+  }
+
+  // ── import / export / share (P2) ────────────────────────────────────────────
+  // Read a project's whole source tree (node_modules/.git excluded) in one bulk
+  // reply — the basis for both zip export and the shareable-URL payload.
+  async readProjectTree(rootPath: string): Promise<{ files: FileTree; truncated: boolean }> {
+    const m = await this.bridge.request("vv-read-tree", { root: normDir(rootPath) });
+    if (!m.ok) return { files: [], truncated: false };
+    const files = ((m.files as FileTree) ?? []).filter((f) => f.bytes instanceof Uint8Array);
+    return { files, truncated: !!m.truncated };
+  }
+
+  // Export a project as a .zip downloaded to disk.
+  async exportProjectZip(rootPath: string) {
+    const root = normDir(rootPath);
+    const { files, truncated } = await this.readProjectTree(root);
+    if (!files.length) {
+      toast.error("Nothing to export in this project.");
+      return;
+    }
+    try {
+      const zip = await createZip(files);
+      const filename = (baseName(root) || "project") + ".zip";
+      downloadBlob(new Blob([zip as BlobPart], { type: "application/zip" }), filename);
+      const count = `${files.length} file${files.length === 1 ? "" : "s"}`;
+      toast.success(`Exported ${filename}`, {
+        description: `${count} · node_modules excluded`,
+      });
+      this.status(`exported ${count} → ${filename}`);
+      if (truncated) toast.warning("Project was large — the export was truncated.");
+    } catch (err) {
+      toast.error("Export failed: " + errText(err));
+    }
+  }
+
+  // Synthesize a run manifest for an imported/shared project from its package.json
+  // (so Run auto-installs + starts a dev server). Null when there's no runnable
+  // script — the project still opens; Run just drops into a shell.
+  private synthManifest(files: FileTree, name: string): TemplateManifest | null {
+    const pkgFile = files.find((f) => f.path === "package.json");
+    if (!pkgFile) return null;
+    let pkg: {
+      scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    try {
+      pkg = JSON.parse(new TextDecoder().decode(pkgFile.bytes));
+    } catch {
+      return null;
+    }
+    const scripts = pkg.scripts || {};
+    const devKey = scripts.dev ? "dev" : scripts.start ? "start" : scripts.serve ? "serve" : null;
+    if (!devKey) return null;
+    const dev = devKey === "start" ? "npm start" : `npm run ${devKey}`;
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const usesVite = "vite" in allDeps || /vite/.test(scripts[devKey] || "");
+    const hasTs = files.some((f) => /\.tsx?$/.test(f.path)) || "typescript" in allDeps;
+    const entryCandidates = [
+      "src/App.tsx",
+      "src/App.jsx",
+      "src/main.tsx",
+      "src/main.ts",
+      "src/index.tsx",
+      "src/index.ts",
+      "src/index.js",
+      "index.ts",
+      "index.js",
+      "README.md",
+    ];
+    const entry =
+      entryCandidates.find((c) => files.some((f) => f.path === c)) ||
+      files[0]?.path ||
+      "package.json";
+    return {
+      id: "imported",
+      framework: "node",
+      icon: "package",
+      category: "Frontend",
+      name,
+      language: hasTs ? "TypeScript" : "JavaScript",
+      description: "Imported project",
+      port: usesVite ? 5173 : 3000,
+      openPath: "/",
+      entry,
+      hmr: usesVite,
+      reload: !usesVite,
+      install: "npm install",
+      dev,
+    };
+  }
+
+  // Create a NEW project from an in-memory file tree (folder import / shared URL).
+  async importFilesAsProject({
+    name,
+    dir,
+    files,
+    excludedNodeModules,
+    silent,
+  }: {
+    name: string;
+    dir: string;
+    files: FileTree;
+    excludedNodeModules?: boolean;
+    silent?: boolean;
+  }): Promise<boolean> {
+    if (!this.snap.kernelReady) {
+      toast.error("Kernel is still starting — try again in a moment.");
+      return false;
+    }
+    if (!files.length) {
+      toast.error("No files to import.");
+      return false;
+    }
+    const root = normDir(dir);
+    const err = await this.validateNewDir(root);
+    if (err) {
+      toast.error(err);
+      return false;
+    }
+    const res = await this.bridge.request("vv-import-tree", { dir: root, files });
+    if (!res.ok) {
+      toast.error(`Import failed: ${res.error ?? "unknown error"}`);
+      return false;
+    }
+    const manifest = this.synthManifest(files, name);
+    if (manifest) {
+      this.folderManifests.set(root, manifest);
+      this.bridge.post("vv-register-project", { dir: root, manifest, title: name });
+    }
+    this.upsertProjectMeta({ name, rootPath: root, template: null });
+    this.openFolder(root, name);
+    const openTarget =
+      manifest?.entry || files.find((f) => f.path === "package.json")?.path || files[0]?.path;
+    if (openTarget) void this.openFile(root + "/" + openTarget);
+    const note = excludedNodeModules ? " (node_modules excluded)" : "";
+    const count = `${files.length} file${files.length === 1 ? "" : "s"}`;
+    this.status(`imported ${count} as ${name}${note}`);
+    if (!silent) {
+      toast.success(`Imported ${name} — ${count}${note}`, {
+        description: excludedNodeModules ? "Run the project to reinstall dependencies." : undefined,
+      });
+    }
+    return true;
+  }
+
+  // Build a self-contained shareable URL (compressed project source in the hash)
+  // and copy it to the clipboard. Source-only (node_modules excluded); capped so
+  // the link stays usable. Returns the URL, or null if it can't be shared.
+  async shareProject(rootPath: string): Promise<string | null> {
+    const root = normDir(rootPath);
+    const { files, truncated } = await this.readProjectTree(root);
+    if (!files.length) {
+      toast.error("Nothing to share in this project.");
+      return null;
+    }
+    if (truncated) {
+      toast.error("Project is too large to share as a link.");
+      return null;
+    }
+    try {
+      const payload = await encodeShare({ name: baseName(root) || "project", files });
+      const url = location.origin + location.pathname + "#share=" + payload;
+      if (url.length > MAX_SHARE_URL_LEN) {
+        toast.error("Project is too big to share as a link.");
+        return null;
+      }
+      const kb = Math.max(1, Math.round(url.length / 1024));
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Share link copied to clipboard.", {
+          description: `Self-contained · source only · ${kb} KB`,
+          position: "bottom-left",
+        });
+        this.status(`share link copied (${kb} KB)`);
+      } catch {
+        toast.warning("Couldn't copy to clipboard — copy the link from the address bar.", {
+          position: "bottom-left",
+        });
+        this.status("share link ready");
+      }
+      return url;
+    } catch (err) {
+      toast.error("Share failed: " + errText(err));
+      return null;
+    }
+  }
+
+  // A default project dir for `name` that doesn't collide with an open/known one.
+  private async freeDirFor(name: string): Promise<string> {
+    const base = this.slug(name);
+    let dir = this.defaultDirFor(base);
+    let n = 2;
+    while (await this.validateNewDir(dir)) {
+      dir = this.defaultDirFor(base + "-" + n++);
+      if (n > 50) break;
+    }
+    return dir;
+  }
+
+  // Open the OS folder picker and import the chosen directory as a new project.
+  importFolderViaPicker() {
+    if (!this.snap.kernelReady) {
+      toast.error("Kernel is still starting — try again in a moment.");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+    input.onchange = async () => {
+      const list = input.files;
+      if (!list || !list.length) return;
+      const { name, files, excludedNodeModules } = await treeFromFileList(list);
+      if (!files.length) {
+        toast.error("No importable files in that folder.");
+        return;
+      }
+      const dir = await this.freeDirFor(name);
+      await this.importFilesAsProject({
+        name: baseName(dir) || name,
+        dir,
+        files,
+        excludedNodeModules,
+      });
+    };
+    input.click();
+  }
+
+  // Import an OS drop (folder / files) as a new project (Home dropzone).
+  async importDropAsProject(entries: FileSystemEntry[]) {
+    if (!this.snap.kernelReady) {
+      toast.error("Kernel is still starting — try again in a moment.");
+      return;
+    }
+    if (!entries.length) return;
+    const { name, files, excludedNodeModules } = await treeFromDrop(entries);
+    if (!files.length) {
+      toast.error("No importable files were dropped.");
+      return;
+    }
+    const dir = await this.freeDirFor(name);
+    await this.importFilesAsProject({
+      name: baseName(dir) || name,
+      dir,
+      files,
+      excludedNodeModules,
+    });
+  }
+
+  // ── Import from a remote source (GitHub repo / npm package) ────────────────
+  openImportRemote() {
+    if (!this.snap.kernelReady) {
+      toast.error("Kernel is still starting — try again in a moment.");
+      return;
+    }
+    this.set({ importRemoteOpen: true });
+  }
+  closeImportRemote() {
+    this.set({ importRemoteOpen: false });
+  }
+
+  // Fetch a remote tree, then land it as a new project. Shared spine for the
+  // GitHub/npm importers: both just supply a fetcher. Returns true on success so
+  // the dialog can close itself. Progress flows to the dialog via onProgress.
+  private async importRemoteTree(
+    fetchTree: () => Promise<{
+      name: string;
+      files: FileTree;
+      excludedNodeModules: boolean;
+      truncated?: boolean;
+    }>,
+  ): Promise<boolean> {
+    if (!this.snap.kernelReady) {
+      toast.error("Kernel is still starting — try again in a moment.");
+      return false;
+    }
+    const { name, files, excludedNodeModules, truncated } = await fetchTree();
+    if (!files.length) {
+      toast.error("Nothing to import.");
+      return false;
+    }
+    const dir = await this.freeDirFor(name);
+    const ok = await this.importFilesAsProject({
+      name: baseName(dir) || name,
+      dir,
+      files,
+      excludedNodeModules,
+    });
+    if (ok && truncated) {
+      toast.warning("Project was large — some files were skipped past the import limit.", {
+        position: "bottom-left",
+      });
+    }
+    return ok;
+  }
+
+  // Import a public GitHub repo. `input` is a URL or `owner/repo[@ref]` shorthand.
+  async importGithubRepo(input: string, onProgress?: ProgressFn): Promise<boolean> {
+    const spec = parseGithubSpec(input);
+    if (!spec) {
+      toast.error("Enter a GitHub repo, e.g. owner/repo or a github.com URL.");
+      return false;
+    }
+    return this.importRemoteTree(() => fetchGithubRepo(spec, onProgress));
+  }
+
+  // Import an npm package. `input` is `name`, `name@version`, or `name@tag`.
+  async importNpmPackage(input: string, onProgress?: ProgressFn): Promise<boolean> {
+    const spec = parseNpmSpec(input);
+    if (!spec) {
+      toast.error("Enter an npm package name, e.g. left-pad or @scope/pkg@1.2.3.");
+      return false;
+    }
+    return this.importRemoteTree(() => fetchNpmPackage(spec, onProgress));
+  }
+
+  // Command-palette convenience: export / share the active workspace folder.
+  exportActiveFolder() {
+    const root = this.activeFolder?.rootPath;
+    if (!root) {
+      toast.error("Open a project first.");
+      return;
+    }
+    void this.exportProjectZip(root);
+  }
+  shareActiveFolder() {
+    const root = this.activeFolder?.rootPath;
+    if (!root) {
+      toast.error("Open a project first.");
+      return;
+    }
+    void this.shareProject(root);
+  }
+
+  // On boot, if the URL carries a #share= payload, decode it into a new project
+  // and open it. Clears the hash afterward so a reload doesn't re-import.
+  private async loadSharedFromUrl() {
+    const marker = "#share=";
+    const hash = location.hash || "";
+    const idx = hash.indexOf(marker);
+    if (idx < 0) return;
+    const payload = hash.slice(idx + marker.length);
+    if (!payload) {
+      this.set({ shareLoading: false });
+      return;
+    }
+    history.replaceState(null, "", location.pathname + location.search);
+    try {
+      this.set({ shareLoading: true, shareMessage: "Unpacking files…" });
+      const { name, files } = await decodeShare(payload);
+      const dir = await this.freeDirFor(name);
+      const projName = baseName(dir) || this.slug(name);
+      const ok = await this.importFilesAsProject({ name: projName, dir, files, silent: true });
+      if (ok) {
+        toast.success(`Opened shared project “${projName}”`, {
+          position: "bottom-left",
+          description: `${files.length} file${files.length === 1 ? "" : "s"} · source only · Run to install deps.`,
+        });
+      } else if (!this.snap.workspaceFolders.length) {
+        this.goHome();
+      }
+    } catch (err) {
+      toast.error("Couldn't open shared project: " + errText(err), { position: "bottom-left" });
+      if (!this.snap.workspaceFolders.length) this.goHome();
+    } finally {
+      this.set({ shareLoading: false });
+    }
+  }
+
+  // Create an empty file / folder (Explorer "New File" / "New Folder").
+  async newFile(destDirAbs: string, name: string) {
+    const clean = name.trim();
+    if (!clean) return;
+    const abs = normDir(destDirAbs) + "/" + clean;
+    if ((await this.pathInfo(abs)).exists) {
+      toast.error(`"${clean}" already exists`);
+      return;
+    }
+    await this.bridge.request("vv-write", { path: abs, contents: "" });
+    this.bumpTree();
+    void this.openFile(abs);
+  }
+  async newFolder(destDirAbs: string, name: string) {
+    const clean = name.trim();
+    if (!clean) return;
+    const abs = normDir(destDirAbs) + "/" + clean;
+    if ((await this.pathInfo(abs)).exists) {
+      toast.error(`"${clean}" already exists`);
+      return;
+    }
+    await this.bridge.request("vv-mkdirp", { path: abs });
+    this.bumpTree();
+  }
+
+  copyPath(abs: string) {
+    try {
+      void navigator.clipboard?.writeText(abs);
+      this.status(`copied path: ${abs}`);
+    } catch {
+      toast.error("Clipboard unavailable");
+    }
+  }
+
+  // ── preview (a multi-tab mini browser) ───────────────────────────────────
+  setPreviewFrame(id: string, el: HTMLIFrameElement | null) {
+    if (el) this.previewFrames.set(id, el);
+    else this.previewFrames.delete(id);
+  }
+  // The iframe URL for a tab: the SW preview proxy for demo ports, else blank.
+  // Includes the in-server path plus a per-tab cache-bust so reload/navigate force
+  // a fresh document (the SW re-injects the WS shim + DevTools bootstrap each time).
+  previewSrc(tab: PreviewTab): string {
+    if (tab.port == null) return "about:blank";
+    const path = tab.path && tab.path.startsWith("/") ? tab.path : "/";
+    const bust = tab.nonce > 1 ? `${path.includes("?") ? "&" : "?"}t=${tab.nonce}` : "";
+    // The bridge builds the right URL per mode: relative `/preview/<port>/…` in
+    // mode A, `<origin>/preview/<port>/…` in mode B, or a per-port wildcard origin
+    // `<scheme>//<token>--<port>.<domain>/…` (served at root) in mode C.
+    return this.bridge.previewUrlFor(tab.port, `${path}${bust}`);
+  }
+  private setTab(id: string, patch: Partial<PreviewTab>) {
+    this.set({
+      previewTabs: this.snap.previewTabs.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    });
+  }
+
+  // A demo's dev server is up — reuse the tab that already mirrors this port, or
+  // open one, and make it active.
+  private pointPreview(port: number) {
+    markBoot("preview-open");
+    const existing = this.snap.previewTabs.find((t) => t.port === port);
+    if (existing) {
+      this.setTab(existing.id, { nonce: existing.nonce + 1, title: "" });
+      this.set({ activePreviewId: existing.id });
+      return;
+    }
+    const id = "pv" + ++this.previewSeq;
+    const tab: PreviewTab = { id, url: `localhost:${port}`, port, path: "/", nonce: 1 };
+    // Reveal the preview the way spawning a terminal reveals the bottom panel: this
+    // is the one path that can add a tab while the panel is hidden, and a dev server
+    // coming up with nothing to show for it is a dead end. Only for a genuinely new
+    // port — a restart on a port we already mirror takes the branch above.
+    this.set({
+      previewTabs: [...this.snap.previewTabs, tab],
+      activePreviewId: id,
+      previewCollapsed: false,
+    });
+  }
+
+  // Push the set of in-VM ports that serve UNDER the /preview/<port>/ prefix
+  // (keep-prefix templates) to the preview Service Worker, so it doesn't strip the
+  // prefix for them. Recomputed from the live run manifests whenever a project's
+  // server starts or stops.
+  private syncKeepPrefixPorts() {
+    const ports: number[] = [];
+    for (const [dir, r] of this.runningProjects) {
+      if (r.port != null && this.folderManifests.get(dir)?.keepPreviewPrefix) ports.push(r.port);
+    }
+    this.bridge.setKeepPrefixPorts(ports);
+  }
+
+  addPreviewTab(url = "") {
+    const id = "pv" + ++this.previewSeq;
+    const tab: PreviewTab = { id, url, port: null, path: "/", nonce: 1 };
+    this.set({ previewTabs: [...this.snap.previewTabs, tab], activePreviewId: id });
+  }
+  activatePreviewTab(id: string) {
+    this.set({ activePreviewId: id });
+  }
+  // Live edits to the address-bar text (does not navigate — Enter does that).
+  setPreviewUrl(id: string, url: string) {
+    this.setTab(id, { url });
+  }
+
+  // Navigate a tab to a typed address. Local-only for now: localhost / 127.0.0.1
+  // (or a bare path / port) load the in-VM dev server; anything else is rejected.
+  navigatePreview(id: string, input: string) {
+    const tab = this.snap.previewTabs.find((t) => t.id === id);
+    if (!tab) return;
+    const raw = input.trim();
+    if (!raw) return;
+
+    // Strip an optional scheme, then split host[:port] from the path.
+    const noScheme = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+    let hostPort = noScheme;
+    let path = "/";
+    const slash = noScheme.indexOf("/");
+    if (noScheme.startsWith("/")) {
+      // Bare path — keep the tab's current port.
+      hostPort = "";
+      path = noScheme;
+    } else if (slash !== -1) {
+      hostPort = noScheme.slice(0, slash);
+      path = noScheme.slice(slash);
+    }
+
+    let port = tab.port;
+    if (/^\d+$/.test(hostPort)) {
+      // Bare port, e.g. "3000".
+      port = parseInt(hostPort, 10);
+    } else if (hostPort) {
+      const [host, portStr] = hostPort.split(":");
+      const isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+      if (!isLocal) {
+        toast.error("Only local URLs are supported for now");
+        return;
+      }
+      if (portStr) port = parseInt(portStr, 10);
+    }
+    if (port == null || Number.isNaN(port)) {
+      toast.error("Enter a local port, e.g. localhost:3000");
+      return;
+    }
+    if (!path.startsWith("/")) path = "/" + path;
+
+    this.setTab(id, {
+      url: `localhost:${port}${path === "/" ? "" : path}`,
+      port,
+      path,
+      nonce: tab.nonce + 1,
+      title: "",
+    });
+  }
+  reloadPreviewTab(id: string) {
+    const t = this.snap.previewTabs.find((x) => x.id === id);
+    if (!t) return;
+    // Reload the *current* in-app location natively (keeps the SPA route + re-runs
+    // the SW HTML injection). Fall back to a src cache-bust if the frame is gone.
+    const frame = this.previewFrames.get(id);
+    if (t.port != null && frame?.contentWindow) {
+      try {
+        frame.contentWindow.location.reload();
+        return;
+      } catch {
+        /* cross-origin / detached — fall through to the src bump */
+      }
+    }
+    this.setTab(id, { nonce: t.nonce + 1 });
+  }
+  reloadPreview() {
+    if (this.snap.activePreviewId) this.reloadPreviewTab(this.snap.activePreviewId);
+  }
+  previewBack(id: string) {
+    try {
+      this.previewFrames.get(id)?.contentWindow?.history.back();
+    } catch {
+      /* cross-origin */
+    }
+  }
+  previewForward(id: string) {
+    try {
+      this.previewFrames.get(id)?.contentWindow?.history.forward();
+    } catch {
+      /* cross-origin */
+    }
+  }
+  openPreviewExternal(id: string) {
+    const t = this.snap.previewTabs.find((x) => x.id === id);
+    if (t?.port != null) this.openExternalPreview(t.port);
+  }
+
+  // Open a preview port in a standalone browser tab.
+  //
+  // Default (same-origin pop-out): open on the studio's OWN origin so the tab
+  // lands in the kernel's storage partition and proxies through the same-origin
+  // SW — frictionless, but not isolated from the IDE. COOP:same-origin puts the
+  // new tab in a separate browsing-context group (no window.opener), so HTTP
+  // routes via the SW and the ws/SSE tunnels do too (the opened tab's shim talks
+  // to the SW; we relay inbound frames back via relayToExternalPreviews).
+  //
+  // Isolated pop-out (previewPopout: "isolated" in mode B, always in mode C): open
+  // on the preview origin so it can't touch IDE storage/OPFS. When the preview
+  // origin is same-site with the IDE (a subdomain of the same base domain — always
+  // the case in mode C) it connects gate-free; a cross-site preview origin instead
+  // shows a one-time "connect this tab" gate (see previewConnectingHtml in sw.js).
+  openExternalPreview(port: number) {
+    // Mode C: each port has its own origin (served at root, no /preview/ path).
+    if (this.previewMode === "wildcard") {
+      window.open(this.bridge.previewUrlFor(port, "/"), "_blank");
+      return;
+    }
+    const base = this.popoutIsolated ? this.bridge.previewBase : "";
+    window.open(`${base}/preview/${port}/`, "_blank");
+  }
+
+  // Relay an inbound ws/SSE frame to any preview opened in its OWN tab. Those tabs
+  // can't be reached by postMessage (COOP severs the handle), so hand the frame to
+  // the Service Worker(s), which broadcast it to every top-level preview client;
+  // each shim keeps only the connIds it owns. A pop-out may be same-origin OR on
+  // the preview origin, so relay to both transports (bridge.broadcastToPreviewSWs).
+  private relayToExternalPreviews(payload: object) {
+    this.bridge.broadcastToPreviewSWs(payload);
+  }
+
+  closePreviewTab(id: string) {
+    const i = this.snap.previewTabs.findIndex((t) => t.id === id);
+    if (i === -1) return;
+    const previewTabs = this.snap.previewTabs.filter((t) => t.id !== id);
+    let activePreviewId = this.snap.activePreviewId;
+    if (activePreviewId === id)
+      activePreviewId = (previewTabs[i] || previewTabs[i - 1])?.id ?? null;
+    this.previewFrames.delete(id);
+    this.set({ previewTabs, activePreviewId });
+  }
+  closeOtherPreviewTabs(id: string) {
+    this.set({
+      previewTabs: this.snap.previewTabs.filter((t) => t.id === id),
+      activePreviewId: id,
+    });
+  }
+  closePreviewTabsToRight(id: string) {
+    const i = this.snap.previewTabs.findIndex((t) => t.id === id);
+    if (i === -1) return;
+    const previewTabs = this.snap.previewTabs.slice(0, i + 1);
+    const active = this.snap.activePreviewId;
+    const activePreviewId = previewTabs.some((t) => t.id === active) ? active : id;
+    this.set({ previewTabs, activePreviewId });
+  }
+  closeAllPreviewTabs() {
+    this.previewFrames.clear();
+    this.devtoolsTargetId = null;
+    this.set({ previewTabs: [], activePreviewId: null, devtoolsOpen: false });
+  }
+
+  // ── DevTools (chii frontend ↔ per-tab chobitsu backend) ──────────────────
+  setDevtoolsFrame(el: HTMLIFrameElement | null) {
+    this.devtoolsFrame = el;
+  }
+  // The chii frontend URL: local host page + `#?embedded=<origin>` flips chii into
+  // its postMessage transport (chii reads `location.search || location.hash`, so the
+  // param MUST live in the hash — a `?query` cache-bust would shadow it and break the
+  // transport). Re-attach reload is handled by remounting the iframe (React `key`).
+  devtoolsSrc(): string {
+    return `/devtools-host.html#?embedded=${encodeURIComponent(location.origin)}`;
+  }
+  toggleDevtools() {
+    if (this.snap.devtoolsOpen) this.closeDevtools();
+    else this.openDevtools();
+  }
+  openDevtools() {
+    if (!this.snap.activePreviewId) {
+      toast.error("Open a preview tab first");
+      return;
+    }
+    this.devtoolsTargetId = this.snap.activePreviewId;
+    this.set({ devtoolsOpen: true, devtoolsNonce: this.snap.devtoolsNonce + 1 });
+  }
+  closeDevtools() {
+    this.devtoolsTargetId = null;
+    this.set({ devtoolsOpen: false });
+  }
+  // Called when the DevTools frontend iframe finishes loading — kick the target's
+  // chobitsu into replaying the page state (frameNavigated + domain enables).
+  onDevtoolsReady() {
+    if (!this.snap.devtoolsOpen || !this.devtoolsTargetId) return;
+    const target = this.previewFrames.get(this.devtoolsTargetId);
+    target?.contentWindow?.postMessage({ source: "vv-cdp", dir: "init" }, "*");
+  }
+
+  // Called when a preview iframe finishes (re)loading. A reload swaps in a fresh
+  // document with a brand-new chobitsu/CDP bootstrap; the persistent chii frontend
+  // would otherwise (a) stay attached to the dead old context and (b) keep every
+  // stale row (a synthetic Page.frameNavigated does NOT reset the frontend's
+  // network log — chobitsu's own resetDevtools() has to poke the ResourceTreeModel
+  // directly). Remounting the frontend (React key = devtoolsNonce) gives a clean
+  // log and a fresh attach, exactly like the tab-switch path; onDevtoolsReady then
+  // re-runs init against the reloaded document.
+  onPreviewFrameLoad(id: string) {
+    // Only a tab bound to a real port counts as the app appearing; an empty tab
+    // loads `about:blank` and would otherwise mark the timeline far too early.
+    if (this.snap.previewTabs.find((t) => t.id === id)?.port != null) {
+      markBoot("preview-paint");
+      // There is something to look at now, so stop narrating.
+      this.endRunPhase();
+    }
+    // Sync the address bar from the frame's real URL on every load. The vv-nav
+    // script only rides in HTML responses, so navigating to a non-HTML endpoint
+    // (a JSON API, a file, an image) never reports its path and the address bar
+    // would go stale. Same-origin (mode A) lets us read the location directly;
+    // cross-origin previews (mode B/C) throw here and keep relying on vv-nav for
+    // HTML pages.
+    if (this.previewMode === "same-origin") {
+      try {
+        const loc = this.previewFrames.get(id)?.contentWindow?.location;
+        if (loc) this.syncTabLocation(id, loc.pathname + loc.search);
+      } catch {
+        /* cross-origin frame — rely on the injected vv-nav script */
+      }
+    }
+    if (!this.snap.devtoolsOpen || this.devtoolsTargetId !== id) return;
+    const tab = this.snap.previewTabs.find((t) => t.id === id);
+    if (!tab || tab.port == null) return;
+    this.set({ devtoolsNonce: this.snap.devtoolsNonce + 1 });
+  }
+
+  private tabIdForSource(src: MessageEventSource | null): string | null {
+    if (!src) return null;
+    for (const [id, el] of this.previewFrames) {
+      if (el.contentWindow === src) return id;
+    }
+    return null;
+  }
+
+  // Update a tab's displayed address from an in-app navigation. Display only — it
+  // must NOT touch `path` (which drives previewSrc), or React would reload the
+  // iframe on every SPA route change (a navigation loop).
+  private syncTabLocation(id: string, href: string) {
+    const tab = this.snap.previewTabs.find((t) => t.id === id);
+    if (!tab || tab.port == null) return;
+    // The preview iframe lives at /preview/<port>/… — strip that proxy prefix and
+    // our own cache-bust to recover the in-server path.
+    const m = href.match(/^\/preview\/\d+(\/.*)?$/);
+    let path = m ? m[1] || "/" : href.startsWith("/") ? href : "/" + href;
+    path = path
+      .replace(/([?&])t=\d+(&|$)/, (_all, p1: string, p2: string) => (p2 === "&" ? p1 : ""))
+      .replace(/[?&]$/, "");
+    this.setTab(id, { url: `localhost:${tab.port}${path && path !== "/" ? path : ""}` });
+  }
+
+  // The host-page relay: bridges CDP between each preview tab's chobitsu and the
+  // shared chii frontend, and syncs the address bar from in-app navigation.
+  private wirePreviewMessages() {
+    // Preview frames are cross-origin in modes B/C; only trust their messages from
+    // a recognised preview origin (mode A: same-origin as the studio; mode B: the
+    // single preview origin; mode C: any `<token>--<port>.<domain>` host).
+    const here = typeof location !== "undefined" ? location.origin : "";
+    const trustPreviewOrigin = (origin: string) =>
+      this.previewMode === "same-origin"
+        ? origin === here
+        : this.bridge.isTrustedPreviewOrigin(origin);
+    window.addEventListener("message", (event: MessageEvent) => {
+      const src = event.source;
+      const data = event.data;
+
+      // DevTools frontend → target tab. chii posts raw CDP JSON strings. The
+      // frontend is always same-origin (served by the studio), so guard it so.
+      if (this.devtoolsFrame && src && src === this.devtoolsFrame.contentWindow) {
+        if (event.origin !== location.origin) return;
+        if (typeof data !== "string") return;
+        const target = this.devtoolsTargetId ? this.previewFrames.get(this.devtoolsTargetId) : null;
+        target?.contentWindow?.postMessage({ source: "vv-cdp", dir: "frontend", data }, "*");
+        return;
+      }
+
+      if (!data || typeof data !== "object") return;
+      // Everything below originates from a preview frame — enforce its origin.
+      if (!trustPreviewOrigin(event.origin)) return;
+
+      // Preview tab's chobitsu → frontend (only if this tab is the attached target).
+      if (data.source === "vv-cdp" && data.dir === "target") {
+        const tabId = this.tabIdForSource(src);
+        if (tabId && tabId === this.devtoolsTargetId) {
+          this.devtoolsFrame?.contentWindow?.postMessage(data.data, "*");
+        }
+        return;
+      }
+
+      // Preview tab navigated (link click / SPA route) → sync the address bar.
+      if (data.source === "vv-nav") {
+        const tabId = this.tabIdForSource(src);
+        if (tabId) this.syncTabLocation(tabId, String(data.href || "/"));
+        return;
+      }
+
+      // Preview reported its document.title → show it on the tab.
+      if (data.source === "vv-title") {
+        const tabId = this.tabIdForSource(src);
+        if (tabId)
+          this.setTab(tabId, { title: typeof data.title === "string" ? data.title.trim() : "" });
+      }
+    });
+  }
+
+  // ── demo run (legacy built-in examples) ────────────────────────────────────
+  setSelectedDemo(id: string) {
+    this.set({ selectedDemo: id });
+  }
+  runDemo() {
+    const demo = this.snap.selectedDemo;
+    this.set({ panelCollapsed: false, view: "workspace" });
+    const running = this.runningDemos.get(demo);
+    if (running && running.terminalId && this.terms.has(running.terminalId)) {
+      this.switchTerminal(running.terminalId);
+      if (running.port) this.pointPreview(running.port);
+      return;
+    }
+    const opt = DEMOS.find((d) => d.id === demo);
+    const tid = this.newShellTerminal({ demo, label: opt?.runLabel ?? "run" });
+    this.runningDemos.set(demo, { terminalId: tid, port: null });
+    this.status("installing from npm + booting in-VM…");
+  }
+
+  // ── UI toggles ──
+  togglePanel(force?: boolean) {
+    const collapsed = force === undefined ? !this.snap.panelCollapsed : !force;
+    this.set({ panelCollapsed: collapsed });
+    if (!collapsed) this.setPanelTab(this.snap.panelTab);
+  }
+  toggleSidebar(force?: boolean) {
+    const collapsed = force === undefined ? !this.snap.sidebarCollapsed : !force;
+    this.set({ sidebarCollapsed: collapsed });
+  }
+  togglePreview(force?: boolean) {
+    const collapsed = force === undefined ? !this.snap.previewCollapsed : !force;
+    this.set({ previewCollapsed: collapsed });
+  }
+  /** Soft-wrap long lines, VS Code's Alt+Z. Applied to both editors and persisted. */
+  toggleWordWrap(force?: boolean) {
+    const on = force === undefined ? !this.snap.wordWrap : force;
+    if (on === this.snap.wordWrap) return;
+    this.set({ wordWrap: on });
+    saveWordWrap(on);
+    // updateOptions on the LIVE editors, because the option is per-editor and neither
+    // one is remounted by a snapshot change. Both may be absent — the text editor
+    // before Monaco has loaded, the diff editor whenever no diff tab is open.
+    const wordWrap = on ? ("on" as const) : ("off" as const);
+    this.editor?.updateOptions({ wordWrap });
+    this.diffEditor?.updateOptions({ wordWrap });
+  }
+  openPalette(mode: "command" | "file") {
+    this.set({ paletteOpen: true, paletteMode: mode });
+  }
+  closePalette() {
+    this.set({ paletteOpen: false });
+  }
+  // Force a clean slate: wipe the OPFS-mirrored VFS + the dependency cache, then
+  // reload. The FS worker holds OPFS sync-access handles, so we tear the worker
+  // down FIRST (releasing them) — otherwise removeEntry() on `vv-vfs` can throw
+  // NoModificationAllowedError. Best-effort throughout; we reload regardless.
+  async resetEverything() {
+    try {
+      this.bridge.destroy();
+    } catch {
+      /* worker already gone */
+    }
+    // Wipe the recent-projects registry too, so "reset everything" truly starts
+    // from a clean slate (the Home screen's Recent list is backed by this key).
+    try {
+      localStorage.removeItem(REGISTRY_KEY);
+      this.set({ recentProjects: [] });
+    } catch {
+      /* storage disabled — nothing to clear */
+    }
+    try {
+      await resetVfs();
+    } catch {
+      /* OPFS unavailable / nothing persisted — reload into a fresh session anyway */
+    }
+    location.reload();
+  }
+
+  // ── memory diagnostics ─────────────────────────────────────────────────────
+  // Measure the tab's memory and log a breakdown to the Console. This is possible
+  // because the studio is cross-origin isolated (COOP/COEP for SharedArrayBuffer),
+  // which is exactly what unlocks performance.measureUserAgentSpecificMemory().
+  // The page estimate covers this window + its dedicated workers; we additionally
+  // ask the kernel/FS worker for the VFS's in-RAM content size, which is what
+  // balloons when a heavy node_modules (Docusaurus/Nuxt) is loaded.
+  async measureMemory() {
+    this.consoleLine("Measuring memory…", "90");
+    let total: number | null = null;
+    type MemResult = {
+      bytes: number;
+      breakdown?: { bytes: number; types?: string[]; attribution?: { url?: string }[] }[];
+    };
+    const perf = performance as Performance & {
+      measureUserAgentSpecificMemory?: () => Promise<MemResult>;
+    };
+    try {
+      if (typeof perf.measureUserAgentSpecificMemory === "function") {
+        const r = await perf.measureUserAgentSpecificMemory();
+        total = r.bytes;
+        this.consoleLine(`Tab total (page + workers): ${fmtBytes(total)}`, "36");
+        // Largest attributed buckets first, so the dominant consumer is obvious.
+        const rows = (r.breakdown ?? [])
+          .filter((b) => b.bytes > 0)
+          .sort((a, b) => b.bytes - a.bytes)
+          .slice(0, 12);
+        for (const b of rows) {
+          const label =
+            (b.attribution ?? [])
+              .map((a) => a.url)
+              .filter(Boolean)
+              .join(", ") ||
+            (b.types ?? []).join("/") ||
+            "(unattributed)";
+          this.consoleLine(`  ${fmtBytes(b.bytes).padStart(9)}  ${label}`, "90");
+        }
+      } else {
+        this.consoleLine(
+          "performance.measureUserAgentSpecificMemory() unavailable (needs a Chromium browser + cross-origin isolation).",
+          "31",
+        );
+      }
+    } catch (err) {
+      this.consoleLine(`memory measurement failed: ${(err as Error)?.message ?? err}`, "31");
+    }
+
+    // VFS content footprint (the File System Worker's Wasm) + the kernel worker's
+    // own measurement, gathered over the bridge.
+    let vfsBytes = -1;
+    let vfsFiles = -1;
+    let vfsLogicalBytes = -1;
+    try {
+      const m = await this.bridge.request("vv-mem");
+      vfsBytes = Number(m.vfsBytes ?? -1);
+      vfsFiles = Number(m.vfsFiles ?? -1);
+      vfsLogicalBytes = Number(m.vfsLogicalBytes ?? -1);
+      if (vfsBytes >= 0) {
+        this.consoleLine(
+          `VFS content in RAM: ${fmtBytes(vfsBytes)} across ${vfsFiles} files`,
+          "36",
+        );
+        // Show the realized compression ratio when the logical size is larger
+        // (i.e. some files are stored compressed).
+        if (vfsLogicalBytes > vfsBytes) {
+          const saved = vfsLogicalBytes - vfsBytes;
+          const ratio = (vfsBytes / vfsLogicalBytes) * 100;
+          this.consoleLine(
+            `  compressed from ${fmtBytes(vfsLogicalBytes)} (${ratio.toFixed(0)}% of logical, saved ${fmtBytes(saved)})`,
+            "90",
+          );
+        }
+      } else {
+        this.consoleLine(
+          "VFS content size unavailable (rebuild the VFS wasm: `npm run build:vfs`).",
+          "90",
+        );
+      }
+      if (typeof m.kernelBytes === "number") {
+        this.consoleLine(`Kernel worker: ${fmtBytes(m.kernelBytes as number)}`, "90");
+      }
+      // Per-PID Process Worker breakdown: turns the flat "N GB on process-worker.js"
+      // figure into which process holds it (dev servers dominate), how many modules
+      // its guest cache retains, and whether it hosts the resident esbuild wasm.
+      const procs = Array.isArray(m.procs) ? (m.procs as ProcMem[]) : [];
+      const withHeap = procs.filter((p) => Number(p.heap) >= 0);
+      if (withHeap.length > 0) {
+        this.consoleLine("Process workers (own JS heap):", "36");
+        for (const p of withHeap) {
+          const mods = Number(p.modules) >= 0 ? `${p.modules} modules` : "modules n/a";
+          this.consoleLine(
+            `  ${fmtBytes(Number(p.heap)).padStart(9)}  ${p.name} (${mods}${esbuildLabel(p)})`,
+            "90",
+          );
+        }
+      } else if (procs.length > 0) {
+        // Heap sizing unavailable (performance.memory off) — still show retention.
+        this.consoleLine("Process workers (heap size unavailable):", "36");
+        for (const p of procs) {
+          this.consoleLine(
+            `  ${p.name}: ${Number(p.modules) >= 0 ? p.modules + " modules" : "modules n/a"}${esbuildLabel(p)}`,
+            "90",
+          );
+        }
+      }
+    } catch {
+      /* kernel not ready */
+    }
+
+    this.set({ memInfo: { total, vfsBytes, vfsFiles, vfsLogicalBytes, ts: Date.now() } });
+  }
+
+  /**
+   * The runtime died on the way up. First cause wins — a kernel worker that never
+   * evaluated produces follow-on failures, and the first one is the one that
+   * names the real problem. Clears the boot progress state so Home stops
+   * advertising progress that is never going to arrive.
+   */
+  private failBoot(message: string) {
+    if (this.snap.bootError) return;
+    this.consoleLine(message, "31");
+    this.set({ bootError: message, bootPhase: "", shareLoading: false });
+    toast.error("The Vivari runtime failed to start", {
+      description: message,
+      duration: Infinity,
+    });
+  }
+
+  // ── kernel worker message handling (ported from host.js) ──────────────────
+  private wireBridge() {
+    const b = this.bridge;
+    b.on("stdout", (m) => this.consoleWrite(m.chunk as string));
+    b.on("stderr", (m) => this.consoleWrite(m.chunk as string));
+    b.on("log", (m) => {
+      const stderr = m.stream === "stderr";
+      const dim = (m.dim as boolean) || m.cls === "muted";
+      const line = m.line as string;
+      // A snapshot restore and a cold install look the same from the outside and
+      // take wildly different amounts of time; say which one is happening — and
+      // stop saying "restoring" the moment the restore gives up, since what
+      // follows is the long path, not the short one.
+      // Give-up first: its error text can quote a message containing "fetching",
+      // and the outcome is the less ambiguous signal of the two.
+      if (isInstallFallbackLine(line)) this.updateRunPhase(fallBackToInstall);
+      else if (isRestoreLine(line)) this.updateRunPhase((cur) => advance(cur, "restoring"));
+      this.consoleLine(line, stderr ? "31" : dim ? "90" : undefined);
+    });
+    // Cold-boot progress (relayed from the FS worker's OPFS restore + kernel
+    // phase markers). Drives the Home boot indicator until `kernelReady`.
+    b.on("boot-progress", (m) => {
+      // Phase changes only. `restore` fires once per entry re-hydrated, which for
+      // a real project is thousands of events — tracing each would evict the whole
+      // boot narration under TRACE_CAP and tell us nothing the phase didn't.
+      const phase = (m.phase as string) || "";
+      this.set({
+        bootPhase: phase,
+        bootDone: (m.done as number) ?? 0,
+        bootTotal: (m.total as number) ?? 0,
+      });
+    });
+    // The kernel + VFS are up (before the PM tarballs finish loading) — the Home
+    // screen can create/open projects now, so don't make the user wait for `ready`.
+    b.on("kernel-online", () => {
+      markBoot("kernel-online");
+      this.set({ kernelReady: true, bootPhase: "" });
+      // Only now: the kernel worker has loaded and evaluated, so the SW activating
+      // and claiming the page can no longer interrupt it. A preview cannot exist
+      // before this point either, so nothing is lost by waiting. If the runtime
+      // never comes up we never register — which is correct, because a preview
+      // proxy with no runtime to proxy to has nothing to do.
+      void this.bridge.registerServiceWorker().then(
+        (ok) => {
+          this.consoleLine(
+            ok
+              ? "Service Worker registered (preview proxy ready)."
+              : "Service workers unavailable — preview disabled.",
+            ok ? "32" : "31",
+          );
+        },
+        (err) => {
+          this.consoleLine(
+            `Service Worker registration failed: ${String(err)} — preview disabled.`,
+            "31",
+          );
+        },
+      );
+    });
+    // The two ways the runtime can die before `kernel-online`, neither of which
+    // had a listener here. Both used to leave Home spinning on "Starting runtime…"
+    // indefinitely, which is indistinguishable from a slow restore and gives the
+    // user nothing to report.
+    //
+    //   `error` (fatal) — the kernel worker ran and boot() threw; the worker posts
+    //                     this from boot().catch, and it carries a real message.
+    //   onWorkerError   — the kernel worker never got that far: its module graph
+    //                     failed to load or evaluate, so it can never post
+    //                     anything. Only the bridge's `onerror` hook sees it.
+    b.on("error", (m) => {
+      if (!m.fatal) return;
+      this.failBoot(String(m.message ?? "the runtime stopped during start-up"));
+    });
+    this.bridge.onWorkerError((message) => {
+      // The same test spawnWorker makes for process workers: a kernel worker that
+      // has already brought the runtime online plainly evaluated its module graph,
+      // so a later `error` from it is an uncaught exception — which per spec is
+      // reported without killing the worker — and not a failure to start. Say so
+      // rather than declaring a live runtime dead.
+      if (this.snap.kernelReady) {
+        this.consoleLine(`[kernel] uncaught worker error: ${message}`, "31");
+        return;
+      }
+      this.failBoot(`the kernel worker could not start: ${message}`);
+    });
+    b.on("ready", () => {
+      markBoot("kernel-ready");
+      this.consoleLine("Kernel ready.", "32");
+      this.set({ booted: true, kernelReady: true });
+      this.status("ready — create or open a project");
+      this.newShellTerminal({ defer: true, activate: false });
+      // If the URL carries a #share= payload, import it into a new project.
+      void this.loadSharedFromUrl();
+    });
+    b.on("exit", (m) => {
+      this.consoleLine(`[kernel] pid ${m.pid} exited with code ${m.code}`, "90");
+      // A listener process died — drop any port it owned from the Ports view.
+      const pid = m.pid as number;
+      let changed = false;
+      for (const [port, owner] of this.portMap) {
+        if (owner === pid) {
+          this.portMap.delete(port);
+          changed = true;
+        }
+      }
+      if (changed) this.syncPorts();
+      // A process finished — it may have been `npm/yarn/pnpm install`. In-VM writes
+      // don't emit vv-fs-changed, so re-harvest dependency types (debounced; the
+      // worker short-circuits via a node_modules fingerprint when nothing changed).
+      this.scheduleDependencyTypes();
+    });
+    b.on("listen", (m) => {
+      this.consoleLine(`[kernel] pid ${m.pid} listening on :${m.port}`, "90");
+      this.portMap.set(m.port as number, m.pid as number);
+      this.syncPorts();
+      this.updateRunPhase((cur) => advance(cur, "starting"));
+    });
+
+    // interactive terminals
+    b.on("term-ready", (m) => {
+      const nb = this.notebookTerminal(m.terminalId as string);
+      if (nb) {
+        nb.kernel.onTerminalReady();
+        return;
+      }
+      const t = this.terms.get(m.terminalId as string);
+      if (t) {
+        t.pid = m.pid as number;
+        if (t.pendingInput.length) {
+          for (const chunk of t.pendingInput)
+            b.post("term-input", { terminalId: m.terminalId, chunk });
+          t.pendingInput.length = 0;
+        }
+      }
+    });
+    b.on("term-out", (m) => {
+      // A notebook kernel's terminal has no xterm: its stdout is the protocol,
+      // and the frames are pulled out of it by the session's FrameReader.
+      const nb = this.notebookTerminal(m.terminalId as string);
+      if (nb) {
+        nb.kernel.handleOutput(m.chunk as string);
+        return;
+      }
+      const t = this.terms.get(m.terminalId as string);
+      if (!t) return;
+      if (t.openedAt) {
+        this.consoleLine(
+          `[boot] shell (Process Worker) booted in ${Math.round(performance.now() - t.openedAt)}ms`,
+          "90",
+        );
+        t.openedAt = 0;
+      }
+      const chunk = m.chunk as string;
+      if (m.terminalId === this.runTerminalId) {
+        const p = readFetchProgress(chunk);
+        if (p) this.updateRunPhase((cur) => ({ ...cur, detail: formatProgress(p) }));
+      }
+      t.term.write(chunk);
+    });
+    b.on("term-exit", (m) => {
+      const id = m.terminalId as string;
+      const nb = this.notebookTerminal(id);
+      if (nb) {
+        nb.kernel.handleExit(m.code as number);
+        return;
+      }
+      const t = this.terms.get(id);
+      if (!t) return;
+      t.term.write(`\r\n\x1b[90m[process exited — code ${m.code}]\x1b[0m\r\n`);
+      t.alive = false;
+      // A demo's dev-server tab ended → server gone.
+      if (t.demo && this.runningDemos.get(t.demo)?.terminalId === id) {
+        const gone = this.runningDemos.get(t.demo);
+        this.runningDemos.delete(t.demo);
+        if (gone?.port != null && this.portMap.delete(gone.port)) this.syncPorts();
+        if (gone?.port != null && this.snap.previewTabs.some((t) => t.port === gone.port))
+          this.status("dev server stopped — preview will 502 until you Run again");
+      }
+      // A created/opened project's run tab ended → server gone.
+      for (const [dir, r] of this.runningProjects) {
+        if (r.terminalId === id) {
+          this.runningProjects.delete(dir);
+          if (r.port != null && this.portMap.delete(r.port)) this.syncPorts();
+          this.syncKeepPrefixPorts();
+          // The run is over however it ended. An install that FAILED must stop
+          // claiming to be installing — the preview shell would otherwise sit
+          // there indefinitely while the answer is already in the terminal.
+          this.endRunPhase(dir);
+          if (r.port != null && this.snap.previewTabs.some((t) => t.port === r.port))
+            this.status("dev server stopped — preview will 502 until you Run again");
+        }
+      }
+      this.syncTerminals();
+    });
+
+    // HMR tunnel: ws frame routed OUT of the VM → preview iframes. The frame
+    // doesn't carry a port, so deliver to every tab bound to a dev server; the
+    // HMR client in each iframe ignores frames that aren't its own.
+    b.on("vv-ws", (m) => {
+      const payload = { ...(m.msg as object), type: "vv-ws", dir: "in" };
+      for (const t of this.snap.previewTabs) {
+        if (t.port != null) this.previewFrames.get(t.id)?.contentWindow?.postMessage(payload, "*");
+      }
+      this.relayToExternalPreviews(payload);
+    });
+
+    // SSE tunnel: a text/event-stream chunk routed OUT of the VM → preview iframes.
+    // Like the ws frame it doesn't carry a port, so deliver to every bound tab; the
+    // iframe's EventSource polyfill ignores chunks for connIds it doesn't own.
+    b.on("vv-sse", (m) => {
+      const payload = { ...(m.msg as object), type: "vv-sse", dir: "in" };
+      for (const t of this.snap.previewTabs) {
+        if (t.port != null) this.previewFrames.get(t.id)?.contentWindow?.postMessage(payload, "*");
+      }
+      this.relayToExternalPreviews(payload);
+    });
+
+    // Legacy built-in demo became ready.
+    b.on("demo-ready", (m) => {
+      this.pointPreview(m.port as number);
+      const r = this.runningDemos.get(m.id as string);
+      if (r) r.port = m.port as number;
+      else this.runningDemos.set(m.id as string, { terminalId: null, port: m.port as number });
+      const dir = m.dir as string;
+      const runLabel = DEMOS.find((d) => d.id === m.id)?.runLabel ?? "npm run dev";
+      this.folderManifests.set(normDir(dir), {
+        id: m.id as string,
+        framework: "react",
+        name: m.title as string,
+        language: "JavaScript",
+        icon: "react",
+        category: "Frontend",
+        description: "",
+        port: m.port as number,
+        openPath: "/",
+        entry: m.entry as string,
+        hmr: !!m.hmr,
+        reload: !!m.reload,
+        install: "npm install",
+        dev: runLabel,
+      });
+      this.openFolder(dir, m.title as string);
+      if (m.entry) void this.openFile(dir + "/" + (m.entry as string));
+      this.status(
+        m.reload
+          ? `${m.title} running — edits recompile + restart`
+          : `${m.title} running — edits hot-reload`,
+      );
+    });
+    b.on("demo-reload", (m) => {
+      for (const t of this.snap.previewTabs) if (t.port === m.port) this.reloadPreviewTab(t.id);
+      this.status(`${m.title} restarted — preview reloaded`);
+    });
+    b.on("demo-status", (m) => this.status(m.line as string));
+
+    // A created/opened project's dev server is up.
+    b.on("project-ready", (m) => {
+      const dir = normDir(m.dir as string);
+      // An EXTRA service of a multi-server project (e.g. a backend/ws server
+      // alongside the frontend): just add its preview tab — the primary already
+      // opened the folder + entry file.
+      if (m.extra) {
+        this.pointPreview(m.port as number);
+        this.status(`${m.title as string}: service on :${m.port} ready`);
+        return;
+      }
+      const r = this.runningProjects.get(dir);
+      if (r) r.port = m.port as number;
+      else this.runningProjects.set(dir, { terminalId: null, port: m.port as number });
+      // Tell the SW whether this port serves under the /preview/<port>/ prefix
+      // (keep-prefix templates like Docusaurus) BEFORE the iframe loads, so a
+      // client-routed SPA resolves its first route instead of hitting NotFound.
+      this.syncKeepPrefixPorts();
+      this.pointPreview(m.port as number);
+      if (!this.snap.workspaceFolders.some((f) => f.rootPath === dir))
+        this.openFolder(dir, m.title as string);
+      if (m.entry) void this.openFile(dir + "/" + (m.entry as string));
+      this.touchProject(dir);
+      this.status(
+        m.reload
+          ? `${m.title} running — edits recompile + restart`
+          : `${m.title} running — edits hot-reload`,
+      );
+    });
+    b.on("project-reload", (m) => {
+      for (const t of this.snap.previewTabs) if (t.port === m.port) this.reloadPreviewTab(t.id);
+      this.status(`${m.title} restarted — preview reloaded`);
+    });
+
+    // Streaming full-text search: batches of per-file results, then a final done.
+    // Ignore stale tokens (a newer query already superseded this one).
+    b.on("vv-search-result", (m) => {
+      if (this.searchCbs && m.token === this.searchCbs.token) {
+        this.searchCbs.onBatch((m.files as SearchFileResult[]) ?? []);
+      }
+    });
+    b.on("vv-search-done", (m) => {
+      if (this.searchCbs && m.token === this.searchCbs.token) {
+        const cbs = this.searchCbs;
+        this.searchCbs = null;
+        cbs.onDone({
+          matchCount: Number(m.matchCount ?? 0),
+          fileCount: Number(m.fileCount ?? 0),
+          limitHit: !!m.limitHit,
+          error: m.error as string | undefined,
+        });
+      }
+    });
+
+    // The VFS changed under us (a file op, an install, a create) — refresh the
+    // Explorer's live tree + re-index the active folder for quick-open/search.
+    b.on("vv-fs-changed", () => this.bumpTree());
+
+    // Result of an Explorer file operation (rename/rm/copy). The UI already updated
+    // optimistically; surface any failure so the user knows the VFS is out of sync.
+    b.on("vv-fs-result", (m) => {
+      if (!m.ok) toast.error(`${m.op} failed: ${m.error ?? "unknown error"}`);
+    });
+  }
+}

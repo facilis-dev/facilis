@@ -2,15 +2,23 @@
 /**
  * Fails when a tracked TypeScript source file exceeds MAX_LINES (see AGENTS.md).
  *
- * The limit is intentionally not configurable per file: split the file instead of
- * adding an exclusion. Generated output and dependencies are never counted.
+ * The limit is not configurable per file: split the file instead of adding an exclusion.
+ * Generated output, dependencies and the read-only vendor/ submodule are never counted.
+ *
+ * The single exception is the upstream-derived IDE import: files that arrived from Vivari
+ * above the limit are listed in scripts/file-length-baseline.json at their import size. It is
+ * a **ratchet** — a listed file may shrink but not grow, entries disappear as the files are
+ * split, and new files can never be added. --update-baseline re-records the sizes after a
+ * deliberate upstream import (review that diff like code).
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import process from "node:process";
 
 const MAX_LINES = 300;
+const BASELINE_FILE = "scripts/file-length-baseline.json";
+const UPDATE_BASELINE = process.argv.includes("--update-baseline");
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 const IGNORED_SEGMENTS = new Set([
   "node_modules",
@@ -19,10 +27,7 @@ const IGNORED_SEGMENTS = new Set([
   ".turbo",
   ".git",
   "generated",
-  // studio/ (the Studio app fork) and vendor/ (the pinned Vivari kernel) are
-  // upstream-owned code, kept as-is so upstream syncs stay trivial. Facilis code
-  // lives outside them.
-  "studio",
+  // vendor/ is a read-only upstream submodule: never counted, never edited here.
   "vendor",
   ".worktrees",
 ]);
@@ -77,18 +82,63 @@ function countLines(filePath) {
   return content.endsWith("\n") ? lines.length - 1 : lines.length;
 }
 
-const files = listSourceFiles();
-const violations = files
-  .map((filePath) => ({ file: relative(repoRoot, filePath), lines: countLines(filePath) }))
-  .filter(({ lines }) => lines > MAX_LINES)
-  .toSorted((a, b) => b.lines - a.lines);
+function readBaseline() {
+  const path = join(repoRoot, BASELINE_FILE);
+  if (!existsSync(path)) return {};
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+const files = listSourceFiles().map((filePath) => ({
+  file: relative(repoRoot, filePath).split(sep).join("/"),
+  lines: countLines(filePath),
+}));
+const baseline = readBaseline();
+const overLimit = files.filter(({ lines }) => lines > MAX_LINES);
+
+if (UPDATE_BASELINE) {
+  const next = Object.fromEntries(overLimit.map(({ file, lines }) => [file, lines]));
+  writeFileSync(join(repoRoot, BASELINE_FILE), JSON.stringify(next, null, 2) + "\n");
+  console.log(`check-file-length: baseline updated (${overLimit.length} file(s))`);
+  process.exit(0);
+}
+
+const violations = [];
+for (const { file, lines } of overLimit) {
+  const allowed = baseline[file];
+  if (allowed === undefined) {
+    violations.push({
+      file,
+      lines,
+      reason: `${lines} lines: above the limit and not in the upstream baseline`,
+    });
+  } else if (lines > allowed) {
+    violations.push({
+      file,
+      lines,
+      reason: `${lines} lines: grew past its baseline of ${allowed} (split it)`,
+    });
+  }
+}
+for (const file of Object.keys(baseline)) {
+  const current = files.find((entry) => entry.file === file);
+  if (current === undefined) {
+    violations.push({ file, lines: 0, reason: "baseline entry no longer exists (remove it)" });
+  } else if (current.lines <= MAX_LINES) {
+    violations.push({
+      file,
+      lines: current.lines,
+      reason: `now ${current.lines} lines: drop it from the baseline (ratchet)`,
+    });
+  }
+}
 
 if (violations.length > 0) {
-  console.error(`check-file-length: ${violations.length} file(s) exceed ${MAX_LINES} lines:`);
-  for (const { file, lines } of violations) {
-    console.error(`  ${lines}  ${file}`);
-  }
+  console.error(`check-file-length: ${violations.length} violation(s):`);
+  for (const { file, reason } of violations) console.error(`  ${file}: ${reason}`);
   process.exitCode = 1;
 } else {
-  console.log(`check-file-length: OK (${files.length} file(s), limit ${MAX_LINES} lines)`);
+  console.log(
+    `check-file-length: OK (${files.length} file(s), limit ${MAX_LINES} lines, ` +
+      `${Object.keys(baseline).length} baseline entr(y/ies))`,
+  );
 }

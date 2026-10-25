@@ -1,0 +1,4 @@
+[submodule "vendor/vivari"]
+	path = vendor/vivari
+	url = https://github.com/maitrungduc1410/vivari.git
+	branch = master
