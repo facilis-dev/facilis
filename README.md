@@ -23,8 +23,8 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and Radix-based pages. AI output is validated against 16 rules before it touches disk. |
-| 🛡️ **Structural security** | `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Four independent layers. A bug in one is caught by the next. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and Tailwind + shadcn pages. AI output is validated against 16 rules before it touches disk. |
+| 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
 | 🔍 **API visualizer** | Your OpenAPI spec, rendered as an interactive graph. Click a route → jump to its source. Auto-updates on save. |
@@ -83,7 +83,7 @@ Everything runs **in your browser tab** — including the backend.
    GitHub (PAT)                  LLM provider (BYO key)
 ```
 
-**One process, one port.** `vite dev` boots Vite; Nitro mounts as a plugin inside it and serves both the React client and the `/api/*` routes from the same origin. Server code runs in an isolated worker and reloads automatically; client code keeps Vite's HMR.[reference:6]
+**One process, one port.** `vite dev` boots Vite; Nitro mounts as a plugin inside it and serves both the React client and the `/api/*` routes from the same origin. Server code runs in an isolated worker and reloads automatically; client code keeps Vite's HMR.
 
 **No backend for the Studio.** No accounts. No infra. Host it on any static CDN.
 
@@ -97,7 +97,7 @@ Everything runs **in your browser tab** — including the backend.
 | Backend | [Nitro v3](https://nitro.build) — as a Vite plugin (`nitro/vite`) |
 | ORM | [Drizzle](https://orm.drizzle.team) |
 | In-browser DB | [PGlite](https://pglite.dev) |
-| Frontend | React + [Radix UI](https://radix-ui.com) |
+| Frontend | React 19 + [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) (Base UI primitives) |
 | Runtime | [Vivari](https://github.com/maitrungduc1410/vivari) |
 | Validation | [Zod](https://zod.dev) |
 | Git client | [isomorphic-git](https://isomorphic-git.org) |
@@ -124,7 +124,7 @@ That's it. One command. One port. Vite serves the React app, the Nitro plugin se
 
 ## Status
 
-**Design complete. Phase 0 ready.**
+**Design complete. Phase 0 headless spike complete; browser/WebContainer items pending.**
 
 The full specification — architecture, types, endpoint contracts, security model, role lifecycle, AI orchestration, release tooling, phased plan, and acceptance criteria — lives in [`docs/SPEC.md`](docs/SPEC.md).
 
@@ -146,7 +146,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
 
-→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.2
+→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.3
 
 Highlights inside:
 
