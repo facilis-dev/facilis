@@ -289,12 +289,18 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       │           └── config.ts
 │       └── package.json
 │
-├── studio/                   Forked Vivari Studio → Facilis Studio
+├── ide/                      Facilis IDE app (fork of Vivari's packages/studio)
 │   ├── src/
 │   │   ├── components/       (existing + new panels)
 │   │   ├── vv/               (IdeController — extend)
 │   │   └── ...
 │   └── vite.config.ts        (COOP/COEP headers)
+│
+├── vendor/
+│   └── vivari/               Vivari upstream — git SUBMODULE, pinned tag (MIT, never edited)
+│       ├── packages/         core, kernel-host, runtime, protocol, vfs, codec, crypto, …
+│       ├── scripts/          in-browser npm/pnpm vendoring harnesses
+│       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
 │
 ├── starter/                  Template repo users clone
 │   ├── server/               (Nitro server dir)
@@ -522,9 +528,9 @@ export function facilis(): Plugin {
 
 ```typescript
 // packages/nitro/src/module.ts
-import { defineNitroModule } from "nitro/kit"
+import type { NitroModule } from "nitro/types"
 
-export const facilisNitroModule = defineNitroModule({
+export const facilisNitroModule: NitroModule = {
   setup(nitro) {
     // 1. Expose the generated OpenAPI spec as a virtual import
     nitro.options.virtual ||= {}
@@ -542,8 +548,16 @@ export const facilisNitroModule = defineNitroModule({
       { route: "/__facilis/health", handler: "./runtime/routes/__facilis/health.get" },
     )
   },
-})
+  name: "facilis",
+}
 ```
+
+> **Nitro v3 note (verified 2026-10-25 against `nitro@3.0.260903-beta`):** there is no
+> `nitro/kit` entry point and no `defineNitroModule` helper — a Nitro module is a plain
+> object `{ name, setup(nitro) }` typed via `NitroModule` from `nitro/types` (D-010).
+> `nitro()` from `nitro/vite` returns `Plugin[]`, and a Vite plugin may carry the module on
+> its `nitro` key, which is exactly how `facilis()` works. Virtual-module factories in
+> `nitro.options.virtual` return module source strings, evaluated on load.
 
 **Registration in the starter's `vite.config.ts`:**
 
@@ -594,6 +608,11 @@ export default defineConfig({
 - `sections` — comma-separated: `config,blocks,routes,schema,i18n,meta`
 - `since` — revision hash for 304 short-circuit
 - `format` — `"full"` (default) or `"summary"`
+
+**Phase 1 note:** `format=summary` returns the compact envelope
+`{ revision, generatedAt, sections, summary, warnings }` — the summary is not a
+`Partial<FacilisManifest>`, so it is not nested under `manifest`. The full form is
+unchanged.
 
 **Response headers:**
 
@@ -678,6 +697,14 @@ No file watchers required. Recomputed on every request; clients use ETag.
 
 Consequences to carry into Phase 1: static analysis only sees object-literal configs (values imported from other modules are not resolved — add a lint/review check), and route-file edits must invalidate the virtual module via the Vite module graph so HMR keeps the spec fresh.
 
+**Phase 1 implementation notes (verified):** the metadata virtual module is owned by the
+`facilis()` **Vite plugin**, not by a Nitro virtual module — inside the Nitro environment,
+Nitro's virtual plugin resolves that id before user plugins and served stale metadata across
+edits (HMR broke). Non-static values are never guessed: they are omitted and reported as
+`meta-not-static` manifest warnings plus an `x-facilis-warning` extension on the operation.
+The facade answers `200` with an `openapi-unavailable` warning when Nitro's generator is
+disabled, and `404` in production unless `openAPI.production` is enabled.
+
 ---
 
 ## 7. Type Reference
@@ -746,7 +773,8 @@ interface RouteMeta {
   path: string
   operationId?: string
   summary?: string
-  permission?: string
+  description?: string                        // from the wrapper config (AST pass)
+  permission?: string | string[]              // string[] mirrors the handler config
   dbTables: string[]                          // empty = explicit "no DB"
   dbColumns: string[]                         // format: "table.column"
   security: "required" | "optional" | "public" | "unknown"
@@ -914,6 +942,19 @@ interface MigrationStatement {
   affectedTable: string | null
   affectedColumns: string[]
   reason: string
+}
+
+interface ApiDiff {
+  added: ApiRouteRef[]
+  removed: ApiRouteRef[]
+  changed: { before: ApiRouteRef; after: ApiRouteRef; fields: string[] }[]
+}
+
+interface ApiRouteRef {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+  path: string
+  permission?: string | string[]
+  dbTables: string[]
 }
 
 interface SecurityDiff {
@@ -1303,7 +1344,11 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 
 ---
 
-## 10. Studio (Vivari Fork)
+## 10. IDE (fork of Vivari Studio)
+
+Folder: `ide/`. Starts as the full upstream `packages/studio` at the pinned Vivari tag, then
+follows this repository's toolchain (D-019). The kernel it runs on is the `vendor/vivari`
+submodule (D-018).
 
 ### 10.1 What We Inherit
 
@@ -1499,6 +1544,12 @@ Four diff lenses, one engine:
 
 **Exit criteria:** Hand-written todo app using only these packages runs in Vivari via `vite dev`, is secure, has working roles/permissions, its OpenAPI includes `x-db-tables`.
 
+**Status (2026-10-25): implemented and verified headlessly.** All four packages ship with tests
+(175 across the workspace), `examples/todo-app` is the acceptance app, and
+`examples/todo-app/scripts/verify-headless.sh` asserts the exit criteria over HTTP (auth,
+RBAC, CRUD, RLS isolation, manifest contract, `x-db-tables`). The "runs in Vivari" half still
+needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
+
 ### Phase 2 — Studio Extension (2 weeks)
 
 - Fork Studio, strip demo content
@@ -1604,6 +1655,9 @@ All must pass:
 12. `facilis()` + `nitro()` plugins compose without conflict in `vite.config.ts`
 
 ### 14.2 Phase 1
+
+**Status (2026-10-25): met headlessly** except the Vivari/WebContainer half of the first item —
+see `examples/todo-app/scripts/verify-headless.sh` and D-015.
 
 - A hand-written todo app runs in Vivari via `vite dev`
 - All routes use `defineAuthorizedHandler`

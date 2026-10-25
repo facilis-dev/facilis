@@ -1,0 +1,13 @@
+{
+  "app.title": "Facilis todos",
+  "todos.empty": "No todos yet.",
+  "todos.new": "New todo",
+  "todos.title.placeholder": "What needs doing?",
+  "todos.done": "Done",
+  "todos.delete": "Delete",
+  "auth.login": "Log in",
+  "auth.logout": "Log out",
+  "auth.register": "Register",
+  "auth.email": "Email",
+  "auth.password": "Password"
+}

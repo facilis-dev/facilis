@@ -18,7 +18,9 @@ Repository layout (see spec §4):
 
 ```
 packages/    @facilis/core, db, auth, blocks, ai, nitro
-studio/      Facilis Studio (fork of Vivari Studio)         [Phase 0+]
+ide/         Facilis IDE app (MIT fork of Vivari Studio)    [Phase 0+]
+vendor/vivari/  Vivari upstream, git SUBMODULE pinned to a tag/commit (MIT)
+             [never edited here, never shipped, not in the pnpm workspace]
 starter/     template cloned by users                        [Phase 1+]
 examples/    example generated apps
 spikes/      throwaway Phase 0 feasibility spikes (never shipped)
@@ -47,7 +49,9 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 ## Code conventions
 
 - **Hard limit: 300 lines per source file.** Enforced by `scripts/check-file-length.mjs`;
-  fix by splitting, never by adding an exclusion.
+  fix by splitting, never by adding an exclusion. The only exception is the upstream-derived
+  IDE import: those files are pinned in `scripts/file-length-baseline.json` and the check is a
+  **ratchet** (may shrink, may not grow, entries disappear as files are split, no new entries).
 - **Named exports only.** Default exports are allowed only where a tool requires them
   (`vite.config.ts`, `nitro.config.ts`, route modules if Nitro forces it).
 - **File names kebab-case** (`define-authorized-handler.ts`); **React components
@@ -56,6 +60,10 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 - **Nitro file router naming is mandatory**: `index.get.ts`, `[id].patch.ts`,
   `manifest.get.ts` (spec §4.2).
 - Imports between packages use the package name (`@facilis/db`), never `../../packages/...`.
+- **Relative imports inside `packages/*/src` carry the `.ts` extension** (`from "./config.ts"`).
+  Packages ship their `src` and a Vite config is loaded by Node's native ESM loader, which
+  requires explicit extensions; `tsc` rewrites them to `.js` on emit
+  (`allowImportingTsExtensions` + `rewriteRelativeImportExtensions`).
 - No `any` (use `unknown` + narrowing). No non-null assertions without a one-line `why`.
 - Comments explain **why**, not what. No commented-out code, no dead code.
 - API responses are **codes, not prose**; every user-facing string goes through
@@ -114,10 +122,14 @@ A change is done when all of the following are true:
 
 ---
 
-## Studio-specific notes
+## IDE-specific notes
 
-`studio/` is a fork of [Vivari Studio](https://github.com/maitrungduc1410/vivari)
-(MIT). Keep upstream conventions inside the fork (Tailwind v4 + shadcn + Base UI,
-oxlint, TypeScript project references) and isolate Facilis changes in new modules
-(`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
-rewriting upstream files. See spec §10.
+`ide/` is a fork of [Vivari Studio](https://github.com/maitrungduc1410/vivari) (MIT) that
+starts from upstream `packages/studio` at the pinned tag, then follows **this repository's**
+rules: workspace member, strict TypeScript, the root oxlint/Prettier config, vitest, and the
+300-line limit (via the baseline ratchet for the inherited files). Keep the UI stack
+(Tailwind v4 + shadcn/Base UI, React 19, Monaco/xterm) and isolate Facilis changes in new
+modules (`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
+rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule (read-only;
+align with `git submodule update --remote vendor/vivari`). See spec §10 and `ide/README.md`
+for the exact patch set.

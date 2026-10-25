@@ -23,8 +23,13 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "drizzle-kit": "0.31.11",
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "drizzle-orm": "0.45.4"
   }
 }

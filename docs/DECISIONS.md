@@ -99,15 +99,211 @@ binding resolves to IPv6 `::1`. Headless spike/CI scripts must override `PORT` a
 `http://localhost:<port>` (or pass `--host 127.0.0.1`). This is a harness detail, not a
 product decision; it does not affect Vivari, where the dev server runs in the browser.
 
+### D-010 — Nitro v3 module API: no `defineNitroModule`
+**Status:** accepted (2026-10-25)
+
+Spec §5.6 and Appendix E show `import { defineNitroModule } from "nitro/kit"`. That export
+**does not exist** in the pinned `nitro@3.0.260903-beta`: there is no `./kit` entry, and
+Nitro v3 migration docs state modules are plain objects. Verified against the installed
+package:
+
+- a module is `{ name, setup(nitro) }`, typed as `NitroModule` from `nitro/types`;
+- `Plugin.nitro?: NitroModule` is declared by `nitro/vite` (so `facilis()` can carry it);
+- `nitro()` returns a `Plugin[]`, and `defineHandler` is an identity wrapper (a plain
+  async function is a valid route handler).
+
+**Consequences:** `@facilis/nitro` implements the plain-object module; the spec snippets are
+corrected in the Phase 1 docs pass. No behaviour change to the design.
+
+### D-011 — Vivari Studio is a vendored fork in `studio/`
+**Status:** accepted (2026-10-25); the layout inside it was refined by D-017
+
+`studio/` contains an import of `github.com/maitrungduc1410/vivari` (MIT) pinned to a single
+upstream commit, imported as one commit with provenance in `studio/FACILIS.md`. Upstream CI,
+marketing site, changesets and the very large planning docs are excluded; upstream
+`README.md` is kept as `UPSTREAM-README.md`.
+
+Root gates exclude the vendored tree (`studio` is skipped by
+`scripts/check-file-length.mjs`, `.oxlintrc.json` and `.prettierignore`) and it is **not** a
+pnpm workspace member, so the framework workspace stays small and CI fast. Facilis changes
+go into new modules; upstream files are not rewritten, so re-syncing upstream stays a
+path-by-path re-import.
+
+**Consequences:** Studio build/runtime verification is environment-dependent (upstream needs
+`bun`, `npm` for vendored assets, and Rust/`wasm-pack` for the VFS/codec/crypto packages -
+none present in this sandbox). What can and cannot be verified is recorded in
+`studio/FACILIS.md`; Phase 0 browser items (A1-A3, A6, A8-A12) remain open until a
+WebContainer-capable browser harness exists.
+
+### D-012 — Phase 1 work split, branch and PR strategy
+**Status:** accepted (2026-10-25)
+
+Phase 1 is split into four disjoint write scopes (one shared task each): `@facilis/core`,
+`@facilis/db` + `@facilis/auth`, `@facilis/nitro`, and the `studio/` fork. Module boundaries
+and exact public APIs are fixed in `docs/PHASE1-CONTRACTS.md` so the packages can be built in
+parallel without import cycles: `db` (leaf) <- `auth` <- `core` <- `nitro`; `core`, `auth`
+and `db` never import `nitro`/`vite`/`h3` (they type handlers against a structural event).
+
+Branches: `feat/phase-0-foundation` (PR #1), then `feat/phase-1-core-packages` stacked on it
+for packages + the Studio fork + the Phase 1 example app (PR #2). `main` is only updated via
+PR.
+### D-013 — `defineConfig` takes a partial input and resolves defaults
+**Status:** accepted (2026-10-25)
+
+Spec §7.1 declares the fully-resolved `FacilisConfig`, but §8.4.1 shows a `facilis.config.ts`
+containing only `auth`. Adopted: `defineConfig(input: FacilisConfigInput)` with `auth`
+required and every other section optional, resolving documented defaults (release `main`;
+db pglite, `./drizzle`, tenant/owner column aliases; i18n `en`; no block packages; 7-day
+sessions). Objects are strict (unknown keys rejected) and the auth block is cross-checked:
+every permission a role references must be declared, `"*"` is valid only as a role entry,
+`defaultRole` must exist. `facilisConfigSchema` validates the input form; the output is the
+full `FacilisConfig`.
+
+**Consequences:** `facilis.config.ts` stays short, typos fail at boot with a readable error,
+and `@facilis/nitro`/`@facilis/db` always consume the resolved shape.
+
+### D-014 — RLS enforcement identity, auth lookups and role policies
+**Status:** accepted (2026-10-25)
+
+Phase 0 found that PGlite connects as a superuser, which bypasses RLS (even `FORCE`).
+Adopted: the dev bootstrap creates a non-superuser `facilis_app` role and grants it DML on the
+public schema; `runWithPolicyScope` runs every handler transaction as `SET LOCAL ROLE
+facilis_app` before setting the GUCs, so row-level security is actually enforced in dev.
+
+Consequences and decisions taken from that:
+
+- Auth lookups (`validateSession`, `registerInitialAdmin`) run on the **root** client, not
+  inside a tenant scope: the `users` table is tenant-isolated by a restrictive policy, so a
+  tenant-less lookup would be filtered out. `sessions` has no RLS (single-purpose table,
+  only reachable through the session id). Phase 3 follow-up (a real Postgres pool) needs a
+  privileged lookup path or a `tenant_id` on `sessions`.
+- `users` ships one restrictive tenant policy **plus** a permissive "tenant GUC present"
+  policy: Postgres denies by default when only restrictive policies exist.
+- `rolePolicy(column)` means "the table column that holds the role name the caller needs",
+  i.e. `nullif(current_setting('app.roles', true), '')::jsonb ? column`; the spec §8.4.5
+  example hardcodes `? 'admin'`, which is a special case of the same generator.
+- Giving `facilis_app` its grants is a dev bootstrap (`ensureAppRole`); a deployed Postgres
+  must provision the role out of band.
+### D-015 — Phase 1 verified end-to-end (and the Nitro deviations it surfaced)
+**Status:** accepted (2026-10-25)
+
+`examples/todo-app` is the Phase 1 acceptance app and it runs headlessly: health, full and
+summary manifest (547 chars), `/__facilis/manifest/revision`, ETag/304, invalid `sections`
+400, cross-origin 403, `/_openapi.json` with `x-permission`/`x-db-tables`/`x-db-columns`,
+registration with `FACILIS_INITIAL_ADMIN`, default-role assignment, login/session with
+expanded permissions, todo CRUD, RLS isolation (second user sees nothing, cross-user DELETE
+is a 404), invalid body/query 400s and anonymous 401. Reproduce with
+`cd examples/todo-app && ./scripts/verify-headless.sh`.
+
+Deviations accepted while getting there:
+
+- `#facilis/openapi-meta` is owned **only** by the `facilis()` Vite plugin, not registered as a
+  Nitro virtual module: inside the Nitro environment, Nitro's virtual plugin resolves that id
+  before user plugins, which served stale metadata and broke HMR. `#facilis/config` and
+  `#facilis/db-schema` stay Nitro virtuals.
+- `?format=summary` returns `{ revision, generatedAt, sections, summary, warnings }`; the
+  compact view is not a `Partial<FacilisManifest>` (spec §6.1 note added).
+- The revision hash uses the AST metadata map (the Facilis-owned part of the spec) rather than
+  the merged OpenAPI document, avoiding a self-fetch and staying deterministic without Nitro's
+  generator.
+- Dev boot applies migrations, seeds `role_permissions` and runs `ensureAppRole`; the
+  production facade is only mounted when `openAPI.production` is enabled.
+- Dev PGlite runs in-memory (the config `dataDir` is not wired yet): the dev database resets
+  when the Nitro worker restarts. Tracked as later-phase work; tests and the example do not
+  depend on persistence.
+
+### D-016 — `.ts` relative imports, workspace examples, excluded fork
+**Status:** accepted (2026-10-25)
+
+A Vite config is loaded by **Node's native ESM loader**, which does type stripping but requires
+explicit extensions. Because packages export their `src`, the plugin entry graph
+(`@facilis/nitro/vite` -> core/db/auth) must be loadable that way. Adopted: relative imports
+inside `packages/*/src` carry `.ts`, with `allowImportingTsExtensions` +
+`rewriteRelativeImportExtensions` so `tsc` rewrites them to `.js` on emit. `tsconfig.base.json`
+also sets `types: ["node"]` (source-exporting packages are typechecked by their consumers, so
+the lib/types surface must be uniform).
+
+`examples/*` is a pnpm-workspace glob so the acceptance app is linted, typechecked, tested and
+built by the same gates as the packages. `studio/` (the app fork) and `vendor/vivari/` (the
+pinned kernel) are explicitly excluded from the workspace, the file-length check, oxlint and
+Prettier: they are upstream-owned code with their own toolchain (D-017).
+
+### D-017 — Project site and canonical domain: facilis.dev
+**Status:** accepted (2026-10-25)
+
+`facilis.dev` is registered and becomes the canonical project home — the site, the docs at
+`/docs`, and the identity used in public naming. `.dev` is the right signal for a developer tool,
+and the domain is short enough to say out loud.
+
+**Context:** "Facilis" collides with three existing products (facilis.com media storage,
+facilis.ai agentic manufacturing, Facilisgroup), so the wordmark alone is not searchable.
+
+**Consequences:** every page title carries a descriptor ("Facilis — …"); `www` 301s to the apex;
+docs stay on the apex path until they outgrow it; GitHub org, npm scope `@facilis` (O-006),
+social handles and `hello@facilis.dev` must be claimed early. Site strategy — including the
+two-pillar message architecture — lives in [`docs/WEBSITE.md`](./WEBSITE.md) (W-1, W-9).
+
+### D-017 — The IDE app and the upstream Vivari sources are separate trees
+**Status:** superseded by D-018 and D-019
+
+Vendoring Vivari as one tree under `studio/` left a second npm workspace root inside the repo
+(`studio/packages/studio` = app, `studio/packages/*` = kernel, `studio/{scripts,worker,examples}`
+in neither), so the tree was partitioned by role. D-018 then made the upstream half a real
+git clone (submodule) instead of a copied tree, and renamed the app folder to `ide/`; D-019
+brought that app under the repository's own toolchain. The split itself stands: one upstream
+tree, one app tree, no duplicated files.
+
+### D-018 — Upstream Vivari is a git submodule; the app folder is `ide/`
+**Status:** accepted (2026-10-25)
+
+A copied tree is bad at the one operation that matters: staying aligned. `vendor/vivari` is now
+a **git submodule** of `github.com/maitrungduc1410/vivari` (MIT), pinned in `.gitmodules` +
+gitlink at `1f00a48…` (tag `v1.1.2`), with `.gitmodules` `branch = master`. Updating upstream
+is therefore one command (`git submodule update --remote vendor/vivari`), `git status` shows a
+single changed pointer, and nothing upstream is copied into our history.
+
+The app folder is renamed `studio/` -> `ide/`: it is the Facilis IDE (the product is the IDE;
+"Studio" was the upstream/vendor name), it starts as the full upstream `packages/studio` at the
+pinned tag, and from there it is a fork that follows our conventions (D-019). The kernel is
+consumed from the submodule by source: `@vivari/core` alias, `fs.allow` widened to the repo
+root, and five deep imports — the complete patch set is in `ide/README.md` and
+`vendor/README.md`.
+
+**Consequences:** a fresh checkout needs `git submodule update --init vendor/vivari` before the
+IDE typechecks (CI checks out submodules recursively); `vendor/` stays out of the pnpm
+workspace and out of every gate; `ide/` **is** a workspace member (D-019).
+
+### D-019 — The IDE follows the repository toolchain, not upstream's
+**Status:** accepted (2026-10-25)
+
+`ide/` is a pnpm-workspace member and is held to AGENTS.md like the framework packages:
+**TypeScript strict** (`tsc --strict` and the pinned TypeScript 7: 0 errors on 756 files), the
+root **oxlint** config (the upstream per-app `.oxlintrc.json` was removed; its 89 rule errors
+were fixed — mostly `eqeqeq`, with the repo rule refined to `"smart"` so `== null` stays
+idiomatic), repo **Prettier** (print width 100; the tree was formatted once when the fork
+started, a mechanical no-behaviour-change commit), and **vitest** (`src/vv/run-phase.test.ts`,
+the pure phase machine). Scripts: `build` = `tsc -b` (passes everywhere), `build:app` = the
+full `vite build` which stays blocked on the missing Rust->Wasm `pkg/` outputs.
+
+The 300-line limit is a hard rule for new code. Fourteen inherited files are above it
+(`templates.ts` 11.4k lines of template payloads, `controller.ts` 4.3k, ten components,
+`vite.config.ts`); they are recorded in `scripts/file-length-baseline.json` and
+`scripts/check-file-length.mjs` enforces a **ratchet**: listed files may shrink but not grow,
+entries must be deleted when a file drops under the limit, and nothing new can be added.
+Splitting them (starting with `controller.ts`) is Phase 2 refactor work.
+
+**Consequences:** `pnpm lint/typecheck/test/build/format:check` cover the IDE (217 files linted,
+12 typecheck tasks, 222 tests, 8 build tasks); CI checks out submodules; `ide/README.md` carries
+the complete delta vs upstream so an upstream bump stays a mechanical diff.
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
-| O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | flat keys | Phase 1 (locales) |
-| O-002 | Canonical API error-code registry | single `FacilisErrorCode` union in `@facilis/core`, serialized as `{ code, message?, details? }` | Phase 1 (routes) |
-| O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | ship single-tenant; add `tenants` only when multi-tenant is in scope | Phase 1 (auth schema) |
+| O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
+| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `internal_error`), serialized as `{ code, details? }` — no prose | done |
+| O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
 | O-004 | Block discovery: `node_modules` scan vs explicit registration | scan `node_modules/*/manifest.*` (already assumed by revision hash) | Phase 5 |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
 | O-006 | Publish target for `@facilis/*` (public npm vs private registry) | start workspace-only; decide before first publish | Phase 6 |

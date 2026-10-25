@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  /* Tailwind v4's Preflight dropped the `button { cursor: pointer }` that v3 shipped,
+     so every button in the app silently fell back to the UA default `cursor: default`.
+     Restore it once here rather than per component: it also covers components not
+     written yet, and a `cursor-*` utility still wins because utilities outrank base.
+     Disabled controls are excluded and keep the default cursor — the same thing VS
+     Code does (`.monaco-action-bar .action-item.disabled { cursor: default }`). */
+  button:not(:disabled, [aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+/* VS Code-style thin horizontal scrollbar for the editor tab strip. */
+.vv-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.vv-tabs-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+.vv-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vv-tabs-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+.vv-tabs-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* IDE-specific bits that don't map cleanly to utility classes. */
+.vv-term-host .xterm {
+  height: 100%;
+  padding: 6px 8px;
+}
+.vv-term-host .xterm-viewport {
+  background-color: transparent !important;
+}
+.vv-editor-host {
+  width: 100%;
+  height: 100%;
+}
+/* Host for Monaco's overflowing widgets — see overflowWidgetsNode in
+   controller.ts for why they live outside the editor at all. Zero-size on
+   purpose: the node has to carry the `monaco-editor` class to inherit the theme's
+   colour variables, and that class also paints an editor-coloured background, so
+   an empty box is what keeps it from covering the app. The widgets inside are
+   `position: fixed` and so are laid out against the viewport regardless. */
+.vv-overflow-widgets {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+/* Monaco paints its own background; make sure it fills the pane. */
+.vv-editor-host .monaco-editor,
+.vv-editor-host .monaco-editor .overflow-guard {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/*
+ * VS Code-style resize handle: a subtle 1px seam that lights up a light-blue
+ * line on hover and stays lit while dragging. react-resizable-panels exposes
+ * the drag state via data-separator=inactive|hover|active on the handle.
+ */
+[data-slot="resizable-handle"] {
+  transition: background-color 120ms ease;
+}
+[data-slot="resizable-handle"][data-separator="hover"],
+[data-slot="resizable-handle"][data-separator="active"] {
+  background-color: #007fd4;
+}
+/*
+ * Breakpoint debugger decorations (see packages/studio/src/vv/debug-session.ts).
+ * A red dot in the glyph margin marks a breakpoint; the paused statement gets a
+ * highlighted line plus a yellow arrow in the glyph margin.
+ */
+/* All three glyphs are flex-centered inside Monaco's glyph-margin cell (which is
+ * sized to the full line height and column width), so the dot/arrow sits dead
+ * centre both vertically and horizontally — with equal space on either side. */
+.vv-bp-glyph,
+.vv-bp-hover-glyph,
+.vv-paused-glyph {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+}
+.vv-bp-glyph::before,
+.vv-bp-hover-glyph::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e51400;
+}
+/* Faded dot: the "click to add a breakpoint" hover hint. */
+.vv-bp-hover-glyph::before {
+  opacity: 0.4;
+}
+.vv-paused-line {
+  background: rgba(255, 196, 0, 0.16);
+}
+/* Paused arrow: a geometric CSS triangle rather than the ▶ glyph, so it can be
+ * centred precisely inside the breakpoint dot it overlaps. A triangle's visual
+ * mass sits a third from its base, so nudge it right slightly to optically
+ * centre it within the dot. */
+.vv-paused-glyph::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 7px;
+  border-color: transparent transparent transparent #ffc400;
+  transform: translateX(1px);
+  position: relative;
+  z-index: 1;
+}
+/* Paused on a breakpoint: draw the full-size red dot behind the yellow arrow so
+ * both stay full-size (a single glyph, no split lanes). */
+.vv-paused-on-bp::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e51400;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
