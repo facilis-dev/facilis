@@ -305,9 +305,9 @@ export default defineConfig({
   },
   server: {
     headers: isolation,
-    // The kernel worker and its nested workers live in vendor/vivari/packages
-    // (kernel-host, runtime, vfs|codec|crypto/pkg). Let Vite's dev server read and
-    // bundle them from the repository root.
+    // The sandbox forwards this app through the `facilis.home` hostname (FACILIS_DEV_HOST).
+    allowedHosts: [process.env.FACILIS_DEV_HOST ?? "facilis.home"],
+    // Kernel workers and their vfs/codec/crypto pkg dirs live outside this folder.
     fs: { allow: [fileURLToPath(new URL("../", import.meta.url))] },
   },
   preview: { headers: isolation },
