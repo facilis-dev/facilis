@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "noEmit": true,
+    "paths": {
+      "~/*": ["./*"]
+    }
+  },
+  "include": ["src", "server", "db", "vite.config.ts", "nitro.config.ts", "facilis.config.ts"]
+}
