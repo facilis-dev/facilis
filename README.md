@@ -213,3 +213,5 @@ For now, the most useful thing you can do is **read `docs/SPEC.md` and file issu
 ---
 
 <sub>This README is intentionally short. The spec is the depth. If something here disagrees with `docs/SPEC.md`, the spec wins.</sub>
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
