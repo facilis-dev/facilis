@@ -21,6 +21,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useIde } from "./useIde";
+import { navigatePreviewFrame } from "./preview-frame-nav";
 import { phaseLabel, type RunPhase } from "@/vv/run-phase";
 import type { PreviewTab } from "@/vv/controller";
 
@@ -84,10 +85,7 @@ function PreviewFrame({
   const lastSrc = useRef<string | null>(null);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el || lastSrc.current === src) return;
-    lastSrc.current = src;
-    el.src = src;
+    void navigatePreviewFrame(ref.current, src, lastSrc);
   }, [src]);
 
   return (
