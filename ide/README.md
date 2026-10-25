@@ -60,26 +60,47 @@ must be deleted once a file drops under 300 lines, and no new file may be added.
 5. Formatting: the tree is formatted with the repo Prettier config (mechanical, no behaviour
    change). Keep it formatted; do not re-run upstream's formatter.
 6. Fourteen files above 300 lines, recorded in the file-length baseline (see above).
+7. `src/vv/templates.ts`: every Vite template resolves `vite@^7.1.0` instead of upstream's
+   `^8.0.0` — Vite 8's rolldown cannot load its wasm binding inside the VM (see "Running it").
 
 Everything else is byte-identical to upstream at the pinned commit (`diff -r` with
 `vendor/vivari/packages/studio` shows exactly the files above).
 
 ## Running it
 
+The IDE runs on the vendored kernel, so four gitignored build artifacts must exist first.
+`docs/DEV.md` is the full guide (why each step exists, versions, troubleshooting); the short
+version:
+
 ```bash
 git submodule update --init vendor/vivari   # once, from the repo root
 pnpm install                                # repo install links the IDE (workspace member)
-cd ide
-pnpm dev                                    # vite dev, COOP/COEP headers
+
+pnpm ide:wasm        # Rust -> Wasm kernel: vendor/vivari/packages/{vfs,codec,crypto}/pkg
+pnpm ide:assets      # ide/public/vendor/{npm,pnpm}-pack.bin + sqlite/sqlite3.wasm
+pnpm ide:browser     # headless Chromium + libs + fonts (no root, private sysroot)
+
+pnpm ide:dev         # vite dev on 0.0.0.0:5173, COOP/COEP headers
+pnpm ide:smoke       # headless acceptance: boot -> create React/TS project -> preview paints
 ```
 
-**Sandbox limits (2026-10-25):** the dev server serves the shell (`/` 200, `/src/main.tsx`
-200, COOP/COEP present) and the app typechecks strictly (756 files, 0 errors), but the
-**WebContainer cannot boot**: `vendor/vivari/packages/{vfs,codec,crypto}/pkg` are Rust->Wasm
-outputs that need `cargo`/`wasm-pack` (absent here), so `build:app` and the worker graph fail
-to resolve them. A real browser harness (Chromium + SharedArrayBuffer/OPFS) plus the Rust
-toolchain is required to clear Phase 0 items A1-A3/A6/A8-A12. Details:
-[`vendor/README.md`](../vendor/README.md).
+Verified 2026-10-25: kernel online **572 ms**, project created, `npm install` inside the VM,
+Vite 7 dev server on 5173, preview painted **31 s** — 16/16 smoke checks green (screenshots and
+`report.json` under `$FACILIS_TOOLING_DIR/smoke-artifacts/`). `build:app` (full `vite build`)
+is not part of that pass yet.
+
+**In-VM constraint (why the templates pin Vite 7):** Vite 8 bundles with rolldown, whose
+WebAssembly binding (`@rolldown/binding-wasm32-wasi@1.2.15`) pins `@emnapi/core@2.0.0-alpha.5`,
+which `@napi-rs/wasm-runtime@1.2.6` rejects with
+`TypeError: Cannot set properties of undefined (setting 'initWorker')`; rolldown's own
+"download the binding" fallback re-installs the same broken set, so `vite` never binds a port.
+All Vite templates therefore resolve `vite@^7.1.0` (Vite 7.3.7 boots in 259 ms in the same VM).
+The `@rolldown/binding-wasm32-wasi` entries are kept so retrying Vite 8 later is a version bump.
+Upstream is on it: [rolldown#11292](https://github.com/rolldown/rolldown/pull/11292) (2026-10-25)
+moves the binding to `@emnapi/core@2.0.0-beta.2`; Vite depends on `rolldown ~1.2.14`, so the
+next rolldown patch release fixes Vite 8 without a Vite bump. An interim per-project
+`overrides` pin was verified to boot Vite 8.3.5 (803 ms) — see `docs/DEV.md` §6.1 for the
+unblock checklist. Details and the rest of the environment notes: [`docs/DEV.md`](../docs/DEV.md).
 
 ## Where Facilis code goes
 

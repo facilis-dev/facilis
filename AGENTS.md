@@ -24,7 +24,8 @@ vendor/vivari/  Vivari upstream, git SUBMODULE pinned to a tag/commit (MIT)
 starter/     template cloned by users                        [Phase 1+]
 examples/    example generated apps
 spikes/      throwaway Phase 0 feasibility spikes (never shipped)
-docs/        SPEC.md (contract) + DECISIONS.md (ADR log)
+scripts/     repo gates (file-length ratchet) + scripts/dev/ (IDE build & smoke, see docs/DEV.md)
+docs/        SPEC.md (contract) + DECISIONS.md (ADR log) + DEV.md (environment recipe)
 ```
 
 ---
@@ -133,3 +134,12 @@ modules (`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`
 rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule (read-only;
 align with `git submodule update --remote vendor/vivari`). See spec §10 and `ide/README.md`
 for the exact patch set.
+
+**Building and verifying it** is scripted, because the kernel's Wasm packages and its runtime
+assets are gitignored upstream artifacts and a browser is needed to boot it: `pnpm ide:wasm`,
+`pnpm ide:assets`, `pnpm ide:browser`, then `pnpm ide:dev` / `pnpm ide:smoke`. The full
+recipe, pinned tool versions, in-VM constraints and troubleshooting live in
+[`docs/DEV.md`](./docs/DEV.md). Do not add ad-hoc setup steps — extend those scripts.
+The Vite templates inside the IDE resolve `vite@^7.1.0` on purpose: Vite 8's rolldown cannot
+load its wasm binding in the WebContainer (see `ide/README.md`), so do not bump it without a
+green `pnpm ide:smoke`.

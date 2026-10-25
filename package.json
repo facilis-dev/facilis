@@ -17,7 +17,12 @@
     "lint:file-length": "node scripts/check-file-length.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "ide:dev": "pnpm --filter @facilis/ide dev --host 0.0.0.0 --port 5173",
+    "ide:wasm": "sh scripts/dev/build-kernel-wasm.sh",
+    "ide:assets": "sh scripts/dev/vendor-assets.sh",
+    "ide:browser": "sh scripts/dev/fetch-browser.sh",
+    "ide:smoke": "node scripts/dev/smoke-ide.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
