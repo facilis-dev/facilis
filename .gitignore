@@ -157,3 +157,15 @@ coverage/
 .env*
 spikes/*/node_modules/
 
+# IDE app (own toolchain, separate install)
+examples/*/node_modules/
+ide/node_modules/
+ide/pnpm-lock.yaml
+ide/dist/
+ide/.vite/
+ide/*.tsbuildinfo
+ide/public/vendor/
+
+# vendor/vivari is a git submodule (.gitmodules): its content is not tracked here
+.storybook/
+

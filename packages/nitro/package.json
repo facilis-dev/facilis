@@ -6,6 +6,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./module": "./src/module.ts",
+    "./vite": "./src/vite.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -23,8 +25,12 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "nitro": "3.0.260903-beta",
     "oxlint": "catalog:",
+    "rolldown": "1.2.15",
     "typescript": "catalog:",
+    "vite": "8.3.5",
     "vitest": "catalog:"
   },
   "peerDependencies": {
@@ -38,5 +44,10 @@
     "vite": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "@facilis/auth": "workspace:*",
+    "@facilis/core": "workspace:*",
+    "@facilis/db": "workspace:*"
   }
 }

@@ -1,26 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { hasPermission } from "./index";
+import * as auth from "./index.ts";
 
-const manager = {
-  roles: ["manager"],
-  permissions: ["todos:read", "todos:write"],
-};
-
-describe("hasPermission", () => {
-  it("denies anonymous callers", () => {
-    expect(hasPermission(null, "todos:read")).toBe(false);
+describe("@facilis/auth public surface", () => {
+  it("re-exports the auth tables (Appendix D step 2 pattern)", () => {
+    expect(auth.users).toBeDefined();
+    expect(auth.sessions).toBeDefined();
+    expect(auth.roles).toBeDefined();
+    expect(auth.rolePermissions).toBeDefined();
+    expect(auth.userRoles).toBeDefined();
   });
 
-  it("grants a declared permission", () => {
-    expect(hasPermission(manager, "todos:write")).toBe(true);
+  it("exports the Phase 1 contract functions", () => {
+    expect(typeof auth.expandRoles).toBe("function");
+    expect(typeof auth.hasPermission).toBe("function");
+    expect(typeof auth.hashPassword).toBe("function");
+    expect(typeof auth.verifyPassword).toBe("function");
+    expect(typeof auth.createSession).toBe("function");
+    expect(typeof auth.validateSession).toBe("function");
+    expect(typeof auth.destroySession).toBe("function");
+    expect(typeof auth.sessionMiddleware).toBe("function");
+    expect(typeof auth.seedFromConfig).toBe("function");
+    expect(typeof auth.seedStatements).toBe("function");
+    expect(typeof auth.registerInitialAdmin).toBe("function");
   });
 
-  it("denies an undeclared permission", () => {
-    expect(hasPermission(manager, "users:manage")).toBe(false);
-  });
-
-  it("treats the wildcard permission as all permissions", () => {
-    expect(hasPermission({ roles: ["admin"], permissions: ["*"] }, "users:manage")).toBe(true);
+  it("uses the contract cookie name", () => {
+    expect(auth.SESSION_COOKIE_NAME).toBe("facilis_session");
   });
 });

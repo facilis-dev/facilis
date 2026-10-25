@@ -26,5 +26,9 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@facilis/db": "workspace:*",
+    "drizzle-orm": "0.45.4"
   }
 }

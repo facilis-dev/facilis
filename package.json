@@ -13,13 +13,14 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint && oxlint . && node scripts/check-file-length.mjs",
+    "lint": "turbo run lint && oxlint -c .oxlintrc.json . && node scripts/check-file-length.mjs",
     "lint:file-length": "node scripts/check-file-length.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "turbo run test"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "oxlint": "catalog:",
     "prettier": "catalog:",
     "turbo": "catalog:"
