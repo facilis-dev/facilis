@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+.turbo/
+.vite/
+
+# Generated files owned by tooling
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Docs are edited by hand and reviewed separately
+docs/
+README.md
+AGENTS.md
+LICENSE
+
+# Standalone areas outside this scaffold's ownership:
+# spikes are throwaway feasibility probes; studio/starter/examples land later.
+spikes/
+studio/
+starter/
+examples/

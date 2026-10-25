@@ -1,0 +1,123 @@
+# AGENTS.md
+
+Guidance for AI agents (and humans) working on **Facilis**. Read this first, then read
+[`docs/SPEC.md`](./docs/SPEC.md) — it is the contract. If this file and the spec disagree,
+the spec wins; if the spec is silent or ambiguous, record a decision in
+[`docs/DECISIONS.md`](./docs/DECISIONS.md) instead of guessing.
+
+---
+
+## What this project is
+
+Facilis is a browser-resident framework: a static Studio SPA (fork of Vivari) runs a
+generated project inside a WebContainer, where **`vite dev`** is the single dev server and
+**Nitro v3 runs as a Vite plugin**. Security, schema safety, and API contracts are
+structural (compiler/framework), not optional lint rules.
+
+Repository layout (see spec §4):
+
+```
+packages/    @facilis/core, db, auth, blocks, ai, nitro
+studio/      Facilis Studio (fork of Vivari Studio)         [Phase 0+]
+starter/     template cloned by users                        [Phase 1+]
+examples/    example generated apps
+spikes/      throwaway Phase 0 feasibility spikes (never shipped)
+docs/        SPEC.md (contract) + DECISIONS.md (ADR log)
+```
+
+---
+
+## Toolchain (locked)
+
+| Concern | Choice |
+|---|---|
+| Runtime | **Node >= 22.15.0** (`.nvmrc` = 22) |
+| Package manager | **pnpm** workspace (v12) + **turbo** |
+| Language | **TypeScript, strict**, ESM only (`"type": "module"`) |
+| Lint / format | **oxlint** + **Prettier** (root configs) |
+| Tests | **Vitest** |
+| UI | **React 19 + Tailwind CSS v4 + shadcn/ui (Base UI primitives)** |
+| Backend / DB | **Nitro v3** (Vite plugin) + **Drizzle** + **PGlite** |
+| Validation | **Zod** |
+
+Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
+
+---
+
+## Code conventions
+
+- **Hard limit: 300 lines per source file.** Enforced by `scripts/check-file-length.mjs`;
+  fix by splitting, never by adding an exclusion.
+- **Named exports only.** Default exports are allowed only where a tool requires them
+  (`vite.config.ts`, `nitro.config.ts`, route modules if Nitro forces it).
+- **File names kebab-case** (`define-authorized-handler.ts`); **React components
+  PascalCase** (`DataTable.tsx`); types/interfaces PascalCase; constants UPPER_SNAKE only
+  for true module-level constants.
+- **Nitro file router naming is mandatory**: `index.get.ts`, `[id].patch.ts`,
+  `manifest.get.ts` (spec §4.2).
+- Imports between packages use the package name (`@facilis/db`), never `../../packages/...`.
+- No `any` (use `unknown` + narrowing). No non-null assertions without a one-line `why`.
+- Comments explain **why**, not what. No commented-out code, no dead code.
+- API responses are **codes, not prose**; every user-facing string goes through
+  `t("key")` with keys registered in `locales/en.json`.
+- Keep generated artifacts (`dist/`, `.turbo/`, coverage, `node_modules/`) out of git.
+
+---
+
+## Security invariants (non-negotiable, spec §8)
+
+1. Every API route is written with `defineAuthorizedHandler` — no exceptions.
+2. `dbTables` is always present (empty array allowed) and accurate.
+3. Input is validated with Zod; invalid input → `400`.
+4. Every scoped table ships with a `pgPolicy` + `ENABLE ROW LEVEL SECURITY`; app-level
+   scoping uses `drizzle-policy`.
+5. No raw Drizzle client imports outside `@facilis/db`.
+6. Dev-only endpoints are `404` in production and origin-allowlisted.
+7. Studio writes go through `kernel.writeFiles` (Vivari VFS); never touch OPFS directly.
+8. Roles/permissions are declared in `facilis.config.ts`; `role_permissions` is written
+   only by migrations.
+9. AI patches pass the 16-rule validator before touching disk.
+
+If a change cannot satisfy an invariant, stop and raise it — do not weaken the invariant.
+
+---
+
+## Definition of done
+
+A change is done when all of the following are true:
+
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` pass.
+- New route: auth + `dbTables` + Zod input + i18n keys + OpenAPI metadata.
+- New table: Drizzle schema + RLS policy + generated migration.
+- New user-facing string: `t()` key registered in `locales/en.json`.
+- Docs updated when a contract changes (spec and/or `docs/DECISIONS.md`).
+- No new file exceeds 300 lines.
+
+---
+
+## Git
+
+- **Conventional Commits**: `feat|fix|chore|docs|test|refactor(scope): summary`.
+- Work on a branch; `main` is the integration branch. Never commit secrets, `.env`,
+  private keys, or generated runtime manifests (`/__facilis/manifest` is never committed).
+- Keep commits small and reviewable; do not mix refactors with behaviour changes.
+
+---
+
+## Testing
+
+- Unit/integration tests with **Vitest**, colocated as `*.test.ts`.
+- Phase 0 feasibility work lives in `spikes/<name>/` — standalone, not part of the
+  workspace, never imported by packages.
+- Prefer proving a risky assumption with a runnable spike over a design argument
+  (spec §12 Phase 0, §14.1 acceptance criteria).
+
+---
+
+## Studio-specific notes
+
+`studio/` is a fork of [Vivari Studio](https://github.com/maitrungduc1410/vivari)
+(MIT). Keep upstream conventions inside the fork (Tailwind v4 + shadcn + Base UI,
+oxlint, TypeScript project references) and isolate Facilis changes in new modules
+(`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
+rewriting upstream files. See spec §10.

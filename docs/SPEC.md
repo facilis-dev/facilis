@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.2 (Design Complete — Facilis rename + Vite-first runtime)
-**Status:** Ready for Phase 0
+**Version:** 1.3 (Phase 0 findings folded in)
+**Status:** Phase 0 headless spike complete; browser/WebContainer items pending
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. See `spikes/phase0/REPORT.md`.
 - v1.2 — Renamed framework to **Facilis** (`@facilis/*`, `facilis.config.ts`, `/__facilis/*`, `Facilis*` types, `FACILIS_INITIAL_ADMIN`). Corrected runtime model: **Nitro v3 runs as a Vite plugin**, `vite dev` is the single dev server for frontend and backend. Added §10.6 "Runtime model inside Vivari". Updated Phase 0 tickets.
 - v1.1 — Added full role definition & assignment flow (§8.4), added `FacilisConfig.auth.roles`/`defaultRole`, removed Postgres roles in favor of app roles with session vars, added `FACILIS_INITIAL_ADMIN` bootstrap.
 - v1.0 — Design complete. Phase 0 ready.
@@ -82,7 +83,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | ORM | **Drizzle ORM** |
 | In-browser DB | **PGlite** (WASM Postgres) |
 | Production DB | **PostgreSQL** |
-| Frontend | **React + Radix UI** (unstyled primitives) |
+| Frontend | **React 19 + Tailwind CSS v4 + shadcn/ui** (Base UI primitives) |
 | Validation | **Zod** via `nitro-openapi-schemas` |
 | Runtime | **Vivari** (WebContainer) — Vite + Nitro plugin + PGlite in browser |
 | API contract | Nitro OpenAPI (`/_openapi.json`), `x-db-tables` extension |
@@ -347,7 +348,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 └── README.md
 ```
 
-**Note:** Nitro v3 in Vite mode requires the server directory to be declared in `nitro.config.ts` via `serverDir` (or in the `nitro` key of `vite.config.ts`). Route files live under `server/routes/`, not `routes/` at project root.[reference:2]
+**Note:** Nitro v3 in Vite mode requires the server directory to be declared in `nitro.config.ts` via `serverDir` (or in the `nitro` key of `vite.config.ts`). Route files live under `server/routes/`, not `routes/` at project root.
 
 ---
 
@@ -466,7 +467,7 @@ Each block is an independent module with two files:
 
 ```
 src/<Block>/
-├── index.tsx         React component (Radix-based, unstyled)
+├── index.tsx         React component (Tailwind + shadcn/ui)
 └── manifest.ts       BlockManifest export
 ```
 
@@ -479,7 +480,7 @@ Shipped blocks in MVP:
 | `AuthGuard` | auth | Redirect to login if no session |
 | `RoleGate` | auth | Render children only if role matches |
 | `LoginForm` | auth | Email/password login, uses auth API |
-| `ConfirmDialog` | feedback | Radix Dialog wrapper |
+| `ConfirmDialog` | feedback | shadcn Dialog wrapper |
 | `FileUpload` | media | FormData POST to a resource endpoint |
 
 Shipped in Phase 5:
@@ -572,7 +573,7 @@ export default defineConfig({
 })
 ```
 
-**Why two entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object.[reference:3] This is exactly the pattern Facilis needs: `facilis()` is a Vite plugin that carries the Facilis Nitro module. The user writes one line in `vite.config.ts` and gets all `__facilis` routes, virtual modules, and collectors.
+**Why two entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object. This is exactly the pattern Facilis needs: `facilis()` is a Vite plugin that carries the Facilis Nitro module. The user writes one line in `vite.config.ts` and gets all `__facilis` routes, virtual modules, and collectors.
 
 ---
 
@@ -671,7 +672,11 @@ No file watchers required. Recomputed on every request; clients use ETag.
 
 ### 6.9 Route Metadata Extraction
 
-`x-db-tables` and `x-db-columns` are emitted by `defineAuthorizedHandler` via `defineRouteMeta`. **Phase 0 must verify** that Nitro's static scanner detects `defineRouteMeta` called *inside* the wrapper. If not, fallback to a framework-owned AST pass in `@facilis/nitro`.
+`x-db-tables` and `x-db-columns` are emitted by `defineAuthorizedHandler` via `defineRouteMeta`.
+
+**Phase 0 result (verified, 2026-10-25): Nitro's scanner only accepts a *top-level* `defineRouteMeta` call. A call inside the wrapper is invisible to it, so the native path does not work (A16 = fail).** Therefore `@facilis/nitro` **must** ship a framework-owned AST pass that statically extracts the wrapper config into a virtual module, plus a facade that merges it into Nitro's generated spec and serves it at `/_openapi.json`. Nitro's own spec stays intact on an internal dev-only route (`/_facilis/openapi.json`). Prototype and evidence: `spikes/phase0/` (§3 of its REPORT).
+
+Consequences to carry into Phase 1: static analysis only sees object-literal configs (values imported from other modules are not resolved — add a lint/review check), and route-file edits must invalidate the virtual module via the Vite module graph so HMR keeps the spec fresh.
 
 ---
 
@@ -1181,6 +1186,7 @@ export const documents = pgTable("documents", {
   tenantId: uuid("tenant_id").notNull(),
 }, () => [
   pgPolicy("documents_tenant_isolation", {
+    as: "restrictive",
     for: "all",
     using: sql`tenant_id = current_setting('app.tenant_id')::uuid`,
     withCheck: sql`tenant_id = current_setting('app.tenant_id')::uuid`,
@@ -1188,12 +1194,14 @@ export const documents = pgTable("documents", {
   pgPolicy("documents_read", {
     for: "select",
     using: sql`
-      current_setting('app.roles', true)::jsonb ? 'admin'
+      nullif(current_setting('app.roles', true), '')::jsonb ? 'admin'
       OR owner_id = current_setting('app.user_id')::uuid
     `,
   }),
 ])
 ```
+
+**Why `AS RESTRICTIVE` and `nullif`?** Postgres ORs multiple *permissive* policies for the same command, so a permissive tenant policy would not constrain the admin clause — admins would see other tenants; see `spikes/phase0/REPORT.md` §4. Tenant isolation must be `AS RESTRICTIVE` (AND-ed) so it always applies. The `nullif(..., '')` guard covers the GUC lifecycle: after `RESET app.roles` the setting is `''`, and `''::jsonb` raises `invalid input syntax for type json`. PGlite connects as a superuser and bypasses RLS even with `FORCE`, so tests must `SET ROLE` to a non-superuser (verified in `spikes/phase0/tests/pglite-rls.test.ts`).
 
 **Result:**
 
@@ -1404,13 +1412,13 @@ When the starter project boots inside Vivari, the user runs **`vite dev`** — n
 
 ```typescript
 // Simplified
-await vivari.spawn("npm", ["run", "dev"])   // runs `vite dev`
+await vivari.spawn("pnpm", ["run", "dev"])   // runs `vite dev`
 // Wait for the port to be ready
 await waitForPort(vivari, 5173)
 // Then point the preview iframe at http://localhost:5173
 ```
 
-**Note from Nitro docs:** *"When using the Vite plugin, prefer `vite dev` over `nitro dev`; the Nitro CLI dev server does not support the Vite builder."*[reference:4] This is why the starter's `dev` script must be `vite dev`.
+**Note from Nitro docs:** *"When using the Vite plugin, prefer `vite dev` over `nitro dev`; the Nitro CLI dev server does not support the Vite builder."* This is why the starter's `dev` script must be `vite dev`.
 
 ---
 
@@ -1563,7 +1571,7 @@ Four diff lenses, one engine:
 |---|---|---|---|
 | 1 | **PGlite RLS incomplete** | Kills "unbypassable" guarantee | Phase 0 spike; fallback to `drizzle-policy` only |
 | 2 | **Nitro v3 churn** | Build breaks between upgrades | Pin exact version; upgrade deliberately with spike tests |
-| 3 | **`defineRouteMeta` in wrapper not scanned** | No `x-db-tables` in OpenAPI | Framework AST pass fallback |
+| 3 | **`defineRouteMeta` in wrapper not scanned** — **confirmed in Phase 0** | No `x-db-tables` in OpenAPI | Framework-owned AST pass + OpenAPI facade is **required**; prototype verified in `spikes/phase0` (§6.9). Static analysis sees object-literal configs only, and route-edit invalidation must be wired in Phase 1. |
 | 4 | **OpenAPI incomplete** | AI generates wrong code | Augment with `/__facilis/manifest` |
 | 5 | **Vivari memory/CPU limits** | Slow or crashes at ~50 routes | Lazy-load PGlite; measure; document limits |
 | 6 | **AI hallucinates unguarded routes** | Security regression | Patch validator rejects before write |
@@ -1591,7 +1599,7 @@ All must pass:
 7. OPFS mirror restores VFS after reboot
 8. PGlite RLS filters rows via `current_setting('app.roles')`
 9. `getTableConfig().policies` returns policies
-10. `x-db-tables` reaches OpenAPI via `defineAuthorizedHandler`
+10. `x-db-tables` reaches OpenAPI via `defineAuthorizedHandler` — native scanner fails (Phase 0); verified via the framework AST pass
 11. `?format=summary` < 500 tokens
 12. `facilis()` + `nitro()` plugins compose without conflict in `vite.config.ts`
 
@@ -1739,6 +1747,8 @@ export default defineAuthorizedHandler(
 )
 ```
 
+**Nitro v3 has no auto-imports.** Route files must import every helper explicitly (`defineHandler`, `defineRouteMeta`, `HTTPError`, … from `"nitro"`). `defineAuthorizedHandler` is imported from `@facilis/core` and re-exports the types route authors need.
+
 ---
 
 ## Appendix D — Roles Quickstart
@@ -1768,7 +1778,7 @@ export * from "./documents"
 ### Step 3 — Generate and run migration
 
 ```bash
-npx drizzle-kit generate
+pnpm drizzle-kit generate
 ```
 
 The plugin emits `CREATE TABLE roles`, `CREATE TABLE role_permissions`, `CREATE TABLE user_roles`, **and** the seed from your config.
@@ -1840,7 +1850,7 @@ export default defineConfig({
 | Drizzle schema | `db/schema.ts` |
 | React app | `src/` |
 
-**Remember:** `vite dev` is the only dev command. `nitro dev` does not support the Vite builder.[reference:5]
+**Remember:** `vite dev` is the only dev command. `nitro dev` does not support the Vite builder.
 
 ---
 

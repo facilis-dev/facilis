@@ -147,3 +147,13 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Facilis monorepo additions
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+.env*
+spikes/*/node_modules/
+
