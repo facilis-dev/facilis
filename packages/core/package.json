@@ -26,5 +26,10 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@facilis/auth": "workspace:*",
+    "@facilis/db": "workspace:*",
+    "zod": "4.6.7"
   }
 }

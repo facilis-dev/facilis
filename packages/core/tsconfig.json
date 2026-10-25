@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // The package contract exposes web Fetch types (Response/Headers) and computes revisions
+    // with WebCrypto; DOM lib keeps those typings available without importing Node types.
+    "lib": ["ES2023", "DOM"],
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
