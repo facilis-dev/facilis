@@ -6,7 +6,7 @@
  * adding an exclusion. Generated output and dependencies are never counted.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import process from "node:process";
 
@@ -19,6 +19,10 @@ const IGNORED_SEGMENTS = new Set([
   ".turbo",
   ".git",
   "generated",
+  // studio/ is the vendored Vivari fork: upstream-owned code, kept as-is so
+  // upstream syncs stay trivial. Facilis code lives outside it.
+  "studio",
+  ".worktrees",
 ]);
 
 const repoRoot = process.cwd();
@@ -51,9 +55,14 @@ function walk(directory, found = []) {
 
 function listSourceFiles() {
   try {
-    return listFromGit()
-      .filter((file) => SOURCE_EXTENSIONS.has(extname(file)) && !isIgnored(file))
-      .map((file) => join(repoRoot, file));
+    return (
+      listFromGit()
+        .filter((file) => SOURCE_EXTENSIONS.has(extname(file)) && !isIgnored(file))
+        .map((file) => join(repoRoot, file))
+        // The git index can still list a file that was deleted on disk mid-refactor;
+        // it is not part of the tree being checked, so skip it instead of crashing.
+        .filter((file) => existsSync(file))
+    );
   } catch {
     return walk(repoRoot);
   }

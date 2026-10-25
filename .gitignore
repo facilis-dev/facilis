@@ -157,3 +157,22 @@ coverage/
 .env*
 spikes/*/node_modules/
 
+# Vendored Vivari Studio fork (studio/): its own toolchain and build output
+examples/*/node_modules/
+studio/**/node_modules/
+studio/**/dist/
+studio/**/.output/
+studio/**/.vite/
+studio/**/*.tsbuildinfo
+studio/packages/studio/public/vendor/
+studio/packages/vfs/pkg/
+studio/packages/vfs/pkg-node/
+studio/packages/codec/pkg/
+studio/packages/codec/pkg-node/
+studio/packages/crypto/pkg/
+studio/packages/crypto/pkg-node/
+studio/packages/wasi-demo/target/
+studio/packages/wasi-demo/pkg/
+studio/.turbo/
+.storybook/
+

@@ -11,7 +11,14 @@
     "eqeqeq": "error",
     "prefer-const": "error"
   },
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**", "**/.turbo/**"],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.turbo/**",
+    "studio/**/*",
+    ".worktrees/**"
+  ],
   "overrides": [
     {
       "files": ["scripts/**/*.mjs"],
