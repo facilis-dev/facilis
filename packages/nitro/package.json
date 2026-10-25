@@ -1,0 +1,42 @@
+{
+  "name": "@facilis/nitro",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Facilis Nitro module and its Vite plugin wrapper.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "dev": "tsc -p tsconfig.json --noEmit --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "nitro": "3.0.260903-beta",
+    "vite": "8.3.5"
+  },
+  "peerDependenciesMeta": {
+    "nitro": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  }
+}

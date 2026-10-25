@@ -1,0 +1,27 @@
+{
+  "name": "facilis",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Facilis — a static, browser-based low-code framework. Monorepo root.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint && oxlint . && node scripts/check-file-length.mjs",
+    "lint:file-length": "node scripts/check-file-length.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "oxlint": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:"
+  }
+}
