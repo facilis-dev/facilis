@@ -1,0 +1,397 @@
+// @ts-nocheck — authored in TS for Vite's native worker bundling, but not strictly
+// type-checked: it imports the generated wasm VFS + untyped kernel-host JS. esbuild
+// (via Vite) is the compiler; strict typing is a separate, larger effort.
+// The File System Worker (Phase 2 #14), browser side.
+//
+// It owns the single Rust/Wasm VirtualFileSystem and nothing else. The kernel
+// used to hold the VFS and service every fs syscall on its own thread; now that
+// work happens here, off the kernel's critical path. Each client (the kernel and
+// every process) shares its SAB with us; a doorbell tells us which one has a
+// request pending and FsServer runs it against the VFS and wakes the caller.
+//
+// Spawned as a *nested* worker from the kernel worker, like the Fetcher Worker.
+//
+// Persistence (OPFS): this worker is also where the VFS is mirrored to the
+// Origin Private File System so a project survives reload. OPFS sync access
+// handles are only available inside a Worker — this one — which is exactly why
+// the adapter lives here. On boot we restore the manifest into the VFS BEFORE
+// serving any syscall; afterwards FsServer forwards mutations to the adapter.
+
+import initKernel, { VirtualFileSystem } from "../../../vfs/pkg/vivari_vfs.js";
+import { FsServer } from "../../../kernel-host/fs-server.js";
+import { createOpfsPersistence } from "../../../kernel-host/opfs-persistence.js";
+import { createDepCache } from "../../../kernel-host/dep-cache.js";
+
+const post = (type, extra, transfer) =>
+  self.postMessage({ type, ...extra }, transfer && transfer.length ? transfer : undefined);
+
+let server = null;
+let vfsRef = null; // the live VFS, set as soon as it's constructed (pre-restore)
+let depCache = null; // lockfile-keyed node_modules snapshot cache (P1)
+let accessRef = null; // the vfs-bound facade, shared by persistence + dep cache
+let compressionOn = false; // whole-file lazy compression gate (URL ?compress=1)
+const queue = []; // messages that arrive before the VFS finishes booting
+
+// Apply the current compression gate to the VFS. Guarded so an older wasm build
+// without set_compression simply ignores the flag instead of throwing.
+function applyCompression() {
+  if (vfsRef && typeof vfsRef.set_compression === "function") {
+    try {
+      vfsRef.set_compression(compressionOn);
+    } catch {
+      /* older build — no-op */
+    }
+  }
+}
+
+function handle(msg) {
+  switch (msg.type) {
+    case "fs-register":
+      server.register(msg.client, msg.sab, msg.port || null);
+      break;
+    case "fs-unregister":
+      server.unregister(msg.client);
+      break;
+    case "fs": // the kernel's own doorbell (processes use their MessagePort)
+      server.service(msg.client);
+      break;
+    case "fs-write-large":
+      try {
+        server.writeLarge(msg.path, new Uint8Array(msg.buffer, msg.byteOffset || 0, msg.byteLength));
+        post("fs-write-large-ok", { id: msg.id });
+      } catch (err) {
+        post("fs-write-large-err", { id: msg.id, error: String(err?.message || err) });
+      }
+      break;
+    case "fs-write-batch":
+      try {
+        const n = server.writeBatch(msg.entries, msg.buffer);
+        post("fs-write-batch-ok", { id: msg.id, count: n });
+      } catch (err) {
+        post("fs-write-batch-err", { id: msg.id, error: String(err?.message || err) });
+      }
+      break;
+    case "fs-flush": // page is hiding — best-effort force the mirror to disk
+      if (server && server.persistence) server.persistence.flush();
+      break;
+    case "fs-mem": {
+      // Diagnostic: report the VFS's in-RAM content footprint (see the studio's
+      // memory readout). Guarded so an older wasm build without mem_bytes/
+      // file_count still answers (with -1) instead of throwing.
+      const vfs = server && server.vfs;
+      const bytes = vfs && typeof vfs.mem_bytes === "function" ? vfs.mem_bytes() : -1;
+      const files = vfs && typeof vfs.file_count === "function" ? vfs.file_count() : -1;
+      // Logical (uncompressed) footprint, so the readout can show the ratio.
+      const logical =
+        vfs && typeof vfs.logical_mem_bytes === "function" ? vfs.logical_mem_bytes() : -1;
+      post("fs-mem", { id: msg.id, bytes, files, logical });
+      break;
+    }
+    case "fs-set-compression":
+      compressionOn = !!msg.on;
+      applyCompression();
+      break;
+    // ---- persistent dependency cache (P1) ---------------------------------
+    // node_modules snapshots keyed by lockfile. These run against the in-worker
+    // VFS + OPFS, so like writeLarge/writeBatch they answer over postMessage
+    // (the kernel-fs client correlates the reply by id).
+    case "dep-cache-has":
+      (async () => {
+        try {
+          post("dep-cache-has-ok", { id: msg.id, has: depCache ? await depCache.has(msg.key) : false });
+        } catch (err) {
+          post("dep-cache-has-err", { id: msg.id, error: String(err?.message || err) });
+        }
+      })();
+      break;
+    case "dep-cache-save":
+      (async () => {
+        try {
+          const res = depCache ? await depCache.save(msg.key, msg.dir, msg.aliases || []) : null;
+          post("dep-cache-save-ok", { id: msg.id, result: res });
+        } catch (err) {
+          post("dep-cache-save-err", { id: msg.id, error: String(err?.message || err) });
+        }
+      })();
+      break;
+    // Take in a snapshot the app SHIPS (built by running the install at build time)
+    // so a first run on a fresh origin can restore instead of installing. The bytes
+    // are fetched by the kernel worker, which owns network access; the store
+    // validates them (see importArchive) and answers null on anything malformed, so
+    // a truncated or wrong asset degrades to a normal install.
+    case "dep-cache-import":
+      (async () => {
+        try {
+          const res = depCache
+            ? await depCache.importArchive(msg.key, msg.archive, msg.aliases || [], { shipped: true })
+            : null;
+          post("dep-cache-import-ok", { id: msg.id, result: res });
+        } catch (err) {
+          post("dep-cache-import-err", { id: msg.id, error: String(err?.message || err) });
+        }
+      })();
+      break;
+    case "dep-cache-restore":
+      (async () => {
+        try {
+          // Mirror every restored path through the write-behind store so the
+          // cache-restored node_modules survives a reload exactly like one a real
+          // install produced (which FsServer would have mirrored per-mutation).
+          const onPath = server && server.persistence ? (p) => server.persistence.onWrite(p) : undefined;
+          const count = depCache ? await depCache.restore(msg.key, msg.dir, onPath) : 0;
+          post("dep-cache-restore-ok", { id: msg.id, count });
+        } catch (err) {
+          post("dep-cache-restore-err", { id: msg.id, error: String(err?.message || err) });
+        }
+      })();
+      break;
+  }
+}
+
+self.onmessage = (event) => {
+  const d = event.data;
+  // The compression gate can arrive before the VFS finishes booting; honor it
+  // immediately (and again once the VFS exists) so it takes effect before the
+  // OPFS restore, letting restored files compress on write.
+  if (d && d.type === "fs-set-compression") {
+    compressionOn = !!d.on;
+    applyCompression();
+    return;
+  }
+  if (server) handle(d);
+  else queue.push(d);
+};
+
+// A small vfs-bound facade the OPFS adapter uses to read current state and to
+// replay a restore. Keeps the adapter free of any wasm-VFS dependency.
+function buildAccess(vfs) {
+  return {
+    // Current truth for one path (following nothing: lstat, so symlinks report
+    // as symlinks). Returns null if the path is gone.
+    read(path) {
+      let m;
+      try {
+        m = JSON.parse(vfs.lstat(path));
+      } catch {
+        return null;
+      }
+      if (m.kind === "dir") return { kind: "dir", mode: m.mode };
+      if (m.kind === "symlink") return { kind: "symlink", mode: m.mode, target: vfs.readlink(path) };
+      return { kind: "file", mode: m.mode, bytes: vfs.read_file(path) };
+    },
+    // Every path under `path` (inclusive), used to re-mirror a renamed subtree.
+    walk(path) {
+      const out = [];
+      const rec = (p) => {
+        let m;
+        try {
+          m = JSON.parse(vfs.lstat(p));
+        } catch {
+          return;
+        }
+        out.push(p);
+        if (m.kind === "dir") {
+          let kids = [];
+          try {
+            kids = vfs.readdir(p);
+          } catch {
+            /* not a dir anymore */
+          }
+          for (const k of kids) rec(p === "/" ? "/" + k : p + "/" + k);
+        }
+      };
+      rec(path);
+      return out;
+    },
+    mkdirp(path) {
+      try {
+        vfs.mkdir(path, true);
+      } catch {
+        /* exists */
+      }
+    },
+    writeFile(path, bytes) {
+      try {
+        vfs.write_file(path, bytes);
+      } catch {
+        /* parent missing / restore race — skip */
+      }
+    },
+    symlink(target, path) {
+      try {
+        vfs.symlink(target, path);
+      } catch {
+        /* exists */
+      }
+    },
+  };
+}
+
+// System/volatile dirs we never persist: coreutils are re-installed each boot,
+// and /tmp, /proc, /dev are ephemeral by definition. Everything else (your
+// /app, node_modules, /data, the package-manager caches under /home/user/.cache,
+// …) is mirrored.
+// /etc and /usr are re-seeded by the VFS constructor every boot (os-release, ldd),
+// so persisting them is redundant and would let a stale copy shadow a changed seed.
+// /var/cache holds the kernel's transient outbound-fetch buffer (vv-fetch): its
+// in-memory index is rebuilt per session and never read back across reloads, so
+// persisting those tarball bodies is pure dead weight — the durable, reusable copy
+// is npm/yarn/pnpm's own content-addressed cache under /home/user/.cache.
+const IGNORE = ["/bin", "/tmp", "/proc", "/dev", "/etc", "/usr", "/var/cache"];
+
+// Volatile paths INSIDE an otherwise-persisted package-manager cache. The cache
+// itself is deliberately durable (see npm_config_cache in kernel-worker) — these
+// two shapes are not, and mirroring them dominated the whole install:
+//
+//   _logs/…      npm appends to its debug log on every log line. Every append
+//                re-enqueues the path, and drain() rewrites the file IN FULL each
+//                time, so a log that grows to ~1.5 MB gets rewritten thousands of
+//                times. Measured on a cold Starlight install: 3,800 enqueues of
+//                one log file, and that single file accounted for essentially all
+//                of the ~2.7 GB of mirrored file bytes. It is a diagnostic that
+//                nothing reads back across reloads.
+//   …/tmp/…      cacache (and yarn) write content to a staging file and then
+//                rename it into place, so every one of these is written to OPFS
+//                and deleted moments later. Pure waste: 820 renames on the same
+//                install. The renamed-to path IS persisted, so nothing is lost.
+//
+// Kept deliberately narrow: only under a `.cache` directory, so a user's own
+// `_logs/` or `tmp/` in their project is still mirrored.
+const isVolatileCachePath = (p) => {
+  if (!p.includes("/.cache/")) return false;
+  return p.includes("/_logs/") || p.endsWith("/_logs") || p.includes("/tmp/") || p.endsWith("/tmp");
+};
+
+const shouldPersist = (p) => {
+  // node_modules is NOT mirrored file-by-file: it's large (thousands of files),
+  // which made the per-file OPFS restore the dominant cold-reopen cost. Instead
+  // it's persisted as a single lockfile-keyed snapshot by the dependency cache
+  // (dep-cache.js) and restored in one pass on project open/run. Excluding it
+  // here also turns dep-cache.restore()'s per-path mirror callback into a no-op,
+  // so a restored node_modules isn't re-mirrored (no double storage).
+  if (p.endsWith("/node_modules") || p.includes("/node_modules/")) return false;
+  for (const pre of IGNORE) if (p === pre || p.startsWith(pre + "/")) return false;
+  if (isVolatileCachePath(p)) return false;
+  return true;
+};
+
+// OPFS-backed blob store for the dependency cache (P1). Snapshots live under a
+// SEPARATE origin dir (vv-depcache/) from the VFS mirror (vv-vfs/), one flat
+// file per key (the key is percent-encoded so it's a safe filename). Sync access
+// handles are available here (a Worker), the same primitive the VFS mirror uses.
+async function createOpfsDepStorage() {
+  const origin = await navigator.storage.getDirectory();
+  const base = await origin.getDirectoryHandle("vv-depcache", { create: true });
+  const nameFor = (key) => encodeURIComponent(key);
+  return {
+    async get(key) {
+      try {
+        const fh = await base.getFileHandle(nameFor(key));
+        const ah = await fh.createSyncAccessHandle();
+        try {
+          const size = ah.getSize();
+          const buf = new Uint8Array(size);
+          if (size) ah.read(buf, { at: 0 });
+          return buf;
+        } finally {
+          ah.close();
+        }
+      } catch {
+        return null; // absent
+      }
+    },
+    async put(key, bytes) {
+      const fh = await base.getFileHandle(nameFor(key), { create: true });
+      const ah = await fh.createSyncAccessHandle();
+      try {
+        ah.truncate(0);
+        if (bytes && bytes.length) ah.write(bytes, { at: 0 });
+        ah.flush();
+      } finally {
+        ah.close();
+      }
+    },
+    async delete(key) {
+      try {
+        await base.removeEntry(nameFor(key));
+      } catch {
+        /* already gone */
+      }
+    },
+  };
+}
+
+(async () => {
+  // Pass the wasm URL explicitly instead of relying on the glue's default
+  // `new URL('..._bg.wasm', import.meta.url)`. When this worker is bundled the
+  // glue is inlined here, so its default would resolve next to the bundle
+  // and 404. The sibling-dir "../../../vfs/pkg/" form is correct both in the
+  // Vite dev server and in the studio build.
+  post("log", { line: "  [boot] initializing virtual file system…", cls: "muted" });
+  await initKernel(new URL("../../../vfs/pkg/vivari_vfs_bg.wasm", import.meta.url));
+  const vfs = new VirtualFileSystem();
+  // Honor a compression flag that may have arrived before the VFS existed, so it
+  // is in force before the OPFS restore below.
+  vfsRef = vfs;
+  applyCompression();
+
+  // Best-effort OPFS persistence. If the API is missing or throws (private
+  // mode, quota, older engine), we run exactly like before — purely in RAM.
+  let persistence = null;
+  accessRef = buildAccess(vfs);
+  try {
+    if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.getDirectory) {
+      persistence = await createOpfsPersistence({ access: accessRef, shouldPersist });
+      // Restoring a saved project (esp. its node_modules) can take a while — the
+      // VFS is re-hydrated entry-by-entry. Report progress so the user knows the
+      // "stall" is real work, not a hang. Only chatter when there's a lot to do.
+      const t0 = Date.now();
+      let announced = false;
+      const n = await persistence.restore((done, total) => {
+        // Structured progress for the host UI (relayed by the kernel worker as
+        // `boot-progress`). Always emitted — even for small projects — so a
+        // progress bar can fill and settle instead of never appearing.
+        post("boot-progress", { phase: "restore", done, total });
+        if (total < 400) return; // small project: restore is instant, stay quiet
+        if (!announced) {
+          post("log", { line: `  [opfs] restoring saved project (${total} entries)…`, cls: "muted" });
+          announced = true;
+        } else if (done && done < total) {
+          post("log", { line: `  [opfs] restoring… ${done}/${total}`, cls: "muted" });
+        }
+      });
+      if (n > 0)
+        post("log", {
+          line: `  [opfs] restored ${n} entries from a previous session (${Date.now() - t0}ms)`,
+          cls: "muted",
+        });
+    }
+  } catch (err) {
+    post("log", { line: "  [opfs] persistence unavailable: " + (err?.message || err), cls: "muted" });
+    persistence = null;
+  }
+
+  // Persistent dependency cache (P1): OPFS-backed node_modules snapshots keyed by
+  // lockfile. Independent of the write-behind mirror above — if it fails to
+  // initialize we simply have no dep cache (installs run as before).
+  try {
+    if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.getDirectory) {
+      const storage = await createOpfsDepStorage();
+      depCache = await createDepCache({ access: accessRef, storage });
+      post("log", { line: "  [depcache] ready", cls: "muted" });
+    }
+  } catch (err) {
+    post("log", { line: "  [depcache] unavailable: " + (err?.message || err), cls: "muted" });
+    depCache = null;
+  }
+
+  server = new FsServer(vfs, persistence);
+  // Tell the kernel when a fetched response body has been fully read, so it can
+  // drop its reference and reclaim the scratch file. These bodies live in Wasm
+  // memory that never shrinks, so holding them past their single read is a direct
+  // cost to peak residency — and the kernel cannot see the read, which happens
+  // here over the SAB.
+  server.onBodyConsumed = (path) => post("fetch-body-consumed", { path });
+  post("ready");
+  for (const msg of queue.splice(0)) handle(msg);
+})();
