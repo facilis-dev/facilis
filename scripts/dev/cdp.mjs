@@ -24,12 +24,24 @@ function sysrootLibraryPath(sysroot) {
 }
 
 export async function launchChrome(options) {
-  const { chrome, profileDir, homeDir, sysroot, fontconfigFile, timeoutMs = 30000 } = options;
+  const {
+    chrome,
+    profileDir: freshProfileDir,
+    homeDir,
+    sysroot,
+    fontconfigFile,
+    timeoutMs = 30000,
+  } = options;
   // Extra switches for experiments (e.g. hosting the studio behind another hostname).
   // JSON array so switches with spaces survive: '["--host-resolver-rules=MAP x 127.0.0.1"]'
   const rawFlags = process.env.FACILIS_CHROME_FLAGS_JSON || "[]";
   const extraFlags = JSON.parse(rawFlags);
-  fs.rmSync(profileDir, { recursive: true, force: true });
+  // FACILIS_PROFILE_DIR reuses one browser profile across local runs: OPFS keeps the
+  // kernel's dependency snapshot and the package manager's store, so an iteration after
+  // the first does not pay a cold install. The smoke's default stays a throwaway profile
+  // (a fresh, reproducible boot); use this only when iterating by hand.
+  const profileDir = process.env.FACILIS_PROFILE_DIR || freshProfileDir;
+  if (!process.env.FACILIS_PROFILE_DIR) fs.rmSync(profileDir, { recursive: true, force: true });
   fs.mkdirSync(profileDir, { recursive: true });
   if (homeDir) fs.mkdirSync(homeDir, { recursive: true });
 

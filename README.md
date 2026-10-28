@@ -130,8 +130,11 @@ reference the generator will reproduce.
 
 ## Status
 
-**Phase 1 implemented and verified headlessly. Browser/WebContainer items (Phase 0 A1-A3,
-A6, A8-A12) still need a browser harness.**
+**Phase 1 implemented and verified headlessly, and the browser harness now exists: the
+Facilis framework boots inside the IDE's WebContainer (2026-10-28 spike — `pnpm ide:smoke`
+with `TEMPLATE=Facilis` is green end to end: `facilis()` + `nitro()` + PGlite +
+`/__facilis/*` on one origin, zero manifest warnings). Generated Facilis projects are
+**pnpm-only** — see [`docs/DECISIONS.md`](docs/DECISIONS.md) D-022…D-024.**
 
 What exists today, runnable in this repo:
 
@@ -141,6 +144,7 @@ What exists today, runnable in this repo:
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari upstream (git submodule) | `vendor/vivari/` | pinned clone; update with one command — [`vendor/README.md`](vendor/README.md) |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
+| Facilis probe template in the IDE | `ide/src/facilis/` | `TEMPLATE=Facilis pnpm ide:smoke`: 26/26 checks — preview paints a real Facilis app, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route |
 
 The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
 `facilis()` plugin owns an AST pass over `server/routes`, and `/_openapi.json` is a facade
@@ -151,7 +155,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 | Phase | Goal | Est. |
 |---|---|---|
-| **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk — headless ✅, browser items pending |
+| **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk — headless ✅, browser harness ✅ for the Facilis template |
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk |
 | **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk |

@@ -1654,6 +1654,16 @@ All must pass:
 11. `?format=summary` < 500 tokens
 12. `facilis()` + `nitro()` plugins compose without conflict in `vite.config.ts`
 
+**Status (2026-10-28):** the browser half is scripted. `TEMPLATE=Facilis pnpm ide:smoke`
+proves items 1-6, 10 and 12 *inside the WebContainer*: boot + preview, client HMR **and**
+server handler reload on a VFS write, the framework batch write (`applyPatch`),
+isomorphic-git init/status/commit on the VFS, `/_openapi.json` carrying `x-db-tables`, and
+`facilis()` + `nitro()` composing in one `vite dev`. Items 8, 9 and 11 are covered by the
+Phase 1 headless suites (`packages/db`, `packages/nitro`). Item 7's *restore* works for the
+mirrored tree, but writes made after the dev server starts are not mirrored yet — a kernel
+write-behind stall tracked in D-028. Item 6's remote half (A11, PAT clone) stays Phase 2
+work because the Studio's git layer is local-only (D-025).
+
 ### 14.2 Phase 1
 
 **Status (2026-10-25): met headlessly** except the Vivari/WebContainer half of the first item —

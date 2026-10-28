@@ -15,6 +15,12 @@ import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID } from "./virtual-ids.ts";
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
 const MIDDLEWARE_DIR = new URL("./middleware/", import.meta.url);
+// The package ships twice: src/*.ts from the workspace (bundlers strip the types) and
+// dist/*.js in a packed tarball, which a published or URL-installed project loads with a
+// plain ESM loader. Nitro needs real file paths for its handlers, so derive the extension
+// from THIS module rather than hardcoding ".ts" — otherwise a dist build registers handler
+// files that do not exist (dist/routes/manifest.get.ts).
+const RUNTIME_EXT = import.meta.url.endsWith(".ts") ? ".ts" : ".js";
 const APPLICATION_ENTRY = "facilis.config.ts";
 const DB_SCHEMA_ENTRY = join("db", "schema.ts");
 const DEV_ENV = "dev";
@@ -155,9 +161,13 @@ function registerRuntimeHandlers(nitro: Nitro): void {
 }
 
 function routeFile(name: string): string {
-  return fileURLToPath(new URL(name, ROUTES_DIR));
+  return fileURLToPath(new URL(withRuntimeExt(name), ROUTES_DIR));
 }
 
 function middlewareFile(name: string): string {
-  return fileURLToPath(new URL(name, MIDDLEWARE_DIR));
+  return fileURLToPath(new URL(withRuntimeExt(name), MIDDLEWARE_DIR));
+}
+
+function withRuntimeExt(name: string): string {
+  return name.replace(/\.ts$/, RUNTIME_EXT);
 }

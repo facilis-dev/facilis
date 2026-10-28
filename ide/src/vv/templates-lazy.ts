@@ -17,14 +17,38 @@
 // attempt for the lifetime of the tab, and "Unknown template" is a much worse
 // thing to show than a second attempt.
 
+import type { TemplateDef } from "./templates";
+
 export type TemplatesModule = typeof import("./templates");
+export type FacilisTemplateModule = typeof import("../facilis/facilis-template");
 
 let pending: Promise<TemplatesModule> | null = null;
 
-/** Load (once) and return the template catalog. */
+/**
+ * Merge the Facilis probe template into the upstream catalog.
+ *
+ * `templates.ts` is at its file-length baseline and may not grow, so the merge
+ * lives here. The Facilis payload is loaded as its own lazy chunk (never a static
+ * import, or it would land in the entry chunk) and appended to TEMPLATES;
+ * getTemplate prefers it, so reopening a created Facilis project re-attaches the
+ * same manifest. Both modules are loaded in one promise, so a picker prefetch and
+ * the controller's later await share a single fetch.
+ */
+function withFacilisCatalog(mod: TemplatesModule, facilis: TemplateDef): TemplatesModule {
+  return {
+    ...mod,
+    TEMPLATES: [...mod.TEMPLATES, facilis],
+    getTemplate: (id: string) => (id === facilis.manifest.id ? facilis : mod.getTemplate(id)),
+  };
+}
+
+/** Load (once) and return the template catalog, including the Facilis probe. */
 export function loadTemplates(): Promise<TemplatesModule> {
   if (!pending) {
-    const p = import("./templates");
+    const p = Promise.all([import("./templates"), import("../facilis/facilis-template")]).then(
+      ([mod, facilisModule]) =>
+        withFacilisCatalog(mod, facilisModule.createFacilisTemplate(location.origin)),
+    );
     p.catch(() => {
       if (pending === p) pending = null;
     });

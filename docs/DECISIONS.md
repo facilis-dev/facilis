@@ -332,6 +332,206 @@ A6 and A8-A12 that were waiting on a harness.
 
 ---
 
+### D-022 — Facilis projects install with pnpm only, from IDE-served tarballs
+**Status:** accepted (2026-10-27, Phase 0 browser spike)
+
+A generated Facilis project installs `@facilis/*` from `pnpm pack` tarballs served by the
+IDE origin, and it does so with **pnpm only**. Both halves are forced by the WebContainer,
+not preferences:
+
+- **Tarball delivery.** The packages are workspace-only (O-006), so the template declares
+  them as `http://host.vivari.internal:<studio-port>/vendor/facilis/facilis-<pkg>-0.0.0.tgz`.
+  It cannot use the studio origin verbatim: the kernel's virtual network owns loopback, so
+  `127.0.0.1:<port>` inside the VM is the VM, and npm/pnpm get `ECONNREFUSED`. The kernel's
+  documented host alias is rewritten to the studio hostname in the browser before the fetch.
+- **pnpm, not npm.** npm 10 builds its HTTP agent with `agent-base`, whose custom
+  `createConnection` makes the runtime decline the fetch-backed egress path for plain-http
+  requests (`internal/http-egress` only egresses when the agent is the stock one). npm then
+  dials the virtual network and fails with `ENOTFOUND` for the tarball URLs — reproduced in
+  npm's own debug log, while `https://registry.npmjs.org` traffic is unaffected. pnpm's fetch
+  uses the stock agent, reaches the alias, and installs. The template therefore runs
+  `pnpm install`, ships a `preinstall` guard that fails under any other package manager, and
+  sets `packageManager: "pnpm@9.15.9"` (the vendored `pnpm-pack.bin`).
+- **`node-linker=hoisted`.** The isolated link farm hides packages that Nitro's shipped dist
+  imports without declaring (D-024), and hoisted linking gives the flat layout the VM module
+  resolver expects. The template pins those packages itself.
+
+**Consequences:** the generated project is pnpm-only by design and its README says so; npm
+inside the VM remains broken for plain-http URL dependencies until upstream fixes the egress
+split (a vendor change, not ours). The kernel's dependency cache is namespaced per package
+manager and snapshots `node_modules` by package.json hash, so a **second Facilis project in
+the same browser restores it in one blob instead of reinstalling** — the cross-project cache
+this decision leans on. Each headless smoke run still starts from a fresh profile, so it pays
+a cold install (prebuilt `vendor/depcache` is the later optimisation). Switching `@facilis/*`
+to published packages changes the dependency specs only; pnpm stays the installer.
+
+### D-023 — Packed Facilis tarballs expose compiled dist
+**Status:** accepted (2026-10-27, Phase 0 browser spike)
+
+The generated project's Vite config is loaded with `--configLoader native` (Vite's own config
+bundler cannot run in the WebContainer), and a native ESM loader refuses to strip types from
+files under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). The config imports
+`@facilis/nitro/vite`, so that entry must be JavaScript. `pnpm ide:facilis-deps` therefore
+builds each package, packs it, and rewrites the packed manifest's `exports` from `./src/*.ts`
+to `./dist/*.js`; the workspace source keeps its `src` entry points. `@facilis/nitro` also
+derives its Nitro handler file paths from the extension of its own module (`RUNTIME_EXT`),
+because a dist build previously registered `dist/routes/*.ts` handlers that do not exist.
+
+**Consequences:** the packaging script builds before packing (a stale dist is a real bug, not
+a warning), tarballs ship both trees, and the `.ts` handler assertions in the package tests
+stay valid because tests import `src`.
+
+### D-024 — Nitro runs in the WebContainer through the in-process runner
+**Status:** accepted (2026-10-28, Phase 0 browser spike; first green Facilis smoke)
+
+Because the generated project's Vite config is loaded natively (D-023), Nitro's shipped dist
+is executed as-is by the VM's ESM loader instead of being bundled for the browser. Two
+packaging facts then decide whether the dev server boots:
+
+1. **Nitro's dist imports packages it only lists as devDependencies.** The full set the
+   Vite-plugin path reaches is `@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`,
+   `picomatch`, `rendu`, `scule`, `ufo`, `unctx`, plus the deps of the `youch` copy bundled
+   under `nitro/dist/node_modules` (`@poppinss/colors`, `@poppinss/dumper`,
+   `@speed-highlight/core`, `youch-core`). The template pins all of them. Each missing one
+   fails the boot with `Cannot find module`; a missing `youch` dep is worse — it turns any
+   500 into a crash *inside the error page*, hiding the original error.
+2. **The out-of-process dev runners cannot start.** `node-worker` and `node-process` resolve
+   their entry with `fileURLToPath(import.meta.resolve(...))`; the VM runtime's
+   `import.meta.resolve` does not hand back a file URL, so `fileURLToPath` throws
+   `TypeError: Invalid URL`. `devServer: { runner: "self" }` keeps the Nitro environment in
+   the Vite dev-server process. With that runner Nitro owns the listening socket on port
+   3000, so the template's preview port is **3000**, not Vite's default 5173 — one process,
+   one origin, which is the property SPEC §10.6 actually needs (the roles are swapped: Nitro
+   fronts Vite instead of the other way round).
+
+**Consequences:** the Facilis smoke is green end to end in the WebContainer — preview painted
+(~36-40 s cold), `/__facilis/health` ok, `/__facilis/manifest` ok with **zero warnings**
+(PGlite opened, migrations + seed + app role applied), `/_openapi.json` carries
+`x-db-tables` for `/api/todos`, and an unauthenticated `/api/todos` returns 401. Upstream
+work worth filing: Nitro should declare (or bundle) those dist imports, and Vivari's
+`import.meta.resolve` should return a file URL. Client-side HMR through the swapped
+Nitro-fronts-Vite arrangement is the first thing to verify in the next phase.
+
+---
+
+### D-025 — The VFS write path is verified in the WebContainer (A8/A9/A10/A12)
+**Status:** accepted (2026-10-28, Phase 0 browser spike)
+
+SPEC §14.1 items 4-7 now have a scripted, repeatable proof in
+`scripts/dev/smoke-write.mjs` (run by `TEMPLATE=Facilis pnpm ide:smoke`), driving the real
+Studio controller through the dev-only `window.__ide` handle:
+
+- **A8 — `vivari.fs.writeFile`.** A kernel write lands in the VFS, shows up in the Explorer
+  index and, once opened, in the editor. Saving an edited `src/App.tsx` hot-updates the
+  preview **without reloading the preview document** (asserted by comparing
+  `contentWindow.performance.timeOrigin` before and after), and writing a server route
+  (`server/routes/api/ping.get.ts`) makes the in-VM Nitro handler answer with the new body —
+  so the swapped Nitro-fronts-Vite arrangement keeps both HMR and server reload alive.
+- **A9 — `vivari.fs.writeFiles`.** The kernel has no batch RPC (one `vv-write` per file), so
+  the framework's batch is its own loop: `applyPatch()` (below). The check applies three
+  files at once, asserts the files are readable through the VFS, that an unsafe path is
+  rejected before any write, that a delete lands, and that editing `locales/en.json` moves
+  `/__facilis/manifest/revision` — the write → manifest loop end to end.
+- **A10 — isomorphic-git on the VFS.** `git init`, status over the working tree and a commit
+  all succeed against the VFS through the existing `ScmSession` (SPEC §14.1 item 6).
+- **A12 — reboot.** After a flush, a `Page.reload` restores the VFS from the OPFS mirror: the
+  uncommitted probe file is readable again from the reloaded Studio.
+
+**Durability fix found by A12.** `KernelBridge` only flushes the OPFS write-behind buffer on
+`pagehide`, which a hidden, frozen or discarded tab may never receive.
+`ide/src/vv/vfs-flush.ts` adds the SPEC §13 risk-9 mitigation: flush on
+`visibilitychange` (plus `pagehide`), installed by `IdeProvider` because `controller.ts` is
+pinned by the file-length ratchet.
+
+**Where `applyPatch()` lives.** SPEC §10.2 names it as an `IdeController` method, but
+`controller.ts` cannot grow (ratchet). It is therefore a function in
+`ide/src/facilis/apply-patch.ts` taking the controller's bridge and folder root — which is
+also what AGENTS.md asks for ("isolate Facilis changes in new modules"). It validates with
+`@facilis/ai`'s `validatePatch` before any write (security invariant 9), writes
+sequentially through the kernel bridge (SPEC §10.3), and returns the refreshed manifest
+revision. The read side is `ide/src/facilis/manifest-client.ts` (SPEC §6), throw-free
+so a booting or broken project renders as "unreachable" instead of taking the editor down.
+
+**Consequences:** Phase 0 browser items A8, A9 (as the framework write path), A10 and A12 are
+closed with evidence. A11 (PAT modal + WebCrypto-encrypted clone) stays open: the Studio's git
+layer is local-only today (SPEC §6.4/§10.4), so remote auth is Phase 2 work, not a missing
+spike.
+
+---
+
+### D-026 — Known: Monaco 0.55.1's TS worker throws on "cannot find module" diagnostics
+**Status:** accepted as a known upstream defect (2026-10-28); not Phase 2 blocking
+
+The first content change in a JS/TS model makes `ts.worker` compute diagnostics for every
+background model. A diagnostic whose module resolution failed carries TS 6.0's
+`repopulateInfo` callback; Monaco's `clearFiles()` spreads that diagnostic into the worker
+reply, and structured clone rejects the function:
+
+`DataCloneError: Failed to execute 'postMessage' on 'DedicatedWorkerGlobalScope': () => ({
+moduleReference, mode, packageName: … }) could not be cloned.`
+
+The Facilis template triggers it because its `tsconfig.json` aliases `"~/*"`, which the
+Studio's TS language service does not read (it configures fixed compiler options), so
+`"~/db/schema"` is unresolved in the editor. `scripts/dev/smoke-ide.mjs` therefore filters
+exactly this error (`/could not be cloned/`) out of its "no page errors" assertion and
+records it as `knownPageErrors` in `report.json`. It is an editor/worker defect, not a VFS
+one: the write + HMR path is unaffected.
+
+**Follow-up:** load each project's `tsconfig.json` `paths`/`baseUrl` into
+`typescriptDefaults` (fixes the alias, and with it most of the noise for Facilis projects),
+and/or bump `monaco-editor` once upstream stops spreading non-cloneable diagnostics.
+
+---
+
+### D-027 — `starter/` stays empty until the packages have a publish target
+**Status:** accepted (2026-10-28)
+
+SPEC §4 lists a `starter/` template that users clone. Today every Facilis project installs
+`@facilis/*` from tarballs the IDE serves on its own origin (D-022), and those URLs are only
+reachable from inside the WebContainer. A committed `starter/` tree would declare dependencies
+nobody outside the IDE can install — a copy that rots instead of a starter.
+
+The generated tree already lives in `ide/src/facilis/` (`project-files`, `db-files`,
+`server-files`, `client-files`) and the IDE template is the only consumer. `starter/`
+gets created when O-006 (publish target) is decided and the packages are installable by
+name; until then the template payload is the single source of truth.
+
+**Consequences:** the Phase 2 "starter" item is a publish-time task, not a UI one — the same
+decision as O-006, not a new one.
+
+---
+
+### D-028 — Known: the OPFS write-behind mirror stops indexing writes after the in-VM install
+**Status:** known upstream blocker for A12's strict condition (2026-10-28); the vendor tree is read-only
+
+A12 expects an uncommitted file to survive a reboot through the OPFS mirror. It does not, and
+the failure is inside the kernel, not the Studio:
+
+- **The mirror is active.** After a fresh boot the reloaded Studio restores the project tree
+  and the package-manager cache from `vv-vfs/` (581 manifest entries; `package.json` reads
+  back as 2357 bytes after `Page.reload`), so boot restore itself works.
+- **Late writes never reach it.** A `vv-write` succeeds and is readable through the VFS, but
+  `vv-vfs/manifest.json` keeps the same 581 entries (sampled before the first write, 2 s
+  after it, before the reload and after it) and
+  `vv-vfs/files/.../vv-write-probe.txt` does not exist on disk. Nothing is restored because
+  nothing was mirrored.
+- The queue drains during project creation and install — that is why the tree is there — and
+  stops during/after the dev-server start. `scripts/dev/smoke-write.mjs` records this as a
+  `knownIssue` (with the counts) in `report.json`, so a future fix turns it into a normal pass
+  without editing the harness.
+
+The Studio half of the SPEC §13 risk-9 mitigation is in place: `ide/src/vv/vfs-flush.ts`
+posts `fs-flush` on `visibilitychange`/`pagehide` and `KernelBridge` already flushes on
+`pagehide`. A flush cannot help when the write-behind queue itself is wedged.
+
+**Follow-up (upstream `vendor/vivari`, do not patch here):** find the entry whose OPFS
+operation never settles (a `createSyncAccessHandle` left open, or the dep-cache save racing
+the mirror in the same FS worker) and/or make `flush()`/`drain()` time-bound so one stuck
+file cannot freeze every later write. Until then A12's strict pass condition is blocked; the
+Studio's writes, editor state, HMR and git are all correct in-tab.
+
+---
+
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |

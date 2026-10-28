@@ -21,6 +21,7 @@
     "ide:dev": "pnpm --filter @facilis/ide dev --host 0.0.0.0 --port 5173",
     "ide:wasm": "sh scripts/dev/build-kernel-wasm.sh",
     "ide:assets": "sh scripts/dev/vendor-assets.sh",
+    "ide:facilis-deps": "sh scripts/dev/vendor-facilis-deps.sh",
     "ide:browser": "sh scripts/dev/fetch-browser.sh",
     "ide:smoke": "node scripts/dev/smoke-ide.mjs"
   },

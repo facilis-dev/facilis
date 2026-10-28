@@ -13,9 +13,10 @@ them; this page is the contract for those scripts.
 git submodule update --init vendor/vivari   # once, from a clean clone
 pnpm install
 
-pnpm ide:wasm      # Rust -> Wasm kernel (vendor/vivari/packages/{vfs,codec,crypto}/pkg)
-pnpm ide:assets    # ide/public/vendor/{npm-pack.bin,pnpm-pack.bin,sqlite/sqlite3.wasm}
-pnpm ide:browser   # headless Chromium + shared libs + fonts (private sysroot, no root)
+pnpm ide:wasm          # Rust -> Wasm kernel (vendor/vivari/packages/{vfs,codec,crypto}/pkg)
+pnpm ide:assets        # ide/public/vendor/{npm-pack.bin,pnpm-pack.bin,sqlite/sqlite3.wasm}
+pnpm ide:facilis-deps  # @facilis/* tarballs -> ide/public/vendor/facilis/*.tgz
+pnpm ide:browser       # headless Chromium + shared libs + fonts (private sysroot, no root)
 
 pnpm --filter @facilis/ide dev --host 0.0.0.0 --port 5173
 pnpm ide:smoke     # headless acceptance: boot -> create React/TS project -> preview paints
@@ -83,14 +84,56 @@ here, so the script extracts the published tarball instead).
 | `npm-pack.bin` | real npm 10.9.2 (2.79 MB gz) | `/vendor/npm-pack.bin` |
 | `pnpm-pack.bin` | real pnpm 9.15.9 (3.66 MB gz) | `/vendor/pnpm-pack.bin` |
 | `sqlite/sqlite3.wasm` | SQLite wasm (865 KB) | `/vendor/sqlite/sqlite3.wasm` |
+| `facilis/*.tgz` | this workspace's `@facilis/{core,db,auth,nitro}` (0.0.0), packed with `pnpm pack` | `/vendor/facilis/facilis-<pkg>-0.0.0.tgz` |
 
 ```bash
 sh scripts/dev/vendor-assets.sh          # or: pnpm ide:assets
 sh scripts/dev/vendor-assets.sh --all    # + yarn, corepack, tsgo, pyodide, ruff (needs host npm)
+
+sh scripts/dev/vendor-facilis-deps.sh          # or: pnpm ide:facilis-deps
+sh scripts/dev/vendor-facilis-deps.sh --all    # + @facilis/{ai,blocks}
 ```
 
 The generators write into `vendor/vivari/packages/studio/public/vendor` (gitignored, inside
 the submodule); the script copies the results into `ide/public/vendor/` (also gitignored).
+
+The second script packs `@facilis/{core,db,auth,nitro}` from this workspace into
+`ide/public/vendor/facilis/facilis-<pkg>-<version>.tgz` — `0.0.0` today, because those
+packages are workspace-only. Generated projects run a real **pnpm** install inside the
+WebContainer, so the Facilis template declares the four packages as
+`http://host.vivari.internal:<studio-port>/vendor/facilis/facilis-<pkg>-0.0.0.tgz` URLs.
+Three in-VM constraints shape that:
+
+- **The host alias, not the studio origin.** Inside the WebContainer the kernel owns loopback,
+  so `127.0.0.1:<port>` resolves to the VM itself and npm fails with `ECONNREFUSED`.
+  `host.vivari.internal` is the kernel's documented host alias: the fetcher worker rewrites it
+  to the studio's own hostname (scheme and port preserved) before the browser fetch, which
+  makes it a same-origin request that survives the VM boundary.
+- **The tarballs export `dist/`, not `src/`.** The generated project's Vite config is loaded
+  with `--configLoader native`, and a native ESM loader refuses to strip types from files
+  under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the config imports
+  `@facilis/nitro/vite`, so that entry must be JS. The script builds each package, packs it,
+  then rewrites the packed manifest's `exports` from `./src/*.ts` to `./dist/*.js` (the
+  workspace source keeps its `src` entry points). `@facilis/nitro` also derives its Nitro
+  handler paths from its own module extension for the same reason.
+
+- **pnpm, not npm.** npm 10 builds its HTTP agent with `agent-base`; that custom
+  `createConnection` makes the runtime decline the fetch-backed egress for plain-http
+  requests, so npm dials the virtual network and fails with `ENOTFOUND` on these URLs while
+  `https://registry.npmjs.org` traffic is unaffected. pnpm uses the stock agent and works.
+  The template ships a `preinstall` guard that rejects other package managers, sets
+  `packageManager`, uses `node-linker=hoisted` (the Nitro bundle imports `ufo`, which it
+  lists only as a devDependency — the template pins it) and runs the dev server as
+  `pnpm run dev --configLoader native` (no extra `--`: pnpm would forward it literally and
+  Vite would ignore the flags). See D-022.
+
+`pnpm pack` rewrites the workspace-internal `workspace:*` specifiers to `0.0.0`, so pnpm
+resolves the inter-package dependencies from the tarballs and never asks the registry for
+`@facilis/*`. This is **interim delivery** until `@facilis/*` is published (O-006, Phase 6);
+switching then only changes the URLs in the template. The script removes stale tarballs first
+and fails if a packed manifest still contains `workspace:`, does not export `dist/`, or is
+missing `dist/index.js`. Re-run it after changing package sources; the directory is
+gitignored like the rest of `ide/public/vendor/`.
 
 `vendor/locks/index.json` and `vendor/depcache/index.json` are **not** generated: the kernel
 logs a warning and installs every project from scratch (slower, still correct).
@@ -149,6 +192,36 @@ template picker opens, React/TypeScript listed and selectable, `Create` enabled,
 created, `preview-paint` boot mark, preview iframe mounted, preview answers `200` with HTML,
 no page errors, no console errors, no failed requests. Exit code is non-zero on any failure.
 
+`TEMPLATE=Facilis` (after `pnpm ide:facilis-deps`) additionally selects the Fullstack picker
+tab and asserts the framework contract from the probe app inside the preview: `health: ok`,
+`manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
+`/api/todos`, and an unauthenticated `/api/todos` → 401 (26 checks total). The probe app
+publishes those results as `data-facilis-*` attributes on its own document;
+`scripts/dev/smoke-facilis.mjs` owns the assertions and dumps the preview HTTP body + dev log
+into `facilis-diagnostics.json` on failure.
+
+`TEMPLATE=Facilis` also runs `scripts/dev/smoke-write.mjs`, which drives the dev-only
+`window.__ide` / `window.__facilis` handles through the real controller to verify the VFS write
+path (SPEC §14.1 items 4-7, D-025): **A8** (write → Explorer + editor, client HMR without
+reloading the preview document, and the in-VM server route reloading its handler), **A9**
+(`applyPatch` multi-file batch, unsafe-path rejection before any write, revision refresh and
+delete), **A10** (`git init` / status / commit over the VFS) and **A12** (flush +
+`Page.reload` → the OPFS mirror restores the uncommitted file). 23 checks, recorded in
+`report.json`; a failure also dumps `write-diagnostics.json` (including the OPFS mirror
+manifest's view of the file, so "never mirrored" and "never restored" are distinguishable).
+
+One page error is expected and filtered: the first edit in a project whose imports do not all
+resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback
+(`DataCloneError … could not be cloned`). It is recorded as `knownPageErrors` in the report
+instead of failing the run — an editor defect, not a VFS one (D-026).
+
+One check is blocked upstream: **A12**'s strict condition (an uncommitted file surviving a
+reboot) fails because the kernel's OPFS write-behind queue stops draining after the in-VM
+install — the mirror's index and `vv-vfs/files` never see the write, so the reboot has
+nothing to restore (the project tree itself does restore). The run reports it as `KNOWN` in
+`report.json` (`write.knownIssues`) instead of failing; D-028 has the measurements and the
+upstream fix.
+
 Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 `$FACILIS_TOOLING_DIR/smoke-artifacts/<epoch-ms>/`.
 
@@ -159,11 +232,18 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 | `SMOKE_ARTIFACTS` | see above | evidence directory |
 | `TEMPLATE` / `LANGUAGE` | `React` / `TypeScript` | template to create |
 | `BOOT_TIMEOUT_MS` / `PREVIEW_TIMEOUT_MS` | `180000` / `300000` | budgets |
+| `FACILIS_PROBE_TIMEOUT_MS` | `60000` | budget for the Facilis probe's endpoint results |
+| `FACILIS_WRITE_TIMEOUT_MS` | `45000` | budget for each A8/A9 write-and-observe check |
+| `FACILIS_REBOOT_TIMEOUT_MS` | `120000` | budget for the A12 reboot/restore check |
+| `FACILIS_PROFILE_DIR` | unset (throwaway profile) | reuse one browser profile across local runs — OPFS keeps the package manager store and depcache, so iterations after the first skip the cold install. Never for CI/verdicts |
 | `FACILIS_CHROME` / `FACILIS_BROWSER_SYSROOT` / `FACILIS_FONTCONFIG` | from `browser/` | browser paths |
 
-Reference runs on 16 cores (2026-10-25): kernel online **0.6 s** against an already-warm dev
-server (**2.6 s** cold, when Vite is still transforming the 11k-line `templates.ts`), preview
-painted **31-40 s** (in-VM `npm install` dominates), 16/16 checks green.
+Reference runs on 16 cores: kernel online **0.6 s** against an already-warm dev server
+(**2.6 s** cold, when Vite is still transforming the 11k-line `templates.ts`), preview
+painted **31-40 s** (in-VM install dominates), 18/18 checks green (React, 2026-10-25). The
+Facilis probe is green with **26/26** (2026-10-28): preview painted **36-40 s**, in-VM
+`pnpm install` **~25 s**, manifest zero warnings. Artifacts under
+`$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
 ## 6. Known in-VM constraints
 
@@ -173,6 +253,11 @@ painted **31-40 s** (in-VM `npm install` dominates), 16/16 checks green.
 | No template locks / depcache | kernel logs `vendor/locks` + `vendor/depcache` warnings, installs from scratch (~25-45 s per project) | optional: run the upstream `vendor:locks` / `vendor:depcache` generators |
 | `@rolldown/binding-wasm32-wasi` still listed in templates | ~14 MB of dead weight per install | kept so a future Vite 8 retry is a version bump, not a re-import |
 | PGlite dev database is in-memory | resets on worker restart | Phase 1 caveat, see `docs/DECISIONS.md` |
+| npm cannot install plain-http URL dependencies | npm 10's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND` | **Facilis projects use pnpm only**; the template's `preinstall` guard rejects other package managers (D-022). Registry `https://` traffic is unaffected |
+| Nitro's dist imports packages it only declares as devDependencies | with the native config loader, Nitro's shipped dist runs as-is, so every missing import kills the dev-server boot (`Cannot find module …`); a missing `youch` dep turns a 500 into a crash inside the error page | the template pins the whole set (`@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`, `scule`, `ufo`, `unctx`, `@poppinss/colors`, `@poppinss/dumper`, `@speed-highlight/core`, `youch-core`) and uses `node-linker=hoisted` — see D-024 |
+| Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
+| `pnpm run <script> -- <flags>` keeps the literal `--` | the script receives `--` as its first argument, so Vite ignores `--configLoader native`/`--port` and Nitro's own server (port 3000) starts instead | omit the extra `--`: `pnpm run dev --configLoader native` (the Facilis template's `dev` manifest entry) |
+| Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
 
 ### 6.1 When Vite 8 comes back
 

@@ -107,3 +107,12 @@ unblock checklist. Details and the rest of the environment notes: [`docs/DEV.md`
 New Facilis panels and the `IdeController.applyPatch()` write path belong in new modules under
 `ide/src/` (writes go through `kernel.writeFiles`, never OPFS directly — SPEC §10.3). Upstream
 files are formatted/linted but not otherwise rewritten; forced edits go into the patch set above.
+
+The first Facilis module is `ide/src/facilis/`: the probe template that boots a real Facilis
+app in the WebContainer (`facilis()` + `nitro()` + PGlite + `/__facilis/*`). It is registered
+by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits at its
+file-length baseline and may not grow. The generated project is **pnpm-only** (npm cannot
+reach the IDE origin for its URL tarballs inside the VM) and installs `@facilis/*` from
+`pnpm ide:facilis-deps` tarballs served by the IDE; the constraints and the upstream bugs
+behind them are recorded in `docs/DECISIONS.md` D-022…D-024 and summarized in
+`docs/DEV.md` §6.
