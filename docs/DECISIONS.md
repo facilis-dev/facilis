@@ -238,13 +238,13 @@ brought that app under the repository's own toolchain. The split itself stands: 
 tree, one app tree, no duplicated files.
 
 ### D-018 — Upstream Vivari is a git submodule; the app folder is `ide/`
-**Status:** accepted (2026-10-25)
+**Status:** accepted (2026-10-25); the submodule URL and branch are superseded by D-030
 
-A copied tree is bad at the one operation that matters: staying aligned. `vendor/vivari` is now
-a **git submodule** of `github.com/maitrungduc1410/vivari` (MIT), pinned in `.gitmodules` +
-gitlink at `1f00a48…` (tag `v1.1.2`), with `.gitmodules` `branch = master`. Updating upstream
-is therefore one command (`git submodule update --remote vendor/vivari`), `git status` shows a
-single changed pointer, and nothing upstream is copied into our history.
+A copied tree is bad at the one operation that matters: staying aligned. `vendor/vivari` is a
+**git submodule** (initially of `github.com/maitrungduc1410/vivari`, MIT, pinned at `1f00a48…`
+/ tag `v1.1.2` with `branch = master`). D-030 moved it to our fork
+`github.com/kele23/vivari`, pinned to `facilis/main`; the pin is a commit either way,
+`git status` shows a single changed pointer, and nothing upstream is copied into our history.
 
 The app folder is renamed `studio/` -> `ide/`: it is the Facilis IDE (the product is the IDE;
 "Studio" was the upstream/vendor name), it starts as the full upstream `packages/studio` at the
@@ -388,13 +388,24 @@ Because the generated project's Vite config is loaded natively (D-023), Nitro's 
 is executed as-is by the VM's ESM loader instead of being bundled for the browser. Two
 packaging facts then decide whether the dev server boots:
 
-1. **Nitro's dist imports packages it only lists as devDependencies.** The full set the
-   Vite-plugin path reaches is `@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`,
-   `picomatch`, `rendu`, `scule`, `ufo`, `unctx`, plus the deps of the `youch` copy bundled
-   under `nitro/dist/node_modules` (`@poppinss/colors`, `@poppinss/dumper`,
-   `@speed-highlight/core`, `youch-core`). The template pins all of them. Each missing one
-   fails the boot with `Cannot find module`; a missing `youch` dep is worse — it turns any
-   500 into a crash *inside the error page*, hiding the original error.
+1. **Nitro's traced `dist/node_modules` copies are ESM-only, and the VM loader resolves CJS
+   conditions.** `nitro@3.0.260903-beta` does ship its external imports under
+   `dist/node_modules`, but pruned to the ESM build: `defu` declares `main`/`require` →
+   `lib/defu.cjs`, which is absent (only `dist/defu.mjs` ships), and `ufo`, `destr`, `scule`,
+   `croner`, `rendu`, `youch` and the rest are pruned the same way. Node's ESM loader would
+   pick the `import` condition; the VM loader (`vendor/vivari/packages/runtime/module.js`,
+   `resolveFilename`) picks the CJS/`main` target even for ESM imports and does not fall back
+   to `module` when that file is missing. Resolution then walks up to the project's
+   `node_modules`, finds nothing, and the boot dies with `Cannot find module …` (thrown from
+   `module.js:452`). The template therefore pins the reachable set — `@vercel/queue`,
+   `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`, `scule`, `ufo`, `unctx`,
+   plus the deps of the `youch` copy (`@poppinss/colors`, `@poppinss/dumper`,
+   `@speed-highlight/core`, `youch-core`). Measured both ways: with the pins removed the
+   preview never paints, while on real Node (pnpm 9.15.9, `node-linker=hoisted`)
+   `import("nitro/vite")` resolves with none of them. The list is a superset, not proven
+   minimal — `@vercel/queue` is only reached by the Vercel preset's queue and `picomatch` is a
+   `try { require }` catch probe with a bundled fallback, so both are probably droppable, but
+   each candidate needs its own in-VM smoke run (the first missing module aborts the boot).
 2. **The out-of-process dev runners cannot start.** `node-worker` and `node-process` resolve
    their entry with `fileURLToPath(import.meta.resolve(...))`; the VM runtime's
    `import.meta.resolve` does not hand back a file URL, so `fileURLToPath` throws
@@ -404,12 +415,29 @@ packaging facts then decide whether the dev server boots:
    one origin, which is the property SPEC §10.6 actually needs (the roles are swapped: Nitro
    fronts Vite instead of the other way round).
 
+**Fix candidates:** the next Nitro RC bundles the runtime and stops shipping
+`dist/node_modules` (nitrojs/nitro #4701, merged but unreleased — the latest npm beta is
+still `3.0.260903-beta`), which removes the traced ESM-only copies; the other half is
+Vivari's loader honouring the `import`/`module` condition and falling back to `module` when
+`main` is missing (upstream). A patch for that half is prepared and validated — Facilis smoke
+green with the template pins removed — and is carried by the fork pin (D-030, branch
+`fix/runtime-esm-only-targets`); the `git am`-able patch, PR body and ticket draft live in
+[`docs/upstream/`](./upstream/) (`vivari-esm-only-packages.patch`, `…-pr.md`,
+`vivari-esm-only-packages.md`) and the PR is still to be filed. The template's 14-package pin
+list is therefore redundant: dropping it and re-running `TEMPLATE=Facilis pnpm ide:smoke` is a
+follow-up. Vite's `--configLoader`
+does not help: all three modes externalise package imports (the default `bundle` loader
+resolves every dependency to a file URL and marks it `external`), so no loader inlines
+Nitro's dist, and `bundle` cannot run in the WebContainer anyway.
+
 **Consequences:** the Facilis smoke is green end to end in the WebContainer — preview painted
 (~36-40 s cold), `/__facilis/health` ok, `/__facilis/manifest` ok with **zero warnings**
 (PGlite opened, migrations + seed + app role applied), `/_openapi.json` carries
 `x-db-tables` for `/api/todos`, and an unauthenticated `/api/todos` returns 401. Upstream
-work worth filing: Nitro should declare (or bundle) those dist imports, and Vivari's
-`import.meta.resolve` should return a file URL. Client-side HMR through the swapped
+work worth filing: the Vivari resolver fix drafted in
+[`docs/upstream/vivari-esm-only-packages.md`](./upstream/vivari-esm-only-packages.md), the
+Nitro RC that bundles the runtime (nitrojs/nitro #4701), and Vivari's
+`import.meta.resolve` returning a file URL. Client-side HMR through the swapped
 Nitro-fronts-Vite arrangement is the first thing to verify in the next phase.
 
 ---
@@ -502,7 +530,9 @@ decision as O-006, not a new one.
 ---
 
 ### D-028 — Known: the OPFS write-behind mirror stops indexing writes after the in-VM install
-**Status:** known upstream blocker for A12's strict condition (2026-10-28); the vendor tree is read-only
+**Status:** root cause found and fixed (2026-10-28); the fix is carried by the pinned fork
+(`facilis/main`, D-030), so A12 passes as a normal check and the harness `knownIssue` path is
+only a fallback for an unpinned tree
 
 A12 expects an uncommitted file to survive a reboot through the OPFS mirror. It does not, and
 the failure is inside the kernel, not the Studio:
@@ -515,20 +545,113 @@ the failure is inside the kernel, not the Studio:
   after it, before the reload and after it) and
   `vv-vfs/files/.../vv-write-probe.txt` does not exist on disk. Nothing is restored because
   nothing was mirrored.
-- The queue drains during project creation and install — that is why the tree is there — and
-  stops during/after the dev-server start. `scripts/dev/smoke-write.mjs` records this as a
-  `knownIssue` (with the counts) in `report.json`, so a future fix turns it into a normal pass
-  without editing the harness.
+- The queue was never wedged — it was **overloaded, and the index was gated on it emptying**.
+  `shouldPersist` excludes `node_modules` but persists the package-manager caches, and a cold
+  pnpm install enqueues **8,000–12,000** paths (`~/.local/share/pnpm/store/v3/files/**`,
+  `~/.cache/pnpm/metadata-*`) while the drain runs at ~500 entries/s. `drain()` rewrote
+  `manifest.json` only once the queue was empty, which under that flood never happened:
+  `lastManifestWrite` froze ~20 s in while the in-memory index grew past 3,000, so the on-disk
+  manifest stayed at 514 entries and the probe (written later, behind the backlog) was never
+  indexed. A reload then restored the stale index. `scripts/dev/smoke-write.mjs` records this
+  as a `knownIssue` (with the counts) in `report.json`, so a future fix turns it into a normal
+  pass without editing the harness.
 
 The Studio half of the SPEC §13 risk-9 mitigation is in place: `ide/src/vv/vfs-flush.ts`
 posts `fs-flush` on `visibilitychange`/`pagehide` and `KernelBridge` already flushes on
-`pagehide`. A flush cannot help when the write-behind queue itself is wedged.
+`pagehide`. A flush cannot help when the queue is minutes behind.
 
-**Follow-up (upstream `vendor/vivari`, do not patch here):** find the entry whose OPFS
-operation never settles (a `createSyncAccessHandle` left open, or the dep-cache save racing
-the mirror in the same FS worker) and/or make `flush()`/`drain()` time-bound so one stuck
-file cannot freeze every later write. Until then A12's strict pass condition is blocked; the
-Studio's writes, editor state, HMR and git are all correct in-tab.
+**Fix (upstream, validated 2026-10-28).** Route package-manager-cache paths to a low-priority
+queue that drains only when nothing project-level is queued; rewrite the manifest while the
+queue is busy (existing 1 s debounce); and make `flush()` on page-hide promise only the project
+paths plus the index, leaving cache work queued. Applied temporarily to the vendored tree, this
+turns A12 into a normal pass — 24/24 write checks, zero known issues, the probe survives the
+reload. The fix is pinned through the fork (D-030, branch `fix/opfs-mirror-priority`); its
+`git am`-able patch and PR body are in
+[`docs/upstream/vivari-opfs-mirror-priority.patch`](./upstream/vivari-opfs-mirror-priority.patch)
+and [`…-pr.md`](./upstream/vivari-opfs-mirror-priority-pr.md), and the upstream PR is still to be
+filed. The Studio's writes, editor state, HMR and git are correct in-tab either way.
+
+---
+
+### D-029 — The facilis.home proxy's HTTP/2 request cap breaks long IDE sessions
+**Status:** accepted (2026-10-28) — environment fix, no engine change
+
+Serving the IDE dev server through the `facilis.home` HTTPS reverse proxy made every
+generated-project install fail while the same tree on `http://127.0.0.1:<port>` passed. It is not
+the certificate, the host alias, the SAB/preview path, pnpm, or the number of concurrent Process
+Workers: **the proxy retires its HTTP/2 connection after 1000 requests, and Chromium loses a few
+module fetches across that boundary.**
+
+- Measured against the proxy with a bare Node HTTP/2 client: `GOAWAY` on request **#1000**
+  exactly (`lastStreamID=1999`, advertised `max_concurrent_streams=100`) — nginx's
+  `http2_max_requests` default (folded into `keepalive_requests` from 1.25.1 on), also 1000.
+- A dev page session issues **thousands** of module requests: every guest process is a browser
+  Worker that loads the runtime's ~190-module graph (the build ships one file per worker, dev
+  serves each module separately). ~19 processes ≈ 3,600 requests → 3–4 connection retirements
+  per install.
+- Reproduced without the real proxy: a loopback HTTP/2 proxy in front of the same Vite server,
+  with **only** a `GOAWAY` after 1000 requests added, loses **5 of 19** simultaneous module
+  Workers; the identical proxy without that cap loses **0 of 19**. The same 19 through the real
+  nginx with `--disable-http2`, or over loopback, lose 0 — HTTP/1.1 has no multiplexed in-flight
+  requests to lose when a connection retires, which is why `pnpm ide:smoke` was always green.
+- An empty-message `error` from a module Worker means "module graph failed to load"; the kernel
+  correctly treats it as a fatal boot failure, so the install dies with
+  `worker.js: process worker failed to start` and then `Worker pnpm#4 exited with code 1`.
+- Both plausible engine-side workarounds were measured and **rejected**: throttling concurrent
+  Process Worker boots (a validated patch capped the burst at three; request volume still crossed
+  the boundary, so it only shifted the probability) and capping pnpm's pool from the generated
+  template (`PNPM_WORKERS`; same flaw, plus a browser-VM limit in user-visible config). A dev
+  cache header for `vendor/vivari/**` does not help either: worker graph fetches do not reuse the
+  browser HTTP cache (193/193 requests from a warm Worker).
+
+**Decision:** fix the proxy, not the engine. On the studio vhost raise or disable the
+per-connection request cap — `keepalive_requests 100000;` (nginx ≥ 1.25.1) or
+`http2_max_requests 100000;` (older) — or serve that vhost over HTTP/1.1 (`http2 off`), which is
+a complete workaround for dev. Raising `http2_max_concurrent_streams` (the proxy advertises 100)
+also helps the burst. Details and measurements:
+[`docs/upstream/vivari-findings-2026-10-28.md`](./upstream/vivari-findings-2026-10-28.md) §4.
+
+**Consequences:** this issue needs no fork of Vivari and no vendor patch; the IDE behind a
+correctly configured proxy behaves like loopback. Until the proxy is adjusted, HTTP/1.1 is the
+workaround, and the loopback smoke is unaffected either way.
+
+---
+
+### D-030 — Vivari is consumed through our fork, pinned to `facilis/main`
+**Status:** accepted (2026-10-28)
+
+The IDE depends on upstream fixes we authored and validated (D-024 ESM-only targets, D-028 OPFS
+mirror priority, `import.meta.resolve` returning a path). Keeping them as patch files applied by
+hand meant the product, CI and the smoke harness all executed an **unpatched** kernel: every
+validation required apply/revert, and the repo's own assertions (A12) stayed a `knownIssue`
+against the pinned tag.
+
+**Decision:** `vendor/vivari` is a submodule of **our fork**,
+[`github.com/kele23/vivari`](https://github.com/kele23/vivari), pinned to `facilis/main` =
+upstream tag `v1.1.3` + the three fix commits. The fork's `master` mirrors upstream and carries
+no commits of ours; each fix is also its own branch (`fix/…`) based on upstream `master` and is
+proposed upstream as a PR from the fork. `.gitmodules` records the fork URL and
+`branch = facilis/main`; the pin is a **commit**, so a checkout is reproducible. The submodule
+worktree is never edited, so `git -C vendor/vivari status` is clean by construction.
+
+Workflow (branch map in [`docs/upstream/README.md`](./upstream/README.md), dev recipe in
+[`vendor/README.md`](./vendor/README.md)):
+
+- **bump the engine:** rebase the fix branches onto the new upstream tag in the fork, push
+  `facilis/main`, then `git -C vendor/vivari fetch origin && git -C vendor/vivari checkout <sha>`
+  and commit the gitlink;
+- **upstream release:** `git -C vendor/vivari fetch upstream --tags` (second remote in the same
+  clone) and rebase in the fork;
+- **fix merged upstream:** drop its commit from `facilis/main`, pin the upstream release that
+  carries it, delete the branch;
+- **verify a bump:** `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` (and the
+  `facilis.home` proxy smoke in `docs/DEV.md` when the proxy is involved).
+
+**Consequences:** the IDE runs the code this repo asserts — A12 and the OPFS probe pass as
+normal checks, no manually applied patches — and the fork is public MIT code linked to upstream,
+so CI needs no credentials to clone. What stays invariant: never pin a branch head, never commit
+a dirty submodule, and keep `facilis/main` = upstream + exactly the fixes still unmerged
+upstream.
 
 ---
 

@@ -1,0 +1,288 @@
+From ef696cba1a98b4478d2859d866cdb3e31cf6a897 Mon Sep 17 00:00:00 2001
+From: Facilis Bot <dev@facilis.local>
+Date: Wed, 28 Oct 2026 18:07:13 +0000
+Subject: [PATCH] fix(opfs): drain project paths ahead of package-manager
+ caches
+
+The write-behind mirror persists the package-manager caches, and a cold pnpm
+install enqueues thousands of store files. Two consequences, both observed in a
+real browser session: a project write made during the install sat behind the
+whole cache queue (a reload discards the in-memory queue, so the edit was lost),
+and the manifest was rewritten only once the queue drained empty, so the index
+on disk stayed minutes behind the files OPFS already held.
+
+Route cache paths to a second, low-priority queue; drain it only when nothing
+project-level is queued, and rewrite the manifest while the queue is busy (at
+most once per second, the existing debounce). flush() on page-hide now promises
+the project paths plus the index and leaves the cache backlog queued, so a
+hiding tab finishes quickly instead of waiting for an install to settle.
+
+Verified in a browser WebContainer (Facilis IDE smoke, 24/24 write checks,
+including "uncommitted file survives the reboot", previously a known upstream
+failure): before the change OPFS kept 514 entries out of 8,000+ pending and the
+probe file was never indexed; after it the probe survives the reload. Offline
+regression: node scripts/spike-opfs-delete-recreate.mjs.
+---
+ .changeset/tidy-mirrors-drain.md         |  5 ++
+ ARCHITECTURE.md                          |  5 ++
+ packages/core/src/workers/fs-worker.ts   | 24 +++++++-
+ packages/kernel-host/opfs-persistence.js | 75 ++++++++++++++++++------
+ scripts/spike-opfs-delete-recreate.mjs   | 31 ++++++++++
+ 5 files changed, 121 insertions(+), 19 deletions(-)
+ create mode 100644 .changeset/tidy-mirrors-drain.md
+
+diff --git a/.changeset/tidy-mirrors-drain.md b/.changeset/tidy-mirrors-drain.md
+new file mode 100644
+index 0000000..f927345
+--- /dev/null
++++ b/.changeset/tidy-mirrors-drain.md
+@@ -0,0 +1,5 @@
++---
++"@vivari/core": patch
++---
++
++Runtime: the OPFS mirror drains project paths ahead of package-manager cache paths and rewrites its manifest while the queue is busy, so an edit made during a cold install survives a reload instead of being lost behind the cache backlog.
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index b1f3dbd..8793e1f 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -256,6 +256,11 @@ only wired when `VV_DEBUG` is set, so non-debug runs never allocate it.
+   reused by later projects and after a reload. The kernel's transient outbound-fetch
+   buffer (`/var/cache/vv-fetch`) is excluded because its index is rebuilt per session
+   and never read back, so npm's cache is the single durable copy.
++  **Drain priority:** project paths drain ahead of those cache paths (a cold install
++  enqueues thousands of store files) and the manifest is rewritten while the queue is
++  busy, so a reload never restores an index that is minutes behind what OPFS already
++  holds. `flush()` on page-hide promises the project paths plus the index, then
++  returns without waiting for the cache backlog.
+ - **Dependency cache** (`packages/kernel-host/dep-cache.js`, stored under `vv-depcache/` in OPFS):
+   layered on top of the mirror. A lockfile-keyed snapshot of a whole `node_modules` tree
+   (`dep-cache-{has,save,restore}` messages against the in-worker VFS, exposed to the kernel as
+diff --git a/packages/core/src/workers/fs-worker.ts b/packages/core/src/workers/fs-worker.ts
+index b5b0f49..860714f 100644
+--- a/packages/core/src/workers/fs-worker.ts
++++ b/packages/core/src/workers/fs-worker.ts
+@@ -262,6 +262,24 @@ const isVolatileCachePath = (p) => {
+   return p.includes("/_logs/") || p.endsWith("/_logs") || p.includes("/tmp/") || p.endsWith("/tmp");
+ };
+ 
++// Package-manager caches are persisted on purpose (see npm_config_cache in
++// kernel-worker.ts), but a cold install enqueues thousands of store files. The
++// mirror drains them as background work: project paths must never wait behind
++// them, or a reload restores a stale index and loses the user's own edits.
++const PM_CACHE_PREFIXES = [
++  "/home/user/.local/share/pnpm", // pnpm content-addressed store
++  "/home/user/.cache/pnpm", // pnpm registry metadata cache
++  "/home/user/.cache/npm", // npm cacache (its debug log is pruned separately)
++  "/home/user/.cache/yarn",
++  "/home/user/.cache/corepack",
++  "/home/user/.local/share/corepack",
++  "/home/user/.npm",
++  "/home/user/.yarn",
++  "/home/user/.bun",
++];
++const isPmCachePath = (p) =>
++  PM_CACHE_PREFIXES.some((pre) => p === pre || p.startsWith(pre + "/"));
++
+ const shouldPersist = (p) => {
+   // node_modules is NOT mirrored file-by-file: it's large (thousands of files),
+   // which made the per-file OPFS restore the dominant cold-reopen cost. Instead
+@@ -341,7 +359,11 @@ async function createOpfsDepStorage() {
+   accessRef = buildAccess(vfs);
+   try {
+     if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.getDirectory) {
+-      persistence = await createOpfsPersistence({ access: accessRef, shouldPersist });
++      persistence = await createOpfsPersistence({
++        access: accessRef,
++        shouldPersist,
++        isLowPriority: isPmCachePath,
++      });
+       // Restoring a saved project (esp. its node_modules) can take a while — the
+       // VFS is re-hydrated entry-by-entry. Report progress so the user knows the
+       // "stall" is real work, not a hang. Only chatter when there's a lot to do.
+diff --git a/packages/kernel-host/opfs-persistence.js b/packages/kernel-host/opfs-persistence.js
+index 20e1c22..da7b57a 100644
+--- a/packages/kernel-host/opfs-persistence.js
++++ b/packages/kernel-host/opfs-persistence.js
+@@ -17,6 +17,9 @@
+ //     onRename). We can't await OPFS from the synchronous syscall path, so we
+ //     only enqueue a dirty path and drain it on an async loop. Durability is
+ //     therefore eventual (a few ms behind); flush() forces a drain (page hide).
++//   * Project paths and the index drain ahead of package-manager cache paths, and
++//     the manifest is rewritten while the queue is busy: a reload must never roll
++//     the index back to the last moment the queue happened to be empty.
+ //   * On boot restore() replays a small manifest back into the VFS BEFORE the
+ //     worker serves any syscall.
+ //
+@@ -38,7 +41,11 @@ const MANIFEST = "manifest.json";
+ const enc = new TextEncoder();
+ const dec = new TextDecoder();
+ 
+-export async function createOpfsPersistence({ access, shouldPersist = () => true }) {
++export async function createOpfsPersistence({
++  access,
++  shouldPersist = () => true,
++  isLowPriority = () => false,
++}) {
+   const origin = await navigator.storage.getDirectory();
+   const base = await origin.getDirectoryHandle(ROOT_DIR, { create: true });
+   const filesBase = await base.getDirectoryHandle(FILES_DIR, { create: true });
+@@ -48,6 +55,14 @@ export async function createOpfsPersistence({ access, shouldPersist = () => true
+   // path -> 'w' (write/create) | 'd' (delete) | 'r' (delete subtree,
+   // then recreate). Insertion order = drain order.
+   const pending = new Map();
++  // Mirrors pending, for paths the caller marks low priority (the package-manager
++  // caches). They ARE persisted — reused across projects and reloads — but a cold
++  // install enqueues thousands of store files, and draining those first delayed the
++  // user's own writes by minutes and kept the manifest from being written at all.
++  const pendingLow = new Map();
++  // Set by flush() (page hide): land the project paths and the index now, leave the
++  // caches queued — a hiding tab must not wait for a cold install to finish.
++  let flushUrgent = false;
+   let draining = false;
+   let manifestDirty = false;
+   // The manifest is the WHOLE index serialized in one go, so its cost is O(paths
+@@ -126,18 +141,24 @@ export async function createOpfsPersistence({ access, shouldPersist = () => true
+   }
+ 
+   // ---- the write-behind queue ----------------------------------------------
++  function queueFor(path) {
++    return isLowPriority(path) ? pendingLow : pending;
++  }
+   function onWrite(path) {
+     if (!shouldPersist(path)) return;
++    const queue = queueFor(path);
+     // A delete followed by a write must not leave old descendants on disk.
+-    pending.set(path, pending.get(path) === "d" || pending.get(path) === "r" ? "r" : "w");
++    queue.set(path, queue.get(path) === "d" || queue.get(path) === "r" ? "r" : "w");
+     kick();
+   }
+   function onDelete(path) {
+     if (!shouldPersist(path)) return;
+-    // Drop any queued writes under this subtree — they're moot now.
++    // Drop any queued writes under this subtree — they're moot now. Both queues are
++    // swept: a directory can hold project paths and cache paths at once.
+     const pre = path + "/";
+-    for (const k of [...pending.keys()]) if (k === path || k.startsWith(pre)) pending.delete(k);
+-    pending.set(path, "d");
++    for (const queue of [pending, pendingLow])
++      for (const k of [...queue.keys()]) if (k === path || k.startsWith(pre)) queue.delete(k);
++    queueFor(path).set(path, "d");
+     kick();
+   }
+   function onRename(from, to) {
+@@ -154,10 +175,13 @@ export async function createOpfsPersistence({ access, shouldPersist = () => true
+   async function drain() {
+     draining = true;
+     try {
+-      while (pending.size) {
+-        const path = pending.keys().next().value;
+-        const op = pending.get(path);
+-        pending.delete(path);
++      for (;;) {
++        // Project paths always win; cache paths only run with nothing urgent queued.
++        const queue = pending.size ? pending : !flushUrgent && pendingLow.size ? pendingLow : null;
++        if (!queue) break;
++        const path = queue.keys().next().value;
++        const op = queue.get(path);
++        queue.delete(path);
+         try {
+           if (op === "d" || op === "r") {
+             await removePath(path);
+@@ -178,11 +202,17 @@ export async function createOpfsPersistence({ access, shouldPersist = () => true
+         } catch {
+           /* keep draining; a single bad entry shouldn't wedge the queue */
+         }
++        // The manifest is the only durable statement of what is on disk, so under a
++        // long backlog it must not wait for the queue to empty: that is how a reload
++        // can restore a tree that is minutes older than what OPFS already holds.
++        if (manifestDirty && Date.now() - lastManifestWrite >= MANIFEST_MIN_INTERVAL_MS)
++          await maybeWriteManifest(false);
+       }
+       if (manifestDirty) await maybeWriteManifest(false);
+     } finally {
+       draining = false;
+-      if (pending.size) drain(); // work arrived while we were finishing
++      // Work arrived while we were finishing (cache work waits for flush()).
++      if ((pending.size || pendingLow.size) && !flushUrgent) drain();
+     }
+   }
+ 
+@@ -218,15 +248,24 @@ export async function createOpfsPersistence({ access, shouldPersist = () => true
+ 
+   // Force everything queued to hit disk (best-effort; used on page hide).
+   async function flush() {
+-    if (draining) {
+-      // wait for the in-flight drain to settle, then ensure a final pass
+-      while (draining) await new Promise((r) => setTimeout(r, 0));
++    // Promise only the project paths (plus the index). Waiting for a cold install's
++    // thousands of cache files would mean the tab closes before the user's own edits
++    // reach the manifest.
++    flushUrgent = true;
++    try {
++      if (draining) {
++        // wait for the in-flight drain to settle, then ensure a final pass
++        while (draining) await new Promise((r) => setTimeout(r, 0));
++      }
++      if (pending.size) await drain();
++      // Unconditionally force the manifest: drain() only coalesces it, so a debounced
++      // write may still be outstanding even with an empty queue. This is the one place
++      // durability is promised, so it must not be skipped.
++      await maybeWriteManifest(true);
++    } finally {
++      flushUrgent = false;
++      if (pending.size || pendingLow.size) kick();
+     }
+-    if (pending.size) await drain();
+-    // Unconditionally force the manifest: drain() only coalesces it, so a debounced
+-    // write may still be outstanding even with an empty queue. This is the one place
+-    // durability is promised, so it must not be skipped.
+-    await maybeWriteManifest(true);
+   }
+ 
+   // ---- boot restore --------------------------------------------------------
+diff --git a/scripts/spike-opfs-delete-recreate.mjs b/scripts/spike-opfs-delete-recreate.mjs
+index 298eb1c..dd7d76a 100644
+--- a/scripts/spike-opfs-delete-recreate.mjs
++++ b/scripts/spike-opfs-delete-recreate.mjs
+@@ -195,6 +195,37 @@ try {
+     );
+     ok(!r.entries.has("/z") && !r.entries.has("/z/f.txt"), "a deleted subtree stays deleted");
+   }
++
++  console.log("\n== a cold cache flood must not delay a project write ==");
++  {
++    // The mirror persists the package-manager caches, and a cold install enqueues
++    // thousands of store files. A project write made during that flood used to sit
++    // behind the whole cache queue — and a reload discards the in-memory queue, so
++    // the edit was simply lost. It must be durable after flush() while the rest of
++    // the cache queue is still pending.
++    const lowPrefix = "/home/user/.cache/pnpm/";
++    const storage = fakeOpfs();
++    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { storage } });
++    const vfs = fakeVfs();
++    const persistence = await createOpfsPersistence({
++      access: vfs,
++      isLowPriority: (p) => p.startsWith(lowPrefix),
++    });
++    for (let i = 0; i < 200; i++) {
++      const p = lowPrefix + "file-" + i + ".json";
++      vfs.writeFile(p, bytes("cache"));
++      persistence.onWrite(p);
++    }
++    vfs.writeFile("/home/user/projects/app/src/App.tsx", bytes("project"));
++    persistence.onWrite("/home/user/projects/app/src/App.tsx");
++    await persistence.flush();
++
++    const reopened = fakeVfs();
++    await (await createOpfsPersistence({ access: reopened })).restore();
++    const app = reopened.entries.get("/home/user/projects/app/src/App.tsx");
++    ok(app?.kind === "file" && text(app.bytes) === "project", "the project write survives the flush");
++    ok(!reopened.entries.has(lowPrefix + "file-199.json"), "…and flush() did not wait for the cache queue");
++  }
+ } finally {
+   Object.defineProperty(globalThis, "navigator", { configurable: true, value: originalNavigator });
+ }
+-- 
+2.39.5
+

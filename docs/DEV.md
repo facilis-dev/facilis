@@ -18,8 +18,8 @@ pnpm ide:assets        # ide/public/vendor/{npm-pack.bin,pnpm-pack.bin,sqlite/sq
 pnpm ide:facilis-deps  # @facilis/* tarballs -> ide/public/vendor/facilis/*.tgz
 pnpm ide:browser       # headless Chromium + shared libs + fonts (private sysroot, no root)
 
-pnpm --filter @facilis/ide dev --host 0.0.0.0 --port 5173
-pnpm ide:smoke     # headless acceptance: boot -> create React/TS project -> preview paints
+pnpm ide:dev          # vite dev on 0.0.0.0:5173 (reachable from another machine)
+pnpm ide:smoke        # headless acceptance: boot -> create React/TS project -> preview paints
 ```
 
 Everything is installed under `FACILIS_TOOLING_DIR` (default `/tmp/facilis-dev`), never in
@@ -166,14 +166,25 @@ so no shell environment is required.
 ## 4. Running the IDE
 
 ```bash
-pnpm --filter @facilis/ide dev --host 0.0.0.0 --port 5173
+pnpm ide:dev
 ```
+
+The IDE's `dev` script passes `--host`, so the server binds **every interface** — that is what
+lets another machine (or the `facilis.home` proxy) reach it. Append `--host 127.0.0.1` to the
+script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its own server.
 
 - The dev server must send `Cross-Origin-Opener-Policy: same-origin` +
   `Cross-Origin-Embedder-Policy: require-corp` (they unlock `SharedArrayBuffer`); this is in
   `ide/vite.config.ts` and is asserted by the smoke test.
 - Vite 8 rejects unknown `Host` headers. The sandbox forwards this app as `facilis.home`;
   `server.allowedHosts` allows it (override with `FACILIS_DEV_HOST`).
+- **Reverse proxy on HTTP/2.** A dev session issues thousands of module requests — every guest
+  process is a browser Worker that loads the Vivari runtime's ~190-module graph from Vite, per
+  spawn. nginx retires an HTTP/2 connection after 1000 requests (`keepalive_requests`, formerly
+  `http2_max_requests`), and Chromium loses a few in-flight module fetches across that boundary;
+  a Worker whose graph fails to load fails the install with `worker.js: process worker failed to
+  start`. Raise the cap on the studio vhost (`keepalive_requests 100000;` /
+  `http2_max_requests 100000;`) or serve that vhost over HTTP/1.1 (`http2 off`) — see D-029.
 - In the UI: **Start from template -> React + TypeScript -> Create**. The IDE scaffolds the
   project in its VFS, runs `npm install` and then `npm run dev -- --configLoader native`, and
   opens the preview at `/preview/5173/`. `Start from blank` gives a project with only
@@ -254,7 +265,7 @@ Facilis probe is green with **26/26** (2026-10-28): preview painted **36-40 s**,
 | `@rolldown/binding-wasm32-wasi` still listed in templates | ~14 MB of dead weight per install | kept so a future Vite 8 retry is a version bump, not a re-import |
 | PGlite dev database is in-memory | resets on worker restart | Phase 1 caveat, see `docs/DECISIONS.md` |
 | npm cannot install plain-http URL dependencies | npm 10's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND` | **Facilis projects use pnpm only**; the template's `preinstall` guard rejects other package managers (D-022). Registry `https://` traffic is unaffected |
-| Nitro's dist imports packages it only declares as devDependencies | with the native config loader, Nitro's shipped dist runs as-is, so every missing import kills the dev-server boot (`Cannot find module …`); a missing `youch` dep turns a 500 into a crash inside the error page | the template pins the whole set (`@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`, `scule`, `ufo`, `unctx`, `@poppinss/colors`, `@poppinss/dumper`, `@speed-highlight/core`, `youch-core`) and uses `node-linker=hoisted` — see D-024 |
+| Nitro's traced dist copies are ESM-only, but the VM loader resolves CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); Vivari's `runtime/module.js` takes the CJS/`main` target even for ESM imports and does not fall back to `module`, so resolution misses and the boot dies with `Cannot find module …` (a missing `youch` dep turns a 500 into a crash inside the error page) | the template pins the reachable set (`@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`, `scule`, `ufo`, `unctx`, `@poppinss/colors`, `@poppinss/dumper`, `@speed-highlight/core`, `youch-core`) and uses `node-linker=hoisted` — see D-024; verified both ways: without the pins the preview never paints, while real Node resolves `import("nitro/vite")` with none of them |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
 | `pnpm run <script> -- <flags>` keeps the literal `--` | the script receives `--` as its first argument, so Vite ignores `--configLoader native`/`--port` and Nitro's own server (port 3000) starts instead | omit the extra `--`: `pnpm run dev --configLoader native` (the Facilis template's `dev` manifest entry) |
 | Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |

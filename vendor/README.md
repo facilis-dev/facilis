@@ -1,17 +1,23 @@
-# vendor/ — pinned upstream sources (git submodule)
+# vendor/ — the pinned Vivari fork (git submodule)
 
-`vendor/vivari/` is a **real git clone** of [Vivari](https://github.com/maitrungduc1410/vivari)
-(MIT), added as a submodule and pinned in `.gitmodules` + the gitlink commit
-`1f00a48c6d8009e7f369c1cf36959d61ad262b19` (**tag `v1.1.2`**).
+`vendor/vivari/` is a git submodule of **our fork**,
+[`github.com/kele23/vivari`](https://github.com/kele23/vivari) (MIT; upstream
+[maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)), pinned in `.gitmodules`
+(`branch = facilis/main`; the pin itself is the gitlink commit, so a checkout is reproducible).
 
-Why a submodule: aligning with upstream must stay a one-command operation, and the upstream
-tree must not be copied into our history. It is **upstream code** — never edit it here.
-The Facilis code that uses it:
+Why a fork and not the upstream tag (D-030): three upstream defects the IDE depends on are fixed
+in `facilis/main` — see [`docs/upstream/`](../docs/upstream/README.md). Pinning the fork means
+the product, CI and the smoke harness all execute the code this repo asserts, instead of an
+unpatched upstream release. The **worktree is never edited**: every change is a commit on a
+branch in the fork, so `git -C vendor/vivari status` stays clean by construction, and each fix
+is also its own branch to propose upstream as a PR.
 
-| Path | Role |
+| Piece | Where |
 |---|---|
-| `packages/` | the framework (`@facilis/*`) |
-| `ide/` | the IDE app — a fork of upstream `packages/studio` (patch list below) |
+| Our fork | `https://github.com/kele23/vivari` — `master` mirrors upstream, `facilis/main` is what we pin |
+| Upstream releases | second remote `upstream` in the same clone: `git -C vendor/vivari fetch upstream --tags` |
+| Branch map + workflow | [`docs/upstream/README.md`](../docs/upstream/README.md) |
+| Facilis code that uses it | `packages/` (`@facilis/*`) and `ide/` (fork of upstream `packages/studio`) |
 
 ## First checkout
 
@@ -22,21 +28,21 @@ git submodule update --init vendor/vivari   # or: --init --recursive
 Without it, `vendor/vivari/` is empty and the IDE cannot typecheck or build (its
 `@vivari/core` alias points into this tree).
 
-## Align with upstream (the whole point of the submodule)
+## Update the engine
+
+1. In the fork: rebase the `fix/*` branches onto the new upstream tag, force-push
+   `facilis/main`.
+2. Here:
 
 ```bash
-# follow upstream master automatically (.gitmodules sets branch = master)
-git submodule update --remote vendor/vivari
-
-# or pin a specific tag/commit
-git -C vendor/vivari fetch --tags --depth 1
-git -C vendor/vivari checkout v1.1.2
-
-git add vendor/vivari   # only the gitlink changes
-git commit -m "chore(vendor): bump vivari to <sha>"
+git -C vendor/vivari fetch origin
+git -C vendor/vivari checkout <facilis/main sha>   # never a branch head
+git add vendor/vivari                              # only the gitlink changes
+git commit -m "chore(vendor): bump vivari fork to <sha>"
 ```
 
-`git status` shows a single changed pointer, not 500 files.
+`git status` shows a single changed pointer, not 500 files. Fetching upstream releases is the
+fork's job (`git -C vendor/vivari fetch upstream --tags`); the pin never moves on its own.
 
 ## What the IDE consumes from here
 
@@ -51,21 +57,24 @@ gates ignore `vendor/` entirely.
 
 ## Sync checklist after a bump
 
-1. `diff -r vendor/vivari/packages/studio ide` — the only differences must be the IDE patch
+1. `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` — the engine is only green when the
+   browser path is; plus the `facilis.home` proxy smoke in [`docs/DEV.md`](../docs/DEV.md)
+   when the proxy is part of the change.
+2. `diff -r vendor/vivari/packages/studio ide` — the only differences must be the IDE patch
    set documented in [`ide/README.md`](../ide/README.md#local-modifications-vs-upstream-the-complete-patch-set).
-2. `cd ide && pnpm install --ignore-workspace && pnpm exec tsc -p tsconfig.app.json --noEmit`.
-3. From the repo root: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
-4. Update the pinned commit in this file and in `ide/README.md`.
+3. From the repo root: `pnpm lint && pnpm typecheck && pnpm test && pnpm build` (rebuild the
+   Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
+4. Update the pinned commit here and in `ide/README.md`.
 
-## Verification in this sandbox (2026-10-25, pin `1f00a48` / `v1.1.2`)
+## Verification (2026-10-28, pin `f253381` / `facilis/main` = upstream v1.1.3 + 3 fork commits)
 
 | Check | Result |
 |---|---|
-| `git submodule status` | clean at `1f00a48…` (`v1.1.2`) |
-| `diff -r vendor/vivari/packages/studio ide` | only the documented patch set (7 files) |
-| Root gates (lint / typecheck / test / build / format / file-length) | pass; `vendor/` excluded, the IDE is a workspace member and included (217 files linted, 12 typecheck tasks, 222 tests, 8 build tasks) |
-| IDE typecheck | `tsc -p tsconfig.app.json --noEmit` with repo TypeScript 7 + `strict`, exit 0 (756 files) |
-| IDE lint | root oxlint/Prettier config, 0 errors (upstream per-app lint config removed) |
-| IDE dev server | `vite dev` ready ~278 ms; `/` 200, `/src/main.tsx` 200, COOP/COEP present |
-| IDE production build | **blocked** on the missing Rust->Wasm `packages/{vfs,codec,crypto}/pkg` (`cargo`/`wasm-pack` absent) |
-| Browser/WebContainer behaviour | **blocked** — needs Chromium + cross-origin-isolated page + the Rust toolchain |
+| `git submodule status` | clean at `f253381…` (`v1.1.2-6-gf253381`: v1.1.3 + ESM-only targets, OPFS mirror priority, `import.meta.resolve`) |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **green**, A12 and the OPFS probe pass as normal checks (the D-028 fix is carried by the pin), no known issues |
+| `diff -r vendor/vivari/packages/studio ide` | only the documented IDE patch set |
+| Root gates (lint / typecheck / test / build / format / file-length) | pass; `vendor/` excluded, the IDE is a workspace member and included |
+| IDE typecheck | `tsc -p tsconfig.app.json --noEmit` with repo TypeScript 7 + `strict`, exit 0 |
+| IDE lint | root oxlint/Prettier config, 0 errors |
+| IDE dev server | `vite dev` ready ~220 ms; `/` 200, `/src/main.tsx` 200, COOP/COEP present |
+| IDE production build | **blocked** on the missing Rust->Wasm `packages/{vfs,codec,crypto}/pkg` in this sandbox |

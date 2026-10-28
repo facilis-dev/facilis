@@ -1,0 +1,119 @@
+# Vivari findings — 2026-10-28 (checks after the two filed workarounds)
+
+Snapshot of the checks run while evaluating Vivari as the IDE kernel. Two problems are already
+root-caused and patched (`vivari-esm-only-packages`, `vivari-opfs-mirror-priority`), a third has
+a patch ready (`vivari-import-meta-resolve`); this file records the rest, in severity order, with
+the evidence collected. Finding 4 is root-caused: it is the proxy's HTTP/2 request cap, not
+an engine bug (D-029).
+
+## 1. Worker death after boot hangs the IDE silently — confirmed
+
+**Symptom.** A worker that dies after the kernel booted leaves every filesystem call pending
+forever: no rejection, no toast, no console error. `__ide.getSnapshot().kernelReady` stays
+`true`, so the UI believes it is healthy.
+
+**How it was reproduced.** Headless Chromium against the running studio; after boot, the
+kernel worker target was attached over CDP and closed with `self.close()`. Then
+`window.__ide.readdir("/")` never settled (5 s `Promise.race` → TIMEOUT) while `kernelReady`
+was still `true` and the page showed no error.
+
+**Why the FS worker is the same shape.** `kernel-worker.ts` resolves `fsReady` during boot and
+its comment states that after that point an `onerror` from a *running* FS worker is a no-op
+(by design, to avoid tearing down a healthy boot on a non-fatal uncaught exception). There is no
+post-boot liveness check for either worker.
+
+**Suggestion.** A heartbeat/watchdog on the kernel and FS workers (the kernel already has one for
+guest *processes*), surfacing a terminating error to the IDE rather than leaving a silent hang;
+or make `KernelBridge` reject in-flight RPCs when a worker target disappears.
+
+## 2. `navigator.storage.persist()` is never requested — confirmed
+
+**Measured in the real page:** `navigator.storage.persisted() === false`, quota ≈ 10.7 GB,
+usage ≈ 82 KB (fresh profile). Nothing in `packages/core` or `packages/kernel-host` calls
+`persist()`, so the whole project tree + dependency cache in OPFS is best-effort storage and
+can be evicted by the browser under pressure — a silently lost project, not a crash.
+
+**Suggestion.** Call `navigator.storage.persist()` once at boot (best-effort, after the first
+user gesture if Chrome's heuristics require it) and surface the answer (`persisted` vs
+`evictable`) in the studio.
+
+## 3. Two tabs on one origin can clobber each other's mirror index — code-level
+
+Each FS worker builds its own in-memory `meta` and `writeManifest()` serializes **the whole
+map** into `vv-vfs/manifest.json`. With two tabs both mirroring, the last writer wins: the
+other tab's paths vanish from the index, so a reload restores an incomplete tree. `vv-depcache`
+is per-key and less exposed, but shares the same origin directory. Not runtime-tested (the
+outcome follows from the write-whole-file design), and multi-tab is not a declared use case.
+
+**Suggestion.** Elect a single mirror owner with the Web Locks API (or BroadcastChannel), and
+either hand the tab over or run the second tab without persistence; at minimum document
+"one IDE tab per origin".
+
+## 4. The studio behind an external HTTPS proxy: the proxy's HTTP/2 request cap — root-caused, environment fix
+
+**Environment.** `https://facilis.home` (nginx in front of the Vite dev server, self-signed
+cert accepted with `--ignore-certificate-errors`), same repo state that passes locally on
+`http://127.0.0.1:<port>`.
+
+**What works over the proxy.** TLS 200, COOP/COEP headers, kernel online (~0.6–0.8 s), project
+created, `/sw.js`, vendor tarballs and `vendor/pnpm-pack.bin` all fetch correctly (200), and
+in-VM `https.get("https://host.vivari.internal/vendor/…")` from a shell returns **200** — the
+alias and the HTTPS egress are fine.
+
+**Root cause (2026-10-28).** It is the proxy's HTTP/2 connection lifetime, not the engine.
+nginx retires each HTTP/2 connection after **1000 requests** (`http2_max_requests 1000`, the
+default; nginx ≥ 1.25.1 folds it into `keepalive_requests`, also 1000). Measured against
+`facilis.home` with a bare Node HTTP/2 client: `GOAWAY` arrives on request #1000 exactly
+(`lastStreamID=1999`, advertised `max_concurrent_streams=100`). A page session of the IDE in dev
+issues **thousands** of module requests — every guest process is a browser Worker that loads the
+runtime's ~190-module ES-module graph (the build ships one file per worker; dev serves each module
+separately), so ~19 processes ≈ 3,600 requests, i.e. 3–4 connection retirements per run. Chromium
+loses a few in-flight module fetches across that boundary (`net::ERR_FAILED`, no HTTP response).
+A module Worker whose graph fails to load fires `error` with an **empty message**, which
+`kernel-worker.ts` classifies as a fatal boot failure — so the kernel prints `worker.js: process
+worker failed to start (worker terminated without an error message)` and finalizes it with code 1,
+and pnpm's pool then dies with `Worker pnpm#4 exited with code 1`.
+
+Measured, each run isolating one variable:
+
+- A loopback HTTP/2 proxy in front of the same Vite dev server, with **only** a `GOAWAY` after
+  1000 requests added: **5 of 19** simultaneous module Workers fail. The identical proxy without
+  that cap: **0 of 19**. That is the whole mechanism.
+- Real proxy, 19 module Workers at once: 1–6 fail, a *random* module each run (`bun-cookie.js`,
+  `bun-html-rewriter.js`, `perf/observe.js`, `boot.js`, …). The same 19 over the same nginx with
+  `--disable-http2`, or over loopback: 0. HTTP/1.1 has no multiplexed in-flight requests to lose
+  when a connection retires, which is why the loopback smoke was always green.
+- Worker module-graph fetches do **not** reuse the browser HTTP cache: a warm Worker still fetched
+  193/193 modules, and a warm 19-Worker burst still issued 3,039 `vendor/vivari/**` requests. A dev
+  middleware serving `vendor/vivari/**` with `Cache-Control: max-age=60` changed nothing and was
+  reverted — request *volume* crosses the boundary, cacheability does not help.
+- pnpm, `worker_threads`, the SAB/MessagePort handoff, the `host.vivari.internal` alias, the
+  certificate and a cold/warm dev server are exonerated: a cold server only widens the window
+  (fetches stay in flight longer), it does not change the cause.
+
+**Fix (environment, no engine change).** On the studio vhost, raise or disable the per-connection
+request cap — `keepalive_requests 100000;` on nginx ≥ 1.25.1, `http2_max_requests 100000;` on
+older — or serve the dev server over HTTP/1.1 (`http2 off`; dev does not need h2), which is a
+complete workaround. Raising `http2_max_concurrent_streams` (the proxy advertises 100) also helps
+the burst.
+
+Rejected, measured rather than argued: throttling concurrent Process Worker boots in the kernel.
+A validated patch capped boot bursts at three (with a `proc-booted` signal from the
+process-worker entry) and does **not** fix this — the request volume still crosses the 1000
+boundary, so it only shifts the probability; the patch was dropped. Capping pnpm's pool from the
+generated template (`PNPM_WORKERS`) fails the same way and puts a browser-VM limitation into
+user-visible project configuration. Retrying a boot whose graph failed is possible, but needs a
+bridge for every transferred port (`parentPort`, `workerData` ports); not worth it when the proxy
+is the thing that should not retire a dev connection every 1000 requests.
+
+**Separate, corrected note.** The proxy does **not** answer missing `/vendor/locks/index.json`
+and `/vendor/depcache/index.json` with the SPA shell — **Vite itself** does (verified on
+loopback: `Accept: */*` → 200 `text/html`, `Accept: application/json` → 404). The loader logs a
+JSON parse error and installs from scratch either way; a dev-server 404 for unknown `/vendor/*`
+would be the tidy fix.
+
+## 5. Already patched (recorded elsewhere)
+
+- ESM-only package copies vs the require-first resolver — `vivari-esm-only-packages`.
+- OPFS mirror backlog + manifest gated on an empty queue — `vivari-opfs-mirror-priority`.
+- `import.meta.resolve` returning a path instead of a URL — `vivari-import-meta-resolve`.

@@ -1,0 +1,156 @@
+From e67b450ed5b8e57e647454f2fe47b24811e9b09d Mon Sep 17 00:00:00 2001
+From: Facilis Bot <dev@facilis.local>
+Date: Wed, 28 Oct 2026 17:27:30 +0000
+Subject: [PATCH] fix(runtime): load ESM-only package copies when the CJS
+ target is missing
+
+Packages published as pruned, ESM-only copies keep the CJS entry in
+"main"/"require" after dropping the file from the tarball - nitro's traced
+dist/node_modules is the case that surfaced this: defu declares
+lib/defu.cjs but only ships dist/defu.mjs. The resolver picked a single
+exports condition (require first, by design) and then gave up, so an
+installed package failed with MODULE_NOT_FOUND even though a loadable ESM
+build was present.
+
+Collect every candidate in condition order and take the first target that
+exists on disk; when "main" is missing, try "module" before the index
+fallback. Loading the ESM build is safe because this runtime transpiles ESM
+to CJS at load.
+
+Verified in a browser WebContainer: a generated Vite + Nitro project on
+nitro@3.0.260903-beta boots its dev server and serves the app without
+pinning defu/ufo/destr/scule/croner and friends; before the change that
+project stalled at "Cannot find module 'defu'" thrown from
+runtime/module.js. The Facilis IDE smoke passes end to end with no pins.
+---
+ .changeset/quiet-emus-resolve.md |  5 +++
+ packages/runtime/module.js       | 66 +++++++++++++++++++-------------
+ 2 files changed, 44 insertions(+), 27 deletions(-)
+ create mode 100644 .changeset/quiet-emus-resolve.md
+
+diff --git a/.changeset/quiet-emus-resolve.md b/.changeset/quiet-emus-resolve.md
+new file mode 100644
+index 0000000..0d7a50e
+--- /dev/null
++++ b/.changeset/quiet-emus-resolve.md
+@@ -0,0 +1,5 @@
++---
++"@vivari/core": patch
++---
++
++Runtime: fall back to the next `exports` condition (and to `module`) when a package's declared `main`/`require` target is absent, so pruned ESM-only copies such as nitro's traced `dist/node_modules` load instead of throwing `MODULE_NOT_FOUND`.
+diff --git a/packages/runtime/module.js b/packages/runtime/module.js
+index 13f00d4..429f8a4 100644
+--- a/packages/runtime/module.js
++++ b/packages/runtime/module.js
+@@ -186,37 +186,43 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+   // dual packages that omit a "require" key but ship a CJS "default" (e.g.
+   // tslib: { module, import: <esm>, default: <cjs> }) — require() must land on
+   // the CJS default, not the ESM import.
++  //
++  // Node stops at the first matching condition and fails when that file is
++  // missing. Packages shipped as pruned, ESM-only copies keep the CJS target in
++  // "main"/"require" after removing it from the tarball (nitro's traced
++  // dist/node_modules: defu declares lib/defu.cjs but only ships dist/defu.mjs),
++  // so a single pick makes an installed package unloadable. Collect every
++  // candidate in condition order and take the first that exists; loading the ESM
++  // build is safe because this runtime transpiles ESM to CJS at load.
+   const EXPORT_CONDITIONS = ["node", "require", "default", "import"];
+-  function pickCondition(val) {
+-    if (typeof val === "string") return val;
+-    if (Array.isArray(val)) {
+-      for (const v of val) {
+-        const r = pickCondition(v);
+-        if (r) return r;
+-      }
+-      return null;
+-    }
+-    if (val && typeof val === "object") {
++  function conditionTargets(val, out = []) {
++    if (typeof val === "string") {
++      out.push(val);
++    } else if (Array.isArray(val)) {
++      for (const v of val) conditionTargets(v, out);
++    } else if (val && typeof val === "object") {
+       for (const c of EXPORT_CONDITIONS) {
+-        if (Object.prototype.hasOwnProperty.call(val, c)) {
+-          const r = pickCondition(val[c]);
+-          if (r) return r;
+-        }
++        if (Object.prototype.hasOwnProperty.call(val, c)) conditionTargets(val[c], out);
+       }
+     }
+-    return null;
++    return out;
++  }
++  // The wildcard branch below rewrites "*" per request, so it still needs a
++  // single target; the first candidate is the same one the old picker returned.
++  function pickCondition(val) {
++    return conditionTargets(val)[0] ?? null;
+   }
+ 
+   function resolveExports(pkgDir, exportsField, sub) {
+-    let target = null;
++    let candidates = [];
+     if (typeof exportsField === "string" || Array.isArray(exportsField)) {
+-      target = sub === "." ? pickCondition(exportsField) : null;
++      if (sub === ".") candidates = conditionTargets(exportsField);
+     } else if (exportsField && typeof exportsField === "object") {
+       const keys = Object.keys(exportsField);
+       const isSubpathMap = keys.some((k) => k.startsWith("."));
+       if (isSubpathMap) {
+         if (Object.prototype.hasOwnProperty.call(exportsField, sub)) {
+-          target = pickCondition(exportsField[sub]);
++          candidates = conditionTargets(exportsField[sub]);
+         } else {
+           for (const k of keys) {
+             if (k.endsWith("/*")) {
+@@ -224,20 +230,23 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+               if (sub.startsWith(pre)) {
+                 const t = pickCondition(exportsField[k]);
+                 if (t) {
+-                  target = t.replace("*", sub.slice(pre.length));
++                  candidates = [t.replace("*", sub.slice(pre.length))];
+                   break;
+                 }
+               }
+             }
+           }
+         }
+-      } else {
+-        target = sub === "." ? pickCondition(exportsField) : null;
++      } else if (sub === ".") {
++        candidates = conditionTargets(exportsField);
+       }
+     }
+-    if (!target) return null;
+-    const full = path.join(pkgDir, target);
+-    return tryExtensions(full) || (isFile(full) && full) || null;
++    for (const target of candidates) {
++      const full = path.join(pkgDir, target);
++      const resolved = tryExtensions(full) || (isFile(full) && full) || null;
++      if (resolved) return resolved;
++    }
++    return null;
+   }
+ 
+   function splitBare(request) {
+@@ -261,9 +270,12 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+         const r = resolveExports(dir, pkg.exports, ".");
+         if (r) return r;
+       }
+-      const main = pkg.main || (pkg.module && typeof pkg.module === "string" ? pkg.module : null);
+-      if (main) {
+-        const target = path.join(dir, main);
++      // "main" first (the CJS entry require() wants), then "module" (the ESM one
++      // bundlers use): a pruned, ESM-only copy can keep a "main" whose file was
++      // removed, leaving "module" as the only entry that exists on disk.
++      for (const field of [pkg.main, pkg.module]) {
++        if (typeof field !== "string") continue;
++        const target = path.join(dir, field);
+         const resolved = tryExtensions(target) || loadIndex(target);
+         if (resolved) return resolved;
+       }
+-- 
+2.39.5
+

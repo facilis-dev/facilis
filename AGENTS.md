@@ -19,8 +19,8 @@ Repository layout (see spec §4):
 ```
 packages/    @facilis/core, db, auth, blocks, ai, nitro
 ide/         Facilis IDE app (MIT fork of Vivari Studio)    [Phase 0+]
-vendor/vivari/  Vivari upstream, git SUBMODULE pinned to a tag/commit (MIT)
-             [never edited here, never shipped, not in the pnpm workspace]
+vendor/vivari/  Vivari via our fork (git SUBMODULE, MIT), pinned to `facilis/main`
+             [never edited here, never shipped, not in the pnpm workspace; see D-030]
 starter/     template cloned by users                        [Phase 1+]
 examples/    example generated apps
 spikes/      throwaway Phase 0 feasibility spikes (never shipped)
@@ -102,6 +102,17 @@ A change is done when all of the following are true:
 - Docs updated when a contract changes (spec and/or `docs/DECISIONS.md`).
 - No new file exceeds 300 lines.
 
+## Working style — match effort to risk
+
+- Size the verification to the change. Behaviour, contract or cross-package changes get the
+  full Definition of done above. A one-line script, config, copy or comment edit needs the
+  edit and a one-line report — running the whole gate set, or building a bespoke experiment,
+  is wasted time there. Do whatever single check would actually catch a breaking mistake, if
+  any; otherwise just do it.
+- No overthinking on minimal changes: no speculative refactors, no new harnesses, no
+  re-investigating the environment for a flag change. If something unrelated looks off,
+  mention it in one line and move on.
+
 ---
 
 ## Git
@@ -131,9 +142,9 @@ rules: workspace member, strict TypeScript, the root oxlint/Prettier config, vit
 300-line limit (via the baseline ratchet for the inherited files). Keep the UI stack
 (Tailwind v4 + shadcn/Base UI, React 19, Monaco/xterm) and isolate Facilis changes in new
 modules (`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
-rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule (read-only;
-align with `git submodule update --remote vendor/vivari`). See spec §10 and `ide/README.md`
-for the exact patch set.
+rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule of our
+Vivari fork, pinned to `facilis/main` (read-only; bump the commit — never edit the worktree —
+see D-030 and `vendor/README.md`). See spec §10 and `ide/README.md` for the exact patch set.
 
 **Building and verifying it** is scripted, because the kernel's Wasm packages and its runtime
 assets are gitignored upstream artifacts and a browser is needed to boot it: `pnpm ide:wasm`,

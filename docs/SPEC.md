@@ -1348,7 +1348,8 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 
 Folder: `ide/`. Starts as the full upstream `packages/studio` at the pinned Vivari tag, then
 follows this repository's toolchain (D-019). The kernel it runs on is the `vendor/vivari`
-submodule (D-018).
+submodule of our Vivari fork, pinned to `facilis/main` — upstream tag plus the fixes this repo
+depends on (D-018, D-030).
 
 ### 10.1 What We Inherit
 

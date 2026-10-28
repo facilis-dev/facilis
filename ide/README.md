@@ -6,16 +6,17 @@ Facilis project inside a WebContainer, where `vite dev` is the single dev server
 
 **It starts from the current Vivari Studio** — upstream `packages/studio` at tag `v1.1.2`
 (commit `1f00a48c6d8009e7f369c1cf36959d61ad262b19`), imported in full — **and forks from
-here.** The upstream kernel stays a pinned git submodule at [`vendor/vivari/`](../vendor/vivari)
-(`git submodule update --init`, update with `git submodule update --remote vendor/vivari`);
-it is never edited.
+here.** The kernel is the [`vendor/vivari/`](../vendor/vivari) submodule of our Vivari fork,
+pinned to `facilis/main` (upstream `v1.1.3` + the fixes we carry; D-030): it is never edited
+in the worktree, only bumped to a fork commit ([`vendor/README.md`](../vendor/README.md),
+branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 
 | | |
 |---|---|
 | Upstream repository | <https://github.com/maitrungduc1410/vivari> |
 | Upstream tag / commit | `v1.1.2` / `1f00a48c6d8009e7f369c1cf36959d61ad262b19` (branch `master`, 2026-10-16) |
 | App source | upstream `packages/studio/` |
-| Kernel | [`vendor/vivari/`](../vendor/vivari) — submodule, read-only |
+| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.3` + 3 fixes (D-030) |
 | License | MIT — [`LICENSE`](./LICENSE) (Copyright (c) 2026 Duc Trung Mai and Vivari contributors); Facilis code is covered by the root [`LICENSE`](../LICENSE) |
 
 ## Layout
