@@ -23,9 +23,10 @@ negative results are in [`vivari-findings-2026-10-28.md`](./vivari-findings-2026
   --tags`), commit with a changeset, run upstream's offline tiers if it is runtime-side, open
   the PR from the fork to `maitrungduc1410/vivari:master`, then merge the commit into
   `facilis/main` and bump the submodule pin here (D-030).
-- **Upstream release:** fetch the new tag in the fork, rebase every `fix/*` onto it,
-  force-push the branches and `facilis/main`, then `TEMPLATE=Facilis pnpm ide:smoke` here and
-  bump the pin.
+- **Upstream release:** fetch the new tag in the fork (a fresh clone adds the upstream remote
+  once: `git -C vendor/vivari remote add upstream https://github.com/maitrungduc1410/vivari.git`),
+  rebase every `fix/*` onto it, force-push the branches and `facilis/main`, then
+  `TEMPLATE=Facilis pnpm ide:smoke` here and bump the pin.
 - **Fix merged upstream:** drop its commit from `facilis/main` (rebase), point the pin at the
   release that carries it, delete the branch. The `.patch` artifacts stay as a record.
 - **Never** edit the submodule worktree, and never pin a branch head — always the commit.

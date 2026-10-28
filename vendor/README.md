@@ -42,7 +42,13 @@ git commit -m "chore(vendor): bump vivari fork to <sha>"
 ```
 
 `git status` shows a single changed pointer, not 500 files. Fetching upstream releases is the
-fork's job (`git -C vendor/vivari fetch upstream --tags`); the pin never moves on its own.
+fork's job; the pin never moves on its own. A fresh clone has the fork as `origin`, so add the
+upstream remote once:
+
+```bash
+git -C vendor/vivari remote add upstream https://github.com/maitrungduc1410/vivari.git
+git -C vendor/vivari fetch upstream --tags
+```
 
 ## What the IDE consumes from here
 
