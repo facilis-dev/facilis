@@ -263,6 +263,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@facilis/ai':
+        specifier: workspace:*
+        version: link:../packages/ai
       '@fontsource-variable/geist':
         specifier: ^5.2.9
         version: 5.3.0
