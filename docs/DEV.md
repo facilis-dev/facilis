@@ -178,13 +178,20 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   `ide/vite.config.ts` and is asserted by the smoke test.
 - Vite 8 rejects unknown `Host` headers. The sandbox forwards this app as `facilis.home`;
   `server.allowedHosts` allows it (override with `FACILIS_DEV_HOST`).
-- **Reverse proxy on HTTP/2.** A dev session issues thousands of module requests — every guest
-  process is a browser Worker that loads the Vivari runtime's ~190-module graph from Vite, per
-  spawn. nginx retires an HTTP/2 connection after 1000 requests (`keepalive_requests`, formerly
-  `http2_max_requests`), and Chromium loses a few in-flight module fetches across that boundary;
-  a Worker whose graph fails to load fails the install with `worker.js: process worker failed to
-  start`. Raise the cap on the studio vhost (`keepalive_requests 100000;` /
-  `http2_max_requests 100000;`) or serve that vhost over HTTP/1.1 (`http2 off`) — see D-029.
+- **The dev script runs Vite's full-bundle mode** (`vite --experimentalBundle`, D-031).
+  Middleware mode serves every module separately: a dev session issues thousands of requests —
+  each guest process is a browser Worker loading the runtime's ~190-module graph, per spawn — and
+  a long-lived proxy connection cannot absorb that (see the next bullet). Bundle mode serves a few
+  chunks instead, so a whole session stays far below the proxy's per-connection cap. Run
+  `pnpm --filter @facilis/ide dev:middleware` for the old server when debugging a Vite plugin or
+  the dev HMR semantics (bundle mode computes HMR boundaries in the browser).
+- **Reverse proxy on HTTP/2 (still worth fixing).** nginx retires an HTTP/2 connection after 1000
+  requests (`keepalive_requests`, formerly `http2_max_requests`); middleware mode crossed that
+  boundary several times per session and Chromium lost in-flight module fetches, which failed a
+  Worker's graph load and with it the install (`worker.js: process worker failed to start`).
+  Bundle mode (D-031) keeps the volume below the cap, so this is no longer on the critical path,
+  but raise the cap on the studio vhost (`keepalive_requests 100000;` /
+  `http2_max_requests 100000;`) or serve it over HTTP/1.1 (`http2 off`) anyway — see D-029.
 - In the UI: **Start from template -> React + TypeScript -> Create**. The IDE scaffolds the
   project in its VFS, runs `npm install` and then `npm run dev -- --configLoader native`, and
   opens the preview at `/preview/5173/`. `Start from blank` gives a project with only

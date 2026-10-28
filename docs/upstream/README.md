@@ -34,8 +34,10 @@ negative results are in [`vivari-findings-2026-10-28.md`](./vivari-findings-2026
 ## Status notes
 
 - The `facilis.home` install failures are **not** upstream work: nginx retires an HTTP/2
-  connection after 1000 requests and the dev IDE crosses that boundary several times per run
-  (D-029). Fix is the proxy vhost, not the engine.
+  connection after 1000 requests and middleware-mode dev crossed that boundary several times per
+  run (D-029). The IDE now avoids it by serving the dev app in Vite's full-bundle mode (D-031);
+  the proxy fix is still worth applying but is no longer on the critical path.
 - `Kernel: throttle concurrent Process Worker boots` was validated and then **dropped** — it
-  reduced concurrency but not request volume, so it only shifted the probability. The branch is
-  gone; do not re-add it without a new measurement contradicting D-029.
+  reduced concurrency but not request volume, so it only shifted the probability. D-031 removes
+  the volume itself (a worker no longer loads a 190-request graph in dev). The branch is gone; do
+  not re-add it.

@@ -97,6 +97,15 @@ older — or serve the dev server over HTTP/1.1 (`http2 off`; dev does not need 
 complete workaround. Raising `http2_max_concurrent_streams` (the proxy advertises 100) also helps
 the burst.
 
+**Fix in the IDE (D-031).** The dev script now runs Vite's full-bundle mode
+(`vite --experimentalBundle`): middleware mode's one-request-per-module traffic is what made a
+process Worker load a 190-request graph on every spawn, and bundle mode removes that volume
+instead of pacing it. With the proxy **unchanged** (still retiring HTTP/2 connections at 1000
+requests), `TEMPLATE=Facilis pnpm ide:smoke` is green end to end over `https://facilis.home/`
+— preview painted, framework checks, A8/A9/A10 and the A12 OPFS probe — where middleware mode
+failed 15 checks on the same proxy. The loopback smoke is green in both modes, and
+`dev:middleware` keeps the old server for Vite-plugin/HMR debugging.
+
 Rejected, measured rather than argued: throttling concurrent Process Worker boots in the kernel.
 A validated patch capped boot bursts at three (with a `proc-booted` signal from the
 process-worker entry) and does **not** fix this — the request volume still crosses the 1000

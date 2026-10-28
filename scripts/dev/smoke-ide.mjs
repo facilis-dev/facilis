@@ -335,11 +335,18 @@ async function main() {
   );
   // The Facilis probe deliberately calls /api/todos unauthenticated to prove the 401
   // contract, so that one response is expected rather than a failed request. The React
-  // path filters nothing and keeps reporting page.failedRequests verbatim.
+  // path keeps reporting page.failedRequests, minus one browser behaviour below.
   const EXPECTED_FACILIS_401 = /^401 .*\/api\/todos(?:[?#]|$)/;
-  const unexpectedRequests = IS_FACILIS
-    ? page.failedRequests.filter((entry) => !EXPECTED_FACILIS_401.test(entry))
-    : page.failedRequests;
+  // Browsers request /favicon.ico opportunistically for a document that declares no icon.
+  // The React template's index.html declares none, and the preview document lives on the
+  // studio origin, so the miss lands on the studio root: a guest app without an icon
+  // always 404s it. Noise, not a broken asset — and in production the build's index.html
+  // declares /favicon.svg, so the fallback is not needed there either.
+  const IGNORED_FAILED_REQUESTS = [/^404 .*\/favicon\.ico(?:[?#]|$)/];
+  const ignored = (entry) =>
+    EXPECTED_FACILIS_401.test(entry) ||
+    IGNORED_FAILED_REQUESTS.some((pattern) => pattern.test(entry));
+  const unexpectedRequests = page.failedRequests.filter((entry) => !ignored(entry));
   check(
     unexpectedRequests.length === 0,
     "no failed requests",

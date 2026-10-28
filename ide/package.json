@@ -5,7 +5,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite --host --experimentalBundle",
+    "dev:middleware": "vite --host",
     "build": "tsc -b",
     "build:app": "tsc -b && vite build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
