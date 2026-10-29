@@ -8,12 +8,17 @@ is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based o
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: the three fixes below plus three Facilis-driven commits, on top of `v1.1.3` (`cec9e81`); pin `02740ca` | `v1.1.3` | — |
+| `facilis/main` | integration: the five fixes below plus three Facilis-driven commits, on top of `v1.1.3` (`cec9e81`); pin `eefaa7e` | `v1.1.3` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.3` | not opened |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.3` | not opened |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.3` | not opened |
+| `fix/opfs-crosstab-index` | OPFS mirror index: merged per tab under a Web Lock, replaced through a staged copy (D-033) | `v1.1.3` | not opened |
+| `fix/preview-per-tab-kernel` | Preview requests routed to the kernel that owns the frame (`clientId`/`resultingClientId`), per-kernel keep-prefix + tunnel frames (D-033) | `v1.1.3` | not opened |
 
-The three Facilis-driven commits on `facilis/main` are not `fix/*` branches: a template may list
+Multi-tab (D-033 in the superproject) is what the last two fixes are for: the IDE runs one
+project per browser tab, so two kernels share one origin, one preview proxy and one OPFS mirror.
+
+Three of the commits on `facilis/main` are not `fix/*` branches: a template may list
 binary assets that the kernel fetches same-origin and writes with the project (D-032, the local
 `file:` tarball install), the vendored npm is pinned to 12.2.1, and both packers now rebuild a
 pack whose stamped version no longer matches the pin instead of silently reusing it.

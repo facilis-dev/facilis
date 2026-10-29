@@ -37,17 +37,38 @@ can be evicted by the browser under pressure — a silently lost project, not a 
 user gesture if Chrome's heuristics require it) and surface the answer (`persisted` vs
 `evictable`) in the studio.
 
-## 3. Two tabs on one origin can clobber each other's mirror index — code-level
+## 3. Two tabs on one origin: clobbered mirror index, wrong preview, empty restores — confirmed and fixed (2026-10-29)
 
-Each FS worker builds its own in-memory `meta` and `writeManifest()` serializes **the whole
-map** into `vv-vfs/manifest.json`. With two tabs both mirroring, the last writer wins: the
-other tab's paths vanish from the index, so a reload restores an incomplete tree. `vv-depcache`
-is per-key and less exposed, but shares the same origin directory. Not runtime-tested (the
-outcome follows from the write-whole-file design), and multi-tab is not a declared use case.
+Two tabs are a real use case for the IDE (D-033 in the superproject), so this was measured with
+two Chrome tabs on one origin, one React project in each, both dev servers running.
 
-**Suggestion.** Elect a single mirror owner with the Web Locks API (or BroadcastChannel), and
-either hand the tab over or run the second tab without persistence; at minimum document
-"one IDE tab per origin".
+- **Two kernels coexist fine.** The second tab's `kernel-online` is +2.5-2.9 s (it restores the
+  shared tree); the pair costs ~355 MB + ~362 MB of JavaScript/worker memory; OPFS holds 308 MB,
+  shared (quota 11 GB, `crossOriginIsolated` true).
+- **The mirror index was clobbered, as predicted.** `writeManifest()` serialized this kernel's
+  whole `meta`. After tab A wrote one file, the index held 0 of tab B's 10 paths, and reloading
+  tab B lost its project (`vv-stat` → does not exist). Fixed by tracking this kernel's changed
+  paths and read-merge-writing exactly those into the index on disk, under a `vv-vfs-manifest`
+  Web Lock (`fix/opfs-crosstab-index`).
+- **A boot reading a mid-write index restored nothing.** OPFS has no rename and the writer did
+  `truncate(0)` + `write()`, so for a few milliseconds the index is EMPTY. A tab that booted in
+  that window parsed nothing and restored an empty workspace — measured, with the index intact
+  afterwards. Writers now stage a complete `manifest.json.new` and `move()` it over the live
+  index; readers try the staged copy and retry, and never overwrite an index they could not parse.
+- **Preview routing was per origin, not per kernel.** `handlePreview` posted every `/preview/5173/`
+  request to one "window that hosts a kernel". Measured: a fetch of `/preview/5173/` issued by tab
+  A returned tab B's app, and reloading tab A's preview painted tab B's project. Fixed by routing
+  on the requesting client: a navigation belongs to the window that started it (`event.clientId`),
+  and the frame it creates (named by `resultingClientId`) remembers its kernel, so that frame's
+  subresources go back there (`fix/preview-per-tab-kernel`). keep-prefix ports and ws/SSE tunnel
+  frames became per kernel for the same reason.
+
+**Suggestion.** Both fixes ship in the fork. A Studio that wants tabs should also refuse one
+project in two tabs with a Web Lock (the browser releases it with the document, so a crashed tab
+cannot hold it), and give each tab a `?project=` identity so a reload lands back on its project.
+`vv-depcache`'s own index is a single blob too, and two tabs installing at the same time can lose
+one snapshot entry (the blob stays, the index entry does not) — wasted bytes, not corruption, and
+not fixed here.
 
 ## 4. The studio behind an external HTTPS proxy: the proxy's HTTP/2 request cap — root-caused, environment fix
 

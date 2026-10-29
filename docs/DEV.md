@@ -263,6 +263,26 @@ Facilis probe is green with **26/26** (2026-10-28): preview painted **36-40 s**,
 `pnpm install` **~25 s**, manifest zero warnings. Artifacts under
 `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
+### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
+
+```bash
+pnpm ide:smoke:multitab              # starts its own dev server (first free port from :5201)
+node scripts/dev/smoke-multitab.mjs --url http://127.0.0.1:5173/
+```
+
+One project per browser tab, several tabs at once (D-033): each tab boots its own kernel,
+dev server and preview; `?project=<rootPath>` makes a tab reopen — and run — its project
+after a reload; the same project cannot be open in two tabs (a Web Lock, surfaced as a
+toast). The smoke asserts, in order: two kernels boot; tab A runs a React project and
+paints its preview; tab B is opened at `?project=<beta>` and paints the **Vue** project;
+both previews survive a forced reload on **their own** kernel (both dev servers bind 5173,
+so the port identifies nothing); a third tab pointed at tab A's project is refused and
+leaves no folder open; one tab's write does not erase the other tab's paths from the shared
+OPFS index (the reloaded tab restores both projects); and Home's "Open in a new tab" button
+opens a tab whose URL names the project. Exit code is non-zero on any failure. Reference run
+on 16 cores: 27 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
+under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
+
 ## 6. Known in-VM constraints
 
 | Constraint | Effect | Handling |
@@ -276,6 +296,8 @@ Facilis probe is green with **26/26** (2026-10-28): preview painted **36-40 s**,
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
 | Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift | bump both, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` (D-032) |
 | Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
+
+| Two tabs on one origin | each tab is its own kernel and dev server, so a pair costs ~0.7 GB of worker memory and the second tab boots +2.5-2.9 s (it restores the shared tree); both dev servers bind the same in-VM port, and the VFS mirror's index is per origin | preview traffic is routed per preview frame by the Service Worker, the index is merged per tab under a Web Lock, and the Studio claims each project so two tabs cannot open the same one — `pnpm ide:smoke:multitab` asserts it (D-033) |
 
 ### 6.1 When Vite 8 comes back
 

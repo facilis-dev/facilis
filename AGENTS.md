@@ -158,3 +158,11 @@ A generated project installs with **npm**, the package manager the IDE vendors (
 lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the
 template's `packageManager` (`ide/src/facilis/package-manager.test.ts` fails if they drift;
 `pnpm` survives only as rolldown's in-VM fallback).
+Several projects run at once as **browser tabs** (D-033): one project per tab, one kernel per
+tab, and the same project refused in a second tab (Web Lock, `ide/src/vv/project-lock.ts`). A
+tab opened from another one carries `?project=<rootPath>`; `ide/src/vv/project-tabs.ts` boots it
+and keeps the claim. Consequences for anyone touching the engine: the preview Service Worker
+routes per **preview frame** (fork `fix/preview-per-tab-kernel`), so `ide/public/sw.js` must stay
+in sync with `vendor/vivari/packages/studio/public/sw.js`, and the OPFS VFS index is **merged per
+tab** under a Web Lock (fork `fix/opfs-crosstab-index`) — never rewrite it as a whole. Acceptance:
+`pnpm ide:smoke:multitab`.

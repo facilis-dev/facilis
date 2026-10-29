@@ -63,6 +63,15 @@ must be deleted once a file drops under 300 lines, and no new file may be added.
 6. Fourteen files above 300 lines, recorded in the file-length baseline (see above).
 7. `src/vv/templates.ts`: every Vite template resolves `vite@^7.1.0` instead of upstream's
    `^8.0.0` — Vite 8's rolldown cannot load its wasm binding inside the VM (see "Running it").
+8. `public/sw.js`: carries the fork's **per-kernel preview routing** (D-033). The IDE serves its
+   own copy of the upstream Service Worker, so a change there is made in
+   `vendor/vivari/packages/studio/public/sw.js` first (as `fix/preview-per-tab-kernel`) and
+   mirrored here — keep the two in sync.
+9. **Multi-tab** (D-033): Home's recent-project row moves to
+   `src/components/ide/RecentProjectsRow.tsx` so it can grow an "Open in a new tab" action
+   without pushing `Home.tsx` past its baseline; `src/vv/project-tabs.ts` +
+   `src/vv/project-lock.ts` own the `?project=` bootstrap and the one-project-per-tab claim;
+   `IdeProvider` installs them and `TitleBar` gains a "New tab" button.
 
 Everything else is byte-identical to upstream at the pinned commit (`diff -r` with
 `vendor/vivari/packages/studio` shows exactly the files above).
@@ -82,13 +91,23 @@ pnpm ide:assets      # ide/public/vendor/{npm,pnpm}-pack.bin + sqlite/sqlite3.wa
 pnpm ide:browser     # headless Chromium + libs + fonts (no root, private sysroot)
 
 pnpm ide:dev         # vite dev on 0.0.0.0:5173, COOP/COEP headers
-pnpm ide:smoke       # headless acceptance: boot -> create React/TS project -> preview paints
+pnpm ide:smoke             # headless acceptance: boot -> create React/TS project -> preview paints
+pnpm ide:smoke:multitab    # two tabs, two projects, one kernel each (D-033)
 ```
 
 Verified 2026-10-25: kernel online **572 ms**, project created, `npm install` inside the VM,
 Vite 7 dev server on 5173, preview painted **31 s** — 16/16 smoke checks green (screenshots and
 `report.json` under `$FACILIS_TOOLING_DIR/smoke-artifacts/`). `build:app` (full `vite build`)
 is not part of that pass yet.
+
+**Several projects at once (D-033):** a browser tab is the unit — one project per tab, one
+kernel per tab, the same project cannot be open twice. A tab opened from another one carries
+`?project=<rootPath>` and reopens (and runs) that project on reload; Home's rows and the
+title bar open new tabs; the browser title names the project so tabs are distinguishable.
+Measured on 16 cores: two tabs with one React and one Vue project cost ~355 MB + ~362 MB of
+worker memory and the second tab boots **+2.5-2.9 s** (it restores the shared tree); both dev
+servers bind 5173 in their own VM, which is why the preview Service Worker routes per preview
+frame rather than per port. `pnpm ide:smoke:multitab` is the acceptance run (~4 min).
 
 **In-VM constraint (why the templates pin Vite 7):** Vite 8 bundles with rolldown, whose
 WebAssembly binding (`@rolldown/binding-wasm32-wasi@1.2.15`) pins `@emnapi/core@2.0.0-alpha.5`,
