@@ -565,8 +565,7 @@ function NewBlankDialog({
 
   const submit = async () => {
     if (!canCreate) return;
-    if (await run(() => c.createBlankProject({ name: name.trim(), dir: effectiveDir })))
-      onOpenChange(false);
+    if (await run(() => c.createBlankProject({ dir: effectiveDir }))) onOpenChange(false);
   };
 
   return (
@@ -714,7 +713,6 @@ function NewTemplateDialog({
     const ok = await run(() =>
       c.createFromTemplate({
         templateId: selected.manifest.id,
-        name: name.trim(),
         dir: effectiveDir,
         runInit,
       }),

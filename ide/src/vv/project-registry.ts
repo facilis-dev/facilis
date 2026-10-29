@@ -9,8 +9,10 @@
 // Writes are therefore read-merge-write against the CURRENT storage (upserts by rootPath,
 // explicit removals), and the tab keeps its snapshot live through the "storage" event.
 
+// A project's identity is its rootPath, and its label is that path's last segment
+// (project-name.ts). There is deliberately no stored display name: the old field could
+// disagree with the directory, so two projects in one tab looked identical.
 export interface ProjectMeta {
-  name: string;
   rootPath: string;
   template: string | null;
   createdAt: number;
@@ -30,10 +32,10 @@ function sortByRecent(list: ProjectMeta[]): ProjectMeta[] {
 function normalizeEntry(value: unknown): ProjectMeta | null {
   if (!value || typeof value !== "object") return null;
   const entry = value as Record<string, unknown>;
-  if (typeof entry.rootPath !== "string" || typeof entry.name !== "string") return null;
+  // Legacy entries also carried `name`; it is ignored rather than trusted.
+  if (typeof entry.rootPath !== "string") return null;
   const lastModified = typeof entry.lastModified === "number" ? entry.lastModified : Date.now();
   return {
-    name: entry.name,
     rootPath: entry.rootPath,
     template: typeof entry.template === "string" ? entry.template : null,
     createdAt: typeof entry.createdAt === "number" ? entry.createdAt : lastModified,

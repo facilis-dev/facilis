@@ -71,7 +71,9 @@ must be deleted once a file drops under 300 lines, and no new file may be added.
    `src/components/ide/RecentProjectsRow.tsx` so it can grow an "Open in a new tab" action
    without pushing `Home.tsx` past its baseline; `src/vv/project-tabs.ts` +
    `src/vv/project-lock.ts` own the `?project=` bootstrap and the one-project-per-tab claim;
-   `IdeProvider` installs them and `TitleBar` gains a "New tab" button.
+   `src/vv/project-registry.ts` read-merge-writes Home's recent list (a tab must not drop
+   another tab's project) and `src/vv/project-name.ts` derives the label from the folder name
+   (D-035); `IdeProvider` installs the tab modules and `TitleBar` gains a "New tab" button.
 
 Everything else is byte-identical to upstream at the pinned commit (`diff -r` with
 `vendor/vivari/packages/studio` shows exactly the files above).
@@ -101,9 +103,13 @@ Vite 7 dev server on 5173, preview painted **31 s** — 16/16 smoke checks green
 is not part of that pass yet.
 
 **Several projects at once (D-033):** a browser tab is the unit — one project per tab, one
-kernel per tab, the same project cannot be open twice. A tab opened from another one carries
-`?project=<rootPath>` and reopens (and runs) that project on reload; Home's rows and the
-title bar open new tabs; the browser title names the project so tabs are distinguishable.
+kernel per tab, the same project cannot be open twice. Opening a project is close-on-open
+(D-035): `openFolder()` closes the tab's other roots first, so a tab never shows two projects,
+and a project's label is its directory name — `projectName(rootPath)` is the only source for
+the Explorer root, title bar, browser title and Home rows. A tab opened from another one
+carries `?project=<rootPath>` and reopens (and runs) that project on reload; Home's rows and the
+title bar open new tabs; the browser title uses the project's directory name so tabs are
+distinguishable.
 Measured on 16 cores: two tabs with one React and one Vue project cost ~355 MB + ~362 MB of
 worker memory and the second tab boots **+2.5-2.9 s** (it restores the shared tree); both dev
 servers bind 5173 in their own VM, which is why the preview Service Worker routes per preview

@@ -13,6 +13,8 @@
 //   6. a tab's boot restore defers every project Home knows about and hydrates one only
 //      when its tab opens it (BootOptions.deferRestoreRoots): the files come back, and a
 //      project the tab never opened stays out of its VFS.
+//   7. a tab holds ONE project: opening another replaces the tab's root instead of stacking
+//      a second one, and the label is the folder name, never a form/kernel title (D-035).
 //
 // Usage: node scripts/dev/smoke-multitab.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
 //
@@ -164,16 +166,17 @@ async function reloadPreview(page) {
   );
 }
 
-async function createProject(page, templateId, name, runInit) {
+// `dir` is optional so a check can prove the label follows the DIRECTORY, not the form
+// name: the tab is given one and then labelled by the other (D-035).
+async function createProject(page, templateId, name, runInit, dir) {
+  const target = dir ? JSON.stringify(dir) : "c.defaultDirFor(" + JSON.stringify(name) + ")";
   return page.evaluate(
     "(async () => { const c = window.__ide;" +
-      " const dir = c.defaultDirFor(" +
-      JSON.stringify(name) +
-      ");" +
+      " const dir = " +
+      target +
+      ";" +
       " await c.createFromTemplate({ templateId: " +
       JSON.stringify(templateId) +
-      ", name: " +
-      JSON.stringify(name) +
       ", dir, runInit: " +
       (runInit ? "true" : "false") +
       " });" +
@@ -277,14 +280,40 @@ async function main() {
       prevA.text.slice(0, 60),
     );
 
-    // A second project, created here but left closed: it must reach OPFS (so tab B can
-    // open it) without being claimed by this tab.
+    // A second project, created here and left closed: it must reach OPFS (so tab B can
+    // open it) without being claimed by this tab. Creating it also proves one project per
+    // tab (D-035): beta REPLACES alpha in this tab instead of stacking a second root.
     const dirB = await createProject(tabA, "vue-ts", "beta", false);
     check(dirB === BETA, "tab A creates beta", dirB);
+    const afterBeta = await snapshot(tabA);
+    check(
+      afterBeta.folders.length === 1 && afterBeta.folders[0] === BETA,
+      "a tab holds one project: creating beta replaced alpha",
+      afterBeta.folders.join(","),
+    );
+    check(
+      afterBeta.title === "beta",
+      "the tab labels the project by its folder name",
+      afterBeta.title,
+    );
     await closeFolder(tabA, BETA);
     await flushMirror(tabA);
-    check((await snapshot(tabA)).folders.length === 1, "beta is created but not open in tab A");
-    // Closing the project that was active re-points the URL at the one still open.
+    check((await snapshot(tabA)).folders.length === 0, "beta is created but not open in tab A");
+    check(
+      (await tabA.evaluate("new URLSearchParams(location.search).get('project')")) === null,
+      "a tab with no project drops its ?project=",
+    );
+    // The refusal test below needs tab A holding alpha, so reopen it.
+    await tabA.evaluate("window.__ide.openFolder(" + JSON.stringify(ALPHA) + ")");
+    check(
+      await waitFor(
+        tabA,
+        "window.__ide.getSnapshot().workspaceFolders.length === 1",
+        15000,
+        "A reopens alpha",
+      ),
+      "alpha reopens in tab A",
+    );
     check(
       (await tabA.evaluate("new URLSearchParams(location.search).get('project')")) === ALPHA,
       "the URL follows the tab's active project",
@@ -457,14 +486,39 @@ async function main() {
       ),
       "a tab learns a project another tab created",
     );
-    const dirD = await createProject(tabB, "react-ts", "delta", false);
-    check(dirD === "/home/user/projects/delta", "tab B creates delta", dirD);
+    // The form name and the directory disagree: every label must follow the DIRECTORY.
+    const dirD = await createProject(
+      tabB,
+      "react-ts",
+      "delta",
+      false,
+      "/home/user/projects/delta-dir",
+    );
+    check(
+      dirD === "/home/user/projects/delta-dir",
+      "tab B creates delta in its own directory",
+      dirD,
+    );
+    const labelled = await tabB.evaluate(
+      "(() => { const s = window.__ide.getSnapshot(); return { title: s.projectTitle," +
+        " name: s.workspaceFolders[0] && s.workspaceFolders[0].name, doc: document.title }; })()",
+    );
+    check(
+      labelled.title === "delta-dir" && labelled.name === "delta-dir",
+      "the project is labelled by its folder, not the form name",
+      JSON.stringify(labelled),
+    );
+    check(
+      await waitFor(tabB, "/delta-dir/.test(document.title)", 10000, "B delta title"),
+      "the browser title names the folder",
+      await tabB.evaluate("document.title"),
+    );
     await sleep(500);
     const registryNames = await tabA.evaluate(
       "JSON.parse(localStorage.getItem('vv-workspace-projects') || '[]').map((p) => p.rootPath.split('/').pop())",
     );
     check(
-      ["alpha", "beta", "gamma", "delta"].every((name) => registryNames.includes(name)),
+      ["alpha", "beta", "gamma", "delta-dir"].every((name) => registryNames.includes(name)),
       "creating in one tab keeps every tab's projects in the registry",
       registryNames.join(","),
     );

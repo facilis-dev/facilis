@@ -1377,7 +1377,7 @@ depends on (D-018, D-030).
 - `ScmSession` (isomorphic-git on VFS)
 - COOP/COEP headers in `vite.config.ts`
 - VS Code chrome (Explorer, Editor, Terminal, Preview, StatusBar, CommandPalette)
-- Multi-root workspace support (foundation for multi-project)
+- Multi-root workspace support (foundation for multi-project) — capped at one project per tab: opening another root replaces the current one (D-033, D-035)
 
 ### 10.2 What We Add
 
@@ -1420,6 +1420,15 @@ await git.commit({
 2. `controller.closeProject()` — flush VFS to OPFS
 3. `controller.openProject(newRef)` — boot Vivari at new OPFS path
 4. Global state (LLM key, theme) survives; per-project state is per-project
+
+**One project per tab (D-035).** A tab holds exactly one workspace folder: `openFolder()`
+closes the tab's other roots first, so the editor tabs/models/index, the `?project=` boot
+parameter, the browser title, the project Web Lock, the run phase and the Explorer all describe
+that one project; a second project means a new tab ("Open in a new tab"), not a second root.
+The label is derived, never stored: `projectName(rootPath)` (the last path segment) is the only
+source for the Explorer root, the title bar, the browser title and Home's recent rows. The
+recent-projects registry stores `ProjectMeta = { rootPath, template, createdAt, lastModified }`
+— there is no `name` field, and a legacy entry's `name` is ignored on read.
 
 ### 10.6 Runtime Model Inside Vivari
 

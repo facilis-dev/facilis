@@ -12,6 +12,7 @@
 import { toast } from "sonner";
 import type { IdeController, IdeSnapshot } from "./controller";
 import { claimProject, type ProjectClaim } from "./project-lock";
+import { projectName } from "./project-name";
 
 const TITLE_BASE = "Vivari Studio";
 
@@ -106,7 +107,9 @@ export function installProjectTabs(controller: IdeController): () => void {
     if (claims.has(root)) return;
     const claim = await claimProject(root);
     if (!claim) {
-      toast.error(`${meta.name} is already open in another tab — close it there first.`);
+      toast.error(
+        `${projectName(meta.rootPath)} is already open in another tab — close it there first.`,
+      );
       dropProjectParam(); // this tab stays a plain Home tab; no retry loop on reload
       return;
     }
@@ -136,7 +139,6 @@ export function installProjectTabs(controller: IdeController): () => void {
       controller.closeFolder(folder.id);
       return; // the snapshot changed under us; the queued reconcile re-reads it
     }
-    updateTitle(snap);
     await bootstrapFromUrl(snap);
   }
 
@@ -150,11 +152,13 @@ export function installProjectTabs(controller: IdeController): () => void {
     claims.clear();
   };
 
-  // The URL identity is updated in the snapshot callback, not in the async reconcile:
-  // opening a folder must name the project in the URL immediately, so even an F5 a
-  // millisecond later lands back on it (and the smoke can assert it synchronously).
+  // The URL identity and the browser title follow the snapshot synchronously, not the
+  // async reconcile: opening a folder must name the project immediately — so an F5 a
+  // millisecond later lands back on it, and the title never lags the Explorer.
   const onSnapshot = (): void => {
-    syncProjectParam(controller.getSnapshot());
+    const snap = controller.getSnapshot();
+    syncProjectParam(snap);
+    updateTitle(snap);
     schedule();
   };
   const unsubscribe = controller.subscribe(onSnapshot);

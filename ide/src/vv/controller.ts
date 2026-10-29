@@ -23,6 +23,7 @@ import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
+import { ensureProjectOnDisk } from "./project-restore";
 import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -2574,7 +2575,9 @@ export class IdeController {
       return;
     }
     const root = normDir(dir);
-    const title = `${t.manifest.name} · ${t.manifest.language}`;
+    // One name, the folder's (D-035): the kernel is told where the project is, not a
+    // display title the Explorer and the browser title would then have to reconcile.
+    const title = projectName(root);
     // Mode C serves each port at its own origin root, so a keep-prefix template's
     // hardcoded `/preview/<port>/` base (built for modes A/B) would 404. Rewrite it
     // to "/" and drop the now-irrelevant flag so the app runs at the origin root.
@@ -2593,30 +2596,13 @@ export class IdeController {
       return;
     }
     this.folderManifests.set(root, manifest);
-    this.upsertProjectMeta({ name, rootPath: root, template: templateId });
-    this.openFolder(root, name);
+    this.upsertProjectMeta({ rootPath: root, template: templateId });
+    this.openFolder(root);
     void this.openFile(root + "/" + t.manifest.entry);
     if (runInit) {
       this.runProject(root);
     } else {
-      this.status(`${name} created — run \`${t.manifest.install}\` then \`${t.manifest.dev}\``);
-    }
-  }
-
-  /**
-   * Replay a project's OPFS-backed files into this tab's VFS. The boot restore leaves
-   * the projects Home knows about on OPFS (BootOptions.deferRestoreRoots), so this is
-   * what makes one readable; it is a no-op for a project this tab already has — one
-   * created here, or opened earlier in the session.
-   */
-  private async restoreProjectFiles(root: string): Promise<number> {
-    try {
-      const res = await this.bridge.request("vv-restore-roots", { roots: [root] });
-      const count = typeof res.count === "number" ? res.count : 0;
-      if (count > 0) this.status("restored " + count + " saved files in " + baseName(root));
-      return count;
-    } catch {
-      return 0;
+      this.status(`${title} created — run \`${t.manifest.install}\` then \`${t.manifest.dev}\``);
     }
   }
 
@@ -2630,20 +2616,13 @@ export class IdeController {
       return;
     }
     const root = normDir(meta.rootPath);
-    let info = await this.pathInfo(root);
-    if (!info.exists) {
-      await this.restoreProjectFiles(root);
-      info = await this.pathInfo(root);
-      // A project another tab created moments ago may still be in that tab's
-      // write-behind mirror rather than on OPFS. Give the flush a beat before calling
-      // it gone — the wait only ever happens for a project that is actually missing.
-      for (let attempt = 0; attempt < 3 && !info.exists; attempt++) {
-        await new Promise((r) => setTimeout(r, 400));
-        await this.restoreProjectFiles(root);
-        info = await this.pathInfo(root);
-      }
-    }
-    if (!info.exists) {
+    const onDisk = await ensureProjectOnDisk(
+      this.bridge,
+      root,
+      (p) => this.pathInfo(p),
+      (line) => this.status(line),
+    );
+    if (!onDisk) {
       toast.error("This project's files are no longer on disk.");
       this.removeProjectMeta(root);
       return;
@@ -2655,12 +2634,12 @@ export class IdeController {
         this.bridge.post("vv-register-project", {
           dir: root,
           manifest: t.manifest,
-          title: meta.name,
+          title: projectName(root),
         });
       }
     }
     this.touchProject(root);
-    this.openFolder(root, meta.name);
+    this.openFolder(root);
     const manifest = this.folderManifests.get(root);
     if (manifest) void this.openFile(root + "/" + manifest.entry);
     // node_modules is no longer mirrored file-by-file — it's restored from the
@@ -3114,13 +3093,11 @@ export class IdeController {
 
   // Create a NEW project from an in-memory file tree (folder import / shared URL).
   async importFilesAsProject({
-    name,
     dir,
     files,
     excludedNodeModules,
     silent,
   }: {
-    name: string;
     dir: string;
     files: FileTree;
     excludedNodeModules?: boolean;
@@ -3145,13 +3122,14 @@ export class IdeController {
       toast.error(`Import failed: ${res.error ?? "unknown error"}`);
       return false;
     }
+    const name = projectName(root);
     const manifest = this.synthManifest(files, name);
     if (manifest) {
       this.folderManifests.set(root, manifest);
       this.bridge.post("vv-register-project", { dir: root, manifest, title: name });
     }
-    this.upsertProjectMeta({ name, rootPath: root, template: null });
-    this.openFolder(root, name);
+    this.upsertProjectMeta({ rootPath: root, template: null });
+    this.openFolder(root);
     const openTarget =
       manifest?.entry || files.find((f) => f.path === "package.json")?.path || files[0]?.path;
     if (openTarget) void this.openFile(root + "/" + openTarget);
@@ -3240,12 +3218,7 @@ export class IdeController {
         return;
       }
       const dir = await this.freeDirFor(name);
-      await this.importFilesAsProject({
-        name: baseName(dir) || name,
-        dir,
-        files,
-        excludedNodeModules,
-      });
+      await this.importFilesAsProject({ dir, files, excludedNodeModules });
     };
     input.click();
   }
@@ -3263,12 +3236,7 @@ export class IdeController {
       return;
     }
     const dir = await this.freeDirFor(name);
-    await this.importFilesAsProject({
-      name: baseName(dir) || name,
-      dir,
-      files,
-      excludedNodeModules,
-    });
+    await this.importFilesAsProject({ dir, files, excludedNodeModules });
   }
 
   // ── Import from a remote source (GitHub repo / npm package) ────────────────
@@ -3304,12 +3272,7 @@ export class IdeController {
       return false;
     }
     const dir = await this.freeDirFor(name);
-    const ok = await this.importFilesAsProject({
-      name: baseName(dir) || name,
-      dir,
-      files,
-      excludedNodeModules,
-    });
+    const ok = await this.importFilesAsProject({ dir, files, excludedNodeModules });
     if (ok && truncated) {
       toast.warning("Project was large — some files were skipped past the import limit.", {
         position: "bottom-left",
@@ -3373,8 +3336,8 @@ export class IdeController {
       this.set({ shareLoading: true, shareMessage: "Unpacking files…" });
       const { name, files } = await decodeShare(payload);
       const dir = await this.freeDirFor(name);
-      const projName = baseName(dir) || this.slug(name);
-      const ok = await this.importFilesAsProject({ name: projName, dir, files, silent: true });
+      const projName = projectName(dir);
+      const ok = await this.importFilesAsProject({ dir, files, silent: true });
       if (ok) {
         toast.success(`Opened shared project “${projName}”`, {
           position: "bottom-left",
@@ -4242,7 +4205,7 @@ export class IdeController {
         install: "npm install",
         dev: runLabel,
       });
-      this.openFolder(dir, m.title as string);
+      this.openFolder(dir);
       if (m.entry) void this.openFile(dir + "/" + (m.entry as string));
       this.status(
         m.reload
@@ -4273,10 +4236,13 @@ export class IdeController {
       // Tell the SW whether this port serves under the /preview/<port>/ prefix
       // (keep-prefix templates like Docusaurus) BEFORE the iframe loads, so a
       // client-routed SPA resolves its first route instead of hitting NotFound.
+      // A replaced project's dev server can become ready after this tab moved on to
+      // another project (D-035); it must not steal the preview or an editor tab back.
+      const owned = this.snap.workspaceFolders.some((f) => f.rootPath === dir);
+      if (!owned && this.snap.workspaceFolders.length) return;
       this.syncKeepPrefixPorts();
       this.pointPreview(m.port as number);
-      if (!this.snap.workspaceFolders.some((f) => f.rootPath === dir))
-        this.openFolder(dir, m.title as string);
+      if (!owned) this.openFolder(dir);
       if (m.entry) void this.openFile(dir + "/" + (m.entry as string));
       this.touchProject(dir);
       this.status(

@@ -7,6 +7,7 @@ import ExternalLink from "~icons/lucide/external-link";
 import Trash from "~icons/lucide/trash-2";
 import type { ProjectMeta } from "@/vv/controller";
 import { openProjectInNewTab } from "@/vv/project-tabs";
+import { projectName } from "@/vv/project-name";
 import { useIde } from "./useIde";
 
 export function relTime(ts: number): string {
@@ -29,7 +30,7 @@ export function RecentProjectsRow({ project }: { project: ProjectMeta }) {
         onClick={() => void c.openProject(project)}
       >
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{project.name}</div>
+          <div className="truncate text-sm font-medium">{projectName(project.rootPath)}</div>
           <div className="truncate text-xs text-muted-foreground">{project.rootPath}</div>
         </div>
         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
@@ -38,7 +39,7 @@ export function RecentProjectsRow({ project }: { project: ProjectMeta }) {
       </button>
       <button
         title="Open in a new tab"
-        aria-label={`Open ${project.name} in a new tab`}
+        aria-label={`Open ${projectName(project.rootPath)} in a new tab`}
         className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
         onClick={() => openProjectInNewTab(project.rootPath)}
       >

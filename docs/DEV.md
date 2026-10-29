@@ -279,17 +279,22 @@ pnpm ide:smoke:multitab              # starts its own dev server (first free por
 node scripts/dev/smoke-multitab.mjs --url http://127.0.0.1:5173/
 ```
 
-One project per browser tab, several tabs at once (D-033): each tab boots its own kernel,
-dev server and preview; `?project=<rootPath>` makes a tab reopen — and run — its project
-after a reload; the same project cannot be open in two tabs (a Web Lock, surfaced as a
-toast). The smoke asserts, in order: two kernels boot; tab A runs a React project and
-paints its preview; tab B is opened at `?project=<beta>` and paints the **Vue** project;
-both previews survive a forced reload on **their own** kernel (both dev servers bind 5173,
-so the port identifies nothing); a third tab pointed at tab A's project is refused and
-leaves no folder open; one tab's write does not erase the other tab's paths from the shared
-OPFS index (the reloaded tab restores both projects); and Home's "Open in a new tab" button
-opens a tab whose URL names the project. Exit code is non-zero on any failure. Reference run
-on 16 cores: 27 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
+One project per browser tab, several tabs at once (D-033/D-035): each tab boots its own
+kernel, dev server and preview; `?project=<rootPath>` makes a tab reopen — and run — its
+project after a reload; the same project cannot be open in two tabs (a Web Lock, surfaced as
+a toast), and a tab holds exactly one project (opening a second replaces the first, and the
+label is the folder name, never a create-form name). The smoke asserts, in order: two kernels
+boot; tab A runs a React project and paints its preview; creating beta in tab A replaces alpha
+and labels the tab by the folder; tab B is opened at `?project=<beta>` and paints the **Vue**
+project; both previews survive a forced reload on **their own** kernel (both dev servers bind
+5173, so the port identifies nothing); a third tab pointed at tab A's project is refused and
+leaves no folder open; the boot restore is scoped (D-036 — a reloaded tab hydrates only the
+project it opens: its real bytes come back, and a project it never opened stays out of its
+VFS); one tab's write does not erase the other tab's paths from the shared OPFS index; Home's
+"Open in a new tab" button opens a tab whose URL names the project; a project created with a
+form name different from its directory is labelled by the directory; and the recent-projects
+registry keeps every tab's projects. Exit code is non-zero on any failure. Reference run on
+16 cores: 41 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
 under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
 
 ## 6. Known in-VM constraints
