@@ -21,6 +21,7 @@ import { DebugSession } from "./debug-session";
 import { ScmSession } from "./scm-session";
 import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
+import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -209,15 +210,10 @@ export interface WorkspaceFolder {
   rootPath: string; // absolute, no trailing slash
 }
 
-// A persisted project (Home "recent projects" list). Content lives in the VFS
-// (OPFS); this registry just tracks what exists + when it was last touched.
-export interface ProjectMeta {
-  name: string;
-  rootPath: string;
-  template: string | null;
-  createdAt: number;
-  lastModified: number;
-}
+// A persisted project (Home "recent projects" list). Content lives in the VFS (OPFS);
+// this registry just tracks what exists and when it was last touched. Stored per origin
+// and merged across tabs — see project-registry.ts.
+export type { ProjectMeta };
 
 // One browser tab in the Preview panel.
 export interface PreviewTab {
@@ -456,7 +452,6 @@ export const isDiffTabId = (id: string | null): boolean => !!id && id.startsWith
 export const diffTargetOf = (id: string): string => id.slice(DIFF_PREFIX.length);
 
 const ESC = "\x1b[";
-const REGISTRY_KEY = "vv-workspace-projects";
 
 const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
 const parentOf = (p: string) => p.slice(0, p.lastIndexOf("/")) || "/";
@@ -860,7 +855,8 @@ export class IdeController {
     // A checkout/discard rewrote the working tree via the silent git RPC (no
     // vv-fs-changed), so refresh the Explorer tree and reload any open editors.
     this.scm.onWorkdirChanged = () => this.reloadWorkdir();
-    this.snap.recentProjects = this.loadRegistry();
+    this.snap.recentProjects = readRegistry(localStorage);
+    this.watchRegistry();
     this.createConsole();
     this.wireBridge();
     this.wirePreviewMessages();
@@ -985,46 +981,39 @@ export class IdeController {
     return { exists: !!m.exists, isDir: !!m.isDir };
   }
 
-  // ── workspace registry (localStorage) ──────────────────────────────────────
-  private loadRegistry(): ProjectMeta[] {
-    try {
-      const raw = localStorage.getItem(REGISTRY_KEY);
-      const list = raw ? (JSON.parse(raw) as ProjectMeta[]) : [];
-      return list.sort((a, b) => b.lastModified - a.lastModified);
-    } catch {
-      return [];
-    }
+  // ── workspace registry (localStorage, one per origin) ──────────────────────
+  // Read-merge-write in project-registry.ts: writing this tab's in-memory list used to
+  // drop a project another tab had created. The storage event keeps Home live.
+  private commitRegistry(changes: { upsert?: ProjectMeta[]; remove?: string[] }) {
+    this.set({ recentProjects: writeRegistry(localStorage, changes) });
   }
-  private saveRegistry(list: ProjectMeta[]) {
-    const sorted = [...list].sort((a, b) => b.lastModified - a.lastModified);
-    try {
-      localStorage.setItem(REGISTRY_KEY, JSON.stringify(sorted));
-    } catch {
-      /* storage full / disabled — the in-memory list still works this session */
-    }
-    this.set({ recentProjects: sorted });
+  private watchRegistry() {
+    if (typeof window === "undefined") return;
+    window.addEventListener("storage", (event) => {
+      if (event.key === PROJECTS_KEY) this.set({ recentProjects: readRegistry(localStorage) });
+    });
   }
   private upsertProjectMeta(meta: { name: string; rootPath: string; template: string | null }) {
     const now = Date.now();
-    const list = this.snap.recentProjects.filter((p) => p.rootPath !== meta.rootPath);
     const existing = this.snap.recentProjects.find((p) => p.rootPath === meta.rootPath);
-    list.push({
-      name: meta.name,
-      rootPath: meta.rootPath,
-      template: meta.template,
-      createdAt: existing?.createdAt ?? now,
-      lastModified: now,
+    this.commitRegistry({
+      upsert: [
+        {
+          name: meta.name,
+          rootPath: meta.rootPath,
+          template: meta.template,
+          createdAt: existing?.createdAt ?? now,
+          lastModified: now,
+        },
+      ],
     });
-    this.saveRegistry(list);
   }
   private touchProject(rootPath: string) {
-    const list = this.snap.recentProjects.map((p) =>
-      p.rootPath === rootPath ? { ...p, lastModified: Date.now() } : p,
-    );
-    if (list.some((p) => p.rootPath === rootPath)) this.saveRegistry(list);
+    const entry = this.snap.recentProjects.find((p) => p.rootPath === rootPath);
+    if (entry) this.commitRegistry({ upsert: [{ ...entry, lastModified: Date.now() }] });
   }
   removeProjectMeta(rootPath: string) {
-    this.saveRegistry(this.snap.recentProjects.filter((p) => p.rootPath !== rootPath));
+    this.commitRegistry({ remove: [rootPath] });
   }
 
   // ── console + terminals ───────────────────────────────────────────────────
@@ -2514,7 +2503,9 @@ export class IdeController {
     if (!abs.startsWith("/")) return "Path must be absolute (start with /).";
     if (abs === "/" || this.snap.workspaceFolders.some((f) => f.rootPath === abs))
       return "That directory is already open in the workspace.";
-    if (this.snap.recentProjects.some((p) => p.rootPath === abs))
+    // Re-read rather than trust the snapshot: another tab may have created it a moment
+    // ago and the storage event may not have arrived yet.
+    if (readRegistry(localStorage).some((p) => p.rootPath === abs))
       return "A project already exists at that path.";
     const info = await this.pathInfo(abs);
     if (info.exists && !info.isDir) return "A file already exists at that path.";
@@ -3831,7 +3822,7 @@ export class IdeController {
     // Wipe the recent-projects registry too, so "reset everything" truly starts
     // from a clean slate (the Home screen's Recent list is backed by this key).
     try {
-      localStorage.removeItem(REGISTRY_KEY);
+      localStorage.removeItem(PROJECTS_KEY);
       this.set({ recentProjects: [] });
     } catch {
       /* storage disabled — nothing to clear */

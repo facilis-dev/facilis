@@ -7,7 +7,9 @@
 //   2. the per-origin OPFS index survives two kernels mirroring into it (a write in one
 //      tab used to drop the other tab's whole project from the index);
 //   3. one project cannot be open in two tabs (a Web Lock, surfaced as a toast);
-//   4. "open in a new tab" from Home boots the new tab straight onto that project.
+//   4. "open in a new tab" from Home boots the new tab straight onto that project;
+//   5. the recent-projects registry is per origin, so a project created in one tab is not
+//      dropped by another tab writing its own (stale) list over it.
 //
 // Usage: node scripts/dev/smoke-multitab.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
 //
@@ -393,6 +395,31 @@ async function main() {
       Boolean(opened),
       "the button opens a tab whose URL names gamma",
       opened ? opened.url : "no target",
+    );
+
+    // ---- the registry is per origin, and no tab may write a stale list ------
+    // Tab B booted before gamma existed: its in-memory list is stale. A create there
+    // used to write that list back and drop gamma from Home while its files stayed on
+    // disk ("That directory is not empty." on a re-create).
+    check(
+      await waitFor(
+        tabB,
+        "window.__ide.getSnapshot().recentProjects.some((p) => p.name === 'gamma')",
+        15000,
+        "tab B learns gamma",
+      ),
+      "a tab learns a project another tab created",
+    );
+    const dirD = await createProject(tabB, "react-ts", "delta", false);
+    check(dirD === "/home/user/projects/delta", "tab B creates delta", dirD);
+    await sleep(500);
+    const registryNames = await tabA.evaluate(
+      "JSON.parse(localStorage.getItem('vv-workspace-projects') || '[]').map((p) => p.name)",
+    );
+    check(
+      ["alpha", "beta", "gamma", "delta"].every((name) => registryNames.includes(name)),
+      "creating in one tab keeps every tab's projects in the registry",
+      registryNames.join(","),
     );
 
     fs.writeFileSync(
