@@ -168,3 +168,8 @@ VFS index is merged per tab under a Web Lock (fork `fix/opfs-crosstab-index`); a
 recent-projects registry is a read-merge-write in `ide/src/vv/project-registry.ts`, because a tab
 writing its stale list dropped another tab's project from Home. Acceptance:
 `pnpm ide:smoke:multitab`.
+The OPFS mirror's boot restore is **scoped** (D-036): Home's known roots go to the kernel as
+`BootOptions.deferRestoreRoots`, so a tab replays only the project it opens
+(`vv-restore-roots`, `IdeController.openProject`) instead of every project on the origin. The
+deferred paths stay in the shared index and are merged by whichever tab writes them, so opening
+a project re-materializes exactly its subtree and nothing else.
