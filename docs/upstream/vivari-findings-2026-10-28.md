@@ -126,3 +126,55 @@ would be the tidy fix.
 - ESM-only package copies vs the require-first resolver — `vivari-esm-only-packages`.
 - OPFS mirror backlog + manifest gated on an empty queue — `vivari-opfs-mirror-priority`.
 - `import.meta.resolve` returning a path instead of a URL — `vivari-import-meta-resolve`.
+
+## 6. Toolchain age: the vendored pnpm is three majors behind (measured 2026-10-29)
+
+Everything else in the VM tracks current upstream: `process.versions.node` reports **v24.18.0**
+(`packages/runtime/builtins/process.js`), the fork's base is upstream **v1.1.3** — still the newest
+release — and our three fix commits are on top of it. The stale piece is the packaged pnpm:
+`scripts/vendor-pnpm.mjs` pins **9.15.9** (Jan 2025) while the registry's `latest` is **12.16.1**
+(`latest-10` 10.34.9, `latest-11` 11.28.9).
+
+The version is not a free bump, because pnpm changed *shape* twice since:
+
+| version | npm package shape | engines | usable in the VM? |
+|---|---|---|---|
+| 9.15.9 (vendored) | CJS: `bin/pnpm.cjs` → `dist/pnpm.cjs` + `dist/worker.js` + `dist/node_modules` | ≥18.12 | yes (baseline) |
+| 10.34.9 | same CJS shape, byte-for-byte same layout the packer walks | ≥18.12 | **no — dies while loading `dist/pnpm.cjs`** (see below) |
+| 11.28.9 | pure ESM: `bin/pnpm.mjs` → `dist/pnpm.mjs` (15.5 MB), no `dist/worker.js` | ≥22.13 | no — store index does `req("node:sqlite")` at init, and the runtime does not serve `node:sqlite` (`index.js` lists it as absent) |
+| 12.16.1 (`latest`) | wrapper: `install.js` + `native-binary.mjs` + pre/postinstall that link and `spawn` `@pnpm/exe.<platform>/pnpm` | ≥18 | **impossible** — a native executable has no meaning in a browser container |
+
+Measured, not inferred:
+
+- **The packer still works unchanged.** Only the version constant changed: `pnpm-pack.bin` builds
+  1061 files / 4.19 MB gz (9.15.9: 898 files / 3.66 MB gz), still with `bin/pnpm.cjs`,
+  `dist/pnpm.cjs` and `dist/worker.js`. Both anchors the loader checks stay valid.
+- **The guest install dies at load, not at resolution.** With the 10.34.9 pack swapped in (artifacts
+  are gitignored) and the generated project's `packageManager` bumped in lockstep,
+  `TEMPLATE=Facilis pnpm ide:smoke` fails 15 checks: the preview never binds, and the terminal
+  shows the guest `pnpm` throwing out of `/usr/lib/node_modules/pnpm/dist/pnpm.cjs` while loading
+  its own require helper. Nothing else changed — the same tree, pack and harness are green on
+  9.15.9, and A8/A12 write and OPFS checks still pass in that run because they do not need the
+  dev server. So pnpm 10 is a loader/builtin-surface incompatibility to be captured and fixed,
+  not a version constant to raise. The full message is the first thing to collect if we pick this up.
+- **The pin must move with the asset.** pnpm 10 turns `manage-package-manager-versions` on by
+  default: the generated project's `packageManager: "pnpm@9.15.9"` (`ide/src/facilis/project-files.ts`,
+  D-022) would make the vendored 10.x download *and re-exec* 9.15.9 inside the VM. Bump both or
+  neither.
+- **The asset is load-bearing beyond installs.** `scripts/dev/vendor-assets.sh` ships it because
+  rolldown's in-VM fallback runs `pnpm i @rolldown/binding-wasm32-wasi` when a Vite guest starts;
+  any bump has to re-run the Facilis smoke (Vite 8 + rolldown), not just an install test.
+
+Recommended order if we take it: (1) capture the 10.34.9 load failure, (2) ship 10.34.9 — that is
+the last JS-distributed, CJS-loadable shape and the only one that can land in a bounded change,
+(3) only then consider 11.x, which is gated on a `node:sqlite` implementation in the runtime
+(`DatabaseSync`/`StatementSync`; the wasm is already shipped at `ide/public/vendor/sqlite/` for
+guests, so it is a bindings job, not a research job). 12.x is out of reach for every browser-based
+container, not just this one.
+
+Other engine gaps worth a one-line upstream PR when we are in there, none blocking Facilis today:
+`fsPromises.cp` routes into the unimplemented sync path (`node/lib/fs/promises.js`, one line) while
+`fs.cp` works; `node:sqlite` is absent (see above); `http2` is a load-safe stub; `readline` is
+partial; `worker_threads` still cannot transfer complex objects.
+
+
