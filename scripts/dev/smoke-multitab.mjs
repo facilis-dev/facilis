@@ -10,6 +10,9 @@
 //   4. "open in a new tab" from Home boots the new tab straight onto that project;
 //   5. the recent-projects registry is per origin, so a project created in one tab is not
 //      dropped by another tab writing its own (stale) list over it.
+//   6. a tab's boot restore defers every project Home knows about and hydrates one only
+//      when its tab opens it (BootOptions.deferRestoreRoots): the files come back, and a
+//      project the tab never opened stays out of its VFS.
 //
 // Usage: node scripts/dev/smoke-multitab.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
 //
@@ -182,6 +185,14 @@ async function closeFolder(page, rootPath) {
   return page.evaluate("window.__ide.closeFolder(" + JSON.stringify("wf:" + rootPath) + ")");
 }
 
+async function readText(page, abs) {
+  return page.evaluate(
+    "window.__ide.bridge.request('vv-read', { path: " +
+      JSON.stringify(abs) +
+      " }).then((r) => (r.ok ? r.contents : null))",
+  );
+}
+
 async function writeProbe(page, abs, contents) {
   return page.evaluate(
     "window.__ide.bridge.request('vv-write', { path: " +
@@ -349,6 +360,12 @@ async function main() {
     );
     check(refusal, "a second tab REFUSES a project already open elsewhere");
     check((await snapshot(tabC)).folders.length === 0, "tab C leaves no folder open");
+    // Same deferral as tab B, in the simplest form: a tab that opens no project
+    // carries none of them in its VFS — their files stay on OPFS until opened.
+    check(
+      !(await stat(tabC, ALPHA)).exists && !(await stat(tabC, BETA)).exists,
+      "a tab that opens no project carries none of them in its VFS",
+    );
     check(
       (await tabC.evaluate("new URLSearchParams(location.search).get('project')")) === null,
       "a tab with no project has no ?project= in its URL",
@@ -377,11 +394,22 @@ async function main() {
       ),
       "tab B reboots into a fresh document",
     );
+    // The boot restore left beta on OPFS (BootOptions.deferRestoreRoots); opening it
+    // hydrated the entries tab A had mirrored. That is also the cross-tab index
+    // check: tab A's own write to alpha could have erased beta's paths from it.
     check(
       await waitForPath(tabB, BETA, 60000),
-      "after a reload beta is still on disk (cross-tab index merge)",
+      "after a reload beta comes back when its tab opens it",
     );
-    check(await waitForPath(tabB, ALPHA, 60000), "and so is alpha");
+    const betaPkg = await readText(tabB, BETA + "/package.json");
+    check(
+      typeof betaPkg === "string" && betaPkg.includes('"vue"'),
+      "the project is its real contents (bytes from OPFS, not just the directory)",
+    );
+    check(
+      !(await stat(tabB, ALPHA)).exists,
+      "a reloaded tab does not carry a project it did not open",
+    );
 
     // ---- "Open in a new tab" from Home ------------------------------------
     const dirG = await createProject(tabA, "react-ts", "gamma", false);
@@ -421,7 +449,9 @@ async function main() {
     check(
       await waitFor(
         tabB,
-        "window.__ide.getSnapshot().recentProjects.some((p) => p.name === 'gamma')",
+        // Key on rootPath, not on a display name: the registry stores no name at all
+        // (a project is named by its directory), and this check is about the merge.
+        "window.__ide.getSnapshot().recentProjects.some((p) => p.rootPath.endsWith('/gamma'))",
         15000,
         "tab B learns gamma",
       ),
@@ -431,7 +461,7 @@ async function main() {
     check(dirD === "/home/user/projects/delta", "tab B creates delta", dirD);
     await sleep(500);
     const registryNames = await tabA.evaluate(
-      "JSON.parse(localStorage.getItem('vv-workspace-projects') || '[]').map((p) => p.name)",
+      "JSON.parse(localStorage.getItem('vv-workspace-projects') || '[]').map((p) => p.rootPath.split('/').pop())",
     );
     check(
       ["alpha", "beta", "gamma", "delta"].every((name) => registryNames.includes(name)),

@@ -22,6 +22,7 @@ import { ScmSession } from "./scm-session";
 import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
+import { projectName } from "./project-name";
 import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -939,7 +940,15 @@ export class IdeController {
     // `?net=<ws url>` opts into the optional network relay (BootOptions.netRelay):
     // a local agent (`node scripts/net-relay.mjs`) that gives the VM real outbound
     // TCP and binds in-VM listen() ports on the developer's machine. Off otherwise.
-    this.bridge.boot(true, readNetRelayParam());
+    //
+    // Every project Home lists is left on OPFS at boot instead of being replayed into
+    // this tab's VFS (BootOptions.deferRestoreRoots): a tab pays for the project it
+    // opens, not for every project the origin holds. openProject hydrates one.
+    this.bridge.boot(
+      true,
+      readNetRelayParam(),
+      this.snap.recentProjects.map((p) => p.rootPath),
+    );
   }
 
   /**
@@ -993,13 +1002,12 @@ export class IdeController {
       if (event.key === PROJECTS_KEY) this.set({ recentProjects: readRegistry(localStorage) });
     });
   }
-  private upsertProjectMeta(meta: { name: string; rootPath: string; template: string | null }) {
+  private upsertProjectMeta(meta: { rootPath: string; template: string | null }) {
     const now = Date.now();
     const existing = this.snap.recentProjects.find((p) => p.rootPath === meta.rootPath);
     this.commitRegistry({
       upsert: [
         {
-          name: meta.name,
           rootPath: meta.rootPath,
           template: meta.template,
           createdAt: existing?.createdAt ?? now,
@@ -2375,13 +2383,18 @@ export class IdeController {
     return best;
   }
 
-  // Add a root to the workspace (or focus it if already open) and show it.
-  openFolder(rootPath: string, name?: string): WorkspaceFolder {
+  // Show a project in this tab (or focus it if it is already the tab's project).
+  //
+  // A tab is ONE project (D-035): opening another replaces the tab's root instead of
+  // stacking a second one, and the label is the directory's name — never a caller-supplied
+  // title, which could disagree with the folder the tab, Web Lock and ?project= name.
+  openFolder(rootPath: string): WorkspaceFolder {
     const root = normDir(rootPath);
     const id = folderIdFor(root);
+    this.snap.workspaceFolders.filter((f) => f.id !== id).forEach((f) => this.closeFolder(f.id));
     let folder = this.snap.workspaceFolders.find((f) => f.id === id);
     if (!folder) {
-      folder = { id, name: name || baseName(root) || root, rootPath: root };
+      folder = { id, name: projectName(root), rootPath: root };
       this.set({ workspaceFolders: [...this.snap.workspaceFolders, folder] });
     }
     this.set({
@@ -2516,8 +2529,9 @@ export class IdeController {
     return null;
   }
 
-  async createBlankProject({ name, dir }: { name: string; dir: string }) {
+  async createBlankProject({ dir }: { dir: string }) {
     const root = normDir(dir);
+    const name = projectName(root);
     const files: Record<string, string> = {
       "package.json":
         JSON.stringify(
@@ -2539,20 +2553,18 @@ export class IdeController {
       toast.error(`Couldn't create project: ${res.error ?? "unknown error"}`);
       return;
     }
-    this.upsertProjectMeta({ name, rootPath: root, template: null });
-    this.openFolder(root, name);
+    this.upsertProjectMeta({ rootPath: root, template: null });
+    this.openFolder(root);
     void this.openFile(root + "/index.js");
     this.status(`created ${name}`);
   }
 
   async createFromTemplate({
     templateId,
-    name,
     dir,
     runInit,
   }: {
     templateId: string;
-    name: string;
     dir: string;
     runInit: boolean;
   }) {
@@ -2591,20 +2603,46 @@ export class IdeController {
     }
   }
 
+  /**
+   * Replay a project's OPFS-backed files into this tab's VFS. The boot restore leaves
+   * the projects Home knows about on OPFS (BootOptions.deferRestoreRoots), so this is
+   * what makes one readable; it is a no-op for a project this tab already has — one
+   * created here, or opened earlier in the session.
+   */
+  private async restoreProjectFiles(root: string): Promise<number> {
+    try {
+      const res = await this.bridge.request("vv-restore-roots", { roots: [root] });
+      const count = typeof res.count === "number" ? res.count : 0;
+      if (count > 0) this.status("restored " + count + " saved files in " + baseName(root));
+      return count;
+    } catch {
+      return 0;
+    }
+  }
+
   // Open a previously-created project from the Home recent list.
   async openProject(meta: ProjectMeta) {
-    // Until the kernel is ready the VFS hasn't finished restoring from OPFS, so
-    // the project's files legitimately aren't on disk *yet*. Don't mistake that
-    // for a deleted project (which would wrongly drop it from the recent list) —
-    // just tell the user to wait for the restore to finish.
+    // Before `kernel-online` the VFS worker has not even read the OPFS index, so the
+    // project is genuinely not there *yet* — tell the user to retry rather than
+    // calling it deleted (which would drop it from the recent list).
     if (!this.snap.kernelReady) {
-      toast.info(
-        "Still restoring your saved project — please wait until Studio finishes loading, then try again.",
-      );
+      toast.info("Studio is still starting — please wait a moment, then try again.");
       return;
     }
     const root = normDir(meta.rootPath);
-    const info = await this.pathInfo(root);
+    let info = await this.pathInfo(root);
+    if (!info.exists) {
+      await this.restoreProjectFiles(root);
+      info = await this.pathInfo(root);
+      // A project another tab created moments ago may still be in that tab's
+      // write-behind mirror rather than on OPFS. Give the flush a beat before calling
+      // it gone — the wait only ever happens for a project that is actually missing.
+      for (let attempt = 0; attempt < 3 && !info.exists; attempt++) {
+        await new Promise((r) => setTimeout(r, 400));
+        await this.restoreProjectFiles(root);
+        info = await this.pathInfo(root);
+      }
+    }
     if (!info.exists) {
       toast.error("This project's files are no longer on disk.");
       this.removeProjectMeta(root);
