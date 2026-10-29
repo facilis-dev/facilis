@@ -388,24 +388,24 @@ Because the generated project's Vite config is loaded natively (D-023), Nitro's 
 is executed as-is by the VM's ESM loader instead of being bundled for the browser. Two
 packaging facts then decide whether the dev server boots:
 
-1. **Nitro's traced `dist/node_modules` copies are ESM-only, and the VM loader resolves CJS
+1. **Nitro's traced `dist/node_modules` copies are ESM-only, and the VM loader resolved CJS
    conditions.** `nitro@3.0.260903-beta` does ship its external imports under
    `dist/node_modules`, but pruned to the ESM build: `defu` declares `main`/`require` →
    `lib/defu.cjs`, which is absent (only `dist/defu.mjs` ships), and `ufo`, `destr`, `scule`,
    `croner`, `rendu`, `youch` and the rest are pruned the same way. Node's ESM loader would
    pick the `import` condition; the VM loader (`vendor/vivari/packages/runtime/module.js`,
-   `resolveFilename`) picks the CJS/`main` target even for ESM imports and does not fall back
-   to `module` when that file is missing. Resolution then walks up to the project's
-   `node_modules`, finds nothing, and the boot dies with `Cannot find module …` (thrown from
-   `module.js:452`). The template therefore pins the reachable set — `@vercel/queue`,
-   `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`, `scule`, `ufo`, `unctx`,
-   plus the deps of the `youch` copy (`@poppinss/colors`, `@poppinss/dumper`,
-   `@speed-highlight/core`, `youch-core`). Measured both ways: with the pins removed the
-   preview never paints, while on real Node (pnpm 9.15.9, `node-linker=hoisted`)
-   `import("nitro/vite")` resolves with none of them. The list is a superset, not proven
-   minimal — `@vercel/queue` is only reached by the Vercel preset's queue and `picomatch` is a
-   `try { require }` catch probe with a bundled fallback, so both are probably droppable, but
-   each candidate needs its own in-VM smoke run (the first missing module aborts the boot).
+   `resolveFilename`) picked the CJS/`main` target even for ESM imports and did not fall back
+   to `module` when that file was missing. Resolution then walked up to the project's
+   `node_modules`, found nothing, and the boot died with `Cannot find module …` (thrown from
+   `module.js:452`). **Resolved in the fork** (`fix/runtime-esm-only-targets`, PR #19): the
+   resolver now collects every candidate target in condition order and returns the first one
+   that exists on disk, so the vendored ESM copies load. The template therefore no longer
+   pins them: measured 2026-10-29 on the pinned fork, with the whole pin list removed,
+   `TEMPLATE=Facilis pnpm ide:smoke` → **SMOKE PASSED** (52 checks, preview painted, A12 OPFS
+   restore included), and the generated `package.json` is ~320 bytes lighter. Two packages
+   stay pinned because nitro does not vendor them: `picomatch` (nitro's builder
+   `__require`s it at run time) and `@vercel/queue` (lazy-imported only by the Vercel Queues
+   preset). Dropping those needs a build / Vercel-path check, not a dev smoke.
 2. **The out-of-process dev runners cannot start.** `node-worker` and `node-process` resolve
    their entry with `fileURLToPath(import.meta.resolve(...))`; the VM runtime's
    `import.meta.resolve` does not hand back a file URL, so `fileURLToPath` throws

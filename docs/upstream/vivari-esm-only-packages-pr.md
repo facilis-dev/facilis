@@ -60,6 +60,10 @@ physically missing — today a hard failure.
 - `npm run verify` was **not** run locally: this machine has no Rust toolchain/wasm-pack, so
   `packages/vfs/pkg-node` (imported by `scripts/fs-worker.mjs`) cannot be built. CI covers
   it; nothing in the change touches the Wasm/VFS layers.
+- **Downstream confirmation (2026-10-29):** the Facilis project template no longer pins any
+  of those packages — a generated project installs and boots `TEMPLATE=Facilis pnpm ide:smoke`
+  green (52 checks) with the whole pin list removed, which is exactly the failure this fallback
+  fixes. Only `picomatch` and `@vercel/queue` stay pinned: nitro does not vendor them.
 - Changeset included: `.changeset/quiet-emus-resolve.md` (`@vivari/core`, patch).
 
 ## Notes

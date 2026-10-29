@@ -35,26 +35,14 @@ function packageJson(): string {
           "@facilis/nitro": tarball("nitro"),
           "drizzle-orm": "0.45.4",
           nitro: "3.0.260903-beta",
-          // Nitro 3.0.260903-beta ships a dist that imports these at runtime but lists
-          // them only in its devDependencies. The in-VM config loader executes that dist
-          // with a plain ESM loader (Vite's config bundler cannot run in the WebContainer),
-          // so every one of them must be a real dependency here or the dev server dies on
-          // the first missing module. Versions follow nitro's devDependencies; picomatch
-          // is undeclared there and comes transitively, so it is pinned explicitly.
-          "@poppinss/colors": "^4.1.6",
-          "@poppinss/dumper": "^0.7.0",
-          "@speed-highlight/core": "^1.2.14",
-          "@vercel/queue": "^0.5.1",
-          "youch-core": "^0.3.3",
-          "cookie-es": "^3.1.1",
-          croner: "^10.0.1",
-          defu: "^6.1.7",
-          destr: "^2.0.5",
+          // Nitro 3.0.260903-beta imports a dozen packages it lists only in its
+          // devDependencies — but it also vendors pruned copies of them under
+          // dist/node_modules, so the runtime's missing-target fallback (fork PR #19,
+          // D-024) loads their ESM builds and the project no longer declares them. The
+          // two it does not vendor stay pinned: picomatch is __require'd by nitro's
+          // builder at run time, @vercel/queue only by the Vercel Queues preset.
           picomatch: "^4.0.3",
-          rendu: "^0.1.0",
-          scule: "^1.3.0",
-          ufo: "^1.6.4",
-          unctx: "^3.0.1",
+          "@vercel/queue": "^0.5.1",
           react: "19.3.1",
           "react-dom": "19.3.1",
           rolldown: "1.2.15",

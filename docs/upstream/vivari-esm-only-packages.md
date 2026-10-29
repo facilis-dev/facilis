@@ -130,8 +130,13 @@ Suggested unit test: a fixture package with
 
 ## Workaround used today
 
-The Facilis template pins the reachable set in the generated project's `package.json`
-(`@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`, `picomatch`, `rendu`,
-`scule`, `ufo`, `unctx`, `@poppinss/colors`, `@poppinss/dumper`,
-`@speed-highlight/core`, `youch-core`) plus `node-linker=hoisted`, so resolution lands on
+The Facilis template used to pin the reachable set in the generated project's
+`package.json` (`@vercel/queue`, `cookie-es`, `croner`, `defu`, `destr`, `picomatch`,
+`rendu`, `scule`, `ufo`, `unctx`, `@poppinss/colors`, `@poppinss/dumper`,
+`@speed-highlight/core`, `youch-core`) plus `node-linker=hoisted`, so resolution landed on
 the project's copies. See `docs/DECISIONS.md` D-024.
+
+**Update (2026-10-29):** the workaround is gone. The fork's resolver fix (PR #19) is in the
+pin, the template no longer lists those packages, and the Facilis smoke passes with the whole
+list removed (52 checks). `picomatch` and `@vercel/queue` stay only because nitro's tarball
+does not vendor them.
