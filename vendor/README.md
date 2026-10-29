@@ -72,6 +72,20 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-30, pin `3376ba1` / `facilis/main` = upstream v1.1.4 + 10 fork commits)
+
+This pin adds one commit: the OPFS boot restore is **scoped**. `BootOptions.deferRestoreRoots`
+names project roots whose entries stay in the mirror (indexed, not replayed); `vv-restore-roots`
+replays one when the embedder opens that project, so a tab carries the projects it opened
+instead of every project on the origin (D-036 in the superproject). The section below still
+describes the base verification of the nine commits before it.
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `3376ba1…` (`v1.1.4-10-g3376ba1`) |
+| `pnpm ide:smoke:multitab` | **green**, 41 checks (D-033 + D-035 + D-036) |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **green** in 126 s: the project creates, installs, paints its preview, the framework contract and IntelliSense are clean and A8/A10/A12 pass — A12's reboot restores the project tree from OPFS through the scoped replay |
+
 ## Verification (2026-10-29, pin `a6d6aa5` / `facilis/main` = upstream v1.1.4 + 9 fork commits)
 
 | Check | Result |
