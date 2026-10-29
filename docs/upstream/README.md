@@ -8,7 +8,7 @@ is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based o
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: the five fixes below plus three Facilis-driven commits, on top of `v1.1.3` (`cec9e81`); pin `eefaa7e` | `v1.1.3` | — |
+| `facilis/main` | integration: the five fixes below plus four Facilis-driven commits, on top of `v1.1.3` (`cec9e81`); pin `98c8834` | `v1.1.3` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.3` | not opened |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.3` | not opened |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.3` | not opened |
@@ -18,10 +18,12 @@ is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based o
 Multi-tab (D-033 in the superproject) is what the last two fixes are for: the IDE runs one
 project per browser tab, so two kernels share one origin, one preview proxy and one OPFS mirror.
 
-Three of the commits on `facilis/main` are not `fix/*` branches: a template may list
+Four of the commits on `facilis/main` are not `fix/*` branches: a template may list
 binary assets that the kernel fetches same-origin and writes with the project (D-032, the local
-`file:` tarball install), the vendored npm is pinned to 12.2.1, and both packers now rebuild a
-pack whose stamped version no longer matches the pin instead of silently reusing it.
+`file:` tarball install), the vendored npm is pinned to 12.2.1, both packers now rebuild a
+pack whose stamped version no longer matches the pin instead of silently reusing it, and pnpm's
+own config (`store-dir`, `package-import-method`) moved from the base process environment into
+the pnpm shim — npm 12 warned `Unknown env config` for both on every install (D-032 follow-up).
 
 The same commits, `git am`-able and with their PR bodies, are kept next to this file
 (`vivari-*.patch`, `vivari-*-pr.md`) so they can be replayed without the fork. Evidence and the

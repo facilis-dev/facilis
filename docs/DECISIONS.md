@@ -734,6 +734,24 @@ its wasm binding inside a Vite 8 project (`pnpm i @rolldown/binding-wasm32-wasi`
 internal, and carrying no version promise. The `@facilis/*` `file:` specs are interim —
 when the packages are published (O-006) the dependency specs change and nothing else does.
 
+
+**Follow-up (2026-10-29, same day): npm re-derives a RELATIVE `file:` target, and that broke
+installs.** The first generated projects failed with
+`npm warn tarball ... @facilis/auth@file:../../../../user/projects/<name>/vendor/...` and then
+`ENOENT /user/projects/<name>/vendor/...`: the `package.json` on disk was correct
+(`file:./vendor/...`) and `path.resolve` inside the VM was correct, but npm normalizes a
+relative `file:` dependency by storing `file:` + `path.relative(where, resolvedPath)`
+(`npm-package-arg`) and reading that back — in that environment the re-derived target lost
+`/home` and every install retried a file that exists. The project's specs are now **resolved
+before npm runs**: `scripts/vendor-paths.cjs` rewrites the four `@facilis/*` dependencies to
+absolute tarball paths (and refuses a project whose `vendor/` assets are missing), and the
+template's install command is `node scripts/vendor-paths.cjs && npm install`, so the IDE's Run
+and a later bare `npm install` both work. The specs stay relative *in the template* (a project
+exported before its first in-IDE install is still relocatable); after the first install the
+resolved absolute paths are what npm caches in the lockfile. The same change removed the
+`npm_config_store_dir` / `npm_config_package_import_method` env vars from the base process
+environment — they are pnpm's own config, and npm 12 warned `Unknown env config` for them on
+every install (fork commit `98c8834`, a future npm major turns the warning into an error).
 ---
 
 ### D-033 — Several projects at once: one project per browser tab

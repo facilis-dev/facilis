@@ -72,11 +72,11 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
-## Verification (2026-10-29, pin `eefaa7e` / `facilis/main` = upstream v1.1.3 + 8 fork commits)
+## Verification (2026-10-29, pin `98c8834` / `facilis/main` = upstream v1.1.3 + 9 fork commits)
 
 | Check | Result |
 |---|---|
-| `git submodule status` | clean at `eefaa7e…` (`v1.1.2-11-geefaa7e`: v1.1.3 + ESM-only targets, OPFS mirror priority, `import.meta.resolve`, template binary assets, npm 12.2.1, version-aware pack rebuild, OPFS index merge across tabs, per-kernel preview routing) |
+| `git submodule status` | clean at `98c8834…` (`v1.1.2-12-g98c8834`: v1.1.3 + ESM-only targets, OPFS mirror priority, `import.meta.resolve`, template binary assets, npm 12.2.1, version-aware pack rebuild, OPFS index merge across tabs, per-kernel preview routing, pnpm config out of the base env) |
 | `TEMPLATE=Facilis pnpm ide:smoke` | **green**, A12 and the OPFS probe pass as normal checks (the D-028 fix is carried by the pin), no known issues |
 | `diff -r vendor/vivari/packages/studio ide` | only the documented IDE patch set |
 | Root gates (lint / typecheck / test / build / format / file-length) | pass; `vendor/` excluded, the IDE is a workspace member and included |
