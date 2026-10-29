@@ -1,4 +1,4 @@
-From 240f5642baac449ed7549688a4cd7dcf23093e8c Mon Sep 17 00:00:00 2001
+From 682b821f99b82a63756e8327df26d9a4e0ffe43f Mon Sep 17 00:00:00 2001
 From: Facilis Bot <dev@facilis.local>
 Date: Wed, 28 Oct 2026 19:05:33 +0000
 Subject: [PATCH] fix(runtime): import.meta.resolve returns a URL, not a path

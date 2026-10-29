@@ -1,4 +1,4 @@
-From ef696cba1a98b4478d2859d866cdb3e31cf6a897 Mon Sep 17 00:00:00 2001
+From 831c0d50122a0ca89e91035a4ed061e4c1ab8ce9 Mon Sep 17 00:00:00 2001
 From: Facilis Bot <dev@facilis.local>
 Date: Wed, 28 Oct 2026 18:07:13 +0000
 Subject: [PATCH] fix(opfs): drain project paths ahead of package-manager

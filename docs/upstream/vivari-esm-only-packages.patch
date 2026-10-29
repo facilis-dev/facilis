@@ -1,4 +1,4 @@
-From e67b450ed5b8e57e647454f2fe47b24811e9b09d Mon Sep 17 00:00:00 2001
+From 86a20cec6a0f20ea8b7cc43a9e1a49ec298e348e Mon Sep 17 00:00:00 2001
 From: Facilis Bot <dev@facilis.local>
 Date: Wed, 28 Oct 2026 17:27:30 +0000
 Subject: [PATCH] fix(runtime): load ESM-only package copies when the CJS
@@ -40,10 +40,10 @@ index 0000000..0d7a50e
 +
 +Runtime: fall back to the next `exports` condition (and to `module`) when a package's declared `main`/`require` target is absent, so pruned ESM-only copies such as nitro's traced `dist/node_modules` load instead of throwing `MODULE_NOT_FOUND`.
 diff --git a/packages/runtime/module.js b/packages/runtime/module.js
-index 13f00d4..429f8a4 100644
+index b5861e2..ed1a944 100644
 --- a/packages/runtime/module.js
 +++ b/packages/runtime/module.js
-@@ -186,37 +186,43 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+@@ -187,37 +187,43 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
    // dual packages that omit a "require" key but ship a CJS "default" (e.g.
    // tslib: { module, import: <esm>, default: <cjs> }) — require() must land on
    // the CJS default, not the ESM import.
@@ -105,7 +105,7 @@ index 13f00d4..429f8a4 100644
          } else {
            for (const k of keys) {
              if (k.endsWith("/*")) {
-@@ -224,20 +230,23 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+@@ -225,20 +231,23 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
                if (sub.startsWith(pre)) {
                  const t = pickCondition(exportsField[k]);
                  if (t) {
@@ -135,7 +135,7 @@ index 13f00d4..429f8a4 100644
    }
  
    function splitBare(request) {
-@@ -261,9 +270,12 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
+@@ -262,9 +271,12 @@ export function createModuleSystem({ fs, path, builtins, process, globals, nodeM
          const r = resolveExports(dir, pkg.exports, ".");
          if (r) return r;
        }

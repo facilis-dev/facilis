@@ -634,7 +634,8 @@ against the pinned tag.
 
 **Decision:** `vendor/vivari` is a submodule of **our fork**,
 [`github.com/kele23/vivari`](https://github.com/kele23/vivari), pinned to `facilis/main` =
-upstream tag `v1.1.3` + the three fix commits. The fork's `master` mirrors upstream and carries
+upstream tag `v1.1.4` + the five fix commits and four repository-driven commits (branch map in
+[`docs/upstream/README.md`](./upstream/README.md)). The fork's `master` mirrors upstream and carries
 no commits of ours; each fix is also its own branch (`fix/…`) based on upstream `master` and is
 proposed upstream as a PR from the fork. `.gitmodules` records the fork URL and
 `branch = facilis/main`; the pin is a **commit**, so a checkout is reproducible. The submodule
@@ -751,7 +752,9 @@ exported before its first in-IDE install is still relocatable); after the first 
 resolved absolute paths are what npm caches in the lockfile. The same change removed the
 `npm_config_store_dir` / `npm_config_package_import_method` env vars from the base process
 environment — they are pnpm's own config, and npm 12 warned `Unknown env config` for them on
-every install (fork commit `98c8834`, a future npm major turns the warning into an error).
+every install (fork commit `a6d6aa5`, rebased onto upstream `v1.1.4`, which also moved that
+release's `strict-store-pkg-content-check` into the shim; a future npm major turns the warning
+into an error).
 ---
 
 ### D-033 — Several projects at once: one project per browser tab

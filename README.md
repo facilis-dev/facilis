@@ -142,7 +142,7 @@ What exists today, runnable in this repo:
 |---|---|---|
 | Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
-| Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.3` + 3 fixes; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
+| Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 | Facilis probe template in the IDE | `ide/src/facilis/` | `TEMPLATE=Facilis pnpm ide:smoke`: 26/26 checks — preview paints a real Facilis app, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route |
 

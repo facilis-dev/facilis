@@ -1,4 +1,4 @@
-From 4e4bc78dd81423559065dfeedd645de168f1bb7e Mon Sep 17 00:00:00 2001
+From 740afb2c4d277d2bc3f9dff70c48c97a3f572adf Mon Sep 17 00:00:00 2001
 From: Facilis <dev@facilis.local>
 Date: Thu, 29 Oct 2026 18:53:10 +0000
 Subject: [PATCH] fix(preview): route each preview request to the kernel that

@@ -1,4 +1,4 @@
-From e16a9633a1d0ae0a232f54dedd3e453dcfc29fce Mon Sep 17 00:00:00 2001
+From a2843e8e755f132f1041bcdc3b7f90c9cc912967 Mon Sep 17 00:00:00 2001
 From: Facilis <dev@facilis.local>
 Date: Thu, 29 Oct 2026 18:52:53 +0000
 Subject: [PATCH] fix(opfs): merge the mirror's index across tabs, and replace
