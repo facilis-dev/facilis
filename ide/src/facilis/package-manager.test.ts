@@ -47,6 +47,16 @@ describe("generated project package manager", () => {
     }
   });
 
+  it("resolves the vendored tarballs to absolute paths before npm runs", () => {
+    // The specs ship relative (portable), but npm's re-derivation of a relative file:
+    // target broke inside the VM, so the install command must run the resolver first —
+    // and the resolver is a real file of the generated project, not a manifest promise.
+    expect(projectFiles()["scripts/vendor-paths.cjs"]).toContain("process.cwd()");
+    expect(createFacilisTemplate().manifest.install).toBe(
+      "node scripts/vendor-paths.cjs && npm install",
+    );
+  });
+
   it("ships the tarball the kernel copies under the path the spec names", () => {
     const assets = (createFacilisTemplate().manifest as FacilisManifest).assets;
     for (const name of PACKAGES) {

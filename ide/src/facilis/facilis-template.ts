@@ -17,8 +17,10 @@ import { serverFiles } from "./server-files";
  * The workspace-only @facilis packages, shipped as tarballs (O-006).
  *
  * They are copied into the project at create time and declared as file: dependencies
- * in package.json, so the install never reaches the studio over HTTP (D-032) and the
- * generated project still installs unchanged on a real machine.
+ * in package.json, so the install never reaches the studio over HTTP (D-032). The specs
+ * are written relative (portable) and made absolute by scripts/vendor-paths.cjs before
+ * every install, because npm's own re-derivation of a relative file: target is what
+ * breaks inside the VM.
  */
 const PACKAGES = ["auth", "core", "db", "nitro"] as const;
 
@@ -55,7 +57,12 @@ export function createFacilisTemplate(): TemplateDef {
     entry: "src/App.tsx",
     hmr: true,
     reload: false,
-    install: "npm install",
+    // The @facilis/* deps resolve from the vendored tarballs. npm re-derives the target of
+    // a RELATIVE file: spec and, inside the VM, that derivation was measured producing
+    // /user/projects/... instead of /home/user/projects/... (install dies with ENOENT on a
+    // tarball that exists). scripts/vendor-paths.cjs pins them to absolute paths first —
+    // see project-files.ts.
+    install: "node scripts/vendor-paths.cjs && npm install",
     // In the VM the in-process runner makes Nitro own the listener and front Vite, so
     // the single origin the preview targets is the nitro dev-server port, not 5173.
     port: 3000,

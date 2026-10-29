@@ -188,11 +188,53 @@ A Facilis project scaffolded by the Facilis IDE and running in its browser VM.
 
 npm, with the @facilis/* packages installed from the tarballs in ./vendor:
 
-    npm install
     npm run dev
+
+"npm run dev" expects dependencies to be installed: the IDE's Run installs them for
+you, and scripts/vendor-paths.cjs is what makes that install resolve the
+@facilis/* tarballs in ./vendor (run it before a bare npm install).
 
 The preinstall guard rejects other package managers on purpose: the IDE vendors the
 npm it was built and tested against, and keeps it aligned with its Node version.
+`;
+
+const vendorPathsScript = `// Resolve the @facilis/* tarballs to absolute file: paths before npm reads
+// package.json.
+//
+// The four @facilis/* packages come from tarballs in ./vendor (they are workspace-only
+// until O-006). A RELATIVE file: spec is re-derived by npm — it recomputes the target
+// with path.relative() and stores that as the dependency's resolved form — and inside
+// the VM that derivation was measured producing /user/projects/... instead of
+// /home/user/projects/...: the tarball then "does not exist", npm retries it as
+// corrupted and the install dies with ENOENT. An absolute spec leaves npm nothing to
+// re-derive, so this runs before every install (manifest.install). Idempotent, and it
+// refuses a project whose template assets are missing instead of failing later.
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = process.cwd();
+const file = path.join(root, "package.json");
+const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+const deps = pkg.dependencies || {};
+let changed = 0;
+for (const name of Object.keys(deps)) {
+  if (!name.startsWith("@facilis/")) continue;
+  const tarball = path.join(root, "vendor", "facilis-" + name.slice(9) + "-0.0.0.tgz");
+  if (!fs.existsSync(tarball)) {
+    console.error("[facilis] missing " + tarball);
+    console.error("[facilis] the project's template assets are incomplete — recreate it from the IDE");
+    process.exit(1);
+  }
+  const spec = "file:" + tarball;
+  if (deps[name] !== spec) {
+    deps[name] = spec;
+    changed++;
+  }
+}
+if (changed > 0) {
+  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\\n");
+  console.log("[facilis] resolved " + changed + " @facilis/* dependencies to absolute tarball paths");
+}
 `;
 
 export function projectFiles(): Record<string, string> {
@@ -206,5 +248,6 @@ export function projectFiles(): Record<string, string> {
     ".npmrc": npmrc,
     "README.md": readme,
     "scripts/check-pm.mjs": checkPm,
+    "scripts/vendor-paths.cjs": vendorPathsScript,
   };
 }
