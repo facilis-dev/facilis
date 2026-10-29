@@ -1,8 +1,9 @@
 # PR draft — fix(opfs): merge the mirror's index across tabs, and replace it atomically
 
-**Status:** draft, **pushed** (2026-10-29). Branch `fix/opfs-crosstab-index` on
-`kele23/vivari`, based on `v1.1.3` (`cec9e81`); commit `e16a963`. Apply with
-`git am docs/upstream/vivari-opfs-index-merge.patch` (includes the changeset).
+**PR:** [#22](https://github.com/maitrungduc1410/vivari/pull/22) (opened 2026-10-29). Branch
+`fix/opfs-crosstab-index` on `kele23/vivari`, based on `v1.1.4` (`8e91ade`); commit
+`a2843e8`. The same change applies with `git am docs/upstream/vivari-opfs-index-merge.patch`
+(includes the changeset).
 
 **Base repo:** [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)
 

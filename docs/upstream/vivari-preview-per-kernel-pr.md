@@ -1,8 +1,9 @@
 # PR draft — fix(preview): route each preview request to the kernel that owns it
 
-**Status:** draft, **pushed** (2026-10-29). Branch `fix/preview-per-tab-kernel` on
-`kele23/vivari`, based on `v1.1.3` (`cec9e81`); commit `4e4bc78`. Apply with
-`git am docs/upstream/vivari-preview-per-kernel.patch` (includes the changeset).
+**PR:** [#23](https://github.com/maitrungduc1410/vivari/pull/23) (opened 2026-10-29). Branch
+`fix/preview-per-tab-kernel` on `kele23/vivari`, based on `v1.1.4` (`8e91ade`); commit
+`740afb2`. The same change applies with `git am docs/upstream/vivari-preview-per-kernel.patch`
+(includes the changeset).
 
 **Base repo:** [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)
 

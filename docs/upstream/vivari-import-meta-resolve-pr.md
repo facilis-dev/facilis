@@ -1,8 +1,9 @@
 # PR draft — fix(runtime): import.meta.resolve returns a URL, not a path
 
-**Status:** draft, **not pushed** (2026-10-28). Branch `fix/import-meta-resolve-url` based on
-`v1.1.2` (`1f00a48c`); commit `240f564`. Apply with
-`git am docs/upstream/vivari-import-meta-resolve.patch` (includes the changeset).
+**PR:** [#20](https://github.com/maitrungduc1410/vivari/pull/20) (opened 2026-10-29). Branch
+`fix/import-meta-resolve-url` on `kele23/vivari`, based on `v1.1.4` (`8e91ade`); commit
+`682b821`. The same change applies with `git am docs/upstream/vivari-import-meta-resolve.patch`
+(includes the changeset).
 
 **Base repo:** [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)
 

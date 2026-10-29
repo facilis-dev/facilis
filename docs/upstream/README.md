@@ -9,11 +9,11 @@ is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based o
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
 | `facilis/main` | integration: the five fixes below plus four Facilis-driven commits, on top of `v1.1.4` (`8e91ade`); pin `a6d6aa5` | `v1.1.4` | — |
-| `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.4` | not opened |
-| `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.4` | not opened |
-| `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.4` | not opened |
-| `fix/opfs-crosstab-index` | OPFS mirror index: merged per tab under a Web Lock, replaced through a staged copy (D-033) | `v1.1.4` | not opened |
-| `fix/preview-per-tab-kernel` | Preview requests routed to the kernel that owns the frame (`clientId`/`resultingClientId`), per-kernel keep-prefix + tunnel frames (D-033) | `v1.1.4` | not opened |
+| `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.4` | [#19](https://github.com/maitrungduc1410/vivari/pull/19) |
+| `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.4` | [#21](https://github.com/maitrungduc1410/vivari/pull/21) |
+| `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.4` | [#20](https://github.com/maitrungduc1410/vivari/pull/20) |
+| `fix/opfs-crosstab-index` | OPFS mirror index: merged per tab under a Web Lock, replaced through a staged copy (D-033) | `v1.1.4` | [#22](https://github.com/maitrungduc1410/vivari/pull/22) |
+| `fix/preview-per-tab-kernel` | Preview requests routed to the kernel that owns the frame (`clientId`/`resultingClientId`), per-kernel keep-prefix + tunnel frames (D-033) | `v1.1.4` | [#23](https://github.com/maitrungduc1410/vivari/pull/23) |
 
 The pin was realigned from `v1.1.3` to `v1.1.4` on 2026-10-29: every branch above was rebased
 onto the tag, so the fork carries the release's pnpm work (native `realpath` symlinks, the

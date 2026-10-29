@@ -1,8 +1,9 @@
 # PR draft — fix(runtime): load ESM-only package copies when the CJS target is missing
 
-**Status:** draft, **not pushed** (2026-10-28). Branch `fix/runtime-esm-only-targets` based on
-`v1.1.2` (`1f00a48c`); commit `e67b450`. Apply with
-`git am docs/upstream/vivari-esm-only-packages.patch` (includes the changeset).
+**PR:** [#19](https://github.com/maitrungduc1410/vivari/pull/19) (opened 2026-10-29). Branch
+`fix/runtime-esm-only-targets` on `kele23/vivari`, based on `v1.1.4` (`8e91ade`); commit
+`86a20ce`. The same change applies with `git am docs/upstream/vivari-esm-only-packages.patch`
+(includes the changeset).
 
 **Base repo:** [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)
 

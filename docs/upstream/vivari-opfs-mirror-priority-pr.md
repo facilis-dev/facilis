@@ -1,8 +1,9 @@
 # PR draft — fix(opfs): drain project paths ahead of package-manager caches
 
-**Status:** draft, **not pushed** (2026-10-28). Branch `fix/opfs-mirror-priority` based on
-`v1.1.2` (`1f00a48c`); commit `ef696cb`. Apply with
-`git am docs/upstream/vivari-opfs-mirror-priority.patch` (includes the changeset).
+**PR:** [#21](https://github.com/maitrungduc1410/vivari/pull/21) (opened 2026-10-29). Branch
+`fix/opfs-mirror-priority` on `kele23/vivari`, based on `v1.1.4` (`8e91ade`); commit
+`831c0d5`. The same change applies with `git am docs/upstream/vivari-opfs-mirror-priority.patch`
+(includes the changeset).
 
 **Base repo:** [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari)
 
