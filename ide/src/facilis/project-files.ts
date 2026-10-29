@@ -1,13 +1,15 @@
 // Project-level files of the Facilis probe template (SPEC Appendix B/C).
 //
 // The @facilis/* packages are workspace-only (O-006), so the generated project
-// installs them from tarballs the IDE serves from its own public directory, addressed
-// through the kernel host alias (a raw loopback URL is the VM itself). pnpm is the
-// installer; see D-022 for why npm cannot do it and why the layout must be hoisted.
+// installs them from tarballs the IDE serves from its own public directory. npm is
+// the installer and the tarballs are copied INTO the project (manifest.assets, see
+// D-032), then declared as file: dependencies: no package manager has to reach the
+// studio over HTTP to install them, and the project keeps working once it leaves the
+// IDE. This is interim until the packages are published.
 
 /** package.json for the probe app. */
-function packageJson(origin: string): string {
-  const tarball = (name: string) => origin + "/vendor/facilis/facilis-" + name + "-0.0.0.tgz";
+function packageJson(): string {
+  const tarball = (name: string) => "file:./vendor/facilis-" + name + "-0.0.0.tgz";
   return (
     JSON.stringify(
       {
@@ -15,7 +17,10 @@ function packageJson(origin: string): string {
         private: true,
         version: "0.0.0",
         type: "module",
-        packageManager: "pnpm@9.15.9",
+        // Kept in lockstep with the vendored npm (scripts/dev/vendor-assets.sh):
+        // it is the version the VM actually runs, and the one Node 24 is paired
+        // with. See D-032.
+        packageManager: "npm@12.2.1",
         scripts: {
           dev: "vite",
           build: "vite build",
@@ -61,29 +66,12 @@ function packageJson(origin: string): string {
           vite: "8.3.5",
         },
         // The emnapi pins are the verified interim fix for Vite 8's wasi binding
-        // (DEV.md 6.1). The @facilis entries stop the package manager from walking
-        // back to the registry for the packed interdeps. npm reads "overrides";
-        // pnpm reads "pnpm.overrides" and ignores this field, so both are declared.
+        // (DEV.md 6.1). The @facilis packages need no override: they are file:
+        // dependencies of the root, and npm satisfies the tarballs' 0.0.0 interdeps
+        // from that same hoisted set instead of asking the registry.
         overrides: {
           "@emnapi/core": "2.0.0-beta.2",
           "@emnapi/runtime": "2.0.0-beta.2",
-          "@facilis/auth": tarball("auth"),
-          "@facilis/core": tarball("core"),
-          "@facilis/db": tarball("db"),
-          "@facilis/nitro": tarball("nitro"),
-        },
-        // pnpm is the in-VM installer: npm's agent-base HTTP agent makes the kernel
-        // runtime treat plain-http URL deps as non-egress and fail with ENOTFOUND,
-        // while pnpm's fetch uses the standard agent and reaches the host alias.
-        pnpm: {
-          overrides: {
-            "@emnapi/core": "2.0.0-beta.2",
-            "@emnapi/runtime": "2.0.0-beta.2",
-            "@facilis/auth": tarball("auth"),
-            "@facilis/core": tarball("core"),
-            "@facilis/db": tarball("db"),
-            "@facilis/nitro": tarball("nitro"),
-          },
         },
       },
       null,
@@ -169,21 +157,25 @@ const indexHtml = `<!doctype html>
 </html>
 `;
 
-// pnpm is the only installer that works inside the WebContainer:
-// - node-linker=hoisted because the bundled Nitro runtime does require("ufo"), a
-//   transitive dependency it does not declare; the isolated linker hides it.
-// - the preinstall guard blocks npm, whose agent-base HTTP agent makes the kernel
-//   runtime refuse plain-http egress, so the @facilis tarball URLs cannot be fetched.
-const npmrc = `node-linker=hoisted
+// npm flags that matter inside the VM: audit and update-notifier are registry calls
+// nobody asked for in this container, fund and progress are terminal noise the IDE
+// mirrors into the browser. Everything else is npm's default — a flat (hoisted)
+// node_modules, which is what the bundled Nitro dist's undeclared transitive
+// requires (ufo, …) rely on.
+const npmrc = `audit=false
+fund=false
+progress=false
+update-notifier=false
 `;
 
-const checkPm = `// Runs as the project preinstall hook: the project must be installed with pnpm.
-// npm 10 agent-base HTTP agent bypasses the WebContainer fetch-backed egress,
-// so its plain-http URL dependencies (the @facilis tarballs) fail with ENOTFOUND.
+const checkPm = `// Runs as the project preinstall hook: the project must be installed with npm.
+// The IDE vendors exactly one package manager and keeps it aligned with the VM's
+// Node (D-032); any other one on PATH would build a tree nothing here was tested
+// with, and the @facilis tarballs' interdeps assume the flat layout npm produces.
 const agent = process.env.npm_config_user_agent ?? "";
-if (!agent.startsWith("pnpm/")) {
-  console.error("Use pnpm in this project: npm cannot fetch its URL dependencies in the VM.");
-  console.error("  pnpm install   (then: pnpm run dev)");
+if (!agent.startsWith("npm/")) {
+  console.error("Use npm in this project — it is the package manager this project ships with.");
+  console.error("  npm install   (then: npm run dev)");
   process.exit(1);
 }
 `;
@@ -194,19 +186,18 @@ A Facilis project scaffolded by the Facilis IDE and running in its browser VM.
 
 ## Package manager
 
-Use pnpm — it is the only installer that works in this VM:
+npm, with the @facilis/* packages installed from the tarballs in ./vendor:
 
-    pnpm install
-    pnpm run dev -- --configLoader native
+    npm install
+    npm run dev
 
-npm install fails here on purpose: the npm HTTP agent bypasses the VM
-fetch-backed egress, so the @facilis/* tarball dependencies cannot be downloaded
-(ENOTFOUND). The preinstall guard enforces this.
+The preinstall guard rejects other package managers on purpose: the IDE vendors the
+npm it was built and tested against, and keeps it aligned with its Node version.
 `;
 
-export function projectFiles(origin: string): Record<string, string> {
+export function projectFiles(): Record<string, string> {
   return {
-    "package.json": packageJson(origin),
+    "package.json": packageJson(),
     "index.html": indexHtml,
     "tsconfig.json": tsconfig,
     "vite.config.ts": viteConfig,

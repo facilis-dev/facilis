@@ -1,6 +1,7 @@
 #!/bin/sh
 # Produce the build-time assets the browser kernel fetches from /vendor/:
-#   ide/public/vendor/npm-pack.bin      real npm@10.9.2 CLI packed for the VFS
+#   ide/public/vendor/npm-pack.bin      real npm@12.2.1 CLI packed for the VFS
+#   ide/public/vendor/pnpm-pack.bin     real pnpm@9.15.9 (rolldown: wasm fallback)
 #   ide/public/vendor/sqlite/sqlite3.wasm
 #
 # Upstream builds these with scripts/vendor-*.mjs into packages/studio/public/vendor
@@ -16,7 +17,13 @@ set -eu
 REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 VIVARI="$REPO_ROOT/vendor/vivari"
 TC=${FACILIS_TOOLING_DIR:-/tmp/facilis-dev}
-NPM_VERSION=10.9.2
+# The npm a Facilis project installs with (D-032). Keep it in lockstep with the
+# generated project's "packageManager" (ide/src/facilis/project-files.ts) and with the
+# Node the VM reports: npm 12 requires ^22.22.2 || ^24.15.0 || >=26.0.0, and the
+# runtime claims v24.18.0.
+NPM_VERSION=12.2.1
+# pnpm stays only as the tool rolldown reaches for inside the VM: 12.x ships a native
+# binary and 11.x needs node:sqlite, so it is pinned here rather than tracked.
 PNPM_VERSION=9.15.9
 SRC="$VIVARI/packages/studio/public/vendor"
 DST="$REPO_ROOT/ide/public/vendor"
@@ -24,11 +31,19 @@ DST="$REPO_ROOT/ide/public/vendor"
 log() { printf '[vendor-assets] %s\n' "$*" >&2; }
 mkdir -p "$TC/npm-vendor/node_modules" "$DST"
 
+# The vendored scratch trees are reused across runs, so each check below compares the
+# VERSION rather than just the presence of a tree: a bump that found a stale copy here
+# would otherwise pack the old CLI under the new version's header, and no gate notices.
+tree_version() {
+  node -p "require('$1/package.json').version" 2>/dev/null || true
+}
+
 # 1. npm CLI: upstream's generator shells out to a host `npm`, which minimal images
 #    do not have. Its tarball already contains the bundled dependency tree the packer
 #    walks, so extract that instead.
-if [ ! -f "$TC/npm-vendor/node_modules/npm/bin/npm-cli.js" ]; then
+if [ "$(tree_version "$TC/npm-vendor/node_modules/npm")" != "$NPM_VERSION" ]; then
   log "fetching npm@$NPM_VERSION tarball"
+  rm -rf "$TC/npm-vendor/node_modules/npm"
   curl -fsSL --retry 3 --max-time 120 -o "$TC/npm-vendor/npm.tgz" \
     "https://registry.npmjs.org/npm/-/npm-$NPM_VERSION.tgz"
   mkdir -p "$TC/npm-vendor/node_modules/npm"
@@ -37,13 +52,18 @@ fi
 
 # 2. Pack it with upstream's generator (also patches Arborist's #loadPeerSet, which the
 #    kernel needs; building the pack any other way is not equivalent).
-VENDOR_DIR="$TC/npm-vendor" node "$VIVARI/scripts/vendor-npm.mjs"
+# The packer reads VV_VENDOR_DIR (not VENDOR_DIR): pointing it at the scratch tree is
+# what keeps this offline, from the tarball fetched above.
+VV_VENDOR_DIR="$TC/npm-vendor" node "$VIVARI/scripts/vendor-npm.mjs"
 
-# 3. pnpm CLI, same tarball trick and load-bearing for Vite 8: rolldown's in-VM fallback
-#    runs \`pnpm i @rolldown/binding-wasm32-wasi\` when a project's dev server starts, so
-#    without this asset every Vite template dies with "Cannot find native binding".
-if [ ! -f "$TC/pnpm-vendor/node_modules/pnpm/bin/pnpm.cjs" ]; then
+# 3. pnpm CLI, same tarball trick and load-bearing for Vite 8: rolldown's in-VM
+#    fallback runs `pnpm i @rolldown/binding-wasm32-wasi` when a project's dev server
+#    starts, so without this asset every Vite template dies with "Cannot find native
+#    binding".
+if [ "$(tree_version "$TC/pnpm-vendor/node_modules/pnpm")" != "$PNPM_VERSION" ]; then
   log "fetching pnpm@$PNPM_VERSION tarball"
+  rm -rf "$TC/pnpm-vendor/node_modules/pnpm"
+  mkdir -p "$TC/pnpm-vendor"
   curl -fsSL --retry 3 --max-time 120 -o "$TC/pnpm-vendor/pnpm.tgz" \
     "https://registry.npmjs.org/pnpm/-/pnpm-$PNPM_VERSION.tgz"
   mkdir -p "$TC/pnpm-vendor/node_modules/pnpm"

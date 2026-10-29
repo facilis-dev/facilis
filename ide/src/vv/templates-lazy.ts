@@ -46,8 +46,7 @@ function withFacilisCatalog(mod: TemplatesModule, facilis: TemplateDef): Templat
 export function loadTemplates(): Promise<TemplatesModule> {
   if (!pending) {
     const p = Promise.all([import("./templates"), import("../facilis/facilis-template")]).then(
-      ([mod, facilisModule]) =>
-        withFacilisCatalog(mod, facilisModule.createFacilisTemplate(location.origin)),
+      ([mod, facilisModule]) => withFacilisCatalog(mod, facilisModule.createFacilisTemplate()),
     );
     p.catch(() => {
       if (pending === p) pending = null;
