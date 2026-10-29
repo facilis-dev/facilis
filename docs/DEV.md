@@ -213,10 +213,18 @@ no page errors, no console errors, no failed requests. Exit code is non-zero on 
 `TEMPLATE=Facilis` (after `pnpm ide:facilis-deps`) additionally selects the Fullstack picker
 tab and asserts the framework contract from the probe app inside the preview: `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
-`/api/todos`, and an unauthenticated `/api/todos` → 401 (26 checks total). The probe app
+`/api/todos`, and an unauthenticated `/api/todos` → 401 (8 probe checks). The probe app
 publishes those results as `data-facilis-*` attributes on its own document;
 `scripts/dev/smoke-facilis.mjs` owns the assertions and dumps the preview HTTP body + dev log
 into `facilis-diagnostics.json` on failure.
+
+`TEMPLATE=Facilis` also runs `scripts/dev/smoke-intellisense.mjs`, before the write checks:
+it asks the same Monaco TypeScript worker the editor uses (`getSemanticDiagnostics`) for
+`src/App.tsx` and `src/main.tsx`, and fails on a module-resolution error (TS2307 "Cannot
+find module"). That is the user-visible symptom of a generated project that does not install
+the `@types/*` packages its imports need (react, react-dom): the IDE only feeds installed
+`node_modules/**/*.d.ts` to the language service. An unreachable worker fails the check too,
+never counts as a skip.
 
 `TEMPLATE=Facilis` also runs `scripts/dev/smoke-write.mjs`, which drives the dev-only
 `window.__ide` / `window.__facilis` handles through the real controller to verify the VFS write
@@ -259,8 +267,9 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 Reference runs on 16 cores: kernel online **0.6 s** against an already-warm dev server
 (**2.6 s** cold, when Vite is still transforming the 11k-line `templates.ts`), preview
 painted **31-40 s** (in-VM install dominates), 18/18 checks green (React, 2026-10-25). The
-Facilis probe is green with **26/26** (2026-10-28): preview painted **36-40 s**, in-VM
-`pnpm install` **~25 s**, manifest zero warnings. Artifacts under
+Facilis probe is green (2026-10-29): preview painted **~110 s** on a cold self-started dev
+server (in-VM `npm install` dominates), manifest zero warnings, editor IntelliSense clean;
+**54/54** checks including A8-A12. Artifacts under
 `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
@@ -293,7 +302,7 @@ under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
 | PGlite dev database is in-memory | resets on worker restart | Phase 1 caveat, see `docs/DECISIONS.md` |
 | Package managers cannot install plain-http URL dependencies | npm's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND`; registry `https://` traffic is unaffected | **nothing on this path any more:** generated projects install with npm from `file:` tarballs the kernel copies into `./vendor` at create time (D-032), so no install touches the studio over HTTP. Do not reintroduce URL dependencies |
 | Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `TEMPLATE=Facilis pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
-| Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
+| Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
 | Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. npm also re-derives a RELATIVE `file:` target when it normalizes a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists | the template's install command runs `scripts/vendor-paths.cjs` first, which pins the `@facilis/*` specs to absolute paths and fails loudly if a `vendor/` tarball is missing (D-032 follow-up); bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` |
 | Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
 

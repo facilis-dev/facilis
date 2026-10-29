@@ -2,8 +2,10 @@ import { existsSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 import type { NitroModule } from "nitro/types";
+import { nitro } from "nitro/vite";
 
 import { scanRouteMetadata } from "./ast/scanner.ts";
+import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
 import type { FacilisOptions, RouteMetadataMap } from "./types.ts";
 import { RESOLVED_OPENAPI_META_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
@@ -16,13 +18,22 @@ export interface FacilisVitePlugin extends Plugin {
 }
 
 /**
- * The Facilis Vite plugin (SPEC §5.6, Appendix E).
+ * `facilis()`'s return value: the framework plugin first, then Nitro's own Vite plugins.
  *
- * Two jobs: carry the Nitro module, and own the framework AST pass. The AST pass is a
- * virtual module so route-file edits can be invalidated through Vite's module graph and
- * HMR keeps /_openapi.json and /__facilis/manifest fresh (SPEC §6.9, contracts §8).
+ * Nitro is mounted by `facilis()` so a project never imports `nitro/vite` itself and never
+ * keeps a `nitro.config.ts` (D-034): its options come from `facilis.config.ts`.
  */
-export function facilis(options: FacilisOptions = {}): FacilisVitePlugin {
+export type FacilisPlugins = [FacilisVitePlugin, ...Plugin[]];
+
+/**
+ * The Facilis Vite plugin (SPEC §5.6, Appendix E), plus the Nitro plugins it mounts.
+ *
+ * Three jobs: carry the Nitro module, deliver the project's Nitro options to Nitro, and own
+ * the framework AST pass. The AST pass is a virtual module so route-file edits can be
+ * invalidated through Vite's module graph and HMR keeps /_openapi.json and
+ * /__facilis/manifest fresh (SPEC §6.9, contracts §8).
+ */
+export function facilis(options: FacilisOptions = {}): FacilisPlugins {
   let root = process.cwd();
   let routesDir: string | undefined;
   let cachedMetadata: RouteMetadataMap | undefined;
@@ -48,10 +59,20 @@ export function facilis(options: FacilisOptions = {}): FacilisVitePlugin {
     return true;
   };
 
-  return {
+  const plugin: FacilisVitePlugin = {
     name: "facilis",
     enforce: "pre",
     nitro: createFacilisNitroModule(),
+
+    // Deliver the project's Nitro options through Vite's own `nitro` user-config key,
+    // which is what Nitro's plugin reads. `enforce: "pre"` is what makes it work: config
+    // hooks run in plugin order, so this one has already merged the `nitro` key into the
+    // user config by the time nitro:init builds its Nitro instance. Nothing about the
+    // project's plugins array (e.g. facilis() before react()) can change that.
+    async config(userConfig) {
+      const projectRoot = userConfig.root === undefined ? process.cwd() : resolve(userConfig.root);
+      return { nitro: await loadNitroOptions(projectRoot) };
+    },
 
     configResolved(config) {
       root = config.root;
@@ -97,6 +118,8 @@ export function facilis(options: FacilisOptions = {}): FacilisVitePlugin {
       return `export default ${JSON.stringify(metadata)};`;
     },
   };
+
+  return [plugin, ...nitro()];
 }
 
 function isRouteFile(file: string, routesDir: string | undefined): boolean {

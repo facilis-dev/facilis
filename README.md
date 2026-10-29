@@ -74,7 +74,7 @@ Everything runs **in your browser tab** — including the backend.
 │  ┌───────────────────────────────────────────────┐  │
 │  │  Vivari WebContainer                          │  │
 │  │  ├── Vite dev server  ◄── SINGLE PROCESS      │  │
-│  │  │   └── nitro() plugin (API + OpenAPI)       │  │
+│  │  │   └── Nitro via facilis() (API + OpenAPI)  │  │
 │  │  └── PGlite (WASM Postgres, RLS)              │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
@@ -83,7 +83,7 @@ Everything runs **in your browser tab** — including the backend.
    GitHub (PAT)                  LLM provider (BYO key)
 ```
 
-**One process, one port.** `vite dev` boots Vite; Nitro mounts as a plugin inside it and serves both the React client and the `/api/*` routes from the same origin. Server code runs in an isolated worker and reloads automatically; client code keeps Vite's HMR.
+**One process, one port.** `vite dev` boots Vite; `facilis()` mounts Nitro as a plugin inside it and serves both the React client and the `/api/*` routes from the same origin. Server code runs in an isolated worker and reloads automatically; client code keeps Vite's HMR.
 
 **No backend for the Studio.** No accounts. No infra. Host it on any static CDN.
 
@@ -94,7 +94,7 @@ Everything runs **in your browser tab** — including the backend.
 | Layer | Choice |
 |---|---|
 | Dev server | [Vite](https://vite.dev) |
-| Backend | [Nitro v3](https://nitro.build) — as a Vite plugin (`nitro/vite`) |
+| Backend | [Nitro v3](https://nitro.build) — as a Vite plugin, mounted by `facilis()` |
 | ORM | [Drizzle](https://orm.drizzle.team) |
 | In-browser DB | [PGlite](https://pglite.dev) |
 | Frontend | React 19 + [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) (Base UI primitives) |
@@ -113,8 +113,8 @@ cd examples/todo-app
 FACILIS_INITIAL_ADMIN=admin@example.com PORT=5199 pnpm dev   # → vite dev
 ```
 
-That's it. One command. One port. Vite serves the React app, the Nitro plugin serves `/api/*`
-and `/__facilis/*`, and PGlite boots inside the Nitro worker. Open
+That's it. One command. One port. Vite serves the React app, the Nitro plugin that `facilis()`
+mounts serves `/api/*` and `/__facilis/*`, and PGlite boots inside the Nitro worker. Open
 `http://localhost:5199`, register the `FACILIS_INITIAL_ADMIN` email to get `admin`, and watch
 `/_openapi.json` carry `x-db-tables` for every route.
 
@@ -132,9 +132,13 @@ reference the generator will reproduce.
 
 **Phase 1 implemented and verified headlessly, and the browser harness now exists: the
 Facilis framework boots inside the IDE's WebContainer (2026-10-28 spike — `pnpm ide:smoke`
-with `TEMPLATE=Facilis` is green end to end: `facilis()` + `nitro()` + PGlite +
-`/__facilis/*` on one origin, zero manifest warnings). Generated Facilis projects are
-**pnpm-only** — see [`docs/DECISIONS.md`](docs/DECISIONS.md) D-022…D-024.**
+with `TEMPLATE=Facilis` is green end to end: `facilis()` mounts Nitro + PGlite +
+`/__facilis/*` on one origin, zero manifest warnings). Generated projects install with
+**npm** (D-032) from IDE-served `file:` tarballs, ship **one config** — `facilis.config.ts`,
+whose optional `nitro` section is read by `facilis()` — and their `vite.config.ts` is just
+`[facilis(), react()]` (D-034); the template pins `@types/react`/`@types/react-dom` so the
+IDE's TypeScript service resolves React. See [`docs/DECISIONS.md`](docs/DECISIONS.md)
+D-022…D-034.**
 
 What exists today, runnable in this repo:
 
@@ -144,11 +148,12 @@ What exists today, runnable in this repo:
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
-| Facilis probe template in the IDE | `ide/src/facilis/` | `TEMPLATE=Facilis pnpm ide:smoke`: 26/26 checks — preview paints a real Facilis app, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route |
+| Facilis probe template in the IDE | `ide/src/facilis/` | `TEMPLATE=Facilis pnpm ide:smoke`: green — preview paints a real Facilis app, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves the template's imports (no TS2307) |
 
 The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
-`facilis()` plugin owns an AST pass over `server/routes`, and `/_openapi.json` is a facade
-that merges `x-permission`/`x-db-tables`/`x-db-columns` into Nitro's generated spec.
+`facilis()` plugin mounts Nitro, owns an AST pass over `server/routes`, and answers
+`/_openapi.json` with a facade that merges `x-permission`/`x-db-tables`/`x-db-columns` into
+Nitro's generated spec.
 Decisions and deviations are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 The full specification — architecture, types, endpoint contracts, security model, role lifecycle, AI orchestration, release tooling, phased plan, and acceptance criteria — lives in [`docs/SPEC.md`](docs/SPEC.md).
@@ -171,7 +176,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
 
-→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.3
+→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.4
 
 Highlights inside:
 

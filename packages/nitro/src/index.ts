@@ -31,7 +31,7 @@ export type {
   ScanOptions,
 } from "./types.ts";
 export { facilis } from "./vite.ts";
-export type { FacilisVitePlugin } from "./vite.ts";
+export type { FacilisPlugins, FacilisVitePlugin } from "./vite.ts";
 export {
   RESOLVED_OPENAPI_META_ID,
   VIRTUAL_CONFIG_ID,

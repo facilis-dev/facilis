@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, openPage } from "./cdp.mjs";
 import { runFacilisChecks } from "./smoke-facilis.mjs";
+import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -41,6 +42,7 @@ const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser
 
 const failures = [];
 let facilisReport = null;
+let intellisenseReport = null;
 let writeReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
@@ -283,6 +285,17 @@ async function main() {
     } catch (error) {
       check(false, "facilis checks ran", String(error));
     }
+    // IntelliSense is an acceptance criterion of its own (the IDE's TypeScript service
+    // must resolve the template's imports, i.e. installed @types/*.d.ts reach Monaco).
+    // Runs before the write checks, which edit App.tsx and would make this ambiguous.
+    try {
+      intellisenseReport = await runIntellisenseChecks({ page, check });
+      for (const result of intellisenseReport.checks) {
+        if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+      }
+    } catch (error) {
+      check(false, "intellisense checks ran", String(error));
+    }
     // A8/A10/A12 (spec Appendix A): the VFS write path, isomorphic-git on the VFS and the
     // OPFS-mirror reboot. Runs after the framework probe because it edits the template's
     // App.tsx + ping route, which the probe has already asserted.
@@ -365,6 +378,14 @@ async function main() {
     failures,
     ...(facilisReport
       ? { facilis: { dataset: facilisReport.dataset, diagnostics: facilisReport.diagnostics } }
+      : {}),
+    ...(intellisenseReport
+      ? {
+          intellisense: {
+            checks: intellisenseReport.checks,
+            diagnostics: intellisenseReport.diagnostics,
+          },
+        }
       : {}),
     ...(writeReport
       ? {

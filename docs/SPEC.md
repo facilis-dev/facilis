@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.3 (Phase 0 findings folded in)
+**Version:** 1.4 (one config; `facilis()` mounts Nitro)
 **Status:** Phase 0 headless spike complete; browser/WebContainer items pending
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
 - v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. See `spikes/phase0/REPORT.md`.
 - v1.2 — Renamed framework to **Facilis** (`@facilis/*`, `facilis.config.ts`, `/__facilis/*`, `Facilis*` types, `FACILIS_INITIAL_ADMIN`). Corrected runtime model: **Nitro v3 runs as a Vite plugin**, `vite dev` is the single dev server for frontend and backend. Added §10.6 "Runtime model inside Vivari". Updated Phase 0 tickets.
 - v1.1 — Added full role definition & assignment flow (§8.4), added `FacilisConfig.auth.roles`/`defaultRole`, removed Postgres roles in favor of app roles with session vars, added `FACILIS_INITIAL_ADMIN` bootstrap.
@@ -111,12 +112,12 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 ### 2.3 Framework Config Decisions
 
 - `release.ref` — configurable per project, defaults to `origin/main`
-- `facilis.config.ts` — lives at repo root, committed
+- `facilis.config.ts` — lives at repo root, committed; the **only** project config (framework sections plus optional Nitro options)
 - Blocks — code files: `index.tsx` + `manifest.ts`, published to NPM
 - PAT — one per git host, encrypted, never sent to LLM
 - Migration ordering conflicts — Studio warns, developer resolves
 - Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed by auto-generated migration
-- Nitro config — in `nitro.config.ts` (project root), with `vite.config.ts` registering `nitro()`
+- Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
 
 ---
 
@@ -150,7 +151,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 │  │  ├── FS Worker (Rust/Wasm VFS) ← single source of truth│  │
 │  │  ├── opfs-persistence.js (write-behind mirror)         │  │
 │  │  ├── Vite dev server  ◄── SINGLE PROCESS               │  │
-│  │  │   └── nitro() plugin (server routes, OpenAPI, SSR)  │  │
+│  │  │   └── Nitro via facilis() (routes, OpenAPI, SSR)    │  │
 │  │  └── PGlite (WASM Postgres, RLS-enabled)               │  │
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
@@ -316,9 +317,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   ├── schema.ts
 │   │   └── migrations/
 │   ├── locales/en.json
-│   ├── vite.config.ts        ◄── nitro() plugin lives here
-│   ├── nitro.config.ts       ◄── serverDir, experimental.openAPI
-│   ├── facilis.config.ts     ◄── release.ref, db, i18n, blocks, auth
+│   ├── vite.config.ts        ◄── plugins: [facilis(), react()]
+│   ├── facilis.config.ts     ◄── release.ref, db, i18n, blocks, auth, nitro
 │   ├── package.json          ◄── scripts.dev = "vite dev"
 │   └── README.md
 │
@@ -347,14 +347,13 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── schema.ts                 Drizzle tables + policies + auth re-export
 │   └── migrations/               drizzle-kit output (incl. auth seed)
 ├── locales/en.json
-├── vite.config.ts                plugins: [nitro(), react()]
-├── nitro.config.ts               serverDir: "./server", experimental.openAPI: true
-├── facilis.config.ts             committed config (roles, permissions, etc.)
+├── vite.config.ts                plugins: [facilis(), react()]
+├── facilis.config.ts             the one config: roles, permissions, nitro options
 ├── package.json                  scripts.dev = "vite dev"
 └── README.md
 ```
 
-**Note:** Nitro v3 in Vite mode requires the server directory to be declared in `nitro.config.ts` via `serverDir` (or in the `nitro` key of `vite.config.ts`). Route files live under `server/routes/`, not `routes/` at project root.
+**Note:** Nitro v3 in Vite mode requires the server directory to be declared via `serverDir`. `facilis()` mounts Nitro and supplies it from `facilis.config.ts`: the framework defaults are `serverDir: "./server"` and `experimental.openAPI: true`, and a project overrides only what it changes in the config's optional `nitro` section. Route files live under `server/routes/`, not `routes/` at project root.
 
 ---
 
@@ -507,20 +506,38 @@ Exports:
 
 ### 5.6 `@facilis/nitro` — Vite plugin + Nitro module
 
-This package has **two entry points**, because Nitro v3 in Vite mode is configured through the Vite plugin, and the plugin exposes a `nitro` key for the Nitro module.
+This package has **two entry points**: the Vite plugin (which also mounts Nitro) and the Nitro module it carries.
 
-**Entry 1 — `@facilis/nitro/vite` (Vite plugin):**
+**Entry 1 — `@facilis/nitro/vite` (Vite plugin + Nitro mount):**
 
 ```typescript
 // packages/nitro/src/vite.ts
+import { resolve } from "node:path"
 import type { Plugin } from "vite"
+import type { NitroModule } from "nitro/types"
+import { nitro } from "nitro/vite"
+
+import { loadNitroOptions } from "./config"
 import { facilisNitroModule } from "./module"
 
-export function facilis(): Plugin {
-  return {
+export interface FacilisVitePlugin extends Plugin {
+  readonly nitro: NitroModule
+}
+
+export type FacilisPlugins = [FacilisVitePlugin, ...Plugin[]]
+
+export function facilis(options?: FacilisOptions): FacilisPlugins {
+  const plugin: FacilisVitePlugin = {
     name: "facilis",
+    enforce: "pre",
     nitro: facilisNitroModule,
+    async config(userConfig) {
+      // Nitro's Vite plugin reads this key; `enforce: "pre"` makes this hook run first.
+      const root = userConfig.root === undefined ? process.cwd() : resolve(userConfig.root)
+      return { nitro: await loadNitroOptions(root) }
+    },
   }
+  return [plugin, ...nitro()]
 }
 ```
 
@@ -555,39 +572,40 @@ export const facilisNitroModule: NitroModule = {
 > **Nitro v3 note (verified 2026-10-25 against `nitro@3.0.260903-beta`):** there is no
 > `nitro/kit` entry point and no `defineNitroModule` helper — a Nitro module is a plain
 > object `{ name, setup(nitro) }` typed via `NitroModule` from `nitro/types` (D-010).
-> `nitro()` from `nitro/vite` returns `Plugin[]`, and a Vite plugin may carry the module on
-> its `nitro` key, which is exactly how `facilis()` works. Virtual-module factories in
-> `nitro.options.virtual` return module source strings, evaluated on load.
+> `nitro()` from `nitro/vite` returns `Plugin[]`; a Vite plugin may carry the module on its
+> `nitro` key and pass Nitro options through the `nitro` user-config key, which is how
+> `facilis()` works. Virtual-module factories in `nitro.options.virtual` return module source
+> strings, evaluated on load.
 
 **Registration in the starter's `vite.config.ts`:**
 
 ```typescript
 import { defineConfig } from "vite"
-import { nitro } from "nitro/vite"
 import { facilis } from "@facilis/nitro/vite"
 import react from "@vitejs/plugin-react"
 
 export default defineConfig({
-  plugins: [
-    facilis(),   // registers the Nitro module via the `nitro` key
-    nitro(),     // mounts Nitro inside Vite
-    react(),
-  ],
+  plugins: [facilis(), react()], // facilis() mounts Nitro; order in this array does not matter
 })
 ```
 
-**Nitro options in `nitro.config.ts`:**
+**Nitro options in `facilis.config.ts`:**
 
 ```typescript
-import { defineConfig } from "nitro"
+import { defineConfig } from "@facilis/core"
 
 export default defineConfig({
-  serverDir: "./server",
-  experimental: { openAPI: true },
+  // ...release, db, i18n, blocks, auth
+  nitro: {
+    // pass-through Nitro options; only what differs from the framework defaults
+    devServer: { runner: "self" }, // the in-VM template's constraint (D-034)
+  },
 })
 ```
 
-**Why two entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object. This is exactly the pattern Facilis needs: `facilis()` is a Vite plugin that carries the Facilis Nitro module. The user writes one line in `vite.config.ts` and gets all `__facilis` routes, virtual modules, and collectors.
+`facilis.config.ts` is the only Nitro config a project has. The framework defaults it overlays are `serverDir: "./server"` and `experimental.openAPI: true`; a project that still keeps a `nitro.config.ts` keeps working (Nitro's c12 loader reads it) but `facilis.config.ts` wins, and new projects never create one.
+
+**Why two entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors.
 
 ---
 
@@ -722,6 +740,7 @@ interface FacilisConfig {
   }
   i18n: { defaultLocale: string; locales: string[] }
   blocks: { packages: string[] }
+  nitro: Record<string, unknown>     // pass-through Nitro options; framework defaults underneath (D-034)
   auth: {
     permissions: string[]
     roles: Record<string, string[]>      // role name → permission list; "*" is wildcard
@@ -1417,7 +1436,7 @@ When the starter project boots inside Vivari, the user runs **`vite dev`** — n
 │  ┌─────────────────────────────────────────┐  │
 │  │  Vite dev server (single process)       │  │
 │  │  ├── React plugin → client HMR          │  │
-│  │  └── nitro() plugin:                    │  │
+│  │  └── Nitro (mounted by facilis()):      │  │
 │  │      ├── server routes (/api/*)         │  │
 │  │      ├── OpenAPI generation             │  │
 │  │      ├── /__facilis/* endpoints         │  │
@@ -1522,9 +1541,9 @@ Four diff lenses, one engine:
 | Task | Pass condition |
 |---|---|
 | Fork Vivari Studio; run locally | Editor opens, VFS works |
-| Starter with `vite.config.ts` registering `nitro()` | `vite dev` boots |
+| Starter with `vite.config.ts` registering `facilis()` (which mounts Nitro) | `vite dev` boots |
 | Vivari runs `vite dev` on starter | Preview renders |
-| `experimental.openAPI: true` in `nitro.config.ts`; fetch `/_openapi.json` from Vite origin | Spec reachable |
+| `experimental.openAPI: true` (a Facilis default); fetch `/_openapi.json` from Vite origin | Spec reachable |
 | Write via `vivari.fs.writeFile` | Client HMR fires, server worker reloads |
 | `vivari.fs.writeFiles` batch | Multi-file write works |
 | `isomorphic-git` commit with `fs: vivari.fs` | Commit succeeds, HMR not disrupted |
@@ -1632,7 +1651,7 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 | 9 | **Vivari OPFS write-behind lag** | Uncommitted work lost on crash | Call `vivari.fs.flush()` on `visibilitychange` |
 | 10 | **AI over-fetches (Model B)** | Token cost explodes | Preload summary always; prompt: "aim ≤10k input tokens" |
 | 11 | **Role drift between config and DB** | Security hole | `role_permissions` written only at migration time; validator rule 16 |
-| 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | Phase 0 spike tests `facilis()` + `nitro()` registration order; document in starter README |
+| 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | `facilis()` mounts Nitro itself and `enforce: "pre"` delivers the options, so there is no registration order to get wrong (D-034); document in starter README |
 
 ---
 
@@ -1643,7 +1662,7 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 All must pass:
 
 1. Studio runs locally with VFS
-2. Starter boots via `vite dev` with `nitro()` plugin
+2. Starter boots via `vite dev` with `facilis()` (which mounts Nitro)
 3. `/_openapi.json` reachable on Vite origin
 4. `vivari.fs.writeFile` triggers client HMR and server worker reload
 5. `vivari.fs.writeFiles` batch works
@@ -1653,13 +1672,13 @@ All must pass:
 9. `getTableConfig().policies` returns policies
 10. `x-db-tables` reaches OpenAPI via `defineAuthorizedHandler` — native scanner fails (Phase 0); verified via the framework AST pass
 11. `?format=summary` < 500 tokens
-12. `facilis()` + `nitro()` plugins compose without conflict in `vite.config.ts`
+12. `facilis()` mounts Nitro; plugin order in `vite.config.ts` does not matter
 
 **Status (2026-10-28):** the browser half is scripted. `TEMPLATE=Facilis pnpm ide:smoke`
 proves items 1-6, 10 and 12 *inside the WebContainer*: boot + preview, client HMR **and**
 server handler reload on a VFS write, the framework batch write (`applyPatch`),
 isomorphic-git init/status/commit on the VFS, `/_openapi.json` carrying `x-db-tables`, and
-`facilis()` + `nitro()` composing in one `vite dev`. Items 8, 9 and 11 are covered by the
+`facilis()` mounting Nitro in one `vite dev`. Items 8, 9 and 11 are covered by the
 Phase 1 headless suites (`packages/db`, `packages/nitro`). Item 7's *restore* works for the
 mirrored tree, but writes made after the dev server starts are not mirrored yet — a kernel
 write-behind stall tracked in D-028. Item 6's remote half (A11, PAT clone) stays Phase 2
@@ -1720,8 +1739,8 @@ None of these block Phase 0 or Phase 1.
 | A1 | Fork Vivari Studio to repo | `pnpm dev` opens editor |
 | A2 | Strip demo templates from Studio | Home page loads empty |
 | A3 | Add "New Project" flow that mounts a local starter tree | Starter renders in preview |
-| A4 | Starter's `vite.config.ts` registers `facilis()` + `nitro()` | `vite dev` boots without errors |
-| A5 | `nitro.config.ts` sets `serverDir` and `experimental.openAPI` | `/_openapi.json` returns spec |
+| A4 | Starter's `vite.config.ts` registers `facilis()` (which mounts Nitro) | `vite dev` boots without errors |
+| A5 | Facilis defaults supply `serverDir` and `experimental.openAPI` (overridable in `facilis.config.ts`) | `/_openapi.json` returns spec |
 | A6 | Studio spawns `vite dev` in Vivari | Preview iframe loads React app |
 | A7 | Studio fetches `/_openapi.json` from Vite origin | Spec visible in console |
 | A8 | Test `vivari.fs.writeFile` | File appears in editor; client HMR + server worker reload |
@@ -1778,6 +1797,10 @@ export default defineConfig({
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
   },
+  // Optional: Nitro options, passed through unchanged. Facilis supplies the framework
+  // defaults (`serverDir: "./server"`, `experimental.openAPI: true`) underneath, so
+  // declare only what you change. The IDE template, for example, needs the in-VM runner:
+  nitro: { devServer: { runner: "self" } },
 })
 ```
 
@@ -1872,25 +1895,18 @@ The first registration with that email gets the `admin` role.
 
 ```typescript
 import { defineConfig } from "vite"
-import { nitro } from "nitro/vite"
 import { facilis } from "@facilis/nitro/vite"
 import react from "@vitejs/plugin-react"
 
 export default defineConfig({
-  plugins: [facilis(), nitro(), react()],
+  plugins: [facilis(), react()],
 })
 ```
 
-### `nitro.config.ts`
-
-```typescript
-import { defineConfig } from "nitro"
-
-export default defineConfig({
-  serverDir: "./server",
-  experimental: { openAPI: true },
-})
-```
+`facilis()` mounts Nitro and reads the project's Nitro options from the optional `nitro` section
+of `facilis.config.ts` (Appendix B). The framework supplies `serverDir: "./server"` and
+`experimental.openAPI: true`; a project overrides only what it changes. There is no
+`nitro.config.ts`.
 
 ### `package.json`
 
@@ -1909,7 +1925,7 @@ export default defineConfig({
 | Concern | File / Directory |
 |---|---|
 | Vite plugins | `vite.config.ts` |
-| Nitro options | `nitro.config.ts` (or `nitro` key in `vite.config.ts`) |
+| Nitro options | `facilis.config.ts` (`nitro` section; framework defaults underneath) |
 | Server routes | `server/routes/` |
 | Facilis config | `facilis.config.ts` (repo root) |
 | Drizzle schema | `db/schema.ts` |

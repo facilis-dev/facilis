@@ -14,6 +14,7 @@ export type {
   FacilisConfigInput,
   FacilisDbConfig,
   FacilisI18nConfig,
+  FacilisNitroOptions,
   FacilisReleaseConfig,
 } from "./config.ts";
 

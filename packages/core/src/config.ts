@@ -39,12 +39,23 @@ export interface FacilisAuthConfig {
   readonly sessionDurationMs: number;
 }
 
+/**
+ * Nitro options owned by the project (D-034).
+ *
+ * Facilis validates only the shape — an object — and passes every key to Nitro untouched:
+ * these are Nitro's options, not the framework's. `@facilis/nitro` merges them over the
+ * Facilis defaults (`serverDir: "./server"`, `experimental.openAPI: true`), so a project
+ * only declares what it changes.
+ */
+export type FacilisNitroOptions = Readonly<Record<string, unknown>>;
+
 export interface FacilisConfig {
   readonly release: FacilisReleaseConfig;
   readonly db: FacilisDbConfig;
   readonly i18n: FacilisI18nConfig;
   readonly blocks: FacilisBlocksConfig;
   readonly auth: FacilisAuthConfig;
+  readonly nitro: FacilisNitroOptions;
 }
 
 /**
@@ -61,6 +72,8 @@ export interface FacilisConfigInput {
   };
   readonly i18n?: { readonly defaultLocale?: string; readonly locales?: readonly string[] };
   readonly blocks?: { readonly packages?: readonly string[] };
+  /** Passed to Nitro unchanged; `@facilis/nitro` merges the framework defaults underneath. */
+  readonly nitro?: FacilisNitroOptions;
   readonly auth: {
     readonly permissions?: readonly string[];
     readonly roles?: Readonly<Record<string, readonly string[]>>;
@@ -121,6 +134,10 @@ const blocksSchema = z
   })
   .default(() => DEFAULT_BLOCKS_CONFIG);
 
+// Nitro's own options are not Facilis's contract, so the section is a pass-through: keep
+// the object as authored and let @facilis/nitro apply the framework defaults underneath.
+const nitroSchema = z.record(z.string(), z.unknown()).default({});
+
 // Session duration is a safe default (one week, matching SPEC §8.4.1's example); everything
 // security-relevant (roles, permissions, default role) stays required so it is never implicit.
 const authSchema = z.strictObject({
@@ -136,6 +153,7 @@ const baseConfigSchema = z.strictObject({
   i18n: i18nSchema,
   blocks: blocksSchema,
   auth: authSchema,
+  nitro: nitroSchema,
 });
 
 type ConfigPath = readonly (string | number)[];

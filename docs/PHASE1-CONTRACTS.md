@@ -5,10 +5,12 @@ file only fixes **module boundaries** so four packages can be written in paralle
 import cycles or API drift.
 
 > **Status:** implemented (2026-10-25) and verified by `examples/todo-app`.
-> Two deltas landed during integration: (1) `#facilis/openapi-meta` is owned by the
+> Three deltas landed during integration: (1) `#facilis/openapi-meta` is owned by the
 > `facilis()` Vite plugin only — Nitro's virtual plugin resolves that id first and serves
 > stale metadata; (2) relative imports inside `packages/*/src` carry `.ts` (AGENTS.md),
-> which is what lets Node load a Vite config that imports the framework.
+> which is what lets Node load a Vite config that imports the framework; (3) `facilis()`
+> mounts Nitro and takes the project's Nitro options from `facilis.config.ts` (D-034), so
+> projects never import `nitro/vite` and never keep a `nitro.config.ts`.
 
 ## 1. Ownership
 
@@ -208,7 +210,7 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 ## 8. `@facilis/nitro` (nitro-impl)
 
 ```ts
-export function facilis(options?: FacilisOptions): Plugin; // name "facilis", enforce "pre"
+export function facilis(options?: FacilisOptions): FacilisPlugins; // [FacilisVitePlugin, ...Plugin[]]
 export const facilisNitroModule: NitroModule;             // plain { name, setup(nitro) }, NOT defineNitroModule
 export function scanRouteMetadata(options: ScanOptions): Promise<RouteMetadataMap>;
 export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataMap): OpenApiDocument;
@@ -218,6 +220,15 @@ export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataM
 - Nitro v3 has **no `nitro/kit` export and no `defineNitroModule`** (spec §5.6 is stale).
   The module is a plain object `{ name, setup(nitro) }`; type from `nitro/types`.
 - `nitro()` from `nitro/vite` returns `Plugin[]`; a Vite `Plugin` may carry `nitro?: NitroModule`.
+- `facilis()` **mounts Nitro**: it returns `[FacilisVitePlugin, ...nitro()]`, and the Facilis
+  plugin (`enforce: "pre"`) has a `config` hook that loads `<root>/facilis.config.ts` natively
+  and returns `{ nitro: mergeNitroOptions(config.nitro) }` — the framework defaults
+  (`serverDir: "./server"`, `experimental.openAPI: true`) under the project's overrides.
+  Because the hook runs before Nitro's, the order inside `plugins` does not matter.
+- `@facilis/nitro` value-imports `nitro/vite`, so `nitro` is a **required** peer dependency;
+  `vite` stays optional (only the `/vite` entry needs it). Projects never import `nitro/vite`
+  or keep a `nitro.config.ts`; a legacy one is still read by Nitro's c12 loader but
+  `facilis.config.ts` wins.
 - Inside `setup`, `nitro.options.handlers` / `nitro.options.virtual` are available (see spec §5.6).
 - Phase 0 prototype to reuse: `spikes/phase0/tools/facilis-openapi-ast-fallback.ts` and
   `spikes/phase0/server/openapi-facade.ts` (proven with `parseSync`/`transformSync` from

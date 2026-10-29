@@ -129,14 +129,20 @@ New Facilis panels and the `IdeController.applyPatch()` write path belong in new
 files are formatted/linted but not otherwise rewritten; forced edits go into the patch set above.
 
 The first Facilis module is `ide/src/facilis/`: the probe template that boots a real Facilis
-app in the WebContainer (`facilis()` + `nitro()` + PGlite + `/__facilis/*`). It is registered
-by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits at its
-file-length baseline and may not grow. The generated project installs with **npm** (D-032):
-the `@facilis/*` tarballs are copied into the project's `./vendor` at create time (the
+app in the WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`). The generated
+project has **one config**, `facilis.config.ts`: its `nitro` section carries the WebContainer
+constraint `devServer: { runner: "self" }` (Nitro's default node-worker runner needs
+`worker_threads` and a file-URL `import.meta.resolve`, which the VM does not provide), there
+is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034). Its `package.json`
+pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's TypeScript service only sees
+installed `@types/*.d.ts` — without them the editor reports TS2307 on `react`. It is
+registered by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits
+at its file-length baseline and may not grow. The generated project installs with **npm**
+(D-032): the `@facilis/*` tarballs are copied into the project's `./vendor` at create time (the
 manifest's `assets`, fetched same-origin by the kernel) and declared as `file:` dependencies,
 so no install reaches the studio over HTTP and the project stays installable outside the IDE.
 The npm version is pinned in lockstep with the VM's Node — `NPM_VERSION` in
 `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and
 `ide/src/facilis/package-manager.test.ts` enforces it. The constraints and the upstream bugs
-behind them are recorded in `docs/DECISIONS.md` D-022…D-024, D-032 and summarized in
+behind them are recorded in `docs/DECISIONS.md` D-022…D-024, D-032, D-034 and summarized in
 `docs/DEV.md` §6.

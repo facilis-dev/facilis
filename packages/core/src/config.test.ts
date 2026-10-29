@@ -25,6 +25,7 @@ const FULL_CONFIG: FacilisConfig = {
   i18n: { defaultLocale: "en", locales: ["en", "fr"] },
   blocks: { packages: ["@facilis/blocks"] },
   auth: SPEC_AUTH,
+  nitro: { serverDir: "./backend" },
 };
 
 describe("defineConfig", () => {
@@ -48,6 +49,24 @@ describe("defineConfig", () => {
     expect(config.i18n).toEqual({ defaultLocale: "en", locales: ["en"] });
     expect(config.blocks).toEqual({ packages: [] });
     expect(config.auth.sessionDurationMs).toBe(1000 * 60 * 60 * 24 * 7);
+    expect(config.nitro).toEqual({});
+  });
+
+  it("passes the project's Nitro options through untouched", () => {
+    const nitro = {
+      serverDir: "./backend",
+      experimental: { openAPI: false },
+      devServer: { runner: "self" },
+    };
+
+    // Any Nitro option is legal here: Facilis does not narrow or strip the section.
+    const config = defineConfig({ auth: SPEC_AUTH, nitro });
+
+    expect(config.nitro).toEqual(nitro);
+  });
+
+  it("rejects a Nitro section that is not an object", () => {
+    expect(() => defineConfig({ auth: SPEC_AUTH, nitro: ["server"] as never })).toThrow(/nitro/);
   });
 
   it("returns an explicit full config unchanged", () => {

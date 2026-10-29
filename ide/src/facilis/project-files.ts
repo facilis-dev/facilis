@@ -49,6 +49,11 @@ function packageJson(): string {
           zod: "4.6.7",
         },
         devDependencies: {
+          // The IDE feeds installed @types/*.d.ts files to Monaco's TypeScript service,
+          // so a project without these reports TS2307 "Cannot find module 'react'" on
+          // src/App.tsx. The pins match examples/todo-app.
+          "@types/react": "19.3.0",
+          "@types/react-dom": "19.3.0",
           "@rolldown/binding-wasm32-wasi": "~1.2.0",
           "@vitejs/plugin-react": "6.1.2",
           vite: "8.3.5",
@@ -70,31 +75,16 @@ function packageJson(): string {
 
 const viteConfig = `import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { nitro } from "nitro/vite";
 import { facilis } from "@facilis/nitro/vite";
 
-// One dev server: Vite serves the client and Nitro runs as a plugin on the same
-// origin (SPEC 10.6). facilis() comes before nitro() so the Facilis Nitro module
-// is attached to the plugin chain before Nitro boots.
+// One dev server: Vite serves the client and facilis() mounts Nitro on the same
+// origin (SPEC 10.6). Nitro's options are read from the project's facilis.config.ts,
+// so this file never names Nitro itself.
 export default defineConfig({
-  plugins: [facilis(), nitro(), react()],
+  plugins: [facilis(), react()],
   resolve: {
     alias: { "~": new URL(".", import.meta.url).pathname },
   },
-});
-`;
-
-const nitroConfig = `import { defineConfig } from "nitro";
-
-export default defineConfig({
-  // Nitro v3 does not scan directories unless serverDir is set (SPEC 4.2 note).
-  serverDir: "./server",
-  experimental: { openAPI: true },
-  // The default node-worker dev runner cannot start inside the WebContainer:
-  // it needs worker_threads and resolves its entry through import.meta.resolve,
-  // which the VM runtime does not provide as a file URL. The in-process runner
-  // keeps the Nitro environment in the Vite dev-server process.
-  devServer: { runner: "self" },
 });
 `;
 
@@ -110,6 +100,12 @@ export default defineConfig({
     roles: { admin: ["*"], user: ["todos:read"] },
     defaultRole: "user",
   },
+  // Nitro options are project config too (D-034). The default node-worker dev runner
+  // cannot start inside the WebContainer: it needs worker_threads and resolves its
+  // entry through import.meta.resolve, which the VM runtime does not provide as a
+  // file URL. The in-process runner keeps init inside the Vite dev-server process;
+  // this is a VM environment constraint, not a Facilis default.
+  nitro: { devServer: { runner: "self" } },
 });
 `;
 
@@ -127,7 +123,7 @@ const tsconfig = `{
     "types": ["vite/client"],
     "paths": { "~/*": ["./*"] }
   },
-  "include": ["src", "server", "db", "vite.config.ts", "nitro.config.ts", "facilis.config.ts"]
+  "include": ["src", "server", "db", "vite.config.ts", "facilis.config.ts"]
 }
 `;
 
@@ -231,7 +227,6 @@ export function projectFiles(): Record<string, string> {
     "index.html": indexHtml,
     "tsconfig.json": tsconfig,
     "vite.config.ts": viteConfig,
-    "nitro.config.ts": nitroConfig,
     "facilis.config.ts": facilisConfig,
     ".npmrc": npmrc,
     "README.md": readme,

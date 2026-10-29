@@ -1,8 +1,8 @@
 // The Facilis probe template.
 //
-// A minimal but real Facilis project (Vite 8 + Nitro v3 as a Vite plugin + PGlite)
+// A minimal but real Facilis project (Vite 8 + Nitro v3 owned by facilis() + PGlite)
 // the IDE scaffolds into the WebContainer, where a real npm install and vite dev
-// prove that facilis() + nitro() + PGlite boot and serve (Phase 0 proof spike).
+// prove that facilis() (which mounts Nitro) + PGlite boot and serve (Phase 0 proof spike).
 //
 // The payload lives in sibling modules so every file stays under the 300-line
 // limit; this file only assembles it and carries the picker manifest.
