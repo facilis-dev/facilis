@@ -3,9 +3,9 @@
 // preview); what a tab needs from the Studio is a durable identity and a guard against
 // sharing a project with another tab.
 //
-//   * Identity: a tab opened from another one carries ?project=<rootPath>. On boot the
-//     project is opened and run, so a reload lands back on the same project instead of
-//     Home. A tab that started on Home stays parameterless (Home is the default).
+//   * Identity: the tab's URL always names the project it shows (?project=<rootPath>):
+//     on boot that project is opened and run, so a reload lands back on it instead of
+//     Home. A tab that started on Home stays parameterless until it opens something.
 //   * Guard: every open folder is claimed with a Web Lock (see project-lock.ts). A
 //     folder claimed by another live tab is closed again with a toast, because two RAM
 //     copies of one project diverge and then mirror over each other.
@@ -70,13 +70,25 @@ export function installProjectTabs(controller: IdeController): () => void {
     history.replaceState(history.state, "", url.toString());
   }
 
-  // A tab whose project was opened and then closed goes back to being a plain tab.
-  function pruneProjectParam(snap: IdeSnapshot): void {
-    if (snap.workspaceFolders.length > 0) {
-      sawFolders = true;
+  function setProjectParam(rootPath: string): void {
+    const url = new URL(location.href);
+    if (url.searchParams.get("project") === rootPath) return;
+    url.searchParams.set("project", rootPath);
+    history.replaceState(history.state, "", url.toString());
+  }
+
+  // Keep the URL in step with the workspace, both ways: a tab that picks a project from
+  // Home must survive a reload like one opened from another tab did (before, only the
+  // latter carried the parameter, so F5 on a Home-picked project went back to Home), and
+  // a tab that closes its last project goes back to being a plain Home tab.
+  function syncProjectParam(snap: IdeSnapshot): void {
+    if (snap.workspaceFolders.length === 0) {
+      if (sawFolders) dropProjectParam();
       return;
     }
-    if (sawFolders) dropProjectParam();
+    sawFolders = true;
+    const active = snap.workspaceFolders.find((folder) => folder.id === snap.activeFolderId);
+    setProjectParam((active ?? snap.workspaceFolders[0]).rootPath);
   }
 
   async function bootstrapFromUrl(snap: IdeSnapshot): Promise<void> {
@@ -125,7 +137,6 @@ export function installProjectTabs(controller: IdeController): () => void {
       return; // the snapshot changed under us; the queued reconcile re-reads it
     }
     updateTitle(snap);
-    pruneProjectParam(snap);
     await bootstrapFromUrl(snap);
   }
 
@@ -139,7 +150,14 @@ export function installProjectTabs(controller: IdeController): () => void {
     claims.clear();
   };
 
-  const unsubscribe = controller.subscribe(schedule);
+  // The URL identity is updated in the snapshot callback, not in the async reconcile:
+  // opening a folder must name the project in the URL immediately, so even an F5 a
+  // millisecond later lands back on it (and the smoke can assert it synchronously).
+  const onSnapshot = (): void => {
+    syncProjectParam(controller.getSnapshot());
+    schedule();
+  };
+  const unsubscribe = controller.subscribe(onSnapshot);
   window.addEventListener("pagehide", onHide);
   schedule();
   return () => {

@@ -244,6 +244,14 @@ async function main() {
     check(await waitFor(tabA, KERNEL_READY, BOOT_TIMEOUT_MS, "A kernel"), "tab A boots its kernel");
     const dirA = await createProject(tabA, "react-ts", "alpha", true);
     check(dirA === ALPHA, "tab A creates alpha", dirA);
+    const paramAfterCreate = await tabA.evaluate(
+      "new URLSearchParams(location.search).get('project')",
+    );
+    check(
+      paramAfterCreate === ALPHA,
+      "opening a project names it in the tab's URL (a reload lands back on it)",
+      String(paramAfterCreate),
+    );
     const paintedA = await waitFor(
       tabA,
       "Boolean(window.__vvBoot && window.__vvBoot.some((m) => m.name === 'preview-paint'))",
@@ -265,6 +273,11 @@ async function main() {
     await closeFolder(tabA, BETA);
     await flushMirror(tabA);
     check((await snapshot(tabA)).folders.length === 1, "beta is created but not open in tab A");
+    // Closing the project that was active re-points the URL at the one still open.
+    check(
+      (await tabA.evaluate("new URLSearchParams(location.search).get('project')")) === ALPHA,
+      "the URL follows the tab's active project",
+    );
 
     // ---- tab B: beta, opened by URL in its own kernel ----------------------
     const tabB = await openPage(chrome.client, projectUrl(dev.url, BETA));
@@ -336,6 +349,10 @@ async function main() {
     );
     check(refusal, "a second tab REFUSES a project already open elsewhere");
     check((await snapshot(tabC)).folders.length === 0, "tab C leaves no folder open");
+    check(
+      (await tabC.evaluate("new URLSearchParams(location.search).get('project')")) === null,
+      "a tab with no project has no ?project= in its URL",
+    );
     check((await snapshot(tabA)).folders.includes(ALPHA), "tab A still owns alpha");
 
     // ---- the shared OPFS index survives both kernels ---------------
