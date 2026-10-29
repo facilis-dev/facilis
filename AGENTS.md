@@ -154,3 +154,7 @@ recipe, pinned tool versions, in-VM constraints and troubleshooting live in
 The Vite templates inside the IDE resolve `vite@^7.1.0` on purpose: Vite 8's rolldown cannot
 load its wasm binding in the WebContainer (see `ide/README.md`), so do not bump it without a
 green `pnpm ide:smoke`.
+A generated project installs with **npm**, the package manager the IDE vendors (D-032), pinned in
+lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the
+template's `packageManager` (`ide/src/facilis/package-manager.test.ts` fails if they drift;
+`pnpm` survives only as rolldown's in-VM fallback).

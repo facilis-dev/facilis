@@ -112,8 +112,12 @@ files are formatted/linted but not otherwise rewritten; forced edits go into the
 The first Facilis module is `ide/src/facilis/`: the probe template that boots a real Facilis
 app in the WebContainer (`facilis()` + `nitro()` + PGlite + `/__facilis/*`). It is registered
 by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits at its
-file-length baseline and may not grow. The generated project is **pnpm-only** (npm cannot
-reach the IDE origin for its URL tarballs inside the VM) and installs `@facilis/*` from
-`pnpm ide:facilis-deps` tarballs served by the IDE; the constraints and the upstream bugs
-behind them are recorded in `docs/DECISIONS.md` D-022…D-024 and summarized in
+file-length baseline and may not grow. The generated project installs with **npm** (D-032):
+the `@facilis/*` tarballs are copied into the project's `./vendor` at create time (the
+manifest's `assets`, fetched same-origin by the kernel) and declared as `file:` dependencies,
+so no install reaches the studio over HTTP and the project stays installable outside the IDE.
+The npm version is pinned in lockstep with the VM's Node — `NPM_VERSION` in
+`scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and
+`ide/src/facilis/package-manager.test.ts` enforces it. The constraints and the upstream bugs
+behind them are recorded in `docs/DECISIONS.md` D-022…D-024, D-032 and summarized in
 `docs/DEV.md` §6.

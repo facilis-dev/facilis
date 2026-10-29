@@ -333,7 +333,7 @@ A6 and A8-A12 that were waiting on a harness.
 ---
 
 ### D-022 — Facilis projects install with pnpm only, from IDE-served tarballs
-**Status:** accepted (2026-10-27, Phase 0 browser spike)
+**Status:** superseded by D-032 (2026-10-29); kept for the investigation it records
 
 A generated Facilis project installs `@facilis/*` from `pnpm pack` tarballs served by the
 IDE origin, and it does so with **pnpm only**. Both halves are forced by the WebContainer,
@@ -694,6 +694,45 @@ no longer on the critical path); production builds were already bundled, so this
 in line with what ships. The cost is a bundling pass on the dev server (one ~1.3 MB chunk on
 first request instead of hundreds of small ones) and Vite's experimental HMR semantics;
 `dev:middleware` is the escape hatch if a Vite plugin misbehaves in bundle mode.
+
+### D-032 — npm is the package manager of a generated Facilis project
+**Status:** accepted (2026-10-29); supersedes D-022
+
+D-022 made generated projects pnpm-only because npm 10 could not reach the IDE's tarball URLs
+inside the VM. Two measurements changed the calculus.
+
+- **pnpm can no longer be kept current.** 12.x ships no JS bundle at all: the npm package is a
+  wrapper that installs and spawns `@pnpm/exe.<platform>/pnpm`, a native executable that a
+  browser container cannot run. 11.x is the last JS major, and its store index requires
+  `node:sqlite`, which the runtime does not serve (pnpm 10.34.9 does not even load — measured,
+  [findings](./upstream/vivari-findings-2026-10-28.md) §6). A developer-facing IDE shipping a
+  2025 package manager against a 2026 `latest` is exactly the "already old" signal we refuse
+  to ship, and no version bump fixes it.
+- **The URL dependency was never necessary.** The four `@facilis/*` tarballs are static files
+  the IDE already serves (17-57 KB each). The kernel now fetches them at create time (template
+  `manifest.assets`) and writes them into the project's `./vendor`, which declares them as
+  `file:` dependencies. The install touches no HTTP at all — no agent/egress split, no host
+  alias — and the generated project installs unchanged outside the IDE.
+
+**Decision:** generated projects install with **npm**, vendored by the IDE and pinned in
+lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` equals the
+template's `"packageManager"` (both `12.2.1`), and npm 12's engines
+(`^22.22.2 || ^24.15.0 || >=26.0.0`) contain the `v24.18.0` the runtime reports. The
+`preinstall` guard rejects anything that is not npm. `.npmrc` keeps only VM-relevant
+switches (audit/fund/progress/update-notifier off); the flat `node_modules` npm produces is
+what Nitro's undeclared transitive requires (`ufo`, …) rely on, so pnpm's
+`node-linker=hoisted` workaround is gone. Templates gain one engine capability for this: a
+manifest may list binary assets, which the kernel worker fetches same-origin and writes inside
+the same batch as the template's text files (fork `facilis/main`).
+
+**Consequences:** npm is the one package manager whose distribution cannot go native — it is
+the manager Node ships with, and it has been a pure-JS tree its whole life — so "aligned with
+Node" becomes a maintenance routine we own (bump the version, rebuild the pack, re-run the two
+smokes; the vendoring patch to Arborist's `#loadPeerSet` is the only coupling, and it fails
+loudly when npm refactors it). pnpm remains in the VM only as the tool rolldown invokes for
+its wasm binding inside a Vite 8 project (`pnpm i @rolldown/binding-wasm32-wasi`): pinned,
+internal, and carrying no version promise. The `@facilis/*` `file:` specs are interim —
+when the packages are published (O-006) the dependency specs change and nothing else does.
 
 ---
 

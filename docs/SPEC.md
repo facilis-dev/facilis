@@ -1458,7 +1458,7 @@ When the starter project boots inside Vivari, the user runs **`vite dev`** — n
 
 ```typescript
 // Simplified
-await vivari.spawn("pnpm", ["run", "dev"])   // runs `vite dev`
+await vivari.spawn("npm", ["run", "dev"])    // runs `vite dev`
 // Wait for the port to be ready
 await waitForPort(vivari, 5173)
 // Then point the preview iframe at http://localhost:5173

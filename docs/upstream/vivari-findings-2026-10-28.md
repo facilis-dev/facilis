@@ -172,6 +172,12 @@ the last JS-distributed, CJS-loadable shape and the only one that can land in a 
 guests, so it is a bindings job, not a research job). 12.x is out of reach for every browser-based
 container, not just this one.
 
+
+**Decided (2026-10-29):** no 10.x spike. The generated project installs with **npm** instead — the
+IDE vendors npm 12.2.1 and the `@facilis/*` tarballs are copied into the project as `file:`
+dependencies, so no install touches HTTP at all (D-032). pnpm stays in the VM only as the tool
+rolldown invokes for its wasm binding, pinned and internal. The 11.x ceiling above is therefore
+not on our path any more; it would matter only if a project had to install with pnpm.
 Other engine gaps worth a one-line upstream PR when we are in there, none blocking Facilis today:
 `fsPromises.cp` routes into the unimplemented sync path (`node/lib/fs/promises.js`, one line) while
 `fs.cp` works; `node:sqlite` is absent (see above); `http2` is a load-safe stub; `readline` is

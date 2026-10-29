@@ -8,10 +8,15 @@ is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based o
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: the three commits below, on top of `v1.1.3` (`cec9e81`) | `v1.1.3` | — |
+| `facilis/main` | integration: the three fixes below plus three Facilis-driven commits, on top of `v1.1.3` (`cec9e81`); pin `02740ca` | `v1.1.3` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.3` | not opened |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.3` | not opened |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.3` | not opened |
+
+The three Facilis-driven commits on `facilis/main` are not `fix/*` branches: a template may list
+binary assets that the kernel fetches same-origin and writes with the project (D-032, the local
+`file:` tarball install), the vendored npm is pinned to 12.2.1, and both packers now rebuild a
+pack whose stamped version no longer matches the pin instead of silently reusing it.
 
 The same commits, `git am`-able and with their PR bodies, are kept next to this file
 (`vivari-*.patch`, `vivari-*-pr.md`) so they can be replayed without the fork. Evidence and the
