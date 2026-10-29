@@ -1,3 +1,4 @@
+import ExternalLink from "~icons/lucide/external-link";
 import Home from "~icons/lucide/house";
 import PanelLeft from "~icons/lucide/panel-left";
 import PanelLeftOff from "~icons/lucide/panel-left-dashed";
@@ -8,6 +9,7 @@ import PanelRightOff from "~icons/lucide/panel-right-dashed";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { openStudioInNewTab } from "@/vv/project-tabs";
 import { useIde } from "./useIde";
 
 /** One layout toggle, in the cluster at the far right. lucide ships a solid-divider
@@ -73,6 +75,16 @@ export function TitleBar() {
       {/* App actions, then the layout cluster hugging the corner — VS Code keeps its
           layout controls at the far edge, apart from whatever sits beside them. */}
       <div className="flex shrink-0 items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger
+            onClick={openStudioInNewTab}
+            aria-label="Open Studio in a new tab"
+            className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ExternalLink className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">New tab</TooltipContent>
+        </Tooltip>
         <Button variant="ghost" size="sm" onClick={() => c.goHome()}>
           <Home className="size-4" /> Home
         </Button>

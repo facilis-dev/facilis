@@ -4,7 +4,6 @@ import FilePlus from "~icons/lucide/file-plus-2";
 import LayoutTemplate from "~icons/lucide/layout-template";
 import Clock from "~icons/lucide/clock";
 import ArrowLeft from "~icons/lucide/arrow-left";
-import Trash from "~icons/lucide/trash-2";
 import FolderInput from "~icons/lucide/folder-input";
 import Github from "~icons/lucide/github";
 import Loader from "~icons/lucide/loader-circle";
@@ -27,18 +26,8 @@ import type { TemplateCategory, TemplateDef } from "@/vv/templates";
 import { loadTemplates, prefetchTemplates } from "@/vv/templates-lazy";
 import { TemplateIcon } from "./templateIcons";
 import { useIde } from "./useIde";
-import { entriesFromDataTransfer, type ProjectMeta } from "@/vv/controller";
-
-function relTime(ts: number): string {
-  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  return `${d}d ago`;
-}
+import { entriesFromDataTransfer } from "@/vv/controller";
+import { RecentProjectsRow } from "./RecentProjectsRow";
 
 export function HomeView() {
   const { c, snap } = useIde();
@@ -173,7 +162,7 @@ export function HomeView() {
           ) : (
             <ul className="flex flex-col gap-1.5">
               {snap.recentProjects.map((p) => (
-                <RecentRow key={p.rootPath} project={p} />
+                <RecentProjectsRow key={p.rootPath} project={p} />
               ))}
             </ul>
           )}
@@ -364,33 +353,6 @@ function ResetEverythingDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function RecentRow({ project }: { project: ProjectMeta }) {
-  const { c } = useIde();
-  return (
-    <li className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/50 hover:bg-accent/30">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        onClick={() => void c.openProject(project)}
-      >
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{project.name}</div>
-          <div className="truncate text-xs text-muted-foreground">{project.rootPath}</div>
-        </div>
-        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-          {project.template ? project.template : "blank"} · {relTime(project.lastModified)}
-        </span>
-      </button>
-      <button
-        title="Remove from list"
-        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
-        onClick={() => c.removeProjectMeta(project.rootPath)}
-      >
-        <Trash className="size-3.5" />
-      </button>
-    </li>
   );
 }
 

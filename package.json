@@ -23,7 +23,8 @@
     "ide:assets": "sh scripts/dev/vendor-assets.sh",
     "ide:facilis-deps": "sh scripts/dev/vendor-facilis-deps.sh",
     "ide:browser": "sh scripts/dev/fetch-browser.sh",
-    "ide:smoke": "node scripts/dev/smoke-ide.mjs"
+    "ide:smoke": "node scripts/dev/smoke-ide.mjs",
+    "ide:smoke:multitab": "node scripts/dev/smoke-multitab.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
