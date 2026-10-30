@@ -72,6 +72,25 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-30, pin `4b7be67` / `facilis/main` = upstream v1.1.4 + 12 fork commits)
+
+The pin adds one commit: the ESM→CJS transpiler advances over whitespace **and comments**
+between `export` and the declaration it prefixes (`skipSpaceAndComments` in
+`packages/runtime/esm.js`). zod v4's build emits `export /*@__NO_SIDE_EFFECTS__*/ function`;
+the scanner skipped only whitespace, read the comment's `/` as "not an export form", left the
+keyword in the CJS body, and every Nitro route importing zod died in-VM with `Unexpected token
+'export' (while compiling …/zod/v4/core/core.js [esm])` — the AsyncFunction retry could not help,
+because the transpiled source still contained the keyword. Found by the Facilis probe's new
+database roundtrip (the first app code to import zod from a server route inside the
+WebContainer); regression case in `vendor/vivari/scripts/spike-esm.mjs`, changeset
+`brave-exports-strip`.
+
+| Check | Result |
+|---|---|
+| `node vendor/vivari/scripts/spike-esm.mjs` | PASS, including the new comment-between-tokens case |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **green**, 57/57: the probe registers, logs in, inserts a todo through the authorized handler and reads it back |
+| `git submodule status` | clean at `4b7be67…` (`v1.1.4-12-g4b7be67`) |
+
 ## Verification (2026-10-30, pin `c83c08f` / `facilis/main` = upstream v1.1.4 + 11 fork commits)
 
 The pin adds one commit: package-manager cache **bodies** are replayed on first read

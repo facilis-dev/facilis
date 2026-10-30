@@ -16,7 +16,7 @@ branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 | Upstream repository | <https://github.com/maitrungduc1410/vivari> |
 | Upstream tag / commit | `v1.1.2` / `1f00a48c6d8009e7f369c1cf36959d61ad262b19` (branch `master`, 2026-10-16) |
 | App source | upstream `packages/studio/` |
-| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits (D-030) |
+| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.4` + 12 fork commits (`v1.1.4-12-g4b7be67`, D-030) |
 | License | MIT — [`LICENSE`](./LICENSE) (Copyright (c) 2026 Duc Trung Mai and Vivari contributors); Facilis code is covered by the root [`LICENSE`](../LICENSE) |
 
 ## Layout
