@@ -1,6 +1,6 @@
 import { defineAuthorizedHandler } from "@facilis/core";
 import { destroySession } from "@facilis/auth";
-import { clearedSessionCookie, jsonResponse, sessionIdFromCookieHeader } from "~/server/utils/http";
+import { clearedSessionCookie, sessionIdFromCookieHeader } from "~/server/utils/http";
 
 export default defineAuthorizedHandler(
   {
@@ -9,17 +9,19 @@ export default defineAuthorizedHandler(
     description: "Destroy the current session and clear the cookie.",
   },
   async (event, { db }) => {
+    // The cookie is cleared on EVERY exit, including a broken session: staged on the
+    // event's response headers, which is the surface that survives (D-038).
+    event.res?.headers.set("set-cookie", clearedSessionCookie());
+
     const sessionId = sessionIdFromCookieHeader(event.req.headers.get("cookie"));
-    if (sessionId === null)
-      return jsonResponse({ ok: true }, 200, { "Set-Cookie": clearedSessionCookie() });
+    if (sessionId === null) return { ok: true };
 
     try {
       await destroySession(db, sessionId);
     } catch {
-      // A broken/expired session must still clear the cookie.
-      return jsonResponse({ ok: true }, 200, { "Set-Cookie": clearedSessionCookie() });
+      // A broken/expired session is already logged out; the cookie clearing above stands.
     }
 
-    return jsonResponse({ ok: true }, 200, { "Set-Cookie": clearedSessionCookie() });
+    return { ok: true };
   },
 );

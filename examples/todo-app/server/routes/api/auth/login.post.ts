@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { defineAuthorizedHandler, fail } from "@facilis/core";
 import { createSession, users, verifyPassword } from "@facilis/auth";
 import config from "~/facilis.config";
-import { jsonResponse, sessionCookie } from "~/server/utils/http";
+import { sessionCookie } from "~/server/utils/http";
 
 export default defineAuthorizedHandler(
   {
@@ -13,7 +13,7 @@ export default defineAuthorizedHandler(
     dbColumns: ["users.email", "sessions.userId"],
     description: "Log in and start a session.",
   },
-  async (_event, { body, db }) => {
+  async (event, { body, db }) => {
     const [user] = await db
       .select({ id: users.id, passwordHash: users.passwordHash })
       .from(users)
@@ -27,8 +27,11 @@ export default defineAuthorizedHandler(
     const session = await createSession(db, user.id, { ttlMs: config.auth.sessionDurationMs });
     const maxAgeSeconds = Math.floor(config.auth.sessionDurationMs / 1000);
 
-    return jsonResponse({ userId: user.id }, 200, {
-      "Set-Cookie": sessionCookie(session.id, maxAgeSeconds),
-    });
+    // Staged on the event's response headers: a Set-Cookie on a returned Response is
+    // lost in the in-VM Nitro dev path (D-038), and the login would look successful
+    // while the very next request arrived anonymous.
+    event.res?.headers.set("set-cookie", sessionCookie(session.id, maxAgeSeconds));
+
+    return { userId: user.id };
   },
 );

@@ -1002,6 +1002,32 @@ file is replayed, a reloaded project still restores) and `TEMPLATE=Facilis pnpm 
 
 ---
 
+### D-038 — Session cookies are staged on the event's response headers, not on a returned `Response`
+**Status:** accepted (2026-10-30)
+
+Wiring the Facilis probe to a real database roundtrip — register, log in, insert a todo, read
+it back — found a lost header. The login route returned `jsonResponse(..., { "Set-Cookie":
+sessionCookie(...) })`, the shape the reference app had: the browser saw **200** with the JSON
+body, so nothing looked wrong, and the next request arrived with **no `Cookie` header at all**
+(`/api/auth/session` reported `{ authenticated: false, cookiePresent: false }`). The preview's
+cookie jar was not the cause — the fork's `spike-cookie-session.mjs` proves the kernel attaches
+and harvests cookies for a plain `node:http` session server — so the header was lost before the
+jar saw it. Measured in the WebContainer: a `Set-Cookie` carried on a `Response` a route returns
+does not survive this Nitro dev path, while a header staged on the event is merged into the
+final response by h3 itself and does.
+
+**Decision:** routes that set or clear cookies stage them on the event's response headers —
+`event.res?.headers.set("set-cookie", …)` — and return a plain body. The reference app's login
+and logout do this, and the probe proves the whole chain: the session survives to the next
+request, the insert runs as the logged-in user, and the list reads the row back.
+
+**Consequences:** any Facilis app must set cookies through `event.res.headers`, not through a
+returned `Response`. `FacilisRequestEvent.res` exists on the contract for exactly this purpose;
+a route returning its own `Response` with `Set-Cookie` looks successful and logs the user out on
+the next request in the WebContainer. Acceptance: `TEMPLATE=Facilis pnpm ide:smoke` asserts the
+session, the insert and the query (`facilisAuth`/`facilisDbInsert`/`facilisDbQuery`).
+
+---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
