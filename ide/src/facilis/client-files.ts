@@ -1,5 +1,6 @@
 // Client half of the Facilis probe template.
 //
+import { clientLocales, clientStyles } from "./client-assets";
 // src/App.tsx is also the smoke contract: on mount it fetches the framework
 // endpoints and exposes each result as a data-* attribute on <html>, so the
 // headless acceptance run can assert framework behaviour from the page alone.
@@ -28,6 +29,9 @@ interface Probe {
   revision: string;
   openapi: string;
   todos: string;
+  auth: string;
+  dbInsert: string;
+  dbQuery: string;
 }
 
 interface ProbeResult {
@@ -63,6 +67,82 @@ async function probe(path: string): Promise<ProbeResult> {
   } catch {
     return { status: 0, ok: false, body: null };
   }
+}
+
+interface PostResult extends ProbeResult {
+  // Failure body, kept only for the smoke's diagnostics file (a 500 from the in-VM
+  // server explains itself there instead of as "error:500" with no reason).
+  detail?: string;
+}
+
+async function postJson(path: string, body: unknown): Promise<PostResult> {
+  try {
+    const response = await fetch(endpoint(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let payload: unknown = null;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = null;
+    }
+    return { status: response.status, ok: response.ok, body: payload, detail: cursor(text) };
+  } catch (error) {
+    return { status: 0, ok: false, body: null, detail: String(error) };
+  }
+}
+
+function cursor(text: string): string {
+  return text.slice(0, 400);
+}
+
+function containsTitle(list: unknown, title: string): boolean {
+  return Array.isArray(list) && list.some((row) => isRecord(row) && row.title === title);
+}
+
+// The database roundtrip is page-scoped, not effect-scoped: React StrictMode runs mount
+// effects twice in development, and two logins racing made the reported result depend on
+// which run finished last. The email/title are minted once for the same reason.
+const PROBE_EMAIL = "probe-" + Date.now() + "@facilis.test";
+const PROBE_PASSWORD = "probe-password";
+const PROBE_TITLE = "probe-" + Date.now();
+
+interface Roundtrip {
+  auth: string;
+  dbInsert: string;
+  dbQuery: string;
+}
+
+let roundtrip: Promise<Roundtrip> | null = null;
+
+function databaseRoundtrip(): Promise<Roundtrip> {
+  roundtrip ??= (async () => {
+    const registered = await postJson("/api/auth/register", {
+      email: PROBE_EMAIL,
+      password: PROBE_PASSWORD,
+    });
+    // 409 = already registered: a second mount of this effect, not a failure.
+    const registeredOk = registered.ok || registered.status === 409;
+    const loggedIn = await postJson("/api/auth/login", {
+      email: PROBE_EMAIL,
+      password: PROBE_PASSWORD,
+    });
+    const session = await probe("/api/auth/session");
+    const authenticated = isRecord(session.body) && session.body.authenticated === true;
+    const auth = authenticated ? "ok" : "anon:" + JSON.stringify(session.body).slice(0, 160);
+    const inserted = await postJson("/api/todos", { title: PROBE_TITLE });
+    const dbInsert =
+      registeredOk && loggedIn.ok && inserted.ok
+        ? "ok"
+        : "error:" + registered.status + "/" + loggedIn.status + "/" + inserted.status;
+    const listed = await probe("/api/todos");
+    const dbQuery = containsTitle(listed.body, PROBE_TITLE) ? "ok" : "error:" + listed.status;
+    return { auth, dbInsert, dbQuery };
+  })();
+  return roundtrip;
 }
 
 function readWarnings(body: unknown): string {
@@ -103,6 +183,12 @@ export function App() {
 
       const todosResult = await probe("/api/todos");
       const todos = String(todosResult.status);
+
+      // Database roundtrip through the real contract: register, log in (the session cookie
+      // travels through the preview's cookie jar), insert a todo through the authorized
+      // handler, then read the list back. Nothing else proves PGlite, the migrations, RLS
+      // and permissions work inside the WebContainer.
+      const { auth, dbInsert, dbQuery } = await databaseRoundtrip();
       if (!live) return;
 
       const warnings = manifest === "ok" ? readWarnings(manifestResult.body) : "";
@@ -117,8 +203,11 @@ export function App() {
       }
       root.dataset["facilisOpenapi"] = openapi;
       root.dataset["facilisTodos"] = todos;
+      root.dataset["facilisAuth"] = auth;
+      root.dataset["facilisDbInsert"] = dbInsert;
+      root.dataset["facilisDbQuery"] = dbQuery;
 
-      setState({ health, manifest, warnings, revision, openapi, todos });
+      setState({ health, manifest, warnings, revision, openapi, todos, auth, dbInsert, dbQuery });
     })();
     return () => {
       live = false;
@@ -140,6 +229,9 @@ export function App() {
           <li>revision: {state.revision.length > 0 ? state.revision : "n/a"}</li>
           <li>openapi: {state.openapi}</li>
           <li>todos: {state.todos}</li>
+          <li>session: {state.auth}</li>
+          <li>db insert: {state.dbInsert}</li>
+          <li>db query: {state.dbQuery}</li>
         </ul>
       )}
       <p className="muted">Edit src/App.tsx and save to test HMR.</p>
@@ -148,69 +240,9 @@ export function App() {
 }
 `;
 
-const styles = `:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #101014;
-}
-body {
-  margin: 0;
-  display: grid;
-  place-items: center;
-  min-height: 100vh;
-}
-.page {
-  width: 100%;
-  max-width: 720px;
-  padding: 2rem;
-  box-sizing: border-box;
-}
-h1 {
-  font-size: 2.2rem;
-  margin: 0 0 0.25rem;
-}
-.tagline {
-  color: #9ca3af;
-  margin: 0 0 1.5rem;
-}
-.summary {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.9rem;
-}
-.summary li {
-  background: #1b1b22;
-  border: 1px solid #26262f;
-  border-radius: 6px;
-  padding: 0.35rem 0.6rem;
-  margin-bottom: 0.35rem;
-}
-.muted {
-  color: #6b7280;
-  font-size: 0.85rem;
-  margin: 0;
-}
-`;
-
-const locales =
-  JSON.stringify(
-    {
-      "app.title": "Facilis",
-      "app.tagline": "A Facilis app running in the browser IDE.",
-      "app.probing": "Probing the framework…",
-      "app.hmr": "Edit src/App.tsx and save to test HMR.",
-    },
-    null,
-    2,
-  ) + "\n";
-
 export const clientFiles: Record<string, string> = {
   "src/main.tsx": mainTsx,
   "src/App.tsx": appTsx,
-  "src/styles.css": styles,
-  "locales/en.json": locales,
+  "src/styles.css": clientStyles,
+  "locales/en.json": clientLocales,
 };

@@ -213,18 +213,23 @@ no page errors, no console errors, no failed requests. Exit code is non-zero on 
 `TEMPLATE=Facilis` (after `pnpm ide:facilis-deps`) additionally selects the Fullstack picker
 tab and asserts the framework contract from the probe app inside the preview: `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
-`/api/todos`, and an unauthenticated `/api/todos` → 401 (8 probe checks). The probe app
-publishes those results as `data-facilis-*` attributes on its own document;
-`scripts/dev/smoke-facilis.mjs` owns the assertions and dumps the preview HTTP body + dev log
-into `facilis-diagnostics.json` on failure.
+`/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the probe
+registers a user, logs in (the session cookie survives to the next request), inserts a todo
+through the authorized handler and reads the list back (11 probe checks). That last group is
+the only in-VM proof that PGlite, the migrations, RLS, permissions and the session middleware
+work together inside the WebContainer. The probe app publishes those results as
+`data-facilis-*` attributes on its own document; `scripts/dev/smoke-facilis.mjs` owns the
+assertions and dumps the preview HTTP body + dev log into `facilis-diagnostics.json` on
+failure.
 
 `TEMPLATE=Facilis` also runs `scripts/dev/smoke-intellisense.mjs`, before the write checks:
 it asks the same Monaco TypeScript worker the editor uses (`getSemanticDiagnostics`) for
 `src/App.tsx` and `src/main.tsx`, and fails on a module-resolution error (TS2307 "Cannot
 find module"). That is the user-visible symptom of a generated project that does not install
 the `@types/*` packages its imports need (react, react-dom): the IDE only feeds installed
-`node_modules/**/*.d.ts` to the language service. An unreachable worker fails the check too,
-never counts as a skip.
+`node_modules/**/*.d.ts` to the language service. An unreachable worker — or a worker/model
+call that never settles — fails the check too, never counts as a skip (the harness races each
+page promise so a wedge fails the smoke instead of hanging it).
 
 `TEMPLATE=Facilis` also runs `scripts/dev/smoke-write.mjs`, which drives the dev-only
 `window.__ide` / `window.__facilis` handles through the real controller to verify the VFS write
@@ -267,10 +272,10 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 Reference runs on 16 cores: kernel online **0.6 s** against an already-warm dev server
 (**2.6 s** cold, when Vite is still transforming the 11k-line `templates.ts`), preview
 painted **31-40 s** (in-VM install dominates), 18/18 checks green (React, 2026-10-25). The
-Facilis probe is green (2026-10-29): preview painted **~110 s** on a cold self-started dev
-server (in-VM `npm install` dominates), manifest zero warnings, editor IntelliSense clean;
-**54/54** checks including A8-A12. Artifacts under
-`$FACILIS_TOOLING_DIR/smoke-artifacts/`.
+Facilis probe is green (2026-10-30): preview painted on a cold self-started dev server (in-VM
+`npm install` dominates), manifest zero warnings, editor IntelliSense clean, the probe's
+**database roundtrip** green (session survives, insert and read-back ok), and **57/57** checks
+including A8-A12. Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
 

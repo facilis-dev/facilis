@@ -11,6 +11,7 @@ import type { TemplateDef, TemplateManifest } from "../vv/templates";
 import { clientFiles } from "./client-files";
 import { dbFiles } from "./db-files";
 import { projectFiles } from "./project-files";
+import { serverAuthFiles } from "./server-auth-files";
 import { serverFiles } from "./server-files";
 
 /**
@@ -75,6 +76,7 @@ export function createFacilisTemplate(): TemplateDef {
       ...projectFiles(),
       ...dbFiles,
       ...serverFiles,
+      ...serverAuthFiles,
       ...clientFiles,
     },
   };

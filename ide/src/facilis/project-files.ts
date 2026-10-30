@@ -97,7 +97,9 @@ export default defineConfig({
   blocks: { packages: [] },
   auth: {
     permissions: ["todos:read", "todos:write"],
-    roles: { admin: ["*"], user: ["todos:read"] },
+    // The probe registers a default-role user and then writes: the role must carry
+    // todos:write (the seed migration below already grants it).
+    roles: { admin: ["*"], user: ["todos:read", "todos:write"] },
     defaultRole: "user",
   },
   // Nitro options are project config too (D-034). The default node-worker dev runner

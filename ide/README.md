@@ -139,8 +139,12 @@ app in the WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`). Th
 project has **one config**, `facilis.config.ts`: its `nitro` section carries the WebContainer
 constraint `devServer: { runner: "self" }` (Nitro's default node-worker runner needs
 `worker_threads` and a file-URL `import.meta.resolve`, which the VM does not provide), there
-is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034). Its `package.json`
-pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's TypeScript service only sees
+is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034). The probe also
+drives a full database roundtrip — register, log in, `POST /api/todos`, read the list back —
+and reports it to the smoke as `facilisDbInsert`/`facilisDbQuery`: PGlite, the migrations and
+the authorized-handler stack only prove themselves inside the VM, not in Node. Its
+`package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's TypeScript
+service only sees
 installed `@types/*.d.ts` — without them the editor reports TS2307 on `react`. It is
 registered by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits
 at its file-length baseline and may not grow. The generated project installs with **npm**

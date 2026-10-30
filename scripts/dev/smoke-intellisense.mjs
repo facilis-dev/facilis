@@ -38,6 +38,8 @@ function diagnosticsExpression() {
     if (!c || !c.monaco || !folder) return { ready: false, reason: JSON.stringify(state) };
     const monaco = c.monaco;
     const files = ${JSON.stringify(FILES)};
+    // A worker call that never settles must fail this check, not wedge the whole smoke.
+    const timeout = (what) => new Promise((resolve) => setTimeout(() => resolve({ ready: false, reason: 'timeout: ' + what }), 20000));
     const results = [];
     try {
       const getWorker = await monaco.languages.typescript.getTypeScriptWorker();
@@ -46,8 +48,15 @@ function diagnosticsExpression() {
         const uri = monaco.Uri.file(absolute);
         const model = monaco.editor.getModel(uri);
         if (!model) { results.push({ file: relative, diagnostics: null }); continue; }
-        const client = await getWorker(uri);
-        const diagnostics = await client.getSemanticDiagnostics(uri.toString());
+        // A worker call that never settles must fail this check, not wedge the whole
+        // smoke: CDP's awaitPromise never returns for a pending promise, so it is raced.
+        const client = await Promise.race([getWorker(uri), timeout('getWorker(' + relative + ')')]);
+        if (!client || typeof client.getSemanticDiagnostics !== 'function') return client;
+        const diagnostics = await Promise.race([
+          client.getSemanticDiagnostics(uri.toString()),
+          timeout('getSemanticDiagnostics(' + relative + ')'),
+        ]);
+        if (!Array.isArray(diagnostics)) return diagnostics;
         results.push({
           file: relative,
           diagnostics: diagnostics.map((d) => ({
@@ -75,11 +84,17 @@ function moduleErrors(state) {
 // Open the probe files first: the language service only knows models that exist, and the
 // template opens App.tsx while main.tsx may still be unopened.
 async function openProbeFiles(page) {
+  // A controller call that never settles (a model/open race) must not wedge the smoke:
+  // CDP's awaitPromise has no timeout of its own, so the page promise is raced here.
   await page.evaluate(`(async () => {
     const c = window.__ide;
     const folder = c && c.activeFolder;
     if (!folder) return false;
-    for (const relative of ${JSON.stringify(FILES)}) await c.openFile(folder.rootPath + "/" + relative);
+    const timeout = (what) => new Promise((resolve) => setTimeout(() => resolve('timeout: ' + what), 20000));
+    for (const relative of ${JSON.stringify(FILES)}) {
+      const opened = await Promise.race([c.openFile(folder.rootPath + '/' + relative).then(() => true), timeout('openFile(' + relative + ')')]);
+      if (opened !== true) return String(opened);
+    }
     return true;
   })()`);
 }

@@ -3,8 +3,10 @@
 // The Facilis template's probe app records its framework-endpoint results as data-*
 // attributes on its own <html> element (ide/src/facilis/, owned by the template):
 // facilisHealth / facilisManifest / facilisOpenapi / facilisTodos hold endpoint outcomes,
-// facilisWarnings / facilisRevision come from /__facilis/manifest. The preview is
-// same-origin under /preview/<port>/, so the parent document can read them directly.
+// facilisWarnings / facilisRevision come from /__facilis/manifest, and facilisDbInsert /
+// facilisDbQuery hold the database roundtrip (register + log in -> insert a todo -> read it
+// back). The preview is same-origin under /preview/<port>/, so the parent document can read
+// them directly.
 //
 // Only imported when the smoke creates TEMPLATE=Facilis; the React path never calls it.
 // FACILIS_PROBE_TIMEOUT_MS (default 120000) bounds the polling: the probe app only starts
@@ -23,6 +25,9 @@ const EXPECTED = {
   facilisWarnings: "0",
   facilisOpenapi: "ok",
   facilisTodos: "401",
+  facilisAuth: "ok",
+  facilisDbInsert: "ok",
+  facilisDbQuery: "ok",
 };
 const LABELS = {
   facilisHealth: "facilis health endpoint ok",
@@ -30,6 +35,9 @@ const LABELS = {
   facilisWarnings: "facilis manifest warnings 0",
   facilisOpenapi: "facilis openapi lists /api/todos with x-db-tables",
   facilisTodos: "facilis todos endpoint 401",
+  facilisAuth: "facilis session survives to the next request",
+  facilisDbInsert: "facilis db insert (register, log in, POST todo) ok",
+  facilisDbQuery: "facilis db query returns the inserted todo",
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
