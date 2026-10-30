@@ -389,11 +389,63 @@ async function main() {
     );
     check(refusal, "a second tab REFUSES a project already open elsewhere");
     check((await snapshot(tabC)).folders.length === 0, "tab C leaves no folder open");
-    // Same deferral as tab B, in the simplest form: a tab that opens no project
-    // carries none of them in its VFS — their files stay on OPFS until opened.
+    // The boot restore is scoped, and the package-manager cache is scoped per file:
+    // a tab that opens no project carries neither the projects nor the cache in its
+    // VFS — they stay on OPFS, still indexed.
+    const homeState = await tabC.evaluate(
+      "(async () => {" +
+        " const diag = await window.__vv.diag();" +
+        " const origin = await navigator.storage.getDirectory();" +
+        " const vv = await origin.getDirectoryHandle('vv-vfs');" +
+        " const entries = JSON.parse(await (await (await vv.getFileHandle('manifest.json')).getFile()).text());" +
+        " const files = (prefix) => entries.filter(([p, m]) => m.k === 'file' && p.startsWith(prefix));" +
+        " const vfs = diag.vfs || {};" +
+        " return { vfsFiles: vfs.files, vfsBytes: vfs.bytes, deferred: vfs.deferred, cacheFiles: files('/home/user/.cache/').length, projectFiles: files('/home/user/projects/').length };" +
+        " })()",
+    );
     check(
-      !(await stat(tabC, ALPHA)).exists && !(await stat(tabC, BETA)).exists,
-      "a tab that opens no project carries none of them in its VFS",
+      homeState.cacheFiles > 0 && homeState.projectFiles > 0,
+      "the origin has a persisted package-manager cache and projects",
+      JSON.stringify(homeState),
+    );
+    check(
+      homeState.deferred >= homeState.cacheFiles + homeState.projectFiles,
+      "a tab that opens no project leaves both on OPFS",
+      JSON.stringify({
+        deferred: homeState.deferred,
+        cacheFiles: homeState.cacheFiles,
+        projectFiles: homeState.projectFiles,
+      }),
+    );
+    check(
+      homeState.vfsFiles < 100 && homeState.vfsBytes < 2 * 1024 * 1024,
+      "so its VFS carries neither the projects nor the cache",
+      JSON.stringify({ files: homeState.vfsFiles, bytes: homeState.vfsBytes }),
+    );
+    // One deferred cache file, asked for by name: it becomes readable with its real
+    // size, and nothing else is replayed with it.
+    const lazyCache = await tabC.evaluate(
+      "(async () => {" +
+        " const origin = await navigator.storage.getDirectory();" +
+        " const vv = await origin.getDirectoryHandle('vv-vfs');" +
+        " const entries = JSON.parse(await (await (await vv.getFileHandle('manifest.json')).getFile()).text());" +
+        " const path = entries.find(([p, m]) => m.k === 'file' && p.startsWith('/home/user/.cache/npm/') && !p.endsWith('/CACHEDIR.TAG'))[0];" +
+        " const before = (await window.__vv.diag()).vfs.files;" +
+        " const st = await window.__ide.bridge.request('vv-stat', { path });" +
+        " const after = (await window.__vv.diag()).vfs.files;" +
+        " const read = await window.__ide.bridge.request('vv-read-bytes', { path });" +
+        " return { path, exists: !!st.exists, size: st.size, before, after, bytes: read.ok && read.bytes ? read.bytes.length : -1 };" +
+        " })()",
+    );
+    check(
+      lazyCache.exists && lazyCache.bytes > 0 && lazyCache.bytes === lazyCache.size,
+      "a deferred cache file is readable on demand",
+      lazyCache.path,
+    );
+    check(
+      lazyCache.after === lazyCache.before + 1,
+      "only the requested cache file is replayed into the VFS",
+      lazyCache.before + "->" + lazyCache.after,
     );
     check(
       (await tabC.evaluate("new URLSearchParams(location.search).get('project')")) === null,
@@ -435,11 +487,6 @@ async function main() {
       typeof betaPkg === "string" && betaPkg.includes('"vue"'),
       "the project is its real contents (bytes from OPFS, not just the directory)",
     );
-    check(
-      !(await stat(tabB, ALPHA)).exists,
-      "a reloaded tab does not carry a project it did not open",
-    );
-
     // ---- "Open in a new tab" from Home ------------------------------------
     const dirG = await createProject(tabA, "react-ts", "gamma", false);
     check(dirG === GAMMA, "tab A creates gamma", dirG);

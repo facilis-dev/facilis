@@ -173,3 +173,9 @@ The OPFS mirror's boot restore is **scoped** (D-036): Home's known roots go to t
 (`vv-restore-roots`, `IdeController.openProject`) instead of every project on the origin. The
 deferred paths stay in the shared index and are merged by whichever tab writes them, so opening
 a project re-materializes exactly its subtree and nothing else.
+**The package-manager cache follows the same rule per file** (D-037): `deferCacheFiles` leaves
+cache bodies on OPFS and the FS worker replays one on the first syscall that observes its bytes
+(`installDeferredHydration` in `vendor/vivari/packages/core/src/workers/fs-worker.ts`). That
+gate is the single place the rules live — if a syscall or opcode that reads file bytes is added,
+it must be classified there (replay / no replay for truncating writes / drop for deletes /
+answer from the index for probes), or the cache will be read as empty or truncated.

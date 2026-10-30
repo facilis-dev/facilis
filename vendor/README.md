@@ -72,6 +72,22 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-30, pin `c83c08f` / `facilis/main` = upstream v1.1.4 + 11 fork commits)
+
+The pin adds one commit: package-manager cache **bodies** are replayed on first read
+(`BootOptions.deferCacheFiles`, D-037 in the superproject). The sections below still describe
+the pins before it.
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `c83c08f…` (`v1.1.4-11-gc83c08f`) |
+| `pnpm ide:smoke:multitab` | **green**, 44 checks: an idle tab defers **413 cache files** and carries 28 files / 122 KB of VFS instead of the cache; a deferred cache file is replayed on demand (VFS 28→29 files, its real size and bytes); a reloaded project still restores its tree |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **green**: cold install, preview paint, the framework contract, IntelliSense and A8/A9/A10/A12 pass (A12's reboot restores the project tree from OPFS) |
+
+Warm-install evidence (not a gate): fresh origin, one react install (297 cache files) — cold
+install 27.9 s; a reload boots in 1.16 s with a 27 MB VFS (127 MB with the cache resident); a
+later `rm -rf node_modules && npm install` replays 73 of the 297 cache files (297 → 224 deferred)
+in 8.5 s. A project whose `node_modules` comes from the dependency cache reads no package cache.
 ## Verification (2026-10-30, pin `3376ba1` / `facilis/main` = upstream v1.1.4 + 10 fork commits)
 
 This pin adds one commit: the OPFS boot restore is **scoped**. `BootOptions.deferRestoreRoots`

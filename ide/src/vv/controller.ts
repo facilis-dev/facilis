@@ -945,10 +945,15 @@ export class IdeController {
     // Every project Home lists is left on OPFS at boot instead of being replayed into
     // this tab's VFS (BootOptions.deferRestoreRoots): a tab pays for the project it
     // opens, not for every project the origin holds. openProject hydrates one.
+    // The package-manager cache follows the same rule per FILE
+    // (BootOptions.deferCacheFiles): its bodies stay on OPFS and are replayed the
+    // first time an install reads them, so a tab does not carry the cache entries of
+    // projects it never installs.
     this.bridge.boot(
       true,
       readNetRelayParam(),
       this.snap.recentProjects.map((p) => p.rootPath),
+      true,
     );
   }
 

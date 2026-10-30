@@ -35,10 +35,17 @@ export async function ensureProjectOnDisk(
   stat: Stat,
   status: (line: string) => void,
 ): Promise<boolean> {
+  // Replay FIRST, unconditionally. A project's subtree is deferred in the mirror, and
+  // an existence probe is served from that mirror's index — so "exists" alone does not
+  // mean the tree is in the VFS. The replay is idempotent (it returns 0 once the
+  // subtree is materialized), which is what makes asking every time cheap.
   for (let attempt = 0; attempt < 4; attempt++) {
-    if ((await stat(root)).exists) return true;
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
     await replay(bridge, root, status);
+    if ((await stat(root)).exists) return true;
+    // A project another tab created moments ago may still be in that tab's write-behind
+    // mirror rather than on OPFS: give the flush a beat before calling it deleted
+    // (which would drop it from Home).
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 400));
   }
-  return (await stat(root)).exists;
+  return false;
 }
