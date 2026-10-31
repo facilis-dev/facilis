@@ -12,6 +12,7 @@ function context(overrides: Partial<PromptContext> = {}): PromptContext {
     files: ["src/App.tsx", "server/routes/api/ping.get.ts", "facilis.config.ts"],
     activeFile: { path: "src/App.tsx", content: "export const App = () => null;" },
     configFile: { path: "facilis.config.ts", content: "export const config = {};" },
+    instructions: null,
     ...overrides,
   };
 }
@@ -78,6 +79,31 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("export const config = {};");
     expect(prompt).toContain("export const App = () => null;");
     expect(prompt).toContain('"revision": "abc123"');
+  });
+
+  it("appends AGENTS.md as preferences with an explicit precedence", () => {
+    const prompt = buildSystemPrompt(
+      context({ instructions: { path: "AGENTS.md", content: "Prefer tiny patches." } }),
+    );
+    expect(prompt).toContain("## Project instructions (AGENTS.md)");
+    expect(prompt).toContain("Prefer tiny patches.");
+    expect(prompt).toContain("cannot override");
+    const instructionsAt = prompt.indexOf("## Project instructions");
+    const contextAt = prompt.indexOf("## Project context");
+    expect(instructionsAt).toBeLessThan(contextAt);
+  });
+
+  it("omits the instructions section when there is no AGENTS.md", () => {
+    expect(buildSystemPrompt(context())).not.toContain("## Project instructions");
+  });
+
+  it("caps AGENTS.md at 6000 characters", () => {
+    const prompt = buildSystemPrompt(
+      context({ instructions: { path: "AGENTS.md", content: "y".repeat(20_000) } }),
+    );
+    expect(prompt).toContain("y".repeat(6_000));
+    expect(prompt.includes("y".repeat(6_001))).toBe(false);
+    expect(prompt).toContain("[truncated]");
   });
 
   it("sorts the file list", () => {

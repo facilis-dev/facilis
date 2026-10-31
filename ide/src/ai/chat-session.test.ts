@@ -214,4 +214,42 @@ describe("ChatSession", () => {
     expect(called).toBe(false);
     expect(chat.getSnapshot().error?.kind).toBe("unsupported");
   });
+
+  it("creates and opens AGENTS.md from the project instructions action", async () => {
+    const harness = fakeHost();
+    const opened: string[] = [];
+    const chat = new ChatSession(
+      { ...harness.host, openFile: (path) => opened.push(path) },
+      {
+        call: async () => ({ ok: true, text: answer() }),
+        loadSettings: () => settings,
+        saveSettings: () => {},
+        now: () => 1,
+      },
+    );
+    await chat.openInstructions();
+    expect(harness.writes).toEqual(["vv-write:" + root + "/AGENTS.md"]);
+    expect(opened).toEqual(["AGENTS.md"]);
+  });
+
+  it("opens an existing AGENTS.md without rewriting it", async () => {
+    const harness = fakeHost();
+    const opened: string[] = [];
+    const chat = new ChatSession(
+      {
+        ...harness.host,
+        read: async (path) => (path === "AGENTS.md" ? "# ours\n" : ""),
+        openFile: (path) => opened.push(path),
+      },
+      {
+        call: async () => ({ ok: true, text: answer() }),
+        loadSettings: () => settings,
+        saveSettings: () => {},
+        now: () => 1,
+      },
+    );
+    await chat.openInstructions();
+    expect(harness.writes).toEqual([]);
+    expect(opened).toEqual(["AGENTS.md"]);
+  });
 });

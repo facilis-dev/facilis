@@ -14,12 +14,13 @@ import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
-import { errorText, initialState } from "./chat-session-types";
+import { errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
+import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
 import { parseAiResponse } from "./response";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
-import type { AiChatTurn, AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
+import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
 export type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 
@@ -106,6 +107,11 @@ export class ChatSession {
     this.host.openFile(path);
   }
 
+  async openInstructions(): Promise<void> {
+    const error = await openProjectInstructions(this.host);
+    if (error !== null) this.fail({ kind: "stream", message: error });
+  }
+
   toggleFile(path: string): void {
     const proposal = this.state.proposal;
     if (!proposal) return;
@@ -157,7 +163,7 @@ export class ChatSession {
       const result = await this.call({
         settings,
         system: built.system,
-        messages: this.history(),
+        messages: replayTurns(this.state.messages, HISTORY_LIMIT),
         signal: abort.signal,
         onText: (chunk) => this.streamChunk(chunk),
       });
@@ -289,12 +295,5 @@ export class ChatSession {
     } catch (error) {
       this.emit({ phase: "idle", error: { kind: "stream", message: errorText(error) } });
     }
-  }
-
-  private history(): AiChatTurn[] {
-    return this.state.messages
-      .filter((message) => message.content.length > 0)
-      .slice(-HISTORY_LIMIT)
-      .map((message) => ({ role: message.role, content: message.content }));
   }
 }

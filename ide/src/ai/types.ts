@@ -142,6 +142,8 @@ export interface ChatContextInfo {
   manifestRevision: string | null;
   files: number;
   activeFile: string | null;
+  /** AGENTS.md was included in this turn's system prompt (D-048). */
+  instructions: boolean;
 }
 
 export interface ChatState {

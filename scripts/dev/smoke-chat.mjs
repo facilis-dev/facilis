@@ -56,6 +56,19 @@ const OPEN_CHAT =
 
 const MODEL_IS_MOCK = "(document.querySelector('#chat-model')?.value || '') === 'mock'";
 
+const CLICK_INSTRUCTIONS =
+  "(() => { const aside = document.querySelector('aside[aria-label=\"AI Chat\"]'); if (!aside) return 'NOTFOUND';" +
+  "const button = [...aside.querySelectorAll('button')].find(" +
+  "(candidate) => (candidate.getAttribute('aria-label') || '').startsWith('Project instructions'));" +
+  "if (!button) return 'NOTFOUND'; button.click(); return 'OK'; })()";
+
+const INSTRUCTIONS_IN_VFS =
+  "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
+  "if (!root) return 'NO ROOT'; for (let attempt = 0; attempt < 40; attempt++) {" +
+  "const text = await window.__ide.readFileText(root + '/AGENTS.md');" +
+  "if (text.includes('# Agent instructions')) return 'OK';" +
+  "await new Promise((resolve) => setTimeout(resolve, 250)); } return 'EMPTY'; })()";
+
 const PATCH_GONE =
   "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
   "if (!root) return 'NO ROOT'; for (let attempt = 0; attempt < 40; attempt++) {" +
@@ -125,6 +138,11 @@ export async function runChatChecks({ page, check, ARTIFACTS }) {
     );
     record(await waitFor(page, bodyHas("Reverted 1 file(s)"), 15000), "chat patch reverted");
     record((await page.evaluate(PATCH_GONE)) === "OK", "chat undo removed the file from the VFS");
+    record((await page.evaluate(CLICK_INSTRUCTIONS)) === "OK", "chat project instructions button");
+    record(
+      (await page.evaluate(INSTRUCTIONS_IN_VFS)) === "OK",
+      "chat created AGENTS.md in the project",
+    );
   }
 
   await page.screenshot(ARTIFACTS + "/04-chat.png");

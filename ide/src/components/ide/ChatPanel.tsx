@@ -12,6 +12,7 @@ import Plus from "~icons/lucide/plus";
 import SendHorizontal from "~icons/lucide/send-horizontal";
 import Square from "~icons/lucide/square";
 import LoaderCircle from "~icons/lucide/loader-circle";
+import FileText from "~icons/lucide/file-text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMessageView } from "./ChatMessageView";
@@ -89,6 +90,17 @@ export function ChatPanel() {
           <span className="truncate">{t("chat.title")}</span>
         </div>
         <div className="flex shrink-0 items-center">
+          {hasProject && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("chat.instructions")}
+              title={t("chat.instructions")}
+              onClick={() => void chat.openInstructions()}
+            >
+              <FileText />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -205,7 +217,7 @@ export function ChatPanel() {
                     ? t("chat.context.manifest", { revision: state.context.manifestRevision })
                     : t("chat.context.noManifest"),
                   files: state.context.files,
-                })
+                }) + (state.context.instructions ? " · " + t("chat.context.agents") : "")
               : preset
                 ? t("chat.configured", {
                     provider: t(preset.labelKey),

@@ -6,7 +6,7 @@
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { CallModelInput, CallModelResult } from "./client";
 import { isConfigured } from "./settings";
-import type { AiSettings, ChatState } from "./types";
+import type { AiChatTurn, AiSettings, ChatMessage, ChatState } from "./types";
 
 /** What the chat needs from the editor, all in project-relative terms. */
 export interface ChatHost {
@@ -33,6 +33,14 @@ export interface ChatSessionOptions {
   loadSettings?: () => AiSettings | null;
   saveSettings?: (settings: AiSettings) => void;
   now?: () => number;
+}
+
+/** The turns replayed to the model on the next message (SPEC §9.1 Model A). */
+export function replayTurns(messages: readonly ChatMessage[], limit: number): AiChatTurn[] {
+  return messages
+    .filter((message) => message.content.length > 0)
+    .slice(-limit)
+    .map((message) => ({ role: message.role, content: message.content }));
 }
 
 export function errorText(error: unknown): string {
