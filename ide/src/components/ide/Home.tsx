@@ -769,7 +769,7 @@ function NewTemplateDialog({
                         <div className="flex items-center gap-1">
                           <span className="truncate text-sm font-medium">{t.manifest.name}</span>
                           {t.manifest.experimental && (
-                            <span className="shrink-0 rounded bg-yellow-500/15 px-1 text-[9px] font-medium text-yellow-600 dark:text-yellow-400">
+                            <span className="shrink-0 rounded bg-warning/15 px-1 text-[9px] font-medium text-warning">
                               exp
                             </span>
                           )}
@@ -790,7 +790,7 @@ function NewTemplateDialog({
                   <span className="font-medium">{selected.manifest.name}</span>
                   <span className="text-muted-foreground">· {selected.manifest.language}</span>
                   {selected.manifest.experimental && (
-                    <span className="rounded bg-yellow-500/15 px-1.5 py-0.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">
+                    <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
                       experimental
                     </span>
                   )}

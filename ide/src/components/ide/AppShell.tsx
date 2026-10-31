@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useTheme } from "next-themes";
+import { appearanceOf } from "@/ui-themes";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TitleBar } from "./TitleBar";
 import { ActivityBar } from "./ActivityBar";
@@ -20,15 +21,14 @@ import { isWordWrapChord } from "@/vv/editor-prefs";
 
 export function AppShell() {
   const { c, snap } = useIde();
-  const { resolvedTheme } = useTheme();
+  const { theme, resolvedTheme, systemTheme } = useTheme();
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
+  const appearance = appearanceOf(theme, resolvedTheme, systemTheme);
   useEffect(() => {
-    if (resolvedTheme === "light" || resolvedTheme === "dark") {
-      c.applyUiTheme(resolvedTheme);
-    }
-  }, [c, resolvedTheme]);
+    c.applyUiTheme(appearance);
+  }, [c, appearance]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

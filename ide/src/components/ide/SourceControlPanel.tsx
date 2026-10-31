@@ -53,10 +53,10 @@ const LETTER_TITLE: Record<ChangeLetter, string> = {
   U: "Untracked",
 };
 const LETTER_CLASS: Record<ChangeLetter, string> = {
-  A: "text-green-600 dark:text-green-400",
-  M: "text-amber-600 dark:text-amber-400",
-  D: "text-red-600 dark:text-red-400",
-  U: "text-green-600 dark:text-green-400",
+  A: "text-success",
+  M: "text-warning",
+  D: "text-destructive",
+  U: "text-success",
 };
 
 const baseName = (p: string) => p.split("/").pop() || p;

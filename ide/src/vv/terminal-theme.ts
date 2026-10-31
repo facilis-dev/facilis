@@ -55,7 +55,23 @@ const TERM_THEME_LIGHT = {
   brightWhite: "#a5a5a5",
 };
 
-export const termThemeFor = (t: UiTheme) => (t === "light" ? TERM_THEME_LIGHT : TERM_THEME_DARK);
+// The terminal surface follows the theme's panel role, so a new theme restyles
+// xterm without touching this file; the ANSI palette stays a per-appearance set.
+function cssRole(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+export const termThemeFor = (t: UiTheme) => {
+  const base = t === "light" ? TERM_THEME_LIGHT : TERM_THEME_DARK;
+  if (typeof document === "undefined") return base;
+  return {
+    ...base,
+    background: cssRole("--panel", base.background),
+    foreground: cssRole("--panel-foreground", base.foreground),
+  };
+};
 export const monacoThemeFor = (t: UiTheme) => (t === "light" ? "vs" : "vs-dark");
 
 /** A fresh xterm with the fit addon and the Cmd/Ctrl+K clear binding. */

@@ -121,7 +121,7 @@ export function PreviewPanel() {
   return (
     <div className="flex h-full flex-col bg-sidebar">
       {/* tab strip */}
-      <div className="flex h-8 shrink-0 items-stretch border-b bg-[#f3f3f3] dark:bg-[#181818]">
+      <div className="flex h-8 shrink-0 items-stretch border-b bg-chrome">
         <div className="flex flex-1 items-stretch overflow-x-auto">
           {tabs.map((t) => {
             const isActive = t.id === snap.activePreviewId;
@@ -135,7 +135,7 @@ export function PreviewPanel() {
                       "group flex cursor-pointer items-center gap-1.5 border-r px-3 text-xs",
                       isActive
                         ? "bg-sidebar text-foreground"
-                        : "bg-[#f3f3f3] text-muted-foreground hover:text-foreground dark:bg-[#181818]",
+                        : "bg-chrome text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <Globe className="size-3.5 shrink-0 opacity-70" />
@@ -239,10 +239,7 @@ export function PreviewPanel() {
           below when open. All preview iframes stay mounted so each tab keeps its
           state + HMR socket; the DevTools iframe remounts (key) on re-attach. */}
       <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-        <ResizablePanel
-          id="preview-body"
-          className="relative overflow-hidden bg-white dark:bg-[#1e1e1e]"
-        >
+        <ResizablePanel id="preview-body" className="relative overflow-hidden bg-editor">
           {tabs.map((t) => (
             <PreviewFrame
               key={t.id}
@@ -281,7 +278,7 @@ export function PreviewPanel() {
               id="preview-devtools"
               defaultSize="45%"
               minSize="15%"
-              className="bg-white dark:bg-[#292a2d]"
+              className="bg-overlay"
             >
               <iframe
                 key={snap.devtoolsNonce}

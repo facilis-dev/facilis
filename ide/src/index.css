@@ -3,7 +3,10 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-@custom-variant dark (&:is(.dark *));
+/* The theme is a data-theme attribute on <html> (next-themes writes it), not a
+   hardcoded palette per component: the blocks at the bottom are complete variable
+   sets, so a new theme is one block — components only ever name roles. */
+@custom-variant dark (&:is([data-theme="facilis-dark"] *));
 
 @theme inline {
   --font-heading: var(--font-sans);
@@ -38,6 +41,24 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --color-foreground: var(--foreground);
+  /* IDE chrome roles (VS Code-like surfaces) + status roles. Every component
+     uses these; the values live once per theme block below. */
+  --color-chrome: var(--chrome);
+  --color-chrome-foreground: var(--chrome-foreground);
+  --color-editor: var(--editor);
+  --color-editor-foreground: var(--editor-foreground);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --color-overlay: var(--overlay);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-checker: var(--checker);
   --color-background: var(--background);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -48,7 +69,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* ── Theme: facilis-light ──────────────────────────────────────────────────
+   A theme is a complete set of role values. Adding one = a new
+   [data-theme="…"] block with the same names (+ an entry in src/ui-themes.ts). */
+:root,
+[data-theme="facilis-light"] {
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -81,9 +107,31 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* IDE chrome: tab strips / toolbars sit on --chrome, editors and panels on
+     --editor/--panel, the DevTools surface on --overlay; --brand is the accent
+     (status bar, active-tab marker). */
+  --chrome: #f3f3f3;
+  --chrome-foreground: #616161;
+  --editor: #ffffff;
+  --editor-foreground: #1f1f1f;
+  --panel: #ffffff;
+  --panel-foreground: #3b3b3b;
+  --overlay: #ffffff;
+  --brand: #007acc;
+  --brand-foreground: #ffffff;
+  --info: oklch(0.556 0.163 254);
+  --info-foreground: oklch(0.985 0 0);
+  --success: oklch(0.596 0.145 150);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.769 0.158 70);
+  --warning-foreground: oklch(0.205 0 0);
+  --checker: #e5e5e5;
 }
 
-.dark {
+/* ── Theme: facilis-dark ─────────────────────────────────────────────────── */
+[data-theme="facilis-dark"] {
+  color-scheme: dark;
+  --radius: 0.625rem;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -115,6 +163,22 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --chrome: #181818;
+  --chrome-foreground: #cccccc;
+  --editor: #1e1e1e;
+  --editor-foreground: #cccccc;
+  --panel: #181818;
+  --panel-foreground: #cccccc;
+  --overlay: #292a2d;
+  --brand: #007acc;
+  --brand-foreground: #ffffff;
+  --info: oklch(0.72 0.14 254);
+  --info-foreground: oklch(0.145 0 0);
+  --success: oklch(0.723 0.15 150);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.8 0.15 80);
+  --warning-foreground: oklch(0.145 0 0);
+  --checker: #2a2a2a;
 }
 
 @layer base {

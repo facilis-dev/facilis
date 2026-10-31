@@ -69,7 +69,7 @@ function MatchLine({
   return (
     <span className="truncate">
       {text.slice(0, col)}
-      <span className="rounded-[2px] bg-yellow-500/30 text-foreground">
+      <span className="rounded-[2px] bg-warning/30 text-foreground">
         {text.slice(col, col + length)}
       </span>
       {text.slice(col + length)}
@@ -325,7 +325,7 @@ export function SearchPane() {
               : summary?.error
                 ? summary.error
                 : "No results found."}
-          {summary?.limitHit && <span className="text-yellow-500">· results limited</span>}
+          {summary?.limitHit && <span className="text-warning">· results limited</span>}
         </div>
       )}
 

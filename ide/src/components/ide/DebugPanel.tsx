@@ -50,7 +50,7 @@ export function DebugPanel() {
         >
           <span
             className={cn(
-              "absolute top-0.5 size-4 rounded-full bg-white transition-all",
+              "absolute top-0.5 size-4 rounded-full bg-background transition-all",
               snap.enabled ? "left-[1.125rem]" : "left-0.5",
             )}
           />
@@ -107,8 +107,8 @@ export function DebugPanel() {
                   snap.activePid == null
                     ? "bg-muted-foreground/40"
                     : snap.paused
-                      ? "bg-amber-500"
-                      : "bg-green-500",
+                      ? "bg-warning"
+                      : "bg-success",
                 )}
               />
               {snap.activePid == null ? "no target" : snap.paused ? "paused" : "running"}
@@ -289,7 +289,7 @@ function VarNode({ v, depth }: { v: DebugScopeVar; depth: number }) {
         ) : (
           <span className="inline-block size-3 shrink-0" />
         )}
-        <span className="shrink-0 text-sky-600 dark:text-sky-400">{v.name}</span>
+        <span className="shrink-0 text-info">{v.name}</span>
         <span className="text-muted-foreground">:</span>
         <span className="truncate text-foreground">{v.value}</span>
       </div>
@@ -352,7 +352,7 @@ function Breakpoints() {
             key={path + ":" + line}
             className="group flex items-center gap-2 px-3 py-0.5 text-xs hover:bg-accent"
           >
-            <Circle className="size-2.5 shrink-0 fill-red-500 text-red-500" />
+            <Circle className="size-2.5 shrink-0 fill-destructive text-destructive" />
             <button
               className="min-w-0 flex-1 truncate text-left hover:underline"
               onClick={() => void c.openFileAt(path, line)}

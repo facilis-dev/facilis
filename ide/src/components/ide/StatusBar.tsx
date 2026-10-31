@@ -45,7 +45,7 @@ export function StatusBar() {
 
   return (
     <>
-      <div className="flex h-6 shrink-0 items-center bg-[#007acc] px-1 text-xs text-white">
+      <div className="flex h-6 shrink-0 items-center bg-brand px-1 text-xs text-brand-foreground">
         {branch && (
           <StatusItem label="Current branch" onClick={() => c.setActiveView("scm")}>
             <GitBranch className="size-3.5" />
@@ -125,7 +125,7 @@ function StatusItem({
         onClick={onClick}
         className={cn(
           "flex h-6 items-center gap-1 whitespace-nowrap px-2",
-          onClick && "transition-colors hover:bg-white/20",
+          onClick && "transition-colors hover:bg-brand-foreground/20",
         )}
       >
         {children}

@@ -13,7 +13,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint && oxlint -c .oxlintrc.json . && node scripts/check-file-length.mjs",
+    "lint": "turbo run lint && oxlint -c .oxlintrc.json . && node scripts/check-file-length.mjs && node scripts/check-ide-theme.mjs",
     "lint:file-length": "node scripts/check-file-length.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,7 +24,8 @@
     "ide:facilis-deps": "sh scripts/dev/vendor-facilis-deps.sh",
     "ide:browser": "sh scripts/dev/fetch-browser.sh",
     "ide:smoke": "node scripts/dev/smoke-ide.mjs",
-    "ide:smoke:multitab": "node scripts/dev/smoke-multitab.mjs"
+    "ide:smoke:multitab": "node scripts/dev/smoke-multitab.mjs",
+    "lint:ide-theme": "node scripts/check-ide-theme.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

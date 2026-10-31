@@ -48,6 +48,7 @@ import { languageFor } from "./editor-languages";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
 import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
 import { type UiTheme, monacoThemeFor } from "./terminal-theme";
+import { appearanceFromDocument } from "../ui-themes";
 import { errText } from "./errors";
 import { ProjectExport } from "./project-export";
 import { ProjectImport, type ProjectImportHost } from "./project-import";
@@ -459,10 +460,7 @@ export class IdeController {
   private started = false;
   // Current resolved UI theme, seeded from the pre-paint <html> class the
   // no-flash script sets, then kept in sync with next-themes via applyUiTheme.
-  private uiTheme: UiTheme =
-    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
-      ? "dark"
-      : "light";
+  private uiTheme: UiTheme = appearanceFromDocument();
 
   // Preview origin mode (see KernelBridge.mode): "same-origin" (default / local
   // dev), "shared" (mode B, VITE_PREVIEW_ORIGIN) or "wildcard" (mode C,

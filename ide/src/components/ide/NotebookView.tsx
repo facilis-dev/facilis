@@ -260,9 +260,9 @@ function Toolbar({ handle }: { handle: NotebookHandle }) {
           <span
             className={cn(
               "size-2 rounded-full",
-              status === "idle" && "bg-emerald-500",
-              status === "busy" && "bg-amber-500",
-              status === "starting" && "bg-amber-500/60",
+              status === "idle" && "bg-success",
+              status === "busy" && "bg-warning",
+              status === "starting" && "bg-warning/60",
               status === "dead" && "bg-destructive",
               status === "off" && "bg-muted-foreground/50",
             )}

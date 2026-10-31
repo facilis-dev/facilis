@@ -142,9 +142,9 @@ export function EditorGroup() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-white dark:bg-[#1e1e1e]">
+    <div className="flex h-full flex-col bg-editor">
       {/* tab strip */}
-      <div className="vv-tabs-scroll flex h-9 shrink-0 items-stretch overflow-x-auto border-b bg-[#f3f3f3] dark:bg-[#181818]">
+      <div className="vv-tabs-scroll flex h-9 shrink-0 items-stretch overflow-x-auto border-b bg-chrome">
         {snap.openTabs.map((rel, i) => {
           const active = rel === snap.activeTab;
           const isDirty = snap.dirty.includes(rel);
@@ -205,8 +205,8 @@ export function EditorGroup() {
                   className={cn(
                     "group flex cursor-pointer items-center gap-1.5 border-r px-3 text-xs",
                     active
-                      ? "bg-white text-foreground shadow-[inset_0_2px_0_0_#007acc] dark:bg-[#1e1e1e]"
-                      : "bg-[#f3f3f3] text-muted-foreground hover:text-foreground dark:bg-[#181818]",
+                      ? "bg-editor text-foreground shadow-[inset_0_2px_0_0_var(--brand)]"
+                      : "bg-chrome text-muted-foreground hover:text-foreground",
                     dragTab === rel && "opacity-50",
                     dropSide,
                   )}
@@ -364,12 +364,12 @@ function ImageView({ abs }: { abs: string }) {
   const url = c.imageUrlFor(abs);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-auto bg-white p-6 dark:bg-[#1e1e1e]">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-auto bg-editor p-6">
       <div
         className="max-h-full max-w-full"
         style={{
           backgroundImage:
-            "linear-gradient(45deg,#2a2a2a 25%,transparent 25%),linear-gradient(-45deg,#2a2a2a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2a2a2a 75%),linear-gradient(-45deg,transparent 75%,#2a2a2a 75%)",
+            "linear-gradient(45deg,var(--checker) 25%,transparent 25%),linear-gradient(-45deg,var(--checker) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,var(--checker) 75%),linear-gradient(-45deg,transparent 75%,var(--checker) 75%)",
           backgroundSize: "16px 16px",
           backgroundPosition: "0 0,0 8px,8px -8px,-8px 0",
         }}
@@ -412,7 +412,7 @@ function crumbsFor(abs: string, folders: WorkspaceFolder[]): string[] {
 function Breadcrumb({ abs, folders }: { abs: string; folders: WorkspaceFolder[] }) {
   const crumbs = crumbsFor(abs, folders);
   return (
-    <div className="vv-tabs-scroll flex h-6 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b bg-white px-3 text-xs text-muted-foreground dark:bg-[#1e1e1e]">
+    <div className="vv-tabs-scroll flex h-6 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b bg-editor px-3 text-xs text-muted-foreground">
       {crumbs.map((seg, i) => {
         const isLast = i === crumbs.length - 1;
         return (
@@ -450,7 +450,7 @@ function DiffView({ id }: { id: string }) {
 // Shown when a directory is opened in the editor (dragged onto Monaco).
 function DirectoryView() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-white p-6 text-center text-sm text-muted-foreground dark:bg-[#1e1e1e]">
+    <div className="absolute inset-0 flex items-center justify-center bg-editor p-6 text-center text-sm text-muted-foreground">
       The file is not displayed in the text editor because it is a directory.
     </div>
   );
