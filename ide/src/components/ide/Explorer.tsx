@@ -41,7 +41,7 @@ const modKey = (e: React.KeyboardEvent) => e.metaKey || e.ctrlKey;
 
 // Entries hidden from the file tree only (VS Code hides `.git` by default).
 // The terminal/VFS is unaffected, so `ls` still lists these.
-const HIDDEN_IN_TREE = new Set([".git"]);
+const HIDDEN_IN_TREE = new Set([".git", ".facilis"]); // .facilis: dev state, not source (D-052)
 
 // Row height in px, and the single source of truth for the sticky stack: an
 // ancestor row parks at `depth * ROW_H`, i.e. under the rows already parked above

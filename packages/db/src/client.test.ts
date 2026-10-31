@@ -71,4 +71,41 @@ describe("createDb", () => {
       await db.close();
     }
   });
+
+  it("round-trips a cluster through snapshot()/loadSnapshot", async () => {
+    const first = await createDb();
+    let bytes: Uint8Array;
+    try {
+      await applyStatements(first, [
+        "CREATE TABLE snapshotted (id int PRIMARY KEY, label text NOT NULL)",
+        "INSERT INTO snapshotted (id, label) VALUES (1, 'from-snapshot')",
+      ]);
+      bytes = await first.snapshot();
+      expect(bytes.byteLength).toBeGreaterThan(0);
+    } finally {
+      await first.close();
+    }
+
+    const restored = await createDb({ loadSnapshot: bytes });
+    try {
+      const result = await restored.db.execute(sql`select label from snapshotted where id = 1`);
+      expect(result.rows).toEqual([{ label: "from-snapshot" }]);
+    } finally {
+      await restored.close();
+    }
+  });
+
+  it("counts client activity so the dev snapshotter can skip idle ticks", async () => {
+    const db = await createDb();
+    try {
+      const before = db.activity();
+      await db.db.execute(sql`select 1 as one`);
+      expect(db.activity()).toBeGreaterThan(before);
+      const afterQuery = db.activity();
+      await db.db.execute(sql`select 2 as two`);
+      expect(db.activity()).toBeGreaterThan(afterQuery);
+    } finally {
+      await db.close();
+    }
+  });
 });

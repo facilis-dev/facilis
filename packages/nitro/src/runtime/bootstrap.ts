@@ -7,6 +7,11 @@ import config, { configError, projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 
 import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
+import {
+  devDbSnapshotPath,
+  installDevDbSnapshotter,
+  readDevDbSnapshot,
+} from "./dev-db-persistence.ts";
 import { isProductionEnvironment } from "./env.ts";
 import { readDefaultTenantId } from "./tenant.ts";
 import { readTextFile } from "./project-files.ts";
@@ -53,21 +58,80 @@ async function bootstrap(): Promise<BootstrapState> {
   const projectConfig = readProjectConfig(warnings);
   if (projectConfig === null) return { db: null, config: null, warnings, startedAt };
 
+  // Dev-only persistence (D-052): production talks to a real Postgres, while dev PGlite
+  // lives in memory and is restored from one snapshot file in the project.
+  const devPersistenceEnabled = !isProductionEnvironment() && projectConfig.db.mode !== "postgres";
+  const snapshotPath = devDbSnapshotPath(projectRoot);
+  let snapshot: Uint8Array | null = null;
+  if (devPersistenceEnabled) {
+    try {
+      snapshot = await readDevDbSnapshot(snapshotPath);
+    } catch (error) {
+      warnings.push(
+        warning(
+          "db_snapshot_unreadable",
+          `Could not read the dev database snapshot: ${describe(error)}`,
+        ),
+      );
+    }
+  }
+
   let db: FacilisDb;
   try {
     db = await createDb({
       driver: projectConfig.db.mode === "postgres" ? "postgres" : "pglite",
+      loadSnapshot: snapshot ?? undefined,
       schema: dbSchema,
     });
   } catch (error) {
-    warnings.push(warning("db_unavailable", `Could not open the database: ${describe(error)}`));
-    return { db: null, config: projectConfig, warnings, startedAt };
+    if (snapshot === null) {
+      warnings.push(warning("db_unavailable", `Could not open the database: ${describe(error)}`));
+      return { db: null, config: projectConfig, warnings, startedAt };
+    }
+    // A corrupt or incompatible snapshot must not make the project unbootable: warn and
+    // start from an empty cluster instead (the old file is replaced by the next dump).
+    warnings.push(
+      warning(
+        "db_snapshot_failed",
+        `Could not restore the dev database snapshot, starting empty: ${describe(error)}`,
+      ),
+    );
+    try {
+      db = await createDb({
+        driver: "pglite",
+        schema: dbSchema,
+      });
+    } catch (retryError) {
+      warnings.push(
+        warning("db_unavailable", `Could not open the database: ${describe(retryError)}`),
+      );
+      return { db: null, config: projectConfig, warnings, startedAt };
+    }
   }
 
   // Dev-only bootstrap: production schemas arrive through the committed migrations,
   // and the app role is provisioned by the deploy step, not by every worker boot.
   if (!isProductionEnvironment()) {
     await bootstrapDevelopmentDatabase(db, projectConfig, warnings);
+  }
+
+  if (devPersistenceEnabled) {
+    installDevDbSnapshotter({
+      db,
+      projectRoot,
+      snapshotPath,
+      onError: (error) => {
+        // One warning per process is enough: a full disk would otherwise flood the manifest.
+        if (!warnings.some((entry) => entry.code === "db_snapshot_write_failed")) {
+          warnings.push(
+            warning(
+              "db_snapshot_write_failed",
+              `Could not write the dev database snapshot: ${describe(error)}`,
+            ),
+          );
+        }
+      },
+    });
   }
 
   return { db, config: projectConfig, warnings, startedAt };

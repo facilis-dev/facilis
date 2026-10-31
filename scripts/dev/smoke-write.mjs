@@ -283,6 +283,36 @@ export async function runWriteChecks({ page, check, ARTIFACTS }) {
     }
   }
 
+  // D-052: the route edit above restarted the Nitro worker, so this fetch proves the dev
+  // database was restored from the snapshot: the probe's session (sessions table) and its
+  // todo row must still answer through the app.
+  const dbSurvivedRestart = await poll(
+    page,
+    `(() => {
+      const f = ${PREVIEW_FRAME};
+      if (!f || !f.src) return false;
+      const base = f.src.endsWith("/") ? f.src : f.src + "/";
+      return fetch(new URL("api/todos", base).href)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => Array.isArray(b) && b.length > 0)
+        .catch(() => false);
+    })()`,
+    WRITE_TIMEOUT_MS,
+  );
+  record(dbSurvivedRestart, "D-052 dev database survives a Nitro worker restart (session + todo)");
+
+  // -- D-052: the dev database persists as a snapshot under .facilis/ -----------
+  // The framework probes (register/login/todo insert) are DB activity, so within the
+  // snapshot interval a `.facilis/db/snapshot.tar.gz` must exist in the project. It is
+  // written by the Nitro process and read back here through the Studio's VFS handle.
+  const devDbSnapshotAbs = root + "/.facilis/db/snapshot.tar.gz";
+  const devDbSnapshot = await poll(
+    page,
+    `window.__ide.bridge.request("vv-read-bytes", { path: ${JSON.stringify(devDbSnapshotAbs)} }).then((r) => (r.ok && r.bytes ? r.bytes.length : 0)).then((n) => n > 0)`,
+    20000,
+  );
+  record(devDbSnapshot, "D-052 dev database snapshot written under .facilis/db");
+
   // -- A9: a batch write through the framework write path (applyPatch) -----------
   const previewFrame = await previewSnapshot(page);
   const revisionBefore = await page.evaluate(

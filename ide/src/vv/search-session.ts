@@ -92,7 +92,9 @@ export class SearchSession {
       wholeWord: opts.wholeWord,
       regex: opts.regex,
       includeGlob: opts.includeGlob,
-      excludeGlob: opts.excludeGlob,
+      // .facilis is IDE-managed dev state (D-052), not source: always excluded, without
+      // rewriting what the user typed in the exclude field.
+      excludeGlob: opts.excludeGlob ? opts.excludeGlob + ",.facilis" : ".facilis",
     });
     return () => {
       if (this.pending?.token === token) this.pending = null;

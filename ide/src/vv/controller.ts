@@ -1506,7 +1506,17 @@ export class IdeController {
   // Recursively index a folder's files (skipping heavy dirs) for quick-open +
   // filename search. Bounded so a giant tree can't lock up the UI.
   private async indexFolder(root: string) {
-    const skip = new Set(["node_modules", ".git", "dist", ".vite", ".next", "build", ".cache"]);
+    // .facilis is dev-only state (D-052), not source: keep it out of quick-open/search.
+    const skip = new Set([
+      "node_modules",
+      ".git",
+      ".facilis",
+      "dist",
+      ".vite",
+      ".next",
+      "build",
+      ".cache",
+    ]);
     const out: string[] = [];
     const walk = async (dir: string, depth: number) => {
       if (depth > 8 || out.length > 4000) return;

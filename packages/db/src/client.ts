@@ -50,6 +50,12 @@ export interface CreateDbOptions {
   readonly driver?: DbDriver;
   readonly url?: string;
   readonly dataDir?: string;
+  /**
+   * Restore a `snapshot()` archive instead of starting from an empty cluster.
+   * Dev persistence (D-052) keeps the cluster in memory and restores it from
+   * `.facilis/db/snapshot.tar.gz`; production uses a real Postgres instead.
+   */
+  readonly loadSnapshot?: Uint8Array;
   /** Schema namespace used by migrations and by `schemaSnapshot`. */
   readonly schema?: FacilisSchema;
 }
@@ -59,6 +65,13 @@ export interface FacilisDb {
   readonly db: PgDatabaseLike;
   readonly schema: FacilisSchema;
   close(): Promise<void>;
+  /**
+   * Monotonic count of client operations (query/exec/transaction). The dev snapshotter
+   * polls this instead of every write: only a cluster that changed is dumped.
+   */
+  activity(): number;
+  /** Serialize the whole cluster as the gzip tar the `loadSnapshot` option restores. */
+  snapshot(): Promise<Uint8Array>;
 }
 
 /** Column names treated as tenant scopes (SPEC §7.1 Appendix B defaults). */
@@ -90,18 +103,63 @@ export async function createDb(options: CreateDbOptions = {}): Promise<FacilisDb
   const driver = options.driver ?? (options.url === undefined ? "pglite" : "postgres");
   if (driver === "postgres") throw new DriverNotImplementedError(driver);
 
-  const client = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);
-  // PGlite boots lazily; awaiting the ready promise makes createDb's contract truthful.
-  await client.waitReady;
+  const client = await openPglite(options);
+  const activity = { count: 0 };
+  // Drizzle talks to this facade; counting here is the only reliable "did the cluster
+  // change since the last dump" signal, because PGlite exposes no change hook. Methods
+  // are bound to the real client so `this` and the WASM instance are untouched.
+  const tracked = new Proxy(client, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== "function") return value;
+      if (property === "query" || property === "exec" || property === "transaction") {
+        return (...args: unknown[]) => {
+          activity.count += 1;
+          return (value as (...inner: unknown[]) => unknown).apply(target, args);
+        };
+      }
+      return (value as (...inner: unknown[]) => unknown).bind(target);
+    },
+  }) as PgliteClient;
 
   return {
     driver,
-    db: createDrizzleClient(client, options.schema),
+    db: createDrizzleClient(tracked, options.schema),
     schema: options.schema ?? {},
+    activity: () => activity.count,
+    async snapshot() {
+      const dump = await client.dumpDataDir("gzip");
+      return new Uint8Array(await dump.arrayBuffer());
+    },
     async close() {
       await client.close();
     },
   };
+}
+
+/**
+ * Open the PGlite cluster: from a dev snapshot when one is supplied, else from
+ * `dataDir`, else empty.
+ *
+ * The restore goes through the documented static `create({ loadDataDir })`: the
+ * constructor overload accepts the option but does not wire it (measured), and a
+ * silently empty restore is the one failure a dev database must not have.
+ */
+async function openPglite(options: CreateDbOptions): Promise<PgliteClient> {
+  const snapshot = options.loadSnapshot;
+  if (snapshot !== undefined && snapshot.length > 0) {
+    // Copy into a plain ArrayBuffer-backed view: a Uint8Array<ArrayBufferLike> is not a
+    // BlobPart (its buffer could be a SharedArrayBuffer), and the archive is small.
+    const bytes = new Uint8Array(snapshot.byteLength);
+    bytes.set(snapshot);
+    return (await PGlite.create({
+      loadDataDir: new Blob([bytes]),
+    })) as PgliteClient;
+  }
+  const client = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);
+  // PGlite boots lazily; awaiting the ready promise makes createDb's contract truthful.
+  await client.waitReady;
+  return client;
 }
 
 function createDrizzleClient(

@@ -40,7 +40,12 @@ export class ProjectExport {
   }
 
   async readProjectTree(rootPath: string): Promise<{ files: FileTree; truncated: boolean }> {
-    const m = await this.bridge.request("vv-read-tree", { root: normDir(rootPath) });
+    // .facilis holds dev-only state (database snapshot, binary blobs, D-052/D-053):
+    // never export it, and never put a multi-MB snapshot in a share link.
+    const m = await this.bridge.request("vv-read-tree", {
+      root: normDir(rootPath),
+      exclude: [".facilis"],
+    });
     if (!m.ok) return { files: [], truncated: false };
     const files = ((m.files as FileTree) ?? []).filter((f) => f.bytes instanceof Uint8Array);
     return { files, truncated: !!m.truncated };

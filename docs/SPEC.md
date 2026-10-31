@@ -347,6 +347,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── schema.ts                 Drizzle tables + policies + auth re-export
 │   └── migrations/               drizzle-kit output (incl. auth seed)
 ├── locales/en.json
+├── .facilis/                     dev-only state, never source: db/snapshot.tar.gz, binary/
 ├── vite.config.ts                plugins: [facilis(), react()]
 ├── facilis.config.ts             the one config: roles, permissions, nitro options
 ├── package.json                  scripts.dev = "vite dev"
@@ -410,7 +411,9 @@ export { t } from "./i18n"
 
 Exports:
 
-- `createDb()` — Drizzle client for PGlite (dev) / Postgres (prod)
+- `createDb(options)` — Drizzle client for PGlite (dev) / Postgres (prod). Dev PGlite is
+  in memory; `snapshot()` serializes the cluster, `loadSnapshot` restores it, and
+  `activity()` counts client operations so the dev snapshotter can skip idle ticks (D-052)
 - `policyContext` — `drizzle-policy` wrapper for tenant/role scoping
 - `rlsMigrationPlugin` — Drizzle-kit plugin that auto-appends RLS policies
 - `buildReleasePreview(from, to)` — schema diff engine
