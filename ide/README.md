@@ -95,10 +95,13 @@ immediately.
    the `AIResponse` parser, the diff used by the review card, and `ChatSession` behind a small
    `ChatHost` (one per controller, in `chat-host.ts`). `src/components/ide/ChatPanel.tsx` plus
    `ChatMessageView` / `ChatProposalView` / `ChatSettingsDialog` render it under the new
-   `chat` activity view; the command palette gains "Open AI Chat". The model never writes:
-   Apply sends only the accepted patches through `src/facilis/apply-patch.ts`. The key is BYO,
-   stored per origin in `localStorage` and sent only to the chosen provider; the dev-only
-   `mock` provider exists only in `vite dev` and lets `pnpm ide:smoke` exercise the whole flow.
+   `chat` activity view; the command palette gains "Open AI Chat". The message field streams
+   into the bubble as the provider writes it (the JSON contract is unchanged), the review card
+   warns about Node globals and server-only imports in client files, and a clean Apply can be
+   undone from its before-images (D-047). The model never writes: Apply sends only the accepted
+   patches through `src/facilis/apply-patch.ts`. The key is BYO, stored per origin in
+   `localStorage` and sent only to the chosen provider; the dev-only `mock` provider exists
+   only in `vite dev` and lets `pnpm ide:smoke` exercise the whole flow.
 10. **Multi-tab** (D-033): Home's recent-project row moves to
    `src/components/ide/RecentProjectsRow.tsx` so it can grow an "Open in a new tab" action
    without pushing `Home.tsx` past its baseline; `src/vv/project-tabs.ts` +

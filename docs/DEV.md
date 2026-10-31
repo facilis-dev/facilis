@@ -245,8 +245,10 @@ manifest's view of the file, so "never mirrored" and "never restored" are distin
 Both templates then run `scripts/dev/smoke-chat.mjs`: it opens the AI Chat activity view,
 configures the **dev-only mock provider** in the real settings dialog (no key, no network),
 sends a message, reviews the proposal card and clicks Apply, then reads the written file back
-from the VFS. The mock answers with a canned `AIResponse`; the production build cannot select
-it (D-045), so the smoke exercises the real settings/parser/patch/apply path without an LLM.
+from the VFS; it finally clicks **Undo** and asserts the file is gone again. The mock streams its
+canned `AIResponse` in chunks (D-047), so the same run exercises the streaming bubble too; the
+production build cannot select it (D-045). The smoke covers the real settings/parser/patch/apply/
+undo path without an LLM.
 
 One page error is expected and filtered: the first edit in a project whose imports do not all
 resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback
