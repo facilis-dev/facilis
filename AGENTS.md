@@ -149,8 +149,8 @@ see D-030 and `vendor/README.md`). See spec §10 and `ide/README.md` for the exa
 **UI rules (D-043).** Every user-facing string goes through `t()` from `ide/src/i18n`, with
 the key in `ide/src/i18n/en.ts` (and `it.ts` where translated) — never inline JSX text or a
 toast literal, including in the controller's status messages. Every surface uses the semantic
-Tailwind tokens so the `.dark` class flips it; raw palette colours only for brand marks/scrims
-with a reason. The tracking checklist is `ide/I18N.md`; new UI ships compliant from its first
+Tailwind role tokens so a theme block flips it (themes are complete variable sets, D-044); raw
+palette colours only for brand marks/scrims with a reason. The tracking checklist is `ide/I18N.md`; new UI ships compliant from its first
 commit, and upstream-inherited files are migrated as they are touched.
 
 **Building and verifying it** is scripted, because the kernel's Wasm packages and its runtime
