@@ -4,12 +4,16 @@
  * radii come from the role variables in theme.css (D-047).
  */
 export { Alert } from "./alert.tsx";
+export { AuthShell } from "./auth-shell.tsx";
 export { Badge } from "./badge.tsx";
 export { Button } from "./button.tsx";
 export { Checkbox } from "./checkbox.tsx";
+export { EmptyState } from "./empty-state.tsx";
 export { Field } from "./field.tsx";
 export { Input } from "./input.tsx";
+export { Page } from "./page.tsx";
 export { Select } from "./select.tsx";
+export { Spinner } from "./spinner.tsx";
 export {
   Table,
   TableBody,

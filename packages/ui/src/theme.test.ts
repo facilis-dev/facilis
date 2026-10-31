@@ -15,7 +15,9 @@ function escapeSelector(selector: string): string {
 function variablesOf(selector: string): string[] {
   const block = new RegExp(escapeSelector(selector) + "\\s*\\{([^}]*)\\}").exec(theme);
   if (block?.[1] === undefined) return [];
-  return [...block[1].matchAll(/(--[a-z0-9-]+)\s*:/g)].map((match) => match[1] as string).toSorted();
+  return [...block[1].matchAll(/(--[a-z0-9-]+)\s*:/g)]
+    .map((match) => match[1] as string)
+    .toSorted();
 }
 
 describe("theme.css", () => {

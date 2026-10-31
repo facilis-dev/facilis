@@ -1,12 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Alert,
+  AuthShell,
   Badge,
   Button,
   Checkbox,
+  EmptyState,
   Field,
   Input,
+  Page,
   Select,
+  Spinner,
   Table,
   TableBody,
   TableCaption,
@@ -97,6 +101,43 @@ export function App() {
           <Field label="Subscribe to release notes" hint="One email per release, no more.">
             <Checkbox name="subscribe" />
           </Field>
+        </div>
+      </Section>
+
+      <Section title="Page templates">
+        <div className="gallery-stack">
+          <Page
+            title="Todos"
+            description="Everything due today, grouped by project."
+            actions={<Button size="sm">New todo</Button>}
+          >
+            <EmptyState
+              title="No todos yet"
+              description="Create your first todo to see it here."
+              action={<Button size="sm">Create todo</Button>}
+            />
+          </Page>
+
+          <div className="gallery-row">
+            <Spinner label="Loading todos" />
+            <span>Labelled spinner (role=status)</span>
+            <Spinner />
+            <span>Decorative spinner (aria-hidden)</span>
+          </div>
+
+          <AuthShell
+            title="Sign in"
+            subtitle="Use your workspace account."
+            footer={<span>No account yet? Ask an admin for an invite.</span>}
+          >
+            <Field label="Email">
+              <Input name="gallery-email" type="email" placeholder="you@example.com" />
+            </Field>
+            <Field label="Password">
+              <Input name="gallery-password" type="password" />
+            </Field>
+            <Button>Sign in</Button>
+          </AuthShell>
         </div>
       </Section>
 
