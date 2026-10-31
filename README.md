@@ -145,6 +145,7 @@ What exists today, runnable in this repo:
 | Piece | Where | Evidence |
 |---|---|---|
 | Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
+| Binary storage (`@facilis/storage`) | `packages/storage/` | content-addressed local + S3-compatible drivers (S3/R2/MinIO via SigV4), signed download tokens; 12 tests |
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |

@@ -418,6 +418,11 @@ Exports:
 - `rlsMigrationPlugin` — Drizzle-kit plugin that auto-appends RLS policies
 - `buildReleasePreview(from, to)` — schema diff engine
 - `PolicyScopedDatabase` — type of the db object passed to handlers
+- `facilisFiles` — file metadata table (content hash, name, mime, size, owner, tenant) with
+  a restrictive tenant policy
+- `fileLinks(parent, { table, column })` — generates the per-entity link table that attaches
+  `facilisFiles` rows to a parent row (FK cascades + a `parent_access` policy that inherits
+  the parent's RLS through EXISTS, D-053)
 
 ### 5.3 `@facilis/auth`
 
@@ -632,6 +637,21 @@ than replaces, so a cookie another handler staged on the same response survives.
 **Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session helpers are their own entry point because they import h3 while core's route contract does not (contracts §4.1): the single `FacilisRequestEvent` → `H3Event` narrowing lives there, and a handler stays free of h3 imports.
 
 ---
+
+### 5.7 `@facilis/storage`
+
+Content-addressed binary storage for files uploaded by a generated app (D-053). Bytes are
+addressed by their sha-256 hex digest and never stored in Postgres; a `facilis_files` row is
+the metadata.
+
+| Concern | Decision |
+|---|---|
+| dev | `<project>/.facilis/binary/<hh>/<hash>` — project filesystem, so the VFS/OPFS mirror persists it; the directory is self-ignored for git |
+| prod | S3-compatible bucket, key `blobs/<hash>` (AWS S3, Cloudflare R2, MinIO; one SigV4 driver, no SDK) |
+| drivers | `createLocalStorage({ rootDir })`, `createS3Storage({ bucket, region, endpoint?, ... })`; `put` is idempotent per content hash |
+| access | a proxy route `GET /api/files/:id?token=…` verifies a short-lived HMAC token and streams the blob (dev) or redirects to a presigned S3 GET (prod). GET is token-only; mutations stay session-authenticated |
+| metadata | `facilis_files` + generated `fileLinks(parent, …)` tables (§5.2) |
+| cleanup | no GC yet: bodies are immutable and deduplicated, so orphans cost space only for content no longer referenced |
 
 ## 6. The `/__facilis/manifest` Endpoint
 

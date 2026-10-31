@@ -35,6 +35,14 @@ export {
 } from "./rls.ts";
 export { tenantColumn, tenantDefaultSql } from "./tenant-column.ts";
 export {
+  facilisFiles,
+  fileLinks,
+  type FacilisFile,
+  type FileLinksOptions,
+  type FileLinksTable,
+  type NewFacilisFile,
+} from "./files.ts";
+export {
   schemaSnapshot,
   type ColumnSnapshot,
   type ForeignKeySnapshot,
