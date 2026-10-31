@@ -65,6 +65,8 @@ export interface FileDiff {
 /** One file of a reviewable proposal. */
 export interface ProposedFile {
   patch: FilePatch;
+  /** Content before the patch (null when the file did not exist): the diff base and undo image. */
+  before: string | null;
   added: number;
   removed: number;
   diff: DiffLine[];
@@ -72,14 +74,26 @@ export interface ProposedFile {
   accepted: boolean;
 }
 
+/** A client file that should not run in the browser as written (D-047). */
+export interface PatchWarning {
+  path: string;
+  rule: "node-global" | "server-import";
+  /** The offending global or module specifier, interpolated by the UI. */
+  symbol: string;
+}
+
 export interface ChatProposal {
   files: ProposedFile[];
   notes: string[];
   /** The turn was flagged as destructive (SPEC §9.3 rule 15). */
   requiresConfirmation: boolean;
+  /** Review-time warnings; the patches still apply if the user accepts them. */
+  warnings: PatchWarning[];
 }
 
+/** What writing a proposal (or undoing it) did. */
 export interface ChatApplied {
+  kind: "apply" | "undo";
   ok: boolean;
   written: string[];
   deleted: string[];
@@ -87,6 +101,11 @@ export interface ChatApplied {
   errors: string[];
   /** Framework revision after a clean write, when the manifest was reachable. */
   revision: string | null;
+}
+
+/** The before-images of a clean Apply, so it can be undone without git. */
+export interface ChatUndo {
+  entries: { path: string; content: string | null }[];
 }
 
 export type ChatFailureKind =
@@ -130,6 +149,10 @@ export interface ChatState {
   messages: ChatMessage[];
   proposal: ChatProposal | null;
   applied: ChatApplied | null;
+  /** Set after a clean Apply; Undo writes these before-images back. */
+  undo: ChatUndo | null;
+  /** The provider is streaming the answer's `message` field into the last bubble. */
+  streaming: boolean;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;

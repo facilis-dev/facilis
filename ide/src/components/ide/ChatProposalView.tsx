@@ -1,7 +1,10 @@
-// The reviewable patch card (D-046): per-file diff, per-file accept, one Apply.
+// The reviewable patch card (D-046/D-047): per-file diff, per-file accept, one
+// Apply, and Undo once a clean write has landed (the proposal kept the
+// before-images). Review warnings flag client files that would break the browser
+// (Node globals, server-only imports) without blocking the user.
 //
-// Nothing here writes: the card is a view over ChatSession's proposal, and Apply
-// goes through ChatSession.apply() -> applyPatch(), which validates first (SPEC §9.3).
+// Nothing here writes: Apply goes through ChatSession.apply() -> applyPatch(),
+// which validates first (SPEC §9.3).
 
 import { useState } from "react";
 import ChevronDown from "~icons/lucide/chevron-down";
@@ -10,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { ChatSession } from "@/ai/chat-session";
-import type { ChatState, DiffLine } from "@/ai/types";
+import type { ChatApplied, ChatState, DiffLine, PatchWarning } from "@/ai/types";
 
 const PREFIX: Record<DiffLine["kind"], string> = { add: "+", del: "-", ctx: " ", hunk: "" };
 const LINE_CLASS: Record<DiffLine["kind"], string> = {
@@ -19,6 +22,21 @@ const LINE_CLASS: Record<DiffLine["kind"], string> = {
   ctx: "text-editor-foreground",
   hunk: "text-muted-foreground",
 };
+
+function headingOf(applied: ChatApplied, count: number): string {
+  if (applied.kind === "undo") {
+    return applied.ok
+      ? t("chat.proposal.reverted", { n: count })
+      : t("chat.proposal.revertedFailed");
+  }
+  return applied.ok ? t("chat.proposal.applied", { n: count }) : t("chat.proposal.failed");
+}
+
+function warningOf(warning: PatchWarning): string {
+  return warning.rule === "node-global"
+    ? t("chat.warning.nodeGlobal", { symbol: warning.symbol })
+    : t("chat.warning.serverImport", { symbol: warning.symbol });
+}
 
 export function ChatProposalView({ chat, state }: { chat: ChatSession; state: ChatState }) {
   return (
@@ -35,9 +53,21 @@ function AppliedCard({ chat, state }: { chat: ChatSession; state: ChatState }) {
   const paths = [...applied.written, ...applied.deleted];
   return (
     <div className="rounded-md border bg-card p-2 text-xs">
-      <p className={cn("font-medium", applied.ok ? "text-success" : "text-destructive")}>
-        {applied.ok ? t("chat.proposal.applied", { n: paths.length }) : t("chat.proposal.failed")}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn("font-medium", applied.ok ? "text-success" : "text-destructive")}>
+          {headingOf(applied, paths.length)}
+        </p>
+        {state.undo && applied.kind === "apply" && (
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={state.phase !== "idle"}
+            onClick={() => void chat.undo()}
+          >
+            {state.phase === "applying" ? t("chat.proposal.undoing") : t("chat.proposal.undo")}
+          </Button>
+        )}
+      </div>
       <ul className="mt-1 space-y-0.5">
         {paths.map((path) => (
           <li key={path}>
@@ -87,6 +117,18 @@ function ProposalCard({ chat, state }: { chat: ChatSession; state: ChatState }) 
         <p className="mt-1 rounded border border-warning px-1.5 py-1 text-[11px] text-warning">
           {t("chat.proposal.confirm")}
         </p>
+      )}
+      {proposal.warnings.length > 0 && (
+        <div className="mt-1 rounded border border-warning px-1.5 py-1 text-[11px] text-warning">
+          <p className="font-medium">{t("chat.proposal.warnings")}</p>
+          <ul className="mt-0.5 list-disc pl-4">
+            {proposal.warnings.map((warning) => (
+              <li key={warning.path + ":" + warning.rule + ":" + warning.symbol}>
+                {warningOf(warning)} <span className="font-mono opacity-80">{warning.path}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {proposal.notes.length > 0 && (
         <div className="mt-1">

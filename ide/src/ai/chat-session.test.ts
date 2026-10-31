@@ -61,6 +61,10 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
   });
 }
 
+function createNewFile(): FilePatch {
+  return { path: "src/new.ts", action: "create", content: "x\n" };
+}
+
 describe("ChatSession", () => {
   it("turns an answer into a reviewable proposal without writing", async () => {
     const harness = fakeHost();
@@ -70,7 +74,7 @@ describe("ChatSession", () => {
       call: async (input) => {
         system = input.system;
         turns = input.messages.length;
-        return { ok: true, text: answer({ path: "src/new.ts", action: "create", content: "x\n" }) };
+        return { ok: true, text: answer(createNewFile()) };
       },
       loadSettings: () => settings,
       saveSettings: () => {},
@@ -87,35 +91,42 @@ describe("ChatSession", () => {
     expect(turns).toBe(1);
     expect(system).toContain("## Project context");
     expect(state.proposal?.files).toHaveLength(1);
+    expect(state.proposal?.files[0]?.before).toBeNull();
     expect(state.proposal?.files[0]?.accepted).toBe(true);
     expect(state.proposal?.files[0]?.added).toBe(1);
     expect(state.proposal?.notes).toEqual(["A note"]);
+    expect(state.proposal?.warnings).toEqual([]);
     expect(harness.writes).toEqual([]);
   });
 
-  it("applies only the accepted files through the kernel bridge", async () => {
+  it("applies only the accepted files and keeps an undo plan", async () => {
     const harness = fakeHost();
     const chat = sessionWith(
-      async () => ({
-        ok: true,
-        text: answer({ path: "src/new.ts", action: "create", content: "x\n" }),
-      }),
+      async () => ({ ok: true, text: answer(createNewFile()) }),
       harness.host,
     );
     await chat.send("add");
     await chat.apply();
+
+    const state = chat.getSnapshot();
     expect(harness.writes).toEqual(["vv-write:" + root + "/src/new.ts"]);
-    expect(chat.getSnapshot().applied?.ok).toBe(true);
-    expect(chat.getSnapshot().proposal).toBeNull();
+    expect(state.applied).toMatchObject({ kind: "apply", ok: true });
+    expect(state.proposal).toBeNull();
+    expect(state.undo).toEqual({ entries: [{ path: "src/new.ts", content: null }] });
+
+    await chat.undo();
+    expect(harness.writes).toEqual([
+      "vv-write:" + root + "/src/new.ts",
+      "vv-rm:" + root + "/src/new.ts",
+    ]);
+    expect(chat.getSnapshot().applied).toMatchObject({ kind: "undo", ok: true });
+    expect(chat.getSnapshot().undo).toBeNull();
   });
 
   it("does not write when the user unchecks every file", async () => {
     const harness = fakeHost();
     const chat = sessionWith(
-      async () => ({
-        ok: true,
-        text: answer({ path: "src/new.ts", action: "create", content: "x\n" }),
-      }),
+      async () => ({ ok: true, text: answer(createNewFile()) }),
       harness.host,
     );
     await chat.send("add");
@@ -123,6 +134,47 @@ describe("ChatSession", () => {
     await chat.apply();
     expect(harness.writes).toEqual([]);
     expect(chat.getSnapshot().applied).toBeNull();
+  });
+
+  it("streams the message field into a bubble before the answer completes", async () => {
+    let clock = 0;
+    let seenPartial: string | null = null;
+    let seenStreaming = false;
+    const chat: ChatSession = new ChatSession(fakeHost().host, {
+      call: async (input) => {
+        input.onText?.('{"message":"Hel');
+        seenPartial = chat.getSnapshot().messages.at(-1)?.content ?? null;
+        seenStreaming = chat.getSnapshot().streaming;
+        input.onText?.('lo there"}');
+        return {
+          ok: true,
+          text: '{"message":"Hello there","patches":[],"notes":[],"requires_confirmation":false}',
+        };
+      },
+      loadSettings: () => settings,
+      saveSettings: () => {},
+      now: () => (clock += 1000),
+    });
+
+    await chat.send("hi");
+    expect(seenPartial).toBe("Hel");
+    expect(seenStreaming).toBe(true);
+    const state = chat.getSnapshot();
+    expect(state.streaming).toBe(false);
+    expect(state.messages.at(-1)?.content).toBe("Hello there");
+    expect(state.messages.at(-1)?.role).toBe("assistant");
+  });
+
+  it("drops the partial bubble when the answer cannot be parsed", async () => {
+    const chat = sessionWith(async (input) => {
+      input.onText?.('{"message":"partial');
+      return { ok: true, text: "not json at all" };
+    });
+    await chat.send("hi");
+    const state = chat.getSnapshot();
+    expect(state.messages).toHaveLength(1);
+    expect(state.streaming).toBe(false);
+    expect(state.error?.kind).toBe("parse");
   });
 
   it("reports an unusable answer as a parse failure and keeps the turn", async () => {

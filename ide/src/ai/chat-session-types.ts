@@ -1,0 +1,55 @@
+// The chat's public contracts and shared helpers.
+//
+// Split out of chat-session.ts, which is at the 300-line limit: the session class
+// owns behaviour, these are the shapes the host, the tests and the UI agree on.
+
+import type { PatchBridge } from "@/facilis/apply-patch";
+import type { CallModelInput, CallModelResult } from "./client";
+import { isConfigured } from "./settings";
+import type { AiSettings, ChatState } from "./types";
+
+/** What the chat needs from the editor, all in project-relative terms. */
+export interface ChatHost {
+  /** Absolute VFS path of the open project, or null. */
+  root(): string | null;
+  bridge: PatchBridge;
+  /** Project-relative paths of every file in the project. */
+  files(): readonly string[];
+  /** Read a project-relative file; "" when it does not exist. */
+  read(path: string): Promise<string>;
+  /** The file open in the editor, with unsaved buffer content when it is available. */
+  activeFile(): Promise<{ path: string; content: string } | null>;
+  /** Preview base URL used for /__facilis/manifest, or null when nothing runs. */
+  manifestBase(): string | null;
+  /** Reveal a project-relative path in the editor. */
+  openFile(path: string): void;
+}
+
+export type ModelCall = (input: CallModelInput) => Promise<CallModelResult>;
+
+export interface ChatSessionOptions {
+  /** Injected by the tests; the real provider client by default. */
+  call?: ModelCall;
+  loadSettings?: () => AiSettings | null;
+  saveSettings?: (settings: AiSettings) => void;
+  now?: () => number;
+}
+
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function initialState(settings: AiSettings | null): ChatState {
+  return {
+    phase: "idle",
+    messages: [],
+    proposal: null,
+    applied: null,
+    undo: null,
+    streaming: false,
+    error: null,
+    settings,
+    configured: isConfigured(settings),
+    context: null,
+  };
+}

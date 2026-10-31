@@ -36,6 +36,19 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
+  it("states the browser/server boundary rules", () => {
+    for (const token of [
+      "browser code",
+      "process",
+      "import.meta.env",
+      "server-only",
+      "runs in Nitro",
+      'fetch("/api/...")',
+    ]) {
+      expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
   it("states the one-object response contract", () => {
     for (const token of [
       "Return exactly one JSON object",

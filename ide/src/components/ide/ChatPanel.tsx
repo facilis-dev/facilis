@@ -81,6 +81,7 @@ export function ChatPanel() {
     <aside
       className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground"
       aria-label={t("chat.title")}
+      data-streaming={state.streaming ? "true" : "false"}
     >
       <div className="flex items-center justify-between gap-1 border-b px-2 py-1.5">
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
@@ -124,8 +125,12 @@ export function ChatPanel() {
           <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")} />
         ) : (
           <>
-            {state.messages.map((message) => (
-              <ChatMessageView key={message.id} message={message} />
+            {state.messages.map((message, index) => (
+              <ChatMessageView
+                key={message.id}
+                message={message}
+                streaming={state.streaming && index === state.messages.length - 1}
+              />
             ))}
             <ChatProposalView chat={chat} state={state} />
             {state.error && (
@@ -143,7 +148,7 @@ export function ChatPanel() {
             )}
           </>
         )}
-        {busy && (
+        {busy && !state.streaming && (
           <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
             {t("chat.thinking")}

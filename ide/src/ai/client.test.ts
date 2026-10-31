@@ -193,7 +193,7 @@ describe("callModel", () => {
     expect(result.failure.message).toContain("socket reset");
   });
 
-  it("serves the mock without fetching and calls onText once", async () => {
+  it("serves the mock without fetching, trickling it through onText", async () => {
     const fetchMock = stubFetch(async () => responseFrom([]));
     const seen: string[] = [];
     const messages = [{ role: "user" as const, content: "add a file" }];
@@ -205,7 +205,9 @@ describe("callModel", () => {
     });
 
     expect(result).toEqual({ ok: true, text: mockAnswer(messages) });
-    expect(seen).toEqual([mockAnswer(messages)]);
+    // Chunked on purpose: the real panel streams the message field as it arrives.
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.join("")).toBe(mockAnswer(messages));
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

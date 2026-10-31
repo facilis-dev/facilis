@@ -74,6 +74,20 @@ async function httpFailure(response: Response): Promise<CallModelResult> {
   return failed("http", detail || "HTTP " + response.status, response.status);
 }
 
+/** The mock answers in small chunks so the streaming UI is demonstrable offline. */
+async function trickleMock(
+  text: string,
+  onText: ((chunk: string) => void) | undefined,
+): Promise<void> {
+  if (onText === undefined) return;
+  const chunkSize = 24;
+  for (let index = 0; index < text.length; index += chunkSize) {
+    onText(text.slice(index, index + chunkSize));
+    // A visible trickle; the panel throttles its own re-renders.
+    await new Promise((resolve) => setTimeout(resolve, 8));
+  }
+}
+
 export async function callModel(input: CallModelInput): Promise<CallModelResult> {
   const { settings, signal } = input;
   if (signal?.aborted) return failed("aborted", "The request was cancelled.");
@@ -83,7 +97,7 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
       return failed("unsupported", "The mock provider is only available in development builds.");
     }
     const text = mockAnswer(input.messages);
-    input.onText?.(text);
+    await trickleMock(text, input.onText);
     return { ok: true, text };
   }
 

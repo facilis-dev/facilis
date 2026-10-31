@@ -30,7 +30,13 @@ function MessageContent({ text }: { text: string }) {
   );
 }
 
-export function ChatMessageView({ message }: { message: ChatMessage }) {
+export function ChatMessageView({
+  message,
+  streaming = false,
+}: {
+  message: ChatMessage;
+  streaming?: boolean;
+}) {
   const user = message.role === "user";
   return (
     <div className={cn("flex", user ? "justify-end" : "justify-start")}>
@@ -41,6 +47,12 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         )}
       >
         <MessageContent text={message.content} />
+        {streaming && (
+          <span
+            aria-hidden="true"
+            className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-current align-text-bottom"
+          />
+        )}
         {message.detail && (
           <details className="mt-1 text-[10px] opacity-80">
             <summary className="cursor-pointer select-none">{t("chat.detail")}</summary>

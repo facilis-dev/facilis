@@ -16,26 +16,29 @@ describe("buildProposal", () => {
     });
     expect(proposal.files).toHaveLength(1);
     expect(proposal.files[0]?.accepted).toBe(true);
+    expect(proposal.files[0]?.before).toBeNull();
     expect(proposal.files[0]?.added).toBe(2);
     expect(proposal.files[0]?.removed).toBe(0);
     expect(proposal.notes).toEqual(["note"]);
     expect(proposal.requiresConfirmation).toBe(true);
   });
 
-  it("diffs an update against the file on disk", async () => {
+  it("keeps the before-image of an update for the diff and for Undo", async () => {
     const patch: FilePatch = {
       path: "src/App.tsx",
       action: "update",
       content: "export const App = 1;\n",
     };
     const proposal = await buildProposal([patch], [], false, read);
+    expect(proposal.files[0]?.before).toBe(files["src/App.tsx"]);
     expect(proposal.files[0]?.added).toBe(1);
     expect(proposal.files[0]?.removed).toBe(1);
   });
 
-  it("renders a delete as removals", async () => {
+  it("renders a delete as removals and can restore it", async () => {
     const patch: FilePatch = { path: "src/App.tsx", action: "delete" };
     const proposal = await buildProposal([patch], [], false, read);
+    expect(proposal.files[0]?.before).toBe(files["src/App.tsx"]);
     expect(proposal.files[0]?.added).toBe(0);
     expect(proposal.files[0]?.removed).toBe(1);
   });
@@ -43,7 +46,31 @@ describe("buildProposal", () => {
   it("treats an update of a missing file as a diff from empty", async () => {
     const patch: FilePatch = { path: "src/missing.ts", action: "update", content: "x\n" };
     const proposal = await buildProposal([patch], [], false, read);
+    expect(proposal.files[0]?.before).toBeNull();
     expect(proposal.files[0]?.added).toBe(1);
     expect(proposal.files[0]?.removed).toBe(0);
+  });
+
+  it("warns when browser code uses Node globals or server modules", async () => {
+    const patch: FilePatch = {
+      path: "src/App.tsx",
+      action: "update",
+      content: 'import { db } from "@facilis/db";\nexport const x = process.env.X;\n',
+    };
+    const proposal = await buildProposal([patch], [], false, read);
+    expect(proposal.warnings).toEqual([
+      { path: "src/App.tsx", rule: "server-import", symbol: "@facilis/db" },
+      { path: "src/App.tsx", rule: "node-global", symbol: "process" },
+    ]);
+  });
+
+  it("does not warn about server routes", async () => {
+    const patch: FilePatch = {
+      path: "server/routes/api/x.get.ts",
+      action: "create",
+      content: "export const token = process.env.SECRET;\n",
+    };
+    const proposal = await buildProposal([patch], [], false, async () => "");
+    expect(proposal.warnings).toEqual([]);
   });
 });

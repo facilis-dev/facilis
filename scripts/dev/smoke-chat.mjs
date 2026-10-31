@@ -56,6 +56,13 @@ const OPEN_CHAT =
 
 const MODEL_IS_MOCK = "(document.querySelector('#chat-model')?.value || '') === 'mock'";
 
+const PATCH_GONE =
+  "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
+  "if (!root) return 'NO ROOT'; for (let attempt = 0; attempt < 40; attempt++) {" +
+  "const text = await window.__ide.readFileText(root + '/src/chat-demo.ts');" +
+  "if (text.length === 0) return 'OK'; await new Promise((resolve) => setTimeout(resolve, 250)); }" +
+  "return 'STILL THERE'; })()";
+
 const PATCH_IN_VFS =
   "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
   "if (!root) return 'NO ROOT'; for (let attempt = 0; attempt < 40; attempt++) {" +
@@ -97,11 +104,27 @@ export async function runChatChecks({ page, check, ARTIFACTS }) {
     record((await page.evaluate(SET_TEXTAREA)) === "OK", "chat message typed");
     await sleep(200);
     record((await page.evaluate(CLICK_SEND)) === "OK", "chat message sent");
+    // The mock trickles its answer, so the streaming bubble is observable: the
+    // panel marks data-streaming while the message field is arriving.
+    let streamingSeen = false;
+    for (let attempt = 0; attempt < 200 && !streamingSeen; attempt++) {
+      streamingSeen = await page.evaluate(
+        'Boolean(document.querySelector(\'aside[aria-label="AI Chat"][data-streaming="true"]\'))',
+      );
+      if (!streamingSeen) await sleep(25);
+    }
+    record(streamingSeen, "chat streaming bubble shown");
     record(await waitFor(page, bodyHas("Proposed changes"), 20000), "chat proposal shown");
     record(await waitFor(page, bodyHas("src/chat-demo.ts"), 5000), "chat proposal lists the file");
     record((await page.evaluate(clickIn(panel, "Apply all"))) === "OK", "chat apply clicked");
     record(await waitFor(page, bodyHas("Applied 1 file(s)"), 15000), "chat patch applied");
     record((await page.evaluate(PATCH_IN_VFS)) === "OK", "chat patch reached the VFS");
+    record(
+      (await page.evaluate(clickIn(panel, "Undo applied changes"))) === "OK",
+      "chat undo clicked",
+    );
+    record(await waitFor(page, bodyHas("Reverted 1 file(s)"), 15000), "chat patch reverted");
+    record((await page.evaluate(PATCH_GONE)) === "OK", "chat undo removed the file from the VFS");
   }
 
   await page.screenshot(ARTIFACTS + "/04-chat.png");

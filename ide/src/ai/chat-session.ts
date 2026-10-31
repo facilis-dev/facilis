@@ -1,71 +1,29 @@
-// The AI chat session: conversation state plus the patch review/apply flow
-// (D-045, D-046).
+// The AI chat session: conversation state, streaming, proposal review and apply
+// (D-045/D-046/D-047).
 //
 // One instance per controller (chat-host.ts keeps it in a WeakMap), so switching
-// sidebar views does not lose the conversation. The session talks to the editor
-// only through ChatHost and to the model only through an injected call: both stay
-// fake-able in the unit tests, and neither the VFS write path nor the HTTP client
-// grows a test-only branch.
+// sidebar views keeps the conversation. The session talks to the editor only
+// through ChatHost, to the model only through an injected call, and to the VFS
+// only through chat-actions.ts — the validated applyPatch() path.
 //
 // Safety rule (SPEC §9.3 / invariant 9): the model never touches disk. A turn
-// produces a reviewable proposal; only the user's Apply reaches applyPatch(), which
-// validates the patches before writing through the kernel.
+// produces a reviewable proposal; only the user's Apply reaches applyPatch(), and
+// a clean Apply can be undone because the proposal kept the before-images.
 
-import { applyPatch, type PatchBridge } from "@/facilis/apply-patch";
-import { callModel, type CallModelInput, type CallModelResult } from "./client";
+import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
 import { buildProposal } from "./chat-proposal";
+import { callModel } from "./client";
+import { errorText, initialState } from "./chat-session-types";
+import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
+import { StreamAccumulator } from "./chat-stream";
 import { parseAiResponse } from "./response";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import type { AiChatTurn, AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
-/** Turns replayed to the model on the next message. SPEC §9.1 Model A is one
- *  context block per turn; a long transcript only adds cost. */
-const HISTORY_LIMIT = 20;
+export type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 
-/** What the chat needs from the editor, all in project-relative terms. */
-export interface ChatHost {
-  /** Absolute VFS path of the open project, or null. */
-  root(): string | null;
-  bridge: PatchBridge;
-  /** Project-relative paths of every file in the project. */
-  files(): readonly string[];
-  /** Read a project-relative file; "" when it does not exist. */
-  read(path: string): Promise<string>;
-  /** The file open in the editor, with unsaved buffer content when it is available. */
-  activeFile(): Promise<{ path: string; content: string } | null>;
-  /** Preview base URL used for /__facilis/manifest, or null when nothing runs. */
-  manifestBase(): string | null;
-  /** Reveal a project-relative path in the editor. */
-  openFile(path: string): void;
-}
-
-export type ModelCall = (input: CallModelInput) => Promise<CallModelResult>;
-
-export interface ChatSessionOptions {
-  /** Injected by the tests; the real provider client by default. */
-  call?: ModelCall;
-  loadSettings?: () => AiSettings | null;
-  saveSettings?: (settings: AiSettings) => void;
-  now?: () => number;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function initialState(settings: AiSettings | null): ChatState {
-  return {
-    phase: "idle",
-    messages: [],
-    proposal: null,
-    applied: null,
-    error: null,
-    settings,
-    configured: isConfigured(settings),
-    context: null,
-  };
-}
+const HISTORY_LIMIT = 20; // Turns replayed to the model on the next message (SPEC §9.1).
 
 export class ChatSession {
   private readonly host: ChatHost;
@@ -73,11 +31,14 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
+  private readonly stream: StreamAccumulator;
   private listeners = new Set<() => void>();
   private state: ChatState;
   private controller: AbortController | null = null;
   private seq = 0;
   private cancelled = false;
+  /** The assistant bubble the stream is filling, when it has started. */
+  private streamId: string | null = null;
 
   constructor(host: ChatHost, options: ChatSessionOptions = {}) {
     this.host = host;
@@ -85,6 +46,7 @@ export class ChatSession {
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
+    this.stream = new StreamAccumulator(this.now);
     this.state = initialState(this.load());
   }
 
@@ -104,11 +66,9 @@ export class ChatSession {
     for (const listener of this.listeners) listener();
   }
 
-  private nextMessage(role: ChatMessage["role"], content: string, detail?: string): ChatMessage {
+  private nextMessage(role: ChatMessage["role"], content: string): ChatMessage {
     this.seq += 1;
-    return detail === undefined
-      ? { id: role + "-" + this.seq, role, content, at: this.now() }
-      : { id: role + "-" + this.seq, role, content, at: this.now(), detail };
+    return { id: role + "-" + this.seq, role, content, at: this.now() };
   }
 
   private fail(failure: ChatFailure): void {
@@ -124,11 +84,14 @@ export class ChatSession {
     this.controller?.abort();
     this.controller = null;
     this.cancelled = false;
+    this.resetStream();
     this.emit({
       phase: "idle",
       messages: [],
       proposal: null,
       applied: null,
+      undo: null,
+      streaming: false,
       error: null,
       context: null,
     });
@@ -175,11 +138,14 @@ export class ChatSession {
     }
 
     this.cancelled = false;
+    this.resetStream();
     this.emit({
       phase: "sending",
       messages: [...this.state.messages, this.nextMessage("user", content)],
       proposal: null,
       applied: null,
+      undo: null,
+      streaming: false,
       error: null,
     });
     const abort = new AbortController();
@@ -193,41 +159,92 @@ export class ChatSession {
         system: built.system,
         messages: this.history(),
         signal: abort.signal,
+        onText: (chunk) => this.streamChunk(chunk),
       });
       if (this.cancelled) return;
       if (!result.ok) {
+        this.dropStream();
         this.fail(result.failure);
         return;
       }
-      await this.finish(result.text);
+      await this.finishAnswer(result.text);
     } catch (error) {
-      if (!this.cancelled) this.fail({ kind: "stream", message: errorText(error) });
+      if (!this.cancelled) {
+        this.dropStream();
+        this.fail({ kind: "stream", message: errorText(error) });
+      }
     } finally {
       this.controller = null;
       const cancelled = this.cancelled;
       this.cancelled = false;
+      this.resetStream();
       this.emit({
         phase: "idle",
+        streaming: false,
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }
   }
 
-  /** Turn a parsed answer into an assistant message plus an optional proposal. */
-  private async finish(text: string): Promise<void> {
+  /** Paint the growing `message` field into a bubble while the JSON streams in. */
+  private streamChunk(chunk: string): void {
+    const visible = this.stream.push(chunk);
+    if (visible === null) return;
+    if (this.streamId === null) {
+      const message = this.nextMessage("assistant", visible);
+      this.streamId = message.id;
+      this.emit({ streaming: true, messages: [...this.state.messages, message] });
+      return;
+    }
+    const id = this.streamId;
+    this.emit({
+      messages: this.state.messages.map((message) =>
+        message.id === id ? { ...message, content: visible } : message,
+      ),
+    });
+  }
+
+  private finishStream(content: string): void {
+    const id = this.streamId;
+    this.streamId = null;
+    this.emit({
+      streaming: false,
+      messages:
+        id === null
+          ? [...this.state.messages, this.nextMessage("assistant", content)]
+          : this.state.messages.map((message) =>
+              message.id === id ? { ...message, content } : message,
+            ),
+    });
+  }
+
+  private dropStream(): void {
+    const id = this.streamId;
+    this.streamId = null;
+    this.emit({
+      streaming: false,
+      ...(id === null
+        ? {}
+        : { messages: this.state.messages.filter((message) => message.id !== id) }),
+    });
+  }
+
+  private resetStream(): void {
+    this.stream.reset();
+    this.streamId = null;
+  }
+
+  /** Turn a complete answer into the final bubble plus an optional proposal. */
+  private async finishAnswer(text: string): Promise<void> {
     const parsed = parseAiResponse(text);
     if (!parsed.ok) {
+      this.dropStream();
       const detail = [parsed.error, ...parsed.issues].filter(Boolean).join("\n");
       this.emit({ error: { kind: "parse", message: detail } });
       return;
     }
     const response = parsed.response;
-    this.emit({
-      messages: [
-        ...this.state.messages,
-        this.nextMessage("assistant", response.message || "Done."),
-      ],
-    });
+    this.finishStream(response.message || "Done.");
     if (response.patches.length === 0) return;
     this.emit({
       proposal: await buildProposal(
@@ -239,33 +256,36 @@ export class ChatSession {
     });
   }
 
-  /** Write the accepted files through the same validated path as the dev handle. */
+  /** Write the accepted files through the validated path. */
   async apply(): Promise<void> {
     const proposal = this.state.proposal;
     const root = this.host.root();
     if (!proposal || !root || this.state.phase !== "idle") return;
-    const patches = proposal.files.filter((file) => file.accepted).map((file) => file.patch);
-    if (patches.length === 0) return;
+    if (!proposal.files.some((file) => file.accepted)) return;
     this.emit({ phase: "applying", error: null });
     try {
-      const manifestBase = this.host.manifestBase();
-      const result = await applyPatch({
-        bridge: this.host.bridge,
-        root,
-        patches,
-        ...(manifestBase === null ? {} : { manifestBase }),
-      });
-      this.emit({
-        phase: "idle",
-        applied: {
-          ok: result.ok,
-          written: result.written,
-          deleted: result.deleted,
-          errors: result.errors,
-          revision: result.revision,
-        },
-        ...(result.ok ? { proposal: null } : {}),
-      });
+      const { applied, undo } = await applyAccepted(
+        { bridge: this.host.bridge, root, manifestBase: this.host.manifestBase() },
+        proposal,
+      );
+      this.emit({ phase: "idle", applied, undo, ...(applied.ok ? { proposal: null } : {}) });
+    } catch (error) {
+      this.emit({ phase: "idle", error: { kind: "stream", message: errorText(error) } });
+    }
+  }
+
+  /** Put the last clean Apply back the way it was. */
+  async undo(): Promise<void> {
+    const undo = this.state.undo;
+    const root = this.host.root();
+    if (!undo || !root || this.state.phase !== "idle") return;
+    this.emit({ phase: "applying", error: null });
+    try {
+      const applied = await applyUndo(
+        { bridge: this.host.bridge, root, manifestBase: this.host.manifestBase() },
+        undo,
+      );
+      this.emit({ phase: "idle", applied, undo: applied.ok ? null : undo });
     } catch (error) {
       this.emit({ phase: "idle", error: { kind: "stream", message: errorText(error) } });
     }
