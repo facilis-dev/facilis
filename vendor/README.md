@@ -72,6 +72,33 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-31, pin `8754dd5` / `facilis/main` = upstream v1.1.5 + 8 fork commits)
+
+All five fixes we had proposed were merged upstream on 2026-10-31 (#19–#23) and released as
+`v1.1.5` (`2f461da`), together with the maintainer's follow-ups that closed the review: the
+resolver spike, builtin-only `node:` and `pathToFileURL` escaping, the OPFS drain rules in the
+docs, the index batch/lock fixes with `spike-opfs-multitab.mjs`, and the per-boot preview
+**kernel token** with `spike-sw-multitab.mjs` (Chrome sends an empty `clientId` on a frame's
+first navigation; the SW records the token's tab and redirects the token away). The pin drops
+the five merged commits — the upstream versions are the base — and replays the eight
+Facilis-only ones on top: template binary assets, npm 12.2.1, version-aware pack rebuilds,
+pnpm's config out of the base env, scoped boot restore (D-036), cache-body replay (D-037), the
+ESM→CJS comment fix, and `hydrate()` under the manifest lock.
+
+The IDE side moved with it: `ide/public/sw.js` is the new upstream worker mirrored through our
+Prettier/lint, and two places that build or parse preview URLs had to learn the token —
+`ide/src/vv/preview-url.ts` (same-origin pop-outs carry it; the address bar strips it) and
+`manifestBaseUrl` in `ide/src/facilis/manifest-client.ts` (a base URL must drop `?`/`#`, or
+`/__facilis/manifest/revision` lands inside the token's query string and A9 read `null`).
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `8754dd5…` (`v1.1.5-8-g8754dd5`) |
+| fork offline tier (`node scripts/run-spikes.mjs --offline`) | 28/31 passed, 32 skipped for the missing Wasm build; `python-offline`, `template-syntax` and `clean-checkout` fail identically on a pristine `2f461da` worktree, so they are this sandbox (host pip version, Node's JSX parser), not the pin |
+| `pnpm ide:smoke:multitab` | **PASSED** (44 checks): both tabs' previews and reloads stay on their own kernel through the token; idle tab keeps 415 cache files deferred (`deferred` 435, 28 files / 122 KB in the VFS) |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **PASSED**: install, preview, contract, IntelliSense, A8 write/HMR, A9 applyPatch (revision now refreshes: `207f3ef…` → `60ce45c…`), A10 git, A12 reboot restores from OPFS |
+| `pnpm lint && pnpm typecheck && pnpm test && pnpm build` + `prettier --check .` | green |
+
 ## Verification (2026-10-30, pin `4b7be67` / `facilis/main` = upstream v1.1.4 + 12 fork commits)
 
 The pin adds one commit: the ESM→CJS transpiler advances over whitespace **and comments**

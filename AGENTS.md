@@ -162,9 +162,10 @@ Several projects run at once as **browser tabs** (D-033): one project per tab, o
 tab, and the same project refused in a second tab (Web Lock, `ide/src/vv/project-lock.ts`). A
 tab opened from another one carries `?project=<rootPath>`; `ide/src/vv/project-tabs.ts` boots it
 and keeps the claim. Per-origin state must be **merged, never rewritten whole**: the preview
-Service Worker routes per **preview frame** (fork `fix/preview-per-tab-kernel`), so
-`ide/public/sw.js` must stay in sync with `vendor/vivari/packages/studio/public/sw.js`; the OPFS
-VFS index is merged per tab under a Web Lock (fork `fix/opfs-crosstab-index`); and Home's
+Service Worker routes per **preview frame**, by the per-boot **kernel token** a same-origin
+preview URL carries (upstream #23 + its follow-up, released in v1.1.5), so `ide/public/sw.js`
+must stay in sync with `vendor/vivari/packages/studio/public/sw.js`; the OPFS
+VFS index is merged per tab under a Web Lock (upstream #22 + follow-up); and Home's
 recent-projects registry is a read-merge-write in `ide/src/vv/project-registry.ts`, because a tab
 writing its stale list dropped another tab's project from Home. Acceptance:
 `pnpm ide:smoke:multitab`.

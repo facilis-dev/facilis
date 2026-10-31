@@ -3,29 +3,39 @@
 Our fork is [`kele23/vivari`](https://github.com/kele23/vivari) (upstream
 [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari), MIT). `master` mirrors
 upstream and carries no commits of ours; **`facilis/main` = upstream tag + the fixes below and
-is what `vendor/vivari` pins** (D-030). Each fix is also its own branch, based on upstream
-`master`, ready to be proposed upstream as a PR.
+is what `vendor/vivari` pins** (D-030). The five upstream fixes were proposed as PRs and merged
+(released in v1.1.5); the `fix/*` branches stay at their pre-merge commits as a record.
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: the five fixes below plus six Facilis-driven commits, on top of `v1.1.4` (`8e91ade`); pin `c83c08f` | `v1.1.4` | — |
+| `facilis/main` | integration: upstream `v1.1.5` (`2f461da`) plus the eight Facilis-driven commits below; pin `8754dd5` | `v1.1.5` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.4` | [#19](https://github.com/maitrungduc1410/vivari/pull/19) |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.4` | [#21](https://github.com/maitrungduc1410/vivari/pull/21) |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.4` | [#20](https://github.com/maitrungduc1410/vivari/pull/20) |
 | `fix/opfs-crosstab-index` | OPFS mirror index: merged per tab under a Web Lock, replaced through a staged copy (D-033) | `v1.1.4` | [#22](https://github.com/maitrungduc1410/vivari/pull/22) |
 | `fix/preview-per-tab-kernel` | Preview requests routed to the kernel that owns the frame (`clientId`/`resultingClientId`), per-kernel keep-prefix + tunnel frames (D-033) | `v1.1.4` | [#23](https://github.com/maitrungduc1410/vivari/pull/23) |
 
-The pin was realigned from `v1.1.3` to `v1.1.4` on 2026-10-29: every branch above was rebased
-onto the tag, so the fork carries the release's pnpm work (native `realpath` symlinks, the
-store-alias remap in `toolchain-shims.js`, the WASI `path_filestat_get` symlink flags) and the
-fixes apply to the current upstream tree. One conflict: v1.1.4 added
-`npm_config_strict_store_pkg_content_check` to `baseProcEnv`; it is pnpm config like the other
-two, so it moved into the pnpm shim with them (see the last paragraph).
+All five fixes were **merged upstream** on 2026-10-31 (#19–#23) and released in
+`v1.1.5` (`2f461da`), together with the maintainer's follow-up commits, which closed every
+review request: `spike-resolve-fallback.mjs` for #19; builtin-only `node:` and
+`pathToFileURL` escaping for #20; the drain-priority rules in `AGENTS.md`/`roadmap.md` for #21;
+the index batch/lock fixes plus `spike-opfs-multitab.mjs` (with `scripts/lib/fake-opfs.mjs`)
+for #22; and the per-boot **kernel token** in same-origin preview URLs, routing-map pruning,
+`spike-sw-multitab.mjs` and the `spike-sw-routing.mjs` repair for #23. Those upstream versions
+are the base of the pin now; the `fix/*` branches below remain at their pre-merge commits as a
+record.
+
+The pin was realigned from `v1.1.3` to `v1.1.4` on 2026-10-29 and from `v1.1.4` to `v1.1.5`
+on 2026-10-31. The second realignment dropped the five merged fixes from `facilis/main` (their
+upstream commits, with the follow-ups, carry them) and replayed the eight Facilis-only commits on
+top of the tag; one conflict (the manifest lock that both #22's follow-up and D-036 touch) was
+resolved by keeping both: `restore()` and the new `hydrate()` read the index under
+`vv-vfs-manifest`, `materialize()` after the lock.
 
 Multi-tab (D-033 in the superproject) is what the last two fixes are for: the IDE runs one
 project per browser tab, so two kernels share one origin, one preview proxy and one OPFS mirror.
 
-Six of the commits on `facilis/main` are not `fix/*` branches: a template may list
+Eight of the commits on `facilis/main` are not `fix/*` branches: a template may list
 binary assets that the kernel fetches same-origin and writes with the project (D-032, the local
 `file:` tarball install), the vendored npm is pinned to 12.2.1, both packers now rebuild a
 pack whose stamped version no longer matches the pin instead of silently reusing it, pnpm's
@@ -33,9 +43,11 @@ own config (`store-dir`, `package-import-method`, and v1.1.4's `strict-store-pkg
 moved from the base process environment into the pnpm shim — npm 12 warned `Unknown env config`
 for the first two on every install (D-032 follow-up) — the OPFS boot restore can be scoped
 so a tab replays the project it opens instead of every project on the origin
-(`BootOptions.deferRestoreRoots`, D-036), and package-manager cache **bodies** can stay in the
+(`BootOptions.deferRestoreRoots`, D-036), package-manager cache **bodies** can stay in the
 mirror too, replayed one at a time by the FS worker the first time a syscall reads them
-(`BootOptions.deferCacheFiles`, D-037).
+(`BootOptions.deferCacheFiles`, D-037), the ESM→CJS transpiler advances over comments between
+`export` and its declaration (zod v4's `export /*@__NO_SIDE_EFFECTS__*/`, found by the Facilis
+probe), and `hydrate()` reads the shared index under the manifest lock like `restore()` does.
 
 The same commits, `git am`-able and with their PR bodies, are kept next to this file
 (`vivari-*.patch`, `vivari-*-pr.md`) so they can be replayed without the fork. Evidence and the

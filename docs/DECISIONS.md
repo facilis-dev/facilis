@@ -775,18 +775,26 @@ run": it was two pieces of per-origin state written as if one kernel existed.
   hosts a kernel" and posted every `/preview/<port>/` request there. Both tabs announce
   themselves, both run a server on 5173, and the second tab to boot won the lookup: measured, a
   `fetch('/preview/5173/')` from tab A returned tab B's app, and reloading tab A's preview
-  painted tab B's project. Fixed in `sw.js` (fork `fix/preview-per-tab-kernel`): a navigation is
+  painted tab B's project. Fixed in `sw.js` (upstream #23, released in v1.1.5): a navigation is
   attributed to the window that started it (`event.clientId`) and the frame it creates is
   recorded under `event.resultingClientId`, so every later subresource of that frame goes back to
-  the same kernel. keep-prefix ports became per kernel (`keepPrefixByClient`) and ws/SSE tunnel
-  frames are scoped to the kernel's own preview windows.
+  the same kernel. The follow-up measured the assumption Chrome 156 breaks: a frame's *first*
+  navigation carries an **empty** `clientId`, so the bridge now puts its per-boot kernel token in
+  same-origin preview URLs (`__vv_kernel`), the SW records the resulting frame against that tab
+  and redirects the token away (`resultingClientId` survives the redirect), and the routing maps
+  are pruned of clients that are gone. keep-prefix ports became per kernel
+  (`keepPrefixByClient`) and ws/SSE tunnel frames are scoped to the kernel's own preview windows.
 - **The OPFS mirror's index was rewritten from one kernel's memory.**
   `vv-vfs/manifest.json` is per origin; each tab wrote the whole index from the paths it happened
   to know. Measured: with both tabs running, one write in tab A dropped every one of tab B's paths
   from the index (`beta` entries 10 → 0) and reloading tab B lost the project (`vv-stat` →
-  does not exist). Fixed in `opfs-persistence.js` (fork `fix/opfs-crosstab-index`): the index
+  does not exist). Fixed in `opfs-persistence.js` (upstream #22, released in v1.1.5): the index
   write is a read-merge-write of *this kernel's* changed paths under a `vv-vfs-manifest` Web Lock,
-  so two tabs cannot interleave it.
+  so two tabs cannot interleave it. The follow-up closed two gaps the test exposed: the batch of
+  changed paths is taken before the write's first `await` (a path recorded mid-write was lost for
+  good), and `restore()` reads the index under the same lock (a sync access handle held by a
+  booting tab could make another tab's `move()` and its copy fallback both fail). Our
+  `hydrate()` takes the lock too.
 
 **Decision:** tabs are the unit of work, and the Studio enforces one project per tab.
 

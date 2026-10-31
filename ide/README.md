@@ -16,7 +16,7 @@ branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 | Upstream repository | <https://github.com/maitrungduc1410/vivari> |
 | Upstream tag / commit | `v1.1.2` / `1f00a48c6d8009e7f369c1cf36959d61ad262b19` (branch `master`, 2026-10-16) |
 | App source | upstream `packages/studio/` |
-| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.4` + 12 fork commits (`v1.1.4-12-g4b7be67`, D-030) |
+| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.5` + 8 fork commits (`v1.1.5-8-g8754dd5`, D-030) |
 | License | MIT — [`LICENSE`](./LICENSE) (Copyright (c) 2026 Duc Trung Mai and Vivari contributors); Facilis code is covered by the root [`LICENSE`](../LICENSE) |
 
 ## Layout
@@ -63,10 +63,13 @@ must be deleted once a file drops under 300 lines, and no new file may be added.
 6. Fourteen files above 300 lines, recorded in the file-length baseline (see above).
 7. `src/vv/templates.ts`: every Vite template resolves `vite@^7.1.0` instead of upstream's
    `^8.0.0` — Vite 8's rolldown cannot load its wasm binding inside the VM (see "Running it").
-8. `public/sw.js`: carries the fork's **per-kernel preview routing** (D-033). The IDE serves its
-   own copy of the upstream Service Worker, so a change there is made in
-   `vendor/vivari/packages/studio/public/sw.js` first (as `fix/preview-per-tab-kernel`) and
-   mirrored here — keep the two in sync.
+8. `public/sw.js`: carries the **per-kernel preview routing** (D-033), now upstream's own
+   (upstream #23 + its follow-up, released in v1.1.5): a same-origin preview URL carries the
+   kernel's per-boot token, the SW records the frame against that tab and redirects the token
+   away, and the routing maps are pruned. The IDE serves its own copy of the upstream Service
+   Worker, so a change there is made in `vendor/vivari/packages/studio/public/sw.js` first and
+   mirrored here — keep the two in sync (the IDE copy is mirrored through the repo's Prettier,
+   with `catch {}` and a `Set` for the isolation policies to satisfy our lint).
 9. **Multi-tab** (D-033): Home's recent-project row moves to
    `src/components/ide/RecentProjectsRow.tsx` so it can grow an "Open in a new tab" action
    without pushing `Home.tsx` past its baseline; `src/vv/project-tabs.ts` +
