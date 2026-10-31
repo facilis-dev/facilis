@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgPolicy, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-import { rlsForTable } from "@facilis/db";
+import { rlsForTable, tenantColumn } from "@facilis/db";
 
 const usersRls = rlsForTable({ tenantColumn: "tenant_id" });
 
@@ -18,7 +18,9 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull().unique(),
-    tenantId: uuid("tenant_id").notNull(),
+    // The registration insert has no session yet; the column takes the deployment tenant
+    // from the policy-scope GUC (D-040). Postgres fills it before the RLS check runs.
+    tenantId: tenantColumn(),
     passwordHash: text("password_hash"),
     createdAt: timestamp("created_at").defaultNow(),
   },

@@ -84,18 +84,17 @@ describe("session lifecycle", () => {
   it("populates event.context.auth from the session cookie", async () => {
     const { id } = await createSession(db.db, userId);
     const event = eventWithCookie(`theme=dark; ${SESSION_COOKIE_NAME}=${id}; other=1`);
-    await sessionMiddleware({ db: db.db, config })(event);
+    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
 
     expect(event.context.auth).toEqual({
       userId,
-      tenantId: TENANT_ID,
       roles: ["admin"],
       permissions: ["todos:read", "todos:write"],
     });
   });
 
   it("sets auth to null when the cookie is absent, empty or unknown", async () => {
-    const middleware = sessionMiddleware({ db: db.db, config });
+    const middleware = sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID });
 
     const missing = eventWithCookie(undefined);
     await middleware(missing);
@@ -113,7 +112,24 @@ describe("session lifecycle", () => {
   it("sets auth to null for an expired cookie session", async () => {
     const { id } = await createSession(db.db, userId, { ttlMs: -1 });
     const event = eventWithCookie(`${SESSION_COOKIE_NAME}=${id}`);
-    await sessionMiddleware({ db: db.db, config })(event);
+    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
+    expect(event.context.auth).toBeNull();
+  });
+
+  it("refuses a session whose user belongs to another tenant", async () => {
+    const otherTenant = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    const inserted = await db.db
+      .insert(users)
+      .values({ email: "other@example.com", tenantId: otherTenant })
+      .returning({ id: users.id });
+    const row = inserted[0];
+    if (row === undefined) throw new Error("failed to insert the other-tenant user");
+
+    const { id } = await createSession(db.db, row.id);
+    const event = eventWithCookie(`${SESSION_COOKIE_NAME}=${id}`);
+    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
+
+    // D-040: the deployment tenant is the only scope; a foreign row is not a usable session.
     expect(event.context.auth).toBeNull();
   });
 });

@@ -83,6 +83,8 @@ export interface SessionEvent {
 export interface SessionMiddlewareDeps {
   readonly db: PolicyScopedDatabase;
   readonly config: AuthConfig;
+  /** The deployment's tenant; a session whose user row names another one is rejected (D-040). */
+  readonly tenantId: string;
 }
 
 /**
@@ -108,11 +110,16 @@ export function sessionMiddleware(
       event.context.auth = null;
       return;
     }
+    // The tenant is the deployment's, never the session's (D-040). A row of another tenant
+    // cannot authenticate here: it would otherwise carry a scope this deployment does not own.
+    if (found.user.tenantId !== deps.tenantId) {
+      event.context.auth = null;
+      return;
+    }
 
     const roles = await loadUserRoles(deps.db, found.user.id);
     event.context.auth = {
       userId: found.user.id,
-      tenantId: found.user.tenantId,
       roles,
       permissions: expandRoles(roles, deps.config),
     };

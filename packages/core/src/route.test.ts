@@ -33,7 +33,6 @@ const FAKE_DB = { driver: "pglite", close: async () => {} } as unknown as Facili
 
 const AUTH: AuthContext = {
   userId: "00000000-0000-0000-0000-000000000001",
-  tenantId: "00000000-0000-0000-0000-000000000002",
   roles: ["user"],
   permissions: ["todos:read"],
 };
@@ -155,13 +154,14 @@ describe("defineAuthorizedHandler", () => {
     expect(dbMock.calls[0]?.scope).toEqual({ tenantId: "tenant-default" });
   });
 
-  it("scopes authenticated requests with tenant, user and roles", async () => {
+  it("scopes authenticated requests to the deployment tenant, with user and roles", async () => {
     const route = defineAuthorizedHandler({ permission: [], dbTables: [] }, () => null);
 
-    await route(makeEvent({ auth: AUTH }));
+    // D-040: the session cannot widen or change the tenant; only the deployment value counts.
+    await route(makeEvent({ auth: AUTH, defaultTenantId: "tenant-default" }));
 
     expect(dbMock.calls[0]?.scope).toEqual({
-      tenantId: AUTH.tenantId,
+      tenantId: "tenant-default",
       userId: AUTH.userId,
       roles: AUTH.roles,
     });

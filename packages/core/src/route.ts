@@ -131,13 +131,13 @@ function resolveScope(
   auth: AuthContext | null,
   facilis: { defaultTenantId?: string } | undefined,
 ): PolicyScope {
-  if (auth !== null) {
-    return { tenantId: auth.tenantId, userId: auth.userId, roles: auth.roles };
-  }
-  // Unauthenticated routes (registration/login) still need a tenant GUC so RLS-scoped
-  // inserts by the seeded app role succeed (contracts §4.1/§4.4). The framework constant is
-  // the fallback so an app that forgets FACILIS_TENANT_ID behaves like the Nitro middleware.
-  return { tenantId: facilis?.defaultTenantId ?? DEFAULT_TENANT_ID };
+  // The tenant is the deployment's, never the session's (D-040): this is the only value RLS
+  // will accept, so a session cannot widen or change the scope. Anonymous routes
+  // (registration/login) get the same value, which is what makes the tenant column default
+  // and the RLS WITH CHECK agree. The framework constant is the fallback so an app that
+  // forgets FACILIS_TENANT_ID behaves like the Nitro middleware.
+  const tenantId = facilis?.defaultTenantId ?? DEFAULT_TENANT_ID;
+  return auth === null ? { tenantId } : { tenantId, userId: auth.userId, roles: auth.roles };
 }
 
 export function defineAuthorizedHandler<

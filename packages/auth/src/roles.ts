@@ -1,7 +1,11 @@
-/** Auth context attached to requests once a session is validated (contract §4.1/§6). */
+/**
+ * Auth context attached to requests once a session is validated (contract §4.1/§6).
+ *
+ * It deliberately carries no tenant (D-040): the tenant is the deployment's, resolved from
+ * FACILIS_TENANT_ID for every request, so a session can neither widen nor change the RLS scope.
+ */
 export interface AuthContext {
   readonly userId: string;
-  readonly tenantId: string;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
 }

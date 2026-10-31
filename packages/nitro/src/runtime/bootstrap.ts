@@ -8,6 +8,7 @@ import dbSchema from "#facilis/db-schema";
 
 import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
 import { isProductionEnvironment } from "./env.ts";
+import { readDefaultTenantId } from "./tenant.ts";
 import { readTextFile } from "./project-files.ts";
 import { splitSqlStatements } from "./sql.ts";
 
@@ -41,6 +42,7 @@ export function getSessionHandler(
   state.sessionHandler ??= sessionMiddleware({
     db: state.db.db,
     config: toAuthConfig(state.config.auth),
+    tenantId: readDefaultTenantId(),
   });
   return state.sessionHandler;
 }
