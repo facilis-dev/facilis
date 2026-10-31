@@ -59,6 +59,14 @@ import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
 import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
 import { languageFor } from "./editor-languages";
+import {
+  type ReplaceParams,
+  type ReplaceResult,
+  type SearchDone,
+  type SearchFileResult,
+  type SearchOptions,
+  SearchSession,
+} from "./search-session";
 import { imageMime, isImagePath, isNotebookPath } from "./file-kind";
 import { type MemInfo, probeMemory } from "./memory-probe";
 import { baseName, normDir, parentOf } from "./path-utils";
@@ -240,31 +248,9 @@ export interface PreviewTab {
 }
 
 // ── Full-text search (VS Code-style) ─────────────────────────────────────────
-export interface SearchOptions {
-  query: string;
-  matchCase: boolean;
-  wholeWord: boolean;
-  regex: boolean;
-  includeGlob: string;
-  excludeGlob: string;
-}
-export interface SearchMatch {
-  line: number; // 1-based
-  column: number; // 1-based
-  length: number;
-  preview: string; // the full (capped) source line, for highlighting
-}
-export interface SearchFileResult {
-  file: string; // absolute path
-  root: string; // the workspace root it was found under
-  matches: SearchMatch[];
-}
-export interface SearchDone {
-  matchCount: number;
-  fileCount: number;
-  limitHit: boolean;
-  error?: string;
-}
+// The types and the streaming session live in search-session.ts; re-exported
+// here because the pane imports them from the controller (ratchet, D-019).
+export type { SearchDone, SearchFileResult, SearchMatch, SearchOptions } from "./search-session";
 
 export interface IdeSnapshot {
   booted: boolean;
@@ -572,12 +558,8 @@ export class IdeController {
   private localFiles: Record<string, string> = {}; // abs -> latest saved text (editor cache)
   private pendingReveal: { abs: string; line: number; column: number; length: number } | null =
     null;
-  private searchSeq = 0;
-  private searchCbs: {
-    token: number;
-    onBatch: (files: SearchFileResult[]) => void;
-    onDone: (d: SearchDone) => void;
-  } | null = null;
+  // Full-text search / replace: in-flight token + callbacks (search-session.ts).
+  private readonly search: SearchSession;
   private fileIndex = new Map<string, string[]>(); // rootPath -> abs files (quick-open/search)
   private folderManifests = new Map<string, TemplateManifest>(); // rootPath -> run manifest
   private runningProjects = new Map<string, { terminalId: string | null; port: number | null }>();
@@ -617,6 +599,10 @@ export class IdeController {
     // A checkout/discard rewrote the working tree via the silent git RPC (no
     // vv-fs-changed), so refresh the Explorer tree and reload any open editors.
     this.scm.onWorkdirChanged = () => this.reloadWorkdir();
+    this.search = new SearchSession(this.bridge, {
+      roots: () => this.snap.workspaceFolders.map((f) => f.rootPath),
+      refreshFileFromDisk: (abs) => this.refreshFileFromDisk(abs),
+    });
     this.snap.recentProjects = readRegistry(localStorage);
     this.watchRegistry();
     this.createConsole();
@@ -1696,65 +1682,16 @@ export class IdeController {
   }
 
   // ── full-text search / replace (delegated to the kernel worker) ─────────────
-  // Stream a search across every open workspace root. Results arrive via
-  // `onBatch` (partial, progressive) then a final `onDone`. Returns a cancel fn.
+  // The streaming state and the kernel protocol live in search-session.ts.
   runSearch(
     opts: SearchOptions,
     cb: { onBatch: (files: SearchFileResult[]) => void; onDone: (d: SearchDone) => void },
   ): () => void {
-    const token = ++this.searchSeq;
-    this.searchCbs = { token, onBatch: cb.onBatch, onDone: cb.onDone };
-    this.bridge.post("vv-search", {
-      token,
-      roots: this.snap.workspaceFolders.map((f) => f.rootPath),
-      query: opts.query,
-      matchCase: opts.matchCase,
-      wholeWord: opts.wholeWord,
-      regex: opts.regex,
-      includeGlob: opts.includeGlob,
-      excludeGlob: opts.excludeGlob,
-    });
-    return () => {
-      if (this.searchCbs?.token === token) this.searchCbs = null;
-      this.bridge.post("vv-search-cancel", {});
-    };
+    return this.search.run(opts, cb);
   }
 
-  // Apply a replacement. Scope is either a single `match`, or an explicit list of
-  // `files` (Replace All / per-file). Refreshes any affected open editor models
-  // from disk so the buffer + dirty state stay in sync.
-  async replace(params: {
-    query: string;
-    matchCase: boolean;
-    wholeWord: boolean;
-    regex: boolean;
-    replacement: string;
-    preserveCase: boolean;
-    files?: string[];
-    match?: { file: string; line: number; column: number; length: number };
-  }): Promise<{ ok: boolean; filesChanged: number; replaced: number; error?: string }> {
-    const res = await this.bridge.request("vv-replace", {
-      query: params.query,
-      matchCase: params.matchCase,
-      wholeWord: params.wholeWord,
-      regex: params.regex,
-      replacement: params.replacement,
-      preserveCase: params.preserveCase,
-      files: params.files,
-      match: params.match,
-    });
-    if (res.ok) {
-      const affected = params.match ? [params.match.file] : (params.files ?? []);
-      for (const abs of affected) await this.refreshFileFromDisk(abs);
-    } else {
-      toast.error(`Replace failed: ${res.error ?? "unknown error"}`);
-    }
-    return {
-      ok: !!res.ok,
-      filesChanged: Number(res.filesChanged ?? 0),
-      replaced: Number(res.replaced ?? 0),
-      error: res.error as string | undefined,
-    };
+  async replace(params: ReplaceParams): Promise<ReplaceResult> {
+    return this.search.replace(params);
   }
 
   // Re-sync an open model + cache with the VFS after an out-of-band write.
@@ -3915,24 +3852,8 @@ export class IdeController {
     });
 
     // Streaming full-text search: batches of per-file results, then a final done.
-    // Ignore stale tokens (a newer query already superseded this one).
-    b.on("vv-search-result", (m) => {
-      if (this.searchCbs && m.token === this.searchCbs.token) {
-        this.searchCbs.onBatch((m.files as SearchFileResult[]) ?? []);
-      }
-    });
-    b.on("vv-search-done", (m) => {
-      if (this.searchCbs && m.token === this.searchCbs.token) {
-        const cbs = this.searchCbs;
-        this.searchCbs = null;
-        cbs.onDone({
-          matchCount: Number(m.matchCount ?? 0),
-          fileCount: Number(m.fileCount ?? 0),
-          limitHit: !!m.limitHit,
-          error: m.error as string | undefined,
-        });
-      }
-    });
+    b.on("vv-search-result", (m) => this.search.onResult(m));
+    b.on("vv-search-done", (m) => this.search.onDone(m));
 
     // The VFS changed under us (a file op, an install, a create) — refresh the
     // Explorer's live tree + re-index the active folder for quick-open/search.
