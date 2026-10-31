@@ -167,8 +167,14 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
 - `@facilis/db` does not leave the lookup to PGlite at all (D-041): it reads `pglite.data`,
   `pglite.wasm` and `initdb.wasm` beside the resolved CJS entry and passes `fsBundle`,
   `pgliteWasmModule` and `initdbWasmModule` to the constructor. PGlite's own lookup builds
-  `new URL("file:" + __filename)` = `file:/home/…`, which some browsers parse with `home` as
-  the **host** (`file://home/…`); handing it the bytes removes the URL from the path entirely.
+  `new URL("file:" + __filename)` = `file:/home/…`, which **Chromium on Windows** parses with
+  `home` as the **host** (`file://home/…`; the parser's WIN32 branch treats it as UNC) — so
+  handing it the bytes removes the URL from the path entirely.
+- A browser that still parses the URL hostfully also breaks PGlite's Emscripten init, which
+  calls `require("url").fileURLToPath(A)` before any option is read. `@facilis/db` therefore
+  installs a one-boot recovery of `node:url.fileURLToPath` (`file-url-recovery.ts`), a
+  temporary shim to delete once the pinned kernel recovers hostful `file:` URLs itself
+  (kele23/vivari#2).
 - The `postgres` driver may throw a typed "not implemented in Phase 1" error; do not add `pg`.
 - `runWithPolicyScope` opens a transaction, then in this order: `SET LOCAL ROLE facilis_app`
   (the non-superuser app role - PGlite connects as superuser and superusers bypass RLS even with

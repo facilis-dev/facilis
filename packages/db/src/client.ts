@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import type { PGlite as PgliteClient, PGliteOptions } from "@electric-sql/pglite";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 
+import { installFileUrlRecovery } from "./file-url-recovery.ts";
+
 /**
  * PGlite must come from its CJS build (vendor/vivari/AGENTS.md, "In-VM databases"):
  * the ESM build locates `pglite.wasm` and `pglite.data` through `import.meta.url`, and
@@ -139,9 +141,18 @@ export async function createDb(options: CreateDbOptions = {}): Promise<FacilisDb
   const driver = options.driver ?? (options.url === undefined ? "pglite" : "postgres");
   if (driver === "postgres") throw new DriverNotImplementedError(driver);
 
-  const client = new PGlite({ ...pgliteArtifacts(), dataDir: options.dataDir });
-  // PGlite boots lazily; awaiting the ready promise makes createDb's contract truthful.
-  await client.waitReady;
+  // PGlite boots lazily; awaiting the ready promise makes createDb's contract truthful. The
+  // recovery shim covers the init's own file: URL lookup on a browser that parses it
+  // hostfully (file-url-recovery.ts, kele23/vivari#2); it is restored as soon as the boot
+  // finishes, so the builtin is untouched for the rest of the request.
+  const restore = installFileUrlRecovery();
+  let client: PgliteClient;
+  try {
+    client = new PGlite({ ...pgliteArtifacts(), dataDir: options.dataDir });
+    await client.waitReady;
+  } finally {
+    restore?.();
+  }
 
   return {
     driver,

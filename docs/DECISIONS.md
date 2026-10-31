@@ -1143,10 +1143,11 @@ The module id was correct: the loader compiled PGlite from
 `/home/user/projects/x/node_modules/@electric-sql/pglite/dist/index.cjs` and `__filename` was
 that absolute path (probed in the VM: `[pglite-probe] "/home/…/index.cjs" "file://home/…/index.cjs"`).
 PGlite's CJS build locates its artifacts with `new URL("file:" + __filename)` — i.e. `file:/home/…`.
-Node and current Chromium read that as an empty-host file URL (`file:///home/…`); in that browser
-the first path segment is parsed as the **host** (`file://home/…`), so `/home` disappears and
-every read lands outside the tree — and the fork's strict `fileURLToPath` (D-039) refuses a
-hostful file URL, loudly.
+Node and Chromium on POSIX read that as an empty-host file URL (`file:///home/…`). **Chromium's
+file-URL parser is platform-dependent** (`url/url_parse_file.cc`: on WIN32 anything that is not a
+drive spec and does not have exactly three slashes is parsed as a UNC path, so the first path
+segment becomes the **host**), so on Windows the URL is `file://home/…` with pathname
+`/user/…`, and the fork's strict `fileURLToPath` (D-039) refuses it, loudly.
 
 **Decision:** `@facilis/db` reads the three artifacts beside the resolved CJS entry (an absolute
 VFS path, no URL parsing) and passes them to PGlite: `fsBundle` (the `pglite.data` bytes as a
@@ -1161,6 +1162,24 @@ failure). This is a robustness fix for a non-conforming parser, not a contract c
 Vitest and the in-VM smoke keep passing. Acceptance: `pnpm test` (db), the gates, and
 `TEMPLATE=Facilis pnpm ide:smoke` with `facilisDbInsert`/`facilisDbQuery` = ok; existing
 generated projects must be recreated to pick up the rebuilt `@facilis/db` tarball.
+
+**Update (2026-10-31, confirmed):** the platform dependence is in Chromium itself, not in the
+browser version: Chrome `156.0.0.0` on Windows parses `new URL("file:/home/user/x")` as
+`file://home/user/x`, the same version on Linux as `file:///home/user/x` (Node 24 agrees with
+Linux). Chromium's `url/url_parse_file.cc` documents the WIN32 branch — "Anything not beginning
+with a drive spec (\"c:\\\") on Windows is treated as UNC, with the exception of three slashes
+which always means a file" — while the POSIX branch only gives a host to exactly two slashes.
+The same parser also turns a relative module id into a host, i.e. D-039 is platform-specific
+on Windows, and upstream's lenient `fileURLToPath` would silently return `/user/…` there.
+
+The artifact hand-off above cannot prevent it: PGlite's Emscripten glue calls
+`require("url").fileURLToPath(A)` during its own init, before any option is consulted. The
+engine fix — recover the path from a hostful `file:` URL inside `fileURLToPath`; a host cannot
+mean a file host in this runtime — is reported in **kele23/vivari#2** with the Chromium source
+evidence. Until the pinned kernel carries it, `@facilis/db` installs a recovery around one
+PGlite boot (`packages/db/src/file-url-recovery.ts`: patches `node:url`'s `fileURLToPath` for
+the init and restores it in `finally`), and the local `vendor/` worktree carries the same
+engine patch uncommitted for testing. **Remove the shim when the pin bump lands.**
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
