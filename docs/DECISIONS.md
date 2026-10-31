@@ -710,9 +710,9 @@ inside the VM. Two measurements changed the calculus.
   2025 package manager against a 2026 `latest` is exactly the "already old" signal we refuse
   to ship, and no version bump fixes it.
 - **The URL dependency was never necessary.** The four `@facilis/*` tarballs are static files
-  the IDE already serves (17-57 KB each). The kernel now fetches them at create time (template
-  `manifest.assets`) and writes them into the project's `./vendor`, which declares them as
-  `file:` dependencies. The install touches no HTTP at all — no agent/egress split, no host
+  the IDE already serves (17-57 KB each). The IDE fetches them at create time (template
+  `manifest.assets`) and inlines them into the create request, so they land in the project's
+  `./vendor`, which declares them as `file:` dependencies. The install touches no HTTP at all — no agent/egress split, no host
   alias — and the generated project installs unchanged outside the IDE.
 
 **Decision:** generated projects install with **npm**, vendored by the IDE and pinned in
@@ -722,9 +722,9 @@ template's `"packageManager"` (both `12.2.1`), and npm 12's engines
 `preinstall` guard rejects anything that is not npm. `.npmrc` keeps only VM-relevant
 switches (audit/fund/progress/update-notifier off); the flat `node_modules` npm produces is
 what Nitro's undeclared transitive requires (`ufo`, …) rely on, so pnpm's
-`node-linker=hoisted` workaround is gone. Templates gain one engine capability for this: a
-manifest may list binary assets, which the kernel worker fetches same-origin and writes inside
-the same batch as the template's text files (fork `facilis/main`).
+`node-linker=hoisted` workaround is gone. Templates list their binary assets in the manifest;
+the IDE fetches them same-origin and inlines them as bytes in the create request's `files`,
+which the kernel writes with the text files in one batch.
 
 **Consequences:** npm is the one package manager whose distribution cannot go native — it is
 the manager Node ships with, and it has been a pure-JS tree its whole life — so "aligned with
@@ -755,6 +755,13 @@ environment — they are pnpm's own config, and npm 12 warned `Unknown env confi
 every install (fork commit `a6d6aa5`, rebased onto upstream `v1.1.4`, which also moved that
 release's `strict-store-pkg-content-check` into the shim; a future npm major turns the warning
 into an error).
+
+**Update (2026-10-31, pin `97d90ab`):** the vendored kernel moved to upstream `v1.2.0`, whose
+realignment reverts the fork-only `e2f4246` (`manifest.assets` fetched by the kernel worker).
+The template keeps the asset list, but the IDE now fetches the tarballs in the page and passes
+their bytes through the create message's `files` (`ide/src/facilis/project-assets.ts`) — the
+mechanism the kernel already had (`writeFilesBatch` takes bytes) and the one the fork's
+`FORK.md` recommends to embedders. The created project is byte-identical.
 ---
 
 ### D-033 — Several projects at once: one project per browser tab
@@ -1070,6 +1077,14 @@ same artifacts from `__filename`, which stays an absolute VFS path.
 — instead of an ESM `import` (resolved from this module's URL first, the project root second).
 That is also the vendor's documented in-VM rule (`vendor/vivari/AGENTS.md`, "In-VM databases"):
 PGlite must be required via its CJS build.
+
+**Update (2026-10-31, pin `97d90ab`):** the vendor fixed the URL construction itself —
+`9184ee5` builds `import.meta.url` from an absolute module id and `fileURLToPath` now throws
+Node's `ERR_INVALID_FILE_URL_HOST` instead of silently converting a hostful URL (fork issue
+[#1](https://github.com/kele23/vivari/issues/1), upstream PR #31) — so the malformed URL can no
+longer be produced. The CJS load stays: the in-VM database rule has a second, independent reason,
+"only the ENTRY module can block on top-level await in-VM", so an ESM import of a TLA-bearing
+dependency from a non-entry module can hang.
 
 **Consequences:** the database no longer depends on a well-formed `import.meta.url` in the
 server bundle, so a rewritten or relative module id cannot take it down; the ESM build stays

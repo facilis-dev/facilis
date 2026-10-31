@@ -7,7 +7,7 @@ Facilis project inside a WebContainer, where `vite dev` is the single dev server
 **It starts from the current Vivari Studio** — upstream `packages/studio` at tag `v1.1.2`
 (commit `1f00a48c6d8009e7f369c1cf36959d61ad262b19`), imported in full — **and forks from
 here.** The kernel is the [`vendor/vivari/`](../vendor/vivari) submodule of our Vivari fork,
-pinned to `facilis/main` (upstream `v1.1.4` + the fixes we carry; D-030): it is never edited
+pinned to `facilis/main` (upstream `v1.2.0` + the fixes we carry; D-030): it is never edited
 in the worktree, only bumped to a fork commit ([`vendor/README.md`](../vendor/README.md),
 branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 
@@ -16,7 +16,7 @@ branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 | Upstream repository | <https://github.com/maitrungduc1410/vivari> |
 | Upstream tag / commit | `v1.1.2` / `1f00a48c6d8009e7f369c1cf36959d61ad262b19` (branch `master`, 2026-10-16) |
 | App source | upstream `packages/studio/` |
-| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.1.5` + 8 fork commits (`v1.1.5-8-g8754dd5`, D-030) |
+| Kernel | our fork [`kele23/vivari`](https://github.com/kele23/vivari), pinned at `facilis/main` = upstream `v1.2.0` + 15 fork commits (`97d90ab`, D-030) |
 | License | MIT — [`LICENSE`](./LICENSE) (Copyright (c) 2026 Duc Trung Mai and Vivari contributors); Facilis code is covered by the root [`LICENSE`](../LICENSE) |
 
 ## Layout
@@ -151,8 +151,9 @@ service only sees
 installed `@types/*.d.ts` — without them the editor reports TS2307 on `react`. It is
 registered by merging the catalog in `src/vv/templates-lazy.ts` — `src/vv/templates.ts` sits
 at its file-length baseline and may not grow. The generated project installs with **npm**
-(D-032): the `@facilis/*` tarballs are copied into the project's `./vendor` at create time (the
-manifest's `assets`, fetched same-origin by the kernel) and declared as `file:` dependencies,
+(D-032): the `@facilis/*` tarballs are inlined into the create request (the manifest's
+`assets`, fetched same-origin by the IDE) and land in the project's `./vendor`, declared as
+`file:` dependencies,
 so no install reaches the studio over HTTP and the project stays installable outside the IDE.
 The npm version is pinned in lockstep with the VM's Node — `NPM_VERSION` in
 `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and

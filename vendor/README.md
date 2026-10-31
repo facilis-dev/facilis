@@ -72,6 +72,36 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-31, pin `97d90ab` / `facilis/main` = upstream v1.2.0 + 15 fork commits)
+
+The pin moves the base from `v1.1.5` to the `v1.2.0` tag (`9c87dec`): upstream's
+`node:sqlite` now runs on the Wasm engine `bun:sqlite` already ships, with real SQLite file
+locks adjudicated by a table in the File System Worker (`OP_FILE_LOCK` in
+`packages/protocol` + `packages/kernel-host/file-locks.js`), because pnpm 11's store index is
+a SQLite database opened by concurrent worker threads. `packages/{studio,vfs,codec,crypto}`
+are unchanged — the vendored assets (npm 12.2.1, the Wasm builds from `pnpm ide:wasm`) do not
+move — while `packages/{runtime,protocol,core,kernel-host}` do. The realignment also reverts
+the fork-only `e2f4246` (template binary assets fetched by the kernel), so the superproject
+moved the Facilis tarballs to the create message's `files` (`ide/src/facilis/project-assets.ts`,
+D-032).
+The fork delta is replayed on the tag with one new fix: `9184ee5` builds
+`import.meta.url` from an absolute module id, so a relative id can no longer become the URL's
+**host** (`file://home/…` → `/user/…`, the PGlite ENOENT of D-039), and `fileURLToPath`
+now applies Node's posix rules, throwing `ERR_INVALID_FILE_URL_HOST` instead of converting a
+hostful URL into a plausible wrong path; `36c9714` applies the same rule to
+`Bun.pathToFileURL` and the debugger's script URLs. That is fork issue kele23/vivari#1,
+proposed upstream as PR #31. The CJS load in `@facilis/db` stays: the vendor's in-VM
+database rule also forbids a non-entry ESM import of a top-level-await dependency (D-039).
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `97d90ab…` (`v1.1.5-19-g97d90ab`; the `v1.2.0` tag is not in the local tag list) |
+| `node vendor/vivari/scripts/spike-esm.mjs` | PASS, including the four "relative module id must not become import.meta.url's host" checks and the host rejection in `fileURLToPath` |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **PASSED**, 57/57: create, install, preview, the framework contract, IntelliSense, A8/A9/A10/A12, and `facilisAuth`/`facilisDbInsert`/`facilisDbQuery` = ok on the new engine. The create request carries the Facilis tarball bytes now, because the kernel no longer fetches `manifest.assets`. |
+| `pnpm lint && pnpm typecheck --force && pnpm test --concurrency=1 && pnpm build` | green: 0 lint errors / 109 warnings, 13/13 typecheck, 12/12 test, 8/8 build, `node scripts/check-file-length.mjs` OK (238 files) |
+| `pnpm ide:smoke` (React template) | **PASSED**, 18/18 (create, install, preview, contract, IntelliSense, A8/A9/A10/A12) on the new engine |
+| `diff -r vendor/vivari/packages/studio ide` | unchanged by the bump: `packages/studio` is identical at both pins, so only the documented IDE patch set shows |
+
 ## Verification (2026-10-31, pin `8754dd5` / `facilis/main` = upstream v1.1.5 + 8 fork commits)
 
 All five fixes we had proposed were merged upstream on 2026-10-31 (#19–#23) and released as

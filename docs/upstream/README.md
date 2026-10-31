@@ -4,16 +4,21 @@ Our fork is [`kele23/vivari`](https://github.com/kele23/vivari) (upstream
 [maitrungduc1410/vivari](https://github.com/maitrungduc1410/vivari), MIT). `master` mirrors
 upstream and carries no commits of ours; **`facilis/main` = upstream tag + the fixes below and
 is what `vendor/vivari` pins** (D-030). The five upstream fixes were proposed as PRs and merged
-(released in v1.1.5); the `fix/*` branches stay at their pre-merge commits as a record.
+(released in v1.1.5); the `fix/*` branches stay at their pre-merge commits as a record. The pin
+then moved to upstream `v1.2.0` (the `node:sqlite` release), with three further fixes proposed
+as PRs #29–#31 and carried by the fork until they merge.
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: upstream `v1.1.5` (`2f461da`) plus the eight Facilis-driven commits below; pin `8754dd5` | `v1.1.5` | — |
+| `facilis/main` | integration: upstream `v1.2.0` (`9c87dec`) plus the fifteen Facilis-driven commits below; pin `97d90ab` | `v1.2.0` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.4` | [#19](https://github.com/maitrungduc1410/vivari/pull/19) |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.4` | [#21](https://github.com/maitrungduc1410/vivari/pull/21) |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.4` | [#20](https://github.com/maitrungduc1410/vivari/pull/20) |
 | `fix/opfs-crosstab-index` | OPFS mirror index: merged per tab under a Web Lock, replaced through a staged copy (D-033) | `v1.1.4` | [#22](https://github.com/maitrungduc1410/vivari/pull/22) |
 | `fix/preview-per-tab-kernel` | Preview requests routed to the kernel that owns the frame (`clientId`/`resultingClientId`), per-kernel keep-prefix + tunnel frames (D-033) | `v1.1.4` | [#23](https://github.com/maitrungduc1410/vivari/pull/23) |
+| `fix/file-url-host` | A relative module id must never become a file URL's **host**: `import.meta.url`, `Bun.pathToFileURL` and the debugger's script URLs are built from an absolute path, and `fileURLToPath` throws Node's `ERR_INVALID_FILE_URL_HOST` (fork issue #1, D-039) | `v1.2.0` | [#31](https://github.com/maitrungduc1410/vivari/pull/31) |
+| `fix/esm-comment-after-export` | The ESM→CJS transpiler advances over comments between `export` and its declaration (zod v4's `export /*@__NO_SIDE_EFFECTS__*/ function`, found by the Facilis probe) | `v1.2.0` | [#29](https://github.com/maitrungduc1410/vivari/pull/29) |
+| `fix/vendor-stale-pack-version` | Both packers rebuild a pack whose stamped version no longer matches the pin instead of silently reusing it (D-032) | `v1.2.0` | [#30](https://github.com/maitrungduc1410/vivari/pull/30) |
 
 All five fixes were **merged upstream** on 2026-10-31 (#19–#23) and released in
 `v1.1.5` (`2f461da`), together with the maintainer's follow-up commits, which closed every
@@ -25,6 +30,13 @@ for #22; and the per-boot **kernel token** in same-origin preview URLs, routing-
 are the base of the pin now; the `fix/*` branches below remain at their pre-merge commits as a
 record.
 
+Three further fixes are **open upstream** on the `v1.2.0` base, carried by the pin until they
+merge: #29 (the comment-between-tokens transpiler fix), #30 (the stale-pack rebuild) and #31
+(the file-URL host bug of fork issue [#1](https://github.com/kele23/vivari/issues/1), which is
+what killed PGlite's ESM build in the preview — D-039 in the superproject). Upstream `v1.2.0`'s
+own CI is red in the `ci-tiers` spike, so the open PRs inherit a red base that is not theirs
+(fork record: `FORK.md`).
+
 The pin was realigned from `v1.1.3` to `v1.1.4` on 2026-10-29 and from `v1.1.4` to `v1.1.5`
 on 2026-10-31. The second realignment dropped the five merged fixes from `facilis/main` (their
 upstream commits, with the follow-ups, carry them) and replayed the eight Facilis-only commits on
@@ -32,12 +44,17 @@ top of the tag; one conflict (the manifest lock that both #22's follow-up and D-
 resolved by keeping both: `restore()` and the new `hydrate()` read the index under
 `vv-vfs-manifest`, `materialize()` after the lock.
 
+A third realignment moved the pin from `v1.1.5` to `v1.2.0` (`9c87dec`) on 2026-10-31, the same
+recipe: the fork delta (now fifteen commits) replayed on the tag. `packages/studio` is identical
+at the two pins, so the studio sources did not move; `packages/{runtime,protocol,core,kernel-host}`
+did, and the reverted `e2f4246` moved the Facilis tarball delivery into the create message
+(D-032 in the superproject).
+
 Multi-tab (D-033 in the superproject) is what the last two fixes are for: the IDE runs one
 project per browser tab, so two kernels share one origin, one preview proxy and one OPFS mirror.
 
-Eight of the commits on `facilis/main` are not `fix/*` branches: a template may list
-binary assets that the kernel fetches same-origin and writes with the project (D-032, the local
-`file:` tarball install), the vendored npm is pinned to 12.2.1, both packers now rebuild a
+The other commits on `facilis/main` are not `fix/*` PR branches: the vendored npm is pinned
+to 12.2.1, both packers now rebuild a
 pack whose stamped version no longer matches the pin instead of silently reusing it, pnpm's
 own config (`store-dir`, `package-import-method`, and v1.1.4's `strict-store-pkg-content-check`)
 moved from the base process environment into the pnpm shim — npm 12 warned `Unknown env config`
@@ -48,10 +65,15 @@ mirror too, replayed one at a time by the FS worker the first time a syscall rea
 (`BootOptions.deferCacheFiles`, D-037), the ESM→CJS transpiler advances over comments between
 `export` and its declaration (zod v4's `export /*@__NO_SIDE_EFFECTS__*/`, found by the Facilis
 probe), and `hydrate()` reads the shared index under the manifest lock like `restore()` does.
+`e2f4246` (a template shipping binary assets the kernel fetches) is **reverted** by the
+realignment: it existed only for the downstream `file:` tarball install, so the Facilis IDE
+passes the bytes through the create message's `files` instead (D-032 in the superproject). The
+rest are the fork's own records (`FORK.md`, the policy and realignment notes).
 
-The same commits, `git am`-able and with their PR bodies, are kept next to this file
-(`vivari-*.patch`, `vivari-*-pr.md`) so they can be replayed without the fork. Evidence and the
-negative results are in [`vivari-findings-2026-10-28.md`](./vivari-findings-2026-10-28.md).
+The five merged fixes are `git am`-able next to this file (`vivari-*.patch`, with their PR bodies
+in `vivari-*-pr.md`) so they can be replayed without the fork; the three open PRs live as the
+`fix/*` branches above and are recorded in the fork's `FORK.md`. Evidence and the negative
+results are in [`vivari-findings-2026-10-28.md`](./vivari-findings-2026-10-28.md).
 
 ## Workflow
 
