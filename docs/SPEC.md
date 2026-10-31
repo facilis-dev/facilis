@@ -658,6 +658,10 @@ can be copied into it.
   the package) and its rules.
 - `Field` wires `id`/`aria-describedby`/`aria-invalid` through context; `Toaster` is one
   instance with `toast()` helpers and a fixed 4 s auto-dismiss (no options by design).
+- Page templates: `Page` (title/description/actions + content), `AuthShell` (centred auth
+  card), `EmptyState` and `Spinner` (labelled or decorative). Navigation-aware shells
+  (sidebar, user menu) stay in the project's `src/layouts/` because they need the router and
+  the session; the kit only supplies the neutral templates the pages compose.
 
 ### 5.8 `@facilis/time`
 

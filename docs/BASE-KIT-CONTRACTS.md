@@ -66,9 +66,15 @@ exactly one file, `theme.css`; no component may contain a colour literal.
 | `Alert` | `tone?: "info" \| "success" \| "warning" \| "error"` (default `info`), native div props | `role="alert"` for warning/error, `role="status"` otherwise |
 | `Toaster` | no props | render once, near the app root |
 | `toast` | `toast(message)` (info) + `toast.info/success/warning/error(message)` | fixed 4 s auto-dismiss; no options |
+| `Page` | `title: string`, `description?: string`, `actions?: ReactNode`, `children`, `className?` | page template: header (title/description/actions) + content; used by every project page |
+| `AuthShell` | `title: string`, `subtitle?: string`, `footer?: ReactNode`, `children`, `className?` | centered card template for login/register/recovery |
+| `EmptyState` | `title: string`, `description?: string`, `action?: ReactNode`, `className?` | list/detail "nothing here yet" surface |
+| `Spinner` | `label?: string` | loading indicator; `role="status"` + `aria-label` when a label is passed, decorative otherwise; animation respects reduced motion |
 
-Out of scope for this slice: dialog/modal, tabs, combobox, date picker, file upload, layout
-primitives. They come as their own components (or are copied from the source) later.
+Out of scope for this slice: dialog/modal, tabs, combobox, date picker, file upload. They come
+as their own components (or are copied from the source) later. Page-level shells that know
+about navigation/session (sidebar, user menu) stay **in the project** (`src/layouts/`), not
+in the kit: they compose these templates with the project's router and session.
 
 ### 3.2 Theme variables (the customisation surface)
 
@@ -98,7 +104,8 @@ component change.
 - `src/index.ts` — flat named re-exports, nothing else.
 - One file per component (or per small family): `button.tsx`, `input.tsx`,
   `textarea.tsx`, `select.tsx`, `checkbox.tsx`, `field.tsx`, `table.tsx`,
-  `badge.tsx`, `alert.tsx`, `toaster.tsx` (+ `toaster-store.ts` for the testable store).
+  `badge.tsx`, `alert.tsx`, `toaster.tsx` (+ `toaster-store.ts` for the testable store),
+  and the page templates `page.tsx`, `auth-shell.tsx`, `empty-state.tsx`, `spinner.tsx`.
 - `src/index.ts` must not pull a component that does not exist yet; add exports as files land.
 - Tests render with `react-dom/server` (`renderToStaticMarkup`) — no jsdom dependency — and
   assert roles/aria/classes; the toast store is tested directly with fake timers.
