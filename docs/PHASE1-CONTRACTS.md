@@ -150,6 +150,11 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
 ```
 
 - `createDb()` must work with `@electric-sql/pglite` in-memory (tests) and honour `dataDir`.
+- PGlite is loaded from its **CJS build** via `createRequire`, never its ESM build (D-039): the
+  ESM build locates `pglite.wasm`/`pglite.data` through `import.meta.url`, which the in-VM
+  loader can synthesise from a relative module id — `file://home/…` parses `home` as a URL
+  *host*, so the fs read lands in `/user/projects/…` and the database cannot boot. The CJS build
+  resolves the same artifacts from `__filename`, an absolute VFS path.
 - The `postgres` driver may throw a typed "not implemented in Phase 1" error; do not add `pg`.
 - `runWithPolicyScope` opens a transaction, then in this order: `SET LOCAL ROLE facilis_app`
   (the non-superuser app role - PGlite connects as superuser and superusers bypass RLS even with

@@ -1,5 +1,35 @@
-import { PGlite } from "@electric-sql/pglite";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+
+import type { PGlite as PgliteClient } from "@electric-sql/pglite";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
+
+/**
+ * PGlite must come from its CJS build (vendor/vivari/AGENTS.md, "In-VM databases"):
+ * the ESM build locates `pglite.wasm` and `pglite.data` through `import.meta.url`, and
+ * that URL is only as good as the module id the bundler handed the module. A relative id
+ * becomes `file://home/…` — the first segment parses as a URL *host* — so the resolved
+ * path loses `/home` (`/user/projects/…`) and the DB cannot boot with ENOENT. The CJS
+ * build resolves the same artifacts from `__filename`, a real VFS path.
+ *
+ * Two resolution bases: this module's own URL (works in Node and under Vitest), then the
+ * project root, which is the cwd the in-VM Nitro dev server runs in.
+ */
+function loadPglite(): typeof import("@electric-sql/pglite") {
+  let lastError: unknown;
+  for (const base of [import.meta.url, join(process.cwd(), "package.json")]) {
+    try {
+      return createRequire(base)("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error("facilis: cannot load @electric-sql/pglite — is it installed?", {
+    cause: lastError,
+  });
+}
+
+const { PGlite } = loadPglite();
 
 /** Drivers the public API promises; only PGlite is implemented in Phase 1. */
 export type DbDriver = "pglite" | "postgres";
@@ -71,7 +101,10 @@ export async function createDb(options: CreateDbOptions = {}): Promise<FacilisDb
   };
 }
 
-function createDrizzleClient(client: PGlite, schema: FacilisSchema | undefined): PgDatabaseLike {
+function createDrizzleClient(
+  client: PgliteClient,
+  schema: FacilisSchema | undefined,
+): PgDatabaseLike {
   // The cast collapses Drizzle's schema-dependent generics: @facilis/db does not consume
   // the relational query API, and callers get typed query builders from their table objects.
   if (schema === undefined) return drizzle(client) as unknown as PgDatabaseLike;
