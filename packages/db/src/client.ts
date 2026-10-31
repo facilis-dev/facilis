@@ -1,25 +1,35 @@
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import type { PGlite as PgliteClient } from "@electric-sql/pglite";
+import type { PGlite as PgliteClient, PGliteOptions } from "@electric-sql/pglite";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 
 /**
  * PGlite must come from its CJS build (vendor/vivari/AGENTS.md, "In-VM databases"):
  * the ESM build locates `pglite.wasm` and `pglite.data` through `import.meta.url`, and
- * that URL is only as good as the module id the bundler handed the module. A relative id
- * becomes `file://home/…` — the first segment parses as a URL *host* — so the resolved
- * path loses `/home` (`/user/projects/…`) and the DB cannot boot with ENOENT. The CJS
- * build resolves the same artifacts from `__filename`, a real VFS path.
+ * that URL is only as good as the module id the bundler handed the module — a relative
+ * id becomes `file://home/…`, whose first segment parses as a URL *host*. The CJS build
+ * resolves them from `__filename`, a real VFS path.
  *
  * Two resolution bases: this module's own URL (works in Node and under Vitest), then the
- * project root, which is the cwd the in-VM Nitro dev server runs in.
+ * project root, which is the cwd the in-VM Nitro dev server runs in. The resolved entry's
+ * directory is kept because the artifacts live next to it.
  */
-function loadPglite(): typeof import("@electric-sql/pglite") {
+interface LoadedPglite {
+  readonly module: typeof import("@electric-sql/pglite");
+  readonly distDir: string;
+}
+
+function loadPglite(): LoadedPglite {
   let lastError: unknown;
   for (const base of [import.meta.url, join(process.cwd(), "package.json")]) {
     try {
-      return createRequire(base)("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
+      const load = createRequire(base);
+      return {
+        module: load("@electric-sql/pglite") as typeof import("@electric-sql/pglite"),
+        distDir: dirname(load.resolve("@electric-sql/pglite")),
+      };
     } catch (error) {
       lastError = error;
     }
@@ -29,7 +39,49 @@ function loadPglite(): typeof import("@electric-sql/pglite") {
   });
 }
 
-const { PGlite } = loadPglite();
+const pglite = loadPglite();
+const { PGlite } = pglite.module;
+
+/**
+ * The wasm/data bytes PGlite would otherwise locate itself (D-041). Its CJS build builds
+ * `new URL("file:" + __filename)` — `file:/home/…` — and while Node and current Chromium
+ * read that as an empty-host URL, some browsers parse the first path segment as the HOST:
+ * `file://home/…`, so `/home` is gone and every read lands outside the tree
+ * (`File URL host must be "localhost" or empty on posix`). Handing PGlite the bytes makes
+ * the lookup impossible: read them beside the resolved entry — an absolute VFS path, no
+ * URL parsing anywhere — compile the wasm once, and share it across databases.
+ */
+type PgliteArtifacts = Pick<PGliteOptions, "fsBundle" | "pgliteWasmModule" | "initdbWasmModule">;
+
+type WasmModule = NonNullable<PgliteArtifacts["pgliteWasmModule"]>;
+
+/** This package's lib is ES2023 only (no DOM), so `WebAssembly` is reached globally. */
+const wasm = (
+  globalThis as unknown as { WebAssembly?: { Module: new (bytes: Uint8Array) => WasmModule } }
+).WebAssembly;
+
+function compileWasm(bytes: Uint8Array): WasmModule {
+  if (!wasm) throw new Error("WebAssembly is unavailable in this runtime");
+  return new wasm.Module(bytes);
+}
+
+let artifacts: PgliteArtifacts | null | undefined;
+
+function pgliteArtifacts(): PgliteArtifacts | null {
+  if (artifacts !== undefined) return artifacts;
+  try {
+    const read = (name: string) => readFileSync(join(pglite.distDir, name));
+    artifacts = {
+      fsBundle: new Blob([read("pglite.data")]),
+      pgliteWasmModule: compileWasm(read("pglite.wasm")),
+      initdbWasmModule: compileWasm(read("initdb.wasm")),
+    };
+  } catch {
+    // A layout without the files keeps PGlite's own lookup: never fail the DB here.
+    artifacts = null;
+  }
+  return artifacts;
+}
 
 /** Drivers the public API promises; only PGlite is implemented in Phase 1. */
 export type DbDriver = "pglite" | "postgres";
@@ -87,7 +139,7 @@ export async function createDb(options: CreateDbOptions = {}): Promise<FacilisDb
   const driver = options.driver ?? (options.url === undefined ? "pglite" : "postgres");
   if (driver === "postgres") throw new DriverNotImplementedError(driver);
 
-  const client = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);
+  const client = new PGlite({ ...pgliteArtifacts(), dataDir: options.dataDir });
   // PGlite boots lazily; awaiting the ready promise makes createDb's contract truthful.
   await client.waitReady;
 

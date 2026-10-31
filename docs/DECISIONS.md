@@ -1128,6 +1128,41 @@ not change. Acceptance: `pnpm test` (db/auth/core/nitro), `pnpm typecheck`, and
 `TEMPLATE=Facilis pnpm ide:smoke` with the insert no longer naming the tenant.
 
 ---
+### D-041 — PGlite is handed its artifacts instead of looking them up through a `file:` URL
+**Status:** accepted (2026-10-31)
+
+`TEMPLATE=Facilis` was green everywhere except one reporter's browser, where every project's
+database died at dev-server boot:
+
+```
+TypeError: File URL host must be "localhost" or empty on posix
+  [diagnostic: file://home/user/projects/x/node_modules/@electric-sql/pglite/dist/pglite.data]
+```
+
+The module id was correct: the loader compiled PGlite from
+`/home/user/projects/x/node_modules/@electric-sql/pglite/dist/index.cjs` and `__filename` was
+that absolute path (probed in the VM: `[pglite-probe] "/home/…/index.cjs" "file://home/…/index.cjs"`).
+PGlite's CJS build locates its artifacts with `new URL("file:" + __filename)` — i.e. `file:/home/…`.
+Node and current Chromium read that as an empty-host file URL (`file:///home/…`); in that browser
+the first path segment is parsed as the **host** (`file://home/…`), so `/home` disappears and
+every read lands outside the tree — and the fork's strict `fileURLToPath` (D-039) refuses a
+hostful file URL, loudly.
+
+**Decision:** `@facilis/db` reads the three artifacts beside the resolved CJS entry (an absolute
+VFS path, no URL parsing) and passes them to PGlite: `fsBundle` (the `pglite.data` bytes as a
+`Blob`), `pgliteWasmModule` and `initdbWasmModule` (`WebAssembly.Module`). With those present
+PGlite skips both its `getFsBundle` read and its `startArtifactDownload`/`instantiateWasm` file
+lookups, so the database no longer depends on how a browser parses a `file:` URL.
+
+**Consequences:** DB boot is independent of the browser's URL parser and of the module id; the
+files are read once per process and the wasm compiled once, shared by every database in that
+process. A tree without the files falls back to PGlite's own lookup (and to its original
+failure). This is a robustness fix for a non-conforming parser, not a contract change: Node,
+Vitest and the in-VM smoke keep passing. Acceptance: `pnpm test` (db), the gates, and
+`TEMPLATE=Facilis pnpm ide:smoke` with `facilisDbInsert`/`facilisDbQuery` = ok; existing
+generated projects must be recreated to pick up the rebuilt `@facilis/db` tarball.
+
+---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |

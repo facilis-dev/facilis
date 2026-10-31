@@ -164,6 +164,11 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   loader can synthesise from a relative module id — `file://home/…` parses `home` as a URL
   *host*, so the fs read lands in `/user/projects/…` and the database cannot boot. The CJS build
   resolves the same artifacts from `__filename`, an absolute VFS path.
+- `@facilis/db` does not leave the lookup to PGlite at all (D-041): it reads `pglite.data`,
+  `pglite.wasm` and `initdb.wasm` beside the resolved CJS entry and passes `fsBundle`,
+  `pgliteWasmModule` and `initdbWasmModule` to the constructor. PGlite's own lookup builds
+  `new URL("file:" + __filename)` = `file:/home/…`, which some browsers parse with `home` as
+  the **host** (`file://home/…`); handing it the bytes removes the URL from the path entirely.
 - The `postgres` driver may throw a typed "not implemented in Phase 1" error; do not add `pg`.
 - `runWithPolicyScope` opens a transaction, then in this order: `SET LOCAL ROLE facilis_app`
   (the non-superuser app role - PGlite connects as superuser and superusers bypass RLS even with
