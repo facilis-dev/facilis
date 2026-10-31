@@ -168,16 +168,14 @@ async function reloadPreview(page) {
 
 // `dir` is optional so a check can prove the label follows the DIRECTORY, not the form
 // name: the tab is given one and then labelled by the other (D-035).
-async function createProject(page, templateId, name, runInit, dir) {
+async function createProject(page, name, runInit, dir) {
   const target = dir ? JSON.stringify(dir) : "c.defaultDirFor(" + JSON.stringify(name) + ")";
   return page.evaluate(
     "(async () => { const c = window.__ide;" +
       " const dir = " +
       target +
       ";" +
-      " await c.createFromTemplate({ templateId: " +
-      JSON.stringify(templateId) +
-      ", dir, runInit: " +
+      " await c.createProject({ dir, runInit: " +
       (runInit ? "true" : "false") +
       " });" +
       " return dir; })()",
@@ -256,7 +254,7 @@ async function main() {
     const tabA = await openPage(chrome.client, dev.url);
     tabs.push(tabA);
     check(await waitFor(tabA, KERNEL_READY, BOOT_TIMEOUT_MS, "A kernel"), "tab A boots its kernel");
-    const dirA = await createProject(tabA, "react-ts", "alpha", true);
+    const dirA = await createProject(tabA, "alpha", true);
     check(dirA === ALPHA, "tab A creates alpha", dirA);
     const paramAfterCreate = await tabA.evaluate(
       "new URLSearchParams(location.search).get('project')",
@@ -283,7 +281,7 @@ async function main() {
     // A second project, created here and left closed: it must reach OPFS (so tab B can
     // open it) without being claimed by this tab. Creating it also proves one project per
     // tab (D-035): beta REPLACES alpha in this tab instead of stacking a second root.
-    const dirB = await createProject(tabA, "vue-ts", "beta", false);
+    const dirB = await createProject(tabA, "beta", false);
     check(dirB === BETA, "tab A creates beta", dirB);
     const afterBeta = await snapshot(tabA);
     check(
@@ -488,7 +486,7 @@ async function main() {
       "the project is its real contents (bytes from OPFS, not just the directory)",
     );
     // ---- "Open in a new tab" from Home ------------------------------------
-    const dirG = await createProject(tabA, "react-ts", "gamma", false);
+    const dirG = await createProject(tabA, "gamma", false);
     check(dirG === GAMMA, "tab A creates gamma", dirG);
     await closeFolder(tabA, GAMMA);
     await tabA.evaluate("window.__ide.goHome()");
@@ -534,13 +532,7 @@ async function main() {
       "a tab learns a project another tab created",
     );
     // The form name and the directory disagree: every label must follow the DIRECTORY.
-    const dirD = await createProject(
-      tabB,
-      "react-ts",
-      "delta",
-      false,
-      "/home/user/projects/delta-dir",
-    );
+    const dirD = await createProject(tabB, "delta", false, "/home/user/projects/delta-dir");
     check(
       dirD === "/home/user/projects/delta-dir",
       "tab B creates delta in its own directory",

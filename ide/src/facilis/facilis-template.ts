@@ -1,13 +1,13 @@
-// The Facilis probe template.
+// The Facilis project template — the only kind of project this IDE creates (D-051).
 //
 // A minimal but real Facilis project (Vite 8 + Nitro v3 owned by facilis() + PGlite)
-// the IDE scaffolds into the WebContainer, where a real npm install and vite dev
-// prove that facilis() (which mounts Nitro) + PGlite boot and serve (Phase 0 proof spike).
+// scaffolded into the WebContainer, where a real npm install and vite dev boot
+// facilis() (which mounts Nitro) + PGlite and serve the preview.
 //
 // The payload lives in sibling modules so every file stays under the 300-line
-// limit; this file only assembles it and carries the picker manifest.
+// limit; this file only assembles it and carries the run manifest.
 
-import type { TemplateDef, TemplateManifest } from "../vv/templates";
+import type { ProjectManifest, ProjectTemplate } from "../vv/project-manifest";
 import { clientFiles } from "./client-files";
 import { dbFiles } from "./db-files";
 import { projectFiles } from "./project-files";
@@ -29,8 +29,8 @@ const PACKAGES = ["auth", "core", "db", "nitro"] as const;
 /** One binary file a template ships beside its sources (see project-assets.ts). */
 export type TemplateAsset = { path: string; asset: string };
 
-/** The shared manifest plus the assets the IDE inlines into the create request. */
-export type FacilisManifest = TemplateManifest & { assets: TemplateAsset[] };
+/** The run manifest plus the assets the IDE inlines into the create request. */
+export type FacilisManifest = ProjectManifest & { assets: TemplateAsset[] };
 
 /**
  * Build the template.
@@ -40,7 +40,7 @@ export type FacilisManifest = TemplateManifest & { assets: TemplateAsset[] };
  * create request: no host alias, no VM networking, nothing for a guest package manager
  * to fetch.
  */
-export function createFacilisTemplate(): TemplateDef {
+export function createFacilisTemplate(): ProjectTemplate {
   const assets: TemplateAsset[] = PACKAGES.map((name) => ({
     path: "vendor/facilis-" + name + "-0.0.0.tgz",
     asset: "vendor/facilis/facilis-" + name + "-0.0.0.tgz",
@@ -50,13 +50,7 @@ export function createFacilisTemplate(): TemplateDef {
   // reaches vite — its config bundler cannot run in the WebContainer.
   const manifest: FacilisManifest = {
     id: "facilis",
-    framework: "facilis",
-    icon: "fullstack",
-    category: "Fullstack",
     name: "Facilis",
-    language: "TypeScript",
-    description: "Facilis + Nitro + PGlite + React — the framework's own probe app",
-    openPath: "/",
     entry: "src/App.tsx",
     hmr: true,
     reload: false,

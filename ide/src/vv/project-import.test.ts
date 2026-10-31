@@ -27,7 +27,6 @@ describe("synthesizeManifest", () => {
       port: 5173,
       hmr: true,
       reload: false,
-      language: "TypeScript",
       entry: "src/App.tsx",
       install: "npm install",
     });
@@ -43,16 +42,7 @@ describe("synthesizeManifest", () => {
       port: 3000,
       hmr: false,
       reload: true,
-      language: "JavaScript",
       entry: "index.js",
     });
-  });
-
-  it("detects TypeScript from dependencies even without a .ts file", () => {
-    const m = synthesizeManifest(
-      tree({ scripts: { dev: "vite" }, devDependencies: { typescript: "^5" } }),
-      "app",
-    );
-    expect(m?.language).toBe("TypeScript");
   });
 });

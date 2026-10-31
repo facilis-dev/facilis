@@ -1726,7 +1726,7 @@ All must pass:
 11. `?format=summary` < 500 tokens
 12. `facilis()` mounts Nitro; plugin order in `vite.config.ts` does not matter
 
-**Status (2026-10-28):** the browser half is scripted. `TEMPLATE=Facilis pnpm ide:smoke`
+**Status (2026-10-28):** the browser half is scripted. `pnpm ide:smoke`
 proves items 1-6, 10 and 12 *inside the WebContainer*: boot + preview, client HMR **and**
 server handler reload on a VFS write, the framework batch write (`applyPatch`),
 isomorphic-git init/status/commit on the VFS, `/_openapi.json` carrying `x-db-tables`, and

@@ -428,6 +428,16 @@ export async function runWriteChecks({ page, check, ARTIFACTS }) {
     REBOOT_TIMEOUT_MS,
   );
   record(rebooted, "A12 page reboots into a fresh document");
+  // D-049: a reloaded tab must land on the workspace, not flash Home first. The view and
+  // the booting project are in the snapshot from the first paint (`?project=` is in the
+  // URL), so ask before the kernel is up — after the boot pass this field is cleared.
+  const landedOnProject = await poll(
+    page,
+    "(() => { const c = window.__ide; const s = c && c.getSnapshot();" +
+      " return Boolean(s && s.view === 'workspace' && s.bootProject !== null); })()",
+    REBOOT_TIMEOUT_MS,
+  );
+  record(landedOnProject, "A12 reload boots straight into the project, not Home");
   const restored = await poll(
     page,
     "Boolean(window.__ide && window.__ide.getSnapshot().kernelReady)",

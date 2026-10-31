@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import FilePlus from "~icons/lucide/file-plus-2";
-import LayoutTemplate from "~icons/lucide/layout-template";
 import Clock from "~icons/lucide/clock";
 import ArrowLeft from "~icons/lucide/arrow-left";
 import FolderInput from "~icons/lucide/folder-input";
 import Github from "~icons/lucide/github";
-import Loader from "~icons/lucide/loader-circle";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { TemplateCategory, TemplateDef } from "@/vv/templates";
-import { loadTemplates, prefetchTemplates } from "@/vv/templates-lazy";
-import { TemplateIcon } from "./templateIcons";
+import { t } from "@/i18n";
 import { useIde } from "./useIde";
 import { entriesFromDataTransfer } from "@/vv/controller";
 import { RecentProjectsRow } from "./RecentProjectsRow";
@@ -31,8 +26,7 @@ import { BootStatus } from "./BootStatus";
 
 export function HomeView() {
   const { c, snap } = useIde();
-  const [blankOpen, setBlankOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
 
@@ -60,16 +54,16 @@ export function HomeView() {
       {dragging && (
         <div className="pointer-events-none absolute inset-3 z-50 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-primary/5 text-sm font-medium text-primary">
           <FolderInput className="size-8" />
-          Drop a folder to import it as a new project
+          {t("home.dropHint")}
         </div>
       )}
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 py-10">
         <div className="mb-8 flex items-center gap-3">
           <span className="inline-block size-3 rounded-full bg-primary" />
-          <h1 className="text-lg font-semibold">Vivari Studio</h1>
+          <h1 className="text-lg font-semibold">Facilis</h1>
           {snap.workspaceFolders.length > 0 && (
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => c.showWorkspace()}>
-              <ArrowLeft className="size-4" /> Back to workspace
+              <ArrowLeft className="size-4" /> {t("home.backToWorkspace")}
             </Button>
           )}
         </div>
@@ -92,49 +86,28 @@ export function HomeView() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <button
-            onClick={() => setBlankOpen(true)}
+            onClick={() => setNewOpen(true)}
             className="group flex flex-col items-start gap-3 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40"
           >
             <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <FilePlus className="size-6" />
             </div>
             <div>
-              <div className="font-medium">Start from blank</div>
-              <div className="text-sm text-muted-foreground">
-                An empty project with a package.json.
-              </div>
-            </div>
-          </button>
-          <button
-            onClick={() => setTemplateOpen(true)}
-            // The catalog is its own chunk now, so start it on the first sign of
-            // intent — a pointer arriving here is ~200ms of head start, which is
-            // about what the chunk costs.
-            onPointerEnter={prefetchTemplates}
-            onFocus={prefetchTemplates}
-            className="group flex flex-col items-start gap-3 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-accent/40"
-          >
-            <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <LayoutTemplate className="size-6" />
-            </div>
-            <div>
-              <div className="font-medium">Start from template</div>
-              <div className="text-sm text-muted-foreground">
-                React, Vue, Next.js, Express, Three.js, WebSocket…
-              </div>
+              <div className="font-medium">{t("home.newProject")}</div>
+              <div className="text-sm text-muted-foreground">{t("home.newProjectDesc")}</div>
             </div>
           </button>
           <ImportCard
             icon={FolderInput}
-            title="Import a folder"
-            desc="Open a local folder — or drop one here — as a new project."
+            title={t("home.importFolder")}
+            desc={t("home.importFolderDesc")}
             onClick={() => c.importFolderViaPicker()}
             disabled={!snap.kernelReady}
           />
           <ImportCard
             icon={Github}
-            title="Import from GitHub or npm"
-            desc="Fetch a public repo or an npm package as a new project."
+            title={t("home.importRemote")}
+            desc={t("home.importRemoteDesc")}
             onClick={() => c.openImportRemote()}
             disabled={!snap.kernelReady}
           />
@@ -143,21 +116,19 @@ export function HomeView() {
         <div className="mt-10">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Clock className="size-3.5" /> Recent projects
+              <Clock className="size-3.5" /> {t("home.recent")}
             </div>
             <button
               onClick={() => setResetOpen(true)}
               className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
             >
-              <RotateCcw className="size-3.5" /> Reset everything
+              <RotateCcw className="size-3.5" /> {t("home.reset")}
             </button>
           </div>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Your files and installed dependencies are saved in this browser across reloads.
-          </p>
+          <p className="mb-3 text-xs text-muted-foreground">{t("home.recentHint")}</p>
           {snap.recentProjects.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No projects yet. Create one above to get started.
+              {t("home.noProjects")}
             </div>
           ) : (
             <ul className="flex flex-col gap-1.5">
@@ -169,8 +140,7 @@ export function HomeView() {
         </div>
       </div>
 
-      <NewBlankDialog open={blankOpen} onOpenChange={setBlankOpen} />
-      <NewTemplateDialog open={templateOpen} onOpenChange={setTemplateOpen} />
+      <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
       <ResetEverythingDialog open={resetOpen} onOpenChange={setResetOpen} />
     </div>
   );
@@ -219,9 +189,7 @@ function ImportCard({
           <div className="text-sm text-muted-foreground">{desc}</div>
         </div>
       </TooltipTrigger>
-      {disabled && (
-        <TooltipContent>Available once your saved project finishes restoring.</TooltipContent>
-      )}
+      {disabled && <TooltipContent>{t("home.importLocked")}</TooltipContent>}
     </Tooltip>
   );
 }
@@ -259,18 +227,15 @@ function ResetEverythingDialog({
     >
       <DialogContent className="sm:max-w-md" showCloseButton={!busy}>
         <DialogHeader>
-          <DialogTitle>Reset everything?</DialogTitle>
-          <DialogDescription>
-            This permanently deletes all saved files and cached dependencies from this browser, then
-            reloads Studio with a clean slate. This cannot be undone.
-          </DialogDescription>
+          <DialogTitle>{t("reset.title")}</DialogTitle>
+          <DialogDescription>{t("reset.body")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="destructive" onClick={() => void confirmReset()} disabled={busy}>
-            {busy ? "Resetting…" : "Reset everything"}
+            {busy ? t("reset.busy") : t("reset.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -288,13 +253,13 @@ function useDirValidation(dir: string, enabled: boolean) {
       return;
     }
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       const err = await c.validateNewDir(dir);
       if (!cancelled) setError(err);
     }, 200);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [dir, enabled, c]);
   return error;
@@ -309,18 +274,11 @@ function useDirValidation(dir: string, enabled: boolean) {
  * covers response HEADERS only: `fetchByDeadline` clears its abort timer when the
  * fetch promise settles, so the `await r.text()` after it is unbounded, and an
  * edge that answers 200 and then stalls the body wedges `vv-create-project` with
- * a perfectly healthy worker. Nothing else in the span is long — the boot wait is
- * awaited before the `try`, and the install and the dev-server start are not
- * awaited at all — so the lawful worst case is well inside 15s.
+ * a perfectly healthy worker.
  *
- * No copy of the kernel's constant lives here deliberately: it is in another
- * package, and a duplicate that drifted could silently tighten this to below a
- * working create. Which makes this comment the only record of the relationship,
- * so it is worth keeping true.
- *
- * An escape hatch, not a cancellation. Nothing on this side can cancel a kernel
- * request, so if the wedge later clears, the create still resolves and the
- * project still opens — a while after a toast said it had not.
+ * An escape hatch, not a cancellation: nothing on this side can cancel a kernel
+ * request, so if the wedge later clears, the create still resolves and the project
+ * still opens — a while after a toast said it had not.
  */
 const CREATE_DEADLINE_MS = 45_000;
 
@@ -341,43 +299,17 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 /**
  * Create-on-submit that tolerates a kernel that has not booted yet.
  *
- * Naming a project is client-side work over a static array; it needs no runtime.
- * These dialogs used to disable Create until `kernelReady` anyway, so a visitor
- * spent the boot staring at a dead button and only *then* started deciding —
- * two waits in series that could have been one. Now the form is live from the
- * first paint and a submit made too early queues.
+ * Naming a project is client-side work; it needs no runtime, so the form is live from
+ * the first paint and a submit made too early queues (the directory check then runs when
+ * the kernel is up). The queue introduces a window that could not exist before —
+ * submitted, not yet started — so it has to be closable: `cancel()` is what `guardClose`
+ * calls when the dialog closes by any route, and `run` re-checks it after every await.
  *
- * Validation still waits for the kernel, because it genuinely needs the VFS:
- * `useDirValidation` is inert until then, so a queued submit re-validates once
- * the runtime is up and surfaces anything the live check could not see.
- *
- * The queue introduces a window that could not exist before — submitted, not yet
- * started — so it has to be closable. `cancel()` is what `guardClose` calls when
- * a dialog closes by any route (button, Escape, click-outside), and `run`
- * re-checks it after every await: without that, dismissing a dialog that says
- * *Waiting for the runtime…* still scaffolds the project and navigates to it a
- * moment later.
- *
- * Once `create()` has been entered the dialog stops being dismissable, because
- * from there the create genuinely cannot be undone: `vv-create-project` is one
- * kernel request with no cancellation, and it now resolves a template lockfile
- * over the network before it writes, so it is seconds long rather than instant.
- * Letting Escape through during those seconds is the same bug in a smaller
- * window — the project lands anyway — and "cancel" that leaves a scaffolded
- * project behind would be worse than not offering it. So the button reads
- * *Creating…* and is disabled, which is what the "Reset everything?" dialog
- * already does for its own irreversible span.
- *
- * That refusal is only defensible while the create is still going to finish, so
- * `run` guarantees it finishes. Refusing to close is a strictly worse failure
- * than a stuck button — a stuck button is recoverable, an undismissable modal
- * needs a page reload — and it is unjustified precisely when the create failed,
- * since nothing was scaffolded and there is nothing a cancel could leave behind.
- * Two ways it could not finish, and one deadline covers both: `bridge.request`
- * REJECTS when the worker dies (`bridge.ts` `failPending(ERR_WORKER)`) or when
- * post-reply work throws, and it never settles at all if the worker is wedged
- * but alive, since these calls pass no timeout of their own. Either way the
- * catch below toasts, clears `busy`, and hands every close route back.
+ * Once `create()` has been entered the dialog stops being dismissable, because from there
+ * the create genuinely cannot be undone and the kernel request has no cancellation. The
+ * refusal is only defensible while the create is still going to finish, so `run` also
+ * guarantees that: a kernel that dies rejects the request, and a wedge is covered by the
+ * deadline above; either way the catch clears `busy` and hands every close route back.
  */
 function useQueuedCreate(effectiveDir: string) {
   const { c, snap } = useIde();
@@ -425,9 +357,7 @@ function useQueuedCreate(effectiveDir: string) {
       await withDeadline(create(), CREATE_DEADLINE_MS);
       return true;
     } catch (err) {
-      toast.error(
-        `Couldn't create the project: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(t("create.failed", { error: err instanceof Error ? err.message : String(err) }));
       setBusy(false);
       return false;
     }
@@ -448,11 +378,11 @@ function useQueuedCreate(effectiveDir: string) {
     onOpenChange(o);
   };
 
-  const label = queued ? "Waiting for the runtime…" : inFlight ? "Creating…" : "Create";
+  const label = queued ? t("create.waiting") : inFlight ? t("create.creating") : t("create.submit");
   return { busy, queued, inFlight, lateError, label, reset, guardClose, run };
 }
 
-function NewBlankDialog({
+function NewProjectDialog({
   open,
   onOpenChange,
 }: {
@@ -463,6 +393,7 @@ function NewBlankDialog({
   const [name, setName] = useState("");
   const [dir, setDir] = useState("");
   const [dirTouched, setDirTouched] = useState(false);
+  const [runInit, setRunInit] = useState(true);
 
   const effectiveDir = dirTouched ? dir : name.trim() ? c.defaultDirFor(name) : "";
   const { busy, inFlight, lateError, label, reset, guardClose, run } =
@@ -477,6 +408,7 @@ function NewBlankDialog({
       setName("");
       setDir("");
       setDirTouched(false);
+      setRunInit(true);
       reset();
     }
   }, [open, reset]);
@@ -487,38 +419,40 @@ function NewBlankDialog({
 
   const submit = async () => {
     if (!canCreate) return;
-    if (await run(() => c.createBlankProject({ dir: effectiveDir }))) onOpenChange(false);
+    if (await run(() => c.createProject({ dir: effectiveDir, runInit }))) onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New blank project</DialogTitle>
-          <DialogDescription>An empty project you can build up from scratch.</DialogDescription>
+          <DialogTitle>{t("create.title")}</DialogTitle>
+          <DialogDescription>{t("create.description")}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Project name</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("create.name")}</span>
             <Input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="my-app"
+              placeholder={t("create.namePlaceholder")}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
               }}
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Directory</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t("create.directory")}
+            </span>
             <Input
               value={effectiveDir}
               onChange={(e) => {
                 setDirTouched(true);
                 setDir(e.target.value);
               }}
-              placeholder="/home/user/projects/my-app"
+              placeholder={t("create.directoryPlaceholder")}
               aria-invalid={!!dirError}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
@@ -526,246 +460,22 @@ function NewBlankDialog({
             />
             {dirError && <span className="text-xs text-destructive">{dirError}</span>}
           </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={runInit}
+              onChange={(e) => setRunInit(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            <span>
+              {t("create.runInit")}{" "}
+              <span className="text-muted-foreground">{t("create.runInitHint")}</span>
+            </span>
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)} disabled={inFlight}>
-            Cancel
-          </Button>
-          <Button onClick={() => void submit()} disabled={!canCreate}>
-            {label}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// The catalog, fetched on first open and kept for the tab's lifetime. `catalog`
-// is null only while the chunk is in flight — a first-open cost of ~99 KB that
-// buys the same amount off every visitor's entry chunk, including the ones who
-// never open this dialog.
-type Catalog = { templates: TemplateDef[]; categories: TemplateCategory[] };
-let cached: Catalog | null = null;
-
-function useTemplateCatalog(open: boolean): Catalog | null {
-  const [catalog, setCatalog] = useState<Catalog | null>(cached);
-  useEffect(() => {
-    if (!open || catalog) return;
-    let live = true;
-    void loadTemplates().then(
-      ({ TEMPLATES, TEMPLATE_CATEGORIES }) => {
-        // Only categories that actually have a template, in canonical tab order.
-        cached = {
-          templates: TEMPLATES,
-          categories: TEMPLATE_CATEGORIES.filter((cat) =>
-            TEMPLATES.some((t) => t.manifest.category === cat),
-          ),
-        };
-        if (live) setCatalog(cached);
-      },
-      () => {
-        if (live)
-          toast.error("Couldn't load the template catalog — check your connection and try again.");
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [open, catalog]);
-  return catalog;
-}
-
-function NewTemplateDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
-  const { c, snap } = useIde();
-  const catalog = useTemplateCatalog(open);
-  const [selected, setSelected] = useState<TemplateDef | null>(null);
-  const [activeCat, setActiveCat] = useState<TemplateCategory | null>(null);
-  const [name, setName] = useState("");
-  const [dir, setDir] = useState("");
-  const [dirTouched, setDirTouched] = useState(false);
-  const [runInit, setRunInit] = useState(true);
-
-  const effectiveDir = dirTouched ? dir : name.trim() ? c.defaultDirFor(name) : "";
-  const { busy, inFlight, lateError, label, reset, guardClose, run } =
-    useQueuedCreate(effectiveDir);
-  const close = guardClose(onOpenChange);
-
-  useEffect(() => {
-    if (open) {
-      setSelected(null);
-      setActiveCat(null);
-      setName("");
-      setDir("");
-      setDirTouched(false);
-      setRunInit(true);
-      reset();
-    }
-  }, [open, reset]);
-
-  // Default to the first populated category once the catalog lands. Kept out of
-  // the reset above because the reset runs before the chunk resolves.
-  useEffect(() => {
-    if (catalog && !activeCat) setActiveCat(catalog.categories[0]);
-  }, [catalog, activeCat]);
-
-  const pick = (t: TemplateDef) => {
-    setSelected(t);
-    const langSlug =
-      t.manifest.language === "TypeScript" ? "ts" : t.manifest.language === "Python" ? "py" : "js";
-    const suggested = `${t.manifest.framework}-${langSlug}-app`;
-    setName(suggested);
-    setDirTouched(false);
-  };
-
-  const liveError = useDirValidation(
-    effectiveDir,
-    open && !!selected && !!name.trim() && snap.kernelReady,
-  );
-  const dirError = lateError ?? liveError;
-  const canCreate = !!selected && !!name.trim() && !!effectiveDir && !dirError && !busy;
-
-  const submit = async () => {
-    if (!canCreate || !selected) return;
-    const ok = await run(() =>
-      c.createFromTemplate({
-        templateId: selected.manifest.id,
-        dir: effectiveDir,
-        runInit,
-      }),
-    );
-    if (ok) onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Start from a template</DialogTitle>
-          <DialogDescription>
-            Pick a template — we'll scaffold it and (optionally) install + run it.
-          </DialogDescription>
-        </DialogHeader>
-
-        {!catalog ? (
-          <div className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader className="size-4 animate-spin" /> Loading templates…
-          </div>
-        ) : (
-          <>
-            <Tabs
-              value={activeCat ?? catalog.categories[0]}
-              onValueChange={(v) => setActiveCat(v as TemplateCategory)}
-              className="border-b pb-2"
-            >
-              <TabsList variant="line" className="flex-wrap">
-                {catalog.categories.map((cat) => (
-                  <TabsTrigger key={cat} value={cat}>
-                    {cat}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-
-            <div className="grid max-h-64 grid-cols-2 gap-1.5 overflow-auto sm:grid-cols-3">
-              {catalog.templates
-                .filter((t) => t.manifest.category === activeCat)
-                .map((t) => {
-                  const isSel = selected?.manifest.id === t.manifest.id;
-                  return (
-                    <button
-                      key={t.manifest.id}
-                      onClick={() => pick(t)}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-colors hover:bg-accent/40",
-                        isSel ? "border-primary bg-accent/50" : "border-transparent",
-                      )}
-                    >
-                      <TemplateIcon icon={t.manifest.icon} className="size-7 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span className="truncate text-sm font-medium">{t.manifest.name}</span>
-                          {t.manifest.experimental && (
-                            <span className="shrink-0 rounded bg-warning/15 px-1 text-[9px] font-medium text-warning">
-                              exp
-                            </span>
-                          )}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {t.manifest.language}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
-
-            {selected && (
-              <div className="flex flex-col gap-3 border-t pt-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <TemplateIcon icon={selected.manifest.icon} className="size-5" />
-                  <span className="font-medium">{selected.manifest.name}</span>
-                  <span className="text-muted-foreground">· {selected.manifest.language}</span>
-                  {selected.manifest.experimental && (
-                    <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-                      experimental
-                    </span>
-                  )}
-                </div>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Project name</span>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="my-app"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void submit();
-                    }}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Directory</span>
-                  <Input
-                    value={effectiveDir}
-                    onChange={(e) => {
-                      setDirTouched(true);
-                      setDir(e.target.value);
-                    }}
-                    aria-invalid={!!dirError}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void submit();
-                    }}
-                  />
-                  {dirError && <span className="text-xs text-destructive">{dirError}</span>}
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={runInit}
-                    onChange={(e) => setRunInit(e.target.checked)}
-                    className="size-4 accent-primary"
-                  />
-                  <span>
-                    Run init script{" "}
-                    <span className="text-muted-foreground">
-                      (<code>{selected.manifest.install}</code> then{" "}
-                      <code>{selected.manifest.dev}</code>)
-                    </span>
-                  </span>
-                </label>
-              </div>
-            )}
-          </>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)} disabled={inFlight}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => void submit()} disabled={!canCreate}>
             {label}

@@ -59,7 +59,6 @@ const REQUIRED_ROLES = [
   "--checker",
 ].sort();
 
-const BRAND_MARK_FILES = new Set(["templateIcons.tsx"]);
 const RAW_COLOUR =
   /#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border|ring|fill|stroke|shadow)-(?:white|black|gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-[0-9]{2,3})?\b/g;
 
@@ -139,7 +138,7 @@ for (const key of labelKeys) {
 // ── components ───────────────────────────────────────────────────────────────
 for (const dir of ["ide/src/components/ide", "ide/src/components/ui"]) {
   for (const name of readdirSync(join(ROOT, dir)).sort()) {
-    if (!name.endsWith(".tsx") || BRAND_MARK_FILES.has(name)) continue;
+    if (!name.endsWith(".tsx")) continue;
     const source = stripComments(readFileSync(join(ROOT, dir, name), "utf8")).replaceAll(
       "bg-black/10",
       "",

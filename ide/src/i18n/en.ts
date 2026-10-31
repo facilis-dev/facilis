@@ -6,8 +6,8 @@
 // partial (a missing translation falls back to English key by key).
 //
 // Not yet migrated: the upstream-inherited editor chrome (Explorer, Search, Debug,
-// SCM, Notebook, EditorGroup, Home, TitleBar, StatusBar, Preview and Terminal
-// panels). Those move here file by file as they are touched — see ide/I18N.md.
+// SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
+// Those move here file by file as they are touched — see ide/I18N.md.
 export const en = {
   // ── shared ───────────────────────────────────────────────────────────────
   "common.cancel": "Cancel",
@@ -56,6 +56,8 @@ export const en = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "This tab's project is not in the recent-projects list any more.",
   "project.openElsewhere": "{name} is already open in another tab — close it there first.",
+  "project.starting": "Studio is still starting — please wait a moment, then try again.",
+  "project.gone": "This project's files are no longer on disk.",
   "project.deleted": "Deleted {name}",
   "project.deleteFailed": "Couldn't delete {name}: {error}",
   "delete.action": "Delete project",
@@ -64,9 +66,42 @@ export const en = {
   "delete.body":
     "This permanently deletes the project and all its files from this browser. It cannot be undone.",
   "delete.confirmLabel": "Type the project name to confirm",
-  "delete.placeholder": "{name}",
   "delete.confirm": "Delete project",
   "delete.deleting": "Deleting…",
+  "create.failed": "Couldn't create the project: {error}",
+  "create.ready": "{name} created — run {install} then {dev}",
+
+  // ── Home ─────────────────────────────────────────────────────────────────
+  "home.backToWorkspace": "Back to workspace",
+  "home.dropHint": "Drop a folder to import it as a new project",
+  "home.newProject": "New project",
+  "home.newProjectDesc": "A Facilis app — Nitro, PGlite and React, scaffolded and ready to run.",
+  "home.importFolder": "Import a folder",
+  "home.importFolderDesc": "Open a local folder — or drop one here — as a new project.",
+  "home.importRemote": "Import from GitHub or npm",
+  "home.importRemoteDesc": "Fetch a public repo or an npm package as a new project.",
+  "home.importLocked": "Available once your saved project finishes restoring.",
+  "home.recent": "Recent projects",
+  "home.recentHint":
+    "Your files and installed dependencies are saved in this browser across reloads.",
+  "home.noProjects": "No projects yet. Create one above to get started.",
+  "home.reset": "Reset everything",
+  "reset.title": "Reset everything?",
+  "reset.body":
+    "This permanently deletes all saved files and cached dependencies from this browser, then reloads Studio with a clean slate. This cannot be undone.",
+  "reset.confirm": "Reset everything",
+  "reset.busy": "Resetting…",
+  "create.title": "New project",
+  "create.description": "A Facilis app — Nitro, PGlite and React, scaffolded for you.",
+  "create.name": "Project name",
+  "create.namePlaceholder": "my-app",
+  "create.directory": "Directory",
+  "create.directoryPlaceholder": "/home/user/projects/my-app",
+  "create.runInit": "Install and run",
+  "create.runInitHint": "install dependencies and start the dev server after creating.",
+  "create.submit": "Create",
+  "create.creating": "Creating…",
+  "create.waiting": "Waiting for the runtime…",
 
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Import from GitHub or npm",

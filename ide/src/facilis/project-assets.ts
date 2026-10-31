@@ -12,7 +12,7 @@
 // `files` instead — so the template manifest keeps the asset list and this module does
 // the fetching.
 
-import type { TemplateDef } from "../vv/templates";
+import type { ProjectTemplate } from "../vv/project-manifest";
 import type { FacilisManifest, TemplateAsset } from "./facilis-template";
 
 /** A create-project payload: text files plus binary bodies (structured-cloned to the kernel). */
@@ -45,7 +45,7 @@ async function fetchAsset(asset: TemplateAsset, fetchImpl: typeof fetch): Promis
  * the later asset wins the same way the old kernel-fetched batch did.
  */
 export async function withTemplateAssets(
-  template: TemplateDef,
+  template: ProjectTemplate,
   files: Record<string, string>,
   fetchImpl: typeof fetch = fetch,
 ): Promise<TemplateFilePayload> {

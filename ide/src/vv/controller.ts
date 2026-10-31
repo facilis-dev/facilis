@@ -25,11 +25,11 @@ import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./p
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
 import { bootTargetFrom } from "./boot-target";
-import { claimProject } from "./project-lock";
+import { deleteProject } from "./project-delete";
 import { withTemplateAssets } from "../facilis/project-assets";
 import { StatusMessage } from "./status-message";
-import type { TemplateManifest } from "./templates";
-import { loadTemplates } from "./templates-lazy";
+import type { ProjectManifest } from "./project-manifest";
+import { loadFacilisTemplate } from "../facilis/template-loader";
 import { markBoot } from "./boot-marks";
 import {
   advance,
@@ -171,31 +171,9 @@ function normalizePreviewWildcardDomain(raw: string | undefined): string | undef
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : undefined;
 }
 
-// Rewrite a keep-prefix template's framework **base** config (`base` / `basename`
-// / `baseUrl` / `rootURL` set to `"/preview/<port>/"`) to the origin root `"/"`.
-// Keep-prefix templates (Docusaurus, VitePress, Rspress, Starlight, React Router 7,
-// TanStack Router, Ember) hardcode that base for the path-multiplexed modes A/B; in
-// mode C each port is its OWN origin served at `/`, so the hardcoded base would 404.
-// We touch ONLY those config keys, so legitimate cross-service URLs in app code (e.g.
-// `'/preview/' + PORT + '/api'`, which still route via the SW/shim in mode C) are
-// left intact. `rootURL` is Ember's spelling of the same setting, and it has to be
-// listed for the same reason as the others: the template sets Vite `base` AND the
-// router's rootURL, and rewriting only the first leaves the router looking for a
-// prefix the server no longer serves. It also brings `=` into the separator, because
-// Ember writes it as a class field (`rootURL = '/preview/4200/'`) rather than an
-// object key — still only ever matched against a literal `/preview/<port>/` value.
-function rewritePreviewBaseToRoot(files: Record<string, string>): Record<string, string> {
-  const re = /((?:base|basename|baseUrl|rootURL)\s*[:=]\s*)(['"`])\/preview\/\d+\/\2/g;
-  const out: Record<string, string> = {};
-  for (const [path, content] of Object.entries(files)) {
-    out[path] = content.replace(re, (_m, key: string, q: string) => `${key}${q}/${q}`);
-  }
-  return out;
-}
-
 // ── Demo matrix (UI side) ────────────────────────────────────────────────────
 // The two hard-coded example projects the kernel worker still scaffolds on demand
-// (the "Run" button's legacy path). New projects come from Home (blank/template).
+// (the "Run" button's legacy path). New projects come from Home (Facilis).
 export interface DemoOption {
   id: string;
   title: string;
@@ -300,6 +278,9 @@ export interface IdeSnapshot {
   problems: { errors: number; warnings: number }; // live TS/JS diagnostics (status bar)
   memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
 }
+
+/** The id of the one project template the IDE creates (D-051). */
+export const FACILIS_TEMPLATE_ID = "facilis";
 
 // A diff tab is a synthetic open-tab id: `vv-diff:<abs>`. It reuses the tab strip
 // (kind "diff") but must never be treated as a real file path (no read/save). The
@@ -426,7 +407,7 @@ export class IdeController {
   // Full-text search / replace: in-flight token + callbacks (search-session.ts).
   private readonly search: SearchSession;
   private fileIndex = new Map<string, string[]>(); // rootPath -> abs files (quick-open/search)
-  private folderManifests = new Map<string, TemplateManifest>(); // rootPath -> run manifest
+  private folderManifests = new Map<string, ProjectManifest>(); // rootPath -> run manifest
   private runningProjects = new Map<string, { terminalId: string | null; port: number | null }>();
   private runningDemos = new Map<string, { terminalId: string | null; port: number | null }>();
   private portMap = new Map<number, number>(); // port -> pid (live listeners)
@@ -436,11 +417,6 @@ export class IdeController {
   // no-flash script sets, then kept in sync with next-themes via applyUiTheme.
   private uiTheme: UiTheme = appearanceFromDocument();
 
-  // Preview origin mode (see KernelBridge.mode): "same-origin" (default / local
-  // dev), "shared" (mode B, VITE_PREVIEW_ORIGIN) or "wildcard" (mode C,
-  // VITE_PREVIEW_WILDCARD_DOMAIN — one origin per port).
-  private readonly previewMode: "same-origin" | "shared" | "wildcard";
-
   constructor() {
     const previewOrigin = normalizePreviewOrigin(import.meta.env.VITE_PREVIEW_ORIGIN);
     const previewPopout = normalizePreviewPopout(import.meta.env.VITE_PREVIEW_POPOUT);
@@ -448,7 +424,6 @@ export class IdeController {
       import.meta.env.VITE_PREVIEW_WILDCARD_DOMAIN,
     );
     this.bridge = new KernelBridge({ previewOrigin, previewWildcardDomain, previewPopout });
-    this.previewMode = this.bridge.mode;
     this.preview = new PreviewSession(this.bridge, this.previewHost());
 
     this.debug = new DebugSession(this.bridge);
@@ -756,58 +731,44 @@ export class IdeController {
     this.commitRegistry({ remove: [rootPath] });
   }
 
-  /**
-   * Delete a project from this origin: its files from the VFS (and therefore the OPFS
-   * mirror) and its entry in the recent list.
-   *
-   * A project's subtree is normally still deferred in the mirror (D-036), so a bare
-   * `vv-rm` would find nothing in this tab's VFS and leave the files on OPFS — which is
-   * exactly why the old "remove from list" button looked like a delete that did not
-   * delete. Hydrating first makes the recursive rm see the tree, and every unlink/rmdir
-   * then reaches the mirror (fs-server calls persistence.onDelete).
-   *
-   * A project another live tab has claimed is refused: that tab holds the tree in RAM and
-   * its write-behind mirror would recreate what we just deleted. The claim is the same Web
-   * Lock the tab bootstrap uses; an open folder in THIS tab is already ours.
-   */
+  /** Delete a project's files and registry entry (project-delete.ts owns the policy). */
   async deleteProject(rootPath: string): Promise<boolean> {
-    const root = normDir(rootPath);
-    const name = projectName(root);
-    const open = this.snap.workspaceFolders.find((f) => f.rootPath === root);
-    const claim = open ? null : await claimProject(root);
-    if (!open && !claim) {
-      toast.error(t("project.openElsewhere", { name }));
-      return false;
+    return deleteProject(
+      {
+        isOpen: (root) => this.snap.workspaceFolders.some((f) => f.rootPath === root),
+        closeOpen: (root) => {
+          const folder = this.snap.workspaceFolders.find((f) => f.rootPath === root);
+          if (folder) this.closeFolder(folder.id);
+        },
+        stopProject: (root) => this.stopProject(root),
+        hydrateProject: (root) =>
+          ensureProjectOnDisk(
+            this.bridge,
+            root,
+            (p) => this.pathInfo(p),
+            (line) => this.status(line),
+          ),
+        removeTree: async (root) => {
+          const res = await this.bridge.request("vv-rm", { path: root });
+          if (!res.ok) throw new Error(String(res.error ?? "unknown error"));
+        },
+        forgetProject: (root) => {
+          this.folderManifests.delete(root);
+          this.removeProjectMeta(root);
+        },
+        status: (text) => this.status(text),
+      },
+      rootPath,
+    );
+  }
+
+  /** Stop the project's run terminal (its dev server), if one is alive. */
+  private stopProject(root: string) {
+    const running = this.runningProjects.get(root);
+    if (running?.terminalId && this.terminals.has(running.terminalId)) {
+      this.terminals.closeTerminal(running.terminalId);
     }
-    try {
-      // Close the project (and stop its dev server) before its directory disappears, so
-      // no editor model or write-behind flush can race the delete.
-      if (open) this.closeFolder(open.id);
-      const running = this.runningProjects.get(root);
-      if (running?.terminalId && this.terminals.has(running.terminalId)) {
-        this.terminals.closeTerminal(running.terminalId);
-      }
-      this.runningProjects.delete(root);
-      const onDisk = await ensureProjectOnDisk(
-        this.bridge,
-        root,
-        (p) => this.pathInfo(p),
-        (line) => this.status(line),
-      );
-      if (onDisk) {
-        const res = await this.bridge.request("vv-rm", { path: root });
-        if (!res.ok) throw new Error(String(res.error ?? "unknown error"));
-      }
-      this.folderManifests.delete(root);
-      this.removeProjectMeta(root);
-      this.status(t("project.deleted", { name }));
-      return true;
-    } catch (err) {
-      toast.error(t("project.deleteFailed", { name, error: errText(err) }));
-      return false;
-    } finally {
-      claim?.release();
-    }
+    this.runningProjects.delete(root);
   }
 
   // ── console output ────────────────────────────────────────────────────────
@@ -1607,82 +1568,42 @@ export class IdeController {
     return null;
   }
 
-  async createBlankProject({ dir }: { dir: string }) {
-    const root = normDir(dir);
-    const name = projectName(root);
-    const files: Record<string, string> = {
-      "package.json":
-        JSON.stringify(
-          {
-            name: this.slug(name),
-            version: "0.0.0",
-            private: true,
-            type: "module",
-            scripts: { start: "node index.js" },
-          },
-          null,
-          2,
-        ) + "\n",
-      "index.js": `console.log("Hello from ${name}!");\n`,
-      "README.md": `# ${name}\n\nA blank project created in Vivari Studio.\n`,
-    };
-    const res = await this.bridge.request("vv-create-project", { dir: root, files, title: name });
-    if (!res.ok) {
-      toast.error(`Couldn't create project: ${res.error ?? "unknown error"}`);
-      return;
-    }
-    this.upsertProjectMeta({ rootPath: root, template: null });
-    this.openFolder(root);
-    void this.openFile(root + "/index.js");
-    this.status(`created ${name}`);
-  }
-
-  async createFromTemplate({
-    templateId,
-    dir,
-    runInit,
-  }: {
-    templateId: string;
-    dir: string;
-    runInit: boolean;
-  }) {
-    const t = (await loadTemplates()).getTemplate(templateId);
-    if (!t) {
-      toast.error("Unknown template");
-      return;
-    }
+  /**
+   * Create a project from the one template this IDE ships (D-051). A Facilis app is
+   * Nitro + PGlite + React: there is no blank project and no second framework, so there is
+   * no template chooser to route through either.
+   */
+  async createProject({ dir, runInit }: { dir: string; runInit: boolean }) {
     const root = normDir(dir);
     // One name, the folder's (D-035): the kernel is told where the project is, not a
     // display title the Explorer and the browser title would then have to reconcile.
     const title = projectName(root);
-    // Mode C serves each port at its own origin root, so a keep-prefix template's
-    // hardcoded `/preview/<port>/` base (built for modes A/B) would 404. Rewrite it
-    // to "/" and drop the now-irrelevant flag so the app runs at the origin root.
-    // Modes A/B keep the template verbatim.
-    const wildcard = this.previewMode === "wildcard" && !!t.manifest.keepPreviewPrefix;
-    const files = await withTemplateAssets(
-      t,
-      wildcard ? rewritePreviewBaseToRoot(t.files) : t.files,
-    );
-    const manifest = wildcard ? { ...t.manifest, keepPreviewPrefix: false } : t.manifest;
+    const template = await loadFacilisTemplate();
+    const files = await withTemplateAssets(template, template.files);
     const res = await this.bridge.request("vv-create-project", {
       dir: root,
       files,
-      manifest,
+      manifest: template.manifest,
       title,
     });
     if (!res.ok) {
-      toast.error(`Couldn't create project: ${res.error ?? "unknown error"}`);
+      toast.error(t("create.failed", { error: String(res.error ?? "unknown error") }));
       return;
     }
-    this.folderManifests.set(root, manifest);
-    this.upsertProjectMeta({ rootPath: root, template: templateId });
+    this.folderManifests.set(root, template.manifest);
+    this.upsertProjectMeta({ rootPath: root, template: template.manifest.id });
     this.openFolder(root);
-    void this.openFile(root + "/" + t.manifest.entry);
+    void this.openFile(root + "/" + template.manifest.entry);
     if (runInit) {
       this.runProject(root);
     } else {
-      this.status(`${title} created — run \`${t.manifest.install}\` then \`${t.manifest.dev}\``);
+      this.status(
+        t("create.ready", {
+          name: title,
+          install: template.manifest.install,
+          dev: template.manifest.dev,
+        }),
+      );
     }
   }
 
@@ -1692,7 +1613,7 @@ export class IdeController {
     // project is genuinely not there *yet* — tell the user to retry rather than
     // calling it deleted (which would drop it from the recent list).
     if (!this.snap.kernelReady) {
-      toast.info("Studio is still starting — please wait a moment, then try again.");
+      toast.info(t("project.starting"));
       return;
     }
     const root = normDir(meta.rootPath);
@@ -1703,20 +1624,21 @@ export class IdeController {
       (line) => this.status(line),
     );
     if (!onDisk) {
-      toast.error("This project's files are no longer on disk.");
+      toast.error(t("project.gone"));
       this.removeProjectMeta(root);
       return;
     }
-    if (meta.template) {
-      const t = (await loadTemplates()).getTemplate(meta.template);
-      if (t) {
-        this.folderManifests.set(root, t.manifest);
-        this.bridge.post("vv-register-project", {
-          dir: root,
-          manifest: t.manifest,
-          title: projectName(root),
-        });
-      }
+    // Only a Facilis project gets the Facilis manifest. A project created before D-051 with
+    // one of the removed templates still opens, but with no known run manifest — Run drops
+    // into a shell rather than starting the wrong dev command.
+    if (meta.template === FACILIS_TEMPLATE_ID) {
+      const template = await loadFacilisTemplate();
+      this.folderManifests.set(root, template.manifest);
+      this.bridge.post("vv-register-project", {
+        dir: root,
+        manifest: template.manifest,
+        title: projectName(root),
+      });
     }
     this.touchProject(root);
     this.openFolder(root);
@@ -2510,14 +2432,8 @@ export class IdeController {
       const runLabel = DEMOS.find((d) => d.id === m.id)?.runLabel ?? "npm run dev";
       this.folderManifests.set(normDir(dir), {
         id: m.id as string,
-        framework: "react",
         name: m.title as string,
-        language: "JavaScript",
-        icon: "react",
-        category: "Frontend",
-        description: "",
         port: m.port as number,
-        openPath: "/",
         entry: m.entry as string,
         hmr: !!m.hmr,
         reload: !!m.reload,

@@ -51,6 +51,8 @@ export const it: Partial<Record<MessageKey, string>> = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "Il progetto di questa scheda non è più nella lista dei recenti.",
   "project.openElsewhere": "{name} è già aperto in un'altra scheda — chiudilo lì prima.",
+  "project.starting": "Studio si sta ancora avviando — attendi un istante e riprova.",
+  "project.gone": "I file di questo progetto non sono più su disco.",
   "project.deleted": "Eliminato {name}",
   "project.deleteFailed": "Impossibile eliminare {name}: {error}",
   "delete.action": "Elimina progetto",
@@ -59,9 +61,42 @@ export const it: Partial<Record<MessageKey, string>> = {
   "delete.body":
     "Elimina definitivamente il progetto e tutti i suoi file da questo browser. Non è possibile annullare.",
   "delete.confirmLabel": "Digita il nome del progetto per confermare",
-  "delete.placeholder": "{name}",
   "delete.confirm": "Elimina progetto",
   "delete.deleting": "Eliminazione…",
+  "create.failed": "Impossibile creare il progetto: {error}",
+  "create.ready": "{name} creato — esegui {install} poi {dev}",
+
+  // ── Home ─────────────────────────────────────────────────────────────────
+  "home.backToWorkspace": "Torna all'area di lavoro",
+  "home.dropHint": "Rilascia una cartella per importarla come nuovo progetto",
+  "home.newProject": "Nuovo progetto",
+  "home.newProjectDesc": "Un'app Facilis — Nitro, PGlite e React, già pronta da eseguire.",
+  "home.importFolder": "Importa una cartella",
+  "home.importFolderDesc": "Apri una cartella locale — o trascinala qui — come nuovo progetto.",
+  "home.importRemote": "Importa da GitHub o npm",
+  "home.importRemoteDesc": "Scarica un repo pubblico o un pacchetto npm come nuovo progetto.",
+  "home.importLocked": "Disponibile quando il progetto salvato finisce di ripristinarsi.",
+  "home.recent": "Progetti recenti",
+  "home.recentHint":
+    "I file e le dipendenze installate sono salvati in questo browser tra un ricaricamento e l'altro.",
+  "home.noProjects": "Nessun progetto. Creane uno qui sopra per iniziare.",
+  "home.reset": "Ripristina tutto",
+  "reset.title": "Ripristinare tutto?",
+  "reset.body":
+    "Elimina definitivamente tutti i file salvati e le dipendenze in cache da questo browser, poi ricarica Studio con una sessione pulita. Non è possibile annullare.",
+  "reset.confirm": "Ripristina tutto",
+  "reset.busy": "Ripristino…",
+  "create.title": "Nuovo progetto",
+  "create.description": "Un'app Facilis — Nitro, PGlite e React, generata per te.",
+  "create.name": "Nome del progetto",
+  "create.namePlaceholder": "my-app",
+  "create.directory": "Cartella",
+  "create.directoryPlaceholder": "/home/user/projects/my-app",
+  "create.runInit": "Installa ed esegui",
+  "create.runInitHint": "installa le dipendenze e avvia il dev server dopo la creazione.",
+  "create.submit": "Crea",
+  "create.creating": "Creazione…",
+  "create.waiting": "In attesa del runtime…",
 
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Importa da GitHub o npm",

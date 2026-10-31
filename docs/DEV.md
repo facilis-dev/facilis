@@ -192,10 +192,10 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   Bundle mode (D-031) keeps the volume below the cap, so this is no longer on the critical path,
   but raise the cap on the studio vhost (`keepalive_requests 100000;` /
   `http2_max_requests 100000;`) or serve it over HTTP/1.1 (`http2 off`) anyway — see D-029.
-- In the UI: **Start from template -> React + TypeScript -> Create**. The IDE scaffolds the
-  project in its VFS, runs `npm install` and then `npm run dev -- --configLoader native`, and
-  opens the preview at `/preview/5173/`. `Start from blank` gives a project with only
-  `package.json`; `Import a folder` / `Import from GitHub or npm` cover existing code.
+- In the UI: **New project -> name -> Create**. The IDE scaffolds a Facilis app in its VFS —
+  the only creation path (D-051) — runs `npm install` and then
+  `npm run dev -- --configLoader native`, and opens the preview at `/preview/3000/`.
+  `Import a folder` / `Import from GitHub or npm` cover existing code.
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 
@@ -206,12 +206,12 @@ node scripts/dev/smoke-ide.mjs --url http://127.0.0.1:5173/   # use a running se
 
 It drives the real UI over the Chrome DevTools Protocol (`scripts/dev/cdp.mjs`, no npm
 dependency) and asserts, in order: COOP/COEP headers, kernel online, home text rendered,
-template picker opens, React/TypeScript listed and selectable, `Create` enabled, project
-created, `preview-paint` boot mark, preview iframe mounted, preview answers `200` with HTML,
+new-project dialog opens, project name filled, `Create` enabled, project created,
+`preview-paint` boot mark, preview iframe mounted, preview answers `200` with HTML,
 no page errors, no console errors, no failed requests. Exit code is non-zero on any failure.
 
-`TEMPLATE=Facilis` (after `pnpm ide:facilis-deps`) additionally selects the Fullstack picker
-tab and asserts the framework contract from the probe app inside the preview: `health: ok`,
+It then asserts the framework contract from the Facilis app inside the preview (after
+`pnpm ide:facilis-deps`): `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
 `/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the probe
 registers a user, logs in (the session cookie is staged by h3's `setCookie` through
@@ -223,7 +223,7 @@ work together inside the WebContainer. The probe app publishes those results as
 assertions and dumps the preview HTTP body + dev log into `facilis-diagnostics.json` on
 failure.
 
-`TEMPLATE=Facilis` also runs `scripts/dev/smoke-intellisense.mjs`, before the write checks:
+It also runs `scripts/dev/smoke-intellisense.mjs`, before the write checks:
 it asks the same Monaco TypeScript worker the editor uses (`getSemanticDiagnostics`) for
 `src/App.tsx` and `src/main.tsx`, and fails on a module-resolution error (TS2307 "Cannot
 find module"). That is the user-visible symptom of a generated project that does not install
@@ -232,36 +232,37 @@ the `@types/*` packages its imports need (react, react-dom): the IDE only feeds 
 call that never settles — fails the check too, never counts as a skip (the harness races each
 page promise so a wedge fails the smoke instead of hanging it).
 
-`TEMPLATE=Facilis` also runs `scripts/dev/smoke-write.mjs`, which drives the dev-only
+It also runs `scripts/dev/smoke-write.mjs`, which drives the dev-only
 `window.__ide` / `window.__facilis` handles through the real controller to verify the VFS write
 path (SPEC §14.1 items 4-7, D-025): **A8** (write → Explorer + editor, client HMR without
 reloading the preview document, and the in-VM server route reloading its handler), **A9**
 (`applyPatch` multi-file batch, unsafe-path rejection before any write, revision refresh and
 delete), **A10** (`git init` / status / commit over the VFS) and **A12** (flush +
-`Page.reload` → the OPFS mirror restores the uncommitted file). 23 checks, recorded in
-`report.json`; a failure also dumps `write-diagnostics.json` (including the OPFS mirror
-manifest's view of the file, so "never mirrored" and "never restored" are distinguishable).
+`Page.reload` → the reloaded tab lands on its project, not Home, and the OPFS mirror
+restores the uncommitted file). 24 checks, recorded in `report.json`; a failure also dumps
+`write-diagnostics.json` (including the OPFS mirror manifest's view of the file, so "never
+mirrored" and "never restored" are distinguishable).
 
-Both templates then run `scripts/dev/smoke-chat.mjs`: it opens the AI Chat activity view,
+The smoke then runs `scripts/dev/smoke-chat.mjs`: it opens the AI Chat activity view,
 configures the **dev-only mock provider** in the real settings dialog (no key, no network),
 sends a message, reviews the proposal card and clicks Apply, then reads the written file back
 from the VFS; it finally clicks **Undo** and asserts the file is gone again. The mock streams its
 canned `AIResponse` in chunks (D-047), so the same run exercises the streaming bubble too; the
 production build cannot select it (D-045). It finally clicks **Project instructions** and asserts
 `AGENTS.md` lands in the VFS (D-048). The smoke covers the real settings/parser/patch/apply/undo
-and instructions path without an LLM.
+and instructions path without an LLM. The last step opens Home and deletes the project through
+the typed-confirmation dialog, asserting both the files and the recent-list entry are gone
+(D-050).
 
 One page error is expected and filtered: the first edit in a project whose imports do not all
 resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback
 (`DataCloneError … could not be cloned`). It is recorded as `knownPageErrors` in the report
 instead of failing the run — an editor defect, not a VFS one (D-026).
 
-One check is blocked upstream: **A12**'s strict condition (an uncommitted file surviving a
-reboot) fails because the kernel's OPFS write-behind queue stops draining after the in-VM
-install — the mirror's index and `vv-vfs/files` never see the write, so the reboot has
-nothing to restore (the project tree itself does restore). The run reports it as `KNOWN` in
-`report.json` (`write.knownIssues`) instead of failing; D-028 has the measurements and the
-upstream fix.
+**A12**'s strict condition (an uncommitted file surviving a reboot) used to fail because the
+kernel's OPFS write-behind queue stopped draining after the in-VM install (D-028), and was
+reported as `KNOWN` in `report.json` (`write.knownIssues`) instead of failing. The 2026-10-31
+runs pass it: the flush + `Page.reload` restores the uncommitted file from OPFS.
 
 Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 `$FACILIS_TOOLING_DIR/smoke-artifacts/<epoch-ms>/`.
@@ -271,7 +272,6 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 | `STUDIO_URL` / `--url` | start own server on `SMOKE_PORT` | target origin |
 | `SMOKE_PORT` | `5199` | port for the self-started dev server |
 | `SMOKE_ARTIFACTS` | see above | evidence directory |
-| `TEMPLATE` / `LANGUAGE` | `React` / `TypeScript` | template to create |
 | `BOOT_TIMEOUT_MS` / `PREVIEW_TIMEOUT_MS` | `180000` / `300000` | budgets |
 | `FACILIS_PROBE_TIMEOUT_MS` | `60000` | budget for the Facilis probe's endpoint results |
 | `FACILIS_WRITE_TIMEOUT_MS` | `45000` | budget for each A8/A9 write-and-observe check |
@@ -280,12 +280,11 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 | `FACILIS_CHROME` / `FACILIS_BROWSER_SYSROOT` / `FACILIS_FONTCONFIG` | from `browser/` | browser paths |
 
 Reference runs on 16 cores: kernel online **0.6 s** against an already-warm dev server
-(**2.6 s** cold, when Vite is still transforming the 11k-line `templates.ts`), preview
-painted **31-40 s** (in-VM install dominates), 18/18 checks green (React, 2026-10-25). The
-Facilis probe is green (2026-10-30): preview painted on a cold self-started dev server (in-VM
-`npm install` dominates), manifest zero warnings, editor IntelliSense clean, the probe's
-**database roundtrip** green (session survives, insert and read-back ok), and **57/57** checks
-including A8-A12. Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
+(**2.6 s** cold, while Vite is still transforming the app), preview painted **31-40 s** (in-VM
+install dominates; ~103 s on a cold throwaway profile). The Facilis run is green end to end:
+manifest zero warnings, editor IntelliSense clean, the probe's **database roundtrip** green
+(session survives, insert and read-back ok), A8-A12 green, and the Home delete flow green
+(files + registry entry removed). Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
 
@@ -321,9 +320,9 @@ under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
 | `@rolldown/binding-wasm32-wasi` still listed in templates | ~14 MB of dead weight per install | kept so a future Vite 8 retry is a version bump, not a re-import |
 | PGlite dev database is in-memory | resets on worker restart | Phase 1 caveat, see `docs/DECISIONS.md` |
 | Package managers cannot install plain-http URL dependencies | npm's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND`; registry `https://` traffic is unaffected | **nothing on this path any more:** generated projects install with npm from `file:` tarballs the IDE inlines into the create request (D-032), so no install touches the studio over HTTP. Do not reintroduce URL dependencies |
-| Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `TEMPLATE=Facilis pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
+| Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
-| Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. npm also re-derives a RELATIVE `file:` target when it normalizes a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists | the template's install command runs `scripts/vendor-paths.cjs` first, which pins the `@facilis/*` specs to absolute paths and fails loudly if a `vendor/` tarball is missing (D-032 follow-up); bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` |
+| Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. npm also re-derives a RELATIVE `file:` target when it normalizes a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists | the template's install command runs `scripts/vendor-paths.cjs` first, which pins the `@facilis/*` specs to absolute paths and fails loudly if a `vendor/` tarball is missing (D-032 follow-up); bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` |
 | Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
 
 | Two tabs on one origin | each tab is its own kernel and dev server, so a pair costs ~0.7 GB of worker memory and the second tab boots +2.5-2.9 s (it restores the shared tree); both dev servers bind the same in-VM port, and the VFS mirror's index is per origin | preview traffic is routed per preview frame by the Service Worker, the index is merged per tab under a Web Lock, and the Studio claims each project so two tabs cannot open the same one — `pnpm ide:smoke:multitab` asserts it (D-033) |
@@ -341,16 +340,16 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 - **When:** rolldown releases weekly (1.2.13 Oct 7, 1.2.14 Oct 14, 1.2.15 Oct 21) → expect
   1.2.16 within days of the merge. Vite 8.3.5 depends on `rolldown ~1.2.14`, so **no Vite
   release is needed**: a fresh install picks up the fixed binding.
-- **Unblock checklist:** bump `rolldown` in the VM, revert `ide/src/vv/templates.ts` to
-  `"vite": "^8.0.0"`, run `pnpm ide:smoke` (it asserts the preview document is the project),
-  then delete this section and the note in `docs/DECISIONS.md` (D-021).
+- **Unblock checklist:** bump `rolldown` in the VM, update the Vite pin in
+  `ide/src/facilis/project-files.ts`, run `pnpm ide:smoke` (it asserts the preview document is
+  the project), then delete this section and the note in `docs/DECISIONS.md` (D-021).
 - **Verified interim patch (2026-10-25):** the generated project can pin the peer instead —
   `"overrides": { "@emnapi/core": "2.0.0-beta.2", "@emnapi/runtime": "2.0.0-beta.2" }` in the
   project's `package.json`. Tested in the VM: after `npm install` with that override,
   `vite 8.3.5` started (`ready in 803 ms`, port bound) and the preview painted. Pinning
   `@napi-rs/wasm-runtime` to `1.2.5` (which pairs with alpha.5) is the other way round.
-  Not shipped in the templates: it is 17 one-line additions to the pinned
-  `templates.ts` and upstream removes the need within days.
+  Not shipped in the Facilis template: it is a one-line addition to its pinned
+  `package.json` and upstream removes the need within days.
 
 ## 7. Troubleshooting
 
@@ -362,7 +361,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
 | `Failed to resolve import "@vivari/core"` | submodule not checked out | `git submodule update --init vendor/vivari` |
-| Studio shows the Vite error overlay (or logs `@babel/parser` errors) although the code typechecks | the running `vite dev` predates a `pnpm install` / new workspace dependency (e.g. `@facilis/core` for the IDE i18n), or caught a half-written file during HMR | restart the dev server (`Ctrl-C`, `pnpm ide:dev`) and reload the tab. Verify the live server end-to-end with `TEMPLATE=Facilis node scripts/dev/smoke-ide.mjs --url http://127.0.0.1:5173/` — it drives the real UI, not just the HTML |
+| Studio shows the Vite error overlay (or logs `@babel/parser` errors) although the code typechecks | the running `vite dev` predates a `pnpm install` / new workspace dependency (e.g. `@facilis/core` for the IDE i18n), or caught a half-written file during HMR | restart the dev server (`Ctrl-C`, `pnpm ide:dev`) and reload the tab. Verify the live server end-to-end with `node scripts/dev/smoke-ide.mjs --url http://127.0.0.1:5173/` — it drives the real UI, not just the HTML |
 | Port 5173 busy (`--strictPort`) | a previous dev server is still alive | `kill -TERM -- -<pgid>` (servers are started with `setsid`) |
 | A reload still loads the previous build, or `Reset everything` is followed by the same failure | a Service Worker is not part of the browser's “cached files”: it stays registered and keeps controlling the origin, and CacheStorage/OPFS are not cleared by a cache wipe either | Home → `Reset everything` now unregisters every Service Worker, deletes every CacheStorage entry and wipes the OPFS VFS + dependency cache before reloading (`ide/src/vv/origin-reset.ts`). By hand: DevTools → Application → Service Workers → Unregister, then Application → Storage → Clear site data (all boxes) |
 | `File URL host must be "localhost" or empty on posix` at PGlite boot | **Chromium's file-URL parser is platform-dependent**: on Windows anything that is not a drive spec and does not have exactly three slashes is parsed as UNC, so `new URL("file:" + path)` = `file:/home/…` gets `home` as the URL **host** (`file://home/…`) and PGlite's self-located `pglite.data` lands outside the tree (Chrome 156 Windows vs Linux both reproduced) | fixed in the pinned kernel: `e654919` recovers the path from a hostful `file:` URL in `fileURLToPath`/`Bun.fileURLToPath` (**kele23/vivari#2**, D-041) — bump the pin if you are on an older one; `@facilis/db` carries no shim |

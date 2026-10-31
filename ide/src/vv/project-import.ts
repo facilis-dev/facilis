@@ -17,7 +17,7 @@ import {
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
-import type { TemplateManifest } from "./templates";
+import type { ProjectManifest } from "./project-manifest";
 
 /** What the importers need from the controller. */
 export interface ProjectImportHost {
@@ -29,14 +29,14 @@ export interface ProjectImportHost {
   openFolder(rootPath: string): void;
   openFile(abs: string): void;
   registerProjectMeta(meta: { rootPath: string; template: string | null }): void;
-  registerManifest(rootPath: string, manifest: TemplateManifest): void;
+  registerManifest(rootPath: string, manifest: ProjectManifest): void;
   status(text: string): void;
 }
 
 /** Synthesize a run manifest for an imported/shared project from its
  *  package.json (so Run auto-installs + starts a dev server). Null when there
  *  is no runnable script — the project still opens; Run drops into a shell. */
-export function synthesizeManifest(files: FileTree, name: string): TemplateManifest | null {
+export function synthesizeManifest(files: FileTree, name: string): ProjectManifest | null {
   const pkgFile = files.find((f) => f.path === "package.json");
   if (!pkgFile) return null;
   let pkg: {
@@ -55,7 +55,6 @@ export function synthesizeManifest(files: FileTree, name: string): TemplateManif
   const dev = devKey === "start" ? "npm start" : `npm run ${devKey}`;
   const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
   const usesVite = "vite" in allDeps || /vite/.test(scripts[devKey] || "");
-  const hasTs = files.some((f) => /\.tsx?$/.test(f.path)) || "typescript" in allDeps;
   const entryCandidates = [
     "src/App.tsx",
     "src/App.jsx",
@@ -74,14 +73,8 @@ export function synthesizeManifest(files: FileTree, name: string): TemplateManif
     "package.json";
   return {
     id: "imported",
-    framework: "node",
-    icon: "package",
-    category: "Frontend",
     name,
-    language: hasTs ? "TypeScript" : "JavaScript",
-    description: "Imported project",
     port: usesVite ? 5173 : 3000,
-    openPath: "/",
     entry,
     hmr: usesVite,
     reload: !usesVite,

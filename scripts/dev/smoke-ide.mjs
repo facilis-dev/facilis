@@ -1,5 +1,5 @@
-// IDE smoke test: boot the Studio (Vivari kernel in the browser), create a project
-// from the built-in template picker, and wait for the preview to paint.
+// IDE smoke test: boot the Studio (Vivari kernel in the browser), create a Facilis
+// project from Home, and wait for the preview to paint.
 //
 // It drives the real UI through CDP (scripts/dev/cdp.mjs) — no npm dependency, no
 // mocking. Prerequisites (all reproducible, see docs/DEV.md):
@@ -8,7 +8,7 @@
 //   scripts/dev/fetch-browser.sh       -> $FACILIS_TOOLING_DIR/browser/{chrome,sysroot}
 //
 // Usage: node scripts/dev/smoke-ide.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
-// Exit code 0 = the Studio booted and the template project served a preview.
+// Exit code 0 = the Studio booted and the created project served a preview.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -28,10 +28,6 @@ const argValue = (name, fallback) => {
   return index === -1 ? fallback : process.argv[index + 1];
 };
 const URL_ = argValue("url", process.env.STUDIO_URL || "");
-const TEMPLATE = process.env.TEMPLATE || "React";
-// TEMPLATE=Facilis opts into the framework-endpoint probe checks (scripts/dev/smoke-facilis.mjs).
-const IS_FACILIS = TEMPLATE.trim() === "Facilis";
-const LANGUAGE = process.env.LANGUAGE || "TypeScript";
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 300000);
 const PORT = Number(process.env.SMOKE_PORT || 5199);
@@ -185,45 +181,19 @@ async function main() {
   await page.screenshot(path.join(ARTIFACTS, "01-home.png"));
   check((await page.evaluate("document.body.innerText.length")) > 0, "home rendered text");
 
-  check((await clickText("Start from template")) === "OK", "template picker opens");
-  // The picker renders only the ACTIVE category tab's cards. The Facilis template is a
-  // fullstack app, so select that tab before looking for its card; the React baseline
-  // lives on the default Frontend tab and needs no switch.
-  if (IS_FACILIS) {
-    const fullstackTab =
-      "(() => [...document.querySelectorAll('button,[role=tab]')].find((el) => " +
-      "(el.innerText || '').trim() === 'Fullstack'))()";
-    check(await waitFor("Boolean(" + fullstackTab + ")", 15000), "fullstack category tab listed");
-    const tabPicked = await page.evaluate(
-      "(() => { const el = " +
-        fullstackTab +
-        "; if (!el) return 'NOTFOUND'; el.click(); return 'OK'; })()",
-    );
-    check(tabPicked === "OK", "fullstack category tab selected");
-    await sleep(400);
-  }
-  // The picker grid comes from a lazy chunk (ide/src/vv/templates-lazy.ts): on a cold
-  // Vite dev server the 11k-line templates module is still being transformed when the
-  // dialog opens, so poll the UI instead of sleeping a fixed amount.
-  const templateCard =
-    "(() => [...document.querySelectorAll('button')].find((b) => { const s = b.innerText || '';" +
-    "return s.includes(" +
-    JSON.stringify(TEMPLATE) +
-    ") && s.includes(" +
-    JSON.stringify(LANGUAGE) +
-    "); }))()";
-  check(
-    await waitFor("Boolean(" + templateCard + ")", 30000),
-    "template " + TEMPLATE + "/" + LANGUAGE + " listed",
-  );
-  const picked = await page.evaluate(
-    "(() => { const card = " +
-      templateCard +
-      "; if (!card) return 'NOTFOUND'; card.click(); return 'OK'; })()",
-  );
-  check(picked === "OK", "template " + TEMPLATE + "/" + LANGUAGE + " selectable");
-  await sleep(600);
+  // The IDE creates Facilis projects only (D-051): one dialog, no template picker and no
+  // category tabs. Fill the name and create.
+  check((await clickText("New project")) === "OK", "new-project dialog opens");
+  await sleep(400);
   await page.screenshot(path.join(ARTIFACTS, "02-create-dialog.png"));
+  const named = await page.evaluate(
+    "(() => { const input = document.querySelector('input[placeholder=my-app]');" +
+      " if (!input) return 'NOTFOUND';" +
+      " const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;" +
+      " set.call(input, 'facilis-smoke');" +
+      " input.dispatchEvent(new Event('input', { bubbles: true })); return 'OK'; })()",
+  );
+  check(named === "OK", "project name filled");
   const createReady = await waitFor(
     "Boolean([...document.querySelectorAll('button')].find((b) => (b.innerText || '').trim() === 'Create' && !b.disabled))",
     15000,
@@ -232,9 +202,8 @@ async function main() {
   let created = false;
   if (createReady) {
     // `install-start` is marked the moment the run lifecycle begins, so it doubles as
-    // "the Create handler actually fired". On a cold dev server the submit can land a
-    // frame before React commits the picker's selection; retrying the click is cheaper
-    // than a 5-minute preview timeout that looks like a product bug.
+    // "the Create handler actually fired"; retrying the click is cheaper than a
+    // 5-minute preview timeout that looks like a product bug.
     for (let attempt = 0; attempt < 2 && !created; attempt++) {
       await clickText("Create", true);
       created = await waitForMark("install-start", 15000);
@@ -276,44 +245,43 @@ async function main() {
   check(!/Vivari Studio/.test(previewBody), "preview is the project, not the studio shell");
   check(previewBody.length > 0, "preview document has text", previewBody.slice(0, 80));
 
-  if (IS_FACILIS) {
-    // The Facilis probe exposes its endpoint results as data-* attributes on its own
-    // document; smoke-facilis.mjs owns the contract, polling and failure diagnostics.
-    try {
-      facilisReport = await runFacilisChecks({ page, check, ARTIFACTS });
-      for (const result of facilisReport.checks) {
-        if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
-      }
-    } catch (error) {
-      check(false, "facilis checks ran", String(error));
+  // The IDE creates only Facilis projects now, so the framework probes always run.
+  // The Facilis probe exposes its endpoint results as data-* attributes on its own
+  // document; smoke-facilis.mjs owns the contract, polling and failure diagnostics.
+  try {
+    facilisReport = await runFacilisChecks({ page, check, ARTIFACTS });
+    for (const result of facilisReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
     }
-    // IntelliSense is an acceptance criterion of its own (the IDE's TypeScript service
-    // must resolve the template's imports, i.e. installed @types/*.d.ts reach Monaco).
-    // Runs before the write checks, which edit App.tsx and would make this ambiguous.
-    try {
-      intellisenseReport = await runIntellisenseChecks({ page, check });
-      for (const result of intellisenseReport.checks) {
-        if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
-      }
-    } catch (error) {
-      check(false, "intellisense checks ran", String(error));
+  } catch (error) {
+    check(false, "facilis checks ran", String(error));
+  }
+  // IntelliSense is an acceptance criterion of its own (the IDE's TypeScript service
+  // must resolve the template's imports, i.e. installed @types/*.d.ts reach Monaco).
+  // Runs before the write checks, which edit App.tsx and would make this ambiguous.
+  try {
+    intellisenseReport = await runIntellisenseChecks({ page, check });
+    for (const result of intellisenseReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
     }
-    // A8/A10/A12 (spec Appendix A): the VFS write path, isomorphic-git on the VFS and the
-    // OPFS-mirror reboot. Runs after the framework probe because it edits the template's
-    // App.tsx + ping route, which the probe has already asserted.
-    try {
-      writeReport = await runWriteChecks({ page, check, ARTIFACTS });
-      for (const result of writeReport.checks) {
-        if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
-      }
-      // Checks the kernel cannot satisfy yet (read-only upstream tree): printed and put in
-      // report.json, deliberately not failures. See docs/DECISIONS.md D-028.
-      for (const issue of writeReport.knownIssues) {
-        console.log("KNOWN " + issue.label + "  " + issue.detail);
-      }
-    } catch (error) {
-      check(false, "write checks ran", String(error));
+  } catch (error) {
+    check(false, "intellisense checks ran", String(error));
+  }
+  // A8/A10/A12 (spec Appendix A): the VFS write path, isomorphic-git on the VFS and the
+  // OPFS-mirror reboot. Runs after the framework probe because it edits the template's
+  // App.tsx + ping route, which the probe has already asserted.
+  try {
+    writeReport = await runWriteChecks({ page, check, ARTIFACTS });
+    for (const result of writeReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
     }
+    // Checks the kernel cannot satisfy yet (read-only upstream tree): printed and put in
+    // report.json, deliberately not failures. See docs/DECISIONS.md D-028.
+    for (const issue of writeReport.knownIssues) {
+      console.log("KNOWN " + issue.label + "  " + issue.detail);
+    }
+  } catch (error) {
+    check(false, "write checks ran", String(error));
   }
 
   // AI chat (D-045/D-046): real UI, dev-only mock provider, no key and no network.
@@ -364,7 +332,7 @@ async function main() {
   // path keeps reporting page.failedRequests, minus one browser behaviour below.
   const EXPECTED_FACILIS_401 = /^401 .*\/api\/todos(?:[?#]|$)/;
   // Browsers request /favicon.ico opportunistically for a document that declares no icon.
-  // The React template's index.html declares none, and the preview document lives on the
+  // The generated app's index.html declares none, and the preview document lives on the
   // studio origin, so the miss lands on the studio root: a guest app without an icon
   // always 404s it. Noise, not a broken asset — and in production the build's index.html
   // declares /favicon.svg, so the fallback is not needed there either.
@@ -379,9 +347,65 @@ async function main() {
     unexpectedRequests.slice(0, 3).join(" | "),
   );
 
+  // D-050: deleting a project from Home removes its files, behind a typed confirmation.
+  // Runs last because it closes the project under test and deletes it.
+  const projectRoot = await page.evaluate(
+    "window.__ide.getSnapshot().workspaceFolders[0]?.rootPath ?? null",
+  );
+  if (projectRoot) {
+    const name = projectRoot.split("/").pop();
+    await page.evaluate("window.__ide.goHome()");
+    // The row has two icon buttons that carry the project name (open-in-new-tab and
+    // delete); target the delete one by its stable title, not by the name in the label.
+    const deleteButton =
+      "([...document.querySelectorAll('button')].find((el) => (el.getAttribute('title') || '') === 'Delete project'))";
+    const rowReady = await waitFor("Boolean(" + deleteButton + ")", 15000);
+    check(rowReady, "delete: Home lists the project");
+    if (rowReady) {
+      check(
+        (await page.evaluate(
+          "(() => { const b = " +
+            deleteButton +
+            "; if (!b) return 'NOTFOUND'; b.click(); return 'OK'; })()",
+        )) === "OK",
+        "delete: dialog opened from the row",
+      );
+      const dialogReady = await waitFor("Boolean(document.querySelector('input'))", 15000);
+      check(dialogReady, "delete: confirmation dialog opens");
+      if (dialogReady) {
+        const typed = await page.evaluate(
+          "(() => { const input = document.querySelector('input');" +
+            " if (!input) return 'NOTFOUND';" +
+            " const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;" +
+            " set.call(input, " +
+            JSON.stringify(name) +
+            "); input.dispatchEvent(new Event('input', { bubbles: true })); return 'OK'; })()",
+        );
+        check(typed === "OK", "delete: project name typed");
+        const confirmed = await page.evaluate(
+          "(() => { const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').trim() === 'Delete project' && !el.disabled);" +
+            " if (!b) return 'NOTFOUND'; b.click(); return 'OK'; })()",
+        );
+        check(confirmed === "OK", "delete: confirm enabled after typing the name");
+        const removedFiles = await waitFor(
+          "window.__ide.pathInfo(" + JSON.stringify(projectRoot) + ").then((p) => !p.exists)",
+          30000,
+        );
+        check(removedFiles, "delete: project files removed from the VFS");
+        const removedEntry = await waitFor(
+          "window.__ide.getSnapshot().recentProjects.every((p) => p.rootPath !== " +
+            JSON.stringify(projectRoot) +
+            ")",
+          15000,
+        );
+        check(removedEntry, "delete: project removed from the recent list");
+      }
+    }
+  }
+
   const report = {
     url: dev.url,
-    template: TEMPLATE + "/" + LANGUAGE,
+    template: "facilis",
     marks: await marks(),
     durationsMs: { total: Date.now() - startedAt },
     consoleErrors: errorConsole,

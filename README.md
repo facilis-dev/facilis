@@ -132,7 +132,7 @@ reference the generator will reproduce.
 
 **Phase 1 implemented and verified headlessly, and the browser harness now exists: the
 Facilis framework boots inside the IDE's WebContainer (2026-10-28 spike — `pnpm ide:smoke`
-with `TEMPLATE=Facilis` is green end to end: `facilis()` mounts Nitro + PGlite +
+is green end to end: `facilis()` mounts Nitro + PGlite +
 `/__facilis/*` on one origin, zero manifest warnings). Generated projects install with
 **npm** (D-032) from IDE-served `file:` tarballs, ship **one config** — `facilis.config.ts`,
 whose optional `nitro` section is read by `facilis()` — and their `vite.config.ts` is just
@@ -148,7 +148,7 @@ What exists today, runnable in this repo:
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
-| Facilis probe template in the IDE | `ide/src/facilis/` | `TEMPLATE=Facilis pnpm ide:smoke`: green — preview paints a real Facilis app, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves the template's imports (no TS2307) |
+| Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
 
 The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
 `facilis()` plugin mounts Nitro, owns an AST pass over `server/routes`, and answers
