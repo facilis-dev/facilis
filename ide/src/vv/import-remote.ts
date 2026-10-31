@@ -11,7 +11,7 @@
 
 import { gunzip } from "../../../vendor/vivari/packages/kernel-host/archive.js";
 import { parseTar, stripFirstSegment } from "../../../vendor/vivari/packages/kernel-host/tar.js";
-import type { FileTree, ImportTree } from "./controller";
+import type { FileTree, ImportTree } from "./file-tree";
 
 export type RemoteTree = ImportTree & { truncated?: boolean };
 export type ProgressFn = (done: number, total: number, phase: string) => void;
