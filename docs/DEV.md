@@ -354,6 +354,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
 | `Failed to resolve import "@vivari/core"` | submodule not checked out | `git submodule update --init vendor/vivari` |
 | Port 5173 busy (`--strictPort`) | a previous dev server is still alive | `kill -TERM -- -<pgid>` (servers are started with `setsid`) |
+| A reload still loads the previous build, or `Reset everything` is followed by the same failure | a Service Worker is not part of the browser's “cached files”: it stays registered and keeps controlling the origin, and CacheStorage/OPFS are not cleared by a cache wipe either | Home → `Reset everything` now unregisters every Service Worker, deletes every CacheStorage entry and wipes the OPFS VFS + dependency cache before reloading (`ide/src/vv/origin-reset.ts`). By hand: DevTools → Application → Service Workers → Unregister, then Application → Storage → Clear site data (all boxes) |
 
 ## 8. Cleaning up
 

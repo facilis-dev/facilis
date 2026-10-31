@@ -16,7 +16,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { toast } from "sonner";
 import type * as Monaco from "monaco-editor";
-import { KernelBridge, resetVfs } from "./kernel";
+import { KernelBridge } from "./kernel";
+import { resetOriginState } from "./origin-reset";
 import { DebugSession } from "./debug-session";
 import { ScmSession } from "./scm-session";
 import { EditorStatus } from "./editor-status";
@@ -3814,10 +3815,10 @@ export class IdeController {
   closePalette() {
     this.set({ paletteOpen: false });
   }
-  // Force a clean slate: wipe the OPFS-mirrored VFS + the dependency cache, then
-  // reload. The FS worker holds OPFS sync-access handles, so we tear the worker
-  // down FIRST (releasing them) — otherwise removeEntry() on `vv-vfs` can throw
-  // NoModificationAllowedError. Best-effort throughout; we reload regardless.
+  // Force a clean slate, then reload: VFS mirror + dependency cache, Service Worker
+  // registrations and CacheStorage (resetOriginState — "clear cached files" leaves the
+  // worker registered). The FS worker holds OPFS sync-access handles, so we tear the
+  // worker down FIRST (releasing them) — removeEntry() would otherwise throw.
   async resetEverything() {
     try {
       this.bridge.destroy();
@@ -3833,7 +3834,7 @@ export class IdeController {
       /* storage disabled — nothing to clear */
     }
     try {
-      await resetVfs();
+      await resetOriginState();
     } catch {
       /* OPFS unavailable / nothing persisted — reload into a fresh session anyway */
     }
