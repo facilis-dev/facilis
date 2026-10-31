@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIde } from "./useIde";
+import { t } from "@/i18n";
 
 type Source = "github" | "npm";
 
@@ -40,13 +41,13 @@ export function ImportRemoteDialog() {
   const canSubmit = !!value.trim() && !busy && snap.kernelReady;
 
   const onProgress = (done: number, total: number, phase: string) => {
-    setProgress(total > 0 ? `${phase} (${done}/${total})` : phase);
+    setProgress(total > 0 ? t("import.progress", { phase, done, total }) : phase);
   };
 
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
-    setProgress("Starting…");
+    setProgress(t("import.starting"));
     try {
       const ok =
         tab === "github"
@@ -69,58 +70,55 @@ export function ImportRemoteDialog() {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Import from GitHub or npm</DialogTitle>
-          <DialogDescription>
-            Fetch a public repo or an npm package as a new project. Downloaded in your browser — no
-            server involved.
-          </DialogDescription>
+          <DialogTitle>{t("import.title")}</DialogTitle>
+          <DialogDescription>{t("import.description")}</DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Source)}>
           <TabsList variant="line">
             <TabsTrigger value="github">
-              <Github className="size-4" /> GitHub
+              <Github className="size-4" /> {t("import.github")}
             </TabsTrigger>
             <TabsTrigger value="npm">
-              <Package className="size-4" /> npm
+              <Package className="size-4" /> {t("import.npm")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="github" className="mt-3">
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Repository</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("import.repository")}
+              </span>
               <Input
                 autoFocus
                 value={gh}
                 onChange={(e) => setGh(e.target.value)}
-                placeholder="owner/repo, owner/repo@branch, or a github.com URL"
+                placeholder={t("import.githubPlaceholder")}
                 disabled={busy}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void submit();
                 }}
               />
-              <span className="text-xs text-muted-foreground">
-                Public repositories only. Default branch unless a ref is given.
-              </span>
+              <span className="text-xs text-muted-foreground">{t("import.githubHint")}</span>
             </label>
           </TabsContent>
 
           <TabsContent value="npm" className="mt-3">
             <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Package</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("import.package")}
+              </span>
               <Input
                 autoFocus
                 value={npm}
                 onChange={(e) => setNpm(e.target.value)}
-                placeholder="left-pad, react@18, or @scope/pkg@1.2.3"
+                placeholder={t("import.npmPlaceholder")}
                 disabled={busy}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void submit();
                 }}
               />
-              <span className="text-xs text-muted-foreground">
-                Unpacks the published tarball (the package contents, not its deps).
-              </span>
+              <span className="text-xs text-muted-foreground">{t("import.npmHint")}</span>
             </label>
           </TabsContent>
         </Tabs>
@@ -134,10 +132,10 @@ export function ImportRemoteDialog() {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => c.closeImportRemote()} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={() => void submit()} disabled={!canSubmit}>
-            {busy && <Loader className="size-4 animate-spin" />} Import
+            {busy && <Loader className="size-4 animate-spin" />} {t("import.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

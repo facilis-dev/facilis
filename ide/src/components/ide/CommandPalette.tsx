@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
+import Sun from "~icons/lucide/sun";
+import Moon from "~icons/lucide/moon";
+import Monitor from "~icons/lucide/monitor";
 import Plus from "~icons/lucide/plus";
 import Play from "~icons/lucide/play";
 import Home from "~icons/lucide/house";
@@ -25,6 +29,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useIde } from "./useIde";
+import { t } from "@/i18n";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
 
@@ -38,6 +43,7 @@ function parseQuery(raw: string): { path: string; line: number | null; col: numb
 
 export function CommandPalette() {
   const { c, snap } = useIde();
+  const { setTheme } = useTheme();
   const [raw, setRaw] = useState("");
 
   // Reset the typed text whenever the palette (re)opens.
@@ -51,26 +57,36 @@ export function CommandPalette() {
     { label: string; icon: React.ComponentType; keys?: string; run: () => void }[]
   >(
     () => [
-      { label: "Go Home / New Project", icon: Home, run: () => c.goHome() },
-      { label: "New Terminal", icon: Plus, keys: "⇧⌘C", run: () => c.terminals.newShellTerminal() },
-      { label: "Run Project", icon: Play, run: () => c.runActiveFolder() },
+      { label: t("palette.home"), icon: Home, run: () => c.goHome() },
       {
-        label: "Import Folder as Project",
+        label: t("palette.newTerminal"),
+        icon: Plus,
+        keys: "⇧⌘C",
+        run: () => c.terminals.newShellTerminal(),
+      },
+      { label: t("palette.runProject"), icon: Play, run: () => c.runActiveFolder() },
+      {
+        label: t("palette.importFolder"),
         icon: FolderInput,
         run: () => c.importFolderViaPicker(),
       },
-      { label: "Import from GitHub or npm", icon: Github, run: () => c.openImportRemote() },
-      { label: "Export Project as Zip", icon: FileArchive, run: () => c.exportActiveFolder() },
-      { label: "Share Project (copy link)", icon: Share2, run: () => c.shareActiveFolder() },
+      { label: t("palette.importRemote"), icon: Github, run: () => c.openImportRemote() },
+      { label: t("palette.exportZip"), icon: FileArchive, run: () => c.exportActiveFolder() },
+      { label: t("palette.shareProject"), icon: Share2, run: () => c.shareActiveFolder() },
       {
-        label: "Toggle Terminal Panel",
+        label: t("palette.toggleTerminal"),
         icon: TerminalIcon,
         keys: "⌘J",
         run: () => c.togglePanel(),
       },
-      { label: "Toggle Sidebar", icon: PanelLeft, keys: "⌘B", run: () => c.toggleSidebar() },
       {
-        label: "Toggle Preview Panel",
+        label: t("palette.toggleSidebar"),
+        icon: PanelLeft,
+        keys: "⌘B",
+        run: () => c.toggleSidebar(),
+      },
+      {
+        label: t("palette.togglePreview"),
         icon: PanelRight,
         keys: "⌥⌘B",
         run: () => c.togglePreview(),
@@ -78,28 +94,31 @@ export function CommandPalette() {
       // ⌥Z is the macOS spelling of the one binding; on Windows and Linux the same
       // chord reads Alt+Z. Every other entry here writes the macOS form too, so this
       // stays consistent rather than growing a platform switch for one row.
-      { label: "Toggle Word Wrap", icon: WrapText, keys: "⌥Z", run: () => c.toggleWordWrap() },
       {
-        label: "Clear Active Terminal",
+        label: t("palette.toggleWordWrap"),
+        icon: WrapText,
+        keys: "⌥Z",
+        run: () => c.toggleWordWrap(),
+      },
+      {
+        label: t("palette.clearTerminal"),
         icon: Eraser,
         run: () => c.clearActiveTerminal(),
       },
-      { label: "Reload Preview", icon: RefreshCw, run: () => c.preview.reloadPreview() },
-      { label: "Measure Memory", icon: Gauge, run: () => void c.measureMemory() },
+      { label: t("palette.reloadPreview"), icon: RefreshCw, run: () => c.preview.reloadPreview() },
+      { label: t("palette.measureMemory"), icon: Gauge, run: () => void c.measureMemory() },
+      { label: t("theme.light"), icon: Sun, run: () => setTheme("light") },
+      { label: t("theme.dark"), icon: Moon, run: () => setTheme("dark") },
+      { label: t("theme.system"), icon: Monitor, run: () => setTheme("system") },
       {
-        label: "Reset Everything (wipe files + caches)",
+        label: t("palette.resetEverything"),
         icon: RotateCcw,
         run: () => {
-          if (
-            confirm(
-              "Reset everything? This permanently deletes all saved files and cached dependencies, then reloads.",
-            )
-          )
-            void c.resetEverything();
+          if (confirm(t("palette.resetConfirm"))) void c.resetEverything();
         },
       },
     ],
-    [c],
+    [c, setTheme],
   );
 
   const isFile = snap.paletteMode === "file";
@@ -129,12 +148,12 @@ export function CommandPalette() {
         <CommandInput
           value={raw}
           onValueChange={setRaw}
-          placeholder={isFile ? "Search files by name (append :line to jump)…" : "Type a command…"}
+          placeholder={isFile ? t("palette.filePlaceholder") : t("palette.commandPlaceholder")}
         />
         <CommandList>
-          <CommandEmpty>No results.</CommandEmpty>
+          <CommandEmpty>{t("palette.noResults")}</CommandEmpty>
           {!isFile ? (
-            <CommandGroup heading="Commands">
+            <CommandGroup heading={t("palette.commands")}>
               {commands.map((cmd) => (
                 <CommandItem key={cmd.label} value={cmd.label} onSelect={() => run(cmd.run)}>
                   <cmd.icon /> {cmd.label}
@@ -147,19 +166,21 @@ export function CommandPalette() {
           ) : (
             <>
               {line != null && path.trim() === "" && snap.activeTab && (
-                <CommandGroup heading="Current File">
+                <CommandGroup heading={t("palette.currentFile")}>
                   <CommandItem
                     value="__goto_line__"
                     onSelect={() => run(() => c.openFileAt(snap.activeTab as string, line, col))}
                   >
-                    <FileCode /> <span>Go to line {line}</span>
+                    <FileCode /> <span>{t("palette.goToLine", { line })}</span>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {baseName(snap.activeTab)}
                     </span>
                   </CommandItem>
                 </CommandGroup>
               )}
-              <CommandGroup heading={line != null ? `Files · line ${line}` : "Files"}>
+              <CommandGroup
+                heading={line != null ? t("palette.filesLine", { line }) : t("palette.files")}
+              >
                 {files.map((rel) => (
                   <CommandItem key={rel} value={rel} onSelect={() => openFileFromPalette(rel)}>
                     <FileCode /> <span>{baseName(rel)}</span>
