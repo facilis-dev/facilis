@@ -59,7 +59,7 @@ exception described below. Gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `p
 `pnpm format:check` from the repo root; per-package `pnpm --filter @facilis/ide <script>`.
 
 **300-line ratchet:** fourteen files inherited from upstream are above the limit
-(`templates.ts` 11.4k lines of template payloads, `controller.ts` 2.7k and falling, ten
+(`templates.ts` 11.4k lines of template payloads, `controller.ts` 2.5k and falling, ten
 components, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
 at their import size; the check is a ratchet — a listed file may shrink but not grow, entries
 must be deleted once a file drops under 300 lines, and no new file may be added. Splitting them

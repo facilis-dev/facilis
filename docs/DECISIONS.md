@@ -281,7 +281,7 @@ Splitting them (starting with `controller.ts`) is Phase 2 refactor work.
 the complete delta vs upstream so an upstream bump stays a mechanical diff.
 
 **Update (2026-10-31):** the Phase 2 split is under way (D-042). `controller.ts` is down from
-4,294 to 2,719 lines, its baseline entry is lowered at every step, and the extracted modules are
+4,294 to 2,518 lines, its baseline entry is lowered at every step, and the extracted modules are
 all under the 300-line limit.
 
 ### D-020 — Project site and canonical domain: facilis.dev
@@ -1213,12 +1213,13 @@ tested without a browser moves to a helper module with a vitest file (`preview-u
 ratchet entry is lowered in the same commit. Done so far: language/path helpers,
 `memory-probe.ts`, `file-tree.ts`, `search-session.ts`, `preview-session.ts` +
 `preview-devtools.ts`, `terminal-session.ts` + `terminal-theme.ts`, `project-export.ts` +
-`project-import.ts` (with `synthesizeManifest` unit-tested), and the editor language layer
-(`editor-language.ts`, `editor-deps.ts`, `editor-python.ts`). Still to extract: the editor
-mount/model/tab layer, the project open/run lifecycle and Explorer file operations.
+`project-import.ts` (with `synthesizeManifest` unit-tested), the editor language layer
+(`editor-language.ts`, `editor-deps.ts`, `editor-python.ts`) and the editor session
+(`editor-session.ts`: Monaco mount, status readouts, actions). Still to extract: the editor
+model/tab layer, the project open/run lifecycle and Explorer file operations.
 
 **Consequences:** a new panel calls a session (`c.preview.addPreviewTab()`) instead of growing the
-controller, and the baseline entry keeps ratcheting down (4,294 → 2,719 lines so far). The split
+controller, and the baseline entry keeps ratcheting down (4,294 → 2,518 lines so far). The split
 is not a behaviour change: it is guarded by the same smoke suite (`pnpm ide:smoke`, the React
 template and multitab) plus `preview-url.test.ts` for the pure preview helpers.
 
