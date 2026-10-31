@@ -33,7 +33,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   "recent.daysAgo": "{n} g fa",
   "recent.openInNewTab": "Apri in una nuova scheda",
   "recent.openInNewTabAria": "Apri {name} in una nuova scheda",
-  "recent.removeFromList": "Rimuovi dalla lista",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Avvio del runtime",
@@ -52,6 +51,17 @@ export const it: Partial<Record<MessageKey, string>> = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "Il progetto di questa scheda non è più nella lista dei recenti.",
   "project.openElsewhere": "{name} è già aperto in un'altra scheda — chiudilo lì prima.",
+  "project.deleted": "Eliminato {name}",
+  "project.deleteFailed": "Impossibile eliminare {name}: {error}",
+  "delete.action": "Elimina progetto",
+  "delete.actionAria": "Elimina {name}",
+  "delete.title": "Eliminare {name}?",
+  "delete.body":
+    "Elimina definitivamente il progetto e tutti i suoi file da questo browser. Non è possibile annullare.",
+  "delete.confirmLabel": "Digita il nome del progetto per confermare",
+  "delete.placeholder": "{name}",
+  "delete.confirm": "Elimina progetto",
+  "delete.deleting": "Eliminazione…",
 
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Importa da GitHub o npm",

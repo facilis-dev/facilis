@@ -13,6 +13,7 @@
 // ABSOLUTE path so files from different roots never collide.
 
 import { toast } from "sonner";
+import { t } from "@/i18n";
 import type * as Monaco from "monaco-editor";
 import { KernelBridge } from "./kernel";
 import { resetOriginState } from "./origin-reset";
@@ -24,6 +25,7 @@ import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./p
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
 import { bootTargetFrom } from "./boot-target";
+import { claimProject } from "./project-lock";
 import { withTemplateAssets } from "../facilis/project-assets";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -752,6 +754,60 @@ export class IdeController {
   }
   removeProjectMeta(rootPath: string) {
     this.commitRegistry({ remove: [rootPath] });
+  }
+
+  /**
+   * Delete a project from this origin: its files from the VFS (and therefore the OPFS
+   * mirror) and its entry in the recent list.
+   *
+   * A project's subtree is normally still deferred in the mirror (D-036), so a bare
+   * `vv-rm` would find nothing in this tab's VFS and leave the files on OPFS — which is
+   * exactly why the old "remove from list" button looked like a delete that did not
+   * delete. Hydrating first makes the recursive rm see the tree, and every unlink/rmdir
+   * then reaches the mirror (fs-server calls persistence.onDelete).
+   *
+   * A project another live tab has claimed is refused: that tab holds the tree in RAM and
+   * its write-behind mirror would recreate what we just deleted. The claim is the same Web
+   * Lock the tab bootstrap uses; an open folder in THIS tab is already ours.
+   */
+  async deleteProject(rootPath: string): Promise<boolean> {
+    const root = normDir(rootPath);
+    const name = projectName(root);
+    const open = this.snap.workspaceFolders.find((f) => f.rootPath === root);
+    const claim = open ? null : await claimProject(root);
+    if (!open && !claim) {
+      toast.error(t("project.openElsewhere", { name }));
+      return false;
+    }
+    try {
+      // Close the project (and stop its dev server) before its directory disappears, so
+      // no editor model or write-behind flush can race the delete.
+      if (open) this.closeFolder(open.id);
+      const running = this.runningProjects.get(root);
+      if (running?.terminalId && this.terminals.has(running.terminalId)) {
+        this.terminals.closeTerminal(running.terminalId);
+      }
+      this.runningProjects.delete(root);
+      const onDisk = await ensureProjectOnDisk(
+        this.bridge,
+        root,
+        (p) => this.pathInfo(p),
+        (line) => this.status(line),
+      );
+      if (onDisk) {
+        const res = await this.bridge.request("vv-rm", { path: root });
+        if (!res.ok) throw new Error(String(res.error ?? "unknown error"));
+      }
+      this.folderManifests.delete(root);
+      this.removeProjectMeta(root);
+      this.status(t("project.deleted", { name }));
+      return true;
+    } catch (err) {
+      toast.error(t("project.deleteFailed", { name, error: errText(err) }));
+      return false;
+    } finally {
+      claim?.release();
+    }
   }
 
   // ── console output ────────────────────────────────────────────────────────

@@ -38,7 +38,6 @@ export const en = {
   "recent.daysAgo": "{n}d ago",
   "recent.openInNewTab": "Open in a new tab",
   "recent.openInNewTabAria": "Open {name} in a new tab",
-  "recent.removeFromList": "Remove from list",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Starting runtime",
@@ -57,6 +56,17 @@ export const en = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "This tab's project is not in the recent-projects list any more.",
   "project.openElsewhere": "{name} is already open in another tab — close it there first.",
+  "project.deleted": "Deleted {name}",
+  "project.deleteFailed": "Couldn't delete {name}: {error}",
+  "delete.action": "Delete project",
+  "delete.actionAria": "Delete {name}",
+  "delete.title": "Delete {name}?",
+  "delete.body":
+    "This permanently deletes the project and all its files from this browser. It cannot be undone.",
+  "delete.confirmLabel": "Type the project name to confirm",
+  "delete.placeholder": "{name}",
+  "delete.confirm": "Delete project",
+  "delete.deleting": "Deleting…",
 
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Import from GitHub or npm",

@@ -10,3 +10,14 @@ export function projectName(rootPath: string): string {
   const base = path.slice(path.lastIndexOf("/") + 1);
   return base || "/";
 }
+
+/**
+ * Whether a typed confirmation names this project exactly.
+ *
+ * Deleting a project destroys its files for good, so the dialog asks for the project's
+ * name rather than a click-through. Trimmed, because trailing whitespace from a paste is
+ * not a second thought; otherwise exact — a near miss must not delete the wrong folder.
+ */
+export function confirmsProjectName(rootPath: string, typed: string): boolean {
+  return typed.trim() === projectName(rootPath);
+}
