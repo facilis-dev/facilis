@@ -72,6 +72,30 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-10-31, pin `e654919` / `facilis/main` = upstream v1.2.0 + 19 fork commits)
+
+The pin carries the hostful-`file:` recovery (fork issue
+[#2](https://github.com/kele23/vivari/issues/2), D-041 in the superproject): if a browser
+promotes the first path segment of `"file:" + absolutePath` to the URL **host** — Chromium
+does on Windows, `url/url_parse_file.cc` treats it as a UNC path (`file:/home/…` becomes
+`file://home/…`) — `fileURLToPath` (and `Bun.fileURLToPath`, and `Bun.file(URL)` through
+the same rule) now returns the absolute path the URL meant instead of throwing
+`ERR_INVALID_FILE_URL_HOST`. Three-slash URLs, `localhost` and the non-file-scheme error are
+unchanged; a real UNC URL maps to `/server/share` rather than throwing, the one deliberate
+deviation from Node, recorded in the fork's `FORK.md`. It has no branch yet and waits for the
+re-opened upstream `fix/file-url-host-v2` PR. Downstream, this is what let `@facilis/db` go
+back to the plain PGlite constructor: the artifact hand-off and the one-boot
+`fileURLToPath` shim are gone, and the database locates its own `.data`/`.wasm` again.
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `e654919…` (`v1.1.5-23-ge654919`) |
+| `node vendor/vivari/scripts/spike-esm.mjs` | PASS, including the `[url]` section: a Chrome/Windows-style hostful URL comes back as `/home/user/projects/app/x.js` (spaces/unicode too), `file:/home` comes back as `/home`, a three-slash URL and `localhost` are unchanged, a non-file scheme still throws |
+| `pnpm --filter @facilis/db test` | 30/30 (the three shim tests went with the shim) |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **PASSED**, `failures: []`: create, install, preview, the framework contract (health, manifest 0 warnings, OpenAPI `x-db-tables`, todos 401, session), IntelliSense, A8/A9/A10/A12, and **`facilisDbInsert`/`facilisDbQuery` = ok with the plain PGlite constructor** — i.e. the database booted through the runtime's recovery, not through a workaround |
+| `pnpm ide:smoke` (React template) | **PASSED** (create, install, preview, contract, IntelliSense, A8/A9/A10/A12) |
+| `pnpm lint && pnpm typecheck --force && pnpm test --concurrency=1 && pnpm build` + `pnpm format:check` + `node scripts/check-file-length.mjs` | green: 0 lint errors / 109 warnings, 13/13 typecheck, 12/12 test, 8/8 build, Prettier clean, 241 files under the 300-line limit |
+
 ## Verification (2026-10-31, pin `97d90ab` / `facilis/main` = upstream v1.2.0 + 15 fork commits)
 
 The pin moves the base from `v1.1.5` to the `v1.2.0` tag (`9c87dec`): upstream's

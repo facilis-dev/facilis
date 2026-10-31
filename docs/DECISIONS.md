@@ -1086,6 +1086,12 @@ longer be produced. The CJS load stays: the in-VM database rule has a second, in
 "only the ENTRY module can block on top-level await in-VM", so an ESM import of a TLA-bearing
 dependency from a non-entry module can hang.
 
+**Update (2026-10-31, pin `e654919`):** a hostful `file:` URL is no longer fatal either: the
+runtime's `fileURLToPath` (and `Bun.fileURLToPath`) now converts `file://home/…` back to
+`/home/…` instead of throwing, because a browser can promote the first path segment of
+`"file:" + path` to the host (Chromium on Windows) — see D-041. The CJS load stays, for the two
+reasons above.
+
 **Consequences:** the database no longer depends on a well-formed `import.meta.url` in the
 server bundle, so a rewritten or relative module id cannot take it down; the ESM build stays
 unused. Acceptance: `pnpm test` (db), the root gates, and `TEMPLATE=Facilis pnpm ide:smoke` with
@@ -1128,8 +1134,8 @@ not change. Acceptance: `pnpm test` (db/auth/core/nitro), `pnpm typecheck`, and
 `TEMPLATE=Facilis pnpm ide:smoke` with the insert no longer naming the tenant.
 
 ---
-### D-041 — PGlite is handed its artifacts instead of looking them up through a `file:` URL
-**Status:** accepted (2026-10-31)
+### D-041 — A hostful `file:` URL is recovered in the engine's `fileURLToPath`, not worked around downstream
+**Status:** resolved (2026-10-31) — fixed by the pin `e654919`
 
 `TEMPLATE=Facilis` was green everywhere except one reporter's browser, where every project's
 database died at dev-server boot:
@@ -1149,19 +1155,14 @@ drive spec and does not have exactly three slashes is parsed as a UNC path, so t
 segment becomes the **host**), so on Windows the URL is `file://home/…` with pathname
 `/user/…`, and the fork's strict `fileURLToPath` (D-039) refuses it, loudly.
 
-**Decision:** `@facilis/db` reads the three artifacts beside the resolved CJS entry (an absolute
-VFS path, no URL parsing) and passes them to PGlite: `fsBundle` (the `pglite.data` bytes as a
-`Blob`), `pgliteWasmModule` and `initdbWasmModule` (`WebAssembly.Module`). With those present
-PGlite skips both its `getFsBundle` read and its `startArtifactDownload`/`instantiateWasm` file
-lookups, so the database no longer depends on how a browser parses a `file:` URL.
-
-**Consequences:** DB boot is independent of the browser's URL parser and of the module id; the
-files are read once per process and the wasm compiled once, shared by every database in that
-process. A tree without the files falls back to PGlite's own lookup (and to its original
-failure). This is a robustness fix for a non-conforming parser, not a contract change: Node,
-Vitest and the in-VM smoke keep passing. Acceptance: `pnpm test` (db), the gates, and
-`TEMPLATE=Facilis pnpm ide:smoke` with `facilisDbInsert`/`facilisDbQuery` = ok; existing
-generated projects must be recreated to pick up the rebuilt `@facilis/db` tarball.
+**Interim decision (2026-10-31, removed):** `@facilis/db` read the three artifacts beside the
+resolved CJS entry (an absolute VFS path, no URL parsing) and passed them to PGlite:
+`fsBundle` (the `pglite.data` bytes as a `Blob`), `pgliteWasmModule` and
+`initdbWasmModule` (`WebAssembly.Module`), so the database no longer depended on how a
+browser parses a `file:` URL. That could not be the end state: PGlite's Emscripten glue calls
+`require("url").fileURLToPath(A)` during its own init, **before any option is consulted**, so
+the boot still died in the runtime — and every other userland `"file:" + __filename` idiom in
+the VM would die the same way.
 
 **Update (2026-10-31, confirmed):** the platform dependence is in Chromium itself, not in the
 browser version: Chrome `156.0.0.0` on Windows parses `new URL("file:/home/user/x")` as
@@ -1172,14 +1173,25 @@ which always means a file" — while the POSIX branch only gives a host to exact
 The same parser also turns a relative module id into a host, i.e. D-039 is platform-specific
 on Windows, and upstream's lenient `fileURLToPath` would silently return `/user/…` there.
 
-The artifact hand-off above cannot prevent it: PGlite's Emscripten glue calls
-`require("url").fileURLToPath(A)` during its own init, before any option is consulted. The
-engine fix — recover the path from a hostful `file:` URL inside `fileURLToPath`; a host cannot
-mean a file host in this runtime — is reported in **kele23/vivari#2** with the Chromium source
-evidence. Until the pinned kernel carries it, `@facilis/db` installs a recovery around one
-PGlite boot (`packages/db/src/file-url-recovery.ts`: patches `node:url`'s `fileURLToPath` for
-the init and restores it in `finally`), and the local `vendor/` worktree carries the same
-engine patch uncommitted for testing. **Remove the shim when the pin bump lands.**
+**Decision:** the fix belongs in the runtime's `fileURLToPath`, because a host in a `file:`
+URL of this VFS can only be the first path segment a browser's parser promoted; a host cannot
+mean a file host. The fork's `e654919` (**kele23/vivari#2**, the issue carries the Chromium
+evidence) recovers `"/" + hostname + pathname`, with no join for a bare `/` pathname
+(`file:/home` parses as host `home` + pathname `/`, and the intended path is `/home`, not
+`/home/`), in `packages/runtime/node/internal/url.js` and `Bun.fileURLToPath` — plus
+`Bun.file(URL)`, which now shares the rule through `createBunFile` instead of stripping a
+`file://` prefix into a relative path. Three-slash URLs, `localhost` and the non-file-scheme
+error are unchanged; the one deliberate deviation from Node is that a real UNC URL maps to
+`/server/share` instead of throwing. With that pin, `@facilis/db` is back to the plain
+constructor (`new PGlite({ dataDir })`): the artifact hand-off and the one-boot recovery shim
+are deleted, and the database locates its own `.data`/`.wasm` again.
+
+**Consequences:** DB boot is independent of the browser's URL parser *and* of any downstream
+shim, and the fix covers every hostful `file:` URL in the VM (PGlite, any other Emscripten
+module, `Bun.file`), where the shim covered one boot of one library. Acceptance: `pnpm test`
+(db), the gates, and `TEMPLATE=Facilis pnpm ide:smoke` with
+`facilisDbInsert`/`facilisDbQuery` = ok; a project created before the bump keeps working,
+because the runtime — not the `@facilis/db` tarball — carries the fix.
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)

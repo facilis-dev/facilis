@@ -6,11 +6,15 @@ upstream and carries no commits of ours; **`facilis/main` = upstream tag + the f
 is what `vendor/vivari` pins** (D-030). The five upstream fixes were proposed as PRs and merged
 (released in v1.1.5); the `fix/*` branches stay at their pre-merge commits as a record. The pin
 then moved to upstream `v1.2.0` (the `node:sqlite` release), with three further fixes proposed
-as PRs #29–#31 and carried by the fork until they merge.
+as PRs #29–#31 and carried by the fork until they merge. A fourth runtime fix — recovering the
+path from a hostful `file:` URL (fork issue
+[#2](https://github.com/kele23/vivari/issues/2), the PGlite boot failure in D-041) — is
+**fork-only for now**: it waits for the upstream `fix/file-url-host-v2` PR the maintainer
+asked for after reverting #31, and `facilis/main` carries it as `e654919`.
 
 | Branch | Fix | Base | Upstream PR |
 |---|---|---|---|
-| `facilis/main` | integration: upstream `v1.2.0` (`9c87dec`) plus the fifteen Facilis-driven commits below; pin `97d90ab` | `v1.2.0` | — |
+| `facilis/main` | integration: upstream `v1.2.0` (`9c87dec`) plus the nineteen Facilis-driven commits below; pin `e654919` | `v1.2.0` | — |
 | `fix/runtime-esm-only-targets` | ESM-only package copies vs the require-first resolver (D-024) | `v1.1.4` | [#19](https://github.com/maitrungduc1410/vivari/pull/19) |
 | `fix/opfs-mirror-priority` | OPFS mirror: project paths ahead of package-manager caches, manifest written while draining (D-028) | `v1.1.4` | [#21](https://github.com/maitrungduc1410/vivari/pull/21) |
 | `fix/import-meta-resolve-url` | `import.meta.resolve` returns a URL, not a path | `v1.1.4` | [#20](https://github.com/maitrungduc1410/vivari/pull/20) |
@@ -37,6 +41,16 @@ what killed PGlite's ESM build in the preview — D-039 in the superproject). Up
 own CI is red in the `ci-tiers` spike, so the open PRs inherit a red base that is not theirs
 (fork record: `FORK.md`).
 
+`e654919` is the runtime half of the same story as #31, on the opposite side: a `file:` URL
+whose first path segment a browser promoted to the **host** (Chromium's `url/url_parse_file.cc`
+has a WIN32 UNC branch, so `"file:" + "/home/user/x"` is `file://home/user/x` on
+Chrome/Windows) is converted back to the path it means instead of throwing
+`ERR_INVALID_FILE_URL_HOST`. `Bun.fileURLToPath` and `Bun.file(URL)` follow the same rule; a
+three-slash URL, `localhost` and the non-file-scheme error are unchanged. It is fork-only by
+decision (FORK.md: a deviation from Node on posix) and belongs in the re-opened
+`fix/file-url-host-v2` PR; downstream, it is D-041 and it removed the workaround that
+`@facilis/db` carried.
+
 The pin was realigned from `v1.1.3` to `v1.1.4` on 2026-10-29 and from `v1.1.4` to `v1.1.5`
 on 2026-10-31. The second realignment dropped the five merged fixes from `facilis/main` (their
 upstream commits, with the follow-ups, carry them) and replayed the eight Facilis-only commits on
@@ -45,7 +59,7 @@ resolved by keeping both: `restore()` and the new `hydrate()` read the index und
 `vv-vfs-manifest`, `materialize()` after the lock.
 
 A third realignment moved the pin from `v1.1.5` to `v1.2.0` (`9c87dec`) on 2026-10-31, the same
-recipe: the fork delta (now fifteen commits) replayed on the tag. `packages/studio` is identical
+recipe: the fork delta (now nineteen commits) replayed on the tag. `packages/studio` is identical
 at the two pins, so the studio sources did not move; `packages/{runtime,protocol,core,kernel-host}`
 did, and the reverted `e2f4246` moved the Facilis tarball delivery into the create message
 (D-032 in the superproject).
@@ -72,7 +86,8 @@ rest are the fork's own records (`FORK.md`, the policy and realignment notes).
 
 The five merged fixes are `git am`-able next to this file (`vivari-*.patch`, with their PR bodies
 in `vivari-*-pr.md`) so they can be replayed without the fork; the three open PRs live as the
-`fix/*` branches above and are recorded in the fork's `FORK.md`. Evidence and the negative
+`fix/*` branches above and are recorded in the fork's `FORK.md` — the hostful-`file:` recovery
+has no branch yet, it waits for the re-opened `fix/file-url-host-v2` PR. Evidence and the negative
 results are in [`vivari-findings-2026-10-28.md`](./vivari-findings-2026-10-28.md).
 
 ## Workflow
