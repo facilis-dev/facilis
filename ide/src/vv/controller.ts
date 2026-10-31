@@ -24,6 +24,7 @@ import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
+import { popoutPreviewUrl, previewPathSuffix } from "./preview-url";
 import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -3571,8 +3572,8 @@ export class IdeController {
       window.open(this.bridge.previewUrlFor(port, "/"), "_blank");
       return;
     }
-    const base = this.popoutIsolated ? this.bridge.previewBase : "";
-    window.open(`${base}/preview/${port}/`, "_blank");
+    // Same-origin pop-outs carry the kernel token too (see preview-url.ts).
+    window.open(popoutPreviewUrl(this.bridge, port, this.popoutIsolated), "_blank");
   }
 
   // Relay an inbound ws/SSE frame to any preview opened in its OWN tab. Those tabs
@@ -3699,14 +3700,8 @@ export class IdeController {
   private syncTabLocation(id: string, href: string) {
     const tab = this.snap.previewTabs.find((t) => t.id === id);
     if (!tab || tab.port == null) return;
-    // The preview iframe lives at /preview/<port>/… — strip that proxy prefix and
-    // our own cache-bust to recover the in-server path.
-    const m = href.match(/^\/preview\/\d+(\/.*)?$/);
-    let path = m ? m[1] || "/" : href.startsWith("/") ? href : "/" + href;
-    path = path
-      .replace(/([?&])t=\d+(&|$)/, (_all, p1: string, p2: string) => (p2 === "&" ? p1 : ""))
-      .replace(/[?&]$/, "");
-    this.setTab(id, { url: `localhost:${tab.port}${path && path !== "/" ? path : ""}` });
+    // Strip the /preview/<port>/ prefix, the cache-bust and the kernel token (preview-url.ts).
+    this.setTab(id, { url: `localhost:${tab.port}${previewPathSuffix(href)}` });
   }
 
   // The host-page relay: bridges CDP between each preview tab's chobitsu and the

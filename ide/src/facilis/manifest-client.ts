@@ -50,10 +50,14 @@ export interface ManifestQuery {
 const MANIFEST_PATH = "/__facilis/manifest";
 const REVISION_PATH = "/__facilis/manifest/revision";
 
-/** Strip the trailing slash so the endpoint path never doubles it. A non-proxy origin
- * (an external preview tab) works the same way. */
+/** Strip the trailing slash so the endpoint path never doubles it, and drop a query or
+ * hash: the preview URL carries our kernel token (`?__vv_kernel=…`) and a cache-bust,
+ * and appending a path to that would put the endpoint inside the query string. A
+ * non-proxy origin (an external preview tab) works the same way. */
 export function manifestBaseUrl(previewSrc: string): string {
-  return previewSrc.trim().replace(/\/+$/, "");
+  const url = previewSrc.trim();
+  const cut = url.search(/[?#]/);
+  return (cut === -1 ? url : url.slice(0, cut)).replace(/\/+$/, "");
 }
 
 function endpoint(baseUrl: string, path: string): string {

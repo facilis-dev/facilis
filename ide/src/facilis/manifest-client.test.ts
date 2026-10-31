@@ -31,6 +31,15 @@ describe("manifestBaseUrl", () => {
   it("keeps an empty base empty so endpoints stay root-relative", () => {
     expect(manifestBaseUrl("   ")).toBe("");
   });
+
+  it("drops the preview URL's query (kernel token, cache-bust) and hash", () => {
+    expect(manifestBaseUrl("http://127.0.0.1:5199/preview/3000/?__vv_kernel=abc123")).toBe(
+      "http://127.0.0.1:5199/preview/3000",
+    );
+    expect(manifestBaseUrl("http://127.0.0.1:5199/preview/3000/?t=1793435422669#/x")).toBe(
+      "http://127.0.0.1:5199/preview/3000",
+    );
+  });
 });
 
 describe("parseEnvelope", () => {
