@@ -1428,8 +1428,8 @@ depends on (D-018, D-030).
 
 **Status (2026-10-31):** the AI chat is implemented — BYO-key providers (OpenAI-compatible and
 Anthropic protocols), Model A context, a streamed `message` field with a per-file diff/accept
-proposal, non-blocking browser-boundary warnings, an undo for a clean Apply, and `applyPatch()` as
-the only write path (D-045/D-046/D-047). The write path lives in
+proposal, non-blocking browser-boundary warnings, an undo for a clean Apply, project instructions
+from a root `AGENTS.md`, and `applyPatch()` as the only write path (D-045…D-048). The write path lives in
 `ide/src/facilis/apply-patch.ts` rather than on `IdeController`, because the controller is
 pinned by the file-length ratchet (D-019); the activity view is `chat`. Still Phase 4: the full
 16-rule validator (SPEC §9.3), the retry loop (§9.4) and the Model B tool surface (§9.5).

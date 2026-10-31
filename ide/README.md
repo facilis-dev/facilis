@@ -90,7 +90,7 @@ immediately.
    Worker, so a change there is made in `vendor/vivari/packages/studio/public/sw.js` first and
    mirrored here — keep the two in sync (the IDE copy is mirrored through the repo's Prettier,
    with `catch {}` and a `Set` for the isolation policies to satisfy our lint).
-9. **AI chat** (D-045/D-046): `src/ai/` is the Facilis AI layer — provider presets and a
+9. **AI chat** (D-045…D-048): `src/ai/` is the Facilis AI layer — provider presets and a
    streaming client for the OpenAI-compatible and Anthropic protocols, Model A prompt assembly,
    the `AIResponse` parser, the diff used by the review card, and `ChatSession` behind a small
    `ChatHost` (one per controller, in `chat-host.ts`). `src/components/ide/ChatPanel.tsx` plus
@@ -98,7 +98,9 @@ immediately.
    `chat` activity view; the command palette gains "Open AI Chat". The message field streams
    into the bubble as the provider writes it (the JSON contract is unchanged), the review card
    warns about Node globals and server-only imports in client files, and a clean Apply can be
-   undone from its before-images (D-047). The model never writes: Apply sends only the accepted
+   undone from its before-images (D-047). A project can steer the assistant through a root
+   `AGENTS.md` (opened/created from the chat header; preferences only, never an override of the
+   rules or the response contract, D-048). The model never writes: Apply sends only the accepted
    patches through `src/facilis/apply-patch.ts`. The key is BYO, stored per origin in
    `localStorage` and sent only to the chosen provider; the dev-only `mock` provider exists
    only in `vite dev` and lets `pnpm ide:smoke` exercise the whole flow.
