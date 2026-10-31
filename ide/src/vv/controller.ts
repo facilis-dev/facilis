@@ -24,7 +24,6 @@ import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./p
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
 import { withTemplateAssets } from "../facilis/project-assets";
-import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
 import { loadTemplates } from "./templates-lazy";
@@ -45,6 +44,8 @@ import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
 import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
 import { languageFor } from "./editor-languages";
+import { EditorLanguage, type EditorLanguageHost } from "./editor-language";
+import { EditorPython, type EditorPythonHost } from "./editor-python";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
 import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
 import { type UiTheme, monacoThemeFor } from "./terminal-theme";
@@ -423,10 +424,12 @@ export class IdeController {
   // Project transfer, split into their own modules (project-export/import.ts).
   readonly projectExport: ProjectExport;
   readonly projectImport: ProjectImport;
+  // Language service + dependency types + Python provider (editor-*.ts).
+  readonly editorLanguage: EditorLanguage;
+  readonly editorPython: EditorPython;
   private monaco: typeof Monaco | null = null;
   private editor: Monaco.editor.IStandaloneCodeEditor | null = null;
   private editorMounting = false; // guards the async create against StrictMode double-mount
-  private editorOpener: Monaco.IDisposable | null = null; // cross-file go-to-definition hook
   private models = new Map<string, Monaco.editor.ITextModel>(); // abs -> model
   // Language modes chosen by hand from the status bar (abs -> monaco language id).
   // Re-applied in ensureModel so the choice survives closing + reopening the tab.
@@ -438,12 +441,6 @@ export class IdeController {
   private diffModels: Monaco.editor.ITextModel[] = []; // throwaway [original, modified] for the diff editor
   private imageUrls = new Map<string, string>(); // abs -> object URL (image viewer)
   private notebooks = new Map<string, NotebookHandle>(); // abs -> open .ipynb (doc + kernel)
-  private depLibsByRoot = new Map<string, Map<string, string>>(); // root -> (extra-lib uri -> content)
-  private depsSig = new Map<string, string>(); // root -> last node_modules fingerprint
-  private dtsWarnedNoNM = new Set<string>(); // roots we've already noted lack node_modules
-  private tsCompilerOptions: Monaco.typescript.CompilerOptions | null = null; // re-applied to force a worker rebuild after extra libs load
-  private dtsTimer: ReturnType<typeof setTimeout> | null = null; // debounce dependency-type loads
-  private dtsSeq = 0; // supersede in-flight dependency-type refreshes
   // Preview panel: multi-tab mini browser + DevTools relay (preview-session.ts).
   readonly preview: PreviewSession;
   private localFiles: Record<string, string> = {}; // abs -> latest saved text (editor cache)
@@ -495,6 +492,8 @@ export class IdeController {
       status: (text) => this.status(text),
     });
     this.projectImport = new ProjectImport(this.bridge, this.projectImportHost());
+    this.editorPython = new EditorPython(this.editorPythonHost());
+    this.editorLanguage = new EditorLanguage(this.editorLanguageHost());
     this.wireBridge();
     this.preview.wireMessages();
   }
@@ -601,6 +600,39 @@ export class IdeController {
         this.folderManifests.set(root, manifest);
       },
       status: (text) => this.status(text),
+    };
+  }
+
+  // The language layer's window onto the controller: the monaco namespace and
+  // model cache it drives, the roots it collects types for, and the stores it
+  // reports into.
+  private editorLanguageHost(): EditorLanguageHost {
+    return {
+      bridge: this.bridge,
+      monaco: () => this.monaco,
+      models: () => this.models,
+      roots: () => this.snap.workspaceFolders.map((f) => f.rootPath),
+      isRunningProject: () => this.snap.runPhase != null,
+      readFileText: (abs) => this.readFileText(abs),
+      languageOf: (abs) => this.languageOverrides.get(abs) ?? languageFor(abs),
+      openFileAt: (abs, line = 1, column = 1, length = 0) =>
+        void this.openFileAt(abs, line, column, length),
+      consoleLine: (text, color) => this.consoleLine(text, color),
+      problems: () => this.snap.problems,
+      setProblems: (problems) => this.set({ problems }),
+      ensurePythonFor: (abs) => this.editorPython.ensure(abs),
+    };
+  }
+
+  // The Python provider's window onto the controller.
+  private editorPythonHost(): EditorPythonHost {
+    return {
+      bridge: this.bridge,
+      monaco: () => this.monaco,
+      roots: () => this.snap.workspaceFolders.map((f) => f.rootPath),
+      openFileAt: (path, line, column) => void this.openFileAt(path, line, column),
+      status: (text) => this.status(text),
+      setServiceState: (label) => this.editorStatus.set({ pythonService: label }),
     };
   }
 
@@ -844,8 +876,8 @@ export class IdeController {
     };
     const monaco = await import("monaco-editor");
     this.monaco = monaco;
-    this.configureLanguageService(monaco);
-    this.wireGoToDefinition(monaco);
+    this.editorLanguage.configure(monaco);
+    this.editorLanguage.wireGoToDefinition(monaco);
     this.editor = monaco.editor.create(el, {
       model: null,
       theme: monacoThemeFor(this.uiTheme),
@@ -889,13 +921,13 @@ export class IdeController {
     });
     // Breakpoint debugger: wire gutter breakpoints + paused-line decorations.
     this.debug.attachEditor(this.editor, monaco);
-    this.editor.onDidChangeModelContent(() => this.enableTsIntelligence());
+    this.editor.onDidChangeModelContent(() => this.editorLanguage.enableIntelligence());
     this.wireEditorStatus(this.editor);
     // Seed the language service with any folders indexed before the editor was
     // ready (source files as models for cross-file IntelliSense; dependency types
     // as extra libs), then open whatever tab was requested during load.
-    for (const list of this.fileIndex.values()) this.ensureBackgroundModels(list);
-    this.scheduleDependencyTypes();
+    for (const list of this.fileIndex.values()) this.editorLanguage.ensureBackgroundModels(list);
+    this.editorLanguage.scheduleDependencyTypes();
     if (this.snap.activeTab) void this.openFile(this.snap.activeTab);
   }
 
@@ -1001,293 +1033,6 @@ export class IdeController {
   }
 
   // ── language service (IntelliSense) ─────────────────────────────────────────
-  // Turn on the TS/JS language service: sensible compiler options, semantic +
-  // syntax diagnostics, and eager model sync so every model we create (open tabs
-  // AND the seeded project files) is visible to the worker for cross-file
-  // completion/navigation. Installed-package types are fed in separately as extra
-  // libs (see loadDependencyTypes).
-  private configureLanguageService(monaco: typeof Monaco) {
-    const ts = monaco.typescript; // typed re-export of the TS language contribution
-    if (!ts) return;
-    const compilerOptions: Monaco.typescript.CompilerOptions = {
-      target: ts.ScriptTarget.ESNext,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeJs,
-      jsx: ts.JsxEmit.ReactJSX,
-      allowJs: true,
-      checkJs: false,
-      allowNonTsExtensions: true,
-      allowSyntheticDefaultImports: true,
-      esModuleInterop: true,
-      resolveJsonModule: true,
-      skipLibCheck: true,
-      // Vite templates import with explicit extensions (`import App from "./App.tsx"`);
-      // allow it (requires noEmit, which the language service is anyway).
-      allowImportingTsExtensions: true,
-      noEmit: true,
-      // NB: do NOT set an explicit `lib` array — Monaco's worker then fails to load
-      // the individual lib.*.d.ts files (DOM globals, iterators… all vanish). Letting
-      // `target: ESNext` pick the default `lib.esnext.full.d.ts` (which bundles ESNext
-      // + DOM + iterable) is what actually works.
-    };
-    this.tsCompilerOptions = compilerOptions;
-    // Run a SINGLE TS language service. Every JS/TS model uses the `typescript`
-    // language (see languageFor) with allowJs, so only the `typescript` ts.worker
-    // ever spawns. Monaco otherwise runs a SECOND full language service for the
-    // `javascript` mode — a duplicate ~310 MB worker fed the same dependency
-    // .d.ts payload. Keep the `javascript` defaults inert (diagnostics off, no
-    // eager sync, no extra libs) so its WorkerManager — created lazily on first
-    // JS-model use — never starts.
-    ts.typescriptDefaults.setCompilerOptions(compilerOptions);
-    this.applyTsIntelligence(this.snap.runPhase == null);
-    ts.javascriptDefaults.setDiagnosticsOptions({
-      noSemanticValidation: true,
-      noSyntaxValidation: true,
-      onlyVisible: false,
-    });
-    ts.javascriptDefaults.setEagerModelSync(false);
-    // Mirror the worker's markers into a Problems count in the status bar.
-    monaco.editor.onDidChangeMarkers(() => this.recomputeProblems());
-  }
-
-  // Whether the TypeScript language service is allowed to run. Off while a
-  // project installs.
-  //
-  // The service lives in ts.worker, a 1.36 MB (brotli) bundle that Monaco spawns
-  // the moment diagnostics or eager sync touch a TS model — which, after a
-  // create-from-template, is immediately, in the middle of the install. It then
-  // competes for bandwidth with the thing the user is actually waiting for, to
-  // type-check a project whose `node_modules` does not exist yet: every import
-  // is unresolved, so the answers it produces are wrong until the install ends
-  // anyway. Turned on by the run finishing, or by the first keystroke — whoever
-  // gets there first, because a user who starts editing wants it regardless.
-  private tsIntelligence = true;
-  private applyTsIntelligence(on: boolean) {
-    this.tsIntelligence = on;
-    const ts = this.monaco?.typescript;
-    if (!ts) return;
-    ts.typescriptDefaults.setDiagnosticsOptions({
-      noSemanticValidation: !on,
-      noSyntaxValidation: !on,
-      onlyVisible: false,
-    });
-    ts.typescriptDefaults.setEagerModelSync(on);
-  }
-  private enableTsIntelligence() {
-    if (!this.tsIntelligence) this.applyTsIntelligence(true);
-  }
-
-  // Wire cross-file "go to definition" (⌘/Ctrl+click, F12) into our tab system.
-  // A Monaco standalone editor does NOTHING for a resource other than the model
-  // it currently has attached unless an opener is registered — so a definition in
-  // another file (or an installed package's .d.ts) silently no-ops. We intercept
-  // it and route through openFileAt, which opens/activates the React tab AND
-  // reveals the target line/column. (Same-file definitions are handled by Monaco
-  // internally and never reach this hook.)
-  private wireGoToDefinition(monaco: typeof Monaco) {
-    if (this.editorOpener) return;
-    this.editorOpener = monaco.editor.registerEditorOpener({
-      openCodeEditor: (_source, resource, selectionOrPosition) => {
-        const abs = resource.path; // Uri.file(abs).path === abs
-        let line = 1,
-          column = 1,
-          length = 0;
-        if (selectionOrPosition) {
-          if ("startLineNumber" in selectionOrPosition) {
-            line = selectionOrPosition.startLineNumber;
-            column = selectionOrPosition.startColumn;
-            if (selectionOrPosition.endLineNumber === selectionOrPosition.startLineNumber) {
-              length = selectionOrPosition.endColumn - selectionOrPosition.startColumn;
-            }
-          } else {
-            line = selectionOrPosition.lineNumber;
-            column = selectionOrPosition.column;
-          }
-        }
-        void this.openFileAt(abs, line, column, length);
-        return true; // handled — suppress Monaco's default no-op
-      },
-    });
-  }
-
-  private recomputeProblems() {
-    if (!this.monaco) return;
-    const Severity = this.monaco.MarkerSeverity;
-    let errors = 0,
-      warnings = 0;
-    for (const mk of this.monaco.editor.getModelMarkers({})) {
-      if (mk.severity === Severity.Error) errors++;
-      else if (mk.severity === Severity.Warning) warnings++;
-    }
-    if (errors !== this.snap.problems.errors || warnings !== this.snap.problems.warnings) {
-      this.set({ problems: { errors, warnings } });
-    }
-  }
-
-  // Create Monaco models for a folder's own source files so the language service
-  // can resolve cross-file imports (and power go-to-definition) even before a
-  // file is opened. Bounded, and only creates models that don't already exist —
-  // node_modules is excluded from the file index, so this is just user code.
-  private ensureBackgroundModels(files: string[]) {
-    if (!this.monaco) return;
-    const monaco = this.monaco;
-    let created = 0;
-    for (const abs of files) {
-      if (created >= 800) break;
-      if (!/\.(tsx?|jsx?|mjs|cjs)$/.test(abs)) continue;
-      if (this.models.has(abs) || monaco.editor.getModel(monaco.Uri.file(abs))) continue;
-      created++;
-      void this.seedModel(abs);
-    }
-  }
-
-  // The Python language service, brought up the first time a Python file exists
-  // in the editor and not before. Pyodide is ~30 MB; a session spent in .ts must
-  // not fetch it, so both the provider module and the worker behind it are
-  // dynamic imports off this path.
-  private pythonLanguageOff: (() => void) | null = null;
-  private pythonServiceState = "";
-
-  private ensurePythonLanguage(abs: string) {
-    if (this.pythonLanguageOff || !this.monaco) return;
-    if (languageFor(abs) !== "python") return;
-    const monaco = this.monaco;
-    this.pythonLanguageOff = () => {}; // claim the slot before the await
-    void import("./python-language").then(({ registerPythonLanguage }) => {
-      this.pythonLanguageOff = registerPythonLanguage(monaco, {
-        request: async (root, req) => {
-          const m = await this.bridge.request("vv-py-lsp", { root, req });
-          return { ok: !!m.ok, result: m.result ?? null, error: String(m.error ?? "") };
-        },
-        // The workspace folder the file sits in — jedi resolves `import helper`
-        // relative to it. Longest match, so a root nested inside another wins.
-        rootFor: (path: string) => {
-          let best = "";
-          for (const f of this.snap.workspaceFolders) {
-            const r = f.rootPath.replace(/\/+$/, "");
-            if ((path === r || path.startsWith(r + "/")) && r.length > best.length) best = r;
-          }
-          return best || "/";
-        },
-        notify: (message: string) => this.statusMessage.show(message),
-        openFileAt: (path: string, line: number, column: number) =>
-          void this.openFileAt(path, line, column),
-        setState: (state: string, detail?: string) => this.setPythonServiceState(state, detail),
-      });
-    });
-    // The boot itself is reported by the worker over the bridge, not guessed at
-    // here — the studio does not know how far along a 30 MB fetch is.
-    this.bridge.on("py-lsp-state", (m: Record<string, unknown>) =>
-      this.setPythonServiceState(String(m.state ?? ""), String(m.detail ?? "")),
-    );
-  }
-
-  private setPythonServiceState(state: string, detail?: string) {
-    const label = stateLabel(state, detail);
-    if (label === this.pythonServiceState) return;
-    this.pythonServiceState = label ?? "";
-    this.editorStatus.set({ pythonService: label });
-  }
-
-  private async seedModel(abs: string) {
-    if (!this.monaco || this.models.has(abs)) return;
-    const monaco = this.monaco;
-    const uri = monaco.Uri.file(abs);
-    if (monaco.editor.getModel(uri)) return;
-    const text = await this.readFileText(abs);
-    // The file may have been opened (→ has a real model) while we awaited the read.
-    if (this.models.has(abs) || monaco.editor.getModel(uri)) return;
-    monaco.editor.createModel(text, languageFor(abs), uri);
-    this.ensurePythonLanguage(abs);
-  }
-
-  // Debounced load of dependency type declarations (node_modules **/*.d.ts +
-  // package.json) into the language service as "extra libs" so imports of
-  // installed packages resolve with real types. The bulk VFS scan happens in the
-  // kernel worker (sole holder of the sync Wasm VFS) to avoid thousands of read
-  // round-trips; we just register the returned files. Re-runs after installs
-  // (every fs change re-indexes the folder, which reschedules this).
-  private scheduleDependencyTypes() {
-    if (!this.monaco) return;
-    if (this.dtsTimer) clearTimeout(this.dtsTimer);
-    this.dtsTimer = setTimeout(() => void this.loadDependencyTypes(), 1200);
-  }
-
-  private async loadDependencyTypes() {
-    if (!this.monaco) return;
-    const monaco = this.monaco;
-    const seq = ++this.dtsSeq;
-    const roots = new Set(this.snap.workspaceFolders.map((f) => f.rootPath));
-    let changed = false;
-    // Forget libs for roots that are no longer open.
-    for (const r of Array.from(this.depLibsByRoot.keys())) {
-      if (!roots.has(r)) {
-        this.depLibsByRoot.delete(r);
-        this.depsSig.delete(r);
-        changed = true;
-      }
-    }
-    // Harvest each root, passing its last node_modules fingerprint so an unchanged
-    // tree short-circuits in the worker (no file reads).
-    for (const root of roots) {
-      const res = await this.bridge.request("vv-collect-dts", {
-        root,
-        sig: this.depsSig.get(root) ?? "",
-      });
-      if (seq !== this.dtsSeq) return; // a newer refresh superseded us
-      if (!res.ok) continue;
-      const sig = typeof res.sig === "string" ? res.sig : "";
-      this.depsSig.set(root, sig);
-      // sig === "" ⟺ no node_modules on disk yet. Nudge the user once (types come
-      // from installed packages — nothing to resolve until deps are installed).
-      if (sig === "") {
-        if (!this.dtsWarnedNoNM.has(root)) {
-          this.dtsWarnedNoNM.add(root);
-          this.consoleLine(
-            `[intellisense] ${baseName(root)}: no node_modules yet — run \`npm install\` for dependency types`,
-            "33",
-          );
-        }
-        continue;
-      }
-      this.dtsWarnedNoNM.delete(root);
-      if (res.unchanged) continue;
-      const map = new Map<string, string>();
-      for (const f of (res.files as { path: string; content: string }[]) ?? []) {
-        // toString(TRUE) = skip encoding. Monaco's Uri.toString() percent-encodes
-        // '@' → '%40', but TS's module resolver looks up '@types/…'/'@scope/…'
-        // with a LITERAL '@'. Encoded keys never match the resolver's queries, so
-        // every @types-backed import (react, react-dom, jsx-runtime) fails. Keep
-        // '@' literal so extra-lib keys line up with what the worker asks for.
-        map.set(monaco.Uri.file(f.path).toString(true), f.content);
-      }
-      this.depLibsByRoot.set(root, map);
-      changed = true;
-      this.consoleLine(
-        `[intellisense] ${baseName(root)}: loaded ${map.size} dependency type file(s)${res.truncated ? " (capped)" : ""}`,
-        "36",
-      );
-    }
-    if (!changed) return;
-    const libs: { filePath: string; content: string }[] = [];
-    for (const map of this.depLibsByRoot.values()) {
-      for (const [filePath, content] of map) libs.push({ filePath, content });
-    }
-    // Only the `typescript` service is live (see configureLanguageService), so
-    // feed the dependency .d.ts to it alone — no duplicate payload to a second
-    // worker.
-    monaco.typescript.typescriptDefaults.setExtraLibs(libs);
-    // Critical: the TS worker/LanguageService was created (and validated open
-    // files) BEFORE these types existed. Monaco pushes the new libs to the live
-    // worker, but a worker created with an empty `node_modules` view can keep
-    // serving stale "Cannot find module" results. Re-applying the compiler
-    // options fires `onDidChange`, which makes Monaco's WorkerManager tear the
-    // worker down; the next validation spins up a fresh LanguageService that is
-    // born already seeing every dependency .d.ts — so imports resolve cleanly.
-    if (this.tsCompilerOptions) {
-      monaco.typescript.typescriptDefaults.setCompilerOptions(this.tsCompilerOptions);
-    }
-  }
 
   // Ensure a Monaco model exists for `abs` (loading its content from the VFS on
   // first open). Wires dirty tracking against the last-saved text.
@@ -1310,7 +1055,7 @@ export class IdeController {
     // Opening a Python file is what brings the language service up. Also called
     // from seedModel, so a background model counts too: by the time someone
     // clicks the tab, the interpreter has had a head start.
-    if (language === "python") this.ensurePythonLanguage(abs);
+    if (language === "python") this.editorPython.ensure(abs);
     model.onDidChangeContent(() => {
       const changed = model.getValue() !== (this.localFiles[abs] ?? "");
       const isDirty = this.snap.dirty.includes(abs);
@@ -1705,7 +1450,7 @@ export class IdeController {
     const cell = handle.doc.cell(id);
     if (!cell) return null;
     const editors = (handle.editors ??= new CellEditors(monaco, handle.abs));
-    if (language === "python") this.ensurePythonLanguage(editors.uriFor(id, language).path);
+    if (language === "python") this.editorPython.ensure(editors.uriFor(id, language).path);
     return editors.mount(el, id, language, cell.source, {
       theme: monacoThemeFor(this.uiTheme),
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -1950,8 +1695,8 @@ export class IdeController {
     this.set({ files: this.rebuildFileIndex() });
     // Feed the language service: this folder's source files (cross-file
     // IntelliSense) + a debounced refresh of installed-package types.
-    this.ensureBackgroundModels(out);
-    this.scheduleDependencyTypes();
+    this.editorLanguage.ensureBackgroundModels(out);
+    this.editorLanguage.scheduleDependencyTypes();
   }
   private rebuildFileIndex(): string[] {
     const all: string[] = [];
@@ -2114,7 +1859,7 @@ export class IdeController {
     void this.bridge.request("vv-ensure-deps", { dir: root }).then((res) => {
       if ((res as { restored?: boolean }).restored) {
         this.bumpTree();
-        this.scheduleDependencyTypes();
+        this.editorLanguage.scheduleDependencyTypes();
       }
     });
   }
@@ -2157,7 +1902,7 @@ export class IdeController {
   private beginRunPhase(root: string) {
     const running = this.runningProjects.get(root);
     this.runTerminalId = running?.terminalId ?? null;
-    this.applyTsIntelligence(false);
+    this.editorLanguage.setIntelligence(false);
     const phase: RunPhase = {
       rootPath: root,
       name: this.snap.workspaceFolders.find((f) => f.rootPath === root)?.name || baseName(root),
@@ -2182,10 +1927,10 @@ export class IdeController {
     if (root && this.snap.runPhase.rootPath !== root) return;
     this.runTerminalId = null;
     this.set({ runPhase: null });
-    this.enableTsIntelligence();
+    this.editorLanguage.enableIntelligence();
     // node_modules exists now (or never will), so the types harvest is finally
     // able to find something.
-    this.scheduleDependencyTypes();
+    this.editorLanguage.scheduleDependencyTypes();
   }
 
   // Run the currently-focused folder (TitleBar / command palette Run).
@@ -2793,7 +2538,7 @@ export class IdeController {
       // A process finished — it may have been `npm/yarn/pnpm install`. In-VM writes
       // don't emit vv-fs-changed, so re-harvest dependency types (debounced; the
       // worker short-circuits via a node_modules fingerprint when nothing changed).
-      this.scheduleDependencyTypes();
+      this.editorLanguage.scheduleDependencyTypes();
     });
     b.on("listen", (m) => {
       this.consoleLine(`[kernel] pid ${m.pid} listening on :${m.port}`, "90");
