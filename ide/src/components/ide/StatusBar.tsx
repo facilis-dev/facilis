@@ -16,7 +16,7 @@ import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { languageLabel } from "@/vv/controller";
+import { languageLabel } from "@/vv/editor-languages";
 import { phaseLabel } from "@/vv/run-phase";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
 import { useIde } from "./useIde";

@@ -1,6 +1,6 @@
 {
   "ide/src/vv/templates.ts": 11470,
-  "ide/src/vv/controller.ts": 4294,
+  "ide/src/vv/controller.ts": 4043,
   "ide/src/components/ide/Explorer.tsx": 942,
   "ide/src/components/ide/Home.tsx": 895,
   "ide/src/components/ide/SourceControlPanel.tsx": 675,

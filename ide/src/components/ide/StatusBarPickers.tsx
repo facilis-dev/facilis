@@ -7,7 +7,7 @@
 // text worth searching.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { LANGUAGE_MODES } from "@/vv/controller";
+import { LANGUAGE_MODES } from "@/vv/editor-languages";
 import {
   Command,
   CommandDialog,

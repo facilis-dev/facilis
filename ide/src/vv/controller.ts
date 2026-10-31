@@ -58,6 +58,10 @@ import { NotebookDoc } from "./notebook/doc.js";
 import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
 import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
+import { languageFor } from "./editor-languages";
+import { imageMime, isImagePath, isNotebookPath } from "./file-kind";
+import { type MemInfo, probeMemory } from "./memory-probe";
+import { baseName, normDir, parentOf } from "./path-utils";
 
 /** How an open tab renders. Named rather than spelled out at each use: it was
  *  written twice, and adding `notebook` to one of them type-checked everywhere
@@ -317,42 +321,6 @@ export interface IdeSnapshot {
   memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
 }
 
-// A snapshot of the tab's memory, produced by measureMemory(). `total` is the
-// whole-page estimate (performance.measureUserAgentSpecificMemory, which covers
-// dedicated workers); `vfsBytes`/`vfsFiles` are the VFS's in-RAM content size
-// reported by the File System Worker. `measuring` gates the StatusBar spinner.
-export interface MemInfo {
-  total: number | null;
-  vfsBytes: number;
-  vfsFiles: number;
-  // Uncompressed VFS footprint; equals vfsBytes when compression is off. When
-  // compression is on, vfsBytes/vfsLogicalBytes is the realized ratio.
-  vfsLogicalBytes: number;
-  ts: number;
-}
-
-// Per-Process-Worker memory row for the "Measure Memory" breakdown. `heap` is the
-// worker's own JS heap (performance.memory, Chrome-only; -1 if unavailable),
-// `modules` the guest module-cache entry count, `esbuildInproc` whether it hosts
-// the resident esbuild Go wasm service.
-export interface ProcMem {
-  pid: number;
-  name: string;
-  heap: number;
-  modules: number;
-  esbuildInproc: boolean;
-  // Bytes of the in-process esbuild Go wasm heap (0 if not hosted in this PID).
-  esbuildBytes: number;
-}
-
-// Render the esbuild-wasm annotation for a per-PID memory row: the resident Go
-// heap size when known (grows-and-stays for the worker's life), else just a flag.
-function esbuildLabel(p: ProcMem): string {
-  if (!p.esbuildInproc) return "";
-  const bytes = Number(p.esbuildBytes);
-  return bytes > 0 ? `, esbuild-wasm ${fmtBytes(bytes)}` : ", esbuild-wasm";
-}
-
 const TERM_THEME_DARK = {
   background: "#181818",
   foreground: "#cccccc",
@@ -457,9 +425,6 @@ export const isDiffTabId = (id: string | null): boolean => !!id && id.startsWith
 export const diffTargetOf = (id: string): string => id.slice(DIFF_PREFIX.length);
 
 const ESC = "\x1b[";
-
-const baseName = (p: string) => p.split("/").filter(Boolean).pop() ?? p;
-const parentOf = (p: string) => p.slice(0, p.lastIndexOf("/")) || "/";
 
 // Drag-and-drop wire format: an internal Explorer drag carries the source's
 // absolute path under this MIME type; an OS drag carries File entries instead.
@@ -589,120 +554,8 @@ function readDirEntries(dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[
     readBatch();
   });
 }
-// Human-readable byte size for the memory readout (MB/GB with one decimal).
-export const fmtBytes = (n: number): string => {
-  if (!Number.isFinite(n) || n < 0) return "—";
-  if (n < 1024) return `${n} B`;
-  const kb = n / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)} MB`;
-  return `${(mb / 1024).toFixed(2)} GB`;
-};
-const normDir = (p: string) => {
-  const n =
-    "/" +
-    p
-      .split("/")
-      .filter((s) => s && s !== ".")
-      .join("/");
-  return n === "/" ? "/" : n.replace(/\/+$/, "");
-};
+
 const folderIdFor = (rootPath: string) => "wf:" + rootPath;
-
-// Extensions we render in the image viewer instead of the text editor. SVG is
-// grouped here too (it's an image); flip it to text if you'd rather edit it.
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "avif", "svg"]);
-function isImagePath(path: string): boolean {
-  const dot = path.lastIndexOf(".");
-  return dot > 0 && IMAGE_EXTS.has(path.slice(dot + 1).toLowerCase());
-}
-/** Files that open as a notebook rather than as their JSON. */
-export function isNotebookPath(path: string): boolean {
-  return path.toLowerCase().endsWith(".ipynb");
-}
-// The MIME type for an image path, so the viewer's Blob renders correctly.
-function imageMime(path: string): string {
-  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-  if (ext === "svg") return "image/svg+xml";
-  if (ext === "jpg") return "image/jpeg";
-  if (ext === "ico") return "image/x-icon";
-  return "image/" + ext;
-}
-
-function languageFor(path: string): string {
-  // JS files use the `typescript` language too (the TS worker handles JS via
-  // allowJs). This runs ONE language service instead of a second full ~310 MB
-  // `javascript` ts.worker fed the same dependency .d.ts payload. See
-  // configureLanguageService.
-  if (/\.(tsx?|jsx?|mjs|cjs)$/.test(path)) return "typescript";
-  if (path.endsWith(".css")) return "css";
-  if (path.endsWith(".scss")) return "scss";
-  if (path.endsWith(".less")) return "less";
-  // .gjs/.gts (Ember) join .vue/.svelte here rather than in the `typescript` line
-  // above: they embed a `<template>` block the TS worker parses as a syntax error, so
-  // routing them to a Monarch-only language buys highlighting without red squiggles
-  // over the markup. `.gjs` is the Ember template's `entry`, so it opens immediately.
-  if (/\.(html?|vue|svelte|g[jt]s)$/.test(path)) return "html";
-  if (/\.json[5c]?$/.test(path)) return "json";
-  if (path.endsWith(".md")) return "markdown";
-  // Python: Monarch highlights on the main thread, and — unlike every language
-  // below it — a real language service, from jedi and black running on a
-  // long-lived Pyodide. Registered lazily, on the first Python model: see
-  // ensurePythonLanguage(). Everything after this line is Monarch only.
-  if (/\.pyi?$/.test(path)) return "python";
-  if (/\.ya?ml$/.test(path)) return "yaml";
-  if (/\.(sh|bash|zsh|ksh)$/.test(path)) return "shell";
-  if (path.endsWith(".sql")) return "sql";
-  if (/\.(xml|xsd|xsl|plist)$/.test(path)) return "xml";
-  if (/(^|\/)Dockerfile[^/]*$|\.dockerfile$/.test(path)) return "dockerfile";
-  if (path.endsWith(".go")) return "go";
-  if (path.endsWith(".rs")) return "rust";
-  if (path.endsWith(".java")) return "java";
-  if (path.endsWith(".php")) return "php";
-  if (path.endsWith(".rb")) return "ruby";
-  if (/\.(ini|toml|cfg|conf|properties)$/.test(path)) return "ini";
-  return "plaintext";
-}
-
-/** The language modes the "Select Language Mode" status-bar picker offers, in
- * display order. Every id is a grammar Monaco already bundles, so listing one
- * costs nothing beyond this entry — but the list is deliberately limited to what
- * `languageFor` can auto-detect, so picking a mode and re-opening the file behave
- * consistently. Anything unrecognised falls back to Plain Text.
- *
- * There is intentionally NO `javascript` entry: `languageFor` maps .js/.jsx/.mjs
- * to `typescript` so the TS worker serves both (see the comment above), and
- * selecting a real `javascript` mode would have Monaco spin up a SECOND full
- * ~310 MB ts.worker for it. .js files therefore report "TypeScript". */
-export const LANGUAGE_MODES: { id: string; label: string }[] = [
-  { id: "typescript", label: "TypeScript" },
-  { id: "css", label: "CSS" },
-  { id: "scss", label: "SCSS" },
-  { id: "less", label: "Less" },
-  { id: "html", label: "HTML" },
-  { id: "json", label: "JSON" },
-  { id: "markdown", label: "Markdown" },
-  { id: "python", label: "Python" },
-  { id: "yaml", label: "YAML" },
-  { id: "shell", label: "Shell Script" },
-  { id: "sql", label: "SQL" },
-  { id: "xml", label: "XML" },
-  { id: "dockerfile", label: "Dockerfile" },
-  { id: "go", label: "Go" },
-  { id: "rust", label: "Rust" },
-  { id: "java", label: "Java" },
-  { id: "php", label: "PHP" },
-  { id: "ruby", label: "Ruby" },
-  { id: "ini", label: "Ini" },
-  { id: "plaintext", label: "Plain Text" },
-];
-
-/** Human label for a monaco language id (status-bar readout). */
-export function languageLabel(id: string | null): string {
-  if (!id) return "Plain Text";
-  return LANGUAGE_MODES.find((l) => l.id === id)?.label ?? id;
-}
 
 interface TermEntry {
   term: Terminal;
@@ -3842,115 +3695,11 @@ export class IdeController {
   }
 
   // ── memory diagnostics ─────────────────────────────────────────────────────
-  // Measure the tab's memory and log a breakdown to the Console. This is possible
-  // because the studio is cross-origin isolated (COOP/COEP for SharedArrayBuffer),
-  // which is exactly what unlocks performance.measureUserAgentSpecificMemory().
-  // The page estimate covers this window + its dedicated workers; we additionally
-  // ask the kernel/FS worker for the VFS's in-RAM content size, which is what
-  // balloons when a heavy node_modules (Docusaurus/Nuxt) is loaded.
+  // The breakdown itself lives in memory-probe.ts; this file is ratchet-pinned.
   async measureMemory() {
-    this.consoleLine("Measuring memory…", "90");
-    let total: number | null = null;
-    type MemResult = {
-      bytes: number;
-      breakdown?: { bytes: number; types?: string[]; attribution?: { url?: string }[] }[];
-    };
-    const perf = performance as Performance & {
-      measureUserAgentSpecificMemory?: () => Promise<MemResult>;
-    };
-    try {
-      if (typeof perf.measureUserAgentSpecificMemory === "function") {
-        const r = await perf.measureUserAgentSpecificMemory();
-        total = r.bytes;
-        this.consoleLine(`Tab total (page + workers): ${fmtBytes(total)}`, "36");
-        // Largest attributed buckets first, so the dominant consumer is obvious.
-        const rows = (r.breakdown ?? [])
-          .filter((b) => b.bytes > 0)
-          .sort((a, b) => b.bytes - a.bytes)
-          .slice(0, 12);
-        for (const b of rows) {
-          const label =
-            (b.attribution ?? [])
-              .map((a) => a.url)
-              .filter(Boolean)
-              .join(", ") ||
-            (b.types ?? []).join("/") ||
-            "(unattributed)";
-          this.consoleLine(`  ${fmtBytes(b.bytes).padStart(9)}  ${label}`, "90");
-        }
-      } else {
-        this.consoleLine(
-          "performance.measureUserAgentSpecificMemory() unavailable (needs a Chromium browser + cross-origin isolation).",
-          "31",
-        );
-      }
-    } catch (err) {
-      this.consoleLine(`memory measurement failed: ${(err as Error)?.message ?? err}`, "31");
-    }
-
-    // VFS content footprint (the File System Worker's Wasm) + the kernel worker's
-    // own measurement, gathered over the bridge.
-    let vfsBytes = -1;
-    let vfsFiles = -1;
-    let vfsLogicalBytes = -1;
-    try {
-      const m = await this.bridge.request("vv-mem");
-      vfsBytes = Number(m.vfsBytes ?? -1);
-      vfsFiles = Number(m.vfsFiles ?? -1);
-      vfsLogicalBytes = Number(m.vfsLogicalBytes ?? -1);
-      if (vfsBytes >= 0) {
-        this.consoleLine(
-          `VFS content in RAM: ${fmtBytes(vfsBytes)} across ${vfsFiles} files`,
-          "36",
-        );
-        // Show the realized compression ratio when the logical size is larger
-        // (i.e. some files are stored compressed).
-        if (vfsLogicalBytes > vfsBytes) {
-          const saved = vfsLogicalBytes - vfsBytes;
-          const ratio = (vfsBytes / vfsLogicalBytes) * 100;
-          this.consoleLine(
-            `  compressed from ${fmtBytes(vfsLogicalBytes)} (${ratio.toFixed(0)}% of logical, saved ${fmtBytes(saved)})`,
-            "90",
-          );
-        }
-      } else {
-        this.consoleLine(
-          "VFS content size unavailable (rebuild the VFS wasm: `npm run build:vfs`).",
-          "90",
-        );
-      }
-      if (typeof m.kernelBytes === "number") {
-        this.consoleLine(`Kernel worker: ${fmtBytes(m.kernelBytes as number)}`, "90");
-      }
-      // Per-PID Process Worker breakdown: turns the flat "N GB on process-worker.js"
-      // figure into which process holds it (dev servers dominate), how many modules
-      // its guest cache retains, and whether it hosts the resident esbuild wasm.
-      const procs = Array.isArray(m.procs) ? (m.procs as ProcMem[]) : [];
-      const withHeap = procs.filter((p) => Number(p.heap) >= 0);
-      if (withHeap.length > 0) {
-        this.consoleLine("Process workers (own JS heap):", "36");
-        for (const p of withHeap) {
-          const mods = Number(p.modules) >= 0 ? `${p.modules} modules` : "modules n/a";
-          this.consoleLine(
-            `  ${fmtBytes(Number(p.heap)).padStart(9)}  ${p.name} (${mods}${esbuildLabel(p)})`,
-            "90",
-          );
-        }
-      } else if (procs.length > 0) {
-        // Heap sizing unavailable (performance.memory off) — still show retention.
-        this.consoleLine("Process workers (heap size unavailable):", "36");
-        for (const p of procs) {
-          this.consoleLine(
-            `  ${p.name}: ${Number(p.modules) >= 0 ? p.modules + " modules" : "modules n/a"}${esbuildLabel(p)}`,
-            "90",
-          );
-        }
-      }
-    } catch {
-      /* kernel not ready */
-    }
-
-    this.set({ memInfo: { total, vfsBytes, vfsFiles, vfsLogicalBytes, ts: Date.now() } });
+    this.set({
+      memInfo: await probeMemory(this.bridge, (text, color) => this.consoleLine(text, color)),
+    });
   }
 
   /**
