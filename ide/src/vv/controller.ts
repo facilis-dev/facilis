@@ -46,6 +46,7 @@ import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
 import { languageFor } from "./editor-languages";
 import { EditorLanguage, type EditorLanguageHost } from "./editor-language";
 import { EditorPython, type EditorPythonHost } from "./editor-python";
+import { EditorSession, overflowWidgetsNode, type EditorSessionHost } from "./editor-session";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
 import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
 import { type UiTheme, monacoThemeFor } from "./terminal-theme";
@@ -293,49 +294,6 @@ export interface IdeSnapshot {
   memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
 }
 
-/**
- * The one node every Monaco editor here reparents its overflowing widgets into
- * — hover, suggest, signature help, the context menu.
- *
- * Monaco already lifts those out of the editor's scrolling box into an
- * `.overflowingContentWidgets` div, which is why a hover can extend past the
- * gutter. What it cannot do on its own is lift them out of the PAGE: that div
- * stays inside the editor's DOM, and the editor pane is an EARLIER sibling of
- * the preview pane, whose iframe is positioned and so paints over anything
- * reaching in from an earlier sibling. A hover on a long line was cut off at
- * that seam.
- *
- * Reparenting is the part that fixes it (view.js moves both overflow containers
- * into the supplied node), because this node is a later sibling of the whole app.
- * `fixedOverflowWidgets` alone does NOT — measured against 0.55.1 in a browser,
- * not assumed: it changes where a widget is laid out, not what paints over it,
- * and the rendering was pixel-identical to the bug. It is still set, because it
- * is the mode an external host implies: Monaco then lays widgets out in page
- * coordinates clamped to the window rather than against the editor. With this
- * node pinned at the viewport origin the two placements coincide for a hover
- * that is already on screen (also measured), so the flag is about behaviour at
- * the window edges, not about the fix.
- *
- * Two properties of this node are load-bearing:
- * - `monaco-editor` is not decoration. The standalone theme service emits every
- *   `--vscode-*` colour as a rule on `.monaco-editor, .monaco-diff-editor,
- *   .monaco-component`, so a widget that lives outside one of those renders with
- *   no background at all, over whatever it happens to cover. Verified by reading
- *   `--vscode-editorHoverWidget-background` back off this node.
- * - No z-index, deliberately. At `auto` it already beats the panes, which are
- *   also `auto`, while still losing to the app's real overlays (HomeView's z-40,
- *   the share overlay's z-50) — a modal should cover a tooltip, not the reverse.
- */
-let overflowWidgetsHost: HTMLElement | null = null;
-function overflowWidgetsNode(): HTMLElement {
-  if (overflowWidgetsHost?.isConnected) return overflowWidgetsHost;
-  const node = document.createElement("div");
-  node.className = "vv-overflow-widgets monaco-editor";
-  document.body.appendChild(node);
-  overflowWidgetsHost = node;
-  return node;
-}
-
 // A diff tab is a synthetic open-tab id: `vv-diff:<abs>`. It reuses the tab strip
 // (kind "diff") but must never be treated as a real file path (no read/save). The
 // filename still renders because baseName() splits on "/".
@@ -427,16 +385,19 @@ export class IdeController {
   // Language service + dependency types + Python provider (editor-*.ts).
   readonly editorLanguage: EditorLanguage;
   readonly editorPython: EditorPython;
-  private monaco: typeof Monaco | null = null;
-  private editor: Monaco.editor.IStandaloneCodeEditor | null = null;
-  private editorMounting = false; // guards the async create against StrictMode double-mount
+  // Monaco (instance, status readouts, actions) lives in editor-session.ts. The
+  // getters keep the tab/notebook/diff call sites reading the live instances.
+  readonly editorSession: EditorSession;
+  private get monaco(): typeof Monaco | null {
+    return this.editorSession.monaco();
+  }
+  private get editor(): Monaco.editor.IStandaloneCodeEditor | null {
+    return this.editorSession.editor();
+  }
   private models = new Map<string, Monaco.editor.ITextModel>(); // abs -> model
   // Language modes chosen by hand from the status bar (abs -> monaco language id).
   // Re-applied in ensureModel so the choice survives closing + reopening the tab.
   private languageOverrides = new Map<string, string>();
-  // Per-model subscription feeding `editorStatus` (indent/language). Swapped on
-  // every model change so we only ever listen to the attached model.
-  private modelStatusSub: Monaco.IDisposable | null = null;
   private diffEditor: Monaco.editor.IStandaloneDiffEditor | null = null; // Source Control diff tab
   private diffModels: Monaco.editor.ITextModel[] = []; // throwaway [original, modified] for the diff editor
   private imageUrls = new Map<string, string>(); // abs -> object URL (image viewer)
@@ -494,6 +455,7 @@ export class IdeController {
     this.projectImport = new ProjectImport(this.bridge, this.projectImportHost());
     this.editorPython = new EditorPython(this.editorPythonHost());
     this.editorLanguage = new EditorLanguage(this.editorLanguageHost());
+    this.editorSession = new EditorSession(this.editorSessionHost());
     this.wireBridge();
     this.preview.wireMessages();
   }
@@ -636,6 +598,26 @@ export class IdeController {
     };
   }
 
+  // The editor session's window onto the controller.
+  private editorSessionHost(): EditorSessionHost {
+    return {
+      language: this.editorLanguage,
+      debug: this.debug,
+      editorStatus: this.editorStatus,
+      fileIndexLists: () => [...this.fileIndex.values()],
+      activeTab: () => this.snap.activeTab,
+      openFile: (abs) => void this.openFile(abs),
+      wordWrap: () => this.snap.wordWrap,
+      appearance: () => this.uiTheme,
+      languageOverride: (abs) => this.languageOverrides.get(abs),
+      setLanguageOverride: (abs, language) => {
+        if (language) this.languageOverrides.set(abs, language);
+        else this.languageOverrides.delete(abs);
+      },
+      languageOf: (abs) => this.languageOverrides.get(abs) ?? languageFor(abs),
+    };
+  }
+
   // ── boot ──
   async start() {
     if (this.started) return;
@@ -772,7 +754,7 @@ export class IdeController {
   applyUiTheme(theme: UiTheme) {
     if (theme === this.uiTheme) return;
     this.uiTheme = theme;
-    this.monaco?.editor.setTheme(monacoThemeFor(theme));
+    this.editorSession.applyTheme(theme);
     this.terminals.applyTheme(theme);
   }
 
@@ -838,201 +820,28 @@ export class IdeController {
   }
 
   // ── editor ──────────────────────────────────────────────────────────────
+  // The Monaco instance, its status readouts and the editor actions live in
+  // editor-session.ts; this is the panel's entry point.
   async mountEditor(el: HTMLElement) {
-    if (this.editor || this.editorMounting) return;
-    this.editorMounting = true;
-    // Real language intelligence: wire Monaco's own web workers. Vite bundles each
-    // `?worker` entry into a same-origin chunk (COEP-safe), and we run them
-    // off-main-thread so completions, hover, signature help, go-to-definition and
-    // diagnostics never block the UI. The editor worker backs cross-file services;
-    // the typescript worker hosts a full TS language service (bundled TS compiler).
-    const [editorWorker, tsWorker, jsonWorker, cssWorker, htmlWorker] = await Promise.all([
-      import("monaco-editor/esm/vs/editor/editor.worker?worker"),
-      import("monaco-editor/esm/vs/language/typescript/ts.worker?worker"),
-      import("monaco-editor/esm/vs/language/json/json.worker?worker"),
-      import("monaco-editor/esm/vs/language/css/css.worker?worker"),
-      import("monaco-editor/esm/vs/language/html/html.worker?worker"),
-    ]);
-    (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
-      getWorker(_workerId: string, label: string): Worker {
-        switch (label) {
-          case "typescript":
-          case "javascript":
-            return new tsWorker.default();
-          case "json":
-            return new jsonWorker.default();
-          case "css":
-          case "scss":
-          case "less":
-            return new cssWorker.default();
-          case "html":
-          case "handlebars":
-          case "razor":
-            return new htmlWorker.default();
-          default:
-            return new editorWorker.default();
-        }
-      },
-    };
-    const monaco = await import("monaco-editor");
-    this.monaco = monaco;
-    this.editorLanguage.configure(monaco);
-    this.editorLanguage.wireGoToDefinition(monaco);
-    this.editor = monaco.editor.create(el, {
-      model: null,
-      theme: monacoThemeFor(this.uiTheme),
-      automaticLayout: true,
-      fontSize: 13,
-      // Minimap renders (and retains) a second tokenized view of the whole file;
-      // disabling it trims per-editor memory at no real usability cost here.
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      tabSize: 2,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      // Go-to-definition should NAVIGATE, not peek. The Peek widget's preview pane
-      // can only render an existing Monaco model, but dependency types live only as
-      // extra libs (see loadDependencyTypes) — never as models — so peeking a
-      // node_modules definition shows an empty preview. Jumping straight to the
-      // first location routes through our editor opener, which reads the target
-      // from the VFS and opens it as a real tab (so .d.ts targets render fine).
-      gotoLocation: {
-        multipleDefinitions: "goto",
-        multipleTypeDefinitions: "goto",
-        multipleDeclarations: "goto",
-        multipleImplementations: "goto",
-      },
-      // We handle drops onto the editor ourselves (open the dropped entry), so
-      // turn off Monaco's built-in "drop text into the buffer" behavior.
-      dropIntoEditor: { enabled: false },
-      // Breakpoint debugger: the glyph margin hosts breakpoint dots + the paused
-      // arrow, and a click there toggles a breakpoint (see DebugSession).
-      glyphMargin: true,
-      // Don't over-reserve the line-number column (Monaco defaults to 5 chars,
-      // which right-aligns single digits and leaves a big gap to their left).
-      lineNumbersMinChars: 2,
-      // Seeded from the persisted preference rather than set afterwards, so a wrapped
-      // session does not flash one unwrapped frame on every cold boot.
-      wordWrap: this.snap.wordWrap ? "on" : "off",
-      // Hovers and suggest lists have to survive leaving the editor pane — the
-      // preview iframe next door paints over anything that does not. See
-      // overflowWidgetsNode.
-      fixedOverflowWidgets: true,
-      overflowWidgetsDomNode: overflowWidgetsNode(),
-    });
-    // Breakpoint debugger: wire gutter breakpoints + paused-line decorations.
-    this.debug.attachEditor(this.editor, monaco);
-    this.editor.onDidChangeModelContent(() => this.editorLanguage.enableIntelligence());
-    this.wireEditorStatus(this.editor);
-    // Seed the language service with any folders indexed before the editor was
-    // ready (source files as models for cross-file IntelliSense; dependency types
-    // as extra libs), then open whatever tab was requested during load.
-    for (const list of this.fileIndex.values()) this.editorLanguage.ensureBackgroundModels(list);
-    this.editorLanguage.scheduleDependencyTypes();
-    if (this.snap.activeTab) void this.openFile(this.snap.activeTab);
+    await this.editorSession.mount(el);
   }
 
-  // ── status-bar readouts (Ln/Col · indentation · language mode) ──────────────
-  // Mirror Monaco's cursor, indentation and language onto the EditorStatus store
-  // that the StatusBar subscribes to. Model-scoped listeners are re-bound on every
-  // model swap so we only ever watch the attached model.
-  private wireEditorStatus(editor: Monaco.editor.IStandaloneCodeEditor) {
-    const pushCursor = () => {
-      const model = editor.getModel();
-      const pos = editor.getPosition();
-      if (!model || !pos) return;
-      const selections = editor.getSelections() ?? [];
-      let selected = 0;
-      for (const s of selections) selected += model.getValueLengthInRange(s);
-      this.editorStatus.set({
-        cursor: {
-          line: pos.lineNumber,
-          column: pos.column,
-          selected,
-          selections: selections.length,
-        },
-        lineCount: model.getLineCount(),
-      });
-    };
-    const pushModelInfo = () => {
-      const model = editor.getModel();
-      if (!model) {
-        this.editorStatus.clear();
-        return;
-      }
-      const { insertSpaces, tabSize } = model.getOptions();
-      this.editorStatus.set({
-        indent: { insertSpaces, tabSize },
-        language: model.getLanguageId(),
-        lineCount: model.getLineCount(),
-      });
-    };
-    const rebindModel = () => {
-      this.modelStatusSub?.dispose();
-      this.modelStatusSub = null;
-      const model = editor.getModel();
-      pushModelInfo();
-      if (!model) return;
-      const subs = [
-        model.onDidChangeOptions(pushModelInfo),
-        model.onDidChangeLanguage(pushModelInfo),
-        // Line count feeds the Go to Line hint, so it has to track edits.
-        model.onDidChangeContent(pushCursor),
-      ];
-      this.modelStatusSub = { dispose: () => subs.forEach((s) => s.dispose()) };
-      pushCursor();
-    };
-    editor.onDidChangeModel(rebindModel);
-    editor.onDidChangeCursorPosition(pushCursor);
-    editor.onDidChangeCursorSelection(pushCursor);
-    rebindModel();
-  }
-
-  /** Jump the cursor to a 1-based line/column in the ACTIVE editor (status-bar
-   * "Ln x, Col y" → Go to Line). Clamped to the model's bounds. */
+  // Status-bar actions, delegated to the editor session (which owns Monaco).
   gotoLine(line: number, column = 1) {
-    const model = this.editor?.getModel();
-    if (!model) return;
-    const l = Math.min(Math.max(1, Math.trunc(line)), model.getLineCount());
-    const c = Math.min(Math.max(1, Math.trunc(column)), model.getLineMaxColumn(l));
-    this.revealInEditor(l, c, 0);
+    this.editorSession.gotoLine(line, column);
   }
-
-  /** Set the active tab's language mode. `null` restores auto-detection from the
-   * file extension and forgets the override. */
   setLanguageMode(id: string | null) {
-    const abs = this.snap.activeTab;
-    const model = this.editor?.getModel();
-    if (!abs || !model || !this.monaco) return;
-    if (id) this.languageOverrides.set(abs, id);
-    else this.languageOverrides.delete(abs);
-    this.monaco.editor.setModelLanguage(model, id ?? languageFor(abs));
-    this.editor?.focus();
+    this.editorSession.setLanguageMode(id);
   }
-
-  /** Change the active model's indentation (status-bar "Spaces: n" picker). */
   setIndentation(opts: { insertSpaces?: boolean; tabSize?: number }) {
-    this.editor?.getModel()?.updateOptions(opts);
-    this.editor?.focus();
+    this.editorSession.setIndentation(opts);
   }
-
-  /** Guess indentation from the file's own content, like VS Code's
-   * "Detect Indentation from Content". Falls back to the editor defaults. */
   detectIndentation() {
-    const model = this.editor?.getModel();
-    if (!model) return;
-    const current = model.getOptions();
-    model.detectIndentation(current.insertSpaces, current.tabSize);
-    this.editor?.focus();
+    this.editorSession.detectIndentation();
   }
-
-  /** Run a built-in Monaco editor action by id (indentation conversion + trim
-   * trailing whitespace in the status-bar picker). */
   runEditorAction(id: string) {
-    void this.editor?.getAction(id)?.run();
-    this.editor?.focus();
+    this.editorSession.runEditorAction(id);
   }
-
-  // ── language service (IntelliSense) ─────────────────────────────────────────
 
   // Ensure a Monaco model exists for `abs` (loading its content from the VFS on
   // first open). Wires dirty tracking against the last-saved text.
@@ -1162,7 +971,7 @@ export class IdeController {
       if (this.pendingReveal && this.pendingReveal.abs === abs) {
         const r = this.pendingReveal;
         this.pendingReveal = null;
-        this.revealInEditor(r.line, r.column, r.length);
+        this.editorSession.reveal(r.line, r.column, r.length);
       }
     }
   }
@@ -1175,16 +984,8 @@ export class IdeController {
     await this.openFile(abs);
     if (this.pendingReveal && this.pendingReveal.abs === abs && this.editor) {
       this.pendingReveal = null;
-      this.revealInEditor(line, column, length);
+      this.editorSession.reveal(line, column, length);
     }
-  }
-
-  private revealInEditor(line: number, column: number, length: number) {
-    if (!this.editor || !this.monaco) return;
-    const range = new this.monaco.Range(line, column, line, column + (length || 0));
-    this.editor.setSelection(range);
-    this.editor.revealRangeInCenterIfOutsideViewport(range);
-    this.editor.focus();
   }
 
   // ── full-text search / replace (delegated to the kernel worker) ─────────────
@@ -1442,8 +1243,7 @@ export class IdeController {
     id: string,
     language: "python" | "markdown",
   ): Promise<CellEditorSlot | null> {
-    const monaco = this.monaco ?? (await import("monaco-editor"));
-    this.monaco ??= monaco;
+    const monaco = await this.editorSession.ensureMonaco();
     // The one benign null: the cell was deleted while Monaco was loading, so
     // there is nothing to build. Everything else throws and is reported by the
     // wrapper in makeNotebook.
@@ -1494,8 +1294,7 @@ export class IdeController {
    * EditorGroup's DiffView, which remounts per diff tab (keyed by tab id). */
   async mountDiffEditor(el: HTMLElement, id: string) {
     const abs = diffTargetOf(id);
-    const monaco = this.monaco ?? (await import("monaco-editor"));
-    this.monaco = monaco;
+    const monaco = await this.editorSession.ensureMonaco();
     // One diff editor instance, rebound per mount. Dispose the previous editor +
     // its throwaway models so we don't leak on every open.
     this.disposeDiffEditor();
