@@ -1,6 +1,6 @@
 // The generated project installs with the npm the IDE vendors (D-032), and it finds
-// its @facilis/* packages as file: dependencies inside ./vendor, written there by the
-// kernel from the template's manifest assets. Both halves are cross-file invariants
+// its @facilis/* packages as file: dependencies inside ./vendor, inlined there by the
+// IDE from the template's manifest assets. Both halves are cross-file invariants
 // that fail at install time in a confusing place if they drift: a version bump in one
 // place only, or an asset path that no longer matches the spec that names it.
 
@@ -57,7 +57,7 @@ describe("generated project package manager", () => {
     );
   });
 
-  it("ships the tarball the kernel copies under the path the spec names", () => {
+  it("ships the tarball the IDE inlines under the path the spec names", () => {
     const assets = (createFacilisTemplate().manifest as FacilisManifest).assets;
     for (const name of PACKAGES) {
       const asset = assets.find((a) => a.path === "vendor/facilis-" + name + "-0.0.0.tgz");

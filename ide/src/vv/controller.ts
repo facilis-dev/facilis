@@ -25,6 +25,7 @@ import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./p
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
 import { popoutPreviewUrl, previewPathSuffix } from "./preview-url";
+import { withTemplateAssets } from "../facilis/project-assets";
 import { stateLabel } from "../../../vendor/vivari/packages/runtime/builtins/python-lsp.js";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -2589,7 +2590,10 @@ export class IdeController {
     // to "/" and drop the now-irrelevant flag so the app runs at the origin root.
     // Modes A/B keep the template verbatim.
     const wildcard = this.previewMode === "wildcard" && !!t.manifest.keepPreviewPrefix;
-    const files = wildcard ? rewritePreviewBaseToRoot(t.files) : t.files;
+    const files = await withTemplateAssets(
+      t,
+      wildcard ? rewritePreviewBaseToRoot(t.files) : t.files,
+    );
     const manifest = wildcard ? { ...t.manifest, keepPreviewPrefix: false } : t.manifest;
     const res = await this.bridge.request("vv-create-project", {
       dir: root,

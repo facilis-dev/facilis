@@ -2,8 +2,8 @@
 //
 // The @facilis/* packages are workspace-only (O-006), so the generated project
 // installs them from tarballs the IDE serves from its own public directory. npm is
-// the installer and the tarballs are copied INTO the project (manifest.assets, see
-// D-032), then declared as file: dependencies: no package manager has to reach the
+// the installer and the tarballs are inlined INTO the create request (manifest.assets,
+// project-assets.ts, D-032), then declared as file: dependencies: no package manager has to reach the
 // studio over HTTP to install them, and the project keeps working once it leaves the
 // IDE. This is interim until the packages are published.
 

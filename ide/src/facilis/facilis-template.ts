@@ -17,7 +17,8 @@ import { serverFiles } from "./server-files";
 /**
  * The workspace-only @facilis packages, shipped as tarballs (O-006).
  *
- * They are copied into the project at create time and declared as file: dependencies
+ * They are inlined into the create request at create time (project-assets.ts) and declared
+ * as file: dependencies
  * in package.json, so the install never reaches the studio over HTTP (D-032). The specs
  * are written relative (portable) and made absolute by scripts/vendor-paths.cjs before
  * every install, because npm's own re-derivation of a relative file: target is what
@@ -25,18 +26,19 @@ import { serverFiles } from "./server-files";
  */
 const PACKAGES = ["auth", "core", "db", "nitro"] as const;
 
-/** One binary file a template ships beside its sources (see the kernel worker). */
+/** One binary file a template ships beside its sources (see project-assets.ts). */
 export type TemplateAsset = { path: string; asset: string };
 
-/** The shared manifest plus the assets the kernel fetches before it writes the tree. */
+/** The shared manifest plus the assets the IDE inlines into the create request. */
 export type FacilisManifest = TemplateManifest & { assets: TemplateAsset[] };
 
 /**
  * Build the template.
  *
- * `asset` is vendor-relative (the studio's own /vendor/ path) and resolved by the
- * kernel worker, which runs in the page and is same-origin — no host alias, no VM
- * networking, nothing for a guest package manager to fetch.
+ * `asset` is vendor-relative (the studio's own /vendor/ path) and resolved by the IDE
+ * page itself — same origin, under the app's Vite base — then inlined as bytes into the
+ * create request: no host alias, no VM networking, nothing for a guest package manager
+ * to fetch.
  */
 export function createFacilisTemplate(): TemplateDef {
   const assets: TemplateAsset[] = PACKAGES.map((name) => ({
