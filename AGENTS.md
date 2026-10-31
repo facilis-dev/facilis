@@ -146,6 +146,13 @@ rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule
 Vivari fork, pinned to `facilis/main` (read-only; bump the commit — never edit the worktree —
 see D-030 and `vendor/README.md`). See spec §10 and `ide/README.md` for the exact patch set.
 
+**UI rules (D-043).** Every user-facing string goes through `t()` from `ide/src/i18n`, with
+the key in `ide/src/i18n/en.ts` (and `it.ts` where translated) — never inline JSX text or a
+toast literal, including in the controller's status messages. Every surface uses the semantic
+Tailwind tokens so the `.dark` class flips it; raw palette colours only for brand marks/scrims
+with a reason. The tracking checklist is `ide/I18N.md`; new UI ships compliant from its first
+commit, and upstream-inherited files are migrated as they are touched.
+
 **Building and verifying it** is scripted, because the kernel's Wasm packages and its runtime
 assets are gitignored upstream artifacts and a browser is needed to boot it: `pnpm ide:wasm`,
 `pnpm ide:assets`, `pnpm ide:browser`, then `pnpm ide:dev` / `pnpm ide:smoke`. The full

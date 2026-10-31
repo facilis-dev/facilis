@@ -31,6 +31,23 @@ ide/                        # this app — the fork surface
 └── package.json            # @facilis/ide — a pnpm workspace member
 ```
 
+## UI rules: dark mode + i18n (D-043)
+
+- **Strings.** Everything user-facing goes through `t()` from `ide/src/i18n`; the text lives
+  in `ide/src/i18n/en.ts` and `ide/src/i18n/it.ts` (partial Italian is fine — missing keys
+  fall back to English). The runtime is `@facilis/core/i18n` imported via its subpath, so the
+  static SPA does not bundle the framework. `initI18n()` runs before the first render and sets
+  `<html lang>`.
+- **Themes.** next-themes drives `.dark` (`attribute="class"`); use the semantic tokens
+  (`bg-background`, `bg-sidebar`, `bg-card`, `bg-accent`, `text-foreground`,
+  `text-muted-foreground`, `border-border`, …) so one class flips a surface. Raw palette
+  colours are only for brand marks and scrims, with a comment. The user picks Light / Dark /
+  System in the command palette; Monaco and xterm follow `applyUiTheme()`.
+- **Retrofit.** Upstream-inherited chrome is migrated file by file as it is touched; the
+  checklist is [`I18N.md`](./I18N.md). New UI (ChatPanel and the Phase 3 panels) lands
+  compliant in its first commit, and `pnpm --filter @facilis/ide test` enforces the catalogue
+  parity.
+
 ## Repo conventions apply here
 
 The IDE is a **workspace member** and is held to the same rules as the framework packages
