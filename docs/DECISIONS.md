@@ -1016,16 +1016,27 @@ jar saw it. Measured in the WebContainer: a `Set-Cookie` carried on a `Response`
 does not survive this Nitro dev path, while a header staged on the event is merged into the
 final response by h3 itself and does.
 
-**Decision:** routes that set or clear cookies stage them on the event's response headers —
-`event.res?.headers.set("set-cookie", …)` — and return a plain body. The reference app's login
-and logout do this, and the probe proves the whole chain: the session survives to the next
-request, the insert runs as the logged-in user, and the list reads the row back.
+**Decision:** routes set or clear cookies with the framework's `setSessionCookie` /
+`clearSessionCookie` helpers (`@facilis/nitro/session`), which call h3's `setCookie` /
+`deleteCookie`. h3 serialises the attributes and writes them to the event's response headers —
+the same surface the first fix's manual `set("set-cookie", …)` used, but with append semantics
+(a cookie another handler staged on that response is not clobbered) and one attribute set
+(`HttpOnly`, `Path=/`, `SameSite=Lax`, `Secure` in production) for every app. A route returns a
+plain body. The reference app's login and logout use those helpers, and the probe proves the
+whole chain: the session survives to the next request, the insert runs as the logged-in user,
+and the list reads the row back.
 
-**Consequences:** any Facilis app must set cookies through `event.res.headers`, not through a
-returned `Response`. `FacilisRequestEvent.res` exists on the contract for exactly this purpose;
-a route returning its own `Response` with `Set-Cookie` looks successful and logs the user out on
-the next request in the WebContainer. Acceptance: `TEMPLATE=Facilis pnpm ide:smoke` asserts the
-session, the insert and the query (`facilisAuth`/`facilisDbInsert`/`facilisDbQuery`).
+Hand-rolling the `Set-Cookie` string was the wrong level: h3 already owns cookie serialisation
+and the append rule, and the framework helper is where the h3 import belongs. It is a separate
+entry point (`@facilis/nitro/session`) because core's route contract is h3-free (contracts §4.1):
+the single `FacilisRequestEvent` → `H3Event` narrowing lives in the helper, so handlers and
+generated apps never import h3.
+
+**Consequences:** any Facilis app sets cookies through `@facilis/nitro/session`, never through a
+returned `Response` — a route returning its own `Response` with `Set-Cookie` looks successful and
+logs the user out on the next request in the WebContainer. Acceptance:
+`TEMPLATE=Facilis pnpm ide:smoke` asserts the session, the insert and the query
+(`facilisAuth`/`facilisDbInsert`/`facilisDbQuery`).
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)

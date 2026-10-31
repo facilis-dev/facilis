@@ -90,9 +90,11 @@ casting (see SPEC §8.4.5 and the Phase 0 finding: after `RESET` a GUC reads as 
 ### 4.4 Auth + errors
 
 - Session cookie name: `facilis_session`; `HttpOnly`, `Path=/`, `SameSite=Lax`, `Secure` in prod.
-- Set/clear the cookie on the event's response headers (`event.res.headers.set("set-cookie", …)`)
-  and return a plain body: a `Set-Cookie` on a returned `Response` is dropped in the in-VM
-  Nitro dev path (D-038).
+- Routes set/clear it with `setSessionCookie(event, sessionId, { ttlMs })` /
+  `clearSessionCookie(event)` from `@facilis/nitro/session`, and read it with
+  `sessionIdFromRequest(event)`. Those helpers call h3's `setCookie`/`deleteCookie`, which
+  stage the header on the event's response — the only surface that survives the in-VM Nitro dev
+  path; a `Set-Cookie` on a returned `Response` is dropped (D-038). Never hand-serialise it.
 - Error codes: `unauthorized` (401), `forbidden` (403), `invalid_input` (400), `conflict` (409),
   `db_unavailable` (500), `not_found` (404), `internal_error` (500). Export
   `fail(code, details?)` from core returning a web `Response`;

@@ -1,6 +1,6 @@
 import { defineAuthorizedHandler } from "@facilis/core";
 import { destroySession } from "@facilis/auth";
-import { clearedSessionCookie, sessionIdFromCookieHeader } from "~/server/utils/http";
+import { clearSessionCookie, sessionIdFromRequest } from "@facilis/nitro/session";
 
 export default defineAuthorizedHandler(
   {
@@ -9,11 +9,11 @@ export default defineAuthorizedHandler(
     description: "Destroy the current session and clear the cookie.",
   },
   async (event, { db }) => {
-    // The cookie is cleared on EVERY exit, including a broken session: staged on the
-    // event's response headers, which is the surface that survives (D-038).
-    event.res?.headers.set("set-cookie", clearedSessionCookie());
+    // The cookie is cleared on EVERY exit, including a broken session: h3 stages it on the
+    // event's response headers, the only surface that survives this response path (D-038).
+    clearSessionCookie(event);
 
-    const sessionId = sessionIdFromCookieHeader(event.req.headers.get("cookie"));
+    const sessionId = sessionIdFromRequest(event);
     if (sessionId === null) return { ok: true };
 
     try {

@@ -33,15 +33,16 @@ describe("Facilis probe database roundtrip", () => {
       "server/routes/api/auth/login.post.ts",
       "server/routes/api/auth/register.post.ts",
       "server/routes/api/auth/session.get.ts",
-      "server/utils/http.ts",
       "server/utils/tenant.ts",
     ]);
-    expect(serverAuthFiles["server/routes/api/auth/login.post.ts"]).toContain("createSession(");
-    // D-038: the cookie must be staged on the event's response headers; a Set-Cookie on a
-    // returned Response is lost in the in-VM Nitro dev path and logs the user out next request.
-    expect(serverAuthFiles["server/routes/api/auth/login.post.ts"]).toContain(
-      'event.res?.headers.set("set-cookie"',
-    );
+    const login = serverAuthFiles["server/routes/api/auth/login.post.ts"];
+    expect(login).toContain("createSession(");
+    // D-038: the cookie goes through the framework helper, which calls h3's setCookie and so
+    // stages it on the event's response headers. A Set-Cookie on a returned Response is lost
+    // in the in-VM Nitro dev path and logs the user out on the next request.
+    expect(login).toContain('import { setSessionCookie } from "@facilis/nitro/session"');
+    expect(login).toContain("setSessionCookie(event, session.id");
+    expect(login).not.toContain('headers.set("set-cookie"');
     expect(serverAuthFiles["server/routes/api/auth/register.post.ts"]).toContain("hashPassword(");
   });
 

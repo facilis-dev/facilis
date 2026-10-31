@@ -214,8 +214,9 @@ no page errors, no console errors, no failed requests. Exit code is non-zero on 
 tab and asserts the framework contract from the probe app inside the preview: `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
 `/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the probe
-registers a user, logs in (the session cookie survives to the next request), inserts a todo
-through the authorized handler and reads the list back (11 probe checks). That last group is
+registers a user, logs in (the session cookie is staged by h3's `setCookie` through
+`@facilis/nitro/session`, and survives to the next request), inserts a todo through the
+authorized handler and reads the list back (11 probe checks). That last group is
 the only in-VM proof that PGlite, the migrations, RLS, permissions and the session middleware
 work together inside the WebContainer. The probe app publishes those results as
 `data-facilis-*` attributes on its own document; `scripts/dev/smoke-facilis.mjs` owns the

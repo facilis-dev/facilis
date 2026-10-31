@@ -2,8 +2,8 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { defineAuthorizedHandler, fail } from "@facilis/core";
 import { createSession, users, verifyPassword } from "@facilis/auth";
+import { setSessionCookie } from "@facilis/nitro/session";
 import config from "~/facilis.config";
-import { sessionCookie } from "~/server/utils/http";
 
 export default defineAuthorizedHandler(
   {
@@ -25,12 +25,9 @@ export default defineAuthorizedHandler(
     if (!(await verifyPassword(user.passwordHash, body.password))) return fail("unauthorized");
 
     const session = await createSession(db, user.id, { ttlMs: config.auth.sessionDurationMs });
-    const maxAgeSeconds = Math.floor(config.auth.sessionDurationMs / 1000);
-
-    // Staged on the event's response headers: a Set-Cookie on a returned Response is
-    // lost in the in-VM Nitro dev path (D-038), and the login would look successful
-    // while the very next request arrived anonymous.
-    event.res?.headers.set("set-cookie", sessionCookie(session.id, maxAgeSeconds));
+    // h3's setCookie under the hood: it stages the cookie on the event's response headers,
+    // the only surface that survives this response path (D-038).
+    setSessionCookie(event, session.id, { ttlMs: config.auth.sessionDurationMs });
 
     return { userId: user.id };
   },

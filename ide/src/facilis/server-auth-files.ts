@@ -6,26 +6,6 @@
 // narrowed to what the probe needs: register, log in, and the authenticated write in
 // server-files.ts. The probe app drives them and reports the roundtrip to the smoke.
 
-const httpUtil = `export const SESSION_COOKIE = "facilis_session";
-
-/** Serialize the session cookie. HttpOnly + SameSite=Lax; Secure only in production. */
-export function sessionCookie(sessionId: string, maxAgeSeconds: number): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return \`\${SESSION_COOKIE}=\${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=\${maxAgeSeconds}\${secure}\`;
-}
-
-export function jsonResponse(
-  body: unknown,
-  status: number,
-  headers: Readonly<Record<string, string>> = {},
-): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
-  });
-}
-`;
-
 const tenantUtil = `import { DEFAULT_TENANT_ID } from "@facilis/core";
 
 // Single-tenant Phase 1 (O-003): the deployment's tenant comes from the environment, with
@@ -86,17 +66,16 @@ export default defineAuthorizedHandler(
 );
 `;
 
-// The session cookie is set through the event's RESPONSE HEADERS, not by returning a
-// Response that carries it: the rendered response loses a returned Response's Set-Cookie
-// in this Nitro dev path (measured in the WebContainer: login 200, the next request had no
-// Cookie at all), while a header staged on the event is merged into the final response by
-// h3 itself. Event headers are the contract's cookie surface.
+// The cookie is set by the framework's helper, which calls h3's `setCookie`: the cookie
+// has to be staged on the EVENT's response headers. A Set-Cookie carried on a Response the
+// route returns is dropped in this Nitro dev path (measured in the WebContainer: login 200,
+// the next request had no Cookie at all). h3 merges event headers into the final response.
 const loginRoute = `import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { defineAuthorizedHandler, fail } from "@facilis/core";
 import { createSession, users, verifyPassword } from "@facilis/auth";
+import { setSessionCookie } from "@facilis/nitro/session";
 import config from "~/facilis.config";
-import { sessionCookie } from "~/server/utils/http";
 
 export default defineAuthorizedHandler(
   {
@@ -118,8 +97,7 @@ export default defineAuthorizedHandler(
     if (!(await verifyPassword(user.passwordHash, body.password))) return fail("unauthorized");
 
     const session = await createSession(db, user.id, { ttlMs: config.auth.sessionDurationMs });
-    const maxAgeSeconds = Math.floor(config.auth.sessionDurationMs / 1000);
-    event.res?.headers.set("set-cookie", sessionCookie(session.id, maxAgeSeconds));
+    setSessionCookie(event, session.id, { ttlMs: config.auth.sessionDurationMs });
 
     return { userId: user.id };
   },
@@ -156,7 +134,6 @@ export default defineAuthorizedHandler(
 `;
 
 export const serverAuthFiles: Record<string, string> = {
-  "server/utils/http.ts": httpUtil,
   "server/utils/tenant.ts": tenantUtil,
   "server/routes/api/auth/register.post.ts": registerRoute,
   "server/routes/api/auth/login.post.ts": loginRoute,

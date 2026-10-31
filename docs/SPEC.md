@@ -506,7 +506,7 @@ Exports:
 
 ### 5.6 `@facilis/nitro` — Vite plugin + Nitro module
 
-This package has **two entry points**: the Vite plugin (which also mounts Nitro) and the Nitro module it carries.
+This package has **three entry points**: the Vite plugin (which also mounts Nitro), the Nitro module it carries, and the route-facing session-cookie helpers.
 
 **Entry 1 — `@facilis/nitro/vite` (Vite plugin + Nitro mount):**
 
@@ -605,7 +605,28 @@ export default defineConfig({
 
 `facilis.config.ts` is the only Nitro config a project has. The framework defaults it overlays are `serverDir: "./server"` and `experimental.openAPI: true`; a project that still keeps a `nitro.config.ts` keeps working (Nitro's c12 loader reads it) but `facilis.config.ts` wins, and new projects never create one.
 
-**Why two entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors.
+**Entry 3 — `@facilis/nitro/session` (session-cookie helpers for routes):**
+
+```typescript
+// packages/nitro/src/session-cookie.ts
+import { SESSION_COOKIE_NAME } from "@facilis/auth"
+import type { FacilisRequestEvent } from "@facilis/core"
+import { deleteCookie, getCookie, setCookie, type H3Event } from "nitro/h3"
+
+export interface SessionCookieOptions { ttlMs: number; secure?: boolean }
+export function setSessionCookie(event: FacilisRequestEvent, sessionId: string, options: SessionCookieOptions): void
+export function clearSessionCookie(event: FacilisRequestEvent): void
+export function sessionIdFromRequest(event: FacilisRequestEvent): string | null
+```
+
+Routes never serialise a `Set-Cookie` header themselves: the cookie name and its attributes
+(`HttpOnly`, `Path=/`, `SameSite=Lax`, `Secure` in production) are the framework contract
+(contracts §4.4), and h3's `setCookie`/`deleteCookie` are what write them onto the event's
+response headers — the surface this server merges into the response (a `Set-Cookie` on a
+returned `Response` is dropped in the in-VM Nitro dev path, D-038). h3 also appends rather
+than replaces, so a cookie another handler staged on the same response survives.
+
+**Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session helpers are their own entry point because they import h3 while core's route contract does not (contracts §4.1): the single `FacilisRequestEvent` → `H3Event` narrowing lives there, and a handler stays free of h3 imports.
 
 ---
 
