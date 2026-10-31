@@ -81,6 +81,12 @@ An `H3Event` satisfies this structurally. Middleware order inside Nitro: `facili
 Every policy that reads a GUC **must** use `nullif(current_setting(<name>, true), '')` before
 casting (see SPEC §8.4.5 and the Phase 0 finding: after `RESET` a GUC reads as `''`).
 
+`app.tenant_id` is the deployment's tenant (`FACILIS_TENANT_ID`, else the framework constant),
+never the session's: `defineAuthorizedHandler` sets it for anonymous and authenticated requests
+alike, `AuthContext` carries no tenant, and a session whose user row belongs to another tenant is
+refused (D-040). The same value is the `DEFAULT` of every scoped table's tenant column, so an
+insert does not name the tenant either.
+
 ### 4.3 RLS composition (Phase 0 finding D-008)
 
 - Tenant isolation: `AS RESTRICTIVE` (permissive clauses are OR-ed, restrictive are AND-ed).
@@ -142,6 +148,9 @@ export function tenantIsolationPolicy(column?: string): PgPolicy;   // AS RESTRI
 export function ownerIsolationPolicy(column?: string): PgPolicy;    // permissive
 export function rolePolicy(column: string, policyName?: string): PgPolicy; // permissive
 
+export function tenantColumn(name?: string): /* uuid NOT NULL DEFAULT app.tenant_id */; // D-040
+export function tenantDefaultSql(): SQL;                        // the same expression, for raw DDL
+
 export function applyStatements(db: FacilisDb, statements: readonly string[]): Promise<void>; // idempotent bootstrap/migration runner
 export function ensureAppRole(db: FacilisDb): Promise<void>;  // role facilis_app + grants (dev RLS enforcement)
 
@@ -165,11 +174,16 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
 - `schemaSnapshot` derives tables/columns/FKs/policies from Drizzle `getTableConfig` (SPEC §7.3, §11.1).
 - RLS generator output must match the Phase 0 verified SQL (see `spikes/phase0/tests/pglite-rls.test.ts`),
   including the superuser caveat: tests need a non-superuser role via `SET ROLE`.
+- `tenantColumn()` (D-040) is the tenant `uuid` column with `DEFAULT tenantDefaultSql()` —
+  `nullif(current_setting('app.tenant_id', true), '')::uuid`, the expression the policies read.
+  A scoped table declares `tenantId: tenantColumn()`: inserts never name the tenant (Drizzle makes
+  a defaulted column optional in its insert type), and RLS still rejects another tenant's row.
+  Existing tables get the default with `ALTER TABLE <t> ALTER COLUMN tenant_id SET DEFAULT …`.
 
 ## 6. `@facilis/auth` (data-auth)
 
 ```ts
-export interface AuthContext { userId: string; tenantId: string; roles: readonly string[]; permissions: readonly string[] }
+export interface AuthContext { userId: string; roles: readonly string[]; permissions: readonly string[] } // no tenant (D-040)
 export interface AuthConfig { permissions: readonly string[]; roles: Readonly<Record<string, readonly string[]>>;
   defaultRole: string; sessionDurationMs: number }
 export function expandRoles(roles: readonly string[], config: AuthConfig): string[];
@@ -189,6 +203,8 @@ export function sessionMiddleware(...): SessionEvent => Promise<void>  // reads 
 - `seedFromConfig` is a **pure projection** of the config (SPEC §5.3): no runtime writes to
   `role_permissions`; the generated seed is consumed by the migration/seed step.
 - `registerInitialAdmin` compares against `process.env.FACILIS_INITIAL_ADMIN` (email), grants `admin`.
+- `sessionMiddleware` also takes the deployment `tenantId`; a session whose user row names another
+  tenant is refused, and the auth context it writes carries no tenant (D-040).
 
 ## 7. `@facilis/core` (core-impl)
 

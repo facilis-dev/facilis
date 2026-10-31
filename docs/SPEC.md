@@ -436,7 +436,7 @@ Exports:
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
-  tenantId: uuid("tenant_id").notNull(),
+  tenantId: tenantColumn(), // @facilis/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
   passwordHash: text("password_hash"),
   createdAt: timestamp("created_at").defaultNow(),
 })
@@ -885,9 +885,10 @@ interface AuthorizedHandlerContext<Body, Query, Params> {
 
 interface AuthContext {
   userId: string
-  tenantId: string
   roles: string[]
   permissions: string[]                       // already expanded from roles
+  // No tenant: it is the deployment's, set as app.tenant_id for every request and
+  // enforced by RLS (D-040), so neither the session nor the request can widen it.
 }
 
 function defineAuthorizedHandler<B, Q, P>(
@@ -1102,6 +1103,9 @@ CREATE POLICY tenant_isolation ON <t>
   USING (<scope_column> = current_setting('app.<scope_column>')::uuid);
 ```
 
+Declare the tenant column with `tenantColumn()` from `@facilis/db`: it is the same `uuid`, with
+the `DEFAULT` that reads the policy-scope GUC, so inserts never name the tenant (D-040).
+
 ### 8.4 Role Definition & Assignment
 
 Three phases, three actors.
@@ -1235,18 +1239,23 @@ export default defineAuthorizedHandler(
 2. expandRoles(roles, config.auth.roles) → permission set
    (pure function, reads config — no DB query)
 
-3. event.context.user = { userId, tenantId, roles, perms }
+3. event.context.user = { userId, roles, perms }   // no tenant: it is the deployment's
 
 4. defineAuthorizedHandler checks `permission` against perms
    → 403 if missing, before handler runs
 
-5. policyContext.run({ userId, tenantId, roles }, ...)
+5. policyContext.run({ tenantId: deploymentTenant, userId, roles }, ...)
    → SET LOCAL app.user_id    = '<uuid>'
    → SET LOCAL app.tenant_id  = '<uuid>'
    → SET LOCAL app.roles      = '["manager"]'
 
 6. Handler runs. RLS evaluates policies on every query.
 ```
+
+The tenant in step 5 is the deployment's (`FACILIS_TENANT_ID`, or the framework constant),
+never the session's: `AuthContext` carries no tenant, and a session whose user row names another
+tenant is refused (D-040). The same value is the default of every tenant column, so an insert
+never names it either.
 
 **Why expand permissions from config, not from `role_permissions` table?** Because the config is the source of truth. Querying `role_permissions` on every request would (a) add a DB roundtrip, (b) create a second source of truth that could drift.
 
@@ -1259,12 +1268,13 @@ export default defineAuthorizedHandler(
 ```typescript
 // documents.ts (your schema)
 import { pgTable, pgPolicy, uuid, text, sql } from "drizzle-orm/pg-core"
+import { tenantColumn } from "@facilis/db"
 
 export const documents = pgTable("documents", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
   ownerId: uuid("owner_id").notNull(),
-  tenantId: uuid("tenant_id").notNull(),
+  tenantId: tenantColumn(),
 }, () => [
   pgPolicy("documents_tenant_isolation", {
     as: "restrictive",
@@ -1281,6 +1291,10 @@ export const documents = pgTable("documents", {
   }),
 ])
 ```
+
+`tenantColumn()` is the tenant `uuid` column with `DEFAULT nullif(current_setting('app.tenant_id',
+true), '')::uuid`: the database fills it from the same GUC the policy reads, so an insert never
+names the tenant and cannot name a different one (D-040).
 
 **Why `AS RESTRICTIVE` and `nullif`?** Postgres ORs multiple *permissive* policies for the same command, so a permissive tenant policy would not constrain the admin clause — admins would see other tenants; see `spikes/phase0/REPORT.md` §4. Tenant isolation must be `AS RESTRICTIVE` (AND-ed) so it always applies. The `nullif(..., '')` guard covers the GUC lifecycle: after `RESET app.roles` the setting is `''`, and `''::jsonb` raises `invalid input syntax for type json`. PGlite connects as a superuser and bypasses RLS even with `FORCE`, so tests must `SET ROLE` to a non-superuser (verified in `spikes/phase0/tests/pglite-rls.test.ts`).
 
