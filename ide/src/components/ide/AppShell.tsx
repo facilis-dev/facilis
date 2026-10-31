@@ -99,7 +99,7 @@ export function AppShell() {
         c.saveActiveFile();
       } else if (e.shiftKey && k === "c") {
         e.preventDefault();
-        c.newShellTerminal();
+        c.terminals.newShellTerminal();
       }
     };
     addEventListener("keydown", onKey);

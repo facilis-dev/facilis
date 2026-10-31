@@ -12,8 +12,6 @@
 // Explorer reads the VFS live, and every open file / tab / model is keyed by its
 // ABSOLUTE path so files from different roots never collide.
 
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
 import { toast } from "sonner";
 import type * as Monaco from "monaco-editor";
 import { KernelBridge } from "./kernel";
@@ -59,6 +57,8 @@ import { NotebookSession } from "./notebook/session.js";
 import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
 import { languageFor } from "./editor-languages";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
+import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
+import { type UiTheme, monacoThemeFor } from "./terminal-theme";
 import {
   type ReplaceParams,
   type ReplaceResult,
@@ -208,12 +208,7 @@ export const DEMOS: DemoOption[] = [
   { id: "nest", title: "NestJS", runLabel: "npm run start:dev" },
 ];
 
-export interface TerminalMeta {
-  id: string;
-  label: string;
-  kind: "console" | "shell";
-  alive: boolean;
-}
+export type { TerminalMeta } from "./terminal-session";
 
 export interface PortInfo {
   port: number;
@@ -304,58 +299,6 @@ export interface IdeSnapshot {
   memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
 }
 
-const TERM_THEME_DARK = {
-  background: "#181818",
-  foreground: "#cccccc",
-  cursor: "#aeafad",
-  selectionBackground: "#264f78",
-  black: "#000000",
-  red: "#cd3131",
-  green: "#0dbc79",
-  yellow: "#e5e510",
-  blue: "#2472c8",
-  magenta: "#bc3fbc",
-  cyan: "#11a8cd",
-  white: "#e5e5e5",
-  brightBlack: "#666666",
-  brightRed: "#f14c4c",
-  brightGreen: "#23d18b",
-  brightYellow: "#f5f543",
-  brightBlue: "#3b8eea",
-  brightMagenta: "#d670d6",
-  brightCyan: "#29b8db",
-  brightWhite: "#ffffff",
-};
-
-// Light terminal palette mirrors VS Code's default light theme so the terminal
-// stays legible when the UI switches to light mode.
-const TERM_THEME_LIGHT = {
-  background: "#ffffff",
-  foreground: "#3b3b3b",
-  cursor: "#3b3b3b",
-  selectionBackground: "#add6ff",
-  black: "#000000",
-  red: "#cd3131",
-  green: "#00bc00",
-  yellow: "#949800",
-  blue: "#0451a5",
-  magenta: "#bc05bc",
-  cyan: "#0598bc",
-  white: "#555555",
-  brightBlack: "#666666",
-  brightRed: "#cd3131",
-  brightGreen: "#14ce14",
-  brightYellow: "#b5ba00",
-  brightBlue: "#0451a5",
-  brightMagenta: "#bc05bc",
-  brightCyan: "#0598bc",
-  brightWhite: "#a5a5a5",
-};
-
-type UiTheme = "light" | "dark";
-const termThemeFor = (t: UiTheme) => (t === "light" ? TERM_THEME_LIGHT : TERM_THEME_DARK);
-const monacoThemeFor = (t: UiTheme) => (t === "light" ? "vs" : "vs-dark");
-
 /**
  * The one node every Monaco editor here reparents its overflowing widgets into
  * — hover, suggest, signature help, the context menu.
@@ -407,8 +350,6 @@ export const diffTabId = (abs: string): string => DIFF_PREFIX + abs;
 export const isDiffTabId = (id: string | null): boolean => !!id && id.startsWith(DIFF_PREFIX);
 export const diffTargetOf = (id: string): string => id.slice(DIFF_PREFIX.length);
 
-const ESC = "\x1b[";
-
 // Drag-and-drop wire format: an internal Explorer drag carries the source's
 // absolute path under this MIME type; an OS drag carries File entries instead.
 export const VV_PATH_MIME = "application/x-vv-path";
@@ -438,22 +379,6 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 const folderIdFor = (rootPath: string) => "wf:" + rootPath;
-
-interface TermEntry {
-  term: Terminal;
-  fit: FitAddon;
-  kind: "console" | "shell";
-  label: string;
-  demo: string | null;
-  cwd: string | null;
-  run: string | null; // explicit VV_RUN (created/opened project run shells)
-  pid: number | null;
-  alive: boolean;
-  started: boolean;
-  opened: boolean;
-  openedAt: number;
-  pendingInput: string[];
-}
 
 export class IdeController {
   readonly bridge: KernelBridge;
@@ -519,9 +444,8 @@ export class IdeController {
   };
 
   // ── imperative state (not reactive) ──
-  private terms = new Map<string, TermEntry>();
-  private termOrder: string[] = [];
-  private termSeq = 0;
+  // The Console tab and interactive shells (terminal-session.ts).
+  readonly terminals: TerminalSession;
   private monaco: typeof Monaco | null = null;
   private editor: Monaco.editor.IStandaloneCodeEditor | null = null;
   private editorMounting = false; // guards the async create against StrictMode double-mount
@@ -592,7 +516,7 @@ export class IdeController {
     });
     this.snap.recentProjects = readRegistry(localStorage);
     this.watchRegistry();
-    this.createConsole();
+    this.terminals = new TerminalSession(this.bridge, this.terminalHost());
     this.wireBridge();
     this.preview.wireMessages();
   }
@@ -616,14 +540,6 @@ export class IdeController {
    * feedback (a save, a dev-server restart); failures still raise a toast. */
   private status(text: string) {
     this.statusMessage.show(text);
-  }
-  private syncTerminals() {
-    this.set({
-      terminals: this.termOrder.map((id) => {
-        const t = this.terms.get(id)!;
-        return { id, label: t.label, kind: t.kind, alive: t.alive };
-      }),
-    });
   }
   private syncPorts() {
     this.set({
@@ -662,6 +578,25 @@ export class IdeController {
       },
       status: (text) => this.status(text),
       endRunPhase: () => this.endRunPhase(),
+    };
+  }
+
+  // The terminal runtime's window onto the controller: the panel snapshot
+  // fields it publishes, the active folder and the resolved UI theme.
+  private terminalHost(): TerminalHost {
+    return {
+      patch: (patch) => {
+        const next: Partial<IdeSnapshot> = {};
+        if (patch.terminals !== undefined) next.terminals = patch.terminals;
+        if (patch.activeTermId !== undefined) next.activeTermId = patch.activeTermId;
+        if (patch.panelTab !== undefined) next.panelTab = patch.panelTab;
+        if (patch.panelCollapsed !== undefined) next.panelCollapsed = patch.panelCollapsed;
+        this.set(next);
+      },
+      activeTermId: () => this.snap.activeTermId,
+      panelTab: () => this.snap.panelTab,
+      activeFolderRoot: () => this.activeFolder?.rootPath ?? null,
+      theme: () => this.uiTheme,
     };
   }
 
@@ -787,195 +722,22 @@ export class IdeController {
     this.commitRegistry({ remove: [rootPath] });
   }
 
-  // ── console + terminals ───────────────────────────────────────────────────
+  // ── console output ────────────────────────────────────────────────────────
+  // The Console tab itself lives in terminal-session.ts; these two wrappers are
+  // how the rest of the controller narrates boot/run progress into it.
   private consoleWrite(chunk: string) {
-    this.terms.get("console")?.term.write(chunk);
+    this.terminals.consoleWrite(chunk);
   }
   private consoleLine(text: string, color?: string) {
-    this.terms
-      .get("console")
-      ?.term.write((color ? `${ESC}${color}m${text}${ESC}0m` : text) + "\r\n");
+    this.terminals.consoleLine(text, color);
   }
-
   // Switch the editor + all live terminals to the given resolved theme. Called
   // from a React effect that mirrors next-themes' resolvedTheme.
   applyUiTheme(theme: UiTheme) {
     if (theme === this.uiTheme) return;
     this.uiTheme = theme;
     this.monaco?.editor.setTheme(monacoThemeFor(theme));
-    const termTheme = termThemeFor(theme);
-    for (const { term } of this.terms.values()) {
-      term.options.theme = termTheme;
-    }
-  }
-
-  private makeTerm(): { term: Terminal; fit: FitAddon } {
-    const term = new Terminal({
-      convertEol: true,
-      cursorBlink: true,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
-      // Each terminal retains `scrollback` lines of parsed buffer; with several
-      // terminals (console + shells) 8000 each adds up. 2000 keeps ample history
-      // while cutting the per-terminal buffer footprint.
-      fontSize: 12.5,
-      scrollback: 2000,
-      theme: termThemeFor(this.uiTheme),
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    // Cmd+K (macOS) / Ctrl+K (Win/Linux) clears the focused terminal, mirroring
-    // VS Code's integrated terminal. Scoped to the focused xterm (not a global
-    // shortcut) so it never clobbers the editor's Cmd+K chord bindings.
-    term.attachCustomKeyEventHandler((e) => {
-      if (
-        e.type === "keydown" &&
-        (e.metaKey || e.ctrlKey) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "k"
-      ) {
-        term.clear();
-        return false;
-      }
-      return true;
-    });
-    return { term, fit };
-  }
-
-  private createConsole() {
-    const { term, fit } = this.makeTerm();
-    this.terms.set("console", {
-      term,
-      fit,
-      kind: "console",
-      label: "Console",
-      demo: null,
-      cwd: null,
-      run: null,
-      pid: null,
-      alive: true,
-      started: true,
-      opened: false,
-      openedAt: 0,
-      pendingInput: [],
-    });
-    this.termOrder.push("console");
-  }
-
-  // Create a shell terminal tab (defer = spawn the Process Worker lazily, off the
-  // cold-boot burst; explicit New Terminal / Run start it right away). `activate`
-  // = switch the panel to this terminal (false for the background boot shell).
-  // `cwd`/`run` = start the shell in a project dir and (optionally) auto-run its
-  // dev command (created/opened projects).
-  newShellTerminal({
-    defer = false,
-    demo = null,
-    label = null,
-    activate = true,
-    cwd = null,
-    run = null,
-  }: {
-    defer?: boolean;
-    demo?: string | null;
-    label?: string | null;
-    activate?: boolean;
-    cwd?: string | null;
-    run?: string | null;
-  } = {}): string {
-    const id = "sh" + ++this.termSeq;
-    const { term, fit } = this.makeTerm();
-    const entry: TermEntry = {
-      term,
-      fit,
-      kind: "shell",
-      label: label || "sh " + this.termSeq,
-      demo,
-      cwd,
-      run,
-      pid: null,
-      alive: true,
-      started: false,
-      opened: false,
-      openedAt: 0,
-      pendingInput: [],
-    };
-    this.terms.set(id, entry);
-    this.termOrder.push(id);
-    term.onData((data) => {
-      if (!entry.started) {
-        this.startShell(id);
-        entry.pendingInput.push(data);
-        return;
-      }
-      this.bridge.post("term-input", { terminalId: id, chunk: data });
-    });
-    // Adopt as the active shell if none is selected yet (keeps the Terminal tab
-    // pointing at a real shell even for the background boot terminal).
-    if (this.snap.activeTermId === null) this.set({ activeTermId: id });
-    this.syncTerminals();
-    if (activate) this.switchTerminal(id);
-    if (defer) {
-      if (typeof requestIdleCallback === "function")
-        requestIdleCallback(() => this.startShell(id), { timeout: 2500 });
-      else setTimeout(() => this.startShell(id), 1500);
-    } else {
-      this.startShell(id);
-    }
-    return id;
-  }
-
-  private startShell(id: string) {
-    const entry = this.terms.get(id);
-    if (!entry || entry.kind !== "shell" || entry.started) return;
-    entry.started = true;
-    entry.openedAt = performance.now();
-    const cwd = entry.cwd ?? this.activeFolder?.rootPath ?? undefined;
-    this.bridge.post("term-open", {
-      terminalId: id,
-      demo: entry.demo,
-      cwd,
-      run: entry.run ?? undefined,
-    });
-  }
-
-  switchTerminal(id: string) {
-    const t0 = this.terms.get(id);
-    if (!t0) return;
-    // The console has its own panel tab; shells live under the Terminal tab.
-    const patch: Partial<IdeSnapshot> =
-      t0.kind === "console"
-        ? { panelTab: "console", panelCollapsed: false }
-        : { panelTab: "terminal", activeTermId: id, panelCollapsed: false };
-    this.set(patch);
-    // Fit + focus once React has flipped visibility.
-    requestAnimationFrame(() => {
-      const t = this.terms.get(id);
-      if (!t) return;
-      try {
-        t.fit.fit();
-      } catch {
-        /* not visible */
-      }
-      t.term.focus();
-    });
-  }
-
-  setPanelTab(tab: "console" | "terminal" | "ports") {
-    this.set({ panelTab: tab, panelCollapsed: false });
-    if (tab === "console" || tab === "terminal") {
-      const id = tab === "console" ? "console" : this.snap.activeTermId;
-      requestAnimationFrame(() => {
-        if (!id) return;
-        const t = this.terms.get(id);
-        if (!t) return;
-        try {
-          t.fit.fit();
-        } catch {
-          /* hidden */
-        }
-        t.term.focus();
-      });
-    }
+    this.terminals.applyTheme(theme);
   }
 
   setActiveView(view: "explorer" | "search" | "debug" | "scm") {
@@ -1003,25 +765,9 @@ export class IdeController {
     else void this.scm.refreshBranches();
   }
 
-  closeTerminal(id: string) {
-    const t = this.terms.get(id);
-    if (!t || t.kind === "console") return;
-    this.bridge.post("term-close", { terminalId: id });
-    t.term.dispose();
-    this.terms.delete(id);
-    this.termOrder = this.termOrder.filter((x) => x !== id);
-    if (this.snap.activeTermId === id) {
-      const nextShell =
-        [...this.termOrder].reverse().find((x) => this.terms.get(x)?.kind === "shell") ?? null;
-      if (nextShell) this.switchTerminal(nextShell);
-      else this.set({ activeTermId: null, panelTab: "console" });
-    }
-    this.syncTerminals();
-  }
-
   // React hands us the container for a terminal tab; mount xterm into it once.
   mountTerminal(id: string, el: HTMLElement | null) {
-    const t = this.terms.get(id);
+    const t = this.terminals.entry(id);
     if (!t || !el) return;
     if (t.opened) {
       // Re-parent if React remounted the node.
@@ -1041,7 +787,7 @@ export class IdeController {
 
   fitTerminal(id: string | null) {
     if (!id) return;
-    const t = this.terms.get(id);
+    const t = this.terminals.entry(id);
     if (!t) return;
     try {
       t.fit.fit();
@@ -1052,7 +798,7 @@ export class IdeController {
 
   clearActiveTerminal() {
     const id = this.snap.panelTab === "console" ? "console" : this.snap.activeTermId;
-    this.terms.get(id ?? "")?.term.clear();
+    this.terminals.entry(id ?? "")?.term.clear();
   }
 
   // ── editor ──────────────────────────────────────────────────────────────
@@ -2376,8 +2122,8 @@ export class IdeController {
     const manifest = this.folderManifests.get(root);
     this.set({ panelCollapsed: false });
     const running = this.runningProjects.get(root);
-    if (running && running.terminalId && this.terms.has(running.terminalId)) {
-      this.switchTerminal(running.terminalId);
+    if (running && running.terminalId && this.terminals.has(running.terminalId)) {
+      this.terminals.switchTerminal(running.terminalId);
       if (running.port) this.preview.pointPreview(running.port);
       return;
     }
@@ -2388,7 +2134,11 @@ export class IdeController {
     }
     markBoot("install-start");
     warmRegistryConnection();
-    const tid = this.newShellTerminal({ cwd: root, run: manifest.dev, label: manifest.dev });
+    const tid = this.terminals.newShellTerminal({
+      cwd: root,
+      run: manifest.dev,
+      label: manifest.dev,
+    });
     this.runningProjects.set(root, { terminalId: tid, port: null });
     this.beginRunPhase(root);
   }
@@ -2445,7 +2195,7 @@ export class IdeController {
   openTerminalIn(absDir: string) {
     const dir = normDir(absDir);
     this.set({ panelCollapsed: false });
-    this.newShellTerminal({ cwd: dir, label: baseName(dir) || "sh", activate: true });
+    this.terminals.newShellTerminal({ cwd: dir, label: baseName(dir) || "sh", activate: true });
   }
 
   goHome() {
@@ -3112,13 +2862,13 @@ export class IdeController {
     const demo = this.snap.selectedDemo;
     this.set({ panelCollapsed: false, view: "workspace" });
     const running = this.runningDemos.get(demo);
-    if (running && running.terminalId && this.terms.has(running.terminalId)) {
-      this.switchTerminal(running.terminalId);
+    if (running && running.terminalId && this.terminals.has(running.terminalId)) {
+      this.terminals.switchTerminal(running.terminalId);
       if (running.port) this.preview.pointPreview(running.port);
       return;
     }
     const opt = DEMOS.find((d) => d.id === demo);
-    const tid = this.newShellTerminal({ demo, label: opt?.runLabel ?? "run" });
+    const tid = this.terminals.newShellTerminal({ demo, label: opt?.runLabel ?? "run" });
     this.runningDemos.set(demo, { terminalId: tid, port: null });
     this.status("installing from npm + booting in-VM…");
   }
@@ -3127,7 +2877,7 @@ export class IdeController {
   togglePanel(force?: boolean) {
     const collapsed = force === undefined ? !this.snap.panelCollapsed : !force;
     this.set({ panelCollapsed: collapsed });
-    if (!collapsed) this.setPanelTab(this.snap.panelTab);
+    if (!collapsed) this.terminals.setPanelTab(this.snap.panelTab);
   }
   toggleSidebar(force?: boolean) {
     const collapsed = force === undefined ? !this.snap.sidebarCollapsed : !force;
@@ -3296,7 +3046,7 @@ export class IdeController {
       this.consoleLine("Kernel ready.", "32");
       this.set({ booted: true, kernelReady: true });
       this.status("ready — create or open a project");
-      this.newShellTerminal({ defer: true, activate: false });
+      this.terminals.newShellTerminal({ defer: true, activate: false });
       // If the URL carries a #share= payload, import it into a new project.
       void this.loadSharedFromUrl();
     });
@@ -3326,20 +3076,15 @@ export class IdeController {
 
     // interactive terminals
     b.on("term-ready", (m) => {
-      const nb = this.notebookTerminal(m.terminalId as string);
+      const id = m.terminalId as string;
+      const nb = this.notebookTerminal(id);
       if (nb) {
         nb.kernel.onTerminalReady();
         return;
       }
-      const t = this.terms.get(m.terminalId as string);
-      if (t) {
-        t.pid = m.pid as number;
-        if (t.pendingInput.length) {
-          for (const chunk of t.pendingInput)
-            b.post("term-input", { terminalId: m.terminalId, chunk });
-          t.pendingInput.length = 0;
-        }
-      }
+      this.terminals.onProcessReady(id, m.pid as number, (terminalId, chunk) => {
+        b.post("term-input", { terminalId, chunk });
+      });
     });
     b.on("term-out", (m) => {
       // A notebook kernel's terminal has no xterm: its stdout is the protocol,
@@ -3349,21 +3094,15 @@ export class IdeController {
         nb.kernel.handleOutput(m.chunk as string);
         return;
       }
-      const t = this.terms.get(m.terminalId as string);
-      if (!t) return;
-      if (t.openedAt) {
-        this.consoleLine(
-          `[boot] shell (Process Worker) booted in ${Math.round(performance.now() - t.openedAt)}ms`,
-          "90",
-        );
-        t.openedAt = 0;
-      }
       const chunk = m.chunk as string;
+      const bootMs = this.terminals.writeTo(m.terminalId as string, chunk);
+      if (bootMs) {
+        this.consoleLine(`[boot] shell (Process Worker) booted in ${Math.round(bootMs)}ms`, "90");
+      }
       if (m.terminalId === this.runTerminalId) {
         const p = readFetchProgress(chunk);
         if (p) this.updateRunPhase((cur) => ({ ...cur, detail: formatProgress(p) }));
       }
-      t.term.write(chunk);
     });
     b.on("term-exit", (m) => {
       const id = m.terminalId as string;
@@ -3372,14 +3111,12 @@ export class IdeController {
         nb.kernel.handleExit(m.code as number);
         return;
       }
-      const t = this.terms.get(id);
-      if (!t) return;
-      t.term.write(`\r\n\x1b[90m[process exited — code ${m.code}]\x1b[0m\r\n`);
-      t.alive = false;
+      const exited = this.terminals.markExited(id, Number(m.code));
+      if (!exited) return;
       // A demo's dev-server tab ended → server gone.
-      if (t.demo && this.runningDemos.get(t.demo)?.terminalId === id) {
-        const gone = this.runningDemos.get(t.demo);
-        this.runningDemos.delete(t.demo);
+      if (exited.demo && this.runningDemos.get(exited.demo)?.terminalId === id) {
+        const gone = this.runningDemos.get(exited.demo);
+        this.runningDemos.delete(exited.demo);
         if (gone?.port != null && this.portMap.delete(gone.port)) this.syncPorts();
         if (gone?.port != null && this.snap.previewTabs.some((t) => t.port === gone.port))
           this.status("dev server stopped — preview will 502 until you Run again");
@@ -3398,7 +3135,7 @@ export class IdeController {
             this.status("dev server stopped — preview will 502 until you Run again");
         }
       }
-      this.syncTerminals();
+      this.terminals.sync();
     });
 
     // HMR tunnel: ws frame routed OUT of the VM → preview iframes. The frame

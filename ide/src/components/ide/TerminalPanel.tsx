@@ -50,7 +50,7 @@ export function TerminalPanel() {
             return (
               <button
                 key={tab.id}
-                onClick={() => c.setPanelTab(tab.id)}
+                onClick={() => c.terminals.setPanelTab(tab.id)}
                 className={cn(
                   "flex items-center border-b-2 px-3 text-xs font-medium uppercase tracking-wide transition-colors",
                   active
@@ -72,7 +72,7 @@ export function TerminalPanel() {
           <button
             title="New Terminal"
             className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => c.newShellTerminal()}
+            onClick={() => c.terminals.newShellTerminal()}
           >
             <Plus className="size-4" />
           </button>
@@ -135,7 +135,7 @@ export function TerminalPanel() {
                   return (
                     <li key={t.id}>
                       <div
-                        onClick={() => c.switchTerminal(t.id)}
+                        onClick={() => c.terminals.switchTerminal(t.id)}
                         className={cn(
                           "group flex cursor-pointer items-center gap-1.5 px-2 py-1",
                           active
@@ -151,7 +151,7 @@ export function TerminalPanel() {
                           className="ml-auto hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground group-hover:flex"
                           onClick={(e) => {
                             e.stopPropagation();
-                            c.closeTerminal(t.id);
+                            c.terminals.closeTerminal(t.id);
                           }}
                         >
                           <Trash2 className="size-3" />

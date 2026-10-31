@@ -52,7 +52,7 @@ export function CommandPalette() {
   >(
     () => [
       { label: "Go Home / New Project", icon: Home, run: () => c.goHome() },
-      { label: "New Terminal", icon: Plus, keys: "⇧⌘C", run: () => c.newShellTerminal() },
+      { label: "New Terminal", icon: Plus, keys: "⇧⌘C", run: () => c.terminals.newShellTerminal() },
       { label: "Run Project", icon: Play, run: () => c.runActiveFolder() },
       {
         label: "Import Folder as Project",
@@ -79,7 +79,11 @@ export function CommandPalette() {
       // chord reads Alt+Z. Every other entry here writes the macOS form too, so this
       // stays consistent rather than growing a platform switch for one row.
       { label: "Toggle Word Wrap", icon: WrapText, keys: "⌥Z", run: () => c.toggleWordWrap() },
-      { label: "Clear Active Terminal", icon: Eraser, run: () => c.clearActiveTerminal() },
+      {
+        label: "Clear Active Terminal",
+        icon: Eraser,
+        run: () => c.clearActiveTerminal(),
+      },
       { label: "Reload Preview", icon: RefreshCw, run: () => c.preview.reloadPreview() },
       { label: "Measure Memory", icon: Gauge, run: () => void c.measureMemory() },
       {
