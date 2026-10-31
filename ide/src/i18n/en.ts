@@ -40,6 +40,24 @@ export const en = {
   "recent.openInNewTabAria": "Open {name} in a new tab",
   "recent.removeFromList": "Remove from list",
 
+  // ── bootstrap ────────────────────────────────────────────────────────────
+  "boot.starting": "Starting runtime",
+  "boot.restoring": "Restoring your saved project",
+  "boot.finalizing": "Finalizing runtime",
+  "boot.settingUp":
+    "Setting up the in-browser runtime — import and project actions unlock in a moment.",
+  "boot.progress": "{done} / {total} ({pct}%)",
+  "boot.failed": "The runtime failed to start",
+  "boot.failedHint":
+    "Reloading the page usually clears it. If it keeps happening, the browser console has the underlying error.",
+  "boot.reload": "Reload",
+  "boot.openingTitle": "Opening {name}",
+  "boot.openingHint": "Restoring its files and starting the runtime.",
+
+  // ── projects ─────────────────────────────────────────────────────────────
+  "project.missing": "This tab's project is not in the recent-projects list any more.",
+  "project.openElsewhere": "{name} is already open in another tab — close it there first.",
+
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Import from GitHub or npm",
   "import.description":

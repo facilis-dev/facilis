@@ -35,6 +35,24 @@ export const it: Partial<Record<MessageKey, string>> = {
   "recent.openInNewTabAria": "Apri {name} in una nuova scheda",
   "recent.removeFromList": "Rimuovi dalla lista",
 
+  // ── bootstrap ────────────────────────────────────────────────────────────
+  "boot.starting": "Avvio del runtime",
+  "boot.restoring": "Ripristino del progetto salvato",
+  "boot.finalizing": "Finalizzazione del runtime",
+  "boot.settingUp":
+    "Preparazione del runtime nel browser — le azioni su import e progetti si sbloccano tra un istante.",
+  "boot.progress": "{done} / {total} ({pct}%)",
+  "boot.failed": "Il runtime non è partito",
+  "boot.failedHint":
+    "Di solito ricaricare la pagina risolve. Se continua, la console del browser contiene l'errore.",
+  "boot.reload": "Ricarica",
+  "boot.openingTitle": "Apertura di {name}",
+  "boot.openingHint": "Ripristino dei file e avvio del runtime.",
+
+  // ── projects ─────────────────────────────────────────────────────────────
+  "project.missing": "Il progetto di questa scheda non è più nella lista dei recenti.",
+  "project.openElsewhere": "{name} è già aperto in un'altra scheda — chiudilo lì prima.",
+
   // ── Import from GitHub / npm ─────────────────────────────────────────────
   "import.title": "Importa da GitHub o npm",
   "import.description":

@@ -10,9 +10,11 @@
 //     folder claimed by another live tab is closed again with a toast, because two RAM
 //     copies of one project diverge and then mirror over each other.
 import { toast } from "sonner";
+import { t } from "@/i18n";
 import type { IdeController, IdeSnapshot } from "./controller";
 import { claimProject, type ProjectClaim } from "./project-lock";
 import { projectName } from "./project-name";
+import { projectParamIn } from "./boot-target";
 
 const TITLE_BASE = "Vivari Studio";
 
@@ -40,10 +42,6 @@ export function openStudioInNewTab(): void {
   url.hash = "";
   url.searchParams.delete("project");
   window.open(url.toString(), "_blank", "noopener");
-}
-
-function projectParam(): string | null {
-  return new URLSearchParams(location.search).get("project") || null;
 }
 
 export function installProjectTabs(controller: IdeController): () => void {
@@ -94,27 +92,30 @@ export function installProjectTabs(controller: IdeController): () => void {
 
   async function bootstrapFromUrl(snap: IdeSnapshot): Promise<void> {
     if (bootstrapped) return;
-    const root = projectParam();
+    const root = projectParamIn(location.search);
     if (!root) return;
     if (!snap.kernelReady) return; // called again on the next snapshot change
     bootstrapped = true;
     const meta = snap.recentProjects.find((p) => p.rootPath === root);
     if (!meta) {
-      toast.error("This tab's project is not in the recent-projects list any more.");
+      toast.error(t("project.missing"));
       dropProjectParam();
+      controller.clearBootProject();
+      controller.goHome();
       return;
     }
     if (claims.has(root)) return;
     const claim = await claimProject(root);
     if (!claim) {
-      toast.error(
-        `${projectName(meta.rootPath)} is already open in another tab — close it there first.`,
-      );
-      dropProjectParam(); // this tab stays a plain Home tab; no retry loop on reload
+      toast.error(t("project.openElsewhere", { name: projectName(meta.rootPath) }));
+      dropProjectParam(); // this tab falls back to Home; no retry loop on reload
+      controller.clearBootProject();
+      controller.goHome();
       return;
     }
     claims.set(root, claim);
     await controller.openProject(meta);
+    controller.clearBootProject();
     controller.runProject(root);
   }
 
@@ -135,7 +136,7 @@ export function installProjectTabs(controller: IdeController): () => void {
         claims.set(folder.rootPath, claim);
         continue;
       }
-      toast.error(`${folder.name} is already open in another tab — close it there first.`);
+      toast.error(t("project.openElsewhere", { name: folder.name }));
       controller.closeFolder(folder.id);
       return; // the snapshot changed under us; the queued reconcile re-reads it
     }

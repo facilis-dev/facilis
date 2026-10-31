@@ -23,6 +23,7 @@ import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
+import { bootTargetFrom } from "./boot-target";
 import { withTemplateAssets } from "../facilis/project-assets";
 import { StatusMessage } from "./status-message";
 import type { TemplateManifest } from "./templates";
@@ -255,6 +256,10 @@ export interface IdeSnapshot {
   // the preview paints (or the run tab exits).
   runPhase: RunPhase | null;
   view: "home" | "workspace";
+  // The project a reloaded tab is booting into (?project=): non-null until the
+  // project-opening pass landed it (or gave up and went Home). Drives the blocking
+  // overlay that replaces the old Home flash.
+  bootProject: string | null;
   // A shared link (#share=) is bootstrapping: show a full-screen blocking overlay.
   shareLoading: boolean;
   shareMessage: string;
@@ -328,6 +333,13 @@ export class IdeController {
   // pushes one message per line of dev-server output.
   readonly statusMessage = new StatusMessage();
 
+  // The project this tab boots into (?project=), computed once from the URL: the first
+  // paint must already be the workspace, not Home (boot-target.ts). Cleared when the
+  // project-opening pass finishes (or gives up) — see clearBootProject().
+  private readonly bootTarget = bootTargetFrom(
+    typeof location !== "undefined" ? location.search : "",
+    typeof location !== "undefined" ? location.hash : "",
+  );
   // ── external store ──
   private listeners = new Set<() => void>();
   private snap: IdeSnapshot = {
@@ -338,9 +350,11 @@ export class IdeController {
     bootTotal: 0,
     bootError: null,
     runPhase: null,
-    // A shared link lands straight on the (loading) workspace, never Home — so the
-    // user can't accidentally start a new project while it bootstraps.
-    view: hasSharePayload() ? "workspace" : "home",
+    // A shared link and a reload of a tab that has a project land straight on the
+    // (loading) workspace, never Home — so the user can't accidentally start a new
+    // project while it bootstraps, and a reload does not flash the picker.
+    view: this.bootTarget.view,
+    bootProject: this.bootTarget.project,
     shareLoading: hasSharePayload(),
     shareMessage: "Booting the runtime…",
     importRemoteOpen: false,
@@ -1748,6 +1762,10 @@ export class IdeController {
 
   goHome() {
     this.set({ view: "home" });
+  }
+  /** The boot pass that opens ?project= is over: drop the blocking overlay. */
+  clearBootProject() {
+    if (this.snap.bootProject !== null) this.set({ bootProject: null });
   }
   showWorkspace() {
     if (this.snap.workspaceFolders.length) this.set({ view: "workspace" });
