@@ -1,5 +1,5 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { ownerIsolationPolicy, tenantIsolationPolicy } from "@facilis/db";
+import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
 import { rolePermissions, roles, sessions, userRoles, users } from "@facilis/auth";
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
@@ -10,7 +10,8 @@ export const todos = pgTable(
   "todos",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenantId: uuid("tenant_id").notNull(),
+    // Taken from app.tenant_id by the DB default; the RLS policy checks the same GUC (D-040).
+    tenantId: tenantColumn(),
     ownerId: uuid("owner_id").notNull(),
     title: text("title").notNull(),
     done: boolean("done").notNull().default(false),

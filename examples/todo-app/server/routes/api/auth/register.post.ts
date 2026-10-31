@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { defineAuthorizedHandler, fail } from "@facilis/core";
 import { hashPassword, registerInitialAdmin, userRoles, users } from "@facilis/auth";
 import config from "~/facilis.config";
-import { tenantIdFromEnv } from "~/server/utils/tenant";
 
 export default defineAuthorizedHandler(
   {
@@ -25,7 +24,9 @@ export default defineAuthorizedHandler(
     const passwordHash = await hashPassword(body.password);
     const [user] = await db
       .insert(users)
-      .values({ email: body.email, tenantId: tenantIdFromEnv(), passwordHash })
+      // The tenant comes from the deployment scope (FACILIS_TENANT_ID / DEFAULT_TENANT_ID),
+      // set as app.tenant_id by defineAuthorizedHandler; the column default reads it (D-040).
+      .values({ email: body.email, passwordHash })
       .returning({ id: users.id, email: users.email });
 
     if (user === undefined) return fail("internal_error");

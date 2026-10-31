@@ -1,0 +1,2 @@
+ALTER TABLE "todos" ALTER COLUMN "tenant_id" SET DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid;--> statement-breakpoint
+ALTER TABLE "users" ALTER COLUMN "tenant_id" SET DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid;

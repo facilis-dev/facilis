@@ -41,15 +41,15 @@ One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 3. Each user only sees their own todos: tenant isolation is `AS RESTRICTIVE` and owner
    isolation is permissive, both driven by `app.tenant_id`/`app.user_id`/`app.roles`
    (D-008). Requests run as the non-superuser `facilis_app` role, so PGlite really
-   enforces RLS (a superuser would bypass it).
+   enforces RLS (a superuser would bypass it). The tenant is the deployment's, never the
+   session's, and the database fills it from `app.tenant_id` (D-040) — no route names it.
 
 ## Layout
 
 ```
 db/schema.ts             todos + re-exported auth tables, RLS policies, enableRLS
-db/migrations/           0000: drizzle-kit DDL + policies; 0001: role seed from the config
+db/migrations/           0000: DDL + policies; 0001: tenant-column defaults + role seed
 server/routes/api/...    defineAuthorizedHandler only
-server/utils/            cookie + tenant helpers
 src/                     React client
 locales/en.json          flat i18n keys
 facilis.config.ts        roles/permissions/db/i18n (SPEC Appendix B)
