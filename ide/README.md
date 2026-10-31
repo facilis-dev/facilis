@@ -90,7 +90,16 @@ immediately.
    Worker, so a change there is made in `vendor/vivari/packages/studio/public/sw.js` first and
    mirrored here — keep the two in sync (the IDE copy is mirrored through the repo's Prettier,
    with `catch {}` and a `Set` for the isolation policies to satisfy our lint).
-9. **Multi-tab** (D-033): Home's recent-project row moves to
+9. **AI chat** (D-045/D-046): `src/ai/` is the Facilis AI layer — provider presets and a
+   streaming client for the OpenAI-compatible and Anthropic protocols, Model A prompt assembly,
+   the `AIResponse` parser, the diff used by the review card, and `ChatSession` behind a small
+   `ChatHost` (one per controller, in `chat-host.ts`). `src/components/ide/ChatPanel.tsx` plus
+   `ChatMessageView` / `ChatProposalView` / `ChatSettingsDialog` render it under the new
+   `chat` activity view; the command palette gains "Open AI Chat". The model never writes:
+   Apply sends only the accepted patches through `src/facilis/apply-patch.ts`. The key is BYO,
+   stored per origin in `localStorage` and sent only to the chosen provider; the dev-only
+   `mock` provider exists only in `vite dev` and lets `pnpm ide:smoke` exercise the whole flow.
+10. **Multi-tab** (D-033): Home's recent-project row moves to
    `src/components/ide/RecentProjectsRow.tsx` so it can grow an "Open in a new tab" action
    without pushing `Home.tsx` past its baseline; `src/vv/project-tabs.ts` +
    `src/vv/project-lock.ts` own the `?project=` bootstrap and the one-project-per-tab claim;
@@ -156,6 +165,11 @@ unblock checklist. Details and the rest of the environment notes: [`docs/DEV.md`
 New Facilis panels and the `IdeController.applyPatch()` write path belong in new modules under
 `ide/src/` (writes go through `kernel.writeFiles`, never OPFS directly — SPEC §10.3). Upstream
 files are formatted/linted but not otherwise rewritten; forced edits go into the patch set above.
+
+The AI chat lives in `ide/src/ai/` (D-045/D-046): pure modules with vitest files, plus a
+`ChatSession` that talks to the editor only through `ChatHost` and to the model only through an
+injected call — so the UI and the write path stay testable without a browser or a key. Everything
+it writes goes through the same validated `applyPatch` path.
 
 The first Facilis module is `ide/src/facilis/`: the probe template that boots a real Facilis
 app in the WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`). The generated

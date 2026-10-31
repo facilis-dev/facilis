@@ -1426,6 +1426,13 @@ depends on (D-018, D-030).
 | PAT Auth | Extend git modal | WebCrypto storage in OPFS |
 | `applyPatch()` | `IdeController` method | Writes through `kernel.writeFiles` |
 
+**Status (2026-10-31):** the AI chat is implemented — BYO-key providers (OpenAI-compatible and
+Anthropic protocols), Model A context, `AIResponse` parsing, a per-file diff/accept proposal and
+`applyPatch()` as the only write path (D-045/D-046). The write path lives in
+`ide/src/facilis/apply-patch.ts` rather than on `IdeController`, because the controller is
+pinned by the file-length ratchet (D-019); the activity view is `chat`. Still Phase 4: the full
+16-rule validator (SPEC §9.3), the retry loop (§9.4) and the Model B tool surface (§9.5).
+
 ### 10.3 VFS Write Rule
 
 **Never write to OPFS directly.** All writes go through:
