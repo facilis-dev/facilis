@@ -18,6 +18,12 @@ FACILIS_INITIAL_ADMIN=admin@example.com PORT=5199 pnpm dev
 One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 `http://localhost:5199`.
 
+> In the sandbox the browser can only reach the `facilis.home` HTTPS vhost, which forwards to
+> **port 5173**. Start this example there when you want to try it through the proxy:
+> `pnpm exec vite dev --host 0.0.0.0 --port 5173` — the example's `vite.config.ts` allows
+> that Host header. The vhost is shared with the IDE dev server, so only one process can own
+> 5173 at a time.
+
 > Headless note (this sandbox): Nitro inherits `PORT` (8080 is occupied) and Vite's
 > `localhost` binds IPv6 `::1` — probe `http://localhost:5199`, or pass
 > `--host 127.0.0.1` to `vite dev` (D-009).
