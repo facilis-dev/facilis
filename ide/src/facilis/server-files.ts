@@ -62,7 +62,6 @@ export default defineAuthorizedHandler(
       .values({
         title: body.title,
         dueDate: body.dueDate === undefined ? null : new Date(body.dueDate),
-        tenantId: auth.tenantId,
         ownerId: auth.userId,
       })
       .returning({ id: todos.id, title: todos.title, done: todos.done });

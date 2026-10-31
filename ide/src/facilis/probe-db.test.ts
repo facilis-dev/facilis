@@ -33,7 +33,6 @@ describe("Facilis probe database roundtrip", () => {
       "server/routes/api/auth/login.post.ts",
       "server/routes/api/auth/register.post.ts",
       "server/routes/api/auth/session.get.ts",
-      "server/utils/tenant.ts",
     ]);
     const login = serverAuthFiles["server/routes/api/auth/login.post.ts"];
     expect(login).toContain("createSession(");
@@ -46,12 +45,18 @@ describe("Facilis probe database roundtrip", () => {
     expect(serverAuthFiles["server/routes/api/auth/register.post.ts"]).toContain("hashPassword(");
   });
 
-  it("inserts through an authorized handler scoped by auth", () => {
+  it("inserts through an authorized handler without naming the tenant", () => {
     const route = serverFiles["server/routes/api/todos/index.post.ts"];
     expect(route).toContain('permission: ["todos:write"]');
     expect(route).toContain('dbTables: ["todos"]');
-    expect(route).toContain("tenantId: auth.tenantId");
+    // D-040: the tenant column defaults from app.tenant_id; only the owner is explicit.
+    expect(route).not.toContain("tenantId:");
     expect(route).toContain("ownerId: auth.userId");
+  });
+
+  it("declares the tenant column default and ships its migration", () => {
+    expect(dbFiles["db/schema.ts"]).toContain("tenantId: tenantColumn()");
+    expect(dbFiles["db/migrations/0001_tenant_default.sql"]).toContain("SET DEFAULT nullif(");
   });
 
   it("gives the registration default role the write permission and seeds it", () => {

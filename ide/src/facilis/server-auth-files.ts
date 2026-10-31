@@ -6,23 +6,11 @@
 // narrowed to what the probe needs: register, log in, and the authenticated write in
 // server-files.ts. The probe app drives them and reports the roundtrip to the smoke.
 
-const tenantUtil = `import { DEFAULT_TENANT_ID } from "@facilis/core";
-
-// Single-tenant Phase 1 (O-003): the deployment's tenant comes from the environment, with
-// the framework constant as fallback so the app and the Nitro middleware agree on the GUC
-// for unauthenticated requests (registration/login).
-export function tenantIdFromEnv(): string {
-  const raw = process.env.FACILIS_TENANT_ID;
-  return raw !== undefined && raw.length > 0 ? raw : DEFAULT_TENANT_ID;
-}
-`;
-
 const registerRoute = `import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { defineAuthorizedHandler, fail } from "@facilis/core";
 import { hashPassword, registerInitialAdmin, userRoles, users } from "@facilis/auth";
 import config from "~/facilis.config";
-import { tenantIdFromEnv } from "~/server/utils/tenant";
 
 export default defineAuthorizedHandler(
   {
@@ -44,7 +32,9 @@ export default defineAuthorizedHandler(
     const passwordHash = await hashPassword(body.password);
     const [user] = await db
       .insert(users)
-      .values({ email: body.email, tenantId: tenantIdFromEnv(), passwordHash })
+      // D-040: the column default fills the tenant from the deployment scope
+      // (FACILIS_TENANT_ID), the only tenant this deployment will ever accept.
+      .values({ email: body.email, passwordHash })
       .returning({ id: users.id, email: users.email });
 
     if (user === undefined) return fail("internal_error");
@@ -134,7 +124,6 @@ export default defineAuthorizedHandler(
 `;
 
 export const serverAuthFiles: Record<string, string> = {
-  "server/utils/tenant.ts": tenantUtil,
   "server/routes/api/auth/register.post.ts": registerRoute,
   "server/routes/api/auth/login.post.ts": loginRoute,
   "server/routes/api/auth/session.get.ts": sessionRoute,
