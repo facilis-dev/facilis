@@ -28,3 +28,73 @@ export function previewPathSuffix(href: string): string {
   path = drop(drop(path, /([?&])t=\d+(&|$)/), /([?&])__vv_kernel=[^&#]*(&|$)/);
   return path && path !== "/" ? path : "";
 }
+
+// The iframe URL for a preview tab: the SW preview proxy for a bound port, else
+// blank. The in-server path plus a per-tab cache-bust force a fresh document on
+// reload/navigate (the SW re-injects the WS shim + DevTools bootstrap each time).
+export function previewSrcFor(
+  bridge: KernelBridge,
+  tab: { port: number | null; path: string; nonce: number },
+): string {
+  if (tab.port == null) return "about:blank";
+  const path = tab.path && tab.path.startsWith("/") ? tab.path : "/";
+  const bust = tab.nonce > 1 ? `${path.includes("?") ? "&" : "?"}t=${tab.nonce}` : "";
+  // The bridge builds the right URL per mode: relative `/preview/<port>/...` in
+  // mode A, `<origin>/preview/<port>/...` in mode B, or a per-port wildcard origin
+  // `<scheme>//<token>--<port>.<domain>/...` (served at root) in mode C.
+  return bridge.previewUrlFor(tab.port, `${path}${bust}`);
+}
+
+/** The tab fields a typed address-bar entry maps to, plus the text to display. */
+export interface PreviewAddress {
+  url: string;
+  port: number;
+  path: string; // starts with "/"
+}
+
+/** Parse an address-bar entry against the tab's current port. Local-only for
+ *  now: localhost / 127.0.0.1, a bare port, or a bare path; everything else is
+ *  refused rather than guessed. The caller toasts the error text. */
+export function parsePreviewAddress(
+  currentPort: number | null,
+  input: string,
+): { address: PreviewAddress } | { error: string } {
+  const raw = input.trim();
+  if (!raw) return { error: "Enter a local port, e.g. localhost:3000" };
+
+  // Strip an optional scheme, then split host[:port] from the path.
+  const noScheme = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  let hostPort = noScheme;
+  let path = "/";
+  const slash = noScheme.indexOf("/");
+  if (noScheme.startsWith("/")) {
+    // Bare path — keep the tab's current port.
+    hostPort = "";
+    path = noScheme;
+  } else if (slash !== -1) {
+    hostPort = noScheme.slice(0, slash);
+    path = noScheme.slice(slash);
+  }
+
+  let port = currentPort;
+  if (/^\d+$/.test(hostPort)) {
+    // Bare port, e.g. "3000".
+    port = parseInt(hostPort, 10);
+  } else if (hostPort) {
+    const [host, portStr] = hostPort.split(":");
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+    if (!isLocal) return { error: "Only local URLs are supported for now" };
+    if (portStr) port = parseInt(portStr, 10);
+  }
+  if (port == null || Number.isNaN(port))
+    return { error: "Enter a local port, e.g. localhost:3000" };
+  if (!path.startsWith("/")) path = "/" + path;
+
+  return {
+    address: {
+      url: `localhost:${port}${path === "/" ? "" : path}`,
+      port,
+      path,
+    },
+  };
+}

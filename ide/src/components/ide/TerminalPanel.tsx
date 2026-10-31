@@ -198,7 +198,7 @@ export function TerminalPanel() {
                       <button
                         title="Open in new tab"
                         className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-                        onClick={() => c.openExternalPreview(p.port)}
+                        onClick={() => c.preview.openExternalPreview(p.port)}
                       >
                         <ExternalLink className="size-3.5" />
                       </button>

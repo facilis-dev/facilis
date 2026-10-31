@@ -130,7 +130,7 @@ export function PreviewPanel() {
                 <ContextMenuTrigger className="contents">
                   <div
                     title={tabTitle(t)}
-                    onClick={() => c.activatePreviewTab(t.id)}
+                    onClick={() => c.preview.activatePreviewTab(t.id)}
                     className={cn(
                       "group flex cursor-pointer items-center gap-1.5 border-r px-3 text-xs",
                       isActive
@@ -145,7 +145,7 @@ export function PreviewPanel() {
                       className="flex size-4 items-center justify-center rounded hover:bg-accent"
                       onClick={(e) => {
                         e.stopPropagation();
-                        c.closePreviewTab(t.id);
+                        c.preview.closePreviewTab(t.id);
                       }}
                     >
                       <X
@@ -155,21 +155,23 @@ export function PreviewPanel() {
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
-                  <ContextMenuItem onClick={() => c.closePreviewTab(t.id)}>Close</ContextMenuItem>
+                  <ContextMenuItem onClick={() => c.preview.closePreviewTab(t.id)}>
+                    Close
+                  </ContextMenuItem>
                   <ContextMenuItem
                     disabled={tabs.length <= 1}
-                    onClick={() => c.closeOtherPreviewTabs(t.id)}
+                    onClick={() => c.preview.closeOtherPreviewTabs(t.id)}
                   >
                     Close Others
                   </ContextMenuItem>
                   <ContextMenuItem
                     disabled={tabs.findIndex((x) => x.id === t.id) >= tabs.length - 1}
-                    onClick={() => c.closePreviewTabsToRight(t.id)}
+                    onClick={() => c.preview.closePreviewTabsToRight(t.id)}
                   >
                     Close to the Right
                   </ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem onClick={() => c.closeAllPreviewTabs()}>
+                  <ContextMenuItem onClick={() => c.preview.closeAllPreviewTabs()}>
                     Close All
                   </ContextMenuItem>
                 </ContextMenuContent>
@@ -179,7 +181,7 @@ export function PreviewPanel() {
         </div>
         <Tooltip>
           <TooltipTrigger
-            onClick={() => c.addPreviewTab()}
+            onClick={() => c.preview.addPreviewTab()}
             aria-label="New browser tab"
             className="flex w-8 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-accent hover:text-foreground"
           >
@@ -192,13 +194,13 @@ export function PreviewPanel() {
       {/* address / nav toolbar (only with an active tab) */}
       {active && (
         <div className="flex h-9 shrink-0 items-center gap-0.5 border-b px-1.5">
-          <ToolButton label="Back" onClick={() => c.previewBack(active.id)}>
+          <ToolButton label="Back" onClick={() => c.preview.previewBack(active.id)}>
             <ArrowLeft className="size-4" />
           </ToolButton>
-          <ToolButton label="Forward" onClick={() => c.previewForward(active.id)}>
+          <ToolButton label="Forward" onClick={() => c.preview.previewForward(active.id)}>
             <ArrowRight className="size-4" />
           </ToolButton>
-          <ToolButton label="Reload" onClick={() => c.reloadPreviewTab(active.id)}>
+          <ToolButton label="Reload" onClick={() => c.preview.reloadPreviewTab(active.id)}>
             <RotateCw className="size-4" />
           </ToolButton>
           {/* Address bar — local-only: localhost / 127.0.0.1 / a bare path loads the
@@ -207,10 +209,10 @@ export function PreviewPanel() {
             <Lock className="size-3 shrink-0 text-muted-foreground" />
             <input
               value={active.url}
-              onChange={(e) => c.setPreviewUrl(active.id, e.target.value)}
+              onChange={(e) => c.preview.setPreviewUrl(active.id, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter")
-                  c.navigatePreview(active.id, (e.target as HTMLInputElement).value);
+                  c.preview.navigatePreview(active.id, (e.target as HTMLInputElement).value);
               }}
               placeholder="localhost:3000"
               spellCheck={false}
@@ -219,14 +221,14 @@ export function PreviewPanel() {
           </div>
           <ToolButton
             label={snap.devtoolsOpen ? "Close devtools" : "Open devtools"}
-            onClick={() => c.toggleDevtools()}
+            onClick={() => c.preview.devtools.toggleDevtools()}
           >
             <SquareTerminal className={cn("size-4", snap.devtoolsOpen && "text-foreground")} />
           </ToolButton>
           <ToolButton
             label="Open in new tab"
             disabled={active.port == null}
-            onClick={() => c.openPreviewExternal(active.id)}
+            onClick={() => c.preview.openPreviewExternal(active.id)}
           >
             <ExternalLink className="size-4" />
           </ToolButton>
@@ -246,10 +248,10 @@ export function PreviewPanel() {
               key={t.id}
               tab={t}
               active={t.id === snap.activePreviewId}
-              src={c.previewSrc(t)}
+              src={c.preview.previewSrc(t)}
               colorScheme={colorScheme}
-              setFrame={(id, el) => c.setPreviewFrame(id, el)}
-              onLoad={(id) => c.onPreviewFrameLoad(id)}
+              setFrame={(id, el) => c.preview.setPreviewFrame(id, el)}
+              onLoad={(id) => c.preview.onPreviewFrameLoad(id)}
             />
           ))}
           {active && active.port == null && (
@@ -264,7 +266,7 @@ export function PreviewPanel() {
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-sidebar text-sm text-muted-foreground">
                 <span>No preview open.</span>
                 <button
-                  onClick={() => c.addPreviewTab()}
+                  onClick={() => c.preview.addPreviewTab()}
                   className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-accent hover:text-foreground"
                 >
                   <Plus className="size-3.5" /> New browser tab
@@ -283,10 +285,10 @@ export function PreviewPanel() {
             >
               <iframe
                 key={snap.devtoolsNonce}
-                ref={(el) => c.setDevtoolsFrame(el)}
-                onLoad={() => c.onDevtoolsReady()}
+                ref={(el) => c.preview.devtools.setDevtoolsFrame(el)}
+                onLoad={() => c.preview.devtools.onDevtoolsReady()}
                 title="DevTools"
-                src={c.devtoolsSrc()}
+                src={c.preview.devtools.devtoolsSrc()}
                 className="h-full w-full border-0"
               />
             </ResizablePanel>

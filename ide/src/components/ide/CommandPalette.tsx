@@ -80,7 +80,7 @@ export function CommandPalette() {
       // stays consistent rather than growing a platform switch for one row.
       { label: "Toggle Word Wrap", icon: WrapText, keys: "⌥Z", run: () => c.toggleWordWrap() },
       { label: "Clear Active Terminal", icon: Eraser, run: () => c.clearActiveTerminal() },
-      { label: "Reload Preview", icon: RefreshCw, run: () => c.reloadPreview() },
+      { label: "Reload Preview", icon: RefreshCw, run: () => c.preview.reloadPreview() },
       { label: "Measure Memory", icon: Gauge, run: () => void c.measureMemory() },
       {
         label: "Reset Everything (wipe files + caches)",
