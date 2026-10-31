@@ -95,6 +95,15 @@ casting (see SPEC §8.4.5 and the Phase 0 finding: after `RESET` a GUC reads as 
   `sessionIdFromRequest(event)`. Those helpers call h3's `setCookie`/`deleteCookie`, which
   stage the header on the event's response — the only surface that survives the in-VM Nitro dev
   path; a `Set-Cookie` on a returned `Response` is dropped (D-038). Never hand-serialise it.
+- Response surface inside a handler: response headers go on `event.res?.headers.set(...)`, which
+  h3 merges into the final response (`set-cookie` is appended, every other name overrides), and
+  a handler that returns plain data may set status/statusText on the same object. For everything
+  else h3 provides (redirects, streams, app cookies, `getQuery`, params, …) import it from
+  `nitro/h3` in `server/**` code — the documented Nitro re-export, and every project declares
+  `nitro` — then narrow the structural event once: `const h3 = event as unknown as H3Event`.
+  That is the same single cast `@facilis/nitro/session` does: core's event contract stays
+  h3-free (§4.1), so the h3 import lives in the route (or a `server/utils` module), never in
+  `src/**` — `nitro/h3` is server-only.
 - Error codes: `unauthorized` (401), `forbidden` (403), `invalid_input` (400), `conflict` (409),
   `db_unavailable` (500), `not_found` (404), `internal_error` (500). Export
   `fail(code, details?)` from core returning a web `Response`;
