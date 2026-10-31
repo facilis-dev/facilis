@@ -279,7 +279,7 @@ export interface IdeSnapshot {
   devtoolsOpen: boolean; // the chii DevTools panel (bottom split of the preview)
   devtoolsNonce: number; // bump to reload the DevTools frontend (re-attach to a new target)
   selectedDemo: string;
-  activeView: "explorer" | "search" | "debug" | "scm";
+  activeView: "explorer" | "search" | "debug" | "scm" | "chat";
   sidebarCollapsed: boolean;
   panelCollapsed: boolean;
   previewCollapsed: boolean;
@@ -758,7 +758,7 @@ export class IdeController {
     this.terminals.applyTheme(theme);
   }
 
-  setActiveView(view: "explorer" | "search" | "debug" | "scm") {
+  setActiveView(view: "explorer" | "search" | "debug" | "scm" | "chat") {
     this.set({ activeView: view, sidebarCollapsed: false });
     // Opening Source Control: point it at all workspace folders and refresh NOW.
     // Status walks only run while the panel is shown (they contend with the terminal

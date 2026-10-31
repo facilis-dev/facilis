@@ -6,6 +6,7 @@ import GitBranch from "~icons/lucide/git-branch";
 import Sun from "~icons/lucide/sun";
 import Moon from "~icons/lucide/moon";
 import Monitor from "~icons/lucide/monitor";
+import MessageSquare from "~icons/lucide/message-square";
 import Check from "~icons/lucide/check";
 import { useTheme } from "next-themes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { t, type MessageKey } from "@/i18n";
 import { useIde } from "./useIde";
 
 function ActBtn({
@@ -48,7 +50,7 @@ function ActBtn({
   );
 }
 
-type View = "explorer" | "search" | "debug" | "scm";
+type View = "explorer" | "search" | "debug" | "scm" | "chat";
 
 export function ActivityBar() {
   const { c, snap } = useIde();
@@ -64,13 +66,21 @@ export function ActivityBar() {
   const shown = (view: View) => snap.activeView === view && !snap.sidebarCollapsed;
   return (
     <div className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-1">
-      <ActBtn label="Workspace" active={shown("explorer")} onClick={() => select("explorer")}>
+      <ActBtn
+        label={t("activity.workspace")}
+        active={shown("explorer")}
+        onClick={() => select("explorer")}
+      >
         <Files className="size-5" />
       </ActBtn>
-      <ActBtn label="Search" active={shown("search")} onClick={() => select("search")}>
+      <ActBtn
+        label={t("activity.search")}
+        active={shown("search")}
+        onClick={() => select("search")}
+      >
         <Search className="size-5" />
       </ActBtn>
-      <ActBtn label="Source Control" active={shown("scm")} onClick={() => select("scm")}>
+      <ActBtn label={t("activity.scm")} active={shown("scm")} onClick={() => select("scm")}>
         <span className="relative">
           <GitBranch className="size-5" />
           {scmCount > 0 && (
@@ -80,19 +90,22 @@ export function ActivityBar() {
           )}
         </span>
       </ActBtn>
-      <ActBtn label="Run and Debug" active={shown("debug")} onClick={() => select("debug")}>
+      <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
         <Bug className="size-5" />
+      </ActBtn>
+      <ActBtn label={t("activity.chat")} active={shown("chat")} onClick={() => select("chat")}>
+        <MessageSquare className="size-5" />
       </ActBtn>
       <ThemeToggle />
     </div>
   );
 }
 
-const THEME_OPTIONS = [
-  { value: "system", label: "Follow system", Icon: Monitor },
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "dark", label: "Dark", Icon: Moon },
-] as const;
+const THEME_OPTIONS: { value: string; labelKey: MessageKey; Icon: typeof Sun }[] = [
+  { value: "system", labelKey: "theme.option.system", Icon: Monitor },
+  { value: "light", labelKey: "theme.option.light", Icon: Sun },
+  { value: "dark", labelKey: "theme.option.dark", Icon: Moon },
+];
 
 function ThemeToggle() {
   const { theme = "system", setTheme, resolvedTheme } = useTheme();
@@ -104,19 +117,19 @@ function ThemeToggle() {
           render={
             <DropdownMenuTrigger
               className="mt-auto flex h-12 w-12 items-center justify-center border-l-2 border-transparent text-muted-foreground transition-colors hover:text-foreground data-[popup-open]:text-foreground"
-              aria-label="Toggle theme"
+              aria-label={t("activity.theme")}
             />
           }
         >
           <CurrentIcon className="size-5" />
         </TooltipTrigger>
-        <TooltipContent side="right">Theme</TooltipContent>
+        <TooltipContent side="right">{t("activity.theme")}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent side="right" align="end" className="min-w-40">
-        {THEME_OPTIONS.map(({ value, label, Icon }) => (
+        {THEME_OPTIONS.map(({ value, labelKey, Icon }) => (
           <DropdownMenuItem key={value} onClick={() => setTheme(value)}>
             <Icon className="size-4" />
-            <span className="flex-1">{label}</span>
+            <span className="flex-1">{t(labelKey)}</span>
             {theme === value && <Check className="size-4" />}
           </DropdownMenuItem>
         ))}

@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePanelRef } from "react-resizable-panels";
 import { useTheme } from "next-themes";
 import { appearanceOf } from "@/ui-themes";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -8,6 +9,7 @@ import { Explorer } from "./Explorer";
 import { SearchPane } from "./SearchPane";
 import { DebugPanel } from "./DebugPanel";
 import { SourceControlPanel } from "./SourceControlPanel";
+import { ChatPanel } from "./ChatPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -22,6 +24,26 @@ import { isWordWrapChord } from "@/vv/editor-prefs";
 export function AppShell() {
   const { c, snap } = useIde();
   const { theme, resolvedTheme, systemTheme } = useTheme();
+  // Chat is text-heavy, so opening it widens the sidebar and leaving it restores
+  // the Explorer width. Only the automatic widen is undone: a width the user
+  // dragged themselves (anything above the widen target) is left alone.
+  const sidebarPanel = usePanelRef();
+  const widenedForChat = useRef(false);
+  const chatOpen = snap.activeView === "chat" && !snap.sidebarCollapsed;
+  useEffect(() => {
+    const panel = sidebarPanel.current;
+    if (!panel) return;
+    const percent = panel.getSize().asPercentage;
+    if (chatOpen) {
+      if (percent < 22) {
+        widenedForChat.current = true;
+        panel.resize("28%");
+      }
+    } else if (widenedForChat.current && percent >= 26) {
+      widenedForChat.current = false;
+      panel.resize("16%");
+    }
+  }, [chatOpen, sidebarPanel]);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -129,13 +151,21 @@ export function AppShell() {
         <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
           {!snap.sidebarCollapsed && (
             <>
-              <ResizablePanel id="explorer" defaultSize="16%" minSize="10%" maxSize="30%">
+              <ResizablePanel
+                panelRef={sidebarPanel}
+                id="explorer"
+                defaultSize="16%"
+                minSize="10%"
+                maxSize="45%"
+              >
                 {snap.activeView === "search" ? (
                   <SearchPane />
                 ) : snap.activeView === "debug" ? (
                   <DebugPanel />
                 ) : snap.activeView === "scm" ? (
                   <SourceControlPanel />
+                ) : snap.activeView === "chat" ? (
+                  <ChatPanel />
                 ) : (
                   <Explorer />
                 )}

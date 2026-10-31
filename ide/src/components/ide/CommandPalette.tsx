@@ -19,6 +19,7 @@ import FolderInput from "~icons/lucide/folder-input";
 import FileArchive from "~icons/lucide/file-archive";
 import Share2 from "~icons/lucide/share-2";
 import Github from "~icons/lucide/github";
+import MessageSquare from "~icons/lucide/message-square";
 import {
   Command,
   CommandDialog,
@@ -71,6 +72,7 @@ export function CommandPalette() {
         run: () => c.importFolderViaPicker(),
       },
       { label: t("palette.importRemote"), icon: Github, run: () => c.openImportRemote() },
+      { label: t("palette.openChat"), icon: MessageSquare, run: () => c.setActiveView("chat") },
       { label: t("palette.exportZip"), icon: FileArchive, run: () => c.exportActiveFolder() },
       { label: t("palette.shareProject"), icon: Share2, run: () => c.shareActiveFolder() },
       {

@@ -1,0 +1,93 @@
+// Persisted AI provider settings (D-045).
+//
+// Stored in localStorage like the git identity and the recent-projects registry:
+// per origin, not per project (SPEC §10.5), and it must be known before the first
+// message. The key never leaves this browser except as the provider's own auth
+// header; nothing here is encrypted, because a key the panel must re-read at every
+// boot can only be obfuscated at rest by keeping its own decryption secret beside
+// it — that is not a threat model, it is a fig leaf (PATs get real encryption
+// when they are stored encrypted-until-used in OPFS, D-045).
+
+import { isConfigured as presetIsConfigured, providerById } from "./providers";
+import type { AiSettings } from "./types";
+
+export const AI_SETTINGS_KEY = "vv-ai-settings";
+
+/** The slice of Storage the session needs; tests pass a plain fake. */
+export interface SettingsStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+function defaultStorage(): SettingsStorage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    // Storage disabled (privacy mode / sandboxed frame): settings last one page.
+    return null;
+  }
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** The saved settings, or null when nothing usable was stored. Never throws. */
+export function loadAiSettings(
+  storage: SettingsStorage | null = defaultStorage(),
+): AiSettings | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(AI_SETTINGS_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const record = parsed as Record<string, unknown>;
+    const providerId = text(record.providerId);
+    if (!providerId) return null;
+    return {
+      providerId,
+      apiKey: text(record.apiKey),
+      model: text(record.model),
+      baseUrl: text(record.baseUrl),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveAiSettings(
+  settings: AiSettings,
+  storage: SettingsStorage | null = defaultStorage(),
+): void {
+  if (!storage) return;
+  try {
+    storage.setItem(
+      AI_SETTINGS_KEY,
+      JSON.stringify({
+        providerId: settings.providerId.trim(),
+        apiKey: settings.apiKey.trim(),
+        model: settings.model.trim(),
+        baseUrl: settings.baseUrl.trim(),
+      }),
+    );
+  } catch {
+    // Storage full or disabled — the settings still work for this page.
+  }
+}
+
+export function clearAiSettings(storage: SettingsStorage | null = defaultStorage()): void {
+  if (!storage) return;
+  try {
+    storage.removeItem(AI_SETTINGS_KEY);
+  } catch {
+    // Nothing to do: the caller also drops the in-memory settings.
+  }
+}
+
+/** True when the provider, model, endpoint and (when the provider needs it) key are set. */
+export function isConfigured(settings: AiSettings | null, dev = import.meta.env.DEV): boolean {
+  if (!settings) return false;
+  return presetIsConfigured(settings, providerById(settings.providerId, dev));
+}

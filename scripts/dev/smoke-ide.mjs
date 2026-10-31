@@ -19,6 +19,7 @@ import { launchChrome, openPage } from "./cdp.mjs";
 import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
+import { runChatChecks } from "./smoke-chat.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -44,6 +45,7 @@ const failures = [];
 let facilisReport = null;
 let intellisenseReport = null;
 let writeReport = null;
+let chatReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
   if (!ok) failures.push(label);
@@ -314,6 +316,17 @@ async function main() {
     }
   }
 
+  // AI chat (D-045/D-046): real UI, dev-only mock provider, no key and no network.
+  // Runs after the framework/write probes so its extra file cannot make them ambiguous.
+  try {
+    chatReport = await runChatChecks({ page, check, ARTIFACTS });
+    for (const result of chatReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+    }
+  } catch (error) {
+    check(false, "chat checks ran", String(error));
+  }
+
   // Known upstream defect (docs/DECISIONS.md D-026): the first edit in a project with an
   // unresolved import makes monaco 0.55.1's TS worker spread a TS 6.0 diagnostic that
   // carries a repopulateInfo callback into its reply; structured clone rejects it.
@@ -396,6 +409,7 @@ async function main() {
           },
         }
       : {}),
+    ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
 
