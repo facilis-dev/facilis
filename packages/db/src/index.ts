@@ -33,6 +33,7 @@ export {
   type RlsExtras,
   type RlsOptions,
 } from "./rls.ts";
+export { tenantColumn, tenantDefaultSql } from "./tenant-column.ts";
 export {
   schemaSnapshot,
   type ColumnSnapshot,
