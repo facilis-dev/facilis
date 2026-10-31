@@ -280,6 +280,10 @@ Splitting them (starting with `controller.ts`) is Phase 2 refactor work.
 12 typecheck tasks, 222 tests, 8 build tasks); CI checks out submodules; `ide/README.md` carries
 the complete delta vs upstream so an upstream bump stays a mechanical diff.
 
+**Update (2026-10-31):** the Phase 2 split is under way (D-042). `controller.ts` is down from
+4,294 to 3,509 lines, its baseline entry is lowered at every step, and the extracted modules are
+all under the 300-line limit.
+
 ### D-020 — Project site and canonical domain: facilis.dev
 **Status:** accepted (2026-10-25)
 
@@ -1192,6 +1196,29 @@ module, `Bun.file`), where the shim covered one boot of one library. Acceptance:
 (db), the gates, and `TEMPLATE=Facilis pnpm ide:smoke` with
 `facilisDbInsert`/`facilisDbQuery` = ok; a project created before the bump keeps working,
 because the runtime — not the `@facilis/db` tarball — carries the fix.
+
+### D-042 — The controller is a facade; each subsystem is a session object
+**Status:** accepted (2026-10-31)
+
+`IdeController` (`ide/src/vv/controller.ts`) is the pinned file D-019's ratchet lets only shrink,
+yet every new Studio panel would otherwise edit it. The split follows the shape upstream already
+uses for `DebugSession`/`ScmSession`: a self-contained subsystem is a class that owns its state
+and talks to the controller through a small host interface (`SearchHost`, `PreviewHost`,
+`PreviewView`), while the controller keeps the single snapshot store, the project/port bookkeeping
+and the status bar.
+
+Rules that keep each step mechanical and reviewable: one subsystem per commit; the public call
+sites stay the same (thin delegations, or `c.preview.<method>()` in the panels); logic that can be
+tested without a browser moves to a helper module with a vitest file (`preview-url.ts`); the
+ratchet entry is lowered in the same commit. Done so far: language/path helpers,
+`memory-probe.ts`, `file-tree.ts`, `search-session.ts`, `preview-session.ts` +
+`preview-devtools.ts`. Still to extract: the editor/model layer, the project open/run lifecycle,
+Explorer file operations, terminals.
+
+**Consequences:** a new panel calls a session (`c.preview.addPreviewTab()`) instead of growing the
+controller, and the baseline entry keeps ratcheting down (4,294 → 3,509 lines so far). The split
+is not a behaviour change: it is guarded by the same smoke suite (`pnpm ide:smoke`, the React
+template and multitab) plus `preview-url.test.ts` for the pure preview helpers.
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
