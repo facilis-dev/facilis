@@ -63,7 +63,7 @@ export interface FacilisRequestEvent {
     facilis?: { db: FacilisDb; defaultTenantId?: string };
   };
   req: { headers: Headers };
-  res?: { headers: Headers };
+  res?: { headers: Headers; status?: number; statusText?: string };
 }
 ```
 
@@ -97,8 +97,8 @@ casting (see SPEC §8.4.5 and the Phase 0 finding: after `RESET` a GUC reads as 
   path; a `Set-Cookie` on a returned `Response` is dropped (D-038). Never hand-serialise it.
 - Response surface inside a handler: response headers go on `event.res?.headers.set(...)`, which
   h3 merges into the final response (`set-cookie` is appended, every other name overrides), and
-  a handler that returns plain data may set status/statusText on the same object. For everything
-  else h3 provides (redirects, streams, app cookies, `getQuery`, params, …) import it from
+  `event.res?.status`/`statusText` (typed on the contract) apply when the handler returns plain
+  data — a returned `Response` keeps its own status. For everything else h3 provides (redirects, streams, app cookies, `getQuery`, params, …) import it from
   `nitro/h3` in `server/**` code — the documented Nitro re-export, and every project declares
   `nitro` — then narrow the structural event once: `const h3 = event as unknown as H3Event`.
   That is the same single cast `@facilis/nitro/session` does: core's event contract stays

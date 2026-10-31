@@ -31,6 +31,7 @@ export type {
   FacilisEventContext,
   FacilisRequest,
   FacilisRequestEvent,
+  FacilisResponse,
 } from "./event.ts";
 
 export {

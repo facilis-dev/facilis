@@ -30,10 +30,22 @@ export interface FacilisEventContext {
   params?: Record<string, string>;
 }
 
+/**
+ * The response surface of a handler (contracts §4.4). h3 merges it into the final response:
+ * `headers` are merged (`set-cookie` appended, every other name overrides) and
+ * `status`/`statusText` apply to handlers that return plain data — a returned `Response`
+ * keeps its own status, but its headers are still merged under these.
+ */
+export interface FacilisResponse {
+  headers: Headers;
+  status?: number;
+  statusText?: string;
+}
+
 export interface FacilisRequestEvent {
   context: FacilisEventContext;
   req: FacilisRequest;
-  res?: { headers: Headers };
+  res?: FacilisResponse;
 }
 
 export type FacilisContext = FacilisEventContext;

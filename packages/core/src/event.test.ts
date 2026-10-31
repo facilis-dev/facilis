@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { AuthContext } from "@facilis/auth";
 
-import type { FacilisContext, FacilisRequestEvent } from "./event.ts";
+import type { FacilisContext, FacilisRequestEvent, FacilisResponse } from "./event.ts";
 
 describe("FacilisRequestEvent", () => {
   it("is satisfied by a plain structural event", () => {
@@ -23,11 +23,18 @@ describe("FacilisRequestEvent", () => {
         headers: new Headers(),
         json: async () => ({ title: "write tests" }),
       },
-      res: { headers: new Headers() },
+      res: { headers: new Headers(), status: 201, statusText: "Created" },
     } satisfies FacilisRequestEvent;
 
     expect(event.req.url).toContain("/api/todos/42");
     expect(event.context.params).toEqual({ id: "42" });
+    expect(event.res.status).toBe(201);
+  });
+
+  it("types the response surface h3 merges into the final response", () => {
+    expectTypeOf<FacilisResponse["headers"]>().toEqualTypeOf<Headers>();
+    expectTypeOf<FacilisResponse["status"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<FacilisResponse["statusText"]>().toEqualTypeOf<string | undefined>();
   });
 
   it("types auth as nullable and exposes defaultTenantId for anonymous scoping", () => {
