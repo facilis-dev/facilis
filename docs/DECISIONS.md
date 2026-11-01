@@ -63,7 +63,7 @@ No personal SSH key or PAT is required.
 
 Feasibility spikes live in `spikes/<name>/` and are **not** pnpm-workspace packages
 (installed with `pnpm install --ignore-workspace`). They prove assumptions before
-framework code depends on them (spec §12 Phase 0, §14.1).
+framework code depends on them (spec §12 Phase 0, §14.1). The Phase 0 spike was retired on 2026-11-01 once D-007 and D-008 were implemented; this entry stays the rule for future spikes.
 
 ### D-007 — A16: framework AST pass is required (Phase 0 outcome)
 **Status:** accepted (2026-10-25)
@@ -78,7 +78,7 @@ Nitro's own spec moves to the internal dev-only route `/_facilis/openapi.json`.
 
 **Consequences:** spec §6.9/§13/§14.1 updated; Phase 1 must add route-edit invalidation
 (Vite module graph) and a lint/review check for non-literal `dbTables` imports.
-Prototype + evidence: `spikes/phase0/` (REPORT §3).
+Prototype + evidence: the Phase 0 spike (commit `de17169`, retired 2026-11-01); the production pass is `packages/nitro/src/ast/extract-metadata.ts` with `packages/nitro/src/facade.ts`.
 
 ### D-008 — RLS policy composition fix
 **Status:** accepted (2026-10-25)

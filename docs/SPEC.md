@@ -7,7 +7,7 @@
 **Changelog:**
 
 - v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
-- v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. See `spikes/phase0/REPORT.md`.
+- v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. Both findings came from the Phase 0 spike, retired after they landed in `@facilis/nitro` and `@facilis/db` (commit `de17169`).
 - v1.2 — Renamed framework to **Facilis** (`@facilis/*`, `facilis.config.ts`, `/__facilis/*`, `Facilis*` types, `FACILIS_INITIAL_ADMIN`). Corrected runtime model: **Nitro v3 runs as a Vite plugin**, `vite dev` is the single dev server for frontend and backend. Added §10.6 "Runtime model inside Vivari". Updated Phase 0 tickets.
 - v1.1 — Added full role definition & assignment flow (§8.4), added `FacilisConfig.auth.roles`/`defaultRole`, removed Postgres roles in favor of app roles with session vars, added `FACILIS_INITIAL_ADMIN` bootstrap.
 - v1.0 — Design complete. Phase 0 ready.
@@ -862,7 +862,7 @@ No file watchers required. Recomputed on every request; clients use ETag.
 
 `x-db-tables` and `x-db-columns` are emitted by `defineAuthorizedHandler` via `defineRouteMeta`.
 
-**Phase 0 result (verified, 2026-10-25): Nitro's scanner only accepts a *top-level* `defineRouteMeta` call. A call inside the wrapper is invisible to it, so the native path does not work (A16 = fail).** Therefore `@facilis/nitro` **must** ship a framework-owned AST pass that statically extracts the wrapper config into a virtual module, plus a facade that merges it into Nitro's generated spec and serves it at `/_openapi.json`. Nitro's own spec stays intact on an internal dev-only route (`/_facilis/openapi.json`). Prototype and evidence: `spikes/phase0/` (§3 of its REPORT).
+**Phase 0 result (verified, 2026-10-25): Nitro's scanner only accepts a *top-level* `defineRouteMeta` call. A call inside the wrapper is invisible to it, so the native path does not work (A16 = fail).** Therefore `@facilis/nitro` **must** ship a framework-owned AST pass that statically extracts the wrapper config into a virtual module, plus a facade that merges it into Nitro's generated spec and serves it at `/_openapi.json`. Nitro's own spec stays intact on an internal dev-only route (`/_facilis/openapi.json`). Prototype and evidence: the Phase 0 spike (commit `de17169`, retired 2026-11-01 once this landed) and the production implementation in `packages/nitro/src/ast/extract-metadata.ts` plus `packages/nitro/src/facade.ts`.
 
 Consequences to carry into Phase 1: static analysis only sees object-literal configs (values imported from other modules are not resolved — add a lint/review check), and route-file edits must invalidate the virtual module via the Vite module graph so HMR keeps the spec fresh.
 
@@ -1426,7 +1426,7 @@ export const documents = pgTable("documents", {
 true), '')::uuid`: the database fills it from the same GUC the policy reads, so an insert never
 names the tenant and cannot name a different one (D-040).
 
-**Why `AS RESTRICTIVE` and `nullif`?** Postgres ORs multiple *permissive* policies for the same command, so a permissive tenant policy would not constrain the admin clause — admins would see other tenants; see `spikes/phase0/REPORT.md` §4. Tenant isolation must be `AS RESTRICTIVE` (AND-ed) so it always applies. The `nullif(..., '')` guard covers the GUC lifecycle: after `RESET app.roles` the setting is `''`, and `''::jsonb` raises `invalid input syntax for type json`. PGlite connects as a superuser and bypasses RLS even with `FORCE`, so tests must `SET ROLE` to a non-superuser (verified in `spikes/phase0/tests/pglite-rls.test.ts`).
+**Why `AS RESTRICTIVE` and `nullif`?** Postgres ORs multiple *permissive* policies for the same command, so a permissive tenant policy would not constrain the admin clause — admins would see other tenants; `packages/db/src/rls.ts` emits the form that fixes it. Tenant isolation must be `AS RESTRICTIVE` (AND-ed) so it always applies. The `nullif(..., '')` guard covers the GUC lifecycle: after `RESET app.roles` the setting is `''`, and `''::jsonb` raises `invalid input syntax for type json`. PGlite connects as a superuser and bypasses RLS even with `FORCE`, so tests must `SET ROLE` to a non-superuser (verified in Phase 0; `packages/db/src/rls.test.ts` keeps that regression).
 
 **Result:**
 
@@ -1824,7 +1824,7 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 |---|---|---|---|
 | 1 | **PGlite RLS incomplete** | Kills "unbypassable" guarantee | Phase 0 spike; fallback to `drizzle-policy` only |
 | 2 | **Nitro v3 churn** | Build breaks between upgrades | Pin exact version; upgrade deliberately with spike tests |
-| 3 | **`defineRouteMeta` in wrapper not scanned** — **confirmed in Phase 0** | No `x-db-tables` in OpenAPI | Framework-owned AST pass + OpenAPI facade is **required**; prototype verified in `spikes/phase0` (§6.9). Static analysis sees object-literal configs only, and route-edit invalidation must be wired in Phase 1. |
+| 3 | **`defineRouteMeta` in wrapper not scanned** — **confirmed in Phase 0** | No `x-db-tables` in OpenAPI | Framework-owned AST pass + OpenAPI facade is **required**; prototype verified in Phase 0 and implemented in `packages/nitro/src/ast/` (§6.9). Static analysis sees object-literal configs only, and route-edit invalidation must be wired in Phase 1. |
 | 4 | **OpenAPI incomplete** | AI generates wrong code | Augment with `/__facilis/manifest` |
 | 5 | **Vivari memory/CPU limits** | Slow or crashes at ~50 routes | Lazy-load PGlite; measure; document limits |
 | 6 | **AI hallucinates unguarded routes** | Security regression | Patch validator rejects before write |

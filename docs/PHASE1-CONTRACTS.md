@@ -187,7 +187,7 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   NOLOGIN) if missing and grants SELECT/INSERT/UPDATE/DELETE on all current tables in the public
   schema. Called by the Nitro module after migrations; without it RLS is not enforced in dev.
 - `schemaSnapshot` derives tables/columns/FKs/policies from Drizzle `getTableConfig` (SPEC §7.3, §11.1).
-- RLS generator output must match the Phase 0 verified SQL (see `spikes/phase0/tests/pglite-rls.test.ts`),
+- RLS generator output must match the Phase 0 verified SQL (regression: `packages/db/src/rls.test.ts`),
   including the superuser caveat: tests need a non-superuser role via `SET ROLE`.
 - `tenantColumn()` (D-040) is the tenant `uuid` column with `DEFAULT tenantDefaultSql()` —
   `nullif(current_setting('app.tenant_id', true), '')::uuid`, the expression the policies read.
@@ -280,9 +280,9 @@ export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataM
   or keep a `nitro.config.ts`; a legacy one is still read by Nitro's c12 loader but
   `facilis.config.ts` wins.
 - Inside `setup`, `nitro.options.handlers` / `nitro.options.virtual` are available (see spec §5.6).
-- Phase 0 prototype to reuse: `spikes/phase0/tools/facilis-openapi-ast-fallback.ts` and
-  `spikes/phase0/server/openapi-facade.ts` (proven with `parseSync`/`transformSync` from
-  `rolldown/utils`).
+- The Phase 0 prototype (commit `de17169`, retired 2026-11-01) proved the approach with
+  `parseSync`/`transformSync` from `rolldown/utils`; the implementation is
+  `packages/nitro/src/ast/extract-metadata.ts` plus `packages/nitro/src/facade.ts`.
 - The AST pass only sees **object literals**. When `dbTables`/`permission`/`description` are not
   statically resolvable, emit a `ManifestWarning` (`code: "meta-not-static"`) instead of guessing,
   and also surface it through `/_openapi.json` as an `x-facilis-warning`.

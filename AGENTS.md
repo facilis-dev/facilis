@@ -23,7 +23,7 @@ vendor/vivari/  Vivari via our fork (git SUBMODULE, MIT), pinned to `facilis/mai
              [never edited here, never shipped, not in the pnpm workspace; see D-030]
 starter/     template cloned by users                        [Phase 1+]
 examples/    example generated apps
-spikes/      throwaway Phase 0 feasibility spikes (never shipped)
+spikes/      throwaway feasibility spikes (never shipped; absent when none is active)
 scripts/     repo gates (file-length ratchet) + scripts/dev/ (IDE build & smoke, see docs/DEV.md)
 docs/        SPEC.md (contract) + DECISIONS.md (ADR log) + DEV.md (environment recipe)
 ```
@@ -127,8 +127,9 @@ A change is done when all of the following are true:
 ## Testing
 
 - Unit/integration tests with **Vitest**, colocated as `*.test.ts`.
-- Phase 0 feasibility work lives in `spikes/<name>/` — standalone, not part of the
-  workspace, never imported by packages.
+- Feasibility spikes live in `spikes/<name>/` — standalone, not part of the workspace,
+  never imported by packages, never shipped. The directory exists only while a spike is
+  active: the Phase 0 one was retired once its findings landed in code and spec (D-006).
 - Prefer proving a risky assumption with a runnable spike over a design argument
   (spec §12 Phase 0, §14.1 acceptance criteria).
 
