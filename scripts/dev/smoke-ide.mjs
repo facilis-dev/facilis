@@ -284,6 +284,16 @@ async function main() {
     check(false, "write checks ran", String(error));
   }
 
+  // D-054: dev state belongs in the tree, dimmed as git-ignored, not hidden. The runtime
+  // creates it inside the VM and guest writes do not bump the tree, so this runs after the
+  // write checks, whose kernel-side save refreshes the Explorer.
+  const devStateDimmed = await waitFor(
+    "(() => { const row = document.querySelector('[title=\".facilis\"]');" +
+      " return !!row && row.hasAttribute('data-git-ignored'); })()",
+    15000,
+  );
+  check(devStateDimmed, "D-054 .facilis listed in the Explorer and dimmed");
+
   // AI chat (D-045/D-046): real UI, dev-only mock provider, no key and no network.
   // Runs after the framework/write probes so its extra file cannot make them ambiguous.
   try {

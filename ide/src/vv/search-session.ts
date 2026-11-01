@@ -38,6 +38,8 @@ export interface SearchHost {
   roots(): string[];
   /** Re-read a file a replace rewrote on disk into its open model + cache. */
   refreshFileFromDisk(abs: string): Promise<void>;
+  /** Git-ignored (or IDE dev state): never searched, per D-054. */
+  isIgnored(abs: string): boolean;
 }
 
 export interface ReplaceParams {
@@ -63,6 +65,11 @@ interface Pending {
   token: number;
   onBatch: (files: SearchFileResult[]) => void;
   onDone: (d: SearchDone) => void;
+  // What survived the ignored-path filter, so the summary does not count files the
+  // user was never shown. Only used once something was actually filtered.
+  keptMatches: number;
+  keptFiles: number;
+  filtered: boolean;
 }
 
 export class SearchSession {
@@ -83,7 +90,14 @@ export class SearchSession {
     cb: { onBatch: (files: SearchFileResult[]) => void; onDone: (d: SearchDone) => void },
   ): () => void {
     const token = ++this.seq;
-    this.pending = { token, onBatch: cb.onBatch, onDone: cb.onDone };
+    this.pending = {
+      token,
+      onBatch: cb.onBatch,
+      onDone: cb.onDone,
+      keptMatches: 0,
+      keptFiles: 0,
+      filtered: false,
+    };
     this.bridge.post("vv-search", {
       token,
       roots: this.host.roots(),
@@ -130,11 +144,22 @@ export class SearchSession {
     };
   }
 
-  // Streaming result batches: ignore tokens a newer query already superseded.
+  // Streaming result batches: ignore tokens a newer query already superseded, and
+  // drop git-ignored files here. The kernel walk cannot know a project's .gitignore
+  // (its skip list is fixed in the read-only runtime), so the filter belongs on this
+  // side. Files are dropped before they reach the pane, so Replace never touches them.
   onResult(m: KernelMessage) {
-    if (this.pending && m.token === this.pending.token) {
-      this.pending.onBatch((m.files as SearchFileResult[]) ?? []);
-    }
+    const pending = this.pending;
+    if (!pending || m.token !== pending.token) return;
+    const files = ((m.files as SearchFileResult[]) ?? []).filter((file) => {
+      if (!this.host.isIgnored(file.file)) return true;
+      pending.filtered = true;
+      return false;
+    });
+    if (!files.length) return;
+    pending.keptFiles += files.length;
+    for (const file of files) pending.keptMatches += file.matches.length;
+    pending.onBatch(files);
   }
 
   onDone(m: KernelMessage) {
@@ -142,8 +167,8 @@ export class SearchSession {
     const cbs = this.pending;
     this.pending = null;
     cbs.onDone({
-      matchCount: Number(m.matchCount ?? 0),
-      fileCount: Number(m.fileCount ?? 0),
+      matchCount: cbs.filtered ? cbs.keptMatches : Number(m.matchCount ?? 0),
+      fileCount: cbs.filtered ? cbs.keptFiles : Number(m.fileCount ?? 0),
       limitHit: !!m.limitHit,
       error: m.error as string | undefined,
     });

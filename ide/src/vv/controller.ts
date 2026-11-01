@@ -69,6 +69,7 @@ import { imageMime, isImagePath, isNotebookPath } from "./file-kind";
 import { type MemInfo, probeMemory } from "./memory-probe";
 import { baseName, normDir, parentOf } from "./path-utils";
 import { readDirEntries } from "./file-tree";
+import { indexWorkspace, isIgnoredPath, type WorkspaceIndex } from "./workspace-index";
 
 // The drop/paste readers live in file-tree.ts now. Components still import them
 // from here (this is the UI's facade); the split is controller-mechanical.
@@ -251,6 +252,10 @@ export interface IdeSnapshot {
   recentProjects: ProjectMeta[];
   treeVersion: number; // bump to make the Explorer re-read expanded dirs
   files: string[]; // absolute paths (flat index for quick-open + search)
+  // Git-ignored paths: dimmed in the Explorer, never in the file index or search (D-054).
+  // Files are exact matches; dirs cover their whole subtree.
+  ignoredFiles: ReadonlySet<string>;
+  ignoredDirs: ReadonlySet<string>;
   openTabs: string[]; // absolute paths
   activeTab: string | null;
   tabKinds: Record<string, TabKind>; // how each open tab renders
@@ -347,6 +352,8 @@ export class IdeController {
     recentProjects: [],
     treeVersion: 0,
     files: [],
+    ignoredFiles: new Set(),
+    ignoredDirs: new Set(),
     openTabs: [],
     activeTab: null,
     tabKinds: {},
@@ -406,7 +413,7 @@ export class IdeController {
     null;
   // Full-text search / replace: in-flight token + callbacks (search-session.ts).
   private readonly search: SearchSession;
-  private fileIndex = new Map<string, string[]>(); // rootPath -> abs files (quick-open/search)
+  private indexes = new Map<string, WorkspaceIndex>(); // rootPath -> files + ignored paths
   private folderManifests = new Map<string, ProjectManifest>(); // rootPath -> run manifest
   private runningProjects = new Map<string, { terminalId: string | null; port: number | null }>();
   private runningDemos = new Map<string, { terminalId: string | null; port: number | null }>();
@@ -436,6 +443,7 @@ export class IdeController {
     this.search = new SearchSession(this.bridge, {
       roots: () => this.snap.workspaceFolders.map((f) => f.rootPath),
       refreshFileFromDisk: (abs) => this.refreshFileFromDisk(abs),
+      isIgnored: (abs) => isIgnoredPath(this.snap.ignoredFiles, this.snap.ignoredDirs, abs),
     });
     this.snap.recentProjects = readRegistry(localStorage);
     this.watchRegistry();
@@ -595,7 +603,7 @@ export class IdeController {
       language: this.editorLanguage,
       debug: this.debug,
       editorStatus: this.editorStatus,
-      fileIndexLists: () => [...this.fileIndex.values()],
+      fileIndexLists: () => [...this.indexes.values()].map((index) => index.files),
       activeTab: () => this.snap.activeTab,
       openFile: (abs) => void this.openFile(abs),
       wordWrap: () => this.snap.wordWrap,
@@ -1468,7 +1476,7 @@ export class IdeController {
       this.snap.activeTab && keep(this.snap.activeTab)
         ? this.snap.activeTab
         : (openTabs[openTabs.length - 1] ?? null);
-    this.fileIndex.delete(root);
+    this.indexes.delete(root);
     this.folderManifests.delete(root);
     const folders = this.snap.workspaceFolders.filter((f) => f.id !== id);
     const activeFolderId =
@@ -1483,7 +1491,7 @@ export class IdeController {
       tabKinds,
       previewTab: this.snap.previewTab && keep(this.snap.previewTab) ? this.snap.previewTab : null,
       dirty: this.snap.dirty.filter(keep),
-      files: this.rebuildFileIndex(),
+      ...this.rebuildIndex(),
       view: folders.length ? "workspace" : "home",
       projectTitle: folders.length
         ? (folders.find((f) => f.id === activeFolderId)?.name ?? null)
@@ -1503,45 +1511,34 @@ export class IdeController {
     }
   }
 
-  // Recursively index a folder's files (skipping heavy dirs) for quick-open +
-  // filename search. Bounded so a giant tree can't lock up the UI.
+  // Recursively index a folder for quick-open/search, and collect the paths git ignores
+  // (dimmed in the Explorer, never indexed or searched). The walk lives in
+  // workspace-index.ts; bounded there so a giant tree can't lock up the UI.
   private async indexFolder(root: string) {
-    // .facilis is dev-only state (D-052), not source: keep it out of quick-open/search.
-    const skip = new Set([
-      "node_modules",
-      ".git",
-      ".facilis",
-      "dist",
-      ".vite",
-      ".next",
-      "build",
-      ".cache",
-    ]);
-    const out: string[] = [];
-    const walk = async (dir: string, depth: number) => {
-      if (depth > 8 || out.length > 4000) return;
-      const entries = await this.readdir(dir);
-      for (const e of entries) {
-        const abs = dir + "/" + e.name;
-        if (e.dir) {
-          if (!skip.has(e.name)) await walk(abs, depth + 1);
-        } else {
-          out.push(abs);
-        }
-      }
-    };
-    await walk(root, 0);
-    this.fileIndex.set(root, out);
-    this.set({ files: this.rebuildFileIndex() });
+    const index = await indexWorkspace(
+      root,
+      (dir) => this.readdir(dir),
+      (file) => this.readFileText(file),
+    );
+    this.indexes.set(root, index);
+    this.set(this.rebuildIndex());
     // Feed the language service: this folder's source files (cross-file
     // IntelliSense) + a debounced refresh of installed-package types.
-    this.editorLanguage.ensureBackgroundModels(out);
+    this.editorLanguage.ensureBackgroundModels(index.files);
     this.editorLanguage.scheduleDependencyTypes();
   }
-  private rebuildFileIndex(): string[] {
-    const all: string[] = [];
-    for (const list of this.fileIndex.values()) all.push(...list);
-    return all.sort();
+  // Every open root at once: quick-open reads the file list, the Explorer and search
+  // read the two ignored sets.
+  private rebuildIndex(): Pick<IdeSnapshot, "files" | "ignoredFiles" | "ignoredDirs"> {
+    const files: string[] = [];
+    const ignoredFiles = new Set<string>();
+    const ignoredDirs = new Set<string>();
+    for (const index of this.indexes.values()) {
+      files.push(...index.files);
+      for (const abs of index.ignoredFiles) ignoredFiles.add(abs);
+      for (const abs of index.ignoredDirs) ignoredDirs.add(abs);
+    }
+    return { files: files.sort(), ignoredFiles, ignoredDirs };
   }
 
   // ── project creation / opening (Home) ──────────────────────────────────────

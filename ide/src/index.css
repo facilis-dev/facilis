@@ -335,3 +335,8 @@
   transform: translate(-50%, -50%);
   z-index: 0;
 }
+
+/* Explorer rows for paths git ignores (D-054): still listed, deliberately faint. */
+[data-git-ignored] {
+  opacity: 0.6;
+}

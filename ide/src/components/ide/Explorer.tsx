@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { FileIcon, FolderIcon } from "./fileIcon";
 import { useIde } from "./useIde";
 import { VV_PATH_MIME, entriesFromDataTransfer } from "@/vv/controller";
+import { isIgnoredPath } from "@/vv/workspace-index";
 
 interface Entry {
   name: string;
@@ -39,18 +40,15 @@ const baseName = (abs: string) => abs.split("/").filter(Boolean).pop() ?? abs;
 const parentDir = (abs: string) => abs.slice(0, abs.lastIndexOf("/")) || "/";
 const modKey = (e: React.KeyboardEvent) => e.metaKey || e.ctrlKey;
 
-// Entries hidden from the file tree only (VS Code hides `.git` by default).
-// The terminal/VFS is unaffected, so `ls` still lists these.
-const HIDDEN_IN_TREE = new Set([".git", ".facilis"]); // .facilis: dev state, not source (D-052)
+// VCS internals only; git-ignored entries stay listed but dimmed (D-054).
+const HIDDEN_IN_TREE = new Set([".git"]);
 
 // Row height in px, and the single source of truth for the sticky stack: an
-// ancestor row parks at `depth * ROW_H`, i.e. under the rows already parked above
-// it, so the sum is only right while every row in the stack is exactly this tall.
-// It is therefore SET on those rows rather than left to the font metrics, which
-// give the root row (11px text) and the folder rows (`text-sm`) different heights.
+// ancestor row parks at `depth * ROW_H`, under the rows already parked above it,
+// so the sum is only right while every row in the stack is exactly this tall. It
+// is SET on those rows because the font metrics differ between root and folder rows.
 const ROW_H = 24;
-// Parked rows overlap as a subtree scrolls out, and the shallower ancestor has to
-// win — so z-index decreases with depth (and never reaches 0, however deep).
+// Parked rows overlap, so z-index decreases with depth (and never reaches 0).
 const STICKY_Z = 20;
 const stickyStyle = (depth: number) => ({
   top: depth * ROW_H,
@@ -59,9 +57,8 @@ const stickyStyle = (depth: number) => ({
 
 // Vertical clearance required before a row counts as "already in view". Zero would
 // re-create the bug this is meant to fix: a row one pixel inside the bottom edge is
-// technically visible, so it would be left parked down there. One row means there is
-// always a sibling visible on whichever side the row is nearest, which is what makes
-// its position in the tree readable.
+// technically visible, so it would be left parked there. One row means a sibling is
+// always visible on the row's nearest side, which is what makes its position readable.
 const REVEAL_CLEARANCE = ROW_H;
 
 // Scroll a row into view PAST the parked stack, and — for `align: "center"` — near the
@@ -115,6 +112,7 @@ interface Creating {
 
 export function Explorer() {
   const { c, snap } = useIde();
+  const ignored = (abs: string) => isIgnoredPath(snap.ignoredFiles, snap.ignoredDirs, abs);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [children, setChildren] = useState<Record<string, Entry[]>>({});
   // Multi-selection: the set of selected absolute paths + the range "anchor"
@@ -501,6 +499,7 @@ export function Explorer() {
             // without this a long name — or any name at depth, where the indent eats
             // the width — cannot be read at all.
             title={name}
+            data-git-ignored={ignored(abs) || undefined}
             {...dragProps(abs)}
             {...dropProps(abs, abs)}
             className={cn(
@@ -570,6 +569,7 @@ export function Explorer() {
               : undefined
           }
           title={name}
+          data-git-ignored={ignored(abs) || undefined}
           {...dragProps(abs)}
           {...dropProps(parentDir(abs), abs)}
           className={cn(
