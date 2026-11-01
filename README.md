@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="brand/png/facilis-logo-1600.png" alt="facilis.dev" width="520" />
+</p>
+
 # Facilis
 
 > **Facilis** (lat. *easy*) — a browser-based framework that makes the right way the easy way, so developers write only the unique 20% of their application.

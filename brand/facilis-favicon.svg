@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <style>
+    .f-tile { fill: #0B0B0C; }
+    .f-glyph { fill: #FFFFFF; }
+    @media (prefers-color-scheme: dark) {
+      .f-tile { fill: #FFFFFF; }
+      .f-glyph { fill: #0B0B0C; }
+    }
+  </style>
+  <path class="f-tile" fill="#0B0B0C" d="M512 256 C512 487.68 487.68 512 256 512 C24.32 512 0 487.68 0 256 C0 24.32 24.32 0 256 0 C487.68 0 512 24.32 512 256 Z"/>
+  <path class="f-glyph" fill="#FFFFFF" d="M139 134 A26 26 0 0 1 165 108 L347 108 A26 26 0 0 1 347 160 L191 160 L191 252 L311 252 A26 26 0 0 1 311 304 L191 304 L191 352 A26 26 0 0 1 139 352 Z"/>
+</svg>

@@ -61,12 +61,12 @@ export function TitleBar() {
   return (
     <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-sidebar pr-2 pl-3 text-sm">
       <button
-        className="flex shrink-0 items-center gap-2 font-semibold"
+        className="flex shrink-0 items-center"
         onClick={() => c.goHome()}
         title="Home"
+        aria-label={t("app.name")}
       >
-        <span className="inline-block size-2.5 rounded-full bg-primary" />
-        {t("app.name")}
+        <span aria-hidden className="brand-lockup h-6 w-[120px]" />
       </button>
 
       <div className="flex-1 truncate text-center text-xs text-muted-foreground">

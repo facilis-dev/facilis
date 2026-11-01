@@ -11,11 +11,13 @@ pinned to `facilis/main` (upstream `v1.2.0` + the fixes we carry; D-030): it is 
 in the worktree, only bumped to a fork commit ([`vendor/README.md`](../vendor/README.md),
 branch map in the fork's `FORK.md`).
 
-**Branding (D-069).** The product presents itself as **Facilis Studio** and points at
-<https://facilis.dev>. The Vivari name stays only in the provenance and attribution above, in
-the kernel's real package ids (`@vivari/core`, `vendor/vivari/**`) and in the `__vv*` internals.
-Brand strings are catalogue entries (`app.name`), not JSX literals; the preview Service Worker
-is the one synced file whose copy diverges (noted at the top of `ide/public/sw.js`).
+**Branding (D-069, D-075).** The product presents itself as **facilis.dev** and points at
+<https://facilis.dev>; the visible title in the title bar is the logo lockup (black and white,
+see [`brand/`](../brand)), not a text string. The Vivari name stays only in the provenance and
+attribution above, in the kernel's real package ids (`@vivari/core`, `vendor/vivari/**`) and in
+the `__vv*` internals. Brand strings are catalogue entries (`app.name`), not JSX literals; the
+preview Service Worker is the one synced file whose copy diverges (noted at the top of
+`ide/public/sw.js`).
 
 | | |
 |---|---|

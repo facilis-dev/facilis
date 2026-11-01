@@ -58,8 +58,7 @@ export function HomeView() {
       )}
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 py-10">
         <div className="mb-8 flex items-center gap-3">
-          <span className="inline-block size-3 rounded-full bg-primary" />
-          <h1 className="text-lg font-semibold">Facilis</h1>
+          <h1 aria-label="facilis.dev" className="brand-lockup h-7 w-[140px] shrink-0" />
           {snap.workspaceFolders.length > 0 && (
             <Button variant="ghost" size="sm" className="ml-auto" onClick={() => c.showWorkspace()}>
               <ArrowLeft className="size-4" /> {t("home.backToWorkspace")}

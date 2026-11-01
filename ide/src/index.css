@@ -340,3 +340,13 @@
 [data-git-ignored] {
   opacity: 0.6;
 }
+
+/* Brand lockup (facilis.dev): one single-ink SVG used as a mask, painted with the
+   current text colour, so the logo follows the theme without a second asset. The
+   source lives in public/ (brand assets: /brand). */
+.brand-lockup {
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask: url("/facilis-lockup.svg") no-repeat center / contain;
+  mask: url("/facilis-lockup.svg") no-repeat center / contain;
+}

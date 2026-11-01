@@ -26,6 +26,7 @@ examples/    example generated apps
 spikes/      throwaway feasibility spikes (never shipped; absent when none is active)
 scripts/     repo gates (file-length ratchet) + scripts/dev/ (IDE build & smoke, see docs/DEV.md)
 docs/        SPEC.md (contract) + DECISIONS.md (ADR log) + DEV.md (environment recipe)
+brand/       logo + identity assets (black & white), see brand/README.md
 ```
 
 ---
