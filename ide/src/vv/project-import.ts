@@ -5,6 +5,8 @@
 // boot glue.
 
 import { toast } from "sonner";
+import { deployment, importAllowed } from "@/deploy/current";
+import type { ProjectImports, ResolvedDeployment } from "@/deploy/types";
 import { decodeShare } from "../../../vendor/vivari/packages/kernel-host/archive.js";
 import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
 import {
@@ -86,10 +88,23 @@ export function synthesizeManifest(files: FileTree, name: string): ProjectManife
 export class ProjectImport {
   private readonly bridge: KernelBridge;
   private readonly host: ProjectImportHost;
+  // The compiled policy, injected in tests; defaults to the running build's.
+  private readonly profile: ResolvedDeployment;
 
-  constructor(bridge: KernelBridge, host: ProjectImportHost) {
+  constructor(
+    bridge: KernelBridge,
+    host: ProjectImportHost,
+    profile: ResolvedDeployment = deployment,
+  ) {
     this.bridge = bridge;
     this.host = host;
+    this.profile = profile;
+  }
+
+  // A compiled-out import must fail before the kernel, the picker, the network or
+  // the VFS: those side effects are what compiling it out prevents (D-063 §8).
+  private allows(kind: keyof ProjectImports): boolean {
+    return importAllowed(this.profile, kind);
   }
 
   // Synthesize a run manifest for an imported/shared project from its package.json
@@ -161,10 +176,12 @@ export class ProjectImport {
   }
 
   // Open the OS folder picker and import the chosen directory as a new project.
-  importFolderViaPicker() {
+  // False (before any DOM work) when the deployment compiled folder imports out.
+  importFolderViaPicker(): boolean {
+    if (!this.allows("folder")) return false;
     if (!this.host.kernelReady()) {
       toast.error("Kernel is still starting — try again in a moment.");
-      return;
+      return false;
     }
     const input = document.createElement("input");
     input.type = "file";
@@ -183,31 +200,37 @@ export class ProjectImport {
       await this.importFilesAsProject({ dir, files, excludedNodeModules });
     };
     input.click();
+    return true;
   }
 
   // Import an OS drop (folder / files) as a new project (Home dropzone).
-  async importDropAsProject(entries: FileSystemEntry[]) {
+  async importDropAsProject(entries: FileSystemEntry[]): Promise<boolean> {
+    if (!this.allows("folder")) return false;
     if (!this.host.kernelReady()) {
       toast.error("Kernel is still starting — try again in a moment.");
-      return;
+      return false;
     }
-    if (!entries.length) return;
+    if (!entries.length) return false;
     const { name, files, excludedNodeModules } = await treeFromDrop(entries);
     if (!files.length) {
       toast.error("No importable files were dropped.");
-      return;
+      return false;
     }
     const dir = await this.freeDirFor(name);
-    await this.importFilesAsProject({ dir, files, excludedNodeModules });
+    return this.importFilesAsProject({ dir, files, excludedNodeModules });
   }
 
   // ── Import from a remote source (GitHub repo / npm package) ────────────────
-  openImportRemote() {
+  // The dialog is a single surface for both remote sources, so it opens while at
+  // least one of them exists; each importer still refuses on its own line below.
+  openImportRemote(): boolean {
+    if (!this.allows("git") && !this.allows("npm")) return false;
     if (!this.host.kernelReady()) {
       toast.error("Kernel is still starting — try again in a moment.");
-      return;
+      return false;
     }
     this.host.set({ importRemoteOpen: true });
+    return true;
   }
   closeImportRemote() {
     this.host.set({ importRemoteOpen: false });
@@ -245,6 +268,7 @@ export class ProjectImport {
 
   // Import a public GitHub repo. `input` is a URL or `owner/repo[@ref]` shorthand.
   async importGithubRepo(input: string, onProgress?: ProgressFn): Promise<boolean> {
+    if (!this.allows("git")) return false;
     const spec = parseGithubSpec(input);
     if (!spec) {
       toast.error("Enter a GitHub repo, e.g. owner/repo or a github.com URL.");
@@ -255,6 +279,7 @@ export class ProjectImport {
 
   // Import an npm package. `input` is `name`, `name@version`, or `name@tag`.
   async importNpmPackage(input: string, onProgress?: ProgressFn): Promise<boolean> {
+    if (!this.allows("npm")) return false;
     const spec = parseNpmSpec(input);
     if (!spec) {
       toast.error("Enter an npm package name, e.g. left-pad or @scope/pkg@1.2.3.");
@@ -265,6 +290,7 @@ export class ProjectImport {
 
   /** Land a decoded #share= payload as a new project (boot-time import). */
   async importShared(payload: string): Promise<{ ok: boolean; dir: string; files: number }> {
+    if (!this.allows("share")) return { ok: false, dir: "", files: 0 };
     const { name, files } = await decodeShare(payload);
     const dir = await this.freeDirFor(name);
     const ok = await this.importFilesAsProject({ dir, files, silent: true });

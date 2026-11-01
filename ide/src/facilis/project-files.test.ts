@@ -4,6 +4,7 @@
 // import would only surface as a scaffold that does not boot in the WebContainer.
 
 import { describe, expect, it } from "vitest";
+import { resolveDeployment } from "@/deploy/resolve";
 import { createFacilisTemplate } from "./facilis-template";
 import { projectFiles } from "./project-files";
 
@@ -48,5 +49,41 @@ describe("generated project config", () => {
     const include = parse<Tsconfig>("tsconfig.json").include;
     expect(include).not.toContain("nitro.config.ts");
     expect(include).toContain("facilis.config.ts");
+  });
+
+  it("keeps the VM npm flags and adds no registry for the open profile", () => {
+    // The IDE cannot pass npm flags except through this file: audit/update-notifier
+    // are registry calls the container pays for and fund/progress are noise the IDE
+    // mirrors into the browser.
+    const open = projectFiles()[".npmrc"];
+    for (const flag of ["audit=false", "fund=false", "progress=false", "update-notifier=false"]) {
+      expect(open).toContain(flag);
+    }
+    expect(open).not.toContain("registry=");
+  });
+
+  it("writes the deployment's mirror into the generated .npmrc", () => {
+    const managed = resolveDeployment({
+      profile: "managed",
+      company: { name: "Acme", domain: "facilis.acme.example" },
+      packages: { registry: "https://npm.acme.example" },
+      projects: { preview: { origin: "https://preview.facilis.acme.example" } },
+    });
+    const npmrc = projectFiles(managed)[".npmrc"];
+    expect(npmrc).toContain("registry=https://npm.acme.example");
+    for (const flag of ["audit=false", "fund=false", "progress=false", "update-notifier=false"]) {
+      expect(npmrc).toContain(flag);
+    }
+  });
+
+  it("writes the admission marker with the build's environment version", () => {
+    const marker = JSON.parse(projectFiles(undefined, "2026.11")["facilis.app.json"]) as {
+      schemaVersion: number;
+      template: string;
+      environmentVersion: string;
+    };
+    expect(marker.schemaVersion).toBe(1);
+    expect(marker.template).toBe("facilis");
+    expect(marker.environmentVersion).toBe("2026.11");
   });
 });

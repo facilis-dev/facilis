@@ -236,4 +236,18 @@ export const en = {
   "chat.keyHint.deepseek": "Create a key at platform.deepseek.com → API keys.",
   "chat.keyHint.custom": "Any OpenAI-compatible endpoint. A local server needs no key.",
   "chat.keyHint.mock": "Built into dev builds; never calls a provider.",
+
+  // ── project updates (D-065) ───────────────────────────────────────────────
+  "updates.available": "Update available",
+  "updates.aheadBadge": "Newer project",
+  "updates.tooltip": "Project {project} · this Studio {build}",
+  "updates.title": "Project updates",
+  "updates.description": "This project was created by an older build of the Studio.",
+  "updates.ahead": "This project was created by a newer Studio. Open it there.",
+  "updates.projectVersion": "Project version",
+  "updates.buildVersion": "This Studio",
+  "updates.unknown": "unknown",
+  "updates.noRecipe":
+    "This Studio ships no upgrade recipe for this jump yet, so nothing is applied automatically. Export the project and recreate it from the current template, or use a build that includes the recipe.",
+  "updates.baseline": "Approved baseline: {baseline}",
 } as const;

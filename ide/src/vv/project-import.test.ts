@@ -1,12 +1,76 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { openDeployment, resolveDeployment } from "@/deploy/resolve";
 import type { FileTree } from "./file-tree";
-import { synthesizeManifest } from "./project-import";
+import type { KernelBridge } from "./kernel";
+import { ProjectImport, synthesizeManifest, type ProjectImportHost } from "./project-import";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
 const tree = (pkg: unknown, extra: string[] = []): FileTree => [
   { path: "package.json", bytes: utf8(JSON.stringify(pkg)) },
   ...extra.map((path) => ({ path, bytes: utf8("") })),
 ];
+
+function managed() {
+  return resolveDeployment({
+    profile: "managed",
+    company: { name: "Acme", domain: "facilis.acme.example" },
+    packages: { registry: "https://npm.acme.example" },
+    projects: { preview: { origin: "https://preview.facilis.acme.example" } },
+  });
+}
+
+function host(): ProjectImportHost {
+  return {
+    kernelReady: vi.fn(() => true),
+    set: vi.fn(),
+    slug: vi.fn(() => "app"),
+    defaultDirFor: vi.fn(() => "/home/user/projects/app"),
+    validateNewDir: vi.fn(async () => null),
+    openFolder: vi.fn(),
+    openFile: vi.fn(),
+    registerProjectMeta: vi.fn(),
+    registerManifest: vi.fn(),
+    status: vi.fn(),
+  };
+}
+
+// The guard runs before any kernel message, so a structurally empty stand-in is
+// enough; constructing a real bridge would boot a worker for a policy test.
+const bridge = {} as unknown as KernelBridge;
+
+describe("import guard", () => {
+  it("allows every path in an open build", () => {
+    const h = host();
+    const importer = new ProjectImport(bridge, h, openDeployment());
+    expect(importer.openImportRemote()).toBe(true);
+    expect(h.set).toHaveBeenCalledWith({ importRemoteOpen: true });
+  });
+
+  it("refuses every compiled-out import before any side effect", async () => {
+    const h = host();
+    const importer = new ProjectImport(bridge, h, managed());
+    expect(importer.importFolderViaPicker()).toBe(false);
+    await expect(importer.importDropAsProject([])).resolves.toBe(false);
+    expect(importer.openImportRemote()).toBe(false);
+    await expect(importer.importGithubRepo("owner/repo")).resolves.toBe(false);
+    await expect(importer.importNpmPackage("left-pad")).resolves.toBe(false);
+    // The refusal happens first: no kernel check, no dialog, no picker, no fetch.
+    expect(h.kernelReady).not.toHaveBeenCalled();
+    expect(h.set).not.toHaveBeenCalled();
+    expect(h.status).not.toHaveBeenCalled();
+  });
+
+  it("blocks only the kind a profile removed", async () => {
+    const importer = new ProjectImport(
+      bridge,
+      host(),
+      resolveDeployment({ projects: { imports: { npm: false } } }),
+    );
+    await expect(importer.importNpmPackage("left-pad")).resolves.toBe(false);
+    // GitHub is still allowed, so the shared dialog still has something to offer.
+    expect(importer.openImportRemote()).toBe(true);
+  });
+});
 
 describe("synthesizeManifest", () => {
   it("returns null without a package.json or without a runnable script", () => {

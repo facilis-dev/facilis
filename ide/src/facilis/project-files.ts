@@ -12,6 +12,10 @@
 // this file only writes what cannot: the npm wrapper, the standalone tsconfig and the
 // scripts the VM needs.
 
+import { renderProjectNpmrc } from "@/deploy/artifacts";
+import { deployment, environmentVersion } from "@/deploy/current";
+import type { ResolvedDeployment } from "@/deploy/types";
+import { APP_MANIFEST_FILE, renderAppManifest } from "./app-manifest";
 import { examplePackageJson } from "./example-template";
 
 type ExamplePackage = {
@@ -105,17 +109,6 @@ const tsconfig = `{
 }
 `;
 
-// npm flags that matter inside the VM: audit and update-notifier are registry calls
-// nobody asked for in this container, fund and progress are terminal noise the IDE
-// mirrors into the browser. Everything else is npm's default — a flat (hoisted)
-// node_modules, which is what the bundled Nitro dist's undeclared transitive
-// requires (ufo, …) rely on.
-const npmrc = `audit=false
-fund=false
-progress=false
-update-notifier=false
-`;
-
 const checkPm = `// Runs as the project preinstall hook: the project must be installed with npm.
 // The IDE vendors exactly one package manager and keeps it aligned with the VM's
 // Node (D-032); any other one on PATH would build a tree nothing here was tested
@@ -188,11 +181,29 @@ if (changed > 0) {
 }
 `;
 
-export function projectFiles(): Record<string, string> {
+/**
+ * The generated project, from the template plus what only the IDE can write.
+ *
+ * `d` is the deployment profile because the npm wrapper carries the deployment's
+ * package policy: the IDE runs the same sources for every profile, so the
+ * generated `.npmrc` (not the IDE build) is where a managed project learns which
+ * registry it may reach. Defaults to the compiled profile; tests pass a fixture.
+ */
+export function projectFiles(
+  d: ResolvedDeployment = deployment,
+  version: string = environmentVersion,
+): Record<string, string> {
   return {
+    [APP_MANIFEST_FILE]: renderAppManifest(version),
     "package.json": packageJson(),
     "tsconfig.json": tsconfig,
-    ".npmrc": npmrc,
+    // npm flags that matter inside the VM: audit and update-notifier are registry
+    // calls nobody asked for in this container, fund and progress are terminal
+    // noise the IDE mirrors into the browser. Everything else is npm's default — a
+    // flat (hoisted) node_modules, which is what the bundled Nitro dist's
+    // undeclared transitive requires (ufo, …) rely on. renderProjectNpmrc keeps
+    // those flags and adds `registry=<mirror>` when the deployment has one.
+    ".npmrc": renderProjectNpmrc(d),
     "README.md": readme,
     "scripts/check-pm.mjs": checkPm,
     "scripts/vendor-paths.cjs": vendorPathsScript,

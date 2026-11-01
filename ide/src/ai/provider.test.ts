@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { openDeployment, resolveDeployment } from "@/deploy/resolve";
+import type { DeploymentInput, ResolvedDeployment } from "@/deploy/types";
 import {
+  GATEWAY_PRESET_ID,
   MOCK_PRESET,
   PRESETS,
   availableProviders,
@@ -12,10 +15,21 @@ import {
 } from "./providers";
 import type { AiSettings } from "./types";
 
-function preset(id: string) {
-  const found = providerById(id, true);
+function preset(id: string, d: ResolvedDeployment = openDeployment()) {
+  const found = providerById(id, true, d);
   if (!found) throw new Error("missing preset " + id);
   return found;
+}
+
+const MANAGED: DeploymentInput = {
+  profile: "managed",
+  company: { name: "Acme", domain: "facilis.acme.example" },
+  packages: { registry: "https://npm.acme.example" },
+  projects: { preview: { origin: "https://preview.facilis.acme.example" } },
+};
+
+function managed(ai: DeploymentInput["ai"] = {}): ResolvedDeployment {
+  return resolveDeployment({ ...MANAGED, ai });
 }
 
 function openAiSettings(overrides: Partial<AiSettings> = {}): AiSettings {
@@ -215,5 +229,57 @@ describe("parseProviderEvent", () => {
     });
     expect(parseProviderEvent("anthropic", { type: "ping" })).toEqual({});
     expect(parseProviderEvent("anthropic", "nope")).toEqual({});
+  });
+});
+
+describe("deployment policy", () => {
+  const byo = managed({ mode: "byo", providers: ["openai", "deepseek"] });
+  const gateway = managed({ mode: "gateway", gateway: "https://llm.acme.example/v1/" });
+
+  it("offers no provider when a managed build disables AI", () => {
+    const off = managed();
+    expect(availableProviders(true, off)).toEqual([]);
+    expect(providerById("openai", true, off)).toBeUndefined();
+    expect(presetFor(openAiSettings(), true, off)).toBeUndefined();
+  });
+
+  it("offers only the allowlisted managed presets, never custom or mock", () => {
+    expect(availableProviders(true, byo).map((entry) => entry.id)).toEqual(["openai", "deepseek"]);
+    expect(providerById("anthropic", true, byo)).toBeUndefined();
+    expect(providerById("custom", true, byo)).toBeUndefined();
+    expect(providerById("mock", true, byo)).toBeUndefined();
+  });
+
+  it("represents a managed gateway as one synthetic preset", () => {
+    const list = availableProviders(true, gateway);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      id: GATEWAY_PRESET_ID,
+      protocol: "openai",
+      baseUrl: "https://llm.acme.example/v1",
+      requiresKey: false,
+    });
+  });
+
+  it("ignores the user's base URL in a managed build", () => {
+    const settings = openAiSettings({ baseUrl: "http://localhost:11434/v1" });
+    expect(resolveBaseUrl(settings, preset("openai"), byo)).toBe("https://api.openai.com/v1");
+    expect(resolveBaseUrl(settings, preset("gateway", gateway), gateway)).toBe(
+      "https://llm.acme.example/v1",
+    );
+    expect(resolveBaseUrl(settings, preset("openai"), openDeployment())).toBe(
+      "http://localhost:11434/v1",
+    );
+  });
+
+  it("builds the request against the deployment's endpoint", () => {
+    const settings = openAiSettings({ baseUrl: "http://localhost:11434/v1" });
+    const turns = [{ role: "user", content: "hi" }] as const;
+    expect(buildRequest(preset("openai"), settings, "", turns, byo).url).toBe(
+      "https://api.openai.com/v1/chat/completions",
+    );
+    expect(buildRequest(preset("gateway", gateway), settings, "", turns, gateway).url).toBe(
+      "https://llm.acme.example/v1/chat/completions",
+    );
   });
 });

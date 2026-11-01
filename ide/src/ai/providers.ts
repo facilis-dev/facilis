@@ -4,6 +4,8 @@
 // event; client.ts owns fetch and the failure taxonomy. Presets differ only in
 // defaults, so adding a provider is data, not a branch in the client.
 
+import { deployment } from "@/deploy/current";
+import type { ResolvedDeployment } from "@/deploy/types";
 import type { AiChatTurn, AiProviderPreset, AiProtocol, AiSettings } from "./types";
 
 export const PRESETS: readonly AiProviderPreset[] = [
@@ -65,39 +67,89 @@ export const MOCK_PRESET: AiProviderPreset = {
   requiresKey: false,
 };
 
+/** Stable id of the synthetic preset a `gateway` deployment exposes. */
+export const GATEWAY_PRESET_ID = "gateway";
+
+/**
+ * The single preset a `gateway` deployment exposes. The shape is unchanged - the
+ * gateway speaks the OpenAI-compatible wire protocol - so the client needs no
+ * branch; only the endpoint differs, and no key is stored in the browser
+ * (AI-SKILLS.md 2-3). The label borrows the generic "Provider" string until the
+ * UI slice that renders gateway-specific copy owns its own key; the id is the
+ * contract every other module keys on.
+ */
+export function gatewayPreset(d: ResolvedDeployment): AiProviderPreset {
+  return {
+    id: GATEWAY_PRESET_ID,
+    labelKey: "chat.settings.provider",
+    protocol: "openai",
+    baseUrl: (d.ai.gateway ?? "").replace(/\/+$/, ""),
+    defaultModel: "",
+    keyHintKey: "chat.keyHint.custom",
+    requiresKey: false,
+  };
+}
+
+/**
+ * The presets this build may offer. The deployment decides (D-063): `open` keeps
+ * today's list, `managed` exposes only its allowlist or its gateway, and `off`
+ * exposes nothing. A managed build never includes `custom` or `mock`, in dev or
+ * not, because neither is a deployment decision.
+ */
 export function availableProviders(
   dev: boolean = import.meta.env.DEV,
+  d: ResolvedDeployment = deployment,
 ): readonly AiProviderPreset[] {
+  if (d.ai.mode === "off") return [];
+  if (d.ai.mode === "gateway") return [gatewayPreset(d)];
+  if (d.profile === "managed") {
+    return PRESETS.filter((preset) => preset.id !== "custom" && d.ai.providers.includes(preset.id));
+  }
   return dev ? [...PRESETS, MOCK_PRESET] : PRESETS;
 }
 
 export function providerById(
   id: string,
   dev: boolean = import.meta.env.DEV,
+  d: ResolvedDeployment = deployment,
 ): AiProviderPreset | undefined {
-  return availableProviders(dev).find((preset) => preset.id === id);
+  return availableProviders(dev, d).find((preset) => preset.id === id);
 }
 
 export function presetFor(
   settings: AiSettings,
   dev: boolean = import.meta.env.DEV,
+  d: ResolvedDeployment = deployment,
 ): AiProviderPreset | undefined {
-  return providerById(settings.providerId, dev);
+  return providerById(settings.providerId, dev, d);
 }
 
-/** The user's override wins; trailing slashes would double the endpoint's. */
-export function resolveBaseUrl(settings: AiSettings, preset: AiProviderPreset): string {
-  const base = settings.baseUrl.trim() || preset.baseUrl.trim();
+/**
+ * The endpoint a request goes to. In a managed build the deployment owns it, so
+ * the user's override is ignored (AI-SKILLS.md 2: the custom base URL is an
+ * open-profile developer feature). Trailing slashes would double the path's.
+ */
+export function resolveBaseUrl(
+  settings: AiSettings,
+  preset: AiProviderPreset,
+  d: ResolvedDeployment = deployment,
+): string {
+  const override = settings.baseUrl.trim();
+  const base = d.profile === "managed" ? preset.baseUrl.trim() : override || preset.baseUrl.trim();
   return base.replace(/\/+$/, "");
 }
 
-export function isConfigured(settings: AiSettings, preset: AiProviderPreset | undefined): boolean {
+export function isConfigured(
+  settings: AiSettings,
+  preset: AiProviderPreset | undefined,
+  d: ResolvedDeployment = deployment,
+): boolean {
   if (!preset) return false;
   if (settings.model.trim() === "") return false;
   if (preset.requiresKey && settings.apiKey.trim() === "") return false;
   // The dev mock is the one protocol that never needs an endpoint.
   if (preset.id === "mock") return true;
-  return resolveBaseUrl(settings, preset) !== "";
+  return resolveBaseUrl(settings, preset, d) !== "";
 }
 
 export interface ProviderRequest {
@@ -125,8 +177,9 @@ export function buildRequest(
   settings: AiSettings,
   system: string,
   messages: readonly AiChatTurn[],
+  d: ResolvedDeployment = deployment,
 ): ProviderRequest {
-  const base = resolveBaseUrl(settings, preset);
+  const base = resolveBaseUrl(settings, preset, d);
   if (preset.protocol === "anthropic") {
     return {
       url: base + "/v1/messages",

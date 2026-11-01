@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-
+import { deploymentPlugin } from "./vite.deployment.ts";
 // The two headers that unlock SharedArrayBuffer (cross-origin isolation). Without
 // them `SharedArrayBuffer` is undefined and the whole runtime cannot run. Applied
 // to the dev server, the preview server, AND — via the plugin below — every
@@ -273,7 +273,6 @@ function vvPrecacheAndHints(): Plugin {
 // /devtools/*) always stay at the origin root because the SW claims root scope.
 const base = process.env.VV_BASE || "/";
 
-// https://vite.dev/config/
 export default defineConfig({
   base,
   plugins: [
@@ -290,6 +289,7 @@ export default defineConfig({
     // these responses before we stream the vendored DevTools assets.
     serveDevtools(),
     vvPrecacheAndHints(),
+    deploymentPlugin(),
   ],
   resolve: {
     alias: {

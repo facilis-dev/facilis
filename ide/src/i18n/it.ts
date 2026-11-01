@@ -231,4 +231,18 @@ export const it: Partial<Record<MessageKey, string>> = {
   "chat.keyHint.custom":
     "Qualsiasi endpoint compatibile OpenAI. Un server locale non richiede chiave.",
   "chat.keyHint.mock": "Incluso nelle build di sviluppo; non chiama mai un provider.",
+
+  // ── project updates (D-065) ───────────────────────────────────────────────
+  "updates.available": "Aggiornamento disponibile",
+  "updates.aheadBadge": "Progetto più recente",
+  "updates.tooltip": "Progetto {project} · questo Studio {build}",
+  "updates.title": "Aggiornamenti del progetto",
+  "updates.description": "Questo progetto è stato creato da una versione precedente dello Studio.",
+  "updates.ahead": "Questo progetto è stato creato da uno Studio più recente. Aprilo lì.",
+  "updates.projectVersion": "Versione progetto",
+  "updates.buildVersion": "Questo Studio",
+  "updates.unknown": "sconosciuta",
+  "updates.noRecipe":
+    "Questo Studio non include ancora una ricetta di aggiornamento per questo salto, quindi non viene applicato nulla automaticamente. Esporta il progetto e ricrealo dal template corrente, oppure usa una build che includa la ricetta.",
+  "updates.baseline": "Baseline approvata: {baseline}",
 };

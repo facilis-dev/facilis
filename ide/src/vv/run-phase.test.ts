@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { openDeployment, resolveDeployment } from "@/deploy/resolve";
 
 import {
   advance,
+  defaultRegistryFor,
   fallBackToInstall,
   formatProgress,
   isInstallFallbackLine,
   isRestoreLine,
   phaseLabel,
   readFetchProgress,
+  warmRegistryConnection,
   type RunPhase,
 } from "./run-phase.ts";
 
@@ -18,6 +21,43 @@ const base: RunPhase = {
   detail: "",
   startedAt: 0,
 };
+
+const managed = resolveDeployment({
+  profile: "managed",
+  company: { name: "Acme", domain: "facilis.acme.example" },
+  packages: { registry: "https://npm.acme.example" },
+  projects: { preview: { origin: "https://preview.facilis.acme.example" } },
+});
+
+interface FakeLink {
+  rel: string;
+  href: string;
+  crossOrigin: string | null;
+}
+
+// The warm-up touches only `document.head` and `createElement`; faking those two
+// lets a node-environment test assert WHICH registry is warmed, which is the whole
+// point, without pulling a DOM implementation into the suite.
+function fakeDocument(): { document: Document; links: FakeLink[] } {
+  const links: FakeLink[] = [];
+  const head = {
+    querySelector(selector: string) {
+      const href = /href="([^"]+)"/.exec(selector)?.[1];
+      return links.find((link) => link.rel === "preconnect" && link.href === href) ?? null;
+    },
+    appendChild(link: FakeLink) {
+      links.push(link);
+      return link;
+    },
+  };
+  return {
+    document: {
+      head,
+      createElement: () => ({ rel: "", href: "", crossOrigin: null }),
+    } as unknown as Document,
+    links,
+  };
+}
 
 describe("run-phase", () => {
   it("never moves the phase backwards", () => {
@@ -76,5 +116,43 @@ describe("run-phase", () => {
       true,
     );
     expect(isInstallFallbackLine("installing normally")).toBe(false);
+  });
+
+  it("warms the configured mirror in managed, the public registry in open", () => {
+    expect(defaultRegistryFor(openDeployment())).toBe("https://registry.npmjs.org");
+    expect(defaultRegistryFor(managed)).toBe("https://npm.acme.example");
+    // resolveDeployment refuses a managed profile without a mirror, but a runtime
+    // fallback to the public registry would be exactly the wrong failure mode.
+    const noMirror = { ...managed, packages: { ...managed.packages, registry: null } };
+    expect(defaultRegistryFor(noMirror)).toBeNull();
+  });
+
+  it("connects to the registry it is given, once, and to the compiled profile's by default", () => {
+    const { document: doc, links } = fakeDocument();
+    vi.stubGlobal("document", doc);
+    try {
+      warmRegistryConnection("https://npm.acme.example");
+      warmRegistryConnection("https://npm.acme.example");
+      // No argument: the compiled profile (open in tests) keeps today's behaviour.
+      warmRegistryConnection();
+      expect(links.map((link) => link.href)).toEqual([
+        "https://npm.acme.example",
+        "https://registry.npmjs.org",
+      ]);
+      expect(links[0].crossOrigin).toBe("anonymous");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not warm anything when the deployment has no registry", () => {
+    const { document: doc, links } = fakeDocument();
+    vi.stubGlobal("document", doc);
+    try {
+      warmRegistryConnection(null);
+      expect(links).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

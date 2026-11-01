@@ -20,17 +20,22 @@ import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
 import { ProjectBootOverlay } from "./ProjectBootOverlay";
 import { ImportRemoteDialog } from "./ImportRemoteDialog";
 import { useIde } from "./useIde";
+import { aiAvailable, deployment } from "@/deploy/current";
 import { isWordWrapChord } from "@/vv/editor-prefs";
 
 export function AppShell() {
   const { c, snap } = useIde();
   const { theme, resolvedTheme, systemTheme } = useTheme();
+  // A managed build with ai.mode "off" must not mount the chat at all (D-063).
+  // The view can still be "chat" from the activity bar, so it falls back to the
+  // Explorer instead of leaving an empty sidebar.
+  const chatEnabled = aiAvailable(deployment);
   // Chat is text-heavy, so opening it widens the sidebar and leaving it restores
   // the Explorer width. Only the automatic widen is undone: a width the user
   // dragged themselves (anything above the widen target) is left alone.
   const sidebarPanel = usePanelRef();
   const widenedForChat = useRef(false);
-  const chatOpen = snap.activeView === "chat" && !snap.sidebarCollapsed;
+  const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
   useEffect(() => {
     const panel = sidebarPanel.current;
     if (!panel) return;
@@ -165,7 +170,7 @@ export function AppShell() {
                   <DebugPanel />
                 ) : snap.activeView === "scm" ? (
                   <SourceControlPanel />
-                ) : snap.activeView === "chat" ? (
+                ) : snap.activeView === "chat" && chatEnabled ? (
                   <ChatPanel />
                 ) : (
                   <Explorer />

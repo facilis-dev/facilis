@@ -16,6 +16,9 @@
 // Pure module: no React, no controller. The phase machine is the part most
 // likely to be wrong, and keeping it free of both makes it readable in one page.
 
+import { deployment } from "@/deploy/current";
+import type { ResolvedDeployment } from "@/deploy/types";
+
 /**
  * Ordered coarsely. A run moves forward through these, with exactly one
  * exception: a restore that fails falls back to a cold install — see
@@ -98,6 +101,20 @@ export function formatProgress(p: { requests: number; mb: number }): string {
   return `${p.requests.toLocaleString()} request${p.requests === 1 ? "" : "s"} · ${p.mb.toFixed(1)} MB`;
 }
 
+const PUBLIC_REGISTRY = "https://registry.npmjs.org";
+
+/**
+ * The registry a run is about to use: the deployment's mirror in a managed build,
+ * the public registry in an open one (MANAGED-DEPLOYMENT.md §7).
+ *
+ * `null` is meaningful: a managed build without a configured registry must not be
+ * warmed at all, because warming it would be the one reach to registry.npmjs.org
+ * an air-gapped deployment cannot tolerate.
+ */
+export function defaultRegistryFor(d: ResolvedDeployment): string | null {
+  return d.profile === "managed" ? d.packages.registry : PUBLIC_REGISTRY;
+}
+
 /**
  * Open the TCP+TLS connection to the registry before npm needs it.
  *
@@ -108,14 +125,19 @@ export function formatProgress(p: { requests: number; mb: number }): string {
  * to the moment it is certain to be used, with the ~2.5 s of npm CLI boot to
  * cover it. Measured cost of not doing it: DNS+TCP+TLS landing at 4,886 ms,
  * squarely on the critical path.
+ *
+ * The registry is a parameter rather than the public constant so a managed build
+ * warms its own mirror (and, with no mirror, warms nothing); `defaultRegistryFor`
+ * is the compiled profile's answer.
  */
-export function warmRegistryConnection(): void {
-  if (typeof document === "undefined") return;
-  const href = "https://registry.npmjs.org";
-  if (document.head.querySelector(`link[rel="preconnect"][href="${href}"]`)) return;
+export function warmRegistryConnection(
+  registry: string | null = defaultRegistryFor(deployment),
+): void {
+  if (registry === null || typeof document === "undefined") return;
+  if (document.head.querySelector(`link[rel="preconnect"][href="${registry}"]`)) return;
   const link = document.createElement("link");
   link.rel = "preconnect";
-  link.href = href;
+  link.href = registry;
   // The registry is fetched with CORS, and a preconnect without `crossorigin`
   // opens a socket in the wrong credentials pool — the anonymous request then
   // opens a second one and the hint buys nothing.

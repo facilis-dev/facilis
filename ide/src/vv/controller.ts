@@ -30,6 +30,7 @@ import { withTemplateAssets } from "../facilis/project-assets";
 import { StatusMessage } from "./status-message";
 import type { ProjectManifest } from "./project-manifest";
 import { loadFacilisTemplate } from "../facilis/template-loader";
+import { projectAdmitted } from "../facilis/admission";
 import { markBoot } from "./boot-marks";
 import {
   advance,
@@ -1635,10 +1636,10 @@ export class IdeController {
       this.removeProjectMeta(root);
       return;
     }
-    // Only a Facilis project gets the Facilis manifest. A project created before D-051 with
-    // one of the removed templates still opens, but with no known run manifest — Run drops
-    // into a shell rather than starting the wrong dev command.
-    if (meta.template === FACILIS_TEMPLATE_ID) {
+    // Only a Facilis project gets the Facilis manifest - and, in a managed build, only one
+    // that carries a valid facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
+    // opens, but Run drops into a shell rather than executing an unvetted project.
+    if (meta.template === FACILIS_TEMPLATE_ID && (await projectAdmitted(this.bridge, root))) {
       const template = await loadFacilisTemplate();
       this.folderManifests.set(root, template.manifest);
       this.bridge.post("vv-register-project", {

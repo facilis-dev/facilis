@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { languageLabel } from "@/vv/editor-languages";
 import { phaseLabel } from "@/vv/run-phase";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
+import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
 import { useIde } from "./useIde";
 
 export function StatusBar() {
@@ -52,6 +53,7 @@ export function StatusBar() {
             <span className="max-w-40 truncate">{branch}</span>
           </StatusItem>
         )}
+        <ProjectUpdateBadge root={activeRoot ?? null} />
         {/* Live TS/JS diagnostics from the language-service worker. Not clickable:
             there's no Problems panel to open (markers surface in the editor). */}
         <StatusItem

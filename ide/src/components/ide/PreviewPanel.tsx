@@ -23,6 +23,7 @@ import {
 import { useIde } from "./useIde";
 import { navigatePreviewFrame } from "./preview-frame-nav";
 import { phaseLabel, type RunPhase } from "@/vv/run-phase";
+import { hasSeparatePreviewOrigin, previewSandbox } from "@/vv/preview-sandbox";
 import type { PreviewTab } from "@/vv/controller";
 
 function ToolButton({
@@ -106,7 +107,7 @@ function PreviewFrame({
       // Setting it on the element ties both the embedded document's used scheme AND
       // the iframe's own default backdrop to the chosen theme, so it's always legible.
       style={{ colorScheme }}
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+      sandbox={previewSandbox(hasSeparatePreviewOrigin)}
     />
   );
 }

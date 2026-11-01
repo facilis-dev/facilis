@@ -4,7 +4,6 @@ import FilePlus from "~icons/lucide/file-plus-2";
 import Clock from "~icons/lucide/clock";
 import ArrowLeft from "~icons/lucide/arrow-left";
 import FolderInput from "~icons/lucide/folder-input";
-import Github from "~icons/lucide/github";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +16,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "@/i18n";
 import { useIde } from "./useIde";
 import { entriesFromDataTransfer } from "@/vv/controller";
 import { RecentProjectsRow } from "./RecentProjectsRow";
 import { BootStatus } from "./BootStatus";
+import { HomeImportCards } from "./HomeImportCards";
 
 export function HomeView() {
   const { c, snap } = useIde();
@@ -97,20 +96,7 @@ export function HomeView() {
               <div className="text-sm text-muted-foreground">{t("home.newProjectDesc")}</div>
             </div>
           </button>
-          <ImportCard
-            icon={FolderInput}
-            title={t("home.importFolder")}
-            desc={t("home.importFolderDesc")}
-            onClick={() => c.importFolderViaPicker()}
-            disabled={!snap.kernelReady}
-          />
-          <ImportCard
-            icon={Github}
-            title={t("home.importRemote")}
-            desc={t("home.importRemoteDesc")}
-            onClick={() => c.openImportRemote()}
-            disabled={!snap.kernelReady}
-          />
+          <HomeImportCards />
         </div>
 
         <div className="mt-10">
@@ -143,54 +129,6 @@ export function HomeView() {
       <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
       <ResetEverythingDialog open={resetOpen} onOpenChange={setResetOpen} />
     </div>
-  );
-}
-
-// An action card whose click is gated on the kernel being ready. While disabled
-// it stays hoverable (aria-disabled rather than the native `disabled` attribute,
-// which would swallow hover events) so a tooltip can explain WHY it's disabled —
-// the project is still being restored. The tooltip is only rendered while disabled.
-function ImportCard({
-  icon: Icon,
-  title,
-  desc,
-  onClick,
-  disabled,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  desc: string;
-  onClick: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            onClick={() => {
-              if (!disabled) onClick();
-            }}
-            aria-disabled={disabled}
-            className={cn(
-              "group flex flex-col items-start gap-3 rounded-xl border bg-card p-5 text-left transition-colors",
-              disabled
-                ? "cursor-not-allowed opacity-60"
-                : "hover:border-primary/60 hover:bg-accent/40",
-            )}
-          />
-        }
-      >
-        <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-6" />
-        </div>
-        <div>
-          <div className="font-medium">{title}</div>
-          <div className="text-sm text-muted-foreground">{desc}</div>
-        </div>
-      </TooltipTrigger>
-      {disabled && <TooltipContent>{t("home.importLocked")}</TooltipContent>}
-    </Tooltip>
   );
 }
 

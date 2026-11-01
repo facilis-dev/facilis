@@ -8,6 +8,8 @@
 // it — that is not a threat model, it is a fig leaf (PATs get real encryption
 // when they are stored encrypted-until-used in OPFS, D-045).
 
+import { deployment } from "@/deploy/current";
+import type { ResolvedDeployment } from "@/deploy/types";
 import { isConfigured as presetIsConfigured, providerById } from "./providers";
 import type { AiSettings } from "./types";
 
@@ -33,9 +35,18 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-/** The saved settings, or null when nothing usable was stored. Never throws. */
+/**
+ * The saved settings, or null when nothing usable was stored. Never throws.
+ *
+ * A managed build owns the provider set and the endpoint (D-063): a stored
+ * provider outside the allowlist is kept but resolves as unconfigured, so the
+ * user still sees their saved settings and can pick an allowed provider instead
+ * of losing the rest of them silently, while a stored custom base URL is dropped
+ * because a managed build can never honour it.
+ */
 export function loadAiSettings(
   storage: SettingsStorage | null = defaultStorage(),
+  d: ResolvedDeployment = deployment,
 ): AiSettings | null {
   if (!storage) return null;
   try {
@@ -50,7 +61,7 @@ export function loadAiSettings(
       providerId,
       apiKey: text(record.apiKey),
       model: text(record.model),
-      baseUrl: text(record.baseUrl),
+      baseUrl: d.profile === "managed" ? "" : text(record.baseUrl),
     };
   } catch {
     return null;
@@ -60,6 +71,7 @@ export function loadAiSettings(
 export function saveAiSettings(
   settings: AiSettings,
   storage: SettingsStorage | null = defaultStorage(),
+  d: ResolvedDeployment = deployment,
 ): void {
   if (!storage) return;
   try {
@@ -69,7 +81,8 @@ export function saveAiSettings(
         providerId: settings.providerId.trim(),
         apiKey: settings.apiKey.trim(),
         model: settings.model.trim(),
-        baseUrl: settings.baseUrl.trim(),
+        // Never persist an override a managed build will refuse to use.
+        baseUrl: d.profile === "managed" ? "" : settings.baseUrl.trim(),
       }),
     );
   } catch {
@@ -87,7 +100,11 @@ export function clearAiSettings(storage: SettingsStorage | null = defaultStorage
 }
 
 /** True when the provider, model, endpoint and (when the provider needs it) key are set. */
-export function isConfigured(settings: AiSettings | null, dev = import.meta.env.DEV): boolean {
+export function isConfigured(
+  settings: AiSettings | null,
+  dev = import.meta.env.DEV,
+  d: ResolvedDeployment = deployment,
+): boolean {
   if (!settings) return false;
-  return presetIsConfigured(settings, providerById(settings.providerId, dev));
+  return presetIsConfigured(settings, providerById(settings.providerId, dev, d), d);
 }
