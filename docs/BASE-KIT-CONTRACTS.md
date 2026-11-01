@@ -84,8 +84,11 @@ exactly one file, `theme.css`; no component may contain a colour literal.
 | `DatePicker` | `value: Date | null`, `onChange`, `mode?: "date"\|"datetime"`, `minDate?`, `maxDate?`, `locale?`, `labels?`, `disabled?`, `defaultOpen?`, `className?`, `id?`, `aria-*` | calendar popover + optional 00–23/00–59 time selects; Monday-first grid, min/max, today/clear, keyboard; local Dates |
 | `Combobox` | `options: { value, label, hint? }[]`, `value: string | null`, `onChange`, `placeholder?`, `emptyLabel?`, `clearLabel?`, `disabled?`, `defaultOpen?`, `className?`, `id?`, `aria-*` | searchable single select: filter by label then value, aria-activedescendant |
 | `TagPicker` | `value: readonly string[]`, `onChange`, `options?`, `placeholder?`, `removeLabel?`, `suggestionsLabel?`, `disabled?`, `className?`, `id?`, `aria-*` | chips + suggestions, Enter/comma add, Backspace/click remove, trim + case-insensitive dedupe |
+| `MarkdownEditor` | `value`, `onChange(value)`, `placeholder?`, `rows?`, `disabled?`, `labels?` (`bold`, `italic`, `heading`, `bulletedList`, `numberedList`, `quote`, `code`, `link`, `write`, `preview`), `className?`, `id?`, `aria-*` | Markdown toolbar with selection-aware transforms, Ctrl/Cmd+B/I/K and Write/Preview tabs; `id`/`aria-*` land on the textarea so `Field` wires label/description/invalid |
+| `Markdown` | `source`, `className?` | safe renderer for headings, paragraphs, inline formatting, lists, quotes, fenced code, hr, line breaks and safe links; React elements only, never raw HTML |
+| `TranslationsInput` (+ exported `Translations`) | `value: Readonly<Record<string,string>>`, `onChange`, `locales`, `availableLocales?`, `defaultLocale?`, `multiline?`, `disabled?`, `labels?` (`addLanguage`, `removeLanguage(locale)`, `emptyTranslation`, `primary`, `languagesLabel`), `initialLocale?`, `className?`, `id?`, `aria-*` | locale tabs with filled/empty dot, default locale marked and unremovable, add/remove languages; `Translations` is structurally the same map as `@facilis/i18n-db` without depending on the server package |
 
-All of these are token-driven, copyable and SSR-renderable. Out of scope for this slice:
+All of these are token-driven, copyable and SSR-renderable. Markdown is a **fixed subset** on purpose: the renderer builds React elements, never injects HTML and only links `http(s)`, `mailto:`, `#` and relative targets, so untrusted text is safe to preview. Out of scope for this slice:
 tooltip, command menu, file upload and the DataTable block (TanStack). Page-level shells that
 know about navigation/session (sidebar, user menu) stay **in the project** (`src/layouts/`),
 not in the kit: they compose these patterns with the project's router and session.
@@ -123,8 +126,9 @@ project's theme block; that is the customisation surface, together with copying 
 
 - **One stylesheet per component, colocated**: `src/button.css` next to `src/button.tsx`, and
   the component module imports it (`import "./button.css";`). Same for every primitive,
-  pattern and form picker; shared visual atoms live in small partials imported by the
-  components that need them (`icon-button.css`).
+  pattern, form picker and content component (the renderer included: `markdown.tsx` owns
+  `markdown.css`); shared visual atoms live in small partials imported by the components
+  that need them (`icon-button.css`).
 - `theme.css` — **only** the Geist `@import`, the three complete token sets and the global
   base layer (box-sizing, body canvas/font, links, global `:focus-visible`). It contains no
   `.fc-*` component rules.
@@ -141,8 +145,9 @@ project's theme block; that is the customisation surface, together with copying 
 ### 3.4 Gallery
 
 `examples/ui-gallery` is the acceptance example: a plain Vite + React app (no Tailwind) that
-imports `@facilis/ui/theme.css`, renders every component, and toggles light/dark with a
-button. `pnpm --filter @facilis/example-ui-gallery build` must pass.
+imports `@facilis/ui/theme.css`, renders every component — including the "Content" section
+(`MarkdownEditor`/`Markdown` and the single-line + multiline `TranslationsInput`) — and
+toggles light/dark with a button. `pnpm --filter @facilis/example-ui-gallery build` must pass.
 
 ## 4. `@facilis/time` — date/time logic
 

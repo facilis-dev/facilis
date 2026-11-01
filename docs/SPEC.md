@@ -671,6 +671,19 @@ Patterns shipped on top of the primitives (all token-driven, SSR-renderable, cop
 stylesheet next to its source (`src/button.css`) and the build copies them into `dist` for
 packed tarballs (D-052).
 
+Content components round out the form surface (D-053). `MarkdownEditor` is Markdown with a
+toolbar that transforms the real textarea selection (bold, italic, heading, lists, quote,
+inline code, link), Ctrl/Cmd+B/I/K and Write/Preview tabs; `Markdown` is the exported
+renderer for saved content. The renderer is a fixed subset — React elements only, raw HTML
+shown as text, links limited to `http(s)`, `mailto:`, `#` and relative targets — so
+untrusted text never injects markup. `TranslationsInput` edits one value per locale: locale
+tabs with a filled/empty dot, config-driven locales plus add/remove (the default locale is
+marked and cannot be removed), single or multiline. Its
+`Translations = Readonly<Record<string, string>>` is the same shape `@facilis/i18n-db` stores,
+so the client input and the server column agree without the kit depending on the server
+package. All labels are injected (`labels` props) so `t()` covers them, and both components
+take `id`/`aria-*` for `Field`.
+
 ### 5.8 `@facilis/time`
 
 Zero-dependency date/time logic (D-048), built on `Intl` only:

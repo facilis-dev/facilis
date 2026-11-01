@@ -109,7 +109,8 @@ alternative. The lab shows all three so the choice is visual, not theoretical.
 
 Shipped in the kit: `Card`, `StatCard`, `Tabs`, `Dialog`, `Switch`, `Avatar`/`AvatarStack`,
 `Pagination` (translatable summary/labels), `TableToolbar`, `Menu`, `Skeleton`, `DatePicker`
-(date + optional time), `Combobox`, `TagPicker`. Page-level shells (sidebar/topbar) stay in the
+(date + optional time), `Combobox`, `TagPicker`, the `MarkdownEditor`/`Markdown` pair and
+`TranslationsInput` (locale tabs for one text). Page-level shells (sidebar/topbar) stay in the
 project's `src/layouts/` because they need the router and session.
 
 Still to add: `Tooltip`, command menu, file upload, and the `DataTable` block (TanStack) on top

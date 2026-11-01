@@ -182,6 +182,10 @@ Tables compose `TableToolbar` (search/filters/actions) and `Pagination` with tra
 `DatePicker`, `Combobox` and `TagPicker` cover the richer form fields, with `Field` wiring the
 label/description/invalid state and the `labels` props carrying `t()` strings.
 
+Long-form text is a `MarkdownEditor` value rendered through the exported `Markdown`; a field
+stored per language is a `TranslationsInput` over the project's `locales`, and the server
+resolves the user's language with `@facilis/i18n-db` (D-049) when that package is enabled.
+
 Mutations toast the outcome (`toast.success` / `toast.error(t(errorMessageKey(error)))`);
 they never replace the page with an error blob.
 
