@@ -5,7 +5,7 @@
  * through @facilis/time, never through Date#toLocaleString (D-048).
  */
 
-import { dateOnlyOf, formatDateOnly, isValidDateOnly, startOfDay, today } from "@facilis/time";
+import { dateOnlyOf, formatDateOnly, startOfDay, today } from "@facilis/time";
 
 export interface DateFormatOptions {
   locale?: string;
@@ -34,14 +34,15 @@ export function formatDueDate(iso: string | null, options: DateFormatOptions = {
 }
 
 /**
- * Converts an <input type="date"> value to the ISO instant of local midnight, which is what the
- * API stores. Invalid calendar days throw through @facilis/time instead of being sent silently.
+ * Converts the calendar day a Date falls on in the user's zone to the ISO instant of local
+ * midnight, which is what the API stores. The DatePicker returns local Dates, so this is the
+ * bridge to the API; an invalid Date throws instead of being sent silently.
  */
-export function dueDateFromInput(dateOnly: string, timeZone: string = localTimeZone()): string {
-  if (!isValidDateOnly(dateOnly)) {
-    throw new RangeError("dueDateFromInput: expected a YYYY-MM-DD calendar day");
+export function dueDateFromDate(date: Date, timeZone: string = localTimeZone()): string {
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError("dueDateFromDate: expected a valid Date");
   }
-  return startOfDay(dateOnly, timeZone).toISOString();
+  return startOfDay(dateOnlyOf(date, timeZone), timeZone).toISOString();
 }
 
 /** True when the instant falls before the current calendar day in the zone. */

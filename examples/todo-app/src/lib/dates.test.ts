@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueDateFromInput, formatDueDate, isOverdue, localTimeZone } from "./dates.ts";
+import { dueDateFromDate, formatDueDate, isOverdue, localTimeZone } from "./dates.ts";
 
 describe("formatDueDate", () => {
   it("formats the calendar day in the requested zone and locale", () => {
@@ -21,19 +21,24 @@ describe("formatDueDate", () => {
   });
 });
 
-describe("dueDateFromInput", () => {
-  it("converts a date input to the ISO instant of local midnight", () => {
-    expect(dueDateFromInput("2026-10-15", "UTC")).toBe("2026-10-15T00:00:00.000Z");
+describe("dueDateFromDate", () => {
+  it("converts the local calendar day to the ISO instant of local midnight", () => {
+    expect(dueDateFromDate(new Date(Date.UTC(2026, 9, 15, 15, 30)), "UTC")).toBe(
+      "2026-10-15T00:00:00.000Z",
+    );
   });
 
   it("is DST-aware", () => {
-    expect(dueDateFromInput("2026-07-01", "Europe/Rome")).toBe("2026-06-30T22:00:00.000Z");
-    expect(dueDateFromInput("2026-12-01", "Europe/Rome")).toBe("2026-11-30T23:00:00.000Z");
+    expect(dueDateFromDate(new Date(Date.UTC(2026, 6, 1, 12)), "Europe/Rome")).toBe(
+      "2026-06-30T22:00:00.000Z",
+    );
+    expect(dueDateFromDate(new Date(Date.UTC(2026, 11, 1, 12)), "Europe/Rome")).toBe(
+      "2026-11-30T23:00:00.000Z",
+    );
   });
 
-  it("throws on an invalid calendar day", () => {
-    expect(() => dueDateFromInput("2026-02-30", "UTC")).toThrow(RangeError);
-    expect(() => dueDateFromInput("15/10/2026", "UTC")).toThrow(RangeError);
+  it("throws on an invalid Date", () => {
+    expect(() => dueDateFromDate(new Date("not-a-date"), "UTC")).toThrow(RangeError);
   });
 });
 

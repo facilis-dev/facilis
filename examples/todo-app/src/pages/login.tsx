@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthShell, Button, Field, Input, toast } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
 import { api, errorMessageKey } from "../lib/api.ts";
-import { useSession } from "../lib/session.tsx";
+import { rememberEmail, useSession } from "../lib/session.tsx";
 
 /** Where RequireAuth sent the user before login; "/todos" when they arrived directly. */
 function targetPath(state: unknown): string {
@@ -30,6 +30,7 @@ export function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      rememberEmail(email);
       await refresh();
       navigate(targetPath(location.state), { replace: true });
     } catch (error) {
@@ -54,6 +55,7 @@ export function LoginPage() {
           <Input
             type="email"
             autoComplete="email"
+            autoFocus
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}

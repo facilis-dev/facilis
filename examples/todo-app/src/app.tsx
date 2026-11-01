@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@facilis/ui";
 import { AppLayout } from "./layouts/app-layout.tsx";
+import { AuthLayout } from "./layouts/auth-layout.tsx";
 import { useLocale } from "./lib/i18n.tsx";
 import { PublicOnly, RequireAuth, SessionProvider } from "./lib/session.tsx";
 import { LoginPage } from "./pages/login.tsx";
@@ -35,7 +36,9 @@ export function App() {
           path="/login"
           element={
             <PublicOnly>
-              <LoginPage />
+              <AuthLayout>
+                <LoginPage />
+              </AuthLayout>
             </PublicOnly>
           }
         />
@@ -43,7 +46,9 @@ export function App() {
           path="/register"
           element={
             <PublicOnly>
-              <RegisterPage />
+              <AuthLayout>
+                <RegisterPage />
+              </AuthLayout>
             </PublicOnly>
           }
         />

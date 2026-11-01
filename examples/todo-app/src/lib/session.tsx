@@ -41,6 +41,28 @@ export function hasPermission(session: Session | null, permission: string): bool
   return session.permissions?.includes(permission) ?? false;
 }
 
+const EMAIL_STORAGE_KEY = "facilis.session.email";
+
+/**
+ * Remembers the email used at sign-in for display only (sidebar identity). The session cookie
+ * stays the single identity: nothing here is trusted for authorization.
+ */
+export function rememberEmail(email: string): void {
+  try {
+    globalThis.localStorage?.setItem(EMAIL_STORAGE_KEY, email);
+  } catch {
+    // Display-only: no storage means the shell falls back to the generic account label.
+  }
+}
+
+export function rememberedEmail(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(EMAIL_STORAGE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);

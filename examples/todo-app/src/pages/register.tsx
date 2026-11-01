@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthShell, Button, Field, Input, toast } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
 import { api, errorMessageKey } from "../lib/api.ts";
-import { useSession } from "../lib/session.tsx";
+import { rememberEmail, useSession } from "../lib/session.tsx";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -45,6 +45,7 @@ export function RegisterPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      rememberEmail(email);
       await refresh();
       toast.success(t("auth.register.success"));
       navigate(targetPath(location.state), { replace: true });
@@ -70,6 +71,7 @@ export function RegisterPage() {
           <Input
             type="email"
             autoComplete="email"
+            autoFocus
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
