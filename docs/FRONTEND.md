@@ -2,8 +2,8 @@
 
 How a Facilis project's client is organised. This is the **generated app's** frontend (the
 thing a developer builds in the IDE), not the IDE itself. It builds on the base kit
-(`@facilis/ui`, D-undefined), the date logic (`@facilis/time`, D-undefined) and the i18n runtime
-(`@facilis/core/i18n`, plus optional `@facilis/i18n-db/client`, D-undefined).
+(`@facilis/ui`, D-055), the date logic (`@facilis/time`, D-056) and the i18n runtime
+(`@facilis/core/i18n`, plus optional `@facilis/i18n-db/client`, D-057).
 
 Reference implementation: `examples/todo-app/src` (real Nitro/PGlite backend: auth, todos).
 It is the acceptance app for this organisation, so the pattern is runnable, not a sketch.
@@ -120,7 +120,7 @@ export function PublicOnly({ children }: { children: ReactNode }): ReactElement;
 
 ## 5. Theme — `lib/theme.ts`
 
-The kit is variable-driven (D-undefined); the app only decides which complete set applies.
+The kit is variable-driven (D-055); the app only decides which complete set applies.
 
 ```ts
 export type Theme = "light" | "dark";
@@ -146,11 +146,11 @@ export function resolveTheme(stored: string | null, prefersDark: boolean): Theme
 - **User language is managed**: `useLocale()` exposes the current locale and a setter; the
   header renders a `LocaleSwitch`; the choice is persisted (`facilis.locale`). `t()` from
   `@facilis/core/i18n` is what pages use — no second translation system.
-- **Optional database overlay** (D-undefined): if the project mounts `GET /api/i18n`, `initI18n`
+- **Optional database overlay** (D-057): if the project mounts `GET /api/i18n`, `initI18n`
   may call `hydrateCatalogs({ locales, base, defaultLocale })` from
   `@facilis/i18n-db/client` inside a `try/catch` (a missing overlay must not break boot).
   The reference app uses files only and documents the seam.
-- Translated **content** (D-undefined) is a server concern: the API resolves
+- Translated **content** (D-057) is a server concern: the API resolves
   `resolveTranslation(row.title, userLocale)`; the client just renders the string.
 
 ## 7. Dates — `lib/dates.ts`
@@ -165,7 +165,7 @@ export function isOverdue(iso: string | null, options?: { today?: string; timeZo
 ```
 
 - Never format with `new Date().toLocaleString()` directly; that re-introduces the implicit
-  time zone D-undefined removed.
+  time zone D-056 removed.
 - Date-only inputs are `<input type="date">` values converted with `startOfDay`.
 
 ## 8. Page states
@@ -184,7 +184,7 @@ label/description/invalid state and the `labels` props carrying `t()` strings.
 
 Long-form text is a `MarkdownEditor` value rendered through the exported `Markdown`; a field
 stored per language is a `TranslationsInput` over the project's `locales`, and the server
-resolves the user's language with `@facilis/i18n-db` (D-undefined) when that package is enabled.
+resolves the user's language with `@facilis/i18n-db` (D-057) when that package is enabled.
 
 Mutations toast the outcome (`toast.success` / `toast.error(t(errorMessageKey(error)))`);
 they never replace the page with an error blob.

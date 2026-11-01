@@ -2,7 +2,7 @@
  * Theme selection (docs/FRONTEND.md section 5).
  *
  * A theme is just which complete variable set theme.css applies, so the app only persists the
- * choice and writes data-theme on <html>; no component knows a colour (D-undefined).
+ * choice and writes data-theme on <html>; no component knows a colour (D-055).
  */
 
 import { useSyncExternalStore } from "react";

@@ -77,7 +77,7 @@ logic: one fetch wrapper, session guards, theme, i18n, dates). The neutral UI te
 `@facilis/ui`; colours and radii are role variables overridden in CSS, never component
 props. Dates go through `@facilis/time`, never `Date#toLocaleString`, and every
 user-facing string is a `t()` key present in both catalogues. The full contract is
-[`docs/FRONTEND.md`](../../docs/FRONTEND.md) (D-undefined).
+[`docs/FRONTEND.md`](../../docs/FRONTEND.md) (D-058).
 
 The UI shows: register → auto-login → todos (create with optional due date, toggle, delete,
 overdue badge, toasts), light/dark theme toggle, en/it language switch, empty/loading/error

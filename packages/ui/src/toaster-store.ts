@@ -63,7 +63,7 @@ export type ToastApi = ToastMethod & {
 
 /**
  * The public helper: toast(message) is an info toast, the methods pick a tone. There are no
- * options on purpose — the 4 s lifetime is the contract, not a per-call setting (D-undefined).
+ * options on purpose — the 4 s lifetime is the contract, not a per-call setting (D-055).
  */
 export const toast: ToastApi = Object.assign(
   (message: string) => {

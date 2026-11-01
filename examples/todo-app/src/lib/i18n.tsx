@@ -78,7 +78,7 @@ function applyLocale(locale: Locale): void {
 
 /**
  * Registers every catalogue and applies the user's starting locale before the first render.
- * A project with a database overlay (D-undefined) calls hydrateCatalogs here inside try/catch; the
+ * A project with a database overlay (D-057) calls hydrateCatalogs here inside try/catch; the
  * reference app ships files only, so there is nothing to await.
  */
 export function initI18n(): void {

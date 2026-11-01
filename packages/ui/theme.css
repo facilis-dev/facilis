@@ -1,7 +1,7 @@
 @import "@fontsource-variable/geist/index.css";
 
 /*
- * @facilis/ui theme — direction A "Institutional" (D-undefined).
+ * @facilis/ui theme — direction A "Institutional" (D-059).
  *
  * One stylesheet for generated apps: complete role sets plus the design-layer tokens, the base
  * layer. Component rules live in colocated stylesheets imported by their component modules; a
@@ -44,7 +44,7 @@
   --space-12: 6rem;
   --page-max: 80rem;
 
-  /* Density and shape: controls are 38px, table rows 44px (D-undefined). */
+  /* Density and shape: controls are 38px, table rows 44px (D-059). */
   --control-h: 38px;
   --row-h: 44px;
   --pad-card: var(--space-5);
@@ -130,7 +130,7 @@
   --space-12: 6rem;
   --page-max: 80rem;
 
-  /* Density and shape: controls are 38px, table rows 44px (D-undefined). */
+  /* Density and shape: controls are 38px, table rows 44px (D-059). */
   --control-h: 38px;
   --row-h: 44px;
   --pad-card: var(--space-5);
@@ -216,7 +216,7 @@
   --space-12: 6rem;
   --page-max: 80rem;
 
-  /* Density and shape: controls are 38px, table rows 44px (D-undefined). */
+  /* Density and shape: controls are 38px, table rows 44px (D-059). */
   --control-h: 38px;
   --row-h: 44px;
   --pad-card: var(--space-5);

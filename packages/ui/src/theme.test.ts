@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Guards D-undefined's two invariants at the source level, because a missing role in one theme
+// Guards D-055's two invariants at the source level, because a missing role in one theme
 // block or a colour literal in a component is a silent visual bug, not a type error.
 const theme = readFileSync(new URL("../theme.css", import.meta.url), "utf8");
 const srcDir = new URL("./", import.meta.url);

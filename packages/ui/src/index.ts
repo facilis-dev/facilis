@@ -1,7 +1,7 @@
 /**
  * Public surface of @facilis/ui: one flat list of named exports, nothing else
  * (docs/BASE-KIT-CONTRACTS.md section 3.1). Components expose no theme props; colours, type,
- * spacing and motion come from the tokens in theme.css (D-undefined, D-undefined).
+ * spacing and motion come from the tokens in theme.css (D-055, D-059).
  */
 export { Alert } from "./alert.tsx";
 export { AuthShell } from "./auth-shell.tsx";

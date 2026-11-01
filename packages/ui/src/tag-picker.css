@@ -1,6 +1,6 @@
 /*
  * TagPicker styles. Imported by tag-picker.tsx so the component ships its own CSS; chips
- * reuse the role tokens and never a colour literal (D-undefined, D-undefined).
+ * reuse the role tokens and never a colour literal (D-055, D-059).
  */
 
 .fc-tagpicker {

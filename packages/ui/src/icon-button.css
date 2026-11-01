@@ -1,6 +1,6 @@
 /*
  * Shared icon-only button. Imported by dialog.tsx and menu.tsx (both render it internally);
- * colours and radii are tokens only (D-undefined, D-undefined).
+ * colours and radii are tokens only (D-055, D-059).
  */
 
 .fc-icon-btn {

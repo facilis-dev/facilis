@@ -4,7 +4,7 @@
 brand layer (B or C, light + dark) is still to pick. The current kit reads dated ("Bootstrap 3"):
 system font, flat grey-on-grey surfaces, 1 px borders, no elevation, no type hierarchy and no
 page patterns. The fix is a **design layer** (tokens + composition + designed examples), not more
-component props: components stay small and copyable (D-undefined).
+component props: components stay small and copyable (D-055).
 
 This document is intentionally self-contained: it describes the visual language on its own terms,
 not by naming external products.
@@ -28,7 +28,7 @@ gradient) instead of falling back to the operations theme. The user's theme choi
 brand layer too.
 
 Same components, same roles; the difference is which complete variable set is in scope. That is
-the D-044/D-undefined thesis applied beyond light/dark.
+the D-044/D-055 thesis applied beyond light/dark.
 
 ## Principles
 
@@ -121,7 +121,7 @@ of the table pattern. Each stays small, token-driven and copyable.
 One stylesheet per component, colocated and imported by the component (`src/button.css` next
 to `src/button.tsx`); shared visual atoms live in small partials (`icon-button.css`).
 `theme.css` keeps only the token sets and the global/base layer — no `.fc-*` rules. The build
-copies component CSS into `dist/` so tarballs work, and `css.test.ts` enforces the rule (D-undefined).
+copies component CSS into `dist/` so tarballs work, and `css.test.ts` enforces the rule (D-060).
 
 ## Design lab
 

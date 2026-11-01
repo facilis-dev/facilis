@@ -9,7 +9,7 @@ import { rememberedEmail, useSession } from "../lib/session.tsx";
 /**
  * Project-owned A shell: sidebar (brand, workspace nav, identity footer) plus a topbar with page
  * context and the cross-cutting controls. Navigation knows the router, so it stays in the app;
- * the kit only owns the controls and surfaces (D-undefined/D-undefined).
+ * the kit only owns the controls and surfaces (D-058/D-059).
  */
 export function AppLayout() {
   const { session, logout } = useSession();

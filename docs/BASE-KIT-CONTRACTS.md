@@ -15,7 +15,7 @@ Product directive (2026-10-31):
 
 The contract file only fixes module boundaries and public API so the packages can be built
 in parallel. `docs/SPEC.md` wins if it ever conflicts; decisions are recorded in
-`docs/DECISIONS.md` (D-undefined … D-undefined).
+`docs/DECISIONS.md` (D-055 … D-057).
 
 ## 1. Ownership
 
@@ -114,7 +114,7 @@ component change.
 | `--radius-box` | cards, tables, alerts, toasts |
 | `--border-width` | border width used by the field/box components |
 
-The A design layer also exposes (D-undefined): `--font-sans`/`--font-mono` (Geist is imported by
+The A design layer also exposes (D-059): `--font-sans`/`--font-mono` (Geist is imported by
 `theme.css`), the type scale (`--text-xs…3xl`, leading, tracking), `--space-1…12`,
 `--page-max`, density (`--control-h` 38, `--row-h` 44, `--pad-card`, `--pad-page`,
 `--sidebar-w`), elevation (`--shadow-sm/md/lg/glow`), `--color-raised`,
@@ -294,7 +294,7 @@ column definition.
 - Each package: `pnpm --filter <pkg> typecheck`, `test`, `lint`, `build` green; files ≤ 300 lines.
 - `examples/ui-gallery`: build + typecheck + lint green.
 - Lead: root `pnpm install` (lockfile), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
-  `pnpm build`, `docs/SPEC.md` §4/§5 + `docs/DECISIONS.md` D-undefined…D-undefined updated.
+  `pnpm build`, `docs/SPEC.md` §4/§5 + `docs/DECISIONS.md` D-055…D-057 updated.
 - Out of scope (reported, not done here): wiring the packages into the IDE template
   (`ide/src/facilis/**`), the vendor tarball list in `scripts/dev/vendor-facilis-deps.sh`,
   and the starter repo.

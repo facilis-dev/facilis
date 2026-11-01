@@ -13,7 +13,7 @@ export type ButtonProps = ComponentProps<"button"> & {
 /**
  * Native button plus the two axes the kit supports. Variants only select a .fc-btn--* class,
  * so colours and radii stay in theme.css and a project restyles without touching component
- * code (D-undefined). type defaults to "button" so a kit button never submits a form by accident.
+ * code (D-055). type defaults to "button" so a kit button never submits a form by accident.
  */
 export function Button({
   variant = "primary",
