@@ -107,7 +107,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   "import.title": "Importa un repository",
   "import.description":
     "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — come nuovo progetto. Il download avviene nel browser, nessun server coinvolto.",
-  "import.host": "Host",
   "import.repository": "Repository",
   "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, o un URL del repository",
   "import.repositoryHint":
@@ -125,7 +124,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   "push.title": "Pubblica su un host git",
   "push.description":
     "Salva questo progetto in un branch GitHub, GitLab o Gitea/Forgejo come un unico commit tramite l'API dell'host — dalla scheda, senza clone e senza server.",
-  "push.host": "Host",
   "push.repository": "Repository",
   "push.repositoryPlaceholder": "owner/repo, o l'URL del repository",
   "push.repositoryHint":

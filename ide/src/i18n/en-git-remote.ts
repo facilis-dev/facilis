@@ -43,5 +43,17 @@ export const gitRemoteEn = {
   "import.descriptionGit":
     "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — as a new project with a real git clone. The download goes through this installation's stateless proxy, which keeps nothing and logs nothing.",
   "import.repositoryHintGit":
-    "Owner/repo or the repository URL. Public by default; a private repository needs the token below.",
+    "owner/repo (GitHub by default) or the repository URL; GitLab and Gitea/Forgejo need their URL. A private repository needs the token below.",
+
+  // ── token help (shown by the import, publish and remote dialogs) ─────────
+  "token.helpSummary": "How to create a token",
+  "token.githubLine": "Settings › Developer settings › Personal access tokens — {scope}",
+  "token.gitlabLine": "Preferences › Access tokens — {scope}",
+  "token.giteaLine": "Settings › Applications — generate a token with {scope}",
+  "token.scopeGithubRead": "Contents: Read",
+  "token.scopeGithubWrite": "Contents: Read and write",
+  "token.scopeGitlabRead": "read_repository",
+  "token.scopeGitlabWrite": "write_repository",
+  "token.scopeGiteaRead": "read:repository",
+  "token.scopeGiteaWrite": "write:repository",
 } as const;

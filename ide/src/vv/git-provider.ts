@@ -55,6 +55,17 @@ export function detectGitProvider(host: string): GitProvider | null {
   return null;
 }
 
+/**
+ * The host an input names; a bare `owner/repo` means GitHub, the common case. The UI no
+ * longer asks for the host: the URL carries it, and a shorthand only needs a default
+ * (D-079). A self-hosted URL still resolves through hostOfGitInput + detectGitProvider.
+ */
+export function providerForInput(input: string): GitProvider {
+  const host = hostOfGitInput(input);
+  const detected = host === null ? null : detectGitProvider(host);
+  return detected ?? "github";
+}
+
 /** Auth header per host: GitHub/Gitea take a bearer, GitLab its own header. */
 export function gitAuthHeaders(
   provider: GitProvider,

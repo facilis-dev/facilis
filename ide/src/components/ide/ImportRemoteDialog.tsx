@@ -13,18 +13,15 @@ import {
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import {
-  GIT_PROVIDERS,
-  detectGitProvider,
   hostOfGitInput,
   normalizeGitToken,
   parseGitRepo,
+  providerForInput,
   type GitProvider,
 } from "@/vv/git-provider";
 import { proxyBase } from "@/vv/git-remote";
 import { gitAvailable } from "@/vv/project-clone";
-
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring";
+import { TokenHelp } from "./TokenHelp";
 
 /** The hosted service's host for a provider; a pasted URL overrides it. */
 const PROVIDER_HOSTS: Record<GitProvider, string> = {
@@ -52,7 +49,6 @@ function toCloneUrl(input: string, provider: GitProvider): string | null {
 export function ImportRemoteDialog() {
   const { c, snap } = useIde();
   const open = snap.importRemoteOpen;
-  const [provider, setProvider] = useState<GitProvider>("github");
   const [repo, setRepo] = useState("");
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -82,15 +78,6 @@ export function ImportRemoteDialog() {
     setProgress(total > 0 ? t("import.progress", { phase, done: loaded, total }) : phase);
   };
 
-  // A URL names its host: follow it, but leave the picker authoritative for self-hosted
-  // servers whose hostname says nothing (git.company.com can be either).
-  const chooseRepo = (next: string) => {
-    setRepo(next);
-    const host = hostOfGitInput(next);
-    const detected = host === null ? null : detectGitProvider(host);
-    if (detected !== null) setProvider(detected);
-  };
-
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
@@ -104,6 +91,9 @@ export function ImportRemoteDialog() {
       }
       // Real git when this deployment serves the proxy (full history, keeps .git); the
       // REST importer stays the fallback for a static host with no proxy (D-073/D-079).
+      // No host picker: the URL names the host, and a bare owner/repo is GitHub (the
+      // common case), so there is nothing for the user to choose (D-079).
+      const provider = providerForInput(repo.trim());
       let ok = false;
       const cloneUrl = toCloneUrl(repo.trim(), provider);
       if (cloneUrl !== null && (await gitAvailable())) {
@@ -142,29 +132,13 @@ export function ImportRemoteDialog() {
 
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">{t("import.host")}</span>
-            <select
-              className={SELECT_CLASS}
-              value={provider}
-              onChange={(event) => setProvider(event.target.value as GitProvider)}
-              disabled={busy}
-            >
-              {GIT_PROVIDERS.map((host) => (
-                <option key={host.id} value={host.id}>
-                  {host.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">
               {t("import.repository")}
             </span>
             <Input
               autoFocus
               value={repo}
-              onChange={(event) => chooseRepo(event.target.value)}
+              onChange={(event) => setRepo(event.target.value)}
               placeholder={t("import.repositoryPlaceholder")}
               disabled={busy}
               onKeyDown={(event) => {
@@ -194,6 +168,7 @@ export function ImportRemoteDialog() {
               }}
             />
             <span className="text-xs text-muted-foreground">{t("import.tokenHint")}</span>
+            <TokenHelp />
           </label>
         </div>
 

@@ -15,12 +15,7 @@ import { useIde } from "./useIde";
 import { t, type MessageKey } from "@/i18n";
 import { deployment, pushAllowed } from "@/deploy/current";
 import { loadGitIdentity, saveGitIdentity } from "@/vv/git-config";
-import {
-  detectGitProvider,
-  hostOfGitInput,
-  normalizeGitToken,
-  type GitProvider,
-} from "@/vv/git-provider";
+import { normalizeGitToken, providerForInput } from "@/vv/git-provider";
 import { ProjectPublish, type PushPlan } from "@/vv/project-publish";
 import { publishSession } from "@/vv/publish-session";
 import { PushRemoteFields } from "./PushRemoteFields";
@@ -59,7 +54,6 @@ function phaseKey(phase: string): MessageKey {
 export function PushRemoteDialog() {
   const { c, snap } = useIde();
   const { open } = useSyncExternalStore(publishSession.subscribe, publishSession.getSnapshot);
-  const [provider, setProvider] = useState<GitProvider>("github");
   const [repository, setRepository] = useState("");
   const [token, setToken] = useState("");
   const [createBranch, setCreateBranch] = useState(true);
@@ -142,15 +136,11 @@ export function PushRemoteDialog() {
     apply(event.target.value);
     clearPlan();
   };
+  // No host picker: the URL names the host, and a bare owner/repo is GitHub, so the
+  // provider is derived where it is needed instead of being chosen up front (D-079).
   const chooseRepository = (event: ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.value;
-    setRepository(next);
+    setRepository(event.target.value);
     clearPlan();
-    // A URL names its host: follow it, but the picker stays authoritative for
-    // self-hosted servers whose hostname says nothing (git.company.com can be either).
-    const host = hostOfGitInput(next);
-    const detected = host === null ? null : detectGitProvider(host);
-    if (detected !== null) setProvider(detected);
   };
   const toggleCreateBranch = (next: boolean) => {
     setCreateBranch(next);
@@ -181,7 +171,7 @@ export function PushRemoteDialog() {
       setPlan(
         await publisher().plan(
           {
-            provider,
+            provider: providerForInput(repository.trim()),
             repository: repository.trim(),
             token: typed,
             branch: branch.trim(),
@@ -240,7 +230,6 @@ export function PushRemoteDialog() {
         {blocked !== null && <div className="text-xs text-muted-foreground">{blocked}</div>}
 
         <PushRemoteFields
-          provider={provider}
           repository={repository}
           token={token}
           tokenInvalid={tokenInvalid}
@@ -250,10 +239,6 @@ export function PushRemoteDialog() {
           authorName={authorName}
           authorEmail={authorEmail}
           busy={busy}
-          onProvider={(next) => {
-            setProvider(next);
-            clearPlan();
-          }}
           onRepository={chooseRepository}
           onToken={editText(setToken)}
           onCreateBranch={toggleCreateBranch}

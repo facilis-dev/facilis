@@ -43,5 +43,17 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "import.descriptionGit":
     "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — come nuovo progetto con un clone git reale. Il download passa dal proxy stateless di questa installazione, che non conserva e non registra nulla.",
   "import.repositoryHintGit":
-    "Owner/repo oppure l'URL del repository. Pubblico per impostazione predefinita; un repository privato richiede il token qui sotto.",
+    "owner/repo (GitHub per impostazione predefinita) oppure l'URL del repository; per GitLab e Gitea/Forgejo serve l'URL. Un repository privato richiede il token qui sotto.",
+
+  // ── token help (shown by the import, publish and remote dialogs) ─────────
+  "token.helpSummary": "Come creare un token",
+  "token.githubLine": "Impostazioni › Developer settings › Personal access tokens — {scope}",
+  "token.gitlabLine": "Preferenze › Access tokens — {scope}",
+  "token.giteaLine": "Impostazioni › Applicazioni — genera un token con {scope}",
+  "token.scopeGithubRead": "Contents: Read",
+  "token.scopeGithubWrite": "Contents: Read and write",
+  "token.scopeGitlabRead": "read_repository",
+  "token.scopeGitlabWrite": "write_repository",
+  "token.scopeGiteaRead": "read:repository",
+  "token.scopeGiteaWrite": "write:repository",
 };

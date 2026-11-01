@@ -114,7 +114,6 @@ export const en = {
   "import.title": "Import a repository",
   "import.description":
     "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — as a new project. Downloaded in your browser, no server involved.",
-  "import.host": "Host",
   "import.repository": "Repository",
   "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, or a repository URL",
   "import.repositoryHint":
@@ -132,7 +131,6 @@ export const en = {
   "push.title": "Publish to a git host",
   "push.description":
     "Commit this project to a GitHub, GitLab or Gitea/Forgejo branch as one commit through the host's API — from the tab, no clone and no server.",
-  "push.host": "Host",
   "push.repository": "Repository",
   "push.repositoryPlaceholder": "owner/repo, or a repository URL",
   "push.repositoryHint":

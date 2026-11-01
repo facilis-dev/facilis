@@ -15,6 +15,7 @@ import { useIde } from "./useIde";
 import { t, type MessageKey } from "@/i18n";
 import type { Credentials } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
+import { TokenHelp } from "./TokenHelp";
 
 // The session reports a machine phase; the dialog owns what the user reads. Both the
 // short names the session emits and the longer forms of the D-079 contract are mapped.
@@ -208,6 +209,7 @@ export function GitRemoteDialog() {
                     disabled={busy}
                   />
                   <span className="text-xs text-muted-foreground">{t("gitRemote.tokenHint")}</span>
+                  <TokenHelp write />
                 </label>
 
                 <label className="flex flex-col gap-1.5">

@@ -1,10 +1,7 @@
 import type { ChangeEvent, ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
-import { GIT_PROVIDERS, type GitProvider } from "@/vv/git-provider";
-
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring";
+import { TokenHelp } from "./TokenHelp";
 
 function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
@@ -19,7 +16,6 @@ function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) 
 }
 
 export interface PushRemoteFieldsProps {
-  provider: GitProvider;
   repository: string;
   token: string;
   tokenInvalid: boolean;
@@ -29,7 +25,6 @@ export interface PushRemoteFieldsProps {
   authorName: string;
   authorEmail: string;
   busy: boolean;
-  onProvider: (provider: GitProvider) => void;
   onRepository: (event: ChangeEvent<HTMLInputElement>) => void;
   onToken: (event: ChangeEvent<HTMLInputElement>) => void;
   onCreateBranch: (createBranch: boolean) => void;
@@ -47,21 +42,6 @@ export function PushRemoteFields(props: PushRemoteFieldsProps) {
   const busy = props.busy;
   return (
     <div className="flex flex-col gap-3">
-      <Field label={t("push.host")}>
-        <select
-          className={SELECT_CLASS}
-          value={props.provider}
-          onChange={(event) => props.onProvider(event.target.value as GitProvider)}
-          disabled={busy}
-        >
-          {GIT_PROVIDERS.map((host) => (
-            <option key={host.id} value={host.id}>
-              {host.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
       <Field label={t("push.repository")} hint={t("push.repositoryHint")}>
         <Input
           autoFocus
@@ -82,6 +62,7 @@ export function PushRemoteFields(props: PushRemoteFieldsProps) {
           placeholder={t("push.tokenPlaceholder")}
           disabled={busy}
         />
+        <TokenHelp write />
       </Field>
       {props.tokenInvalid && (
         <div className="text-xs text-destructive">{t("push.tokenInvalid")}</div>
