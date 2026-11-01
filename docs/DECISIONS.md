@@ -1895,6 +1895,120 @@ the assembled template; `pnpm --filter @facilis/ide typecheck|test|build`;
 `pnpm ide:facilis-deps`; `pnpm ide:smoke` (endpoints driven from the IDE page, IntelliSense
 on the router/kit imports, HMR, server reload, database roundtrip).
 
+### D-063 — A deployment has two build profiles, `open` and `managed`, and no server
+**Status:** accepted (2026-11-01)
+
+The base product is open source and browser-resident: it must let anyone install any package
+from any registry. An organisation that deploys it for its employees needs the opposite —
+which libraries may be installed, which registry is reachable, which projects may run — and
+will not accept a backend in the loop. One behaviour cannot satisfy both.
+
+**Decision.** The IDE is built in one of two **deployment profiles**, chosen at build time:
+`open` (default: today's behaviour, no restrictions) and `managed` (a company build driven by
+a `facilis.deploy.json` config, served on a dedicated origin). `managed` is not a fork and has
+no runtime policy switch: the restrictions are compiled into the artifact. Enforcement is
+explicitly L0 (build) + L1 (runtime checks) + L2 (network: CSP, registry mirror, host egress).
+Server-side approval (L3) is out of scope by decision, which is why the contract states what a
+deployment does *not* guarantee. Contract: `docs/MANAGED-DEPLOYMENT.md`.
+
+**Consequences:** the OSS base keeps zero friction; an adopter's build is reproducible from
+the same sources; each company is one build on its own origin, which gives per-origin browser
+storage isolation for free (O-003: a deployment is single-tenant). The security claim is "the
+sanctioned origin loads only build-time code and reaches only configured hosts", never "a
+browser cannot run other code". Implementing it requires making the app compatible with a
+strict CSP and a custom registry: today it hardcodes the public registry and ships no CSP.
+
+### D-064 — One build-time config is the single source of truth for a managed deployment
+**Status:** accepted (2026-11-01)
+
+A managed deployment has several places that must agree: what the IDE allows, what the
+registry serves, what the CSP allows, what the generated project's `.npmrc` says, and what the
+update checker treats as approved. Configured separately they drift, and drift in the
+allowlist is a security bug.
+
+**Decision.** A single `facilis.deploy.json` is compiled into the build and
+emits every other artifact: the dependency allowlist, `mirror-allowlist.json` for the
+registry, the AI provider and skills allowlists, `npmrc.template`, `headers.conf`
+(COOP/COEP + CSP) and an `environment.json` manifest.
+Invalid configs fail the build. No secrets in the config: the mirror is anonymous read-only. The
+build reads the config path from the **build-time** `FACILIS_DEPLOY_CONFIG` variable (unset means
+`open`; set-but-missing or invalid fails the build) and hashes the resolved config into
+`environment.json`. The file is JSON under one schema: no code executes during a deployment
+build, and the config is a build input, never fetched at runtime - a served file that changes
+policy is rejected, because that would make L0 switchable from the browser.
+Artifacts and hosting requirements: `docs/MANAGED-DEPLOYMENT.md` §4-§6.
+
+**Consequences:** adding a package to a deployment is a config change plus a rebuild, and the
+mirror and the IDE cannot disagree; the CSP is generated, not hand-maintained; a mirror is a
+hard requirement of `managed`, not an add-on. One CI pipeline can build every company's
+artifact by pointing `FACILIS_DEPLOY_CONFIG` at that company's config.
+
+### D-065 — App updates are an in-IDE project-versus-environment diff, not a server feed
+**Status:** accepted (2026-11-01)
+
+Generated projects outlive the build that created them, and adopters need a simple signal:
+"this app has updates to apply". A server-driven feed would reintroduce the backend the
+architecture refuses (D-045 trust boundary) and would not work air-gapped.
+
+**Decision.** Every generated project carries `facilis.app.json` (template and environment
+version, lockfile hash). The running build knows its own version, so the IDE compares locally
+and shows a badge plus a panel when the project is older. Upgrading applies ordered,
+idempotent recipes shipped with the build, regenerates the dependency tree against the
+configured registry, runs the DB migration, and rolls back on failure; the project's git repo
+is the undo. In `managed`, the comparison is against the deployment's approved baseline, so
+the same indicator also reports dependencies outside policy. Contract: `docs/APP-UPDATES.md`.
+
+**Consequences:** no network needed for the check; recipes are code, reviewed with the build;
+the upgrade path is bounded by the versions a build actually contains. Environment updates
+stay a redeploy — the user never "updates the IDE".
+
+### D-066 — The AI runs inside the deployment's boundary, and its provider is the one declared exception
+**Status:** accepted (2026-11-01)
+
+The AI reads project content, calls a remote provider and proposes writes. The browser sandbox
+protects the machine, not the IDE's data: it does not stop a generated app from reading the BYO
+key from the IDE origin, and it does not decide what leaves the browser. The settings can also
+point the provider at a custom base URL, and the patch validator is still a Phase-0 skeleton.
+
+**Decision.** AI is a deployment-governed feature, not an ambient one. Contract:
+`docs/AI-SKILLS.md`.
+
+- egress is one declared exception: `ai.mode` is `off`, `byo` (allowlisted provider presets) or
+  `gateway` (internal endpoint); provider hosts are compiled into `connect-src`, and a custom
+  base URL is rejected in `managed`.
+- the BYO key stays in `localStorage` and requires preview isolation, so enabling AI and
+  isolating the preview ship together.
+- the instruction hierarchy is fixed: only the build's system prompt and the user's actions can
+  grant capabilities; `AGENTS.md`, project files, the manifest, tool output and third-party
+  skill content are data or subordinate instructions.
+- provider output is untrusted and only the user's Apply writes; the blocking validator rules
+  (auth/RLS/`dbTables`/raw db/package policy/secrets/paths, plus tool calls) are a prerequisite,
+  so `managed` defaults to `ai.mode: "off"` until they exist.
+- Model B tools are a closed primitive set with no shell and no network.
+
+**Consequences:** AI is opt-in per deployment; in `managed` the key is not reachable from
+generated code; O-009 (letting the AI edit `package.json`) is gated by the dependency policy;
+`open` keeps today's BYO behaviour with a warning that a project can read the key.
+
+### D-067 — Skills are a reviewed supply chain, not content
+**Status:** accepted (2026-11-01)
+
+A skill is a versioned bundle that instructs the model for a class of tasks. Its text steers
+code generation, so it has the reach of a dependency without the code a review usually reads.
+
+**Decision.** A skill is a manifest (`skill.json`), instructions (`SKILL.md`) and resources,
+with declared `capabilities` (read/write globs, tool subset, no network, command subset) that
+act as a maximum enforced at the existing boundaries (context assembly, validator,
+`applyPatch`, the tool router, the egress policy). Skills carry integrity and a publisher
+signature, a deployment allowlist (`skills.allow`) and an approved version baseline, are
+enabled by the user from the allowed set (never automatically), and update through the same
+path as the app (D-065). Contract: `docs/AI-SKILLS.md` §8.
+
+**Consequences:** an unapproved third-party skill is untrusted text and is never inserted into
+the prompt; the deployment's skill catalog is a signed artifact like the mirror allowlist;
+skill authoring and review become a process the product must support (capabilities shown,
+diffs reviewed, changes attributable in git).
+
 ### D-068 — Postgres is the production driver, and the runtime connects as the app role
 **Status:** accepted (2026-11-01)
 
@@ -1972,6 +2086,95 @@ file so a future upstream sync cannot quietly reintroduce the old name.
 toast; grepping `ide/src` and `ide/public` for "Vivari" returns only provenance comments and
 kernel identifiers. The vendored kernel can still print its own brand in deep error
 messages; renaming that belongs to the fork, not to this app.
+
+### D-070 — The upgrade engine plans explicit files and treats the marker as the commit point
+**Status:** accepted (2026-11-01)
+
+[APP-UPDATES.md](./APP-UPDATES.md) §4 promised a reversible upgrade; this fixes the engine's
+shape before the first recipe ships, because the shape is what makes a rollback possible.
+
+**Decision.**
+
+- A recipe declares, it does not write: \`files(read)\` returns the files in their final
+  state (\`null\` = delete) and every path is project-relative and validated
+  (\`assertRecipePath\` refuses absolute paths, backslashes and \`..\`). The build ships
+  recipes as code, tested with the build, so an air-gapped deployment needs no download.
+- The planner turns the selected recipes into an explicit operation list
+  (\`{ path, before, after }\`), executing them over an overlay so a later step sees what an
+  earlier one wrote; a file already in its target state is dropped; two recipes for the same
+  target version or a step that does not move forward fail the plan instead of guessing.
+- The applier re-checks every \`before\` against the VFS immediately before writing (the plan
+  was made from a read; another tab, an AI patch or the user may have written since), applies
+  the files, runs the caller's postflight, and writes \`facilis.app.json\` **last**. A failure
+  restores every touched path in reverse and leaves the marker on the old version;
+  \`UpgradeError.rolledBack\` records whether the rollback itself completed.
+- The VFS sits behind an injected \`UpgradeIo\`, so the engine has no kernel dependency, is
+  unit-tested without a browser, and the controller stays the only writer (D-042).
+- A recipe's title is an i18n key (\`MessageKey\`), so adding a recipe forces a localized
+  label (D-043).
+
+**Consequences.** A recipe that fails halfway cannot leave a half-upgraded project; the
+marker is the single commit point and a retry starts from the same version. The guarantee
+covers file writes, not side effects of the postflight itself (an \`npm install\` that ran
+before a later step failed is not undone) — safe because the plan is idempotent. The apply
+action in the UI and the postflight wiring (install, \`tsc --noEmit\`, DB migration, D-052)
+are still to come, so the panel is a dry run and the table ships empty.
+
+### D-071 — The managed CSP allows eval, because the runtime is an evaluator
+**Status:** accepted (2026-11-01)
+
+[MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md) §5 drafted a CSP without \`unsafe-eval\`; the
+spike (§12) measured the opposite: under that policy the Studio boots and a project is
+created, then the VM never evaluates and the preview never paints. The kernel compiles and
+runs the project's code with \`new Function\` - the requirement is documented in
+\`vendor/vivari/packages/runtime/module.js\` - and its workers inherit the page's policy.
+
+**Decision.** The generated CSP keeps \`script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'\`.
+No directive scopes eval to the VM alone, and the portable alternative - serving the kernel's
+worker chunks with their own headers - needs per-path rules on hashed asset names, which the
+hosts we document (nginx, Caddy, Cloudflare Pages) do not all express the same way; it stays
+an optional tightening, not the default.
+
+**Consequences.** L2 keeps its hard guarantees for *network* - \`connect-src\`, \`frame-src\`,
+worker origins, no remote scripts - and no longer claims to prevent eval. That is honest: the
+CSP was never a code-integrity control, since the project's code is supposed to run inside the
+VM, and its supply is constrained by the registry mirror, \`packages.allow\`, admission and the
+AI/provider policy (D-063, D-064, D-066). A deployment that cannot accept eval cannot run
+projects in the browser at all, so the option is not offered as a configuration switch.
+Verified 2026-11-01 in Chromium: CSP + \`unsafe-eval\` reproduces the unrestricted run exactly.
+
+### D-072 — The default build ships a baseline CSP too
+**Status:** accepted (2026-11-01)
+
+The first CSP was scoped to managed builds, because only a deployment with a policy had
+origins to name. That left the default build - the one facilis.dev serves and almost everyone
+runs - with nothing beyond COOP/COEP, so its tab could load remote scripts and frames. Being
+"unrestricted" as a *product* is not the same as being unhardened as a *document*.
+
+**Decision.** \`renderHeaders\` emits a CSP for both profiles. Managed encodes the deployment
+policy (§5); open carries this baseline:
+
+\`\`\`
+script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'sha256-…';
+worker-src 'self' blob:; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:;
+connect-src 'self' https: wss: ws: blob: data:;
+frame-src 'self'; base-uri 'none'; object-src 'none';
+\`\`\`
+
+The network stays open because that profile is documented as unrestricted: arbitrary
+GitHub/npm imports, AI presets and custom base URLs, the opt-in loopback relay. Narrowing it
+would be a new product policy, not a baseline.
+
+Inline scripts are hashed by the build itself: \`vite.deployment.ts\` reads the built
+\`index.html\` and turns every inline script into a \`sha256-\` source. That keeps the pre-paint
+theme script working, and it fixed the managed build too, which was missing that hash.
+
+**Consequences.** Open stays behaviourally identical - every directive is a permission, not a
+requirement - while the cheapest remote-code and clickjacking vectors are gone. A deployment
+that needs the hard boundary still picks managed; an operator who wants no CSP at all must
+serve its own headers, which is a deliberate step rather than a default. The baseline is not
+configurable, for the same reason a default is only useful when it is the same everywhere.
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
