@@ -8,11 +8,12 @@ import { describe, expect, it } from "vitest";
 // Raw import, not node:fs: the IDE's app tsconfig has no Node types (it is a browser
 // build), and ?raw reads the file through Vite's loader, which vitest also serves.
 import assetScript from "../../../scripts/dev/vendor-assets.sh?raw";
+import facilisDepsScript from "../../../scripts/dev/vendor-facilis-deps.sh?raw";
 import type { FacilisManifest } from "./facilis-template";
-import { createFacilisTemplate } from "./facilis-template";
+import { createFacilisTemplate, TEMPLATE_PACKAGES } from "./facilis-template";
 import { projectFiles } from "./project-files";
 
-const PACKAGES = ["auth", "core", "db", "nitro"] as const;
+const PACKAGES = TEMPLATE_PACKAGES;
 
 function vendoredNpmVersion(): string {
   const match = /^NPM_VERSION=(\S+)$/m.exec(assetScript);
@@ -65,5 +66,13 @@ describe("generated project package manager", () => {
       // Same basename, and the served file is the one the IDE publishes.
       expect(asset?.asset).toBe("vendor/facilis/facilis-" + name + "-0.0.0.tgz");
     }
+  });
+
+  it("packs exactly the packages the template declares", () => {
+    // The repo script is the producer of the tarballs the IDE serves; a package added to
+    // the template but not to the script (or the reverse) fails at create time in the VM.
+    const match = /^PKGS="([^"]+)"/m.exec(facilisDepsScript);
+    expect(match, "PKGS not found in scripts/dev/vendor-facilis-deps.sh").toBeTruthy();
+    expect(new Set((match?.[1] ?? "").split(" "))).toEqual(new Set(PACKAGES));
   });
 });

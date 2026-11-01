@@ -196,6 +196,12 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   the only creation path (D-051) — runs `npm install` and then
   `npm run dev -- --configLoader native`, and opens the preview at `/preview/3000/`.
   `Import a folder` / `Import from GitHub or npm` cover existing code.
+- The scaffolded project **is** `examples/todo-app` plus the IDE wrappers (D-062): editing
+  the example changes what Create produces, and the smoke drives the framework endpoints
+  from the IDE page rather than from code inside the project. The tree is inlined at IDE
+  build time, so restart `pnpm ide:dev` after changing the example; run
+  `pnpm ide:facilis-deps` after changing packages packaged as tarballs
+  (`auth core db nitro time ui`) so the vendored versions match.
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 
@@ -213,19 +219,20 @@ no page errors, no console errors, no failed requests. Exit code is non-zero on 
 It then asserts the framework contract from the Facilis app inside the preview (after
 `pnpm ide:facilis-deps`): `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
-`/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the probe
+`/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the smoke
 registers a user, logs in (the session cookie is staged by h3's `setCookie` through
 `@facilis/nitro/session`, and survives to the next request), inserts a todo through the
-authorized handler and reads the list back (11 probe checks). That last group is
+authorized handler and reads the list back (11 endpoint checks). That last group is
 the only in-VM proof that PGlite, the migrations, RLS, permissions and the session middleware
-work together inside the WebContainer. The probe app publishes those results as
-`data-facilis-*` attributes on its own document; `scripts/dev/smoke-facilis.mjs` owns the
-assertions and dumps the preview HTTP body + dev log into `facilis-diagnostics.json` on
-failure.
+work together inside the WebContainer. The smoke drives those requests from the IDE page
+against the preview's `/preview/<port>/` base — same origin, so the session cookie applies —
+because the generated starter is the reference app and carries no test instrumentation
+(D-062); `scripts/dev/smoke-facilis.mjs` owns the assertions and dumps the preview HTTP body
++ dev log into `facilis-diagnostics.json` on failure.
 
 It also runs `scripts/dev/smoke-intellisense.mjs`, before the write checks:
 it asks the same Monaco TypeScript worker the editor uses (`getSemanticDiagnostics`) for
-`src/App.tsx` and `src/main.tsx`, and fails on a module-resolution error (TS2307 "Cannot
+`src/app.tsx` and `src/main.tsx`, and fails on a module-resolution error (TS2307 "Cannot
 find module"). That is the user-visible symptom of a generated project that does not install
 the `@types/*` packages its imports need (react, react-dom): the IDE only feeds installed
 `node_modules/**/*.d.ts` to the language service. An unreachable worker — or a worker/model
@@ -273,7 +280,7 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 | `SMOKE_PORT` | `5199` | port for the self-started dev server |
 | `SMOKE_ARTIFACTS` | see above | evidence directory |
 | `BOOT_TIMEOUT_MS` / `PREVIEW_TIMEOUT_MS` | `180000` / `300000` | budgets |
-| `FACILIS_PROBE_TIMEOUT_MS` | `60000` | budget for the Facilis probe's endpoint results |
+| `FACILIS_PROBE_TIMEOUT_MS` | `120000` | budget for the preview to answer the framework endpoints |
 | `FACILIS_WRITE_TIMEOUT_MS` | `45000` | budget for each A8/A9 write-and-observe check |
 | `FACILIS_REBOOT_TIMEOUT_MS` | `120000` | budget for the A12 reboot/restore check |
 | `FACILIS_PROFILE_DIR` | unset (throwaway profile) | reuse one browser profile across local runs — OPFS keeps the package manager store and depcache, so iterations after the first skip the cold install. Never for CI/verdicts |
@@ -282,7 +289,7 @@ Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
 Reference runs on 16 cores: kernel online **0.6 s** against an already-warm dev server
 (**2.6 s** cold, while Vite is still transforming the app), preview painted **31-40 s** (in-VM
 install dominates; ~103 s on a cold throwaway profile). The Facilis run is green end to end:
-manifest zero warnings, editor IntelliSense clean, the probe's **database roundtrip** green
+manifest zero warnings, editor IntelliSense clean, the **database roundtrip** green
 (session survives, insert and read-back ok), A8-A12 green, and the Home delete flow green
 (files + registry entry removed). Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 

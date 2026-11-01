@@ -172,18 +172,26 @@ it writes goes through the same validated `applyPatch` path.
 
 The Facilis module is `ide/src/facilis/`: the template that boots a real Facilis app in the
 WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`) and the only project the
-IDE creates (D-051). The generated
-project has **one config**, `facilis.config.ts`: its `nitro` section carries the WebContainer
-constraint `devServer: { runner: "self" }` (Nitro's default node-worker runner needs
-`worker_threads` and a file-URL `import.meta.resolve`, which the VM does not provide), there
-is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034). The probe also
-drives a full database roundtrip — register, log in, `POST /api/todos`, read the list back —
-and reports it to the smoke as `facilisDbInsert`/`facilisDbQuery`: PGlite, the migrations and
-the authorized-handler stack only prove themselves inside the VM, not in Node. Its
-`package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's TypeScript
-service only sees
-installed `@types/*.d.ts` — without them the editor reports TS2307 on `react`. It is loaded
-lazily by `src/facilis/template-loader.ts` and `src/facilis/facilis-template.ts` assembles it. The generated project installs with **npm**
+IDE creates (D-051). The generated project **is the reference app `examples/todo-app`**
+(D-062): `example-template.ts` inlines its client, server, schema, locales and configs at IDE
+build time through `import.meta.glob(?raw)`, so the two cannot drift; `project-files.ts`
+writes only what the IDE must own (the npm wrapper with vendored `@facilis/*` tarballs, a
+standalone `tsconfig.json`, the npm hooks), and `template-overrides.ts` adds only the IDE's
+own bits: the liveness `ping` route the write smoke edits, the HMR hint plus its footer
+style, and the in-process Nitro runner. The framework probe is **not** in the project — 
+`scripts/dev/smoke-facilis.mjs` drives the endpoints from the IDE page, so a user's starter
+carries no test instrumentation. `template-loader.ts` keeps the payload lazy.
+
+The generated project has **one config**, `facilis.config.ts`: its `nitro` section carries
+the WebContainer constraint `devServer: { runner: "self" }` (Nitro's default node-worker
+runner needs `worker_threads` and a file-URL `import.meta.resolve`, which the VM does not
+provide), there is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034).
+The probe also drives a full database roundtrip — register, log in, `POST /api/todos`, read
+the list back — and reports it to the smoke as `facilisDbInsert`/`facilisDbQuery`: PGlite,
+the migrations and the authorized-handler stack only prove themselves inside the VM, not in
+Node. Its `package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's
+TypeScript service only sees installed `@types/*.d.ts` — without them the editor reports
+TS2307 on `react`. The generated project installs with **npm**
 (D-032): the `@facilis/*` tarballs are inlined into the create request (the manifest's
 `assets`, fetched same-origin by the IDE) and land in the project's `./vendor`, declared as
 `file:` dependencies,

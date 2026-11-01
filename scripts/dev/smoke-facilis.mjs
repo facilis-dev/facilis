@@ -1,23 +1,19 @@
 // Facilis-in-WebContainer acceptance checks for scripts/dev/smoke-ide.mjs.
 //
-// The Facilis template's probe app records its framework-endpoint results as data-*
-// attributes on its own <html> element (ide/src/facilis/, owned by the template):
-// facilisHealth / facilisManifest / facilisOpenapi / facilisTodos hold endpoint outcomes,
-// facilisWarnings / facilisRevision come from /__facilis/manifest, and facilisDbInsert /
-// facilisDbQuery hold the database roundtrip (register + log in -> insert a todo -> read it
-// back). The preview is same-origin under /preview/<port>/, so the parent document can read
-// them directly.
+// The generated project is examples/todo-app (D-062) and carries NO test instrumentation:
+// these checks drive the framework endpoints from the IDE page. The preview is same-origin
+// under /preview/<port>/ (and the Service Worker routes those requests into the VM), so a
+// fetch from the page exercises exactly the app the user sees, including the session
+// cookie the login sets.
 //
-// Only imported when the smoke creates TEMPLATE=Facilis; the React path never calls it.
-// FACILIS_PROBE_TIMEOUT_MS (default 120000) bounds the polling: the probe app only starts
-// its fetches after mount, so `preview-paint` can precede the results by a few seconds;
-// once every attribute is present the verdict is final and polling stops early.
+// FACILIS_PROBE_TIMEOUT_MS (default 120000) bounds the wait for the preview: the app boots
+// asynchronously, so the paint mark can precede a serving dev server.
 
 import fs from "node:fs";
 import path from "node:path";
 
 const PROBE_TIMEOUT_MS = Number(process.env.FACILIS_PROBE_TIMEOUT_MS || 120000);
-const POLL_INTERVAL_MS = 250;
+const POLL_INTERVAL_MS = 500;
 const REVISION_KEY = "facilisRevision";
 const EXPECTED = {
   facilisHealth: "ok",
@@ -41,74 +37,99 @@ const LABELS = {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const kebab = (key) => key.replace(/[A-Z]/g, (char) => "-" + char.toLowerCase());
 
 // Same lookup smoke-ide.mjs uses: the preview iframe is the one whose src is /preview/<port>/.
-const PREVIEW_SNAPSHOT_EXPRESSION = `(() => {
-  const frame = [...document.querySelectorAll("iframe")].find((f) => /preview/.test(f.src || ""));
-  if (!frame) return { found: false, src: "", dataset: null, text: "" };
-  let dataset = null;
-  let text = "";
-  try {
-    const doc = frame.contentDocument;
-    if (doc && doc.documentElement) {
-      dataset = { ...doc.documentElement.dataset };
-      text = (doc.body && doc.body.innerText) || "";
-    }
-  } catch {
-    // Cross-origin or detached for a frame: poll again rather than give up.
-  }
-  return { found: true, src: frame.src || "", dataset, text: text.slice(0, 4000) };
-})()`;
+const PREVIEW_SNAPSHOT_EXPRESSION = [
+  "(() => {",
+  '  const frame = [...document.querySelectorAll("iframe")].find((f) => /preview/.test(f.src || ""));',
+  '  if (!frame) return { found: false, src: "", text: "" };',
+  '  let text = "";',
+  "  try {",
+  "    const doc = frame.contentDocument;",
+  '    if (doc && doc.body) text = doc.body.innerText || "";',
+  "  } catch {",
+  "    // Cross-origin or detached for a frame: poll again rather than give up.",
+  "  }",
+  '  return { found: true, src: frame.src || "", text: text.slice(0, 4000) };',
+  "})()",
+].join("\n");
 
-// Best-effort IDE terminal capture: the Studio mounts xterm into .vv-term-host containers,
-// so the rendered rows are the only text source available over CDP.
-const TERMINAL_TEXT_EXPRESSION = `(() => {
-  try {
-    const rows = [...document.querySelectorAll(".xterm-rows > div")].map((row) => row.textContent || "");
-    if (rows.length > 0) return rows.join(String.fromCharCode(10)).slice(-12000);
-    const host = document.querySelector(".xterm");
-    return host ? (host.textContent || "").slice(-12000) : "";
-  } catch {
-    return "";
-  }
-})()`;
+const TERMINAL_TEXT_EXPRESSION = [
+  "(() => {",
+  "  try {",
+  '    const rows = [...document.querySelectorAll(".xterm-rows > div")].map((row) => row.textContent || "");',
+  "    if (rows.length > 0) return rows.join(String.fromCharCode(10)).slice(-12000);",
+  '    const host = document.querySelector(".xterm");',
+  '    return host ? (host.textContent || "").slice(-12000) : "";',
+  "  } catch {",
+  '    return "";',
+  "  }",
+  "})()",
+].join("\n");
 
-function contractMet(snapshot) {
-  if (!snapshot || !snapshot.dataset) return false;
-  for (const [key, expected] of Object.entries(EXPECTED)) {
-    if (snapshot.dataset[key] !== expected) return false;
-  }
-  const revision = snapshot.dataset[REVISION_KEY];
-  if (typeof revision !== "string" || revision.length === 0) return false;
-  return String(snapshot.text || "").includes("Facilis");
-}
-
-// The probe writes each group of attributes when its fetch resolves, so "all six keys are
-// strings" means every endpoint answered and waiting longer cannot change the verdict.
-function probeSettled(snapshot) {
-  if (!snapshot || !snapshot.dataset) return false;
-  if (!Object.keys(EXPECTED).every((key) => typeof snapshot.dataset[key] === "string"))
-    return false;
-  return typeof snapshot.dataset[REVISION_KEY] === "string";
-}
-
-async function waitForContract(page, limitMs) {
-  const until = Date.now() + limitMs;
-  let last = { found: false, src: "", dataset: null, text: "" };
-  let readError = "";
-  for (;;) {
-    try {
-      last = await page.evaluate(PREVIEW_SNAPSHOT_EXPRESSION);
-      readError = "";
-    } catch (error) {
-      readError = error instanceof Error ? error.message : String(error);
-    }
-    if (contractMet(last)) return { snapshot: last, timedOut: false, readError };
-    if (probeSettled(last)) return { snapshot: last, timedOut: false, readError };
-    if (Date.now() >= until) return { snapshot: last, timedOut: true, readError };
-    await sleep(POLL_INTERVAL_MS);
-  }
+// The whole contract in one page evaluation: the DB roundtrip must keep the session cookie
+// across its requests, and doing it in one place leaves the cookie jar in the page's hands.
+function contractExpression(base) {
+  return [
+    "(async () => {",
+    "  const base = " + JSON.stringify(base) + ";",
+    "  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));",
+    "  const json = async (path, init) => {",
+    "    try {",
+    "      const response = await fetch(base + path, init);",
+    "      const text = await response.text();",
+    "      let body = null;",
+    "      try { body = JSON.parse(text); } catch { body = null; }",
+    "      return { status: response.status, ok: response.ok, body: body, text: text.slice(0, 400) };",
+    "    } catch (error) {",
+    "      return { status: 0, ok: false, body: null, text: String(error) };",
+    "    }",
+    "  };",
+    '  let health = await json("__facilis/health");',
+    '  for (let i = 0; i < 40 && !health.ok; i++) { await sleep(500); health = await json("__facilis/health"); }',
+    '  const manifest = await json("__facilis/manifest");',
+    '  const openapi = await json("_openapi.json");',
+    '  const todosAnon = await json("api/todos");',
+    '  const email = "probe-" + Date.now() + "@facilis.test";',
+    '  const password = "probe-password";',
+    '  const title = "probe-" + Date.now();',
+    "  const post = (path, body) => json(path, {",
+    '    method: "POST",',
+    '    headers: { "Content-Type": "application/json" },',
+    "    body: JSON.stringify(body),",
+    "  });",
+    '  const registered = await post("api/auth/register", { email: email, password: password });',
+    "  const registeredOk = registered.ok || registered.status === 409;",
+    '  const loggedIn = await post("api/auth/login", { email: email, password: password });',
+    '  const session = await json("api/auth/session");',
+    "  const authenticated = !!session.body && session.body.authenticated === true;",
+    '  const inserted = await post("api/todos", { title: title });',
+    '  const listed = await json("api/todos");',
+    "  const containsTitle = Array.isArray(listed.body) && listed.body.some((row) => row && row.title === title);",
+    "  const warnings = manifest.body && Array.isArray(manifest.body.warnings) ? manifest.body.warnings.length : null;",
+    '  const revision = manifest.body && typeof manifest.body.revision === "string" ? manifest.body.revision : "";',
+    "  const paths = openapi.body && openapi.body.paths;",
+    '  const operation = paths && paths["/api/todos"] && paths["/api/todos"].get;',
+    "  return {",
+    '    health: health.ok ? "ok" : "error:" + health.status,',
+    '    manifest: manifest.ok ? "ok" : "error:" + manifest.status,',
+    '    warnings: warnings === null ? "missing" : String(warnings),',
+    "    revision: revision,",
+    "    openapi: !openapi.ok",
+    '      ? "error:" + openapi.status',
+    '      : operation && operation["x-db-tables"] !== undefined',
+    '        ? "ok"',
+    '        : "missing",',
+    "    todos: String(todosAnon.status),",
+    '    auth: authenticated ? "ok" : "anon:" + JSON.stringify(session.body).slice(0, 160),',
+    "    dbInsert:",
+    "      registeredOk && loggedIn.ok && inserted.ok",
+    '        ? "ok"',
+    '        : "error:" + registered.status + "/" + loggedIn.status + "/" + inserted.status,',
+    '    dbQuery: containsTitle ? "ok" : "error:" + listed.status,',
+    "  };",
+    "})()",
+  ].join("\n");
 }
 
 async function readTerminalText(page) {
@@ -142,9 +163,9 @@ async function captureEvidence(page, ARTIFACTS, diagnostics) {
 }
 
 /**
- * Assert the Facilis probe contract from the preview iframe's own document. Records each
- * result through the caller's `check`, returns { checks, dataset, diagnostics } and never
- * throws for a failed check (the caller decides the exit code).
+ * Assert the Facilis contract against the preview's endpoints. Records each result through
+ * the caller's check, returns { checks, dataset, diagnostics } and never throws for a
+ * failed check (the caller decides the exit code).
  */
 export async function runFacilisChecks({ page, check, ARTIFACTS }) {
   const checks = [];
@@ -158,34 +179,86 @@ export async function runFacilisChecks({ page, check, ARTIFACTS }) {
     }
   };
 
-  let result;
-  try {
-    result = await waitForContract(page, PROBE_TIMEOUT_MS);
-  } catch (error) {
-    result = {
-      snapshot: { found: false, src: "", dataset: null, text: "" },
-      timedOut: true,
-      readError: error instanceof Error ? error.message : String(error),
-    };
+  let snapshot = { found: false, src: "", text: "" };
+  let readError = "";
+  let base = "";
+  let contract = null;
+  const until = Date.now() + PROBE_TIMEOUT_MS;
+  for (;;) {
+    try {
+      snapshot = await page.evaluate(PREVIEW_SNAPSHOT_EXPRESSION);
+      readError = "";
+    } catch (error) {
+      readError = error instanceof Error ? error.message : String(error);
+    }
+    if (snapshot.found && snapshot.src) {
+      // The iframe src carries the kernel token as a query string
+      // (/preview/3000/?__vv_kernel=...); concatenating a path onto it would send everything
+      // to the preview root, so strip query/hash before building the endpoint base.
+      try {
+        const url = new URL(snapshot.src);
+        url.search = "";
+        url.hash = "";
+        base = url.href.endsWith("/") ? url.href : url.href + "/";
+      } catch {
+        base = "";
+      }
+      const health =
+        base === ""
+          ? false
+          : await page
+              .evaluate(
+                "fetch(" +
+                  JSON.stringify(base + "__facilis/health") +
+                  ').then((r) => r.ok && !(r.headers.get("content-type") || "").includes("text/html"))' +
+                  ".catch(() => false)",
+              )
+              .catch(() => false);
+      if (health === true) {
+        contract = await page.evaluate(contractExpression(base)).catch(() => null);
+      }
+    }
+    if (contract !== null) break;
+    if (Date.now() >= until) break;
+    await sleep(POLL_INTERVAL_MS);
   }
 
-  const { snapshot, timedOut, readError } = result;
-  const dataset = snapshot && snapshot.dataset ? snapshot.dataset : {};
-  const previewText = String((snapshot && snapshot.text) || "");
-  const previewSrc = String((snapshot && snapshot.src) || "");
-
   record(
-    Boolean(snapshot && snapshot.found),
+    snapshot.found,
     "facilis preview iframe located",
-    previewSrc || (readError ? "read error: " + readError : "no iframe src matching /preview/"),
+    snapshot.src || (readError ? "read error: " + readError : "no iframe src matching /preview/"),
   );
+
+  // The generated project is the todo starter (D-062): its first paint is the login page,
+  // so the stable text is the page title, not the brand (the brand panel is hidden at the
+  // preview panel's narrow width).
+  record(
+    String(snapshot.text || "").includes("Log in"),
+    "facilis preview renders the starter's login page",
+    snapshot.text
+      ? "text " + JSON.stringify(snapshot.text.slice(0, 80))
+      : "preview document has no text",
+  );
+
+  const values = contract || {};
+  const dataset = {
+    facilisHealth: values.health,
+    facilisManifest: values.manifest,
+    facilisWarnings: values.warnings,
+    facilisRevision: values.revision,
+    facilisOpenapi: values.openapi,
+    facilisTodos: values.todos,
+    facilisAuth: values.auth,
+    facilisDbInsert: values.dbInsert,
+    facilisDbQuery: values.dbQuery,
+  };
 
   for (const key of Object.keys(EXPECTED)) {
     const actual = dataset[key];
     record(
       actual === EXPECTED[key],
       LABELS[key],
-      "data-" + kebab(key) + "=" + (actual === undefined ? "(missing)" : JSON.stringify(actual)),
+      "value=" + (actual === undefined ? "(missing)" : JSON.stringify(actual)),
     );
   }
 
@@ -193,31 +266,19 @@ export async function runFacilisChecks({ page, check, ARTIFACTS }) {
   record(
     typeof revision === "string" && revision.length > 0,
     "facilis manifest revision present",
-    typeof revision === "string" ? "revision=" + revision : "data-facilis-revision=(missing)",
+    typeof revision === "string" ? "revision=" + revision : "value=(missing)",
   );
 
-  record(
-    previewText.includes("Facilis"),
-    "facilis preview renders Facilis text",
-    previewText
-      ? "text " + JSON.stringify(previewText.slice(0, 80))
-      : "preview document has no text",
-  );
-
-  const diagnostics = { previewSrc };
+  const diagnostics = { previewSrc: snapshot.src, dataset };
   const anyFailure = checks.some((entry) => !entry.ok);
   if (anyFailure) {
-    diagnostics.previewFound = Boolean(snapshot && snapshot.found);
-    diagnostics.timedOut = timedOut;
-    diagnostics.previewText = previewText.slice(0, 400);
-    diagnostics.dataset = dataset;
-    // The preview can be a 500 envelope from the framework runtime; keep its body so a
-    // failed run explains itself instead of just saying the document had no text.
-    if (previewSrc) {
+    diagnostics.timedOut = contract === null;
+    diagnostics.previewText = String(snapshot.text || "").slice(0, 400);
+    if (snapshot.src) {
       diagnostics.previewHttp = await page
         .evaluate(
           "fetch(" +
-            JSON.stringify(previewSrc) +
+            JSON.stringify(snapshot.src) +
             ").then(async (r) => ({ status: r.status, body: (await r.text()).slice(0, 2500) }))" +
             ".catch((e) => ({ error: String(e) }))",
         )

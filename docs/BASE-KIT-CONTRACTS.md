@@ -295,9 +295,9 @@ column definition.
 - `examples/ui-gallery`: build + typecheck + lint green.
 - Lead: root `pnpm install` (lockfile), `pnpm lint`, `pnpm typecheck`, `pnpm test`,
   `pnpm build`, `docs/SPEC.md` §4/§5 + `docs/DECISIONS.md` D-055…D-057 updated.
-- Out of scope (reported, not done here): wiring the packages into the IDE template
-  (`ide/src/facilis/**`), the vendor tarball list in `scripts/dev/vendor-facilis-deps.sh`,
-  and the starter repo.
+- Wired afterwards (D-062): the packages are in the IDE template and the vendor tarball list
+  (`ide/src/facilis/**`, `scripts/dev/vendor-facilis-deps.sh`). The starter repo is still out
+  of scope (D-027).
 
 Report scope, public API as delivered, tests and anything the Lead must change; do not commit
 or touch git.

@@ -59,7 +59,12 @@ export class EditorLanguage {
     const compilerOptions: Monaco.typescript.CompilerOptions = {
       target: ts.ScriptTarget.ESNext,
       module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      // Bundler (TS value 100), not classic NodeJs: our own packages and the generated
+      // project resolve through package.json "exports" (subpaths like
+      // @facilis/core/i18n). Classic node10 ignores that map, so every such import would
+      // be a red TS2307 in the editor. Monaco's enum predates Bundler but the worker's
+      // TypeScript (5.9) accepts its numeric value.
+      moduleResolution: 100 as Monaco.typescript.ModuleResolutionKind,
       jsx: ts.JsxEmit.ReactJSX,
       allowJs: true,
       checkJs: false,

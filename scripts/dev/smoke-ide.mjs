@@ -258,7 +258,7 @@ async function main() {
   }
   // IntelliSense is an acceptance criterion of its own (the IDE's TypeScript service
   // must resolve the template's imports, i.e. installed @types/*.d.ts reach Monaco).
-  // Runs before the write checks, which edit App.tsx and would make this ambiguous.
+  // Runs before the write checks, which edit app.tsx and would make this ambiguous.
   try {
     intellisenseReport = await runIntellisenseChecks({ page, check });
     for (const result of intellisenseReport.checks) {
@@ -269,7 +269,7 @@ async function main() {
   }
   // A8/A10/A12 (spec Appendix A): the VFS write path, isomorphic-git on the VFS and the
   // OPFS-mirror reboot. Runs after the framework probe because it edits the template's
-  // App.tsx + ping route, which the probe has already asserted.
+  // app.tsx + ping route, which the probe has already asserted.
   try {
     writeReport = await runWriteChecks({ page, check, ARTIFACTS });
     for (const result of writeReport.checks) {
@@ -310,7 +310,11 @@ async function main() {
   // carries a repopulateInfo callback into its reply; structured clone rejects it.
   // It is an editor/worker bug, not a VFS one, and manifests only while a module cannot
   // be resolved. Recorded in the report instead of failing the VFS acceptance run.
-  const KNOWN_PAGE_ERRORS = [/could not be cloned/];
+  //
+  // "Canceled: Canceled" is monaco's lazy-chunk Delayer disposing an import that the
+  // smoke's own page reboot (A12) or tab switch superseded: a dev-only Vite lazy-loading
+  // artifact, seen intermittently, that leaves nothing broken behind (the rerun is green).
+  const KNOWN_PAGE_ERRORS = [/could not be cloned/, /^Canceled: Canceled/];
   const knownPageErrors = page.pageErrors.filter((error) =>
     KNOWN_PAGE_ERRORS.some((pattern) => pattern.test(error)),
   );

@@ -25,7 +25,7 @@ DST="$REPO_ROOT/ide/public/vendor/facilis"
 
 # Pinned set: exactly the packages the Facilis template declares. Keep it in sync with the
 # template's package.json when the template's dependency set changes.
-PKGS="core db auth nitro"
+PKGS="core db auth nitro time ui"
 
 log() { printf '[vendor-facilis-deps] %s\n' "$*" >&2; }
 
@@ -81,7 +81,9 @@ for pkg in $PKGS; do
   tar xzf "$tgz" -C "$stage"
   node -e '
 const fs = require("node:fs");
+const path = require("node:path");
 const file = process.argv[1];
+const pkgDir = path.dirname(file);
 const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
 const toDist = (value) =>
   typeof value === "string" && value.startsWith("./src/")
@@ -95,7 +97,36 @@ const rewrite = (node) => {
   return node;
 };
 manifest.exports = rewrite(manifest.exports);
+// Classic (node10) resolution — what the IDE language service uses — ignores "exports".
+// The root entry points are mirrored as main/types so the package resolves there too.
+const root = manifest.exports && manifest.exports["."];
+if (typeof root === "string" && root.startsWith("./dist/") && root.endsWith(".js")) {
+  manifest.main = root;
+  manifest.types = root.slice(0, -3) + ".d.ts";
+}
 fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+
+// Declaration emit keeps the SOURCE specifier ("../button.tsx"), which no consumer can
+// resolve out of dist/ and which would name a file the tarball does not have. Map them to
+// the emitted .js (TypeScript resolves .js -> .d.ts) and drop the component CSS imports a
+// declaration file has no use for.
+const distDir = path.join(pkgDir, "dist");
+const walk = (dir) => {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(target);
+      continue;
+    }
+    if (!target.endsWith(".d.ts")) continue;
+    const before = fs.readFileSync(target, "utf8");
+    const after = before
+      .replace(/^(import|export)([^;\n]*?from\s+)(")(\.{1,2}\/[^"]+)\.tsx?\3/gm, "$1$2$3$4.js$3")
+      .replace(/^import\s+"\.{1,2}\/[^"]+\.css";\n?/gm, "");
+    if (after !== before) fs.writeFileSync(target, after);
+  }
+};
+if (fs.existsSync(distDir)) walk(distDir);
 ' "$stage/package/package.json"
   tar czf "$tgz" -C "$stage" package
   rm -rf "$stage"

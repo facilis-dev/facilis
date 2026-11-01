@@ -202,11 +202,11 @@ export async function runWriteChecks({ page, check, ARTIFACTS }) {
   record(inTree, "A8 written file appears in the Explorer index");
 
   // -- A8 part 2: a user edit saves to the VFS and hot-updates the preview --------
-  const appAbs = root + "/src/App.tsx";
+  const appAbs = root + "/src/app.tsx";
   const hmrMarker = "write-hmr-ok";
-  const needle = '<p className="muted">Edit src/App.tsx and save to test HMR.</p>';
+  const needle = '<p className="muted">Edit src/app.tsx and save to test HMR.</p>';
   const appOriginal = await readFile(page, appAbs).catch(() => "");
-  record(appOriginal.includes(needle), "A8 template App.tsx contains the HMR hint", needle);
+  record(appOriginal.includes(needle), "A8 template app.tsx contains the HMR hint", needle);
   const before = await previewSnapshot(page);
   if (appOriginal.includes(needle)) {
     const edited = appOriginal.replace(

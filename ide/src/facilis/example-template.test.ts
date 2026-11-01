@@ -1,0 +1,96 @@
+import { describe, expect, it } from "vitest";
+import { examplePackageJson, exampleProjectFiles } from "./example-template";
+import { createFacilisTemplate, type FacilisManifest } from "./facilis-template";
+import { HMR_HINT } from "./template-overrides";
+
+const example = exampleProjectFiles();
+const template = createFacilisTemplate();
+const files = template.files;
+
+describe("example project source", () => {
+  it("reads the todo-app client, server, schema and locales", () => {
+    expect(Object.keys(example)).toEqual(
+      expect.arrayContaining([
+        "src/app.tsx",
+        "src/main.tsx",
+        "src/lib/api.ts",
+        "src/styles.css",
+        "server/routes/api/todos/[id].patch.ts",
+        "db/schema.ts",
+        "db/migrations/0001_seed_roles.sql",
+        "locales/en.json",
+        "locales/it.json",
+        "index.html",
+        "vite.config.ts",
+        "facilis.config.ts",
+      ]),
+    );
+  });
+
+  it("skips test files and the example's own package.json/tsconfig", () => {
+    expect(Object.keys(example).some((path) => path.includes(".test."))).toBe(false);
+    expect(example).not.toHaveProperty("package.json");
+    expect(example).not.toHaveProperty("tsconfig.json");
+  });
+
+  it("reads the package.json the generated one is built from", () => {
+    const pkg = JSON.parse(examplePackageJson()) as { dependencies: Record<string, string> };
+    expect(pkg.dependencies["@facilis/ui"]).toBe("workspace:*");
+    expect(pkg.dependencies["react-router-dom"]).toBeTruthy();
+  });
+});
+
+// The generated project IS examples/todo-app (D-062). These assertions are the drift
+// guard: changing the example must reach the template untouched, except for the small,
+// explicit overrides below.
+describe("generated template", () => {
+  const OVERRIDES = new Set(["src/app.tsx", "src/styles.css", "facilis.config.ts"]);
+
+  it("carries every example file, with untouched files byte-identical", () => {
+    for (const [path, source] of Object.entries(example)) {
+      expect(files[path], "missing " + path).toBeDefined();
+      if (!OVERRIDES.has(path)) expect(files[path], path).toBe(source);
+    }
+  });
+
+  it("keeps the smoke's HMR hint and ships no probe instrumentation", () => {
+    // The smoke drives the framework endpoints from the IDE page (smoke-facilis.mjs), so a
+    // user's starter must stay the example: no probe module, no auto-registration hook.
+    expect(files["src/app.tsx"]).toContain(HMR_HINT);
+    expect(files["src/app.tsx"]).not.toContain("runProbe");
+    expect(files).not.toHaveProperty("src/lib/probe.ts");
+    // The one IDE-only route is the liveness ping the write smoke edits.
+    expect(files["server/routes/api/ping.get.ts"]).toContain("async () => ({ ok: true })");
+  });
+
+  it("gives the VM the in-process Nitro runner and a runnable release ref", () => {
+    const config = files["facilis.config.ts"];
+    expect(config).toContain('nitro: { devServer: { runner: "self" } }');
+    expect(config).toContain('release: { ref: "main" }');
+    // Everything else is the example's config.
+    expect(config).toContain("roles: {");
+    expect(config).toContain('locales: ["en", "it"]');
+  });
+
+  it("adds the HMR hint footer style to the example stylesheet", () => {
+    expect(files["src/styles.css"]).toContain(".muted {");
+    expect(files["src/styles.css"]).toContain('@import "./styles/shell.css";');
+  });
+
+  it("keeps the run manifest pointing at the example's entry", () => {
+    expect(template.manifest.entry).toBe("src/app.tsx");
+    expect((template.manifest as FacilisManifest).assets).toHaveLength(6);
+  });
+
+  it("declares every @facilis package as a vendored tarball", () => {
+    const pkg = JSON.parse(files["package.json"]) as {
+      dependencies: Record<string, string>;
+    };
+    for (const name of ["auth", "core", "db", "nitro", "time", "ui"]) {
+      expect(pkg.dependencies["@facilis/" + name]).toBe(
+        "file:./vendor/facilis-" + name + "-0.0.0.tgz",
+      );
+    }
+    expect(JSON.stringify(pkg)).not.toContain("workspace:");
+  });
+});

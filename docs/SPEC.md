@@ -345,26 +345,41 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 ```
 <project>/
 ├── server/                       Nitro server root (serverDir)
-│   └── routes/api/todos/
-│       ├── index.get.ts          defineAuthorizedHandler
-│       ├── index.post.ts
-│       ├── [id].get.ts
-│       ├── [id].patch.ts
-│       └── [id].delete.ts
-├── src/                          React client
-│   └── pages/todos/index.tsx     uses @facilis/blocks
+│   └── routes/api/
+│       ├── auth/                 register, login, logout, session
+│       └── todos/                index.get/post, [id].patch/delete
+├── src/                          React client: pages + layouts + components + lib (D-058)
+│   ├── app.tsx                   providers + the one explicit route table
+│   ├── main.tsx                  theme + i18n + router bootstrap
+│   ├── pages/                    login, register, todos, not-found
+│   ├── layouts/                  app-layout, auth-layout
+│   ├── components/               app-specific pieces (theme/locale/todo widgets)
+│   ├── lib/                      api, session, theme, i18n, dates
+│   └── styles/                   shell.css, pages.css
 ├── db/
 │   ├── schema.ts                 Drizzle tables + policies + auth re-export
 │   └── migrations/               drizzle-kit output (incl. auth seed)
-├── locales/en.json
+├── locales/en.json, it.json
 ├── .facilis/                     dev-only state, never source: db/snapshot.tar.gz, binary/
+├── index.html
 ├── vite.config.ts                plugins: [facilis(), react()]
 ├── facilis.config.ts             the one config: roles, permissions, nitro options
+├── tsconfig.json
 ├── package.json                  scripts.dev = "vite dev"
+├── scripts/                      check-pm.mjs, vendor-paths.cjs
+├── vendor/                       @facilis/* tarballs, inlined by the IDE (D-032)
 └── README.md
 ```
 
-**Note:** Nitro v3 in Vite mode requires the server directory to be declared via `serverDir`. `facilis()` mounts Nitro and supplies it from `facilis.config.ts`: the framework defaults are `serverDir: "./server"` and `experimental.openAPI: true`, and a project overrides only what it changes in the config's optional `nitro` section. Route files live under `server/routes/`, not `routes/` at project root.
+**Note:** the generated tree **is** the reference app `examples/todo-app` (D-062), not a
+separate scaffold: the IDE inlines that source at build time and adds only the npm wrapper,
+the liveness `ping` route, the HMR hint/style and the in-process Nitro runner. The
+acceptance probe runs from the IDE page, not inside the app. Nitro v3 in Vite mode requires
+the server directory to be declared via `serverDir`. `facilis()` mounts Nitro and supplies
+it from `facilis.config.ts`: the framework defaults are `serverDir: "./server"` and
+`experimental.openAPI: true`, and a project overrides only what it changes in the config's
+optional `nitro` section. Route files live under `server/routes/`, not `routes/` at project
+root.
 
 ---
 

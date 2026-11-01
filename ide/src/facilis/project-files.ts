@@ -1,15 +1,55 @@
-// Project-level files of the Facilis probe template (SPEC Appendix B/C).
+// IDE-specific wrappers around examples/todo-app, the single source of the generated
+// project (D-062).
 //
-// The @facilis/* packages are workspace-only (O-006), so the generated project
-// installs them from tarballs the IDE serves from its own public directory. npm is
-// the installer and the tarballs are inlined INTO the create request (manifest.assets,
-// project-assets.ts, D-032), then declared as file: dependencies: no package manager has to reach the
-// studio over HTTP to install them, and the project keeps working once it leaves the
-// IDE. This is interim until the packages are published.
+// The @facilis/* packages are workspace-only (O-006), so the generated project installs
+// them from tarballs the IDE serves from its own public directory. npm is the installer
+// and the tarballs are inlined INTO the create request (manifest.assets, project-assets.ts,
+// D-032), then declared as file: dependencies: no package manager has to reach the studio
+// over HTTP to install them, and the project keeps working once it leaves the IDE. This is
+// interim until the packages are published.
+//
+// Everything else the project contains comes from examples/todo-app (example-template.ts);
+// this file only writes what cannot: the npm wrapper, the standalone tsconfig and the
+// scripts the VM needs.
 
-/** package.json for the probe app. */
+import { examplePackageJson } from "./example-template";
+
+type ExamplePackage = {
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+};
+
+/** The example's dependency versions, with workspace specs pointed at vendored tarballs. */
 function packageJson(): string {
   const tarball = (name: string) => "file:./vendor/facilis-" + name + "-0.0.0.tgz";
+  const example = JSON.parse(examplePackageJson()) as ExamplePackage;
+  const dependencies: Record<string, string> = {};
+  for (const [name, spec] of Object.entries(example.dependencies)) {
+    dependencies[name] = name.startsWith("@facilis/") ? tarball(name.slice(9)) : spec;
+  }
+  // Nitro 3.0.260903-beta imports a dozen packages it lists only in its devDependencies —
+  // but it also vendors pruned copies of them under dist/node_modules, so the runtime's
+  // missing-target fallback (fork PR #19, D-024) loads their ESM builds and the project no
+  // longer declares them. These three it does not vendor: picomatch is __require'd by
+  // nitro's builder at run time, @vercel/queue only by the Vercel Queues preset, and
+  // rolldown is the bundler Vite 8 runs in the VM.
+  const extras: Record<string, string> = {
+    picomatch: "^4.0.3",
+    "@vercel/queue": "^0.5.1",
+    rolldown: "1.2.15",
+  };
+  for (const [name, spec] of Object.entries(extras)) {
+    if (dependencies[name] === undefined) dependencies[name] = spec;
+  }
+  const devDependencies = {
+    // The IDE feeds installed @types/*.d.ts files to Monaco's TypeScript service, so a
+    // project without these reports TS2307 "Cannot find module 'react'" on src/app.tsx.
+    "@types/react": example.devDependencies["@types/react"] ?? "19.3.0",
+    "@types/react-dom": example.devDependencies["@types/react-dom"] ?? "19.3.0",
+    "@rolldown/binding-wasm32-wasi": "~1.2.0",
+    "@vitejs/plugin-react": example.devDependencies["@vitejs/plugin-react"] ?? "6.1.2",
+    vite: example.devDependencies["vite"] ?? "8.3.5",
+  };
   return (
     JSON.stringify(
       {
@@ -27,37 +67,8 @@ function packageJson(): string {
           preview: "vite preview",
           preinstall: "node scripts/check-pm.mjs",
         },
-        dependencies: {
-          "@electric-sql/pglite": "0.5.11",
-          "@facilis/auth": tarball("auth"),
-          "@facilis/core": tarball("core"),
-          "@facilis/db": tarball("db"),
-          "@facilis/nitro": tarball("nitro"),
-          "drizzle-orm": "0.45.4",
-          nitro: "3.0.260903-beta",
-          // Nitro 3.0.260903-beta imports a dozen packages it lists only in its
-          // devDependencies — but it also vendors pruned copies of them under
-          // dist/node_modules, so the runtime's missing-target fallback (fork PR #19,
-          // D-024) loads their ESM builds and the project no longer declares them. The
-          // two it does not vendor stay pinned: picomatch is __require'd by nitro's
-          // builder at run time, @vercel/queue only by the Vercel Queues preset.
-          picomatch: "^4.0.3",
-          "@vercel/queue": "^0.5.1",
-          react: "19.3.1",
-          "react-dom": "19.3.1",
-          rolldown: "1.2.15",
-          zod: "4.6.7",
-        },
-        devDependencies: {
-          // The IDE feeds installed @types/*.d.ts files to Monaco's TypeScript service,
-          // so a project without these reports TS2307 "Cannot find module 'react'" on
-          // src/App.tsx. The pins match examples/todo-app.
-          "@types/react": "19.3.0",
-          "@types/react-dom": "19.3.0",
-          "@rolldown/binding-wasm32-wasi": "~1.2.0",
-          "@vitejs/plugin-react": "6.1.2",
-          vite: "8.3.5",
-        },
+        dependencies,
+        devDependencies,
         // The emnapi pins are the verified interim fix for Vite 8's wasi binding
         // (DEV.md 6.1). The @facilis packages need no override: they are file:
         // dependencies of the root, and npm satisfies the tarballs' 0.0.0 interdeps
@@ -73,44 +84,6 @@ function packageJson(): string {
   );
 }
 
-const viteConfig = `import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { facilis } from "@facilis/nitro/vite";
-
-// One dev server: Vite serves the client and facilis() mounts Nitro on the same
-// origin (SPEC 10.6). Nitro's options are read from the project's facilis.config.ts,
-// so this file never names Nitro itself.
-export default defineConfig({
-  plugins: [facilis(), react()],
-  resolve: {
-    alias: { "~": new URL(".", import.meta.url).pathname },
-  },
-});
-`;
-
-const facilisConfig = `import { defineConfig } from "@facilis/core";
-
-export default defineConfig({
-  release: { ref: "main" },
-  db: { mode: "pglite", migrationsDir: "db/migrations" },
-  i18n: { defaultLocale: "en", locales: ["en"] },
-  blocks: { packages: [] },
-  auth: {
-    permissions: ["todos:read", "todos:write"],
-    // The probe registers a default-role user and then writes: the role must carry
-    // todos:write (the seed migration below already grants it).
-    roles: { admin: ["*"], user: ["todos:read", "todos:write"] },
-    defaultRole: "user",
-  },
-  // Nitro options are project config too (D-034). The default node-worker dev runner
-  // cannot start inside the WebContainer: it needs worker_threads and resolves its
-  // entry through import.meta.resolve, which the VM runtime does not provide as a
-  // file URL. The in-process runner keeps init inside the Vite dev-server process;
-  // this is a VM environment constraint, not a Facilis default.
-  nitro: { devServer: { runner: "self" } },
-});
-`;
-
 const tsconfig = `{
   "compilerOptions": {
     "target": "ES2023",
@@ -122,25 +95,14 @@ const tsconfig = `{
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "types": ["vite/client"],
     "paths": { "~/*": ["./*"] }
   },
   "include": ["src", "server", "db", "vite.config.ts", "facilis.config.ts"]
 }
-`;
-
-const indexHtml = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Facilis</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
 `;
 
 // npm flags that matter inside the VM: audit and update-notifier are registry calls
@@ -168,7 +130,10 @@ if (!agent.startsWith("npm/")) {
 
 const readme = `# facilis-app
 
-A Facilis project scaffolded by the Facilis IDE and running in its browser VM.
+A Facilis starter app scaffolded by the Facilis IDE and running in its browser VM.
+
+It is the generated-project reference: auth + todos pages composed from @facilis/ui,
+with the API, schema and i18n catalogues from examples/todo-app.
 
 ## Package manager
 
@@ -187,10 +152,10 @@ npm it was built and tested against, and keeps it aligned with its Node version.
 const vendorPathsScript = `// Resolve the @facilis/* tarballs to absolute file: paths before npm reads
 // package.json.
 //
-// The four @facilis/* packages come from tarballs in ./vendor (they are workspace-only
-// until O-006). A RELATIVE file: spec is re-derived by npm — it recomputes the target
-// with path.relative() and stores that as the dependency's resolved form — and inside
-// the VM that derivation was measured producing /user/projects/... instead of
+// The @facilis/* packages come from tarballs in ./vendor (they are workspace-only until
+// O-006). A RELATIVE file: spec is re-derived by npm — it recomputes the target with
+// path.relative() and stores that as the dependency's resolved form — and inside the VM
+// that derivation was measured producing /user/projects/... instead of
 // /home/user/projects/...: the tarball then "does not exist", npm retries it as
 // corrupted and the install dies with ENOENT. An absolute spec leaves npm nothing to
 // re-derive, so this runs before every install (manifest.install). Idempotent, and it
@@ -226,10 +191,7 @@ if (changed > 0) {
 export function projectFiles(): Record<string, string> {
   return {
     "package.json": packageJson(),
-    "index.html": indexHtml,
     "tsconfig.json": tsconfig,
-    "vite.config.ts": viteConfig,
-    "facilis.config.ts": facilisConfig,
     ".npmrc": npmrc,
     "README.md": readme,
     "scripts/check-pm.mjs": checkPm,

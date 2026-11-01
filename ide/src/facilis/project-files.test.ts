@@ -4,7 +4,10 @@
 // import would only surface as a scaffold that does not boot in the WebContainer.
 
 import { describe, expect, it } from "vitest";
+import { createFacilisTemplate } from "./facilis-template";
 import { projectFiles } from "./project-files";
+
+const files = createFacilisTemplate().files;
 
 type PackageJson = { devDependencies: Record<string, string> };
 type Tsconfig = { include: string[] };
@@ -19,7 +22,7 @@ describe("generated project config", () => {
   });
 
   it("never imports Nitro in vite.config.ts; facilis() mounts it", () => {
-    const viteConfig = projectFiles()["vite.config.ts"];
+    const viteConfig = files["vite.config.ts"];
     expect(viteConfig).not.toMatch(/from ["']nitro/);
     expect(viteConfig).not.toContain("nitro(");
     expect(viteConfig).toContain("plugins: [facilis(), react()]");
@@ -28,7 +31,7 @@ describe("generated project config", () => {
   it("keeps the in-VM Nitro runner in facilis.config.ts", () => {
     // The default node-worker runner needs worker_threads + import.meta.resolve, which
     // the WebContainer does not provide; without runner "self" vite dev never serves.
-    expect(projectFiles()["facilis.config.ts"]).toMatch(
+    expect(files["facilis.config.ts"]).toMatch(
       /nitro:\s*\{\s*devServer:\s*\{\s*runner:\s*"self"\s*\}\s*\}/,
     );
   });
