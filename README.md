@@ -23,7 +23,7 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and Tailwind + shadcn pages. AI output is validated against 16 rules before it touches disk. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on the plain-CSS `@facilis/ui` kit. AI output is validated against 16 rules before it touches disk. |
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
@@ -97,7 +97,8 @@ Everything runs **in your browser tab** — including the backend.
 | Backend | [Nitro v3](https://nitro.build) — as a Vite plugin, mounted by `facilis()` |
 | ORM | [Drizzle](https://orm.drizzle.team) |
 | In-browser DB | [PGlite](https://pglite.dev) |
-| Frontend | React 19 + [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) (Base UI primitives) |
+| Frontend (generated app) | React 19 + [`@facilis/ui`](packages/ui) — plain CSS (`.fc-*`) with daisyUI-style role variables, React Router; no utility framework required (D-055/D-058/D-060) |
+| Frontend (this IDE) | Tailwind CSS v4 + shadcn/ui (Base UI primitives), inherited from the Vivari Studio fork |
 | Runtime | [Vivari](https://github.com/maitrungduc1410/vivari) |
 | Validation | [Zod](https://zod.dev) |
 | Git client | [isomorphic-git](https://isomorphic-git.org) |
@@ -123,8 +124,9 @@ mounts serves `/api/*` and `/__facilis/*`, and PGlite boots inside the Nitro wor
 cd examples/todo-app && ./scripts/verify-headless.sh
 ```
 
-The starter template (`starter/`) is Phase 2 work; `examples/todo-app` is the hand-written
-reference the generator will reproduce.
+The template the IDE scaffolds **is** [`examples/todo-app`](examples/todo-app) (D-062): one
+source for the starter, so editing the example changes what "New project" creates. A
+cloneable `starter/` repository is Phase 2 work.
 
 ---
 
@@ -138,7 +140,7 @@ is green end to end: `facilis()` mounts Nitro + PGlite +
 whose optional `nitro` section is read by `facilis()` — and their `vite.config.ts` is just
 `[facilis(), react()]` (D-034); the template pins `@types/react`/`@types/react-dom` so the
 IDE's TypeScript service resolves React. See [`docs/DECISIONS.md`](docs/DECISIONS.md)
-D-022…D-034.**
+D-022…D-034 and D-063…D-072.**
 
 What exists today, runnable in this repo:
 
@@ -147,9 +149,26 @@ What exists today, runnable in this repo:
 | Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
 | Binary storage (`@facilis/storage`) | `packages/storage/` | content-addressed local + S3-compatible drivers (S3/R2/MinIO via SigV4), signed download tokens; 12 tests |
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
-| Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.1.4` + 5 fixes + 4 Facilis-driven commits; branch map in [`docs/upstream/README.md`](docs/upstream/README.md), policy in D-030 |
+| Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.2.0` + 19 fork commits (`e654919`); branch map in the fork's `FORK.md`, policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 | Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
+
+Security and delivery choices from the last pass (details in
+[`docs/DECISIONS.md`](docs/DECISIONS.md), design in [MANAGED-DEPLOYMENT.md](docs/MANAGED-DEPLOYMENT.md)
+and [APP-UPDATES.md](docs/APP-UPDATES.md)):
+
+- **Two build profiles, no server** (D-063/D-064): `open` is today's unrestricted IDE;
+  `managed` is the same sources built with one JSON config compiled in — registry mirror,
+  package allowlist, import and AI policy, project admission. The build emits `headers.conf`,
+  `environment.json`, `mirror-allowlist.json` and `npmrc.template` for the operator.
+- **Both profiles ship a CSP** (D-071/D-072), with `'unsafe-eval'` because the kernel
+  evaluates the project's code; the hard boundary is the network/registry policy, not eval.
+- **Project updates are an offline diff** (D-065): `facilis.app.json` records the build that
+  created the project; recipes ship with the build and a rollback-safe engine applies them
+  (D-070), moving the marker only after success.
+- **AI is opt-in inside the deployment boundary** (D-066): a managed build defaults to off and
+  only the providers the config names are reachable. Skills are a reviewed supply chain
+  (D-067), not arbitrary content.
 
 The OpenAPI metadata problem found in Phase 0 (A16) is solved in production code: the
 `facilis()` plugin mounts Nitro, owns an AST pass over `server/routes`, and answers
@@ -203,6 +222,8 @@ Highlights inside:
 5. **Roles are code.** Declared in `facilis.config.ts`, seeded by migrations, assigned at runtime.
 6. **Extend via NPM.** Blocks are packages. No plugin registry, no manifest file.
 7. **The Studio is a shell.** The product is the framework packages and the OpenAPI contract.
+8. **The kit is standard CSS.** `@facilis/ui` ships `.fc-*` classes and role variables, not
+   utility classes: a generated app needs no CSS framework to look right (D-055/D-060).
 
 ---
 

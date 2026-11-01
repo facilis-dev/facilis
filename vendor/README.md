@@ -6,7 +6,7 @@
 (`branch = facilis/main`; the pin itself is the gitlink commit, so a checkout is reproducible).
 
 Why a fork and not the upstream tag (D-030): upstream defects the IDE depends on are fixed in
-`facilis/main` — see [`docs/upstream/`](../docs/upstream/README.md). Pinning the fork means
+`facilis/main` — see the fork's `FORK.md`. Pinning the fork means
 the product, CI and the smoke harness all execute the code this repo asserts, instead of an
 unpatched upstream release. The **worktree is never edited**: every change is a commit on a
 branch in the fork, so `git -C vendor/vivari status` stays clean by construction, and each fix
@@ -16,7 +16,7 @@ is also its own branch to propose upstream as a PR.
 |---|---|
 | Our fork | `https://github.com/kele23/vivari` — `master` mirrors upstream, `facilis/main` is what we pin |
 | Upstream releases | second remote `upstream` in the same clone: `git -C vendor/vivari fetch upstream --tags` |
-| Branch map + workflow | [`docs/upstream/README.md`](../docs/upstream/README.md) |
+| Branch map + workflow | `vendor/vivari/FORK.md` (in the fork) + this file |
 | Facilis code that uses it | `packages/` (`@facilis/*`) and `ide/` (fork of upstream `packages/studio`) |
 
 ## First checkout

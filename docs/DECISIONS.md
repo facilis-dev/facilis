@@ -425,9 +425,8 @@ still `3.0.260903-beta`), which removes the traced ESM-only copies; the other ha
 Vivari's loader honouring the `import`/`module` condition and falling back to `module` when
 `main` is missing (upstream). A patch for that half is prepared and validated — Facilis smoke
 green with the template pins removed — and is carried by the fork pin (D-030, branch
-`fix/runtime-esm-only-targets`); the `git am`-able patch, PR body and ticket draft live in
-[`docs/upstream/`](./upstream/) (`vivari-esm-only-packages.patch`, `…-pr.md`,
-`vivari-esm-only-packages.md`) and the PR is still to be filed. The template's 14-package pin
+`fix/runtime-esm-only-targets`) and was filed upstream as PR #19 (merged in `v1.1.5`). The
+template's 14-package pin
 list is therefore redundant: dropping it and re-running `TEMPLATE=Facilis pnpm ide:smoke` is a
 follow-up. Vite's `--configLoader`
 does not help: all three modes externalise package imports (the default `bundle` loader
@@ -438,9 +437,7 @@ Nitro's dist, and `bundle` cannot run in the WebContainer anyway.
 (~36-40 s cold), `/__facilis/health` ok, `/__facilis/manifest` ok with **zero warnings**
 (PGlite opened, migrations + seed + app role applied), `/_openapi.json` carries
 `x-db-tables` for `/api/todos`, and an unauthenticated `/api/todos` returns 401. Upstream
-work worth filing: the Vivari resolver fix drafted in
-[`docs/upstream/vivari-esm-only-packages.md`](./upstream/vivari-esm-only-packages.md), the
-Nitro RC that bundles the runtime (nitrojs/nitro #4701), and Vivari's
+work worth filing: the Nitro RC that bundles the runtime (nitrojs/nitro #4701) and Vivari's
 `import.meta.resolve` returning a file URL. Client-side HMR through the swapped
 Nitro-fronts-Vite arrangement is the first thing to verify in the next phase.
 
@@ -569,11 +566,9 @@ queue that drains only when nothing project-level is queued; rewrite the manifes
 queue is busy (existing 1 s debounce); and make `flush()` on page-hide promise only the project
 paths plus the index, leaving cache work queued. Applied temporarily to the vendored tree, this
 turns A12 into a normal pass — 24/24 write checks, zero known issues, the probe survives the
-reload. The fix is pinned through the fork (D-030, branch `fix/opfs-mirror-priority`); its
-`git am`-able patch and PR body are in
-[`docs/upstream/vivari-opfs-mirror-priority.patch`](./upstream/vivari-opfs-mirror-priority.patch)
-and [`…-pr.md`](./upstream/vivari-opfs-mirror-priority-pr.md), and the upstream PR is still to be
-filed. The Studio's writes, editor state, HMR and git are correct in-tab either way.
+reload. The fix is pinned through the fork (D-030, branch `fix/opfs-mirror-priority`) and was filed
+upstream as PR #21. The Studio's writes, editor state, HMR and git are correct in-tab either
+way.
 
 ---
 
@@ -612,8 +607,8 @@ module fetches across that boundary.**
 per-connection request cap — `keepalive_requests 100000;` (nginx ≥ 1.25.1) or
 `http2_max_requests 100000;` (older) — or serve that vhost over HTTP/1.1 (`http2 off`), which is
 a complete workaround for dev. Raising `http2_max_concurrent_streams` (the proxy advertises 100)
-also helps the burst. Details and measurements:
-[`docs/upstream/vivari-findings-2026-10-28.md`](./upstream/vivari-findings-2026-10-28.md) §4.
+also helps the burst. Measurements: 1000 requests per connection, `GOAWAY` on request #1000 — the working notes were
+Vivari-side and are not kept in this repo.
 
 **Follow-up (same day):** D-031 removes the request *volume* instead of the cap — the IDE dev
 server now runs Vite's full-bundle mode, so a dev session no longer issues thousands of module
@@ -639,13 +634,13 @@ against the pinned tag.
 **Decision:** `vendor/vivari` is a submodule of **our fork**,
 [`github.com/kele23/vivari`](https://github.com/kele23/vivari), pinned to `facilis/main` =
 upstream tag `v1.1.4` + the five fix commits and four repository-driven commits (branch map in
-[`docs/upstream/README.md`](./upstream/README.md)). The fork's `master` mirrors upstream and carries
+the fork's `FORK.md`, inside the submodule). The fork's `master` mirrors upstream and carries
 no commits of ours; each fix is also its own branch (`fix/…`) based on upstream `master` and is
 proposed upstream as a PR from the fork. `.gitmodules` records the fork URL and
 `branch = facilis/main`; the pin is a **commit**, so a checkout is reproducible. The submodule
 worktree is never edited, so `git -C vendor/vivari status` is clean by construction.
 
-Workflow (branch map in [`docs/upstream/README.md`](./upstream/README.md), dev recipe in
+Workflow (branch map in the fork's `FORK.md`, dev recipe in
 [`vendor/README.md`](./vendor/README.md)):
 
 - **bump the engine:** rebase the fix branches onto the new upstream tag in the fork, push
@@ -709,8 +704,8 @@ inside the VM. Two measurements changed the calculus.
 - **pnpm can no longer be kept current.** 12.x ships no JS bundle at all: the npm package is a
   wrapper that installs and spawns `@pnpm/exe.<platform>/pnpm`, a native executable that a
   browser container cannot run. 11.x is the last JS major, and its store index requires
-  `node:sqlite`, which the runtime does not serve (pnpm 10.34.9 does not even load — measured,
-  [findings](./upstream/vivari-findings-2026-10-28.md) §6). A developer-facing IDE shipping a
+  `node:sqlite`, which the runtime does not serve (pnpm 10.34.9 does not even load — measured
+  on 2026-10-28). A developer-facing IDE shipping a
   2025 package manager against a 2026 `latest` is exactly the "already old" signal we refuse
   to ship, and no version bump fixes it.
 - **The URL dependency was never necessary.** The four `@facilis/*` tarballs are static files
@@ -2071,7 +2066,7 @@ points at `https://facilis.dev` (title, meta description, canonical link). The b
 catalogue message (`app.name`), not a JSX literal. The Vivari name survives only where it
 is a fact rather than a label:
 
-- attribution and provenance (LICENSE, `ide/README.md`, `docs/upstream/**`, D-011, D-030);
+- attribution and provenance (LICENSE, `ide/README.md`, D-011, D-030);
 - package and module identifiers (`@vivari/core`, `vendor/vivari/**`), which are the
   kernel's real names and would need a fork-wide rename;
 - internal identifiers and protocols (`__vv*`, `vv-*`, `host.vivari.internal`), which are

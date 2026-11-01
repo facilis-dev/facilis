@@ -9,7 +9,7 @@ Facilis project inside a WebContainer, where `vite dev` is the single dev server
 here.** The kernel is the [`vendor/vivari/`](../vendor/vivari) submodule of our Vivari fork,
 pinned to `facilis/main` (upstream `v1.2.0` + the fixes we carry; D-030): it is never edited
 in the worktree, only bumped to a fork commit ([`vendor/README.md`](../vendor/README.md),
-branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
+branch map in the fork's `FORK.md`).
 
 **Branding (D-069).** The product presents itself as **Facilis Studio** and points at
 <https://facilis.dev>. The Vivari name stays only in the provenance and attribution above, in
