@@ -131,7 +131,7 @@ insert does not name the tenant either.
 
 ```ts
 export type DbDriver = "pglite" | "postgres";
-export interface CreateDbOptions { driver?: DbDriver; url?: string; dataDir?: string; schema?: Readonly<Record<string, unknown>> }
+export interface CreateDbOptions { driver?: DbDriver; url?: string; dataDir?: string; poolMax?: number; schema?: Readonly<Record<string, unknown>> }
 export interface FacilisDb { readonly driver: DbDriver; readonly db: PgDatabaseLike; close(): Promise<void> }
 export function createDb(options?: CreateDbOptions): Promise<FacilisDb>;
 
@@ -170,7 +170,16 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   The pinned kernel's `fileURLToPath` recovers `"/" + host + pathname` instead of throwing
   (`e654919`, kele23/vivari#2), so `@facilis/db` passes PGlite only `dataDir` — no artifact
   hand-off, no shim.
-- The `postgres` driver may throw a typed "not implemented in Phase 1" error; do not add `pg`.
+- The `postgres` driver is implemented in Phase 2 (D-068): `pg` + `drizzle-orm/node-postgres`
+  loaded lazily through `createRequire` (never a static import - the in-VM bundle must not pull
+  `node:net`/`node:tls`), `poolMax` (default 10), TLS from `?sslmode=` in the connection
+  string, and a `select 1` probe at open so a bad URL rejects as `db_connection_failed`
+  instead of failing on the first request. `snapshot()` rejects with `snapshot_unavailable`.
+  `pg` is an optional capability of the package: the deployment installs it.
+- The environment chooses the target (D-068): `FACILIS_DATABASE_URL` else `DATABASE_URL` means
+  postgres whatever `db.mode` says (blank counts as unset); pglite under `NODE_ENV=production`
+  is refused. The runtime connects as the least-privileged `facilis_app` role, so the session
+  middleware scopes its lookups with `runWithPolicyScope` and needs no privileged client.
 - `runWithPolicyScope` opens a transaction, then in this order: `SET LOCAL ROLE facilis_app`
   (the non-superuser app role - PGlite connects as superuser and superusers bypass RLS even with
   FORCE, Phase 0 finding), then `SET LOCAL`/set_config the three GUCs, then runs the callback.

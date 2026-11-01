@@ -438,7 +438,10 @@ Exports:
 
 - `createDb(options)` — Drizzle client for PGlite (dev) / Postgres (prod). Dev PGlite is
   in memory; `snapshot()` serializes the cluster, `loadSnapshot` restores it, and
-  `activity()` counts client operations so the dev snapshotter can skip idle ticks (D-052)
+  `activity()` counts client operations so the dev snapshotter can skip idle ticks (D-052).
+  The postgres driver (D-068) opens a `pg` pool lazily, has no cluster dump (a postgres
+  `snapshot()` rejects), and is reached with the deployment's least-privileged
+  `facilis_app` role, so RLS is enforced by the database rather than by a privileged client
 - `policyContext` — `drizzle-policy` wrapper for tenant/role scoping
 - `rlsMigrationPlugin` — Drizzle-kit plugin that auto-appends RLS policies
 - `buildReleasePreview(from, to)` — schema diff engine
@@ -881,7 +884,7 @@ disabled, and `404` in production unless `openAPI.production` is enabled.
 interface FacilisConfig {
   release: { ref: string }
   db: {
-    mode: "pglite" | "postgres" | "json"
+    mode: "pglite" | "postgres" | "json"   // D-068: an env URL wins over this; "json" not implemented
     migrationsDir: string
     tenantColumns: string[]
     ownerColumns: string[]
