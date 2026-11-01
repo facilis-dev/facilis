@@ -7,7 +7,13 @@ const httpRequest = vi.hoisted(() =>
 );
 vi.mock("isomorphic-git/http/web", () => ({ default: { request: httpRequest } }));
 
-import { createGitHttp, proxyUrlFor, resolveProxyBase } from "./git-http";
+import {
+  branchForEmptyRemote,
+  createGitHttp,
+  emptyRemoteBranch,
+  proxyUrlFor,
+  resolveProxyBase,
+} from "./git-http";
 
 beforeEach(() => {
   httpRequest.mockClear();
@@ -106,5 +112,33 @@ describe("createGitHttp", () => {
     );
     const err = await client.request({ url: "https://u:tok@github.com/o/r.git" }).catch((e) => e);
     expect(String(err)).not.toContain("tok");
+  });
+});
+
+describe("empty remotes (D-080)", () => {
+  const gitWith = (refs: Record<string, string>, HEAD?: string) =>
+    ({
+      getRemoteInfo: async () => ({ refs, HEAD }),
+    }) as unknown as Parameters<typeof emptyRemoteBranch>[0];
+
+  it("reads the branch an empty remote advertises", async () => {
+    expect(branchForEmptyRemote("refs/heads/trunk")).toBe("trunk");
+    expect(branchForEmptyRemote(undefined)).toBe("main");
+    expect(branchForEmptyRemote("HEAD")).toBe("main");
+  });
+
+  it("returns the default branch only when the remote has no refs", async () => {
+    const empty = await emptyRemoteBranch(
+      gitWith({}, "refs/heads/main"),
+      {} as Parameters<typeof emptyRemoteBranch>[1],
+      "https://github.com/o/r.git",
+    );
+    expect(empty).toBe("main");
+    const populated = await emptyRemoteBranch(
+      gitWith({ "refs/heads/main": "abc" }),
+      {} as Parameters<typeof emptyRemoteBranch>[1],
+      "https://github.com/o/r.git",
+    );
+    expect(populated).toBeNull();
   });
 });

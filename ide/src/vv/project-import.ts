@@ -12,6 +12,7 @@ import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
 import { fetchGitRepo, type GitImportOptions } from "./git-import";
 import { parseGitRepo } from "./git-provider";
 import { cloneIntoProject, type CloneOptions } from "./project-clone";
+import { scaffoldFacilisProject } from "./project-scaffold";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
@@ -263,6 +264,12 @@ export class ProjectImport {
   async cloneGitRepo(url: string, opts: CloneOptions = {}): Promise<boolean> {
     if (!this.allows("git")) return false;
     return cloneIntoProject(this.bridge, this.host, url, opts);
+  }
+
+  // Populate an empty (or README-only) folder with the Facilis project (D-080): the
+  // clone-an-empty-repository flow and the palette command land here.
+  scaffoldFolder(root: string): Promise<boolean> {
+    return scaffoldFacilisProject(this.bridge, this.host, root);
   }
 
   // Import from GitHub, GitLab or Gitea/Forgejo (D-073); a private repository takes a

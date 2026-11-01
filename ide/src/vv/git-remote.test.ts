@@ -21,6 +21,8 @@ const httpStub = { request: vi.fn(async () => ({ statusCode: 200 })) };
 
 interface FakeGit {
   clone: ReturnType<typeof vi.fn>;
+  getRemoteInfo: ReturnType<typeof vi.fn>;
+  init: ReturnType<typeof vi.fn>;
   fetch: ReturnType<typeof vi.fn>;
   push: ReturnType<typeof vi.fn>;
   fastForward: ReturnType<typeof vi.fn>;
@@ -36,6 +38,12 @@ interface FakeGit {
 function makeGit(overrides: Partial<FakeGit> = {}): FakeGit {
   return {
     clone: vi.fn(async () => undefined),
+    // A normal remote has refs; the empty case is overridden per test (D-080).
+    getRemoteInfo: vi.fn(async () => ({
+      refs: { "refs/heads/main": "abc123" },
+      HEAD: "refs/heads/main",
+    })),
+    init: vi.fn(async () => undefined),
     fetch: vi.fn(async () => undefined),
     push: vi.fn(async () => ({ ok: true })),
     fastForward: vi.fn(async () => undefined),
@@ -108,6 +116,19 @@ describe("cloneRepo", () => {
     expect(args.http).toBe(httpStub);
     expect(args.onAuth(URL, {})).toEqual({ username: "x-access-token", password: TOKEN });
     expect(JSON.stringify(git.clone.mock.calls)).not.toContain(TOKEN);
+  });
+
+  it("initialises an empty remote instead of cloning nothing", async () => {
+    const git = makeGit({
+      getRemoteInfo: vi.fn(async () => ({ refs: {}, HEAD: "refs/heads/trunk" })),
+    });
+    const ops = makeOps(git);
+    const result = await ops.cloneRepo({ fs, dir: "/p", url: URL, credentials: credentials() });
+
+    expect(result).toEqual({ branch: "trunk" });
+    expect(git.clone).not.toHaveBeenCalled();
+    expect(firstArg<{ defaultBranch: string }>(git.init).defaultBranch).toBe("trunk");
+    expect(firstArg<{ url: string }>(git.addRemote).url).toBe(URL);
   });
 
   it("uses the host-specific default username", async () => {

@@ -9,7 +9,7 @@
 // the headers isomorphic-git builds from `onAuth` (see git-remote.ts).
 
 import httpWeb from "isomorphic-git/http/web";
-import type { AuthCallback } from "isomorphic-git";
+import type { AuthCallback, HttpClient } from "isomorphic-git";
 import type { GitHttpRequest } from "isomorphic-git/http/web";
 import { deployment, gitProxyConfigured } from "@/deploy/current";
 import { detectGitProvider } from "./git-provider";
@@ -214,4 +214,29 @@ export function loadGit(): Promise<GitApi> {
     gitModule = ensureBuffer().then(() => import("isomorphic-git"));
   }
   return gitModule;
+}
+
+/** The branch an empty remote expects: its advertised HEAD, else the modern default. */
+export function branchForEmptyRemote(head: unknown): string {
+  if (typeof head !== "string") return "main";
+  const prefix = "refs/heads/";
+  return head.startsWith(prefix) && head.length > prefix.length
+    ? head.slice(prefix.length)
+    : "main";
+}
+
+/**
+ * The branch to initialise when the remote advertises NO refs at all — a brand-new
+ * repository — else null. Cloning such a remote leaves nothing to check out, so the
+ * caller initialises git locally instead and can scaffold the project (D-080).
+ */
+export async function emptyRemoteBranch(
+  git: GitApi,
+  http: HttpClient,
+  url: string,
+  credentials?: Credentials,
+): Promise<string | null> {
+  const info = await git.getRemoteInfo({ http, url, onAuth: authCallback(url, credentials) });
+  if (Object.keys(info.refs ?? {}).length > 0) return null;
+  return branchForEmptyRemote(info.HEAD);
 }

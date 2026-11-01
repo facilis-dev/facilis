@@ -76,6 +76,18 @@ export function CommandPalette() {
         run: () => c.importFolderViaPicker(),
       },
       { label: t("palette.importRemote"), icon: GitBranch, run: () => c.openImportRemote() },
+      {
+        // The empty-repository case and the manual recovery: write the Facilis project
+        // into the open folder without touching anything already there (D-080).
+        label: t("palette.scaffold"),
+        icon: FileCode,
+        run: () => {
+          const root = snap.workspaceFolders.find(
+            (folder) => folder.id === snap.activeFolderId,
+          )?.rootPath;
+          if (root !== undefined) void c.projectImport.scaffoldFolder(root);
+        },
+      },
       // Publishing is compiled out of deployments that forbid writing to a git host.
       ...(pushAllowed(deployment)
         ? [{ label: t("palette.pushRemote"), icon: GitBranch, run: () => publishSession.open() }]
@@ -132,7 +144,7 @@ export function CommandPalette() {
         },
       },
     ],
-    [c, setTheme],
+    [c, setTheme, snap],
   );
 
   const isFile = snap.paletteMode === "file";

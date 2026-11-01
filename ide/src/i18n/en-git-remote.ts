@@ -56,4 +56,17 @@ export const gitRemoteEn = {
   "token.scopeGitlabWrite": "write_repository",
   "token.scopeGiteaRead": "read:repository",
   "token.scopeGiteaWrite": "write:repository",
+
+  // ── empty repository → scaffold the Facilis project (D-080) ──────────────
+  "palette.scaffold": "Create a Facilis project in this folder",
+  "clone.emptyTitle": "The repository has no Facilis project yet",
+  "clone.emptyDescription":
+    "It is cloned and opened; add the Facilis app here and then commit and push it.",
+  "clone.emptyAction": "Create the project",
+  "scaffold.doneTitle": "Facilis project created",
+  "scaffold.doneDescription": "Run it, then commit and push from Source Control.",
+  "scaffold.alreadyProject": "This folder already contains a project.",
+  "scaffold.failed": "Could not create the project: {error}",
+  "scaffold.status": "created the Facilis project",
+  "scaffold.kernelStarting": "The runtime is still starting — try again in a moment.",
 } as const;

@@ -10,6 +10,8 @@
 // controller-facing flow (new project dir, manifest, open) mirrors importFilesAsProject.
 
 import { toast } from "sonner";
+import { t } from "@/i18n";
+import { scaffoldFacilisProject } from "./project-scaffold";
 import type { ProjectImportHost } from "./project-import";
 import { synthesizeManifest } from "./project-import";
 import { errText } from "./errors";
@@ -95,5 +97,18 @@ export async function cloneIntoProject(
   toast.success("Cloned " + name, {
     description: files.length + " files — full git history in .git",
   });
+  if (manifest === null) {
+    // An empty or README-only repository: the clone is fine, there is just no project in
+    // it yet. Offer the one template instead of leaving the user with an empty editor
+    // (D-080); the .git and the remote stay, so the publish is a normal push.
+    toast.info(t("clone.emptyTitle"), {
+      description: t("clone.emptyDescription"),
+      duration: 15000,
+      action: {
+        label: t("clone.emptyAction"),
+        onClick: () => void scaffoldFacilisProject(bridge, host, root),
+      },
+    });
+  }
   return true;
 }

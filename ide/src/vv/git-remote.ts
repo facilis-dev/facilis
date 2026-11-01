@@ -10,6 +10,7 @@ import {
   authCallback,
   createGitHttp,
   defaultUsername,
+  emptyRemoteBranch,
   guarded,
   loadGit,
   probeProxy,
@@ -162,6 +163,14 @@ export function createRemoteOps(overrides: Partial<RemoteOpsDeps> = {}): RemoteO
     async cloneRepo({ fs, dir, url, credentials, onProgress }) {
       const { git, http } = await connect(url);
       return guarded(credentials, async () => {
+        // An empty repository has nothing to fetch and no HEAD to check out (D-080):
+        // detect it first, init locally on the host's branch and keep the remote.
+        const emptyBranch = await emptyRemoteBranch(git, http, url, credentials);
+        if (emptyBranch !== null) {
+          await git.init({ fs, dir, defaultBranch: emptyBranch });
+          await git.addRemote({ fs, dir, remote: "origin", url });
+          return { branch: emptyBranch };
+        }
         await git.clone({
           fs,
           http,

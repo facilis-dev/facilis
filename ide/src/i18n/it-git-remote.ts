@@ -56,4 +56,17 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "token.scopeGitlabWrite": "write_repository",
   "token.scopeGiteaRead": "read:repository",
   "token.scopeGiteaWrite": "write:repository",
+
+  // ── empty repository → scaffold the Facilis project (D-080) ──────────────
+  "palette.scaffold": "Crea un progetto Facilis in questa cartella",
+  "clone.emptyTitle": "Il repository non contiene ancora un progetto Facilis",
+  "clone.emptyDescription":
+    "È clonato e aperto; aggiungi qui l'app Facilis, poi fai commit e push.",
+  "clone.emptyAction": "Crea il progetto",
+  "scaffold.doneTitle": "Progetto Facilis creato",
+  "scaffold.doneDescription": "Avvialo, poi fai commit e push da Source Control.",
+  "scaffold.alreadyProject": "Questa cartella contiene già un progetto.",
+  "scaffold.failed": "Impossibile creare il progetto: {error}",
+  "scaffold.status": "creato il progetto Facilis",
+  "scaffold.kernelStarting": "Il runtime sta ancora partendo — riprova tra un istante.",
 };
