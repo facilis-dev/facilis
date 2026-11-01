@@ -7,6 +7,7 @@ import config, { configError, projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 
 import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
+import { resolveDbTarget } from "./db-target.ts";
 import {
   devDbSnapshotPath,
   installDevDbSnapshotter,
@@ -45,7 +46,7 @@ export function getSessionHandler(
 ): ((event: SessionEvent) => Promise<void>) | null {
   if (state.db === null || state.config === null) return null;
   state.sessionHandler ??= sessionMiddleware({
-    db: state.db.db,
+    db: state.db,
     config: toAuthConfig(state.config.auth),
     tenantId: readDefaultTenantId(),
   });
@@ -58,9 +59,18 @@ async function bootstrap(): Promise<BootstrapState> {
   const projectConfig = readProjectConfig(warnings);
   if (projectConfig === null) return { db: null, config: null, warnings, startedAt };
 
-  // Dev-only persistence (D-052): production talks to a real Postgres, while dev PGlite
-  // lives in memory and is restored from one snapshot file in the project.
-  const devPersistenceEnabled = !isProductionEnvironment() && projectConfig.db.mode !== "postgres";
+  // The environment, not the config alone, decides where data lives (D-068): a deployment
+  // sets a Postgres URL and the same build runs there. Every refusal is a warning, so a
+  // misconfigured production boot degrades to "no database" instead of crashing.
+  const resolved = resolveDbTarget(projectConfig, process.env);
+  warnings.push(...resolved.warnings);
+  if (resolved.target === null) return { db: null, config: projectConfig, warnings, startedAt };
+  const target = resolved.target;
+  const usesPglite = target.driver === "pglite";
+
+  // Dev-only persistence (D-052): an in-memory PGlite cluster is restored from one snapshot
+  // file in the project. A postgres target has no snapshot to read, and must not restore one.
+  const devPersistenceEnabled = usesPglite && !isProductionEnvironment();
   const snapshotPath = devDbSnapshotPath(projectRoot);
   let snapshot: Uint8Array | null = null;
   if (devPersistenceEnabled) {
@@ -79,7 +89,8 @@ async function bootstrap(): Promise<BootstrapState> {
   let db: FacilisDb;
   try {
     db = await createDb({
-      driver: projectConfig.db.mode === "postgres" ? "postgres" : "pglite",
+      driver: target.driver,
+      url: target.url,
       loadSnapshot: snapshot ?? undefined,
       schema: dbSchema,
     });
@@ -90,6 +101,8 @@ async function bootstrap(): Promise<BootstrapState> {
     }
     // A corrupt or incompatible snapshot must not make the project unbootable: warn and
     // start from an empty cluster instead (the old file is replaced by the next dump).
+    // Only pglite ever reads a snapshot (see devPersistenceEnabled), so the retry keeps the
+    // resolved driver instead of hard-coding one.
     warnings.push(
       warning(
         "db_snapshot_failed",
@@ -98,7 +111,8 @@ async function bootstrap(): Promise<BootstrapState> {
     );
     try {
       db = await createDb({
-        driver: "pglite",
+        driver: target.driver,
+        url: target.url,
         schema: dbSchema,
       });
     } catch (retryError) {
@@ -109,10 +123,18 @@ async function bootstrap(): Promise<BootstrapState> {
     }
   }
 
-  // Dev-only bootstrap: production schemas arrive through the committed migrations,
-  // and the app role is provisioned by the deploy step, not by every worker boot.
-  if (!isProductionEnvironment()) {
+  // The dev bootstrap keeps a PGlite project self-contained: migrations -> seed -> app role
+  // (D-052). A real Postgres is provisioned out of band by the deploy step; the runtime may
+  // even connect as facilis_app, which can neither create roles nor run schema changes.
+  if (usesPglite) {
     await bootstrapDevelopmentDatabase(db, projectConfig, warnings);
+  } else {
+    warnings.push(
+      warning(
+        "db_migrations_skipped",
+        "Postgres target: migrations and the app role are provisioned by the deploy step, not at boot.",
+      ),
+    );
   }
 
   if (devPersistenceEnabled) {

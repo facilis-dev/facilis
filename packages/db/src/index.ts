@@ -1,13 +1,15 @@
 /**
- * @facilis/db — Drizzle + PGlite client, policy scope, RLS policy generators,
- * schema snapshot and idempotent statement runner.
+ * @facilis/db — Drizzle client for PGlite and Postgres, policy scope, RLS policy
+ * generators, schema snapshot and idempotent statement runner.
  */
 
 export {
   createDb,
+  DbConnectionError,
   DEFAULT_OWNER_COLUMNS,
   DEFAULT_TENANT_COLUMNS,
   DriverNotImplementedError,
+  SnapshotUnavailableError,
   type CreateDbOptions,
   type DbDriver,
   type FacilisDb,

@@ -1,12 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
     "declarationMap": false,
     "sourceMap": false,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  // test-fixtures is typechecked with the tests; the shipped program (and its rootDir)
+  // lives in tsconfig.build.json, which includes src only.
+  "include": ["src/**/*.ts", "test-fixtures/**/*.ts"]
 }

@@ -2,6 +2,8 @@ import { defineConfig } from "@facilis/core";
 
 export default defineConfig({
   release: { ref: "origin/main" },
+  // Dev default. Production refuses in-memory PGlite: set FACILIS_DATABASE_URL (or
+  // DATABASE_URL) and the runtime opens Postgres instead (D-068).
   db: {
     mode: "pglite",
     migrationsDir: "db/migrations",

@@ -23,6 +23,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "0.2.14",
     "drizzle-kit": "0.31.11",
     "oxlint": "catalog:",
     "typescript": "catalog:",

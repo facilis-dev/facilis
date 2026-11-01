@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDb, DriverNotImplementedError } from "./client.ts";
+import { createDb, DriverNotImplementedError, type CreateDbOptions } from "./client.ts";
 import { applyStatements } from "./migrator.ts";
 
 const tempDirs: string[] = [];
@@ -54,13 +54,10 @@ describe("createDb", () => {
     }
   });
 
-  it("rejects the unimplemented postgres driver with a typed error", async () => {
-    await expect(
-      createDb({ driver: "postgres", url: "postgres://localhost/facilis" }),
-    ).rejects.toBeInstanceOf(DriverNotImplementedError);
-    await expect(createDb({ url: "postgres://localhost/facilis" })).rejects.toMatchObject({
-      code: "driver_not_implemented",
-    });
+  it("rejects a driver id outside the union with a typed error", async () => {
+    // facilis.config.ts may be plain JavaScript, so the runtime guard is reachable.
+    const options = { driver: "mysql" } as unknown as CreateDbOptions;
+    await expect(createDb(options)).rejects.toBeInstanceOf(DriverNotImplementedError);
   });
 
   it("defaults to an empty schema namespace", async () => {

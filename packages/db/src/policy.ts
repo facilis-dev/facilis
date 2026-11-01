@@ -32,7 +32,9 @@ export class AppRoleUnavailableError extends Error {
 
 /**
  * Creates the non-superuser role that policy-scoped queries run as, and grants it access
- * to every current and future table in the public schema. Idempotent: safe on every boot.
+ * to every current and future table and sequence in the public schema. Sequences matter
+ * for serial/uuid-default apps: an insert as facilis_app also needs USAGE on the backing
+ * sequence. Idempotent: safe on every boot.
  */
 export async function ensureAppRole(db: FacilisDb): Promise<void> {
   const existing = await db.db.execute(sql`select 1 from pg_roles where rolname = ${APP_ROLE}`);
@@ -48,6 +50,14 @@ export async function ensureAppRole(db: FacilisDb): Promise<void> {
   await db.db.execute(
     sql.raw(
       `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${APP_ROLE}`,
+    ),
+  );
+  await db.db.execute(
+    sql.raw(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`),
+  );
+  await db.db.execute(
+    sql.raw(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${APP_ROLE}`,
     ),
   );
 }

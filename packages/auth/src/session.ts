@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis/db";
 
 import { randomToken } from "./crypto.ts";
 import { expandRoles, type AuthConfig } from "./roles.ts";
@@ -35,8 +35,9 @@ export async function createSession(
 /**
  * Joins the session to its user; expired or unknown sessions yield null.
  *
- * Pass the root client (facilisDb.db) when validating before a tenant is known: users carries
- * tenant RLS, so under facilis_app without app.tenant_id set the join cannot see the user.
+ * Callers pass a policy-scoped client (`runWithPolicyScope`) with app.tenant_id set: users
+ * carries tenant RLS, so an unscoped read as the non-superuser facilis_app role cannot see
+ * the joined user row at all.
  */
 export async function validateSession(
   db: PolicyScopedDatabase,
@@ -81,19 +82,22 @@ export interface SessionEvent {
 }
 
 export interface SessionMiddlewareDeps {
-  readonly db: PolicyScopedDatabase;
+  /** Database the middleware scopes; the runtime may connect as the facilis_app role. */
+  readonly db: FacilisDb;
   readonly config: AuthConfig;
   /** The deployment's tenant; a session whose user row names another one is rejected (D-040). */
   readonly tenantId: string;
 }
 
 /**
- * Builds the `facilis-session` middleware handler. It reads the session cookie, validates
- * it on the connection it is given (no nested transaction), loads app roles from
- * `user_roles`, expands them from config (SPEC §8.4.4) and sets `context.auth`.
+ * Builds the `facilis-session` middleware handler. It reads the session cookie, then
+ * validates the session and loads app roles inside ONE deployment-tenant policy scope
+ * (`runWithPolicyScope`), expands the roles from config (SPEC §8.4.4) and sets
+ * `context.auth`.
  *
- * deps.db must be the root client (facilisDb.db): session validation happens before a
- * tenant scope exists, and the privileged client is what makes the users join possible.
+ * The scope matters: production connects as the non-superuser facilis_app role, so `users`
+ * is RLS-filtered and an unscoped read cannot see any user row. Running both queries in the
+ * tenant's transaction is what makes sessions work without a privileged client (D-068).
  */
 export function sessionMiddleware(
   deps: SessionMiddlewareDeps,
@@ -105,24 +109,22 @@ export function sessionMiddleware(
       return;
     }
 
-    const found = await validateSession(deps.db, sessionId);
-    if (found === null) {
-      event.context.auth = null;
-      return;
-    }
-    // The tenant is the deployment's, never the session's (D-040). A row of another tenant
-    // cannot authenticate here: it would otherwise carry a scope this deployment does not own.
-    if (found.user.tenantId !== deps.tenantId) {
-      event.context.auth = null;
-      return;
-    }
+    const auth = await runWithPolicyScope(deps.db, { tenantId: deps.tenantId }, async (tx) => {
+      const found = await validateSession(tx, sessionId);
+      if (found === null) return null;
+      // The tenant is the deployment's, never the session's (D-040). RLS already hides another
+      // tenant's user row from the lookup; this explicit check keeps the rule even on a
+      // connection where RLS would not apply (defense in depth).
+      if (found.user.tenantId !== deps.tenantId) return null;
 
-    const roles = await loadUserRoles(deps.db, found.user.id);
-    event.context.auth = {
-      userId: found.user.id,
-      roles,
-      permissions: expandRoles(roles, deps.config),
-    };
+      const roles = await loadUserRoles(tx, found.user.id);
+      return {
+        userId: found.user.id,
+        roles,
+        permissions: expandRoles(roles, deps.config),
+      };
+    });
+    event.context.auth = auth;
   };
 }
 

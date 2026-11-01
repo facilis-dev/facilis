@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { FacilisDb } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
 
 import type { AuthConfig } from "./roles.ts";
 import {
@@ -15,6 +16,7 @@ import { roles, userRoles, users } from "./tables.ts";
 import { createAuthTestDb } from "./test-support.ts";
 
 const TENANT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const OTHER_TENANT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
 const config: AuthConfig = {
   permissions: ["todos:read", "todos:write"],
@@ -28,6 +30,17 @@ function eventWithCookie(cookie: string | undefined): SessionEvent {
   return { context: {}, req: { headers } };
 }
 
+/** Inserts a fixture row through the privileged test connection (a superuser bypasses RLS). */
+async function insertUser(db: FacilisDb, email: string, tenantId: string): Promise<string> {
+  const inserted = await db.db
+    .insert(users)
+    .values({ email, tenantId })
+    .returning({ id: users.id });
+  const row = inserted[0];
+  if (row === undefined) throw new Error(`failed to insert the fixture user ${email}`);
+  return row.id;
+}
+
 describe("session lifecycle", () => {
   let db: FacilisDb;
   let userId: string;
@@ -35,13 +48,7 @@ describe("session lifecycle", () => {
   beforeAll(async () => {
     db = await createAuthTestDb();
     await db.db.insert(roles).values({ name: "admin" });
-    const inserted = await db.db
-      .insert(users)
-      .values({ email: "admin@example.com", tenantId: TENANT_ID })
-      .returning({ id: users.id });
-    const row = inserted[0];
-    if (row === undefined) throw new Error("failed to insert the fixture user");
-    userId = row.id;
+    userId = await insertUser(db, "admin@example.com", TENANT_ID);
     await db.db.insert(userRoles).values({ userId, role: "admin" });
   }, 30_000);
 
@@ -84,7 +91,7 @@ describe("session lifecycle", () => {
   it("populates event.context.auth from the session cookie", async () => {
     const { id } = await createSession(db.db, userId);
     const event = eventWithCookie(`theme=dark; ${SESSION_COOKIE_NAME}=${id}; other=1`);
-    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
 
     expect(event.context.auth).toEqual({
       userId,
@@ -94,7 +101,7 @@ describe("session lifecycle", () => {
   });
 
   it("sets auth to null when the cookie is absent, empty or unknown", async () => {
-    const middleware = sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID });
+    const middleware = sessionMiddleware({ db, config, tenantId: TENANT_ID });
 
     const missing = eventWithCookie(undefined);
     await middleware(missing);
@@ -112,24 +119,33 @@ describe("session lifecycle", () => {
   it("sets auth to null for an expired cookie session", async () => {
     const { id } = await createSession(db.db, userId, { ttlMs: -1 });
     const event = eventWithCookie(`${SESSION_COOKIE_NAME}=${id}`);
-    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
     expect(event.context.auth).toBeNull();
   });
 
   it("refuses a session whose user belongs to another tenant", async () => {
-    const otherTenant = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
-    const inserted = await db.db
-      .insert(users)
-      .values({ email: "other@example.com", tenantId: otherTenant })
-      .returning({ id: users.id });
-    const row = inserted[0];
-    if (row === undefined) throw new Error("failed to insert the other-tenant user");
-
-    const { id } = await createSession(db.db, row.id);
+    const foreignId = await insertUser(db, "other@example.com", OTHER_TENANT_ID);
+    const { id } = await createSession(db.db, foreignId);
     const event = eventWithCookie(`${SESSION_COOKIE_NAME}=${id}`);
-    await sessionMiddleware({ db: db.db, config, tenantId: TENANT_ID })(event);
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
 
-    // D-040: the deployment tenant is the only scope; a foreign row is not a usable session.
+    // D-040: the deployment tenant is the only scope. The users join is RLS-filtered to
+    // TENANT_ID, so validateSession yields null before the explicit comparison; that
+    // comparison stays as the second line of defense where RLS does not apply.
     expect(event.context.auth).toBeNull();
+  });
+
+  it("hides a foreign tenant's user row inside the deployment policy scope", async () => {
+    const foreignId = await insertUser(db, "scoped-other@example.com", OTHER_TENANT_ID);
+
+    const own = await runWithPolicyScope(db, { tenantId: TENANT_ID }, async (tx) =>
+      tx.select({ id: users.id }).from(users).where(eq(users.id, userId)),
+    );
+    const foreign = await runWithPolicyScope(db, { tenantId: TENANT_ID }, async (tx) =>
+      tx.select({ id: users.id }).from(users).where(eq(users.id, foreignId)),
+    );
+
+    expect(own).toEqual([{ id: userId }]);
+    expect(foreign).toEqual([]);
   });
 });
