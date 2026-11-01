@@ -8,6 +8,9 @@
 
 A static, browser-resident IDE where developers clone a git repo, chat with an AI to scaffold backend + frontend code that follows strict conventions, and ship with confidence — because security, schema safety, and API contracts are structural, not optional.
 
+**Live:** <https://ide.facilis.dev> — the IDE, built and deployed from `main` by
+`.github/workflows/deploy-ide.yml` (D-077). The apex `facilis.dev` is reserved for the project site.
+
 ---
 
 ## Why

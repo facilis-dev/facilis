@@ -367,6 +367,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
+| `ERR_PNPM_IGNORED_BUILDS` on a fresh install | pnpm 12 requires an explicit decision for every package with an install script | already configured in the root `pnpm-workspace.yaml` (`allowBuilds`); decide new ones there, never with an interactive `pnpm approve-builds` |
 | `Failed to resolve import "@vivari/core"` | submodule not checked out | `git submodule update --init vendor/vivari` |
 | Studio shows the Vite error overlay (or logs `@babel/parser` errors) although the code typechecks | the running `vite dev` predates a `pnpm install` / new workspace dependency (e.g. `@facilis/core` for the IDE i18n), or caught a half-written file during HMR | restart the dev server (`Ctrl-C`, `pnpm ide:dev`) and reload the tab. Verify the live server end-to-end with `node scripts/dev/smoke-ide.mjs --url http://127.0.0.1:5173/` — it drives the real UI, not just the HTML |
 | Port 5173 busy (`--strictPort`) | a previous dev server is still alive | `kill -TERM -- -<pgid>` (servers are started with `setsid`) |
@@ -380,3 +381,58 @@ rm -rf /tmp/facilis-dev                    # toolchain + browser + smoke artifac
 rm -rf ide/public/vendor                   # runtime assets (~7 MB, rebuilt by ide:assets)
 rm -rf vendor/vivari/packages/*/pkg        # kernel wasm, rebuilt by ide:wasm
 ```
+
+## 9. Deploying the IDE — `ide.facilis.dev`
+
+Production is a **Cloudflare Pages** project named `facilis-ide`, served at
+<https://ide.facilis.dev>. `.github/workflows/deploy-ide.yml` runs on every push to `main`
+that touches the IDE inputs: it rebuilds the four gitignored artifacts (`pnpm ide:wasm` —
+cached by kernel commit — then `pnpm ide:assets` and `pnpm ide:facilis-deps`), runs
+`pnpm --filter @facilis/ide build:app`, and uploads the finished `ide/dist` with
+`wrangler pages deploy`. **Nothing is run locally**, and Cloudflare's own Git integration is
+deliberately not used (D-077): it cannot cache the Rust/Wasm toolchain, and the pipeline should
+deploy exactly the tree this repo builds.
+
+The agent build in CI is the same one described in §1–§2; the only difference is that the
+kernel Wasm is restored from the Actions cache (keyed by the pinned `vendor/vivari` commit)
+instead of rebuilt.
+
+### 9.1 Headers and caching — `ide/public/_headers`
+
+Vite copies `ide/public/_headers` into `ide/dist`, and Pages parses it there (it is never
+served). Rules stack, so cross-origin isolation lives on `/*` and the per-path rules only
+add caching: `assets/*` is content-hashed and `immutable`; `vendor/` (the runtime CLIs the
+kernel fetches by name) and the DevTools trees revalidate. `_headers` is the only place
+these live — do not configure them in the Cloudflare dashboard, or a repo build stops
+matching production.
+
+The workflow asserts the deployed production URL carries COOP/COEP and that the shell,
+service worker and PWA files answer `200`, so a header regression fails the deploy instead of
+shipping an IDE whose kernel cannot boot.
+
+### 9.2 One-time account setup
+
+Both items are account state, not repo state, and are done once:
+
+1. **Token + secrets.** In the Cloudflare dashboard create an API token on the account that
+   owns `facilis.dev` with `Account → Cloudflare Pages → Edit`, and (to attach the custom
+   domain) `Zone → Zone → Read` + `Zone → DNS → Edit` for the `facilis.dev` zone. Store it
+   in the repository as `CLOUDFLARE_API_TOKEN`, and the account id
+   (`GET /client/v4/accounts`) as `CLOUDFLARE_ACCOUNT_ID`.
+2. **Project + custom domain.** The zone is already on Cloudflare, so these two calls create
+   the project, the proxied CNAME `ide.facilis.dev → facilis-ide.pages.dev` and its
+   certificate:
+
+   ```bash
+   curl -fsS -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+     -d '{"name":"facilis-ide","production_branch":"main"}'
+
+   curl -fsS -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/facilis-ide/domains" \
+     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+     -d '{"name":"ide.facilis.dev"}'
+   ```
+
+Deploy (a push to `main`, or **Deploy IDE → Run workflow** for a manual re-deploy) and the
+custom domain serves the new deployment once its certificate is issued (a few minutes on the
+first deploy only).

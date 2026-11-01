@@ -1,0 +1,50 @@
+# Cloudflare Pages custom headers for the IDE origin (ide.facilis.dev, D-077).
+#
+# Vite copies this file from ide/public/ into ide/dist/; Pages parses it there and never
+# serves it. Rules stack: a request inherits the headers of every matching rule, so the
+# cross-origin isolation pair lives on /* and the per-path rules only add caching.
+
+# The kernel needs SharedArrayBuffer, which requires cross-origin isolation on EVERY
+# response of the origin: the shell, the worker bundles, the Wasm, and the service worker.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# The shell names the hashed assets, so a stale copy is the one failure mode that breaks
+# the boot; the service worker's root scope must survive its own updates too.
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+# Vite output is content-hashed: a change means a new URL. Safe to pin.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Everything below keeps stable, unhashed URLs (runtime CLIs the kernel fetches by name,
+# the DevTools frontend, the preview bootstrap pages), so it must revalidate.
+/vendor/*
+  Cache-Control: no-cache
+
+/devtools/*
+  Cache-Control: no-cache
+
+/vv-devtools/*
+  Cache-Control: no-cache
+
+/__vv-preview-boot.html
+  Cache-Control: no-cache
+
+/__vv-bridge.html
+  Cache-Control: no-cache
+
+/devtools-host.html
+  Cache-Control: no-cache
+
+/manifest.json
+  Cache-Control: no-cache

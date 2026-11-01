@@ -1,0 +1,111 @@
+name: Deploy IDE
+
+# The IDE is a static SPA, but it cannot be built from a fresh checkout: the kernel Wasm,
+# the runtime CLI assets and the @facilis tarballs are gitignored build artifacts
+# (docs/DEV.md §1-2). So the build runs here, with a real Rust toolchain and a cache keyed
+# by kernel commit, and the finished `ide/dist` is uploaded to Cloudflare Pages (D-077).
+# Cloudflare's own Git integration is deliberately not used: it cannot cache the ~2 min
+# toolchain + ~100 s cargo build, and its builder is the wrong place to reproduce it.
+# Nothing needs to run locally.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ide/**"
+      - "packages/**"
+      - "examples/**"
+      - "scripts/dev/**"
+      - "vendor/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - ".github/workflows/deploy-ide.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ide-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Where the build scripts keep rustup, cargo, wasm-pack and their scratch trees.
+  FACILIS_TOOLING_DIR: /tmp/facilis-dev
+
+jobs:
+  deploy:
+    name: Build and deploy ide.facilis.dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve the pinned kernel commit
+        id: kernel
+        run: echo "sha=$(git -C vendor/vivari rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # A cache hit skips the rustup download and the cargo build entirely (the script
+      # would otherwise set the toolchain up before noticing the artifacts are present).
+      - name: Cache kernel Wasm
+        id: kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/vivari/packages/vfs/pkg
+            vendor/vivari/packages/codec/pkg
+            vendor/vivari/packages/crypto/pkg
+          key: kernel-wasm-${{ steps.kernel.outputs.sha }}-${{ hashFiles('scripts/dev/build-kernel-wasm.sh') }}
+
+      - name: Build kernel Wasm
+        if: steps.kernel-cache.outputs.cache-hit != 'true'
+        run: pnpm ide:wasm
+
+      - name: Vendor the runtime assets the kernel fetches
+        run: pnpm ide:assets
+
+      - name: Pack the @facilis tarballs a generated project installs
+        run: pnpm ide:facilis-deps
+
+      - name: Build the IDE
+        run: pnpm --filter @facilis/ide build:app
+
+      - name: Deploy to Cloudflare Pages
+        working-directory: ide
+        run: npx --yes wrangler@4.156.0 pages deploy dist --project-name=facilis-ide --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # wrangler exiting 0 only means the upload landed. The headers are what make the
+      # kernel boot, so assert them on the production URL (*.pages.dev serves the same
+      # deployment as the custom domain, without waiting for DNS or the certificate).
+      - name: Verify the production deployment
+        run: |
+          set -eu
+          base="https://facilis-ide.pages.dev"
+          headers=$(curl -fsS --retry 5 --retry-all-errors --retry-delay 5 -D - -o /dev/null "$base/")
+          printf '%s\n' "$headers"
+          printf '%s\n' "$headers" | grep -qi '^cross-origin-opener-policy: same-origin'
+          printf '%s\n' "$headers" | grep -qi '^cross-origin-embedder-policy: require-corp'
+          curl -fsS -D - -o /dev/null "$base/sw.js" | grep -qi '^service-worker-allowed: /'
+          for path in manifest.json __vv-preview-boot.html __vv-bridge.html favicon.svg; do
+            code=$(curl -fsSL -o /dev/null -w '%{http_code}' "$base/$path")
+            test "$code" = "200"
+          done
