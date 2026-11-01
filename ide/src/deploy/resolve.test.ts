@@ -28,6 +28,7 @@ describe("deployment resolution", () => {
     expect(d.packages.registry).toBeNull();
     expect(d.projects.imports).toEqual({ folder: true, git: true, share: true });
     expect(d.projects.exports).toEqual({ git: true });
+    expect(d.projects.gitProxy).toBe("same-origin");
     expect(d.projects.admission).toBe("any");
     expect(d.ai.mode).toBe("byo");
     expect(d.updates.channel).toBe("latest");
@@ -39,6 +40,7 @@ describe("deployment resolution", () => {
     expect(d.projects.imports).toEqual({ folder: false, git: false, share: false });
     // Push is opt-in: a managed build never sends the company's code out by default.
     expect(d.projects.exports).toEqual({ git: false });
+    expect(d.projects.gitProxy).toBeNull();
     expect(d.ai.mode).toBe("off");
     expect(d.packages.lockfile).toBe("required");
     expect(d.updates.channel).toBe("approved");
@@ -138,6 +140,55 @@ describe("deployment resolution", () => {
     );
     expect(d.projects.exports).toEqual({ git: true });
     expect(d.network.connect).toEqual(["https://gitlab.acme.example"]);
+  });
+
+  it("refuses a git proxy with no enabled direction", () => {
+    const message = errorOf(() =>
+      resolveDeployment(
+        managed({
+          projects: {
+            preview: { origin: "https://preview.facilis.acme.example" },
+            gitProxy: "same-origin",
+          },
+        }),
+      ),
+    );
+    expect(message).toContain(
+      "projects.gitProxy: requires projects.imports.git or projects.exports.git",
+    );
+  });
+
+  it("requires the proxy origin in network.connect when it is not same-origin", () => {
+    const message = errorOf(() =>
+      resolveDeployment(
+        managed({
+          projects: {
+            preview: { origin: "https://preview.facilis.acme.example" },
+            exports: { git: true },
+            gitProxy: "https://git-proxy.acme.example",
+          },
+          network: { connect: ["https://npm.acme.example"] },
+        }),
+      ),
+    );
+    expect(message).toContain(
+      "network.connect: must include the projects.gitProxy origin (https://git-proxy.acme.example)",
+    );
+  });
+
+  it("accepts a same-origin git proxy for a push-only managed build", () => {
+    const d = resolveDeployment(
+      managed({
+        projects: {
+          preview: { origin: "https://preview.facilis.acme.example" },
+          exports: { git: true },
+          gitProxy: "same-origin/",
+        },
+        network: { connect: ["https://npm.acme.example"] },
+      }),
+    );
+    expect(d.projects.gitProxy).toBe("same-origin");
+    expect(d.projects.exports).toEqual({ git: true });
   });
 
   it("refuses providers when AI is off", () => {

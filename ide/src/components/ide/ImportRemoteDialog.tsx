@@ -17,11 +17,33 @@ import {
   detectGitProvider,
   hostOfGitInput,
   normalizeGitToken,
+  parseGitRepo,
   type GitProvider,
 } from "@/vv/git-provider";
+import { proxyBase } from "@/vv/git-remote";
+import { gitAvailable } from "@/vv/project-clone";
 
 const SELECT_CLASS =
   "h-8 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring";
+
+/** The hosted service's host for a provider; a pasted URL overrides it. */
+const PROVIDER_HOSTS: Record<GitProvider, string> = {
+  github: "github.com",
+  gitlab: "gitlab.com",
+  gitea: "gitea.com",
+};
+
+/**
+ * The clone URL for real git (D-079): a full URL is used as-is; an owner/repo shorthand
+ * is expanded against the selected host. Null when the input is not a repository.
+ */
+function toCloneUrl(input: string, provider: GitProvider): string | null {
+  if (input.includes("://")) return input;
+  const ref = parseGitRepo(input, provider);
+  if (ref === null) return null;
+  const host = hostOfGitInput(input) ?? PROVIDER_HOSTS[provider];
+  return "https://" + host + "/" + ref.owner + "/" + ref.repo + ".git";
+}
 
 // Import a project from a git host (GitHub, GitLab, Gitea/Forgejo).
 // Snapshot-driven (c.openImportRemote / c.closeImportRemote) so it works from Home and the
@@ -51,6 +73,10 @@ export function ImportRemoteDialog() {
   const onProgress = (done: number, total: number, phase: string) => {
     setProgress(total > 0 ? t("import.progress", { phase, done, total }) : phase);
   };
+  // isomorphic-git reports (phase, loaded, total); the REST importer (done, total, phase).
+  const onCloneProgress = (phase: string, loaded: number, total: number) => {
+    setProgress(total > 0 ? t("import.progress", { phase, done: loaded, total }) : phase);
+  };
 
   // A URL names its host: follow it, but leave the picker authoritative for self-hosted
   // servers whose hostname says nothing (git.company.com can be either).
@@ -72,7 +98,21 @@ export function ImportRemoteDialog() {
         setProgress(t("import.tokenInvalid"));
         return;
       }
-      const ok = await c.importGitRepo(repo.trim(), { onProgress, provider, token: normalized });
+      // Real git when this deployment serves the proxy (full history, keeps .git); the
+      // REST importer stays the fallback for a static host with no proxy (D-073/D-079).
+      let ok = false;
+      const cloneUrl = toCloneUrl(repo.trim(), provider);
+      if (cloneUrl !== null && (await gitAvailable())) {
+        ok = await c.projectImport.cloneGitRepo(cloneUrl, {
+          credentials: normalized === null ? undefined : { token: normalized },
+          onProgress: onCloneProgress,
+        });
+      }
+      // No proxy (or a clone that failed once the proxy answered) keeps today's REST
+      // importer: cloneGitRepo's own toast explains the failed attempt, then this runs.
+      if (!ok) {
+        ok = await c.importGitRepo(repo.trim(), { onProgress, provider, token: normalized });
+      }
       if (ok) c.closeImportRemote();
     } catch (err) {
       setProgress(err instanceof Error ? err.message : String(err));
@@ -126,6 +166,9 @@ export function ImportRemoteDialog() {
               }}
             />
             <span className="text-xs text-muted-foreground">{t("import.repositoryHint")}</span>
+            {proxyBase() !== null && (
+              <span className="text-xs text-muted-foreground">{t("import.cloneHint")}</span>
+            )}
           </label>
 
           <label className="flex flex-col gap-1.5">

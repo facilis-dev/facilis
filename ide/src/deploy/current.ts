@@ -29,6 +29,11 @@ export function pushAllowed(d: ResolvedDeployment): boolean {
   return d.projects.exports.git;
 }
 
+/** Where the git proxy lives, or null when this build compiled real git out (D-079). */
+export function gitProxyConfigured(d: ResolvedDeployment): string | null {
+  return d.projects.gitProxy;
+}
+
 /** AI is available unless the deployment turned it off. */
 export function aiAvailable(d: ResolvedDeployment): boolean {
   return d.ai.mode !== "off";

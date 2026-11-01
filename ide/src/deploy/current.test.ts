@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { aiAvailable, deployment, importAllowed, pushAllowed, skillAllowed } from "./current";
+import {
+  aiAvailable,
+  deployment,
+  gitProxyConfigured,
+  importAllowed,
+  pushAllowed,
+  skillAllowed,
+} from "./current";
 import { openDeployment, resolveDeployment } from "./resolve";
 
 const managed = resolveDeployment({
@@ -30,6 +37,11 @@ describe("the running profile", () => {
   it("gates git write-back", () => {
     expect(pushAllowed(openDeployment())).toBe(true);
     expect(pushAllowed(managed)).toBe(false);
+  });
+
+  it("reports where real git can reach the hosts", () => {
+    expect(gitProxyConfigured(openDeployment())).toBe("same-origin");
+    expect(gitProxyConfigured(managed)).toBeNull();
   });
 
   it("keeps AI off unless the deployment enabled it", () => {

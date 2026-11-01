@@ -43,6 +43,7 @@ import {
   type RunPhase,
 } from "./run-phase";
 import type { GitImportOptions } from "./git-import";
+import { GitRemoteSession } from "./git-remote-session";
 import { NotebookDoc } from "./notebook/doc.js";
 import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
@@ -387,6 +388,8 @@ export class IdeController {
   // Project transfer, split into their own modules (project-export/import.ts).
   readonly projectExport: ProjectExport;
   readonly projectImport: ProjectImport;
+  // Real git over the same-origin proxy: fetch/pull/push for Source Control (D-079).
+  readonly gitRemote: GitRemoteSession;
   // Language service + dependency types + Python provider (editor-*.ts).
   readonly editorLanguage: EditorLanguage;
   readonly editorPython: EditorPython;
@@ -453,6 +456,7 @@ export class IdeController {
       status: (text) => this.status(text),
     });
     this.projectImport = new ProjectImport(this.bridge, this.projectImportHost());
+    this.gitRemote = new GitRemoteSession(this.bridge);
     this.editorPython = new EditorPython(this.editorPythonHost());
     this.editorLanguage = new EditorLanguage(this.editorLanguageHost());
     this.editorSession = new EditorSession(this.editorSessionHost());

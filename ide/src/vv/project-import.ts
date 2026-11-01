@@ -11,6 +11,7 @@ import { decodeShare } from "../../../vendor/vivari/packages/kernel-host/archive
 import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
 import { fetchGitRepo, type GitImportOptions } from "./git-import";
 import { parseGitRepo } from "./git-provider";
+import { cloneIntoProject, type CloneOptions } from "./project-clone";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
@@ -254,6 +255,14 @@ export class ProjectImport {
       });
     }
     return ok;
+  }
+
+  // Clone with real git over the deployment's stateless proxy (D-079): keeps .git, so
+  // history and the remote panel work on the project. Falls back to the REST importer
+  // (importGitRepo) when there is no proxy — the dialog makes that choice.
+  async cloneGitRepo(url: string, opts: CloneOptions = {}): Promise<boolean> {
+    if (!this.allows("git")) return false;
+    return cloneIntoProject(this.bridge, this.host, url, opts);
   }
 
   // Import from GitHub, GitLab or Gitea/Forgejo (D-073); a private repository takes a

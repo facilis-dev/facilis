@@ -158,7 +158,7 @@ export function validateDeployment(raw: unknown): DeploymentInput {
   if (projects) {
     checkKeys(
       projects,
-      ["admission", "imports", "exports", "preview", "shell"],
+      ["admission", "imports", "exports", "gitProxy", "preview", "shell"],
       "deployment.projects",
       issues,
     );
@@ -175,6 +175,12 @@ export function validateDeployment(raw: unknown): DeploymentInput {
     if (exports) {
       checkKeys(exports, ["git"], "deployment.projects.exports", issues);
       fieldBoolean(exports, "git", "deployment.projects.exports", issues);
+    }
+    const gitProxy = fieldString(projects, "gitProxy", "deployment.projects", issues);
+    if (gitProxy !== undefined && gitProxy !== "same-origin" && parseUrl(gitProxy) === null) {
+      issues.push(
+        "deployment.projects.gitProxy: expected 'same-origin' or an absolute http(s) URL",
+      );
     }
     const preview = fieldObject(projects, "preview", "deployment.projects", issues);
     if (preview) {

@@ -27,6 +27,7 @@ Two profiles, selected at build time:
 | Package allowlist | none | `packages.allow` compiled in + enforced by the mirror |
 | Project imports (folder / git host / `#share=`) | available | compiled out |
 | Project publish (git write-back) | available; token per publish, never stored | opt-in: `projects.exports.git` plus the host in `network.connect` (D-078) |
+| Real git over HTTPS (clone / fetch / pull / push) | yes, through the same-origin proxy (D-079) | opt-in: `projects.gitProxy` (+ `exports.git` for push-only); a cross-origin proxy must be in `network.connect` |
 | Project admission | none | `facilis.app.json` required (§8) |
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
 | Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
@@ -115,6 +116,12 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
   "updates": { "channel": "approved", "baseline": "2026.11" }
 }
 ```
+
+Real git (D-079) travels through the stateless proxy, so it is configured separately from the
+REST paths: `"projects": { "exports": { "git": true }, "gitProxy": "same-origin" }` uses the Pages
+Function on the deployment's own origin, while `"gitProxy": "https://git-proxy.acme.example"` names
+one that must also appear in `network.connect`. With no `gitProxy` the remote half is compiled out
+of the bundle and only the REST importer/publish (if enabled) can reach a host.
 
 ### Where the config comes from
 
@@ -319,6 +326,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 |---|---|---|---|
 | Import from a git host/folder/`#share=` | `ide/src/vv/git-import.ts`, `ide/src/vv/github-import.ts`, `ide/src/vv/project-import.ts` | tree-shaken when `imports` are false | L0 |
 | Publish to a git host (write-back) | `ide/src/vv/git-push.ts` + `github-push.ts` / `gitlab-push.ts` / `gitea-push.ts`, planned by `ide/src/vv/project-publish.ts` | stubbed when `projects.exports.git` is false (the managed default); enabling it requires the API host in `network.connect` | L0 + L2 |
+| Real git (clone / fetch / pull / push) | `ide/src/vv/git-remote.ts`, `git-remote-session.ts`; proxy `ide/git-proxy/handler.mjs` + `ide/functions/git-proxy/` | stubbed when `projects.gitProxy` is null; a cross-origin proxy origin joins `connect-src` through `network.connect` | L0 + L2 |
 | `window.__vv` | installed unconditionally (`vendor/vivari/packages/core/src/bridge.ts`) | gate on `import.meta.env.DEV` (a vendor bump, D-030) | L0 |
 | Preview origin / sandbox | same-origin default, `allow-same-origin` (`ide/src/components/ide/PreviewPanel.tsx`) | `VITE_PREVIEW_ORIGIN` / `VITE_PREVIEW_WILDCARD_DOMAIN`, drop `allow-same-origin` | L0 |
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |

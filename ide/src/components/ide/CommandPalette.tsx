@@ -32,6 +32,8 @@ import {
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import { deployment, pushAllowed } from "@/deploy/current";
+import { proxyBase } from "@/vv/git-remote";
+import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { publishSession } from "@/vv/publish-session";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
@@ -77,6 +79,10 @@ export function CommandPalette() {
       // Publishing is compiled out of deployments that forbid writing to a git host.
       ...(pushAllowed(deployment)
         ? [{ label: t("palette.pushRemote"), icon: GitBranch, run: () => publishSession.open() }]
+        : []),
+      // Real git needs the stateless proxy; without one there is nothing to drive (D-079).
+      ...(proxyBase() !== null
+        ? [{ label: t("palette.gitRemote"), icon: GitBranch, run: () => gitRemoteUi.open() }]
         : []),
       { label: t("palette.openChat"), icon: MessageSquare, run: () => c.setActiveView("chat") },
       { label: t("palette.exportZip"), icon: FileArchive, run: () => c.exportActiveFolder() },

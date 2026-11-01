@@ -18,6 +18,7 @@ import { CommandPalette } from "./CommandPalette";
 import { HomeView } from "./Home";
 import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
 import { ProjectBootOverlay } from "./ProjectBootOverlay";
+import { GitRemoteDialog } from "./GitRemoteDialog";
 import { ImportRemoteDialog } from "./ImportRemoteDialog";
 import { PushRemoteDialog } from "./PushRemoteDialog";
 import { useIde } from "./useIde";
@@ -209,6 +210,7 @@ export function AppShell() {
       <CommandPalette />
       <ImportRemoteDialog />
       <PushRemoteDialog />
+      <GitRemoteDialog />
       {/* Home overlays the (kept-mounted) IDE so the editor/terminals survive a
           round-trip to Home and back. */}
       {snap.view === "home" && <HomeView />}

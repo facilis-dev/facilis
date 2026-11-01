@@ -30,6 +30,9 @@ export interface ProjectExports {
   git?: boolean;
 }
 
+/** Where real git-over-HTTPS reaches the hosts (D-079): the same origin, or a URL. */
+export type GitProxy = "same-origin" | string;
+
 export interface DeploymentCompany {
   name?: string;
   domain?: string;
@@ -49,6 +52,8 @@ export interface DeploymentProjects {
   admission?: AdmissionPolicy;
   imports?: ProjectImports;
   exports?: ProjectExports;
+  /** Stateless git proxy base (D-079); null means real git is compiled out. */
+  gitProxy?: GitProxy;
   preview?: { origin?: string };
   shell?: ShellMode;
 }
@@ -108,6 +113,7 @@ export interface ResolvedDeployment {
     admission: AdmissionPolicy;
     imports: { folder: boolean; git: boolean; share: boolean };
     exports: { git: boolean };
+    gitProxy: string | null;
     preview: { origin: string | null };
     shell: ShellMode;
   };

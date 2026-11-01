@@ -23,6 +23,10 @@
     "vite.config.ts",
     "vitest.config.ts",
     "vite.deployment.ts",
-    "test/pwa-manifest.test.ts"
+    "vite.git-proxy.ts",
+    "functions/**/*.ts",
+    "git-proxy/**/*.mts",
+    "test/pwa-manifest.test.ts",
+    "test/git-proxy.test.ts"
   ]
 }

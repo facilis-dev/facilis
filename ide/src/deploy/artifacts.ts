@@ -178,6 +178,7 @@ export function renderEnvironment(input: ArtifactInput): string {
         registry: deployment.packages.registry,
         previewOrigin: deployment.projects.preview.origin,
         gitPush: deployment.projects.exports.git,
+        gitProxy: deployment.projects.gitProxy,
         aiMode: deployment.ai.mode,
         skills: deployment.skills.allow,
         configHash: input.configHash,

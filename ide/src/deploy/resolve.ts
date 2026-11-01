@@ -19,6 +19,23 @@ function withoutTrailingSlash(url: string | undefined): string | null {
   return url.trim().replace(/\/+$/, "");
 }
 
+/** "same-origin" is a keyword, anything else a URL without its trailing slash (D-079). */
+function normalizeGitProxy(value: string | undefined): string | null {
+  const raw = value?.trim() ?? "";
+  if (raw === "") return null;
+  if (raw === "same-origin") return "same-origin";
+  return withoutTrailingSlash(raw);
+}
+
+/** The CSP compares origins, so a configured URL is reduced to one. */
+function originOfUrl(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object") {
     for (const key of Object.keys(value as Record<string, unknown>)) {
@@ -40,6 +57,9 @@ export function openDeployment(): ResolvedDeployment {
       admission: "any",
       imports: { folder: true, git: true, share: true },
       exports: { git: true },
+      // The hosted IDE serves the stateless proxy from its own origin (D-079); a bare
+      // static deployment answers 404 and the client reports git as unavailable.
+      gitProxy: "same-origin",
       preview: { origin: null },
       shell: "shell",
     },
@@ -61,6 +81,7 @@ function defaultsFor(profile: DeploymentProfile) {
     // Write-back is the one remote capability a managed build may opt into: it sends
     // the company's own code out, never brings code in (D-078).
     exports: { git: !managed },
+    gitProxy: managed ? null : "same-origin",
     shell: "shell" as ShellMode,
     installScripts: "deny" as InstallScriptsPolicy,
     lockfile: (managed ? "required" : "optional") as LockfilePolicy,
@@ -117,6 +138,28 @@ export function resolveDeployment(
     if (raw.projects?.exports?.git === true && (raw.network?.connect ?? []).length === 0) {
       issues.push("network.connect: required when projects.exports.git is enabled");
     }
+    // Real git (D-079) is one proxy hop: same-origin needs nothing from the CSP, an
+    // outside proxy origin must be reachable. A proxy with no direction enabled would
+    // ship dead code, so it is an error rather than a default.
+    const gitProxy = normalizeGitProxy(raw.projects?.gitProxy);
+    if (gitProxy !== null && gitProxy !== "same-origin") {
+      const proxyOrigin = originOfUrl(gitProxy);
+      const declared = (raw.network?.connect ?? []).map(originOfUrl);
+      if (proxyOrigin === null || !declared.includes(proxyOrigin)) {
+        issues.push(
+          "network.connect: must include the projects.gitProxy origin (" +
+            (proxyOrigin ?? "?") +
+            ")",
+        );
+      }
+    }
+    if (
+      gitProxy !== null &&
+      raw.projects?.imports?.git !== true &&
+      raw.projects?.exports?.git !== true
+    ) {
+      issues.push("projects.gitProxy: requires projects.imports.git or projects.exports.git");
+    }
   }
 
   if (issues.length > 0) throw new DeploymentError(source, issues);
@@ -142,6 +185,7 @@ export function resolveDeployment(
         share: raw.projects?.imports?.share ?? defaults.imports.share,
       },
       exports: { git: raw.projects?.exports?.git ?? defaults.exports.git },
+      gitProxy: normalizeGitProxy(raw.projects?.gitProxy) ?? defaults.gitProxy,
       preview: { origin: previewOrigin },
       shell: raw.projects?.shell ?? defaults.shell,
     },

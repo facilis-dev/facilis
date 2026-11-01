@@ -436,3 +436,35 @@ Both items are account state, not repo state, and are done once:
 Deploy (a push to `main`, or **Deploy IDE → Run workflow** for a manual re-deploy) and the
 custom domain serves the new deployment once its certificate is issued (a few minutes on the
 first deploy only).
+## 10. Real git in the IDE — the same-origin proxy (D-079)
+
+Git hosts send no CORS headers on their smart-HTTP endpoints, so the tab reaches git through a
+stateless proxy that forwards `/git-proxy/<host>/<path>` to `https://<host>/<path>` and adds the
+CORS headers. The same handler runs in three places:
+
+- **`pnpm ide:dev`** — `ide/vite.git-proxy.ts` mounts it as Vite middleware, on the dev server's
+  own origin. Nothing to start, nothing to configure; `projects.gitProxy` defaults to
+  `"same-origin"` in the open profile.
+- **`ide.facilis.dev`** — `ide/functions/git-proxy/[[path]].ts` is a Cloudflare Pages Function
+  deployed with the SPA, so the browser needs no CORS at all (`connect-src 'self'`). The host
+  allowlist comes from the `GIT_PROXY_ALLOW` environment variable in the Pages project
+  (comma-separated; unset = `github.com`, `gitlab.com`, `gitea.com`, `codeberg.org`).
+  Wrangler picks `ide/functions/` up on its own because the deploy step already runs from
+  `ide/`; no extra configuration or route file is needed.
+- **A self-hosted deployment** — run the reference server and put it behind the same origin (or
+  declare its URL):
+
+  ```sh
+  node scripts/dev/git-proxy.mjs --port 8787 --allow github.com,gitlab.acme.example
+  ```
+
+  then either reverse-proxy `/git-proxy/*` to it (keeps `"gitProxy": "same-origin"`) or set
+  `projects.gitProxy` to `http://host:8787` / `https://git-proxy.acme.example` — a cross-origin
+  proxy must also be listed in `network.connect` so the CSP allows it.
+
+The proxy keeps no state: no storage, no cache, no cookies, and no per-request logging — only one
+startup line. Request bodies are streamed, never read, and the `Authorization` header only passes
+through. The allowlist is the security boundary: it must name the hosts the deployment may reach,
+and loopback/private hosts must not be added (the proxy would become a path into its own network).
+Because the token transits the proxy, run it on the deployment's own origin or in the company's
+network; there is nothing to back up or clean up.

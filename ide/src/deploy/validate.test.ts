@@ -31,6 +31,7 @@ describe("deployment config validation", () => {
         admission: "facilis-only",
         imports: { folder: false, git: false, share: false },
         exports: { git: true },
+        gitProxy: "same-origin",
         preview: { origin: "https://preview.facilis.acme.example" },
         shell: "run-only",
       },
@@ -89,6 +90,21 @@ describe("deployment config validation", () => {
   it("rejects an unknown export kind instead of ignoring it", () => {
     expect(issuesOf(() => validateDeployment({ projects: { exports: { svn: true } } }))).toContain(
       "deployment.projects.exports.svn: unknown key",
+    );
+  });
+
+  it("accepts a same-origin git proxy and an absolute one", () => {
+    expect(validateDeployment({ projects: { gitProxy: "same-origin" } })).toEqual({
+      projects: { gitProxy: "same-origin" },
+    });
+    expect(
+      validateDeployment({ projects: { gitProxy: "https://git-proxy.acme.example" } }),
+    ).toEqual({ projects: { gitProxy: "https://git-proxy.acme.example" } });
+  });
+
+  it("rejects a git proxy that is neither same-origin nor a URL", () => {
+    expect(issuesOf(() => validateDeployment({ projects: { gitProxy: "git-proxy" } }))).toContain(
+      "deployment.projects.gitProxy: expected 'same-origin' or an absolute http(s) URL",
     );
   });
 

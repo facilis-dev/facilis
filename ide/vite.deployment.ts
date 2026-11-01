@@ -19,6 +19,7 @@ import {
 import { DEPLOYMENT_CONFIG_ENV, deploymentFromEnv } from "./src/deploy/load.ts";
 import { PROVIDER_BASE_URLS } from "./src/deploy/provider-hosts.ts";
 import type { ResolvedDeployment } from "./src/deploy/types.ts";
+import { gitProxyDevPlugin } from "./vite.git-proxy.ts";
 
 const ENV_VERSION = "FACILIS_ENV_VERSION";
 
@@ -35,6 +36,35 @@ const GIT_PUSH_STUB = [
   'function off() { return Promise.reject(new Error("git push disabled")); }',
   "export const listRemoteTree = off;",
   "export const pushChanges = off;",
+].join("\n");
+
+const GIT_REMOTE_OFF = "\0facilis:git-remote-off";
+const GIT_REMOTE_STUB = [
+  "// Compiled out: this deployment provides no git proxy (D-079).",
+  'function off() { return Promise.reject(new Error("git remote disabled")); }',
+  "export function proxyBase() { return null; }",
+  "export function probeProxy() { return Promise.resolve(false); }",
+  "export const cloneRepo = off;",
+  "export const fetchRepo = off;",
+  "export const pullRepo = off;",
+  "export const pushRepo = off;",
+  "export const listRemotes = off;",
+  "export const setRemote = off;",
+  "export const remoteStatus = () => Promise.resolve({ ahead: 0, behind: 0 });",
+].join("\n");
+
+const GIT_REMOTE_SESSION_OFF = "\0facilis:git-remote-session-off";
+const GIT_REMOTE_SESSION_STUB = [
+  "// Compiled out with the proxy (D-079): the remote panel has no transport to drive.",
+  "export class GitRemoteSession {",
+  "  subscribe = () => () => {};",
+  '  getSnapshot = () => ({ proxy: null, available: false, root: null, url: null, branch: null, ahead: 0, behind: 0, busy: false, phase: "", error: "Git remotes are disabled in this deployment." });',
+  "  async detect() {}",
+  "  async setRemote() { return false; }",
+  "  async fetch() { return false; }",
+  "  async pull() { return false; }",
+  "  async push() { return false; }",
+  "}",
 ].join("\n");
 
 const GIT_PROVIDER_OFF = "\0facilis:git-provider-off";
@@ -108,6 +138,8 @@ function gitNetworkStub(deployment: ResolvedDeployment): Plugin {
   const importOff = deployment.profile === "managed" && !deployment.projects.imports.git;
   const pushOff = deployment.profile === "managed" && !deployment.projects.exports.git;
   const providerOff = importOff && pushOff;
+  // Real git needs the proxy hop (D-079); without one the whole remote half is stubbed.
+  const remoteOff = deployment.profile === "managed" && deployment.projects.gitProxy === null;
   return {
     name: "facilis-git-network-off",
     // Pre: vite:resolve resolves "./git-import" before a normal plugin's hook sees
@@ -120,6 +152,24 @@ function gitNetworkStub(deployment: ResolvedDeployment): Plugin {
       }
       if (pushOff && (id === "./git-push" || /[\\/]src[\\/]vv[\\/]git-push\.ts$/.test(id))) {
         return GIT_PUSH_OFF;
+      }
+      // The alias form reaches this hook already rewritten to an extension-less path
+      // (vite:resolve appends .ts later), so the absolute-path test must accept both.
+      if (
+        remoteOff &&
+        (id === "./git-remote" ||
+          id === "@/vv/git-remote" ||
+          /[\\/]src[\\/]vv[\\/]git-remote(\.ts)?$/.test(id))
+      ) {
+        return GIT_REMOTE_OFF;
+      }
+      if (
+        remoteOff &&
+        (id === "./git-remote-session" ||
+          id === "@/vv/git-remote-session" ||
+          /[\\/]src[\\/]vv[\\/]git-remote-session(\.ts)?$/.test(id))
+      ) {
+        return GIT_REMOTE_SESSION_OFF;
       }
       // The host table and parser carry the only URLs either direction would call.
       if (
@@ -135,6 +185,8 @@ function gitNetworkStub(deployment: ResolvedDeployment): Plugin {
     load(id) {
       if (id === GIT_IMPORT_OFF) return GIT_IMPORT_STUB;
       if (id === GIT_PUSH_OFF) return GIT_PUSH_STUB;
+      if (id === GIT_REMOTE_OFF) return GIT_REMOTE_STUB;
+      if (id === GIT_REMOTE_SESSION_OFF) return GIT_REMOTE_SESSION_STUB;
       if (id === GIT_PROVIDER_OFF) return GIT_PROVIDER_STUB;
       return null;
     },
@@ -152,6 +204,9 @@ export function deploymentPlugin(): Plugin[] {
 
   return [
     gitNetworkStub(loaded.deployment),
+    // Dev-only: the deployed build gets the proxy from the Pages Function (D-079), so
+    // this middleware exists only to give `pnpm ide:dev` the same /git-proxy route.
+    gitProxyDevPlugin(),
     {
       name: "facilis-deployment",
       config() {

@@ -8,6 +8,7 @@
 // Not yet migrated: the upstream-inherited editor chrome (Explorer, Search, Debug,
 // SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
 // Those move here file by file as they are touched — see ide/I18N.md.
+import { gitRemoteEn } from "./en-git-remote";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -167,7 +168,7 @@ export const en = {
   "push.openProjectFirst": "Open a project first.",
   "push.kernelStarting": "The runtime is still starting — try again in a moment.",
   "push.disabled": "This deployment does not allow publishing to a git host.",
-
+  ...gitRemoteEn,
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Type a command…",
   "palette.filePlaceholder": "Search files by name (append :line to jump)…",

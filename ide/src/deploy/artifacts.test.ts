@@ -115,11 +115,13 @@ describe("deployment artifacts", () => {
       profile: string;
       configHash: string;
       gitPush: boolean;
+      gitProxy: string | null;
       artifacts: Record<string, string>;
     };
     expect(parsed.profile).toBe("managed");
     expect(parsed.configHash).toBe("abc123");
     expect(parsed.gitPush).toBe(false);
+    expect(parsed.gitProxy).toBeNull();
     expect(parsed.artifacts["index.html"]).toBe("deadbeef");
   });
 
