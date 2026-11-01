@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Toaster, toast } from "@facilis/ui";
 import { ComponentsSection } from "./gallery-components.tsx";
+import { ContentSection } from "./gallery-content.tsx";
 import { FeedbackSection } from "./gallery-feedback.tsx";
 import { FormsSection } from "./gallery-forms.tsx";
 import { FoundationSection } from "./gallery-foundation.tsx";
@@ -44,6 +45,7 @@ export function App() {
       <FoundationSection />
       <ComponentsSection />
       <FormsSection />
+      <ContentSection />
       <PatternsSection />
       <TemplatesSection />
       <FeedbackSection />

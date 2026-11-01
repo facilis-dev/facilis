@@ -1,0 +1,110 @@
+/*
+ * Markdown renderer styles. Imported by markdown.tsx; typography and surfaces come only from the
+ * tokens in theme.css (D-047, D-052).
+ */
+
+.fc-markdown {
+  color: var(--color-base-content);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.fc-markdown > * + * {
+  margin-top: var(--space-3);
+}
+
+.fc-markdown p,
+.fc-markdown ul,
+.fc-markdown ol,
+.fc-markdown blockquote,
+.fc-markdown pre,
+.fc-markdown h1,
+.fc-markdown h2,
+.fc-markdown h3,
+.fc-markdown h4,
+.fc-markdown h5,
+.fc-markdown h6 {
+  margin: 0;
+}
+
+.fc-markdown__heading {
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.fc-markdown h1 {
+  font-size: var(--text-2xl);
+}
+
+.fc-markdown h2 {
+  font-size: var(--text-xl);
+}
+
+.fc-markdown h3 {
+  font-size: var(--text-lg);
+}
+
+.fc-markdown h4,
+.fc-markdown h5,
+.fc-markdown h6 {
+  font-size: var(--text-base);
+}
+
+.fc-markdown strong {
+  font-weight: 600;
+}
+
+.fc-markdown em {
+  font-style: italic;
+}
+
+.fc-markdown a {
+  color: var(--color-primary);
+  text-underline-offset: 2px;
+}
+
+.fc-markdown__code {
+  padding: 1px 5px;
+  border-radius: var(--radius-selector);
+  background: color-mix(in srgb, var(--color-base-200) 75%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+}
+
+.fc-markdown ul,
+.fc-markdown ol {
+  padding-inline-start: var(--space-6);
+}
+
+.fc-markdown li + li {
+  margin-top: var(--space-1);
+}
+
+.fc-markdown blockquote {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-base-300);
+  color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+}
+
+.fc-markdown pre {
+  padding: var(--space-3);
+  overflow-x: auto;
+  border: var(--border-width) solid var(--color-base-300);
+  border-radius: var(--radius-field);
+  background: color-mix(in srgb, var(--color-base-200) 55%, transparent);
+}
+
+.fc-markdown pre code {
+  padding: 0;
+  background: transparent;
+  font-size: var(--text-md);
+}
+
+.fc-markdown hr {
+  height: 0;
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--color-base-300);
+}
