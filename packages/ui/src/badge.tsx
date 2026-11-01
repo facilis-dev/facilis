@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { cx } from "./class-names.ts";
+import "./badge.css";
 
 export type BadgeTone = "neutral" | "primary" | "success" | "warning" | "error" | "info";
 

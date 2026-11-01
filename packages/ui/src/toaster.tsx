@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { cx } from "./class-names.ts";
 import { getToasts, subscribe, type ToastTone } from "./toaster-store.ts";
+import "./toaster.css";
 
 // Same semantics as Alert: warning/error interrupt, the rest are polite.
 const TOAST_ROLES: Record<ToastTone, "alert" | "status"> = {

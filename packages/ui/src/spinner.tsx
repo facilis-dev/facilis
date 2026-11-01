@@ -1,4 +1,5 @@
 import { cx } from "./class-names.ts";
+import "./spinner.css";
 
 export type SpinnerProps = { label?: string };
 

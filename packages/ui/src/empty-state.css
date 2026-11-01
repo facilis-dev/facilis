@@ -1,0 +1,34 @@
+/*
+ * EmptyState styles. Imported by empty-state.tsx; soft inset surface with a dashed hairline
+ * from the tokens (D-047, D-051).
+ */
+
+.fc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6);
+  border: var(--border-width) dashed var(--color-base-300);
+  border-radius: var(--radius-box);
+  background: color-mix(in srgb, var(--color-base-200) 40%, transparent);
+  text-align: center;
+}
+
+.fc-empty__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.fc-empty__description {
+  max-width: 32rem;
+  margin: 0;
+  color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+  font-size: var(--text-base);
+}
+
+.fc-empty__action {
+  margin-top: var(--space-2);
+}

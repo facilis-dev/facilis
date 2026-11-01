@@ -1,0 +1,73 @@
+/*
+ * Pagination styles. Imported by pagination.tsx; summary and page buttons use tokens only
+ * (D-047, D-051).
+ */
+
+.fc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--pad-card);
+  border-top: var(--border-width) solid var(--color-base-300);
+}
+
+.fc-pagination__summary {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  font-size: var(--text-sm);
+}
+
+.fc-pagination__value {
+  color: var(--color-base-content);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.fc-page-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+  font-size: var(--text-md);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.fc-page-btn:hover:not(:disabled) {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+
+.fc-page-btn[aria-current="page"] {
+  background: var(--color-base-100);
+  border-color: var(--color-base-300);
+  color: var(--color-base-content);
+  box-shadow: var(--shadow-sm);
+}
+
+.fc-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-page-btn {
+    transition: none;
+  }
+}

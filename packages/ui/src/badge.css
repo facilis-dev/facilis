@@ -1,0 +1,53 @@
+/*
+ * Badge styles. Imported by badge.tsx; tinted pills drawn only from the role tokens (D-047,
+ * D-051).
+ */
+
+.fc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+.fc-badge--neutral {
+  background: color-mix(in srgb, var(--color-neutral) 10%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-neutral) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-neutral) 22%, transparent);
+}
+
+.fc-badge--primary {
+  background: color-mix(in srgb, var(--color-primary) 11%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-primary) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-primary) 24%, transparent);
+}
+
+.fc-badge--success {
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-success) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-success) 24%, transparent);
+}
+
+.fc-badge--warning {
+  background: color-mix(in srgb, var(--color-warning) 13%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-warning) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-warning) 26%, transparent);
+}
+
+.fc-badge--error {
+  background: color-mix(in srgb, var(--color-error) 11%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-error) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-error) 24%, transparent);
+}
+
+.fc-badge--info {
+  background: color-mix(in srgb, var(--color-info) 11%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-info) 72%, var(--color-base-content));
+  border-color: color-mix(in srgb, var(--color-info) 24%, transparent);
+}

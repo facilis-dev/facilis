@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { cx } from "./class-names.ts";
+import "./textarea.css";
 
 export type TextareaProps = ComponentProps<"textarea">;
 

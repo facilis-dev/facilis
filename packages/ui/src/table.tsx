@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { cx } from "./class-names.ts";
+import "./table.css";
 
 export type TableProps = ComponentProps<"table">;
 export type TableHeaderProps = ComponentProps<"thead">;

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx } from "./class-names.ts";
+import "./page.css";
 
 export type PageProps = {
   title: string;

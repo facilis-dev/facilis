@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx } from "./class-names.ts";
+import "./empty-state.css";
 
 export type EmptyStateProps = {
   title: string;

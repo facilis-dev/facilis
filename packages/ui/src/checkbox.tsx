@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { cx } from "./class-names.ts";
+import "./checkbox.css";
 
 // type is omitted because Checkbox forces type="checkbox": the kit checkbox is a checkbox.
 export type CheckboxProps = Omit<ComponentProps<"input">, "type">;

@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { cx } from "./class-names.ts";
+import "./select.css";
 
 export type SelectProps = ComponentProps<"select">;
 

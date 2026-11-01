@@ -1,0 +1,45 @@
+/*
+ * AuthShell styles. Imported by auth-shell.tsx; a centred surface card built from tokens only
+ * (D-047, D-051).
+ */
+
+.fc-auth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 24rem;
+  margin: var(--space-8) auto;
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  background: var(--color-base-100);
+  box-shadow: var(--shadow-md);
+}
+
+.fc-auth__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.fc-auth__subtitle {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+  font-size: var(--text-base);
+}
+
+.fc-auth__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fc-auth__footer {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-base-300);
+  color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+  font-size: var(--text-sm);
+}

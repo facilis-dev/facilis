@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Spinner } from "./spinner.tsx";
 
-const theme = readFileSync(new URL("../theme.css", import.meta.url), "utf8");
+// Spinner styles are colocated, so the reduced-motion contract is asserted on their own file.
+const styles = readFileSync(new URL("./spinner.css", import.meta.url), "utf8");
 
 describe("Spinner", () => {
   it("is decorative when no label is given", () => {
@@ -24,10 +25,10 @@ describe("Spinner", () => {
   });
 
   it("stops the animation when the user prefers reduced motion", () => {
-    expect(theme).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
     expect(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.fc-spinner\s*\{[^}]*animation:\s*none/.test(
-        theme,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.fc-spinner[^{}]*\{[^}]*animation:\s*none/.test(
+        styles,
       ),
     ).toBe(true);
   });

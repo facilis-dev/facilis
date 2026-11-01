@@ -1,0 +1,40 @@
+/*
+ * Shared icon-only button. Imported by dialog.tsx and menu.tsx (both render it internally);
+ * colours and radii are tokens only (D-047, D-051).
+ */
+
+.fc-icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.fc-icon-btn:hover {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+
+.fc-icon-btn--sm {
+  width: 28px;
+  height: 28px;
+  font-size: var(--text-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-icon-btn {
+    transition: none;
+  }
+}

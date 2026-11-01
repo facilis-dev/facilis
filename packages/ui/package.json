@@ -22,7 +22,7 @@
   },
   "scripts": {
     "dev": "tsc -p tsconfig.json --noEmit --watch --preserveWatchOutput",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-css.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint src",
     "test": "vitest run"
@@ -38,5 +38,8 @@
     "react-dom": "19.3.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "5.2.9"
   }
 }

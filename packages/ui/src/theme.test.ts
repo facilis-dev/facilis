@@ -37,4 +37,39 @@ describe("theme.css", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("ships the design-layer tokens in every theme block", () => {
+    const designTokens = [
+      "--font-sans",
+      "--text-base",
+      "--space-4",
+      "--page-max",
+      "--control-h",
+      "--row-h",
+      "--pad-card",
+      "--sidebar-w",
+      "--shadow-sm",
+      "--ring-width",
+      "--duration-fast",
+      "--ease-out",
+      "--radius-pill",
+      "--scrim",
+      "--color-focus",
+      "--color-accent",
+      "--color-raised",
+      "--color-primary-hover",
+    ];
+
+    for (const selector of SELECTORS) {
+      const variables = variablesOf(selector);
+      for (const token of designTokens) {
+        expect(variables, selector + " is missing " + token).toContain(token);
+      }
+    }
+  });
+
+  it("loads Geist as the single family", () => {
+    expect(theme).toContain('@import "@fontsource-variable/geist/index.css";');
+    expect(theme).toContain('--font-sans: "Geist Variable"');
+  });
 });

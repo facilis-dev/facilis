@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx } from "./class-names.ts";
+import "./auth-shell.css";
 
 export type AuthShellProps = {
   title: string;
