@@ -52,7 +52,7 @@ describe("import guard", () => {
     expect(importer.importFolderViaPicker()).toBe(false);
     await expect(importer.importDropAsProject([])).resolves.toBe(false);
     expect(importer.openImportRemote()).toBe(false);
-    await expect(importer.importGithubRepo("owner/repo")).resolves.toBe(false);
+    await expect(importer.importGitRepo("owner/repo")).resolves.toBe(false);
     await expect(importer.importNpmPackage("left-pad")).resolves.toBe(false);
     // The refusal happens first: no kernel check, no dialog, no picker, no fetch.
     expect(h.kernelReady).not.toHaveBeenCalled();

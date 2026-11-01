@@ -108,18 +108,25 @@ export const en = {
   "create.creating": "Creating…",
   "create.waiting": "Waiting for the runtime…",
 
-  // ── Import from GitHub / npm ─────────────────────────────────────────────
-  "import.title": "Import from GitHub or npm",
+  // ── Import from Git / npm ────────────────────────────────────────────────
+  "import.title": "Import from Git or npm",
   "import.description":
-    "Fetch a public repo or an npm package as a new project. Downloaded in your browser — no server involved.",
-  "import.github": "GitHub",
+    "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — or an npm package as a new project. Downloaded in your browser, no server involved.",
+  "import.github": "Git",
   "import.npm": "npm",
+  "import.host": "Host",
   "import.repository": "Repository",
   "import.package": "Package",
-  "import.githubPlaceholder": "owner/repo, owner/repo@branch, or a github.com URL",
+  "import.githubPlaceholder": "owner/repo, owner/repo@branch, or a repository URL",
   "import.npmPlaceholder": "left-pad, react@18, or @scope/pkg@1.2.3",
-  "import.githubHint": "Public repositories only. Default branch unless a ref is given.",
+  "import.githubHint":
+    "Public by default; a private repository needs a token below. A self-hosted server must allow CORS on its API.",
   "import.npmHint": "Unpacks the published tarball (the package contents, not its deps).",
+  "import.token": "Access token (optional)",
+  "import.tokenPlaceholder": "ghp_…, glpat-…, …",
+  "import.tokenHint":
+    "For private repositories: a token with read access. It is used for this import and never stored.",
+  "import.tokenInvalid": "That does not look like a valid token.",
   "import.starting": "Starting…",
   "import.submit": "Import",
   "import.progress": "{phase} ({done}/{total})",

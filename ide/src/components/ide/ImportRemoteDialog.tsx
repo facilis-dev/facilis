@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Github from "~icons/lucide/github";
+import GitBranch from "~icons/lucide/git-branch";
 import Package from "~icons/lucide/package";
 import Loader from "~icons/lucide/loader-circle";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,31 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
+import {
+  GIT_PROVIDERS,
+  detectGitProvider,
+  hostOfGitInput,
+  normalizeGitToken,
+  type GitProvider,
+} from "@/vv/git-provider";
 
 type Source = "github" | "npm";
 
-// Import a project from a public GitHub repo or an npm package. Snapshot-driven
-// (c.openImportRemote / c.closeImportRemote) so it works from Home and the
-// command palette alike.
+const SELECT_CLASS =
+  "h-8 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring";
+
+// Import a project from a git host (GitHub, GitLab, Gitea/Forgejo) or an npm package.
+// Snapshot-driven (c.openImportRemote / c.closeImportRemote) so it works from Home and the
+// command palette alike. A private repository's token lives only in this component: it is
+// handed to the importer and dropped when the dialog closes (D-073).
 export function ImportRemoteDialog() {
   const { c, snap } = useIde();
   const open = snap.importRemoteOpen;
   const [tab, setTab] = useState<Source>("github");
+  const [provider, setProvider] = useState<GitProvider>("github");
   const [gh, setGh] = useState("");
   const [npm, setNpm] = useState("");
+  const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
 
@@ -34,6 +47,9 @@ export function ImportRemoteDialog() {
     if (open) {
       setBusy(false);
       setProgress("");
+    } else {
+      // Never keep a secret around after the dialog closed.
+      setToken("");
     }
   }, [open]);
 
@@ -44,15 +60,31 @@ export function ImportRemoteDialog() {
     setProgress(total > 0 ? t("import.progress", { phase, done, total }) : phase);
   };
 
+  // A URL names its host: follow it, but leave the picker authoritative for self-hosted
+  // servers whose hostname says nothing (git.company.com can be either).
+  const chooseRepo = (next: string) => {
+    setGh(next);
+    const host = hostOfGitInput(next);
+    const detected = host === null ? null : detectGitProvider(host);
+    if (detected !== null) setProvider(detected);
+  };
+
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
     setProgress(t("import.starting"));
     try {
-      const ok =
-        tab === "github"
-          ? await c.importGithubRepo(gh.trim(), onProgress)
-          : await c.importNpmPackage(npm.trim(), onProgress);
+      if (tab === "npm") {
+        if (await c.importNpmPackage(npm.trim(), onProgress)) c.closeImportRemote();
+        return;
+      }
+      const typed = token.trim();
+      const normalized = normalizeGitToken(typed);
+      if (typed !== "" && normalized === null) {
+        setProgress(t("import.tokenInvalid"));
+        return;
+      }
+      const ok = await c.importGitRepo(gh.trim(), { onProgress, provider, token: normalized });
       if (ok) c.closeImportRemote();
     } catch (err) {
       setProgress(err instanceof Error ? err.message : String(err));
@@ -77,7 +109,7 @@ export function ImportRemoteDialog() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as Source)}>
           <TabsList variant="line">
             <TabsTrigger value="github">
-              <Github className="size-4" /> {t("import.github")}
+              <GitBranch className="size-4" /> {t("import.github")}
             </TabsTrigger>
             <TabsTrigger value="npm">
               <Package className="size-4" /> {t("import.npm")}
@@ -85,22 +117,61 @@ export function ImportRemoteDialog() {
           </TabsList>
 
           <TabsContent value="github" className="mt-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">
-                {t("import.repository")}
-              </span>
-              <Input
-                autoFocus
-                value={gh}
-                onChange={(e) => setGh(e.target.value)}
-                placeholder={t("import.githubPlaceholder")}
-                disabled={busy}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submit();
-                }}
-              />
-              <span className="text-xs text-muted-foreground">{t("import.githubHint")}</span>
-            </label>
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("import.host")}
+                </span>
+                <select
+                  className={SELECT_CLASS}
+                  value={provider}
+                  onChange={(event) => setProvider(event.target.value as GitProvider)}
+                  disabled={busy}
+                >
+                  {GIT_PROVIDERS.map((host) => (
+                    <option key={host.id} value={host.id}>
+                      {host.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("import.repository")}
+                </span>
+                <Input
+                  autoFocus
+                  value={gh}
+                  onChange={(event) => chooseRepo(event.target.value)}
+                  placeholder={t("import.githubPlaceholder")}
+                  disabled={busy}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void submit();
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">{t("import.githubHint")}</span>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("import.token")}
+                </span>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={token}
+                  onChange={(event) => setToken(event.target.value)}
+                  placeholder={t("import.tokenPlaceholder")}
+                  disabled={busy}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void submit();
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">{t("import.tokenHint")}</span>
+              </label>
+            </div>
           </TabsContent>
 
           <TabsContent value="npm" className="mt-3">
@@ -111,11 +182,11 @@ export function ImportRemoteDialog() {
               <Input
                 autoFocus
                 value={npm}
-                onChange={(e) => setNpm(e.target.value)}
+                onChange={(event) => setNpm(event.target.value)}
                 placeholder={t("import.npmPlaceholder")}
                 disabled={busy}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submit();
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void submit();
                 }}
               />
               <span className="text-xs text-muted-foreground">{t("import.npmHint")}</span>

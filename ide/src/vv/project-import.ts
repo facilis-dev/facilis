@@ -9,13 +9,9 @@ import { deployment, importAllowed } from "@/deploy/current";
 import type { ProjectImports, ResolvedDeployment } from "@/deploy/types";
 import { decodeShare } from "../../../vendor/vivari/packages/kernel-host/archive.js";
 import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
-import {
-  fetchGithubRepo,
-  fetchNpmPackage,
-  parseGithubSpec,
-  parseNpmSpec,
-  type ProgressFn,
-} from "./import-remote";
+import { fetchGitRepo, type GitImportOptions } from "./git-import";
+import { parseGitRepo } from "./git-provider";
+import { fetchNpmPackage, parseNpmSpec, type ProgressFn } from "./import-remote";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
@@ -107,9 +103,6 @@ export class ProjectImport {
     return importAllowed(this.profile, kind);
   }
 
-  // Synthesize a run manifest for an imported/shared project from its package.json
-  // (so Run auto-installs + starts a dev server). Null when there's no runnable
-  // script — the project still opens; Run just drops into a shell.
   // Create a NEW project from an in-memory file tree (folder import / shared URL).
   async importFilesAsProject({
     dir,
@@ -266,15 +259,16 @@ export class ProjectImport {
     return ok;
   }
 
-  // Import a public GitHub repo. `input` is a URL or `owner/repo[@ref]` shorthand.
-  async importGithubRepo(input: string, onProgress?: ProgressFn): Promise<boolean> {
+  // Import from GitHub, GitLab or Gitea/Forgejo (D-073); a private repository takes a
+  // token used only for this import. `input` is a URL or an owner/repo shorthand.
+  async importGitRepo(input: string, opts: GitImportOptions = {}): Promise<boolean> {
     if (!this.allows("git")) return false;
-    const spec = parseGithubSpec(input);
-    if (!spec) {
-      toast.error("Enter a GitHub repo, e.g. owner/repo or a github.com URL.");
+    const ref = parseGitRepo(input, opts.provider);
+    if (!ref) {
+      toast.error("Enter a repository URL, or owner/repo for the selected host.");
       return false;
     }
-    return this.importRemoteTree(() => fetchGithubRepo(spec, onProgress));
+    return this.importRemoteTree(() => fetchGitRepo(ref, opts));
   }
 
   // Import an npm package. `input` is `name`, `name@version`, or `name@tag`.

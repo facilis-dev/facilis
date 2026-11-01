@@ -101,19 +101,26 @@ export const it: Partial<Record<MessageKey, string>> = {
   "create.creating": "Creazione…",
   "create.waiting": "In attesa del runtime…",
 
-  // ── Import from GitHub / npm ─────────────────────────────────────────────
-  "import.title": "Importa da GitHub o npm",
+  // ── Import from Git / npm ────────────────────────────────────────────────
+  "import.title": "Importa da Git o npm",
   "import.description":
-    "Scarica un repo pubblico o un pacchetto npm come nuovo progetto. Il download avviene nel browser — nessun server coinvolto.",
-  "import.github": "GitHub",
+    "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — o un pacchetto npm come nuovo progetto. Il download avviene nel browser, nessun server coinvolto.",
+  "import.github": "Git",
   "import.npm": "npm",
+  "import.host": "Host",
   "import.repository": "Repository",
   "import.package": "Pacchetto",
-  "import.githubPlaceholder": "owner/repo, owner/repo@branch, o un URL github.com",
+  "import.githubPlaceholder": "owner/repo, owner/repo@branch, o un URL del repository",
   "import.npmPlaceholder": "left-pad, react@18, o @scope/pkg@1.2.3",
-  "import.githubHint": "Solo repository pubblici. Branch predefinito se non indichi un ref.",
+  "import.githubHint":
+    "Pubblico per impostazione predefinita; un repository privato richiede il token qui sotto. Un server self-hosted deve consentire il CORS sulla sua API.",
   "import.npmHint":
     "Estrae il tarball pubblicato (il contenuto del pacchetto, non le sue dipendenze).",
+  "import.token": "Token di accesso (opzionale)",
+  "import.tokenPlaceholder": "ghp_…, glpat-…, …",
+  "import.tokenHint":
+    "Per i repository privati: un token con accesso in lettura. È usato per questo import e non viene mai salvato.",
+  "import.tokenInvalid": "Non sembra un token valido.",
   "import.starting": "Avvio…",
   "import.submit": "Importa",
   "import.progress": "{phase} ({done}/{total})",
