@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex" />
-    <title>Starting Vivari preview…</title>
+    <title>Starting Facilis preview…</title>
     <style>
       html,
       body {
@@ -72,7 +72,7 @@
     -->
     <div class="card">
       <div class="spin" id="sp"></div>
-      <h1 id="t">Starting your Vivari preview…</h1>
+      <h1 id="t">Starting your Facilis preview…</h1>
       <p id="m">Registering the preview runtime.</p>
     </div>
     <script>
@@ -86,7 +86,7 @@
           m.textContent = msg;
         }
         if (!("serviceWorker" in navigator)) {
-          fail("This browser has no Service Worker support, which Vivari previews require.");
+          fail("This browser has no Service Worker support, which Facilis previews require.");
           return;
         }
         // This page's work ends in a reload, so a copy restored from the back/forward
@@ -137,7 +137,7 @@
           .then(function () {
             if (!navigator.serviceWorker.controller) {
               fail(
-                "The preview runtime didn't take control. Keep the Vivari editor tab open and reload.",
+                "The preview runtime didn't take control. Keep the Facilis editor tab open and reload.",
               );
               return;
             }
@@ -156,11 +156,11 @@
             // Controlled from the start — the SW should be serving the preview
             // now; if you can read this the kernel isn't reachable from this tab.
             if (sp) sp.style.display = "none";
-            m.textContent = "Waiting for your Vivari project tab…";
+            m.textContent = "Waiting for your Facilis project tab…";
           })
           .catch(function () {
             fail(
-              "Couldn't start the preview runtime. Keep the Vivari editor tab open and try again.",
+              "Couldn't start the preview runtime. Keep the Facilis editor tab open and try again.",
             );
           });
       })();

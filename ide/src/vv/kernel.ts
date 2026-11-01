@@ -1,4 +1,4 @@
-// Studio's bridge to the Vivari kernel worker.
+// Studio's bridge to the kernel worker (the vendored fork of Vivari's runtime, D-030).
 //
 // The transport, the worker (and its nested fs/fetcher/process workers), the
 // Rust/Wasm VFS, and the preview Service Worker relay all live in `@vivari/core`

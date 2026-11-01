@@ -11,6 +11,12 @@ pinned to `facilis/main` (upstream `v1.2.0` + the fixes we carry; D-030): it is 
 in the worktree, only bumped to a fork commit ([`vendor/README.md`](../vendor/README.md),
 branch map in [`docs/upstream/README.md`](../docs/upstream/README.md)).
 
+**Branding (D-069).** The product presents itself as **Facilis Studio** and points at
+<https://facilis.dev>. The Vivari name stays only in the provenance and attribution above, in
+the kernel's real package ids (`@vivari/core`, `vendor/vivari/**`) and in the `__vv*` internals.
+Brand strings are catalogue entries (`app.name`), not JSX literals; the preview Service Worker
+is the one synced file whose copy diverges (noted at the top of `ide/public/sw.js`).
+
 | | |
 |---|---|
 | Upstream repository | <https://github.com/maitrungduc1410/vivari> |

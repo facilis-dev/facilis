@@ -16,8 +16,6 @@ import { claimProject, type ProjectClaim } from "./project-lock";
 import { projectName } from "./project-name";
 import { projectParamIn } from "./boot-target";
 
-const TITLE_BASE = "Vivari Studio";
-
 /** The URL a second tab should open to land on `rootPath` (keeps other boot params). */
 export function projectTabUrl(rootPath: string): string {
   const url = new URL(location.href);
@@ -58,7 +56,9 @@ export function installProjectTabs(controller: IdeController): () => void {
   let chain: Promise<void> = Promise.resolve();
 
   function updateTitle(snap: IdeSnapshot): void {
-    const title = snap.projectTitle ? `${snap.projectTitle} — ${TITLE_BASE}` : TITLE_BASE;
+    // The brand goes through the catalogue so the tab title flips with the language.
+    const base = t("app.name");
+    const title = snap.projectTitle ? `${snap.projectTitle} — ${base}` : base;
     if (document.title !== title) document.title = title;
   }
 

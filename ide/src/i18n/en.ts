@@ -9,6 +9,11 @@
 // SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
 // Those move here file by file as they are touched — see ide/I18N.md.
 export const en = {
+  // ── product ──────────────────────────────────────────────────────────────
+  // The brand is a message like any other: the fork shows Facilis, and the upstream
+  // name survives only in attribution, package ids and the `__vv*` internals (D-069).
+  "app.name": "Facilis Studio",
+
   // ── shared ───────────────────────────────────────────────────────────────
   "common.cancel": "Cancel",
   "common.close": "Close",

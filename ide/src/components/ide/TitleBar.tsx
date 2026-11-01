@@ -8,6 +8,7 @@ import PanelRight from "~icons/lucide/panel-right";
 import PanelRightOff from "~icons/lucide/panel-right-dashed";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { openStudioInNewTab } from "@/vv/project-tabs";
 import { useIde } from "./useIde";
@@ -65,7 +66,7 @@ export function TitleBar() {
         title="Home"
       >
         <span className="inline-block size-2.5 rounded-full bg-primary" />
-        Vivari Studio
+        {t("app.name")}
       </button>
 
       <div className="flex-1 truncate text-center text-xs text-muted-foreground">

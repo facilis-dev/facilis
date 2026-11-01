@@ -4,6 +4,9 @@
 import type { MessageKey } from "./index";
 
 export const it: Partial<Record<MessageKey, string>> = {
+  // ── product ──────────────────────────────────────────────────────────────
+  "app.name": "Facilis Studio",
+
   // ── shared ───────────────────────────────────────────────────────────────
   "common.cancel": "Annulla",
   "common.close": "Chiudi",

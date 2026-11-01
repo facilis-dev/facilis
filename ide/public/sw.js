@@ -8,6 +8,11 @@
 // This is how a browser tab can "visit" a server that only exists in memory,
 // inside a Worker, with no network involved — exactly the StackBlitz preview
 // trick.
+//
+// Branding: the user-visible copy in this file says "Facilis" (D-069). It is the
+// fork's preview UI, so the strings intentionally differ from the upstream
+// `vendor/vivari/packages/studio/public/sw.js`; keep the routing logic in sync with
+// upstream and treat the brand strings as the only divergence.
 
 const PREVIEW_MARKER = "/preview/";
 
@@ -1456,7 +1461,7 @@ function previewConnectingHtml(port) {
   return (
     "<!doctype html><html><head><meta charset='utf-8'>" +
     "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
-    "<title>Connecting to Vivari…</title>" +
+    "<title>Connecting to Facilis…</title>" +
     "<style>" +
     "html,body{height:100%;margin:0}" +
     "body{display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#e6e8eb;" +
@@ -1470,10 +1475,10 @@ function previewConnectingHtml(port) {
     "button:disabled{opacity:.6;cursor:default}" +
     "</style></head><body><div class='card'>" +
     "<div class='spin' id='sp'></div>" +
-    "<h1 id='t'>Connecting to your Vivari project…</h1>" +
+    "<h1 id='t'>Connecting to your Facilis project…</h1>" +
     "<p id='m'>Preview on port <code>" +
     port +
-    "</code>. Keep the Vivari editor tab open.</p>" +
+    "</code>. Keep the Facilis editor tab open.</p>" +
     "<div id='g' style='display:none'>" +
     "<button id='b' type='button'>Connect this tab</button>" +
     "<p id='hint' style='display:none'></p>" +
@@ -1485,8 +1490,8 @@ function previewConnectingHtml(port) {
     // Auto-retry a few times: self-heals when storage is already unpartitioned.
     "if(n<3){sessionStorage.setItem(k,n+1);setTimeout(function(){location.reload()},1500);return;}" +
     "sessionStorage.removeItem(k);sp.style.display='none';" +
-    "t.textContent='Connect this tab to your Vivari project';" +
-    "m.innerHTML='This preview runs on a separate origin for isolation. Keep the <b>Vivari editor tab</b> open, then connect this tab.';" +
+    "t.textContent='Connect this tab to your Facilis project';" +
+    "m.innerHTML='This preview runs on a separate origin for isolation. Keep the <b>Facilis editor tab</b> open, then connect this tab.';" +
     "g.style.display='block';" +
     "function fallback(){hint.style.display='block';" +
     "hint.innerHTML='Still stuck? Allow third-party data / cookies for this site in your browser settings, then reload \\u2014 previews run cross-origin so the browser isolates their storage by default.';}" +
@@ -1543,7 +1548,7 @@ async function servePreview(event, port, route, explicitKeepPrefix, served = {})
         },
       });
     }
-    return new Response("Vivari kernel is not running\n", { status: 503 });
+    return new Response("Facilis kernel is not running\n", { status: 503 });
   }
 
   // A navigation names the frame it is about to create: remember which kernel served

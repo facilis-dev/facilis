@@ -1,5 +1,5 @@
 // A filesystem adapter that lets isomorphic-git (running on the studio MAIN
-// thread) operate on the in-tab Vivari VFS.
+// thread) operate on the in-tab kernel VFS.
 //
 // isomorphic-git wants a Node-style `fs` object with a promise API. The VFS,
 // however, lives in the File System Worker and is only reachable from the main

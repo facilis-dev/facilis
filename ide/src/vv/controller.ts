@@ -157,7 +157,7 @@ function normalizePreviewPopout(raw: string | undefined): "same-origin" | "isola
 }
 
 // Build-time wildcard base domain (VITE_PREVIEW_WILDCARD_DOMAIN, mode C). Returns
-// a bare base domain (e.g. "vivari.run") or undefined. When set, previews are
+// a bare base domain (e.g. "facilis.dev") or undefined. When set, previews are
 // served one origin per port (`<token>--<port>.<domain>`); takes precedence
 // over VITE_PREVIEW_ORIGIN. Unset in the default deploy + local dev (→ mode A/B).
 function normalizePreviewWildcardDomain(raw: string | undefined): string | undefined {
@@ -2225,7 +2225,7 @@ export class IdeController {
     if (this.snap.bootError) return;
     this.consoleLine(message, "31");
     this.set({ bootError: message, bootPhase: "", shareLoading: false });
-    toast.error("The Vivari runtime failed to start", {
+    toast.error(t("boot.failed"), {
       description: message,
       duration: Infinity,
     });
