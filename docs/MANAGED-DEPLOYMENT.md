@@ -28,6 +28,7 @@ Two profiles, selected at build time:
 | Project imports (folder / git host / `#share=`) | available | compiled out |
 | Project admission | none | `facilis.app.json` required (§8) |
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
+| Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
 | AI provider | presets plus a custom base URL | allowlisted providers or an internal gateway; default `off` ([AI-SKILLS.md](./AI-SKILLS.md)) |
 | Skills | any installed skill | only allowlisted skills; default none |
 | Shell on the VM | available | configurable (`shell` / `run-only`) |
