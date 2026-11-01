@@ -68,6 +68,10 @@ export function ImportRemoteDialog() {
     }
   }, [open]);
 
+  // The copy must match the transport: with the proxy the download is a real git clone
+  // through this installation (nothing stored, nothing logged), not the host's REST API,
+  // so the CORS sentence is only true for the fallback (D-073/D-079).
+  const realGit = proxyBase() !== null;
   const canSubmit = !!repo.trim() && !busy && snap.kernelReady;
 
   const onProgress = (done: number, total: number, phase: string) => {
@@ -131,7 +135,9 @@ export function ImportRemoteDialog() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("import.title")}</DialogTitle>
-          <DialogDescription>{t("import.description")}</DialogDescription>
+          <DialogDescription>
+            {t(realGit ? "import.descriptionGit" : "import.description")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -165,8 +171,10 @@ export function ImportRemoteDialog() {
                 if (event.key === "Enter") void submit();
               }}
             />
-            <span className="text-xs text-muted-foreground">{t("import.repositoryHint")}</span>
-            {proxyBase() !== null && (
+            <span className="text-xs text-muted-foreground">
+              {t(realGit ? "import.repositoryHintGit" : "import.repositoryHint")}
+            </span>
+            {realGit && (
               <span className="text-xs text-muted-foreground">{t("import.cloneHint")}</span>
             )}
           </label>

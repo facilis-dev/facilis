@@ -40,4 +40,8 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "gitRemote.kernelStarting": "Il runtime sta ancora partendo — riprova tra un istante.",
   "palette.gitRemote": "Remote git…",
   "import.cloneHint": "Clone git reale — conserva tutta la cronologia e la cartella .git.",
+  "import.descriptionGit":
+    "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — come nuovo progetto con un clone git reale. Il download passa dal proxy stateless di questa installazione, che non conserva e non registra nulla.",
+  "import.repositoryHintGit":
+    "Owner/repo oppure l'URL del repository. Pubblico per impostazione predefinita; un repository privato richiede il token qui sotto.",
 };

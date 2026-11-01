@@ -40,4 +40,8 @@ export const gitRemoteEn = {
   "gitRemote.kernelStarting": "The runtime is still starting — try again in a moment.",
   "palette.gitRemote": "Git remotes…",
   "import.cloneHint": "Real git clone — keeps the full history and the .git folder.",
+  "import.descriptionGit":
+    "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — as a new project with a real git clone. The download goes through this installation's stateless proxy, which keeps nothing and logs nothing.",
+  "import.repositoryHintGit":
+    "Owner/repo or the repository URL. Public by default; a private repository needs the token below.",
 } as const;
