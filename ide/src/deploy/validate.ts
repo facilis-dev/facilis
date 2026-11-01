@@ -158,7 +158,7 @@ export function validateDeployment(raw: unknown): DeploymentInput {
   if (projects) {
     checkKeys(
       projects,
-      ["admission", "imports", "preview", "shell"],
+      ["admission", "imports", "exports", "preview", "shell"],
       "deployment.projects",
       issues,
     );
@@ -170,6 +170,11 @@ export function validateDeployment(raw: unknown): DeploymentInput {
       for (const key of ["folder", "git", "share"] as const) {
         fieldBoolean(imports, key, "deployment.projects.imports", issues);
       }
+    }
+    const exports = fieldObject(projects, "exports", "deployment.projects", issues);
+    if (exports) {
+      checkKeys(exports, ["git"], "deployment.projects.exports", issues);
+      fieldBoolean(exports, "git", "deployment.projects.exports", issues);
     }
     const preview = fieldObject(projects, "preview", "deployment.projects", issues);
     if (preview) {

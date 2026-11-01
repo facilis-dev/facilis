@@ -26,6 +26,7 @@ Two profiles, selected at build time:
 | Registry | public npm, anything reachable | one configured registry (mirror) |
 | Package allowlist | none | `packages.allow` compiled in + enforced by the mirror |
 | Project imports (folder / git host / `#share=`) | available | compiled out |
+| Project publish (git write-back) | available; token per publish, never stored | opt-in: `projects.exports.git` plus the host in `network.connect` (D-078) |
 | Project admission | none | `facilis.app.json` required (§8) |
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
 | Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
@@ -101,6 +102,7 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
   "projects": {
     "admission": "facilis-only",
     "imports": { "folder": false, "git": false, "share": false },
+    "exports": { "git": false },
     "preview": { "origin": "https://preview.facilis.acme.example" },
     "shell": "shell"
   },
@@ -316,6 +318,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | What | Today | Change | Level |
 |---|---|---|---|
 | Import from a git host/folder/`#share=` | `ide/src/vv/git-import.ts`, `ide/src/vv/github-import.ts`, `ide/src/vv/project-import.ts` | tree-shaken when `imports` are false | L0 |
+| Publish to a git host (write-back) | `ide/src/vv/git-push.ts` + `github-push.ts` / `gitlab-push.ts` / `gitea-push.ts`, planned by `ide/src/vv/project-publish.ts` | stubbed when `projects.exports.git` is false (the managed default); enabling it requires the API host in `network.connect` | L0 + L2 |
 | `window.__vv` | installed unconditionally (`vendor/vivari/packages/core/src/bridge.ts`) | gate on `import.meta.env.DEV` (a vendor bump, D-030) | L0 |
 | Preview origin / sandbox | same-origin default, `allow-same-origin` (`ide/src/components/ide/PreviewPanel.tsx`) | `VITE_PREVIEW_ORIGIN` / `VITE_PREVIEW_WILDCARD_DOMAIN`, drop `allow-same-origin` | L0 |
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |

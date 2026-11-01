@@ -27,6 +27,7 @@ describe("deployment resolution", () => {
     expect(d.profile).toBe("open");
     expect(d.packages.registry).toBeNull();
     expect(d.projects.imports).toEqual({ folder: true, git: true, share: true });
+    expect(d.projects.exports).toEqual({ git: true });
     expect(d.projects.admission).toBe("any");
     expect(d.ai.mode).toBe("byo");
     expect(d.updates.channel).toBe("latest");
@@ -36,6 +37,8 @@ describe("deployment resolution", () => {
     const d = resolveDeployment(managed());
     expect(d.projects.admission).toBe("facilis-only");
     expect(d.projects.imports).toEqual({ folder: false, git: false, share: false });
+    // Push is opt-in: a managed build never sends the company's code out by default.
+    expect(d.projects.exports).toEqual({ git: false });
     expect(d.ai.mode).toBe("off");
     expect(d.packages.lockfile).toBe("required");
     expect(d.updates.channel).toBe("approved");
@@ -107,6 +110,34 @@ describe("deployment resolution", () => {
       ),
     );
     expect(message).toContain("projects.imports.git: must stay false in a managed build");
+  });
+
+  it("refuses git write-back without a reachable host", () => {
+    const message = errorOf(() =>
+      resolveDeployment(
+        managed({
+          projects: {
+            preview: { origin: "https://preview.facilis.acme.example" },
+            exports: { git: true },
+          },
+        }),
+      ),
+    );
+    expect(message).toContain("network.connect: required when projects.exports.git is enabled");
+  });
+
+  it("accepts git write-back once a host is declared", () => {
+    const d = resolveDeployment(
+      managed({
+        projects: {
+          preview: { origin: "https://preview.facilis.acme.example" },
+          exports: { git: true },
+        },
+        network: { connect: ["https://gitlab.acme.example"] },
+      }),
+    );
+    expect(d.projects.exports).toEqual({ git: true });
+    expect(d.network.connect).toEqual(["https://gitlab.acme.example"]);
   });
 
   it("refuses providers when AI is off", () => {

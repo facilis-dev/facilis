@@ -24,6 +24,11 @@ export function importAllowed(d: ResolvedDeployment, kind: keyof ProjectImports)
   return d.projects.imports[kind];
 }
 
+/** Whether a project may be published back to a git host (D-078). */
+export function pushAllowed(d: ResolvedDeployment): boolean {
+  return d.projects.exports.git;
+}
+
 /** AI is available unless the deployment turned it off. */
 export function aiAvailable(d: ResolvedDeployment): boolean {
   return d.ai.mode !== "off";

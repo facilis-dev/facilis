@@ -39,6 +39,7 @@ export function openDeployment(): ResolvedDeployment {
     projects: {
       admission: "any",
       imports: { folder: true, git: true, share: true },
+      exports: { git: true },
       preview: { origin: null },
       shell: "shell",
     },
@@ -57,6 +58,9 @@ function defaultsFor(profile: DeploymentProfile) {
     imports: managed
       ? { folder: false, git: false, share: false }
       : { folder: true, git: true, share: true },
+    // Write-back is the one remote capability a managed build may opt into: it sends
+    // the company's own code out, never brings code in (D-078).
+    exports: { git: !managed },
     shell: "shell" as ShellMode,
     installScripts: "deny" as InstallScriptsPolicy,
     lockfile: (managed ? "required" : "optional") as LockfilePolicy,
@@ -108,6 +112,11 @@ export function resolveDeployment(
     if (raw.ai?.mode === "off" && (raw.ai.providers ?? []).length > 0) {
       issues.push("ai.providers: meaningless when ai.mode is 'off'");
     }
+    // A push is a cross-origin API call: without a declared host the CSP would block it
+    // at runtime, which reads as a broken feature rather than as a policy (D-078).
+    if (raw.projects?.exports?.git === true && (raw.network?.connect ?? []).length === 0) {
+      issues.push("network.connect: required when projects.exports.git is enabled");
+    }
   }
 
   if (issues.length > 0) throw new DeploymentError(source, issues);
@@ -132,6 +141,7 @@ export function resolveDeployment(
         git: raw.projects?.imports?.git ?? defaults.imports.git,
         share: raw.projects?.imports?.share ?? defaults.imports.share,
       },
+      exports: { git: raw.projects?.exports?.git ?? defaults.exports.git },
       preview: { origin: previewOrigin },
       shell: raw.projects?.shell ?? defaults.shell,
     },

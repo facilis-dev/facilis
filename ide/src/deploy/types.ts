@@ -24,6 +24,12 @@ export interface ProjectImports {
   share?: boolean;
 }
 
+/** The ways a project can leave the IDE. `false` means the path is compiled out (D-078). */
+export interface ProjectExports {
+  /** Write-back to GitHub/GitLab/Gitea: commit the working tree to a branch. */
+  git?: boolean;
+}
+
 export interface DeploymentCompany {
   name?: string;
   domain?: string;
@@ -42,6 +48,7 @@ export interface DeploymentPackages {
 export interface DeploymentProjects {
   admission?: AdmissionPolicy;
   imports?: ProjectImports;
+  exports?: ProjectExports;
   preview?: { origin?: string };
   shell?: ShellMode;
 }
@@ -100,6 +107,7 @@ export interface ResolvedDeployment {
   projects: {
     admission: AdmissionPolicy;
     imports: { folder: boolean; git: boolean; share: boolean };
+    exports: { git: boolean };
     preview: { origin: string | null };
     shell: ShellMode;
   };

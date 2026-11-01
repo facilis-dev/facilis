@@ -30,6 +30,7 @@ describe("deployment config validation", () => {
       projects: {
         admission: "facilis-only",
         imports: { folder: false, git: false, share: false },
+        exports: { git: true },
         preview: { origin: "https://preview.facilis.acme.example" },
         shell: "run-only",
       },
@@ -77,6 +78,18 @@ describe("deployment config validation", () => {
   it("rejects the retired npm import flag", () => {
     const issues = issuesOf(() => validateDeployment({ projects: { imports: { npm: true } } }));
     expect(issues).toContain("deployment.projects.imports.npm: unknown key");
+  });
+
+  it("rejects a non-boolean export flag", () => {
+    expect(issuesOf(() => validateDeployment({ projects: { exports: { git: "yes" } } }))).toContain(
+      "deployment.projects.exports.git: expected a boolean",
+    );
+  });
+
+  it("rejects an unknown export kind instead of ignoring it", () => {
+    expect(issuesOf(() => validateDeployment({ projects: { exports: { svn: true } } }))).toContain(
+      "deployment.projects.exports.svn: unknown key",
+    );
   });
 
   it("rejects a gateway that is not a URL", () => {

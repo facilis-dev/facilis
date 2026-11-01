@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/command";
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
+import { deployment, pushAllowed } from "@/deploy/current";
+import { publishSession } from "@/vv/publish-session";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
 
@@ -72,6 +74,10 @@ export function CommandPalette() {
         run: () => c.importFolderViaPicker(),
       },
       { label: t("palette.importRemote"), icon: GitBranch, run: () => c.openImportRemote() },
+      // Publishing is compiled out of deployments that forbid writing to a git host.
+      ...(pushAllowed(deployment)
+        ? [{ label: t("palette.pushRemote"), icon: GitBranch, run: () => publishSession.open() }]
+        : []),
       { label: t("palette.openChat"), icon: MessageSquare, run: () => c.setActiveView("chat") },
       { label: t("palette.exportZip"), icon: FileArchive, run: () => c.exportActiveFolder() },
       { label: t("palette.shareProject"), icon: Share2, run: () => c.shareActiveFolder() },

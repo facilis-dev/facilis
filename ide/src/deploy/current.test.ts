@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiAvailable, deployment, importAllowed, skillAllowed } from "./current";
+import { aiAvailable, deployment, importAllowed, pushAllowed, skillAllowed } from "./current";
 import { openDeployment, resolveDeployment } from "./resolve";
 
 const managed = resolveDeployment({
@@ -25,6 +25,11 @@ describe("the running profile", () => {
   it("gates project imports", () => {
     expect(importAllowed(openDeployment(), "git")).toBe(true);
     expect(importAllowed(managed, "git")).toBe(false);
+  });
+
+  it("gates git write-back", () => {
+    expect(pushAllowed(openDeployment())).toBe(true);
+    expect(pushAllowed(managed)).toBe(false);
   });
 
   it("keeps AI off unless the deployment enabled it", () => {

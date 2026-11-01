@@ -19,6 +19,7 @@ import { HomeView } from "./Home";
 import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
 import { ProjectBootOverlay } from "./ProjectBootOverlay";
 import { ImportRemoteDialog } from "./ImportRemoteDialog";
+import { PushRemoteDialog } from "./PushRemoteDialog";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
 import { isWordWrapChord } from "@/vv/editor-prefs";
@@ -207,6 +208,7 @@ export function AppShell() {
       <StatusBar />
       <CommandPalette />
       <ImportRemoteDialog />
+      <PushRemoteDialog />
       {/* Home overlays the (kept-mounted) IDE so the editor/terminals survive a
           round-trip to Home and back. */}
       {snap.view === "home" && <HomeView />}

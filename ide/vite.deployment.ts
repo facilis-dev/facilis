@@ -29,9 +29,17 @@ const GIT_IMPORT_STUB = [
   'export function fetchGitRepo() { return Promise.reject(new Error("git import disabled")); }',
 ].join("\n");
 
+const GIT_PUSH_OFF = "\0facilis:git-push-off";
+const GIT_PUSH_STUB = [
+  "// Compiled out: this deployment allows no git write-back (D-078).",
+  'function off() { return Promise.reject(new Error("git push disabled")); }',
+  "export const listRemoteTree = off;",
+  "export const pushChanges = off;",
+].join("\n");
+
 const GIT_PROVIDER_OFF = "\0facilis:git-provider-off";
 const GIT_PROVIDER_STUB = [
-  "// Compiled out with the import: no host table, no URL parsing (D-063).",
+  "// Compiled out with the import and the push: no host table, no URL parsing (D-063).",
   "export const GIT_PROVIDERS = [];",
   "export function detectGitProvider() { return null; }",
   "export function hostOfGitInput() { return null; }",
@@ -91,25 +99,34 @@ function listFiles(dir: string, base = dir, found: string[] = []): string[] {
   return found.sort();
 }
 
-/** The L0 removal of the git-import implementation when the policy allows none. */
-function gitImportStub(deployment: ResolvedDeployment): Plugin {
-  const off = deployment.profile === "managed" && !deployment.projects.imports.git;
+/**
+ * The L0 removal of the git implementation when the policy allows none: the import
+ * (D-073) and the write-back (D-078) are separate switches, but the host table and
+ * parser they share only disappear when neither direction can run.
+ */
+function gitNetworkStub(deployment: ResolvedDeployment): Plugin {
+  const importOff = deployment.profile === "managed" && !deployment.projects.imports.git;
+  const pushOff = deployment.profile === "managed" && !deployment.projects.exports.git;
+  const providerOff = importOff && pushOff;
   return {
-    name: "facilis-git-import-off",
+    name: "facilis-git-network-off",
     // Pre: vite:resolve resolves "./git-import" before a normal plugin's hook sees
     // it, and the resolved id is what Rollup would then load. Winning the ordering is
     // what makes this a build-time removal rather than a runtime guard.
     enforce: "pre",
     resolveId(id) {
-      if (!off) return null;
-      if (id === "./git-import" || /[\\/]src[\\/]vv[\\/]git-import\.ts$/.test(id)) {
+      if (importOff && (id === "./git-import" || /[\\/]src[\\/]vv[\\/]git-import\.ts$/.test(id))) {
         return GIT_IMPORT_OFF;
       }
-      // The host table and parser carry the only URLs the importer would call.
+      if (pushOff && (id === "./git-push" || /[\\/]src[\\/]vv[\\/]git-push\.ts$/.test(id))) {
+        return GIT_PUSH_OFF;
+      }
+      // The host table and parser carry the only URLs either direction would call.
       if (
-        id === "./git-provider" ||
-        id === "@/vv/git-provider" ||
-        /[\\/]src[\\/]vv[\\/]git-provider\.ts$/.test(id)
+        providerOff &&
+        (id === "./git-provider" ||
+          id === "@/vv/git-provider" ||
+          /[\\/]src[\\/]vv[\\/]git-provider\.ts$/.test(id))
       ) {
         return GIT_PROVIDER_OFF;
       }
@@ -117,6 +134,7 @@ function gitImportStub(deployment: ResolvedDeployment): Plugin {
     },
     load(id) {
       if (id === GIT_IMPORT_OFF) return GIT_IMPORT_STUB;
+      if (id === GIT_PUSH_OFF) return GIT_PUSH_STUB;
       if (id === GIT_PROVIDER_OFF) return GIT_PROVIDER_STUB;
       return null;
     },
@@ -133,7 +151,7 @@ export function deploymentPlugin(): Plugin[] {
   let resolved: ResolvedConfig | null = null;
 
   return [
-    gitImportStub(loaded.deployment),
+    gitNetworkStub(loaded.deployment),
     {
       name: "facilis-deployment",
       config() {

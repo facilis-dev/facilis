@@ -111,9 +111,15 @@ describe("deployment artifacts", () => {
   it("the environment manifest records policy and artifacts", () => {
     const parsed = JSON.parse(
       renderEnvironment({ ...input(), artifacts: { "index.html": "deadbeef" } }),
-    ) as { profile: string; configHash: string; artifacts: Record<string, string> };
+    ) as {
+      profile: string;
+      configHash: string;
+      gitPush: boolean;
+      artifacts: Record<string, string>;
+    };
     expect(parsed.profile).toBe("managed");
     expect(parsed.configHash).toBe("abc123");
+    expect(parsed.gitPush).toBe(false);
     expect(parsed.artifacts["index.html"]).toBe("deadbeef");
   });
 
