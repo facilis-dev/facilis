@@ -1,6 +1,7 @@
 # Facilis design direction
 
-**Status:** proposal for review (2026-10-31). The current kit reads dated ("Bootstrap 3"):
+**Status:** **A — Institutional is chosen as the app base** (owner decision, 2026-10-31). The
+brand layer (B or C, light + dark) is still to pick. The current kit reads dated ("Bootstrap 3"):
 system font, flat grey-on-grey surfaces, 1 px borders, no elevation, no type hierarchy and no
 page patterns. The fix is a **design layer** (tokens + composition + designed examples), not more
 component props: components stay small and copyable (D-047).
@@ -43,6 +44,11 @@ the D-044/D-047 thesis applied beyond light/dark.
 7. **Motion is feedback.** 120–160 ms ease-out, visible focus ring, reduced motion respected.
 8. **Small API, rich surface.** Visual richness lives in tokens and composition; deep
    customisation is still "copy the component".
+9. **A is the default, not a lock-in.** Picking A means "this is how the kit looks out of the
+   box", not "this is the only look". Every colour, radius, density, shadow and type value is a
+   CSS variable a project can override — a rebrand or a different theme is a variable block, no
+   component change. If a project needs more than variables allow, it copies the component and
+   owns it. The kit never grows a configuration system for that.
 
 ## Typography
 
@@ -99,14 +105,22 @@ borders and space), control 40 / row 50, editorial headings.
 layer used by auth/onboarding/empty states, with C (warm editorial, light + dark) as the
 alternative. The lab shows all three so the choice is visual, not theoretical.
 
-## Patterns to add after the choice
+## Patterns
 
-1. `AppShell` (sidebar/topbar slots), `Card`, `StatCard`, `Tabs`, `Dialog`, `DropdownMenu`,
-   `Avatar`, `Pagination`, `TableToolbar`, `Skeleton`, `Switch`.
-2. `Tooltip`, toast polish, `CommandMenu`, date picker, file upload.
-3. `DataTable` (TanStack) on the table pattern, with the block manifest.
+Shipped in the kit: `Card`, `StatCard`, `Tabs`, `Dialog`, `Switch`, `Avatar`/`AvatarStack`,
+`Pagination` (translatable summary/labels), `TableToolbar`, `Menu`, `Skeleton`, `DatePicker`
+(date + optional time), `Combobox`, `TagPicker`. Page-level shells (sidebar/topbar) stay in the
+project's `src/layouts/` because they need the router and session.
 
-Each stays small, token-driven and copyable; the API surface grows by pattern, not by prop.
+Still to add: `Tooltip`, command menu, file upload, and the `DataTable` block (TanStack) on top
+of the table pattern. Each stays small, token-driven and copyable.
+
+## CSS organisation
+
+One stylesheet per component, colocated and imported by the component (`src/button.css` next
+to `src/button.tsx`); shared visual atoms live in small partials (`icon-button.css`).
+`theme.css` keeps only the token sets and the global/base layer — no `.fc-*` rules. The build
+copies component CSS into `dist/` so tarballs work, and `css.test.ts` enforces the rule (D-052).
 
 ## Design lab
 
@@ -116,8 +130,9 @@ the visual line, not to ship. After the choice: tokens move into `@facilis/ui/th
 (operations + brand theme blocks), primitives are polished against them, then the patterns land
 one by one.
 
-## Decision needed
+## Decision status
 
-Use A (green) as the app base; choose B (violet) or C (warm) as the brand layer — each in light
-and dark. Then the kit gets the chosen tokens + brand theme, and the gallery and todo app are
-restyled as the first acceptance.
+- **A (green) is the app base — chosen.** Its token set and patterns are promoted into
+  `@facilis/ui`; the gallery and the todo app are restyled against it.
+- **Brand layer — still open:** B (violet) or C (warm), each in light and dark. Until that choice,
+  auth/empty states use A as well; the brand theme blocks land when the owner picks one.

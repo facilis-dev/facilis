@@ -663,6 +663,14 @@ can be copied into it.
   (sidebar, user menu) stay in the project's `src/layouts/` because they need the router and
   the session; the kit only supplies the neutral templates the pages compose.
 
+Patterns shipped on top of the primitives (all token-driven, SSR-renderable, copyable):
+`Card`, `StatCard`, `Tabs`, `Dialog`, `Switch`, `Avatar`/`AvatarStack`, `Pagination`
+(translatable summary + nav labels), `TableToolbar`, `Menu`, `Skeleton`, and the form pickers
+`DatePicker` (calendar with optional time), `Combobox` (searchable select) and `TagPicker`.
+`theme.css` holds only the token sets and the global base layer; each component owns its
+stylesheet next to its source (`src/button.css`) and the build copies them into `dist` for
+packed tarballs (D-052).
+
 ### 5.8 `@facilis/time`
 
 Zero-dependency date/time logic (D-048), built on `Intl` only:

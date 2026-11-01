@@ -1487,6 +1487,46 @@ small (state × view, no plumbing); the IDE template can adopt the same structur
 without a framework change. Tailwind remains the app's utility layer, but the reference app
 uses only variables and `.fc-*` classes so no CSS framework is required to boot.
 
+### D-051 — Direction A is the app base: institutional, green accent
+**Status:** accepted (2026-10-31)
+
+After the design lab (`examples/design-lab`, D-050 follow-up) the owner picked **A —
+Institutional** as the base visual layer for generated apps: light-first neutrals, forest-green
+primary (`#15803d` light, `#4ade80` with dark content in dark mode), one green signal accent,
+dense but airy layout (control 38 / row 44 / sidebar 248 / page max 1280), radius 8/12, subtle
+shadows, Geist Variable, designed light+dark.
+
+The **brand layer remains open** (B violet or C warm, each light+dark) and is temporarily
+rendered with A; when chosen, its complete theme blocks are added alongside the operations ones,
+and auth/onboarding/empty states opt into them.
+
+**Consequences:** the kit keeps one component set with role-based tokens; the lab's A tokens and
+pattern CSS are promoted into `@facilis/ui/theme.css`, the existing primitives are polished
+(no API changes), the lab patterns (Card, StatCard, Tabs, Dialog, Switch, Avatar, Pagination,
+TableToolbar, Menu, Skeleton) become kit components, and the gallery + todo app are restyled as
+the first acceptance. Brand names stay out of the docs and code.
+
+### D-052 — One stylesheet per component, theme.css only tokens + global
+**Status:** accepted (2026-11-01)
+
+Owner feedback after reviewing the promoted kit: a single stylesheet holding every component's
+rules is hard to navigate and maintain. Each component now owns its styles.
+
+**Decision.** `src/<component>.css` sits next to `src/<component>.tsx` and the module imports
+it (`import "./button.css";`); shared visual atoms live in small partials imported by the
+components that use them (`icon-button.css`). `theme.css` keeps **only** the Geist `@import`,
+the three complete token sets and the global base layer (reset, body, links, global focus
+ring) — no `.fc-*` component rules. The build runs `tsc` plus `scripts/copy-css.mjs`, which
+copies every stylesheet into `dist/` so packed tarballs (D-023) resolve CSS next to the
+compiled JS; `src/` and `theme.css` still ship for copy-paste. `css.test.ts` enforces that
+every styled component imports its stylesheet, every stylesheet is imported, `theme.css` has
+no component rules, and component CSS contains no colour literals and only tokens defined in
+`theme.css`.
+
+**Consequences:** adding a component means the module, its stylesheet and a test; copy-pasting
+a component brings its CSS; the CSS bundle carries a little deliberate duplication but stays
+organised. This is the structure new components and the IDE template follow.
+
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 

@@ -71,10 +71,24 @@ exactly one file, `theme.css`; no component may contain a colour literal.
 | `EmptyState` | `title: string`, `description?: string`, `action?: ReactNode`, `className?` | list/detail "nothing here yet" surface |
 | `Spinner` | `label?: string` | loading indicator; `role="status"` + `aria-label` when a label is passed, decorative otherwise; animation respects reduced motion |
 
-Out of scope for this slice: dialog/modal, tabs, combobox, date picker, file upload. They come
-as their own components (or are copied from the source) later. Page-level shells that know
-about navigation/session (sidebar, user menu) stay **in the project** (`src/layouts/`), not
-in the kit: they compose these templates with the project's router and session.
+| `Card` | `title?`, `description?`, `actions?`, `children`, `footer?`, `flush?`, `className?` | surface container |
+| `StatCard` | `label`, `value`, `meta?`, `trend?: { direction: "up"\|"down"; value: string }`, `progress?: number` (0–100), `icon?`, `className?` | metric card |
+| `Tabs` | `tabs: { id, label, content }[]`, `label`, `initialId?`, `className?` | roving tabindex, arrow/Home/End, role tablist/tab/tabpanel |
+| `Dialog` | `open`, `onClose`, `title`, `description?`, `children?`, `footer?`, `closeLabel?`, `className?` | controlled modal, no portal (SSR-renderable), Esc/backdrop, focus trap + restore, scroll lock |
+| `Switch` | `checked`, `onChange(checked)`, `label`, `disabled?`, `className?` | role=switch |
+| `Avatar` / `AvatarStack` | `name`, `size?: "sm"\|"md"\|"lg"`, `className?` / `names`, `max?`, `className?` | initials + deterministic tint |
+| `Pagination` | `page`, `pageCount`, `total`, `pageSize`, `onPageChange`, `summaryLabel?`, `previousLabel?`, `nextLabel?`, `className?` | labels injected for i18n |
+| `TableToolbar` | `search?`, `onSearchChange?`, `searchPlaceholder?`, `searchLabel?`, `filters?`, `actions?`, `className?` | slot-based filter bar |
+| `Menu` | `label`, `items: { label, icon?, tone?: "default"\|"danger", onSelect }[]`, `trigger?`, `defaultOpen?`, `className?` | aria-haspopup/menu, keyboard nav, outside/Esc close |
+| `Skeleton` | `width?`, `height?`, `circle?`, `className?` | decorative, reduced-motion aware |
+| `DatePicker` | `value: Date | null`, `onChange`, `mode?: "date"\|"datetime"`, `minDate?`, `maxDate?`, `locale?`, `labels?`, `disabled?`, `defaultOpen?`, `className?`, `id?`, `aria-*` | calendar popover + optional 00–23/00–59 time selects; Monday-first grid, min/max, today/clear, keyboard; local Dates |
+| `Combobox` | `options: { value, label, hint? }[]`, `value: string | null`, `onChange`, `placeholder?`, `emptyLabel?`, `clearLabel?`, `disabled?`, `defaultOpen?`, `className?`, `id?`, `aria-*` | searchable single select: filter by label then value, aria-activedescendant |
+| `TagPicker` | `value: readonly string[]`, `onChange`, `options?`, `placeholder?`, `removeLabel?`, `suggestionsLabel?`, `disabled?`, `className?`, `id?`, `aria-*` | chips + suggestions, Enter/comma add, Backspace/click remove, trim + case-insensitive dedupe |
+
+All of these are token-driven, copyable and SSR-renderable. Out of scope for this slice:
+tooltip, command menu, file upload and the DataTable block (TanStack). Page-level shells that
+know about navigation/session (sidebar, user menu) stay **in the project** (`src/layouts/`),
+not in the kit: they compose these patterns with the project's router and session.
 
 ### 3.2 Theme variables (the customisation surface)
 
@@ -97,18 +111,32 @@ component change.
 | `--radius-box` | cards, tables, alerts, toasts |
 | `--border-width` | border width used by the field/box components |
 
+The A design layer also exposes (D-051): `--font-sans`/`--font-mono` (Geist is imported by
+`theme.css`), the type scale (`--text-xs…3xl`, leading, tracking), `--space-1…12`,
+`--page-max`, density (`--control-h` 38, `--row-h` 44, `--pad-card`, `--pad-page`,
+`--sidebar-w`), elevation (`--shadow-sm/md/lg/glow`), `--color-raised`,
+`--color-primary-hover`, `--color-accent(-content)`, `--color-focus`, `--ring-width/offset`,
+motion (`--duration-*`, `--ease-out`) and `--radius-pill`. Every value is overridable by a
+project's theme block; that is the customisation surface, together with copying a component.
+
 ### 3.3 Class and file layout
 
-- `theme.css` — variables, `color-scheme`, and the `.fc-*` component rules. No component
-  module contains a colour value.
+- **One stylesheet per component, colocated**: `src/button.css` next to `src/button.tsx`, and
+  the component module imports it (`import "./button.css";`). Same for every primitive,
+  pattern and form picker; shared visual atoms live in small partials imported by the
+  components that need them (`icon-button.css`).
+- `theme.css` — **only** the Geist `@import`, the three complete token sets and the global
+  base layer (box-sizing, body canvas/font, links, global `:focus-visible`). It contains no
+  `.fc-*` component rules.
 - `src/index.ts` — flat named re-exports, nothing else.
-- One file per component (or per small family): `button.tsx`, `input.tsx`,
-  `textarea.tsx`, `select.tsx`, `checkbox.tsx`, `field.tsx`, `table.tsx`,
-  `badge.tsx`, `alert.tsx`, `toaster.tsx` (+ `toaster-store.ts` for the testable store),
-  and the page templates `page.tsx`, `auth-shell.tsx`, `empty-state.tsx`, `spinner.tsx`.
-- `src/index.ts` must not pull a component that does not exist yet; add exports as files land.
+- The build runs `tsc` and then `scripts/copy-css.mjs`, which copies every `src/**/*.css`
+  into `dist/` so the packed tarball (D-023) serves CSS next to the compiled JS; `src/` and
+  `theme.css` stay in the package for copy-paste.
+- No component module contains a colour value; no component stylesheet contains a literal —
+  only the token variables defined in `theme.css`.
 - Tests render with `react-dom/server` (`renderToStaticMarkup`) — no jsdom dependency — and
-  assert roles/aria/classes; the toast store is tested directly with fake timers.
+  assert roles/aria/classes; the toast store is tested with fake timers; `css.test.ts` guards
+  the stylesheet/token rules above.
 
 ### 3.4 Gallery
 

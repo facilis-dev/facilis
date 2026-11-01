@@ -172,9 +172,15 @@ export function isOverdue(iso: string | null, options?: { today?: string; timeZo
 
 Every page that loads data renders three explicit states, using kit templates:
 
-1. loading → `<Spinner label={t("common.loading")} />` (or skeleton once the kit has one);
+1. loading → `<Skeleton>` rows/cards, or `<Spinner label={t("common.loading")} />` for a
+   whole surface;
 2. error → `<Alert tone="error">` + retry button;
 3. empty → `<EmptyState title description action />`; otherwise content.
+
+Tables compose `TableToolbar` (search/filters/actions) and `Pagination` with translated
+`summaryLabel`/`previousLabel`/`nextLabel`; destructive actions ask through `Dialog`;
+`DatePicker`, `Combobox` and `TagPicker` cover the richer form fields, with `Field` wiring the
+label/description/invalid state and the `labels` props carrying `t()` strings.
 
 Mutations toast the outcome (`toast.success` / `toast.error(t(errorMessageKey(error)))`);
 they never replace the page with an error blob.
