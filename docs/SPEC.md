@@ -255,6 +255,16 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── ...
 │   │   └── package.json
 │   │
+│   ├── ui/                   @facilis/ui (D-055)
+│   │   ├── theme.css         role variables + .fc-* rules (the only colour literals)
+│   │   └── src/              Button, Input, Table, Toaster, … (plain CSS, no Tailwind)
+│   │
+│   ├── time/                 @facilis/time (D-056)
+│   │   └── src/              Intl formatting, calendar days, DST-aware day bounds
+│   │
+│   ├── i18n-db/              @facilis/i18n-db (D-057)
+│   │   └── src/              translated content fields + optional catalogue overlay
+│   │
 │   ├── ai/                   @facilis/ai
 │   │   ├── src/
 │   │   │   ├── prompt.ts             system prompt builder
@@ -636,9 +646,88 @@ than replaces, so a cookie another handler staged on the same response survives.
 
 **Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session helpers are their own entry point because they import h3 while core's route contract does not (contracts §4.1): the single `FacilisRequestEvent` → `H3Event` narrowing lives there, and a handler stays free of h3 imports.
 
+### 5.7 `@facilis/ui`
+
+The base kit a generated project imports (D-055). Plain CSS + role variables, no Tailwind
+dependency and no theme props, so the components work in a project with no CSS framework and
+can be copied into it.
+
+- `@facilis/ui` exports `Button`, `Input`, `Textarea`, `Select`, `Checkbox`, `Field`,
+  `Table` (+ `TableHeader`/`TableBody`/`TableFooter`/`TableRow`/`TableHead`/`TableCell`/
+  `TableCaption`), `Badge`, `Alert`, `Toaster` and `toast`. `Button` takes only
+  `variant` (`primary|secondary|ghost|danger`) and `size` (`sm|md`); every other component
+  takes its native props.
+- `@facilis/ui/theme.css` is the only file with colour literals: complete `:root` (light),
+  `[data-theme="light"]` and `[data-theme="dark"]` sets of `--color-base-*`,
+  `--color-{primary,secondary,neutral,info,success,warning,error}(-content)`,
+  `--radius-{selector,field,box}` and `--border-width`, plus the `.fc-*` rules. A project
+  imports it once, sets `data-theme`, and overrides variables to rebrand; a new theme is
+  another complete block. Deep customisation means copying the component source (shipped in
+  the package) and its rules.
+- `Field` wires `id`/`aria-describedby`/`aria-invalid` through context; `Toaster` is one
+  instance with `toast()` helpers and a fixed 4 s auto-dismiss (no options by design).
+- Page templates: `Page` (title/description/actions + content), `AuthShell` (centred auth
+  card), `EmptyState` and `Spinner` (labelled or decorative). Navigation-aware shells
+  (sidebar, user menu) stay in the project's `src/layouts/` because they need the router and
+  the session; the kit only supplies the neutral templates the pages compose.
+
+Patterns shipped on top of the primitives (all token-driven, SSR-renderable, copyable):
+`Card`, `StatCard`, `Tabs`, `Dialog`, `Switch`, `Avatar`/`AvatarStack`, `Pagination`
+(translatable summary + nav labels), `TableToolbar`, `Menu`, `Skeleton`, and the form pickers
+`DatePicker` (calendar with optional time), `Combobox` (searchable select) and `TagPicker`.
+`theme.css` holds only the token sets and the global base layer; each component owns its
+stylesheet next to its source (`src/button.css`) and the build copies them into `dist` for
+packed tarballs (D-060).
+
+Content components round out the form surface (D-061). `MarkdownEditor` is Markdown with a
+toolbar that transforms the real textarea selection (bold, italic, heading, lists, quote,
+inline code, link), Ctrl/Cmd+B/I/K and Write/Preview tabs; `Markdown` is the exported
+renderer for saved content. The renderer is a fixed subset — React elements only, raw HTML
+shown as text, links limited to `http(s)`, `mailto:`, `#` and relative targets — so
+untrusted text never injects markup. `TranslationsInput` edits one value per locale: locale
+tabs with a filled/empty dot, config-driven locales plus add/remove (the default locale is
+marked and cannot be removed), single or multiline. Its
+`Translations = Readonly<Record<string, string>>` is the same shape `@facilis/i18n-db` stores,
+so the client input and the server column agree without the kit depending on the server
+package. All labels are injected (`labels` props) so `t()` covers them, and both components
+take `id`/`aria-*` for `Field`.
+
+### 5.8 `@facilis/time`
+
+Zero-dependency date/time logic (D-056), built on `Intl` only:
+
+- `formatDate`, `formatDateTime`, `formatTime` — localized formatting with explicit
+  `{ locale, timeZone }` (runtime defaults only when omitted).
+- `formatDateOnly`, `isValidDateOnly` — a calendar day is a `YYYY-MM-DD` string and never
+  shifts across zones; the day domain is `0001-01-01 … 9999-12-31`.
+- `dateOnlyOf`, `today` — the calendar day an instant falls on in a zone.
+- `startOfDay`, `endOfDay` — the UTC `Date` of local 00:00 / 23:59:59.999, DST-aware
+  (skipped and repeated midnights included).
+- Types `DateInput`, `FormatOptions`, `DateOnlyFormatOptions`.
+
+Invalid input throws (`TypeError` for wrong types, `RangeError` for bad dates/zones/instants);
+ISO date-times without an explicit offset are rejected rather than read in the runtime zone.
+There is nothing to configure.
+
+### 5.9 `@facilis/i18n-db`
+
+Opt-in database i18n (D-057), in two independent pieces:
+
+- **Translated content fields** — `Translations = Readonly<Record<string, string>>`,
+  `translatedText(name)` (Drizzle `jsonb` column), `translationsSchema` (Zod),
+  `resolveTranslation(value, locale, fallbackLocale?)`, `normalizeLocale`, `matchLocale`,
+  `parseAcceptLanguage` and `resolveUserLocale`. The project stores the per-language texts on
+  the row, resolves the user's language (saved preference → `Accept-Language` → default) and
+  maps rows through `resolveTranslation`, so only one language leaves the server.
+- **Catalogue overlay (optional)** — `i18nMessages` plus `loadCatalog`/`loadCatalogs`/
+  `saveCatalog`, `catalogQuery`/`parseCatalogLocales` for the project's explicit
+  `defineAuthorizedHandler` route, and `hydrateCatalogs` on the client
+  (`@facilis/i18n-db/client`, drizzle-free) merging database rows over `locales/*.json` per
+  key.
+
 ---
 
-### 5.7 `@facilis/storage`
+### 5.10 `@facilis/storage`
 
 Content-addressed binary storage for files uploaded by a generated app (D-053). Bytes are
 addressed by their sha-256 hex digest and never stored in Postgres; a `facilis_files` row is

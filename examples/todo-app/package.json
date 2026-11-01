@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "lint": "oxlint src server db",
     "db:generate": "drizzle-kit generate"
   },
@@ -18,9 +19,12 @@
     "@facilis/core": "workspace:*",
     "@facilis/db": "workspace:*",
     "@facilis/nitro": "workspace:*",
+    "@facilis/time": "workspace:*",
+    "@facilis/ui": "workspace:*",
     "drizzle-orm": "0.45.4",
     "nitro": "3.0.260903-beta",
     "react": "19.3.1",
+    "react-router-dom": "7.18.5",
     "react-dom": "19.3.1",
     "zod": "4.6.7"
   },

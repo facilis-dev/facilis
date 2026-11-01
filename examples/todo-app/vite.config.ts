@@ -10,4 +10,10 @@ export default defineConfig({
   resolve: {
     alias: { "~": new URL(".", import.meta.url).pathname },
   },
+  // The sandbox exposes dev servers through the facilis.home HTTPS reverse proxy, and Vite 8
+  // rejects unknown Host headers (DEV.md section 4). Dev-only vhost allowance; a normal deploy
+  // never uses it.
+  server: {
+    allowedHosts: ["facilis.home", ".facilis.home", "dsh.home"],
+  },
 });

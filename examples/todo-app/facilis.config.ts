@@ -8,7 +8,7 @@ export default defineConfig({
     tenantColumns: ["tenantId", "tenant_id"],
     ownerColumns: ["ownerId", "owner_id", "userId", "user_id"],
   },
-  i18n: { defaultLocale: "en", locales: ["en"] },
+  i18n: { defaultLocale: "en", locales: ["en", "it"] },
   blocks: { packages: [] },
   auth: {
     permissions: ["todos:read", "todos:write", "users:read"],

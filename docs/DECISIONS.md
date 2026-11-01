@@ -1661,6 +1661,187 @@ directory-only patterns, the unreadable-`.gitignore` fallback and the ignored-an
 prefix; `search-session.test.ts` pins the batch filter and the recomputed counts;
 `pnpm --filter @facilis/ide typecheck|test|build`; `pnpm ide:smoke`.
 
+### D-055 — The base UI kit is plain CSS + daisyUI-style role variables
+**Status:** accepted (2026-10-31)
+
+Generated projects need a small set of base components (table, toaster, inputs, fields,
+badge, alert) that a project can use, restyle or copy. The kit must work in the project the
+IDE generates today — a plain Vite + React app with no CSS framework installed — and as a
+tarball with no build configuration (D-023/D-032). It therefore ships as `@facilis/ui`:
+**plain CSS classes (`.fc-*`) plus one block of role variables**, not Tailwind utilities.
+This keeps the whole component copy-pasteable (the directive's "recreate it if you need
+more") and leaves Tailwind to the app for its own layout.
+
+**Decision.** A theme is a complete variable set in `theme.css` (`:root` light,
+`[data-theme="light"]`, `[data-theme="dark"]`): `--color-base-100/200/300`,
+`--color-base-content`, `--color-primary|secondary|neutral|info|success|warning|error`
+(+ `-content`), `--radius-selector|field|box`, `--border-width`. Components only name roles
+(never a literal colour); rebranding means editing those values, adding a theme means another
+`[data-theme="…"]` block. The prop surface is deliberately tiny: variants and sizes only, no
+per-component colour/radius props.
+
+**Consequences:** the kit is usable without Tailwind and works with any stack the project
+chooses; `@facilis/blocks` may still be Tailwind/shadcn (D-003) because it builds app screens
+on top of the base kit. Deep customisation is "copy the component and its `.fc-*` rules into
+the project", not a configuration system.
+
+### D-056 — Date/time logic is `Intl`, explicit zones and calendar-day strings
+**Status:** accepted (2026-10-31)
+
+The framework must not add a date library (bundle + in-VM install cost) and cannot rely on
+Temporal: it is not in Node 22/24 and is not guaranteed in the WebContainer browser. The base
+logic therefore lives in a zero-dependency `@facilis/time` package built only on `Intl`:
+
+- formatting takes `{ locale, timeZone }` explicitly (runtime zone only as a documented
+  default); instants are `Date`/ISO strings;
+- a calendar day is the `YYYY-MM-DD` string, with `dateOnlyOf`/`today` producing it *in a
+  zone* and `formatDateOnly`/start-of-day/end-of-day consuming it without shifting it;
+- start/end of day are DST-aware (offset probing, no arithmetic on naive local time);
+- invalid input throws instead of rendering garbage.
+
+**Consequences:** one small module with a tested time-zone contract; no configuration. An app
+that needs recurring rules, duration math or a picker writes/copies that on top.
+
+### D-057 — Database i18n: translated content fields first, optional catalogue overlay
+**Status:** accepted (2026-10-31; clarified by the product owner the same day)
+
+"Translatable texts in the DB" means **a text stored in a row can carry several languages,
+and the app serves only the user's language** — e.g. `{ en: "Todo", it: "Fare" }` on a
+product/blog row. It is not a switch for the UI catalogue. `@facilis/i18n-db` is an opt-in
+package with two independent pieces; a project imports what it needs.
+
+**A. Translated content fields (primary).**
+- The stored shape is one JSONB column per translatable field, typed `Translations =
+  Readonly<Record<string, string>>`; `translatedText("title")` is the Drizzle column helper,
+  `translationsSchema` the Zod validator. The project schema re-exports it, drizzle-kit
+  generates the migration (no migration ships with the package).
+- Serving picks one language: `resolveTranslation(value, locale, fallbackLocale = "en")`
+  tries exact locale → base language (`it-CH` → `it`) → fallback locale → first present
+  value → `""`, never throws. The API maps rows through it, so the raw translations object
+  only leaves the server if the API says so.
+- The user's language is resolved too: `resolveUserLocale({ userLocale, acceptLanguage,
+  supported, defaultLocale })` — saved preference first (the app persists it, e.g. on the
+  profile), then `Accept-Language`, then the default; `parseAcceptLanguage`/`matchLocale` are
+  exported for the same logic. Persistence is app-owned: the package is a pure resolver.
+- Client and server share the pure helpers through the `/client` subpath, which must not pull
+  drizzle.
+
+**B. Catalogue overlay (optional).** UI message keys can be overridden per deployment through
+the tenant-scoped `i18n_messages` table; the JSON catalogues of `@facilis/core/i18n` stay the
+base and a per-key fallback. The table needs the restrictive tenant policy **and** the
+permissive tenant gate `i18n_messages_tenant_access` — a restrictive-only policy admits no
+rows (D-008), the same reason `@facilis/auth` has `users_tenant_access`. It ships a public
+`loadCatalogs` and the project writes the explicit `defineAuthorizedHandler` route (the AST
+pass cannot see a re-exported handler, so the route metadata would be lost). `hydrateCatalogs`
+on the client merges the DB rows over the JSON per key and registers the catalogues.
+
+**Consequences:** content translations become a normal typed column, not a framework mode;
+the UI catalogue overlay is available but optional; both are disabled by not importing the
+package.
+
+### D-058 — The generated frontend is pages + layouts + components + lib
+**Status:** accepted (2026-10-31)
+
+The project UI needs an explicit organisation before it can be tried: base components alone
+do not tell a developer (or the AI) where a route, a shell or a fetch helper lives. The
+reference implementation is `examples/todo-app` (real Nitro/PGlite backend), and
+`docs/FRONTEND.md` is the contract.
+
+**Layers.** `src/pages/*` = one component per route (data fetching + `Page` header, no shell
+markup); `src/layouts/*` = page shells composed with the project's router and session;
+`src/components/*` = app-specific pieces (promoted to `@facilis/ui` only when generic and
+themeable through role variables); `src/lib/*` = framework-free logic (`api`, `session`,
+`theme`, `i18n`, `dates`) whose pure helpers take their inputs and are unit-tested.
+
+**Routing.** `react-router-dom` v7 declarative mode, one explicit route table in
+`src/app.tsx`; `<BrowserRouter basename={appBasePath()}>` so the same app works at `/` and
+under the IDE preview's `/preview/<port>/`. No file-based magic, no second router.
+
+**Cross-cutting contracts.** `lib/api.ts` is the only `fetch` (JSON, session cookie,
+`ApiError { code, details, status }`, `network_error`); API prose never reaches the UI —
+errors map to `t("errors.<code>")`. Session = the framework cookie, loaded once by
+`SessionProvider` with `RequireAuth`/`PublicOnly` guards. Theme = `data-theme` on `<html>`
+with a stored preference (the kit stays variable-driven, D-055). i18n = project JSON
+catalogues registered at boot, persisted locale with a switcher, optional
+`hydrateCatalogs` overlay (D-057). Dates = `@facilis/time` with the user's zone, never
+`Date#toLocaleString`.
+
+**UI templates in the kit.** Neutral shells live in `@facilis/ui`: `Page` (header +
+content), `AuthShell` (centred auth card), `EmptyState`, `Spinner`. Navigation-aware shells
+(sidebar/user menu) stay in the project, because they need the router and the session.
+
+**Consequences:** a project can be generated by copying four obvious folders; pages stay
+small (state × view, no plumbing); the IDE template can adopt the same structure later
+without a framework change. Tailwind remains the app's utility layer, but the reference app
+uses only variables and `.fc-*` classes so no CSS framework is required to boot.
+
+### D-059 — Direction A is the app base: institutional, green accent
+**Status:** accepted (2026-10-31)
+
+After the design lab (`examples/design-lab`, D-058 follow-up) the owner picked **A —
+Institutional** as the base visual layer for generated apps: light-first neutrals, forest-green
+primary (`#15803d` light, `#4ade80` with dark content in dark mode), one green signal accent,
+dense but airy layout (control 38 / row 44 / sidebar 248 / page max 1280), radius 8/12, subtle
+shadows, Geist Variable, designed light+dark.
+
+The **brand layer remains open** (B violet or C warm, each light+dark) and is temporarily
+rendered with A; when chosen, its complete theme blocks are added alongside the operations ones,
+and auth/onboarding/empty states opt into them.
+
+**Consequences:** the kit keeps one component set with role-based tokens; the lab's A tokens and
+pattern CSS are promoted into `@facilis/ui/theme.css`, the existing primitives are polished
+(no API changes), the lab patterns (Card, StatCard, Tabs, Dialog, Switch, Avatar, Pagination,
+TableToolbar, Menu, Skeleton) become kit components, and the gallery + todo app are restyled as
+the first acceptance. Brand names stay out of the docs and code.
+
+### D-060 — One stylesheet per component, theme.css only tokens + global
+**Status:** accepted (2026-11-01)
+
+Owner feedback after reviewing the promoted kit: a single stylesheet holding every component's
+rules is hard to navigate and maintain. Each component now owns its styles.
+
+**Decision.** `src/<component>.css` sits next to `src/<component>.tsx` and the module imports
+it (`import "./button.css";`); shared visual atoms live in small partials imported by the
+components that use them (`icon-button.css`). `theme.css` keeps **only** the Geist `@import`,
+the three complete token sets and the global base layer (reset, body, links, global focus
+ring) — no `.fc-*` component rules. The build runs `tsc` plus `scripts/copy-css.mjs`, which
+copies every stylesheet into `dist/` so packed tarballs (D-023) resolve CSS next to the
+compiled JS; `src/` and `theme.css` still ship for copy-paste. `css.test.ts` enforces that
+every styled component imports its stylesheet, every stylesheet is imported, `theme.css` has
+no component rules, and component CSS contains no colour literals and only tokens defined in
+`theme.css`.
+
+**Consequences:** adding a component means the module, its stylesheet and a test; copy-pasting
+a component brings its CSS; the CSS bundle carries a little deliberate duplication but stays
+organised. This is the structure new components and the IDE template follow.
+
+### D-061 — Content components: a safe Markdown subset and the translations value shape
+**Status:** accepted (2026-11-01)
+
+Owner asked for a rich text editor ("markdown is fine") and a component to manage the
+multi-language value of a text. Both ship in `@facilis/ui` as content components:
+`MarkdownEditor` + `Markdown` (renderer) and `TranslationsInput`.
+
+**Decision.** The editor is Markdown source, not WYSIWYG: a toolbar transforms the real
+textarea selection, Write/Preview tabs render the value, and `Markdown` is exported so pages
+render saved content with the same code. Markdown is a **fixed, safe subset**: headings,
+paragraphs, bold/italic/inline code, bullet/ordered lists, blockquote, fenced code, hr, line
+breaks and links; the renderer builds React elements (never `dangerouslySetInnerHTML`), raw
+HTML stays text, and link targets are limited to `http(s)`, `mailto:`, `#` and relative
+URLs, so previewing untrusted content cannot inject markup. No new dependency.
+
+`TranslationsInput` edits `Translations = Readonly<Record<string, string>>`, the same shape
+`@facilis/i18n-db` stores (D-057) but declared in the kit instead of importing the server
+package. Locales come from the project config (`locales`, tab order); `availableLocales`
+feeds the add-language action; the default locale is marked and cannot be removed; tabs
+carry a filled/empty dot so missing translations are visible. It is a client input only —
+no catalogue, no persistence.
+
+**Consequences:** a generated project with a Markdown field or a translated field stays
+copyable and dependency-free; the renderer's subset is the contract (extending it means
+extending the parser + tests, not adding an HTML sanitiser); the translations value plugs
+into `translatedText`/`resolveTranslation` unchanged.
+
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 

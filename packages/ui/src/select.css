@@ -1,0 +1,47 @@
+/*
+ * Select styles. Imported by select.tsx; colours, radii, spacing and motion come only from the
+ * tokens in theme.css (D-undefined, D-undefined).
+ */
+
+.fc-select {
+  display: block;
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-base-300);
+  border-radius: var(--radius-field);
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.fc-select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-base-content) 22%, var(--color-base-300));
+}
+
+.fc-select:focus {
+  border-color: var(--color-focus);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 18%, transparent);
+}
+
+.fc-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fc-select[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-select {
+    transition: none;
+  }
+}
