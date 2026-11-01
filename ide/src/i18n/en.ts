@@ -83,8 +83,8 @@ export const en = {
   "home.newProjectDesc": "A Facilis app — Nitro, PGlite and React, scaffolded and ready to run.",
   "home.importFolder": "Import a folder",
   "home.importFolderDesc": "Open a local folder — or drop one here — as a new project.",
-  "home.importRemote": "Import from GitHub or npm",
-  "home.importRemoteDesc": "Fetch a public repo or an npm package as a new project.",
+  "home.importRemote": "Import a repository",
+  "home.importRemoteDesc": "Fetch a GitHub, GitLab or Gitea/Forgejo repository as a new project.",
   "home.importLocked": "Available once your saved project finishes restoring.",
   "home.recent": "Recent projects",
   "home.recentHint":
@@ -108,20 +108,15 @@ export const en = {
   "create.creating": "Creating…",
   "create.waiting": "Waiting for the runtime…",
 
-  // ── Import from Git / npm ────────────────────────────────────────────────
-  "import.title": "Import from Git or npm",
+  // ── Import from a git host ───────────────────────────────────────────────
+  "import.title": "Import a repository",
   "import.description":
-    "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — or an npm package as a new project. Downloaded in your browser, no server involved.",
-  "import.github": "Git",
-  "import.npm": "npm",
+    "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — as a new project. Downloaded in your browser, no server involved.",
   "import.host": "Host",
   "import.repository": "Repository",
-  "import.package": "Package",
-  "import.githubPlaceholder": "owner/repo, owner/repo@branch, or a repository URL",
-  "import.npmPlaceholder": "left-pad, react@18, or @scope/pkg@1.2.3",
-  "import.githubHint":
+  "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, or a repository URL",
+  "import.repositoryHint":
     "Public by default; a private repository needs a token below. A self-hosted server must allow CORS on its API.",
-  "import.npmHint": "Unpacks the published tarball (the package contents, not its deps).",
   "import.token": "Access token (optional)",
   "import.tokenPlaceholder": "ghp_…, glpat-…, …",
   "import.tokenHint":
@@ -144,7 +139,7 @@ export const en = {
   "palette.newTerminal": "New Terminal",
   "palette.runProject": "Run Project",
   "palette.importFolder": "Import Folder as Project",
-  "palette.importRemote": "Import from GitHub or npm",
+  "palette.importRemote": "Import a repository",
   "palette.openChat": "Open AI Chat",
   "palette.exportZip": "Export Project as Zip",
   "palette.shareProject": "Share Project (copy link)",

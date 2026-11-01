@@ -25,7 +25,7 @@ Two profiles, selected at build time:
 |---|---|---|
 | Registry | public npm, anything reachable | one configured registry (mirror) |
 | Package allowlist | none | `packages.allow` compiled in + enforced by the mirror |
-| Project imports (folder / GitHub / npm / `#share=`) | available | compiled out |
+| Project imports (folder / git host / `#share=`) | available | compiled out |
 | Project admission | none | `facilis.app.json` required (§8) |
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
 | AI provider | presets plus a custom base URL | allowlisted providers or an internal gateway; default `off` ([AI-SKILLS.md](./AI-SKILLS.md)) |
@@ -99,7 +99,7 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
 
   "projects": {
     "admission": "facilis-only",
-    "imports": { "folder": false, "git": false, "npm": false, "share": false },
+    "imports": { "folder": false, "git": false, "share": false },
     "preview": { "origin": "https://preview.facilis.acme.example" },
     "shell": "shell"
   },
@@ -314,7 +314,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 
 | What | Today | Change | Level |
 |---|---|---|---|
-| Import from GitHub/npm/folder/`#share=` | `ide/src/vv/import-remote.ts`, `ide/src/vv/project-import.ts` | tree-shaken when `imports` are false | L0 |
+| Import from a git host/folder/`#share=` | `ide/src/vv/git-import.ts`, `ide/src/vv/github-import.ts`, `ide/src/vv/project-import.ts` | tree-shaken when `imports` are false | L0 |
 | `window.__vv` | installed unconditionally (`vendor/vivari/packages/core/src/bridge.ts`) | gate on `import.meta.env.DEV` (a vendor bump, D-030) | L0 |
 | Preview origin / sandbox | same-origin default, `allow-same-origin` (`ide/src/components/ide/PreviewPanel.tsx`) | `VITE_PREVIEW_ORIGIN` / `VITE_PREVIEW_WILDCARD_DOMAIN`, drop `allow-same-origin` | L0 |
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |

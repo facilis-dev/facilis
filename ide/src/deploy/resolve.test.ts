@@ -26,7 +26,7 @@ describe("deployment resolution", () => {
     const d = openDeployment();
     expect(d.profile).toBe("open");
     expect(d.packages.registry).toBeNull();
-    expect(d.projects.imports).toEqual({ folder: true, git: true, npm: true, share: true });
+    expect(d.projects.imports).toEqual({ folder: true, git: true, share: true });
     expect(d.projects.admission).toBe("any");
     expect(d.ai.mode).toBe("byo");
     expect(d.updates.channel).toBe("latest");
@@ -35,7 +35,7 @@ describe("deployment resolution", () => {
   it("managed defaults are restrictive", () => {
     const d = resolveDeployment(managed());
     expect(d.projects.admission).toBe("facilis-only");
-    expect(d.projects.imports).toEqual({ folder: false, git: false, npm: false, share: false });
+    expect(d.projects.imports).toEqual({ folder: false, git: false, share: false });
     expect(d.ai.mode).toBe("off");
     expect(d.packages.lockfile).toBe("required");
     expect(d.updates.channel).toBe("approved");

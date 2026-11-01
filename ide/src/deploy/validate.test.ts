@@ -29,7 +29,7 @@ describe("deployment config validation", () => {
       },
       projects: {
         admission: "facilis-only",
-        imports: { folder: false, git: false, npm: false, share: false },
+        imports: { folder: false, git: false, share: false },
         preview: { origin: "https://preview.facilis.acme.example" },
         shell: "run-only",
       },
@@ -72,6 +72,11 @@ describe("deployment config validation", () => {
   it("rejects a non-boolean import flag", () => {
     const issues = issuesOf(() => validateDeployment({ projects: { imports: { git: "yes" } } }));
     expect(issues).toContain("deployment.projects.imports.git: expected a boolean");
+  });
+
+  it("rejects the retired npm import flag", () => {
+    const issues = issuesOf(() => validateDeployment({ projects: { imports: { npm: true } } }));
+    expect(issues).toContain("deployment.projects.imports.npm: unknown key");
   });
 
   it("rejects a gateway that is not a URL", () => {

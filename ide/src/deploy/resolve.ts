@@ -38,7 +38,7 @@ export function openDeployment(): ResolvedDeployment {
     packages: { registry: null, allow: [], installScripts: "deny", lockfile: "optional" },
     projects: {
       admission: "any",
-      imports: { folder: true, git: true, npm: true, share: true },
+      imports: { folder: true, git: true, share: true },
       preview: { origin: null },
       shell: "shell",
     },
@@ -55,8 +55,8 @@ function defaultsFor(profile: DeploymentProfile) {
   return {
     admission: (managed ? "facilis-only" : "any") as AdmissionPolicy,
     imports: managed
-      ? { folder: false, git: false, npm: false, share: false }
-      : { folder: true, git: true, npm: true, share: true },
+      ? { folder: false, git: false, share: false }
+      : { folder: true, git: true, share: true },
     shell: "shell" as ShellMode,
     installScripts: "deny" as InstallScriptsPolicy,
     lockfile: (managed ? "required" : "optional") as LockfilePolicy,
@@ -100,7 +100,7 @@ export function resolveDeployment(
       if (provider === "custom")
         issues.push("ai.providers: 'custom' has no fixed host and is not allowed");
     }
-    for (const key of ["folder", "git", "npm", "share"] as const) {
+    for (const key of ["folder", "git", "share"] as const) {
       if (raw.projects?.imports?.[key] === true) {
         issues.push("projects.imports." + key + ": must stay false in a managed build");
       }
@@ -130,7 +130,6 @@ export function resolveDeployment(
       imports: {
         folder: raw.projects?.imports?.folder ?? defaults.imports.folder,
         git: raw.projects?.imports?.git ?? defaults.imports.git,
-        npm: raw.projects?.imports?.npm ?? defaults.imports.npm,
         share: raw.projects?.imports?.share ?? defaults.imports.share,
       },
       preview: { origin: previewOrigin },

@@ -81,8 +81,9 @@ immediately.
    dev-server `fs.allow` widened to the repository root (the kernel lives outside this folder).
 3. `tsconfig.app.json` / `tsconfig.node.json`: the same `@vivari/core` mapping and
    `"strict": true`.
-4. Five deep imports in `src/vv/` (`controller.ts`, `import-remote.ts`,
-   `python-language.ts`) point at `../../../vendor/vivari/packages/{kernel-host,runtime}`.
+4. Four deep imports in `src/vv/` (`project-import.ts`, `project-export.ts`,
+   `python-language.ts`, `editor-python.ts`) point at
+   `../../../vendor/vivari/packages/{kernel-host,runtime}`.
 5. Formatting: the tree is formatted with the repo Prettier config (mechanical, no behaviour
    change). Keep it formatted; do not re-run upstream's formatter.
 6. Twelve files above 300 lines, recorded in the file-length baseline (see above).

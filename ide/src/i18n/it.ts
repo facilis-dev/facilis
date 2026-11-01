@@ -76,8 +76,9 @@ export const it: Partial<Record<MessageKey, string>> = {
   "home.newProjectDesc": "Un'app Facilis — Nitro, PGlite e React, già pronta da eseguire.",
   "home.importFolder": "Importa una cartella",
   "home.importFolderDesc": "Apri una cartella locale — o trascinala qui — come nuovo progetto.",
-  "home.importRemote": "Importa da GitHub o npm",
-  "home.importRemoteDesc": "Scarica un repo pubblico o un pacchetto npm come nuovo progetto.",
+  "home.importRemote": "Importa un repository",
+  "home.importRemoteDesc":
+    "Scarica un repository GitHub, GitLab o Gitea/Forgejo come nuovo progetto.",
   "home.importLocked": "Disponibile quando il progetto salvato finisce di ripristinarsi.",
   "home.recent": "Progetti recenti",
   "home.recentHint":
@@ -101,21 +102,15 @@ export const it: Partial<Record<MessageKey, string>> = {
   "create.creating": "Creazione…",
   "create.waiting": "In attesa del runtime…",
 
-  // ── Import from Git / npm ────────────────────────────────────────────────
-  "import.title": "Importa da Git o npm",
+  // ── Import from a git host ───────────────────────────────────────────────
+  "import.title": "Importa un repository",
   "import.description":
-    "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — o un pacchetto npm come nuovo progetto. Il download avviene nel browser, nessun server coinvolto.",
-  "import.github": "Git",
-  "import.npm": "npm",
+    "Scarica un repository — GitHub, GitLab o Gitea/Forgejo — come nuovo progetto. Il download avviene nel browser, nessun server coinvolto.",
   "import.host": "Host",
   "import.repository": "Repository",
-  "import.package": "Pacchetto",
-  "import.githubPlaceholder": "owner/repo, owner/repo@branch, o un URL del repository",
-  "import.npmPlaceholder": "left-pad, react@18, o @scope/pkg@1.2.3",
-  "import.githubHint":
+  "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, o un URL del repository",
+  "import.repositoryHint":
     "Pubblico per impostazione predefinita; un repository privato richiede il token qui sotto. Un server self-hosted deve consentire il CORS sulla sua API.",
-  "import.npmHint":
-    "Estrae il tarball pubblicato (il contenuto del pacchetto, non le sue dipendenze).",
   "import.token": "Token di accesso (opzionale)",
   "import.tokenPlaceholder": "ghp_…, glpat-…, …",
   "import.tokenHint":
@@ -138,7 +133,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "palette.newTerminal": "Nuovo terminale",
   "palette.runProject": "Esegui progetto",
   "palette.importFolder": "Importa cartella come progetto",
-  "palette.importRemote": "Importa da GitHub o npm",
+  "palette.importRemote": "Importa un repository",
   "palette.openChat": "Apri chat AI",
   "palette.exportZip": "Esporta progetto come Zip",
   "palette.shareProject": "Condividi progetto (copia link)",

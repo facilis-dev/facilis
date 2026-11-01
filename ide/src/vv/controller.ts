@@ -43,7 +43,6 @@ import {
   type RunPhase,
 } from "./run-phase";
 import type { GitImportOptions } from "./git-import";
-import type { ProgressFn } from "./import-remote";
 import { NotebookDoc } from "./notebook/doc.js";
 import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
@@ -2043,9 +2042,6 @@ export class IdeController {
   }
   importGitRepo(input: string, opts?: GitImportOptions) {
     return this.projectImport.importGitRepo(input, opts);
-  }
-  importNpmPackage(input: string, onProgress?: ProgressFn) {
-    return this.projectImport.importNpmPackage(input, onProgress);
   }
 
   // Command-palette convenience: export / share the active workspace folder.

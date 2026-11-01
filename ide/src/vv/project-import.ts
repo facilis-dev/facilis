@@ -1,8 +1,8 @@
-// Importing a project into the VM: a local folder/drop, a GitHub repo or an npm
-// package, all landing as a new project (plus the manifest synthesis that lets
-// Run install and start it). Split out of controller.ts (D-019/D-042); the
-// controller keeps project dirs/validation, the workspace and the share-link
-// boot glue.
+// Importing a project into the VM: a local folder/drop or a git repository
+// (GitHub, GitLab, Gitea/Forgejo), all landing as a new project (plus the
+// manifest synthesis that lets Run install and start it). Split out of
+// controller.ts (D-019/D-042); the controller keeps project dirs/validation,
+// the workspace and the share-link boot glue.
 
 import { toast } from "sonner";
 import { deployment, importAllowed } from "@/deploy/current";
@@ -11,7 +11,6 @@ import { decodeShare } from "../../../vendor/vivari/packages/kernel-host/archive
 import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
 import { fetchGitRepo, type GitImportOptions } from "./git-import";
 import { parseGitRepo } from "./git-provider";
-import { fetchNpmPackage, parseNpmSpec, type ProgressFn } from "./import-remote";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
@@ -213,11 +212,10 @@ export class ProjectImport {
     return this.importFilesAsProject({ dir, files, excludedNodeModules });
   }
 
-  // ── Import from a remote source (GitHub repo / npm package) ────────────────
-  // The dialog is a single surface for both remote sources, so it opens while at
-  // least one of them exists; each importer still refuses on its own line below.
+  // ── Import from a git host (GitHub / GitLab / Gitea-Forgejo) ───────────────
+  // The dialog exists only while the deployment keeps git import (D-073).
   openImportRemote(): boolean {
-    if (!this.allows("git") && !this.allows("npm")) return false;
+    if (!this.allows("git")) return false;
     if (!this.host.kernelReady()) {
       toast.error("Kernel is still starting — try again in a moment.");
       return false;
@@ -229,9 +227,8 @@ export class ProjectImport {
     this.host.set({ importRemoteOpen: false });
   }
 
-  // Fetch a remote tree, then land it as a new project. Shared spine for the
-  // GitHub/npm importers: both just supply a fetcher. Returns true on success so
-  // the dialog can close itself. Progress flows to the dialog via onProgress.
+  // Fetch a remote tree, then land it as a new project. Returns true on success
+  // so the dialog can close itself; progress flows to the dialog via onProgress.
   private async importRemoteTree(
     fetchTree: () => Promise<{
       name: string;
@@ -269,17 +266,6 @@ export class ProjectImport {
       return false;
     }
     return this.importRemoteTree(() => fetchGitRepo(ref, opts));
-  }
-
-  // Import an npm package. `input` is `name`, `name@version`, or `name@tag`.
-  async importNpmPackage(input: string, onProgress?: ProgressFn): Promise<boolean> {
-    if (!this.allows("npm")) return false;
-    const spec = parseNpmSpec(input);
-    if (!spec) {
-      toast.error("Enter an npm package name, e.g. left-pad or @scope/pkg@1.2.3.");
-      return false;
-    }
-    return this.importRemoteTree(() => fetchNpmPackage(spec, onProgress));
   }
 
   /** Land a decoded #share= payload as a new project (boot-time import). */

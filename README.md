@@ -30,7 +30,7 @@ Facilis redefines it:
 | 🔍 **API visualizer** | Your OpenAPI spec, rendered as an interactive graph. Click a route → jump to its source. Auto-updates on save. |
 | 🗃️ **Entity explorer** | Schema introspection from both code and live DB. See drift immediately. Jump from table to the routes that use it. |
 | 🚢 **Release preview** | Before you push: see the exact migration SQL, risk-classified (`safe` / `careful` / `destructive` / `breaking`), cross-checked against your API. No more surprise column drops in prod. |
-| 🌐 **Multi-project** | One project per tab; import a GitHub, GitLab or Gitea/Forgejo repository — private ones with a token used only for that import — an npm package, or a folder. |
+| 🌐 **Multi-project** | One project per tab; import a GitHub, GitLab or Gitea/Forgejo repository — private ones with a token used only for that import — or a folder. |
 | 🌍 **i18n from day one** | All strings through `t("key")`. API returns codes, not prose. No retrofit. |
 
 ---

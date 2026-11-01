@@ -2158,7 +2158,7 @@ frame-src 'self'; base-uri 'none'; object-src 'none';
 \`\`\`
 
 The network stays open because that profile is documented as unrestricted: arbitrary
-GitHub/npm imports, AI presets and custom base URLs, the opt-in loopback relay. Narrowing it
+repository imports, AI presets and custom base URLs, the opt-in loopback relay. Narrowing it
 would be a new product policy, not a baseline.
 
 Inline scripts are hashed by the build itself: \`vite.deployment.ts\` reads the built
@@ -2199,6 +2199,28 @@ import asks for the token again (PAT-per-host storage stays Phase 2, with the en
 design in SPEC §10). A managed build compiles the whole git import out (D-063), so this
 capability exists only in the open profile. Bitbucket Cloud is not wired yet (directory-walk
 API, Basic auth); its API does send CORS, so it is a follow-up adapter, not a new decision.
+
+### D-074 — A project is imported from a git host or a folder, never from an npm package
+**Status:** accepted (2026-11-01)
+
+The npm import treated a published package as a project source: the tab unpacked its tarball
+and synthesized a Run manifest from whatever `package.json` it found. That is not a project.
+It has no repository intent (no `.git`, no history, no source-layout contract), its dependency
+tree is not resolved (a package's devDependencies are not the app's), and it carries no
+`facilis.app.json`, so admission and the update comparison have nothing to check. The two
+remaining import surfaces, a folder and a git host (D-073), carry the project's own sources and
+its marker, and they cover "I have existing code" without a second remote protocol (npm
+packument + tarball + tar/gzip decoding inside the tab).
+
+**Decision.** Remove the npm package import. The dialog is a git-host import only;
+`importNpmPackage`, `parseNpmSpec`, `fetchNpmPackage` and the local tar/gzip decoding are
+gone, and `projects.imports.npm` leaves the deployment schema (an unknown key now fails
+validation, which is where a stale config should fail).
+
+**Consequences.** One fewer remote source and a smaller admission surface in the open
+profile. A package's files can still be brought in by importing its repository, or by
+importing a folder. `imports.git` remains the only remote import kind, and a managed build
+still compiles it out (D-063).
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)

@@ -195,7 +195,7 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
 - In the UI: **New project -> name -> Create**. The IDE scaffolds a Facilis app in its VFS —
   the only creation path (D-051) — runs `npm install` and then
   `npm run dev -- --configLoader native`, and opens the preview at `/preview/3000/`.
-  `Import a folder` / `Import from GitHub or npm` cover existing code.
+  `Import a folder` / `Import a repository` cover existing code.
 - The scaffolded project **is** `examples/todo-app` plus the IDE wrappers (D-062): editing
   the example changes what Create produces, and the smoke drives the framework endpoints
   from the IDE page rather than from code inside the project. The tree is inlined at IDE

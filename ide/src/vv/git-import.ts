@@ -5,15 +5,16 @@
 // paginated and their raw endpoints are CORS-enabled, so the fetcher walks the tree first
 // and then downloads the blobs with bounded concurrency.
 
+import { fetchGithubRepo } from "./github-import";
 import {
-  fetchGithubRepo,
+  CONCURRENCY,
   isExcludedPath,
-  mapPool,
   MAX_BYTES,
   MAX_FILES,
+  mapPool,
   type ProgressFn,
   type RemoteTree,
-} from "./import-remote";
+} from "./remote-tree";
 import { gitAuthHeaders, type GitProvider, type GitRepoRef } from "./git-provider";
 
 /** What a git import needs from the caller; the token is per import, never stored. */
@@ -23,8 +24,6 @@ export interface GitImportOptions {
   onProgress?: ProgressFn;
   token?: string | null;
 }
-
-const CONCURRENCY = 12;
 
 function unreadable(token: string | null): Error {
   return new Error(

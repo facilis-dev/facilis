@@ -5,7 +5,7 @@
 // live next to the cards without growing Home, whose size the file-length ratchet pins.
 
 import FolderInput from "~icons/lucide/folder-input";
-import Github from "~icons/lucide/github";
+import GitBranch from "~icons/lucide/git-branch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -64,7 +64,7 @@ function ImportCard({
 export function HomeImportCards() {
   const { c, snap } = useIde();
   const folder = importAllowed(deployment, "folder");
-  const remote = importAllowed(deployment, "git") || importAllowed(deployment, "npm");
+  const remote = importAllowed(deployment, "git");
   if (!folder && !remote) return null;
   return (
     <>
@@ -79,7 +79,7 @@ export function HomeImportCards() {
       )}
       {remote && (
         <ImportCard
-          icon={Github}
+          icon={GitBranch}
           title={t("home.importRemote")}
           desc={t("home.importRemoteDesc")}
           onClick={() => c.openImportRemote()}

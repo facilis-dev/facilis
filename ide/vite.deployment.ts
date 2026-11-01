@@ -22,14 +22,21 @@ import type { ResolvedDeployment } from "./src/deploy/types.ts";
 
 const ENV_VERSION = "FACILIS_ENV_VERSION";
 
-/** The virtual module a managed build substitutes for the remote-import implementation. */
-const IMPORT_REMOTE_OFF = "\0facilis:import-remote-off";
-const IMPORT_REMOTE_STUB = [
-  "// Compiled out: this deployment allows no remote project import (D-063).",
-  "export function parseGithubSpec() { return null; }",
-  "export function parseNpmSpec() { return null; }",
-  'export function fetchGithubRepo() { return Promise.reject(new Error("remote import disabled")); }',
-  'export function fetchNpmPackage() { return Promise.reject(new Error("remote import disabled")); }',
+/** The virtual modules a managed build substitutes for the import implementation (D-063). */
+const GIT_IMPORT_OFF = "\0facilis:git-import-off";
+const GIT_IMPORT_STUB = [
+  "// Compiled out: this deployment allows no repository import (D-063).",
+  'export function fetchGitRepo() { return Promise.reject(new Error("git import disabled")); }',
+].join("\n");
+
+const GIT_PROVIDER_OFF = "\0facilis:git-provider-off";
+const GIT_PROVIDER_STUB = [
+  "// Compiled out with the import: no host table, no URL parsing (D-063).",
+  "export const GIT_PROVIDERS = [];",
+  "export function detectGitProvider() { return null; }",
+  "export function hostOfGitInput() { return null; }",
+  "export function normalizeGitToken() { return null; }",
+  "export function parseGitRepo() { return null; }",
 ].join("\n");
 
 export interface LoadedDeployment {
@@ -84,27 +91,34 @@ function listFiles(dir: string, base = dir, found: string[] = []): string[] {
   return found.sort();
 }
 
-/** The L0 removal of the remote-import implementation when the policy allows none. */
-function remoteImportStub(deployment: ResolvedDeployment): Plugin {
-  const off =
-    deployment.profile === "managed" &&
-    !deployment.projects.imports.git &&
-    !deployment.projects.imports.npm;
+/** The L0 removal of the git-import implementation when the policy allows none. */
+function gitImportStub(deployment: ResolvedDeployment): Plugin {
+  const off = deployment.profile === "managed" && !deployment.projects.imports.git;
   return {
-    name: "facilis-remote-import-off",
-    // Pre: vite:resolve resolves "./import-remote" before a normal plugin's hook sees
+    name: "facilis-git-import-off",
+    // Pre: vite:resolve resolves "./git-import" before a normal plugin's hook sees
     // it, and the resolved id is what Rollup would then load. Winning the ordering is
     // what makes this a build-time removal rather than a runtime guard.
     enforce: "pre",
     resolveId(id) {
       if (!off) return null;
-      if (id === "./import-remote" || /[\\/]src[\\/]vv[\\/]import-remote\.ts$/.test(id)) {
-        return IMPORT_REMOTE_OFF;
+      if (id === "./git-import" || /[\\/]src[\\/]vv[\\/]git-import\.ts$/.test(id)) {
+        return GIT_IMPORT_OFF;
+      }
+      // The host table and parser carry the only URLs the importer would call.
+      if (
+        id === "./git-provider" ||
+        id === "@/vv/git-provider" ||
+        /[\\/]src[\\/]vv[\\/]git-provider\.ts$/.test(id)
+      ) {
+        return GIT_PROVIDER_OFF;
       }
       return null;
     },
     load(id) {
-      return id === IMPORT_REMOTE_OFF ? IMPORT_REMOTE_STUB : null;
+      if (id === GIT_IMPORT_OFF) return GIT_IMPORT_STUB;
+      if (id === GIT_PROVIDER_OFF) return GIT_PROVIDER_STUB;
+      return null;
     },
   };
 }
@@ -119,7 +133,7 @@ export function deploymentPlugin(): Plugin[] {
   let resolved: ResolvedConfig | null = null;
 
   return [
-    remoteImportStub(loaded.deployment),
+    gitImportStub(loaded.deployment),
     {
       name: "facilis-deployment",
       config() {

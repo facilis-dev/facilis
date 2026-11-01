@@ -166,8 +166,8 @@ export function validateDeployment(raw: unknown): DeploymentInput {
     fieldEnum(projects, "shell", "deployment.projects", ["shell", "run-only"], issues);
     const imports = fieldObject(projects, "imports", "deployment.projects", issues);
     if (imports) {
-      checkKeys(imports, ["folder", "git", "npm", "share"], "deployment.projects.imports", issues);
-      for (const key of ["folder", "git", "npm", "share"] as const) {
+      checkKeys(imports, ["folder", "git", "share"], "deployment.projects.imports", issues);
+      for (const key of ["folder", "git", "share"] as const) {
         fieldBoolean(imports, key, "deployment.projects.imports", issues);
       }
     }

@@ -53,21 +53,20 @@ describe("import guard", () => {
     await expect(importer.importDropAsProject([])).resolves.toBe(false);
     expect(importer.openImportRemote()).toBe(false);
     await expect(importer.importGitRepo("owner/repo")).resolves.toBe(false);
-    await expect(importer.importNpmPackage("left-pad")).resolves.toBe(false);
     // The refusal happens first: no kernel check, no dialog, no picker, no fetch.
     expect(h.kernelReady).not.toHaveBeenCalled();
     expect(h.set).not.toHaveBeenCalled();
     expect(h.status).not.toHaveBeenCalled();
   });
 
-  it("blocks only the kind a profile removed", async () => {
+  it("blocks only the kind a profile removed", () => {
     const importer = new ProjectImport(
       bridge,
       host(),
-      resolveDeployment({ projects: { imports: { npm: false } } }),
+      resolveDeployment({ projects: { imports: { folder: false } } }),
     );
-    await expect(importer.importNpmPackage("left-pad")).resolves.toBe(false);
-    // GitHub is still allowed, so the shared dialog still has something to offer.
+    expect(importer.importFolderViaPicker()).toBe(false);
+    // Git import is still allowed, so Home keeps its repository card.
     expect(importer.openImportRemote()).toBe(true);
   });
 });

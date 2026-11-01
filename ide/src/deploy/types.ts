@@ -17,11 +17,10 @@ export type LockfilePolicy = "required" | "optional";
 export type AdmissionPolicy = "facilis-only" | "any";
 export type UpdateChannel = "approved" | "latest";
 
-/** The four ways a project can enter the IDE. `false` means the path is compiled out. */
+/** The three ways a project can enter the IDE. `false` means the path is compiled out. */
 export interface ProjectImports {
   folder?: boolean;
   git?: boolean;
-  npm?: boolean;
   share?: boolean;
 }
 
@@ -100,7 +99,7 @@ export interface ResolvedDeployment {
   };
   projects: {
     admission: AdmissionPolicy;
-    imports: { folder: boolean; git: boolean; npm: boolean; share: boolean };
+    imports: { folder: boolean; git: boolean; share: boolean };
     preview: { origin: string | null };
     shell: ShellMode;
   };
