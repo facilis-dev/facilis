@@ -41,7 +41,9 @@ export function TodoTable({ todos, canWrite, busyId, onToggle, onRequestDelete }
           <TableHead scope="col">{t("todos.column.done")}</TableHead>
           <TableHead scope="col">{t("todos.column.title")}</TableHead>
           <TableHead scope="col">{t("todos.column.due")}</TableHead>
-          <TableHead scope="col">{t("todos.column.status")}</TableHead>
+          <TableHead scope="col" className="app-todo-status">
+            {t("todos.column.status")}
+          </TableHead>
           <TableHead scope="col">{t("todos.column.actions")}</TableHead>
         </TableRow>
       </TableHeader>
@@ -74,12 +76,15 @@ export function TodoTable({ todos, canWrite, busyId, onToggle, onRequestDelete }
                 {todo.dueDate === null || due === null ? (
                   <span className="app-muted">{t("todos.no_due_date")}</span>
                 ) : (
-                  <time className="app-tabular" dateTime={todo.dueDate}>
+                  <time
+                    className={overdue ? "app-tabular app-due--overdue" : "app-tabular"}
+                    dateTime={todo.dueDate}
+                  >
                     {due}
                   </time>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className="app-todo-status">
                 {todo.done ? (
                   <Badge tone="success">{t("todos.status.done")}</Badge>
                 ) : overdue ? (

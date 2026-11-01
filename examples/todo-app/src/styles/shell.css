@@ -218,20 +218,35 @@
     flex-direction: column;
   }
 
+  /* The sidebar becomes a bar. It wraps instead of clipping the identity chip on a
+     phone, and the brand truncates rather than pushing the controls off-screen. */
   .app-sidebar {
     position: static;
+    flex: none;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-3) var(--space-4);
     height: auto;
     padding: var(--space-2) var(--space-4);
     border-right: 0;
     border-bottom: var(--border-width) solid var(--color-base-300);
   }
 
+  .app-brand {
+    min-width: 0;
+  }
+
+  .app-brand__name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .app-nav {
     flex-direction: row;
     align-items: center;
+    min-width: 0;
   }
 
   .app-nav__label,
@@ -240,6 +255,7 @@
   }
 
   .app-sidebar__foot {
+    flex: none;
     margin: 0 0 0 auto;
     padding: 0;
     border-top: 0;
@@ -247,5 +263,32 @@
 
   .app-topbar {
     padding-inline: var(--space-4);
+  }
+}
+
+/* Phones: the page title already names the context, so the breadcrumb row goes and the
+   header is one 52px strip of controls. */
+@media (max-width: 640px) {
+  .app-sidebar {
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .app-breadcrumb {
+    display: none;
+  }
+
+  .app-topbar {
+    min-height: 52px;
+    padding-inline: var(--space-3);
+  }
+
+  .app-tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .app-main {
+    padding: var(--space-4) var(--space-3) var(--space-8);
   }
 }

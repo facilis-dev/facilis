@@ -1,0 +1,11 @@
+# Dependencies, build output and local state. examples/todo-app is also the generated
+# project (D-062), so a standalone copy installs with npm and builds with "vite build".
+node_modules/
+.output/
+dist/
+.turbo/
+coverage/
+*.log
+*.tsbuildinfo
+.env*
+.DS_Store

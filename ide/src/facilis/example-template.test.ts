@@ -21,6 +21,7 @@ describe("example project source", () => {
         "locales/en.json",
         "locales/it.json",
         "index.html",
+        ".gitignore",
         "vite.config.ts",
         "facilis.config.ts",
       ]),

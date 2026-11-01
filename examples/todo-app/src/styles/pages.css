@@ -117,6 +117,13 @@
 
 .app-tabular {
   font-variant-numeric: tabular-nums;
+  /* A date is one unit: wrapping it mid-value ("Nov 5," / "2026") reads as two rows. */
+  white-space: nowrap;
+}
+
+.app-due--overdue {
+  color: var(--color-error);
+  font-weight: 600;
 }
 
 .app-muted {
@@ -132,6 +139,66 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* Phones: stack the create form and the toolbar; full-width controls are easier to hit,
+   and the table keeps the kit's horizontal scroll instead of squeezing five columns. */
+@media (max-width: 640px) {
+  .app-todos-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-todos-form__title,
+  .app-todos-form__date {
+    flex: 1 1 auto;
+  }
+
+  .app-todos-form > .fc-btn {
+    width: 100%;
+  }
+
+  .app-todos-toolbar .fc-toolbar__search {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .app-todos-toolbar .fc-toolbar__filters,
+  .app-todos-toolbar .fc-toolbar__actions {
+    flex: 1 1 100%;
+  }
+
+  .app-todos-toolbar .fc-toolbar__filters .app-filter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-todos-toolbar .fc-toolbar__spacer {
+    display: none;
+  }
+
+  .app-todos-toolbar .fc-toolbar__actions .fc-btn {
+    width: 100%;
+  }
+
+  .app-todo-title {
+    overflow-wrap: anywhere;
+  }
+
+  .app-main .fc-table th,
+  .app-main .fc-table td {
+    padding-inline: var(--space-2);
+  }
+
+  /* On a phone the status column costs more than it explains: the checkbox already
+     shows "done" and an overdue date is red, so the chip goes and the title keeps room. */
+  .app-todo-status {
+    display: none;
+  }
+
+  .app-main .fc-table .fc-btn {
+    padding-inline: var(--space-2);
+  }
 }
 
 @media (min-width: 1024px) {

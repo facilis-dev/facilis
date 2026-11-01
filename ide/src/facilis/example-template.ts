@@ -18,6 +18,7 @@ const rawSources = import.meta.glob<string>(
     "../../../examples/todo-app/db/**/*",
     "../../../examples/todo-app/locales/*.json",
     "../../../examples/todo-app/index.html",
+    "../../../examples/todo-app/.gitignore",
     "../../../examples/todo-app/vite.config.ts",
     "../../../examples/todo-app/facilis.config.ts",
     "../../../examples/todo-app/package.json",

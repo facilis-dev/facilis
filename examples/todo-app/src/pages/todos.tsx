@@ -147,6 +147,7 @@ export function TodosPage() {
       {state.status === "ready" ? (
         <>
           <TableToolbar
+            className="app-todos-toolbar"
             search={query}
             onSearchChange={setQuery}
             searchPlaceholder={t("todos.search.placeholder")}
