@@ -20,6 +20,7 @@ import FileCode from "~icons/lucide/file-code";
 import Table2 from "~icons/lucide/table-2";
 import { t } from "@/i18n";
 import { METHOD_BADGES } from "./api-flow-badges";
+import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 import {
   METHOD_ORDER,
   type ApiFlowGraph,
@@ -45,18 +46,6 @@ interface ContentProps {
   onOpenTable: () => void;
   linksDisabled: boolean;
 }
-
-// React Flow reads these variables for its own chrome; mapping them to role tokens keeps
-// the canvas on one theme block instead of the library's light-only defaults (D-044).
-const CANVAS_TOKENS =
-  "[--xy-edge-stroke:var(--border)] [--xy-edge-stroke-selected:var(--primary)] " +
-  "[--xy-handle-background-color:var(--muted-foreground)] " +
-  "[--xy-handle-border-color:var(--background)] " +
-  "[--xy-attribution-background-color:transparent] " +
-  "[--xy-controls-button-background-color:var(--card)] " +
-  "[--xy-controls-button-background-color-hover:var(--accent)] " +
-  "[--xy-controls-button-color:var(--foreground)] " +
-  "[--xy-controls-button-border-color:var(--border)]";
 
 export function ApiFlowContent({
   graph,
@@ -118,7 +107,7 @@ export function ApiFlowContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div data-testid="api-flow-canvas" className={"min-h-0 flex-1 " + CANVAS_TOKENS}>
+      <div data-testid="api-flow-canvas" className={"min-h-0 flex-1 " + XYFLOW_THEME_TOKENS}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

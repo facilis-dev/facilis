@@ -19,6 +19,7 @@ import { KernelBridge } from "./kernel";
 import { resetOriginState } from "./origin-reset";
 import { DebugSession } from "./debug-session";
 import { ScmSession } from "./scm-session";
+import { DiffSession } from "./diff-session";
 import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
@@ -72,8 +73,15 @@ import { type MemInfo, probeMemory } from "./memory-probe";
 import { baseName, normDir, parentOf } from "./path-utils";
 import { readDirEntries } from "./file-tree";
 import { indexWorkspace, isIgnoredPath, type WorkspaceIndex } from "./workspace-index";
-import { apiFlowTabState, isApiFlowTabId, isDiffTabId } from "./synthetic-tabs";
-import { diffTabId, diffTargetOf } from "./synthetic-tabs";
+import {
+  apiFlowTabState,
+  commitGraphTabState,
+  diffTabState,
+  diffTargetOf,
+  isApiFlowTabId,
+  isCommitGraphTabId,
+  isDiffTabId,
+} from "./synthetic-tabs";
 
 // The drop/paste readers live in file-tree.ts now. Components still import them
 // from here (this is the UI's facade); the split is controller-mechanical.
@@ -82,7 +90,8 @@ export { entriesFromDataTransfer } from "./file-tree";
 /** How an open tab renders. Named rather than spelled out at each use: it was
  *  written twice, and adding `notebook` to one of them type-checked everywhere
  *  except the assignment between them. */
-export type TabKind = "text" | "image" | "directory" | "diff" | "notebook" | "api-flow";
+export type TabKind =
+  "text" | "image" | "directory" | "diff" | "notebook" | "api-flow" | "commit-graph";
 type ActivityView = IdeSnapshot["activeView"];
 
 /** One open `.ipynb`: its document, the interpreter running it, and the actions
@@ -401,8 +410,7 @@ export class IdeController {
   // Language modes chosen by hand from the status bar (abs -> monaco language id).
   // Re-applied in ensureModel so the choice survives closing + reopening the tab.
   private languageOverrides = new Map<string, string>();
-  private diffEditor: Monaco.editor.IStandaloneDiffEditor | null = null; // Source Control diff tab
-  private diffModels: Monaco.editor.ITextModel[] = []; // throwaway [original, modified] for the diff editor
+  private readonly diffSession = new DiffSession(); // Source Control diff tab
   private imageUrls = new Map<string, string>(); // abs -> object URL (image viewer)
   private notebooks = new Map<string, NotebookHandle>(); // abs -> open .ipynb (doc + kernel)
   // Preview panel: multi-tab mini browser + DevTools relay (preview-session.ts).
@@ -954,9 +962,9 @@ export class IdeController {
     abs: string,
     { preview = false, focus = true }: { preview?: boolean; focus?: boolean } = {},
   ) {
-    // Synthetic tabs (diff, API Flow) carry no real file — just activate them;
+    // Synthetic tabs (diff, API Flow, commit graph) carry no real file — just activate them;
     // EditorGroup mounts the custom pane. Detach the editor so it doesn't show stale text.
-    if (isDiffTabId(abs) || isApiFlowTabId(abs)) {
+    if (isDiffTabId(abs) || isApiFlowTabId(abs) || isCommitGraphTabId(abs)) {
       if (!this.snap.openTabs.includes(abs)) return;
       this.set({ activeTab: abs });
       if (this.editor) this.editor.setModel(null);
@@ -1327,57 +1335,29 @@ export class IdeController {
 
   /** Open a read-only diff (HEAD ↔ working tree) for a file as its own tab. */
   openDiff(abs: string) {
-    const id = diffTabId(abs);
-    const openTabs = this.snap.openTabs.includes(id)
-      ? this.snap.openTabs
-      : [...this.snap.openTabs, id];
-    const tabKinds = { ...this.snap.tabKinds, [id]: "diff" as const };
-    this.set({ openTabs, tabKinds, activeTab: id, previewTab: null });
+    this.set(diffTabState(this.snap, abs));
+  }
+
+  /** Open (or focus) a repository's commit-graph tab (D-088). */
+  openCommitGraph(root: string) {
+    this.set(commitGraphTabState(this.snap, root));
+    if (this.editor) this.editor.setModel(null);
   }
 
   /** Mount (or re-target) the Monaco diff editor for a diff tab. Called by the
    * EditorGroup's DiffView, which remounts per diff tab (keyed by tab id). */
   async mountDiffEditor(el: HTMLElement, id: string) {
-    const abs = diffTargetOf(id);
     const monaco = await this.editorSession.ensureMonaco();
-    // One diff editor instance, rebound per mount. Dispose the previous editor +
-    // its throwaway models so we don't leak on every open.
-    this.disposeDiffEditor();
-    const diff = monaco.editor.createDiffEditor(el, {
-      readOnly: true,
-      automaticLayout: true,
-      theme: monacoThemeFor(this.uiTheme),
-      fontSize: 13,
-      minimap: { enabled: false },
-      renderSideBySide: true,
-      scrollBeyondLastLine: false,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      // Wrapping matters MORE here than in the text editor: a side-by-side diff gives
-      // each version half the width, so a long line is cut off twice over.
-      wordWrap: this.snap.wordWrap ? "on" : "off",
-      // Same pane, same preview iframe next to it — see overflowWidgetsNode.
-      fixedOverflowWidgets: true,
-      overflowWidgetsDomNode: overflowWidgetsNode(),
-    });
-    this.diffEditor = diff;
-    const [head, work] = await Promise.all([
-      this.scm.headBlobText(abs),
-      this.readFileText(abs).catch(() => ""),
-    ]);
-    // A resume/tab-switch may have torn this editor down while we awaited.
-    if (this.diffEditor !== diff) return;
-    const lang = languageFor(abs);
-    const original = monaco.editor.createModel(head, lang);
-    const modified = monaco.editor.createModel(work, lang);
-    this.diffModels = [original, modified];
-    diff.setModel({ original, modified });
-  }
-
-  private disposeDiffEditor() {
-    this.diffEditor?.dispose();
-    this.diffEditor = null;
-    for (const m of this.diffModels) m.dispose();
-    this.diffModels = [];
+    await this.diffSession.mount(
+      el,
+      diffTargetOf(id),
+      monaco,
+      {
+        head: (abs) => this.scm.headBlobText(abs),
+        work: (abs) => this.readFileText(abs),
+      },
+      { theme: monacoThemeFor(this.uiTheme), wordWrap: this.snap.wordWrap },
+    );
   }
 
   /** After a checkout/discard rewrote files via the silent git RPC, refresh the
@@ -2176,7 +2156,7 @@ export class IdeController {
     // before Monaco has loaded, the diff editor whenever no diff tab is open.
     const wordWrap = on ? ("on" as const) : ("off" as const);
     this.editor?.updateOptions({ wordWrap });
-    this.diffEditor?.updateOptions({ wordWrap });
+    this.diffSession.updateWordWrap(on);
   }
   openPalette(mode: "command" | "file") {
     this.set({ paletteOpen: true, paletteMode: mode });

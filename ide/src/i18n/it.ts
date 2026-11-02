@@ -7,6 +7,8 @@ import { updatesIt } from "./it-updates";
 import { dataExplorerIt } from "./it-data-explorer";
 import { releasePreviewIt } from "./it-release-preview";
 import { gitRemoteIt } from "./it-git-remote";
+import { sourceControlIt } from "./it-source-control";
+import { commitGraphIt } from "./it-commit-graph";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -164,6 +166,8 @@ export const it: Partial<Record<MessageKey, string>> = {
   "push.kernelStarting": "Il runtime si sta ancora avviando — riprova tra un momento.",
   "push.disabled": "Questa distribuzione non consente la pubblicazione su un host git.",
   ...gitRemoteIt,
+  ...sourceControlIt,
+  ...commitGraphIt,
   ...dataExplorerIt,
   ...apiFlowIt,
   ...releasePreviewIt,

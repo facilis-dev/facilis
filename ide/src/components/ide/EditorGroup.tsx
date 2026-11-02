@@ -3,7 +3,13 @@ import X from "~icons/lucide/x";
 import ChevronRight from "~icons/lucide/chevron-right";
 import { cn } from "@/lib/utils";
 import { VV_PATH_MIME, entriesFromDataTransfer, type WorkspaceFolder } from "@/vv/controller";
-import { diffTargetOf, isApiFlowTabId, isDiffTabId } from "@/vv/synthetic-tabs";
+import {
+  commitGraphRootOf,
+  diffTargetOf,
+  isApiFlowTabId,
+  isCommitGraphTabId,
+  isDiffTabId,
+} from "@/vv/synthetic-tabs";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -25,6 +31,8 @@ import { Button } from "@/components/ui/button";
 import { FileIcon } from "./fileIcon";
 import { NotebookView } from "./NotebookView";
 import { ApiFlowPanel } from "./ApiFlowPanel";
+import { CommitGraphPanel } from "./CommitGraphPanel";
+import { DiffView, DirectoryView, ImageView } from "./EditorPanes";
 import { EditorTabLabel } from "./EditorTabLabel";
 import { t } from "@/i18n";
 import { useIde } from "./useIde";
@@ -155,12 +163,21 @@ export function EditorGroup() {
               : "";
           const isDiff = isDiffTabId(rel);
           const isApiFlow = isApiFlowTabId(rel);
+          const isCommitGraph = isCommitGraphTabId(rel);
           return (
             <ContextMenu key={rel}>
               <ContextMenuTrigger className="contents">
                 <div
                   ref={active ? activeTabRef : undefined}
-                  title={isDiff ? diffTargetOf(rel) : isApiFlow ? t("apiFlow.tabTitle") : rel}
+                  title={
+                    isDiff
+                      ? diffTargetOf(rel)
+                      : isApiFlow
+                        ? t("apiFlow.tabTitle")
+                        : isCommitGraph
+                          ? commitGraphRootOf(rel)
+                          : rel
+                  }
                   draggable
                   onClick={() => c.openFile(rel, { preview: isPreview })}
                   onDoubleClick={() => c.pinTab(rel)}
@@ -267,7 +284,7 @@ export function EditorGroup() {
 
       {/* breadcrumb: Workspace-relative path of the active file (or diff target); the
           API Flow tab has no file, so it has no breadcrumb. */}
-      {snap.activeTab && !isApiFlowTabId(snap.activeTab) && (
+      {snap.activeTab && !isApiFlowTabId(snap.activeTab) && !isCommitGraphTabId(snap.activeTab) && (
         <Breadcrumb
           abs={isDiffTabId(snap.activeTab) ? diffTargetOf(snap.activeTab) : snap.activeTab}
           folders={snap.workspaceFolders}
@@ -293,6 +310,9 @@ export function EditorGroup() {
           <NotebookView key={snap.activeTab} abs={snap.activeTab} />
         )}
         {activeKind === "api-flow" && <ApiFlowPanel placement="center" />}
+        {activeKind === "commit-graph" && snap.activeTab && (
+          <CommitGraphPanel key={snap.activeTab} root={commitGraphRootOf(snap.activeTab)} />
+        )}
         {!snap.activeTab && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {snap.projectTitle ? "Open a file from the Workspace" : "Press Run to start a project"}
@@ -355,44 +375,6 @@ export function EditorGroup() {
   );
 }
 
-// Image preview pane (raster + svg). The object URL is created/owned by the
-// controller (revoked when the tab closes), so we just render it.
-function ImageView({ abs }: { abs: string }) {
-  const { c } = useIde();
-  const url = c.imageUrlFor(abs);
-  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-auto bg-editor p-6">
-      <div
-        className="max-h-full max-w-full"
-        style={{
-          backgroundImage:
-            "linear-gradient(45deg,var(--checker) 25%,transparent 25%),linear-gradient(-45deg,var(--checker) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,var(--checker) 75%),linear-gradient(-45deg,transparent 75%,var(--checker) 75%)",
-          backgroundSize: "16px 16px",
-          backgroundPosition: "0 0,0 8px,8px -8px,-8px 0",
-        }}
-      >
-        {url ? (
-          <img
-            src={url}
-            alt={baseName(abs)}
-            className="max-h-[calc(100vh-12rem)] max-w-full object-contain"
-            onLoad={(e) =>
-              setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
-            }
-          />
-        ) : (
-          <div className="p-8 text-sm text-muted-foreground">Loading image…</div>
-        )}
-      </div>
-      <div className="text-xs text-muted-foreground">
-        {baseName(abs)}
-        {dims ? ` · ${dims.w}×${dims.h}` : ""}
-      </div>
-    </div>
-  );
-}
-
 // Split an active file's absolute path into breadcrumb segments, led by a
 // literal "Workspace" root and the containing project's name (e.g.
 // "Workspace > my-app > src > components > App.tsx"). Files outside any open
@@ -427,29 +409,6 @@ function Breadcrumb({ abs, folders }: { abs: string; folders: WorkspaceFolder[] 
           </span>
         );
       })}
-    </div>
-  );
-}
-
-// Source Control diff tab: a read-only Monaco diff editor (HEAD ↔ working tree).
-// Keyed by tab id in the parent, so it remounts per diff tab and the controller
-// rebinds fresh original/modified models.
-function DiffView({ id }: { id: string }) {
-  const { c } = useIde();
-  const ref = useCallback(
-    (el: HTMLDivElement | null) => {
-      if (el) void c.mountDiffEditor(el, id);
-    },
-    [c, id],
-  );
-  return <div ref={ref} className="absolute inset-0" />;
-}
-
-// Shown when a directory is opened in the editor (dragged onto Monaco).
-function DirectoryView() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-editor p-6 text-center text-sm text-muted-foreground">
-      The file is not displayed in the text editor because it is a directory.
     </div>
   );
 }

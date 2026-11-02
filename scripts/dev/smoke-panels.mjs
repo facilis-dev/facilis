@@ -6,6 +6,8 @@
 // AST-augmented /_openapi.json and scans src/ for consumers, the Release Preview reads the
 // git refs out of the VFS. No mocking and no network: this is the same UI a developer uses.
 
+import { runScmChecks } from "./smoke-scm.mjs";
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitFor(page, expression, limitMs) {
@@ -179,6 +181,9 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "api flow: graph view restored",
   );
   await page.screenshot(ARTIFACTS + "/05-api-flow.png");
+
+  // ── Source Control: diff tab + commit graph (D-088/D-089) ──
+  await runScmChecks({ page, check, ARTIFACTS });
 
   // ── Release Preview (SPEC §11.3, D-086) ──
   record(

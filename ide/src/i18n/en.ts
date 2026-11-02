@@ -13,6 +13,8 @@ import { updatesEn } from "./en-updates";
 import { dataExplorerEn } from "./en-data-explorer";
 import { releasePreviewEn } from "./en-release-preview";
 import { gitRemoteEn } from "./en-git-remote";
+import { sourceControlEn } from "./en-source-control";
+import { commitGraphEn } from "./en-commit-graph";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -171,6 +173,8 @@ export const en = {
   "push.kernelStarting": "The runtime is still starting — try again in a moment.",
   "push.disabled": "This deployment does not allow publishing to a git host.",
   ...gitRemoteEn,
+  ...sourceControlEn,
+  ...commitGraphEn,
   ...dataExplorerEn,
   ...apiFlowEn,
   ...releasePreviewEn,

@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.7 (API Flow in the editor area, with the pages that call it)
+**Version:** 1.8 (Source Control: diff tab and commit graph)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator and the apply path; the retry loop and the Model B tool surface remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.8 — Source Control becomes a place where history is visible: clicking any change opens a side-by-side HEAD ↔ working-tree diff with the first hunk revealed (D-089), and a repository can open a commit graph as an editor-area tab — React Flow cards laid out by lane, with merge edges, branch and HEAD badges and a details inspector (D-088). No contract change; §10.2 follows.
 - v1.7 — The API Flow becomes an editor-area tab instead of a sidebar view, laid out as pages → routes → tables with an inspector and a list view; it now scans `src/**` for the client files that call each route and shows them as page nodes (direct references and one import hop, D-087). No contract change; §10.2/§12 follow.
 - v1.6 — Phase 3 complete. The API Flow renders the AST-augmented `/_openapi.json` with React Flow and jumps to the route source (D-085); the Release Preview engine `buildReleasePreview` lands in `@facilis/core` with the SDK contract amendment for `ApiDiff.changed`/`ApiRouteRef.dbTables` (§7.7), and the Studio diffs git refs read from the VFS instead of booting them, resolving O-008 (D-086, §11.3).
 - v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. Retry loop and Model B remain.
@@ -1570,6 +1571,8 @@ depends on (D-018, D-030).
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
 | API Visualizer | `ApiFlowPanel.tsx` + `api-flow` editor tab | React Flow over `/_openapi.json`; pages → routes → tables, inspector and list; client consumers from `src/**` (D-085/D-087) |
+| Commit graph | `CommitGraphPanel.tsx` + `commit-graph` editor tab | React Flow over the local git log: lanes, merge edges, branch/HEAD cards, details inspector (D-088) |
+| Diff tab | `EditorPanes.tsx` + `diff-session.ts` | Every SCM change opens a side-by-side HEAD ↔ working-tree diff, first hunk revealed (D-089) |
 | Entity Explorer | `DataExplorerPanel.tsx` + activity view | Fetches schema; shows code ↔ live DB diff |
 | Release Preview | `ReleasePreviewPanel.tsx` + activity view | `buildReleasePreview(from, to)` (D-086) |
 | Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + git auth |
@@ -1598,6 +1601,8 @@ the API Flow (D-085, reworked by D-087) is an editor-area tab that shows pages �
 the inspector and the client pages that call each route. All are lazy-loaded, covered by the
 browser smoke, and Phase 3's exit criteria — a route edit updates the graph within the revision
 poll, and code↔live drift is visible — are met.
+
+**Status (2026-11-02): Source Control shows history.** The SCM panel's rows open a real diff for every change — untracked and deleted files included, side by side and scrolled to the first hunk (D-089) — and each repository can open a commit graph in the editor area: branches, merges and the current HEAD drawn with React Flow over the local git log, read on demand and never over the network (D-088). The graph is local-only, so it behaves the same in an open and a managed deployment.
 
 ### 10.3 VFS Write Rule
 
