@@ -384,11 +384,14 @@ async function main() {
         )) === "OK",
         "delete: dialog opened from the row",
       );
-      const dialogReady = await waitFor("Boolean(document.querySelector('input'))", 15000);
+      const dialogInput = "document.querySelector('[data-slot=\"dialog-content\"] input')";
+      const dialogReady = await waitFor("Boolean(" + dialogInput + ")", 15000);
       check(dialogReady, "delete: confirmation dialog opens");
       if (dialogReady) {
         const typed = await page.evaluate(
-          "(() => { const input = document.querySelector('input');" +
+          "(() => { const input = " +
+            dialogInput +
+            ";" +
             " if (!input) return 'NOTFOUND';" +
             " const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;" +
             " set.call(input, " +
@@ -396,11 +399,18 @@ async function main() {
             "); input.dispatchEvent(new Event('input', { bubbles: true })); return 'OK'; })()",
         );
         check(typed === "OK", "delete: project name typed");
-        const confirmed = await page.evaluate(
-          "(() => { const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').trim() === 'Delete project' && !el.disabled);" +
-            " if (!b) return 'NOTFOUND'; b.click(); return 'OK'; })()",
+        // React enables the button from the typed state: wait for it instead of racing the render.
+        const enabled =
+          "[...document.querySelectorAll('[data-slot=\"dialog-content\"] button')].find((el) => (el.innerText || '').trim() === 'Delete project' && !el.disabled)";
+        check(
+          await waitFor("Boolean(" + enabled + ")", 5000),
+          "delete: confirm enabled after typing the name",
         );
-        check(confirmed === "OK", "delete: confirm enabled after typing the name");
+        await page.evaluate(
+          "(() => { const b = " +
+            enabled +
+            "; if (b) b.click(); return b ? 'OK' : 'NOTFOUND'; })()",
+        );
         const removedFiles = await waitFor(
           "window.__ide.pathInfo(" + JSON.stringify(projectRoot) + ").then((p) => !p.exists)",
           30000,

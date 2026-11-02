@@ -26,6 +26,9 @@ export interface LoadedProjectContext {
   checker: SyntaxChecker | null;
 }
 
+/** How long a validation round waits for the live manifest before using the sources alone. */
+const MANIFEST_TIMEOUT_MS = 3_000;
+
 /** Sources the validator's rules parse; other files only contribute their path. */
 const CONTEXT_SOURCES = [
   "facilis.config.ts",
@@ -49,7 +52,12 @@ export async function loadProjectContext(
   let manifest: unknown;
   const base = host.manifestBase();
   if (base !== null) {
-    const result = await fetchManifest(base, signal === undefined ? {} : { signal });
+    // Best-effort: the rules fall back to the source facts when the project is booting,
+    // and a validation round must never hang the chat on an unresponsive preview.
+    const timeout = AbortSignal.timeout(MANIFEST_TIMEOUT_MS);
+    const result = await fetchManifest(base, {
+      signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
+    });
     if (result.ok) manifest = result.envelope.manifest;
   }
   const context = buildProjectContext({
