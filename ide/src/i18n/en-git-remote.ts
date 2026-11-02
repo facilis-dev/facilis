@@ -1,4 +1,4 @@
-// The D-079 git-remote strings, spread into `en` in en.ts.
+// The git-network strings (D-079 to D-081), spread into `en` in en.ts.
 //
 // The catalogue is at the 300-line limit, so this feature block lives in its own
 // module instead of growing en.ts; the keys stay flat and their values unchanged.
@@ -10,14 +10,14 @@ export const gitRemoteEn = {
   "gitRemote.remotePlaceholder": "https://github.com/owner/repo.git",
   "gitRemote.save": "Save remote",
   "gitRemote.saved": "Remote saved",
-  "gitRemote.token": "Access token (optional)",
+  "gitRemote.token": "Access token or password (optional)",
   "gitRemote.tokenPlaceholder": "ghp_…, glpat-…, …",
   "gitRemote.tokenHint":
-    "Needed for private repositories and for pushing. Used for this operation and never stored.",
+    "Needed for private repositories and for pushing. GitHub accepts a token only; GitLab and Gitea/Forgejo also accept your account password. Used for this operation and never stored.",
   "gitRemote.username": "Username (optional)",
   "gitRemote.usernamePlaceholder": "git",
   "gitRemote.usernameHint":
-    "Only for hosts that need a username together with the token (Gitea/Forgejo).",
+    "Only with an account password (GitLab, Gitea/Forgejo), or when the host asks for one with the token.",
   "gitRemote.branch": "Branch",
   "gitRemote.aheadBehind": "↑{ahead} ↓{behind}",
   "gitRemote.upToDate": "Up to date with the remote.",
@@ -43,7 +43,17 @@ export const gitRemoteEn = {
   "import.descriptionGit":
     "Fetch a repository — GitHub, GitLab or Gitea/Forgejo — as a new project with a real git clone. The download goes through this installation's stateless proxy, which keeps nothing and logs nothing.",
   "import.repositoryHintGit":
-    "owner/repo (GitHub by default) or the repository URL; GitLab and Gitea/Forgejo need their URL. A private repository needs the token below.",
+    "owner/repo (GitHub by default) or the repository URL; GitLab and Gitea/Forgejo need their URL. A private repository needs the token or password below.",
+
+  // ── import with real git: token or account password (D-081) ─────────────
+  "import.secretInvalid": "That does not look like a valid token or password.",
+  "import.tokenOrPassword": "Access token or password (optional)",
+  "import.tokenOrPasswordHint":
+    "For a private repository. GitHub accepts a token only; GitLab and Gitea/Forgejo also accept your account password with the username below. Used for this import and never stored.",
+  "import.username": "Username (optional)",
+  "import.usernamePlaceholder": "your username",
+  "import.usernameHint":
+    "Only with an account password (GitLab, Gitea/Forgejo) — GitHub requires a token.",
 
   // ── token help (shown by the import, publish and remote dialogs) ─────────
   "token.helpSummary": "How to create a token",

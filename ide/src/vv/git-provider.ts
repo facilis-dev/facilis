@@ -33,6 +33,22 @@ export function normalizeGitToken(raw: string | undefined | null): string | null
   return token;
 }
 
+/**
+ * A pasted secret is a token unless the user also gave a username, which turns it into
+ * an account password (D-081). Passwords are not token-shaped — they can hold spaces and
+ * any punctuation — so only the shared guards apply; a token never has whitespace.
+ */
+export function normalizeGitSecret(
+  raw: string | undefined | null,
+  hasUsername: boolean,
+): string | null {
+  if (raw === null || raw === undefined) return null;
+  const value = raw.trim();
+  if (value === "" || value.length > 255) return null;
+  if (hasUsername) return value;
+  return /\s/.test(value) ? null : value;
+}
+
 /** The host a URL-ish input names, or null when the input is an owner/repo shorthand. */
 export function hostOfGitInput(input: string): string | null {
   const value = input.trim();

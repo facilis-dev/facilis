@@ -14,7 +14,7 @@ import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import {
   hostOfGitInput,
-  normalizeGitToken,
+  normalizeGitSecret,
   parseGitRepo,
   providerForInput,
   type GitProvider,
@@ -44,13 +44,14 @@ function toCloneUrl(input: string, provider: GitProvider): string | null {
 
 // Import a project from a git host (GitHub, GitLab, Gitea/Forgejo).
 // Snapshot-driven (c.openImportRemote / c.closeImportRemote) so it works from Home and the
-// command palette alike. A private repository's token lives only in this component: it is
-// handed to the importer and dropped when the dialog closes (D-073).
+// command palette alike. A private repository's credential lives only in this component:
+// it is handed to the importer and dropped when the dialog closes (D-073, D-081).
 export function ImportRemoteDialog() {
   const { c, snap } = useIde();
   const open = snap.importRemoteOpen;
   const [repo, setRepo] = useState("");
   const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
 
@@ -61,6 +62,7 @@ export function ImportRemoteDialog() {
     } else {
       // Never keep a secret around after the dialog closed.
       setToken("");
+      setUsername("");
     }
   }, [open]);
 
@@ -84,9 +86,13 @@ export function ImportRemoteDialog() {
     setProgress(t("import.starting"));
     try {
       const typed = token.trim();
-      const normalized = normalizeGitToken(typed);
-      if (typed !== "" && normalized === null) {
-        setProgress(t("import.tokenInvalid"));
+      const user = username.trim();
+      // A username turns the same field into an account password for the hosts that
+      // still accept one (GitLab, Gitea/Forgejo, self-hosted — D-081); without it the
+      // value is a token and must be token-shaped.
+      const secret = normalizeGitSecret(typed, user !== "");
+      if (typed !== "" && secret === null) {
+        setProgress(t(user !== "" ? "import.secretInvalid" : "import.tokenInvalid"));
         return;
       }
       // Real git when this deployment serves the proxy (full history, keeps .git); the
@@ -98,14 +104,22 @@ export function ImportRemoteDialog() {
       const cloneUrl = toCloneUrl(repo.trim(), provider);
       if (cloneUrl !== null && (await gitAvailable())) {
         ok = await c.projectImport.cloneGitRepo(cloneUrl, {
-          credentials: normalized === null ? undefined : { token: normalized },
+          credentials:
+            secret === null
+              ? undefined
+              : { token: secret, username: user === "" ? undefined : user },
           onProgress: onCloneProgress,
         });
       }
       // No proxy (or a clone that failed once the proxy answered) keeps today's REST
       // importer: cloneGitRepo's own toast explains the failed attempt, then this runs.
-      if (!ok) {
-        ok = await c.importGitRepo(repo.trim(), { onProgress, provider, token: normalized });
+      // A password cannot authenticate the API, so it never reaches this fallback.
+      if (!ok && (user === "" || cloneUrl === null)) {
+        ok = await c.importGitRepo(repo.trim(), {
+          onProgress,
+          provider,
+          token: user === "" ? secret : null,
+        });
       }
       if (ok) c.closeImportRemote();
     } catch (err) {
@@ -154,7 +168,9 @@ export function ImportRemoteDialog() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">{t("import.token")}</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t(realGit ? "import.tokenOrPassword" : "import.token")}
+            </span>
             <Input
               type="password"
               autoComplete="off"
@@ -167,9 +183,31 @@ export function ImportRemoteDialog() {
                 if (event.key === "Enter") void submit();
               }}
             />
-            <span className="text-xs text-muted-foreground">{t("import.tokenHint")}</span>
+            <span className="text-xs text-muted-foreground">
+              {t(realGit ? "import.tokenOrPasswordHint" : "import.tokenHint")}
+            </span>
             <TokenHelp />
           </label>
+
+          {realGit && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("import.username")}
+              </span>
+              <Input
+                autoComplete="off"
+                spellCheck={false}
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder={t("import.usernamePlaceholder")}
+                disabled={busy}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void submit();
+                }}
+              />
+              <span className="text-xs text-muted-foreground">{t("import.usernameHint")}</span>
+            </label>
+          )}
         </div>
 
         {progress && (

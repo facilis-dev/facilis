@@ -3,6 +3,7 @@ import {
   detectGitProvider,
   gitAuthHeaders,
   hostOfGitInput,
+  normalizeGitSecret,
   normalizeGitToken,
   parseGitRepo,
 } from "./git-provider";
@@ -29,6 +30,18 @@ describe("git host selection", () => {
     expect(normalizeGitToken("two words")).toBeNull();
     expect(normalizeGitToken("x".repeat(256))).toBeNull();
     expect(normalizeGitToken(undefined)).toBeNull();
+  });
+
+  it("reads the same field as a password when a username was given", () => {
+    // Account passwords are not token-shaped: a self-hosted host may accept one with
+    // spaces or punctuation (D-081).
+    expect(normalizeGitSecret("  s3cret pass  ", true)).toBe("s3cret pass");
+    expect(normalizeGitSecret("two words", true)).toBe("two words");
+    expect(normalizeGitSecret("two words", false)).toBeNull();
+    expect(normalizeGitSecret("ghp_abc", true)).toBe("ghp_abc");
+    expect(normalizeGitSecret("", true)).toBeNull();
+    expect(normalizeGitSecret("x".repeat(256), true)).toBeNull();
+    expect(normalizeGitSecret(undefined, true)).toBeNull();
   });
 
   it("sends the token the way each host expects it", () => {
