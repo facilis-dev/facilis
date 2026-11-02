@@ -497,3 +497,43 @@ The token lives in the tab's memory only: a reload asks for a new sign-in, and *
 drops it. The device code is shown in the dialog, never logged; the OAuth calls are
 `/git-proxy/github.com/login/device/code` and `/git-proxy/github.com/login/oauth/access_token`,
 so the dev proxy's allowlist must contain `github.com` (the default does).
+## 12. AI probe — live model cost and speed (`scripts/dev/ai-probe.mjs`)
+
+A live probe for the IDE chat: it sends realistic feature requests to a real provider,
+measures token consumption and latency, then runs the generated patches through the same
+16-rule validator the chat uses and (optionally) typechecks them. It is **not part of the
+gate** — it needs the network and a real key.
+
+**Setup.** The key lives in the gitignored `ide/.env`, the same file Vite reads:
+
+```sh
+cp ide/.env.example ide/.env
+# then set VITE_DEEPSEEK_API_KEY=... (and optionally VITE_DEEPSEEK_MODEL / VITE_DEEPSEEK_BASE_URL)
+```
+
+In dev the IDE seeds the DeepSeek preset from those variables (the D-045 settings, dev-only
+and mode-gated), so the chat is configured on first boot without typing the key. Unset
+`VITE_DEEPSEEK_API_KEY` to fall back to whatever the settings dialog saved. The value is
+inlined into the dev bundle only, so never put a production key there.
+
+**Run.**
+
+```sh
+pnpm ai:probe                                   # 5 tasks x 3 transport variants
+pnpm ai:probe -- --tasks=route-stats,page-stats --configs=chat-default
+pnpm ai:probe -- --prompt=golden --configs=flash-nothink
+pnpm ai:probe:check /tmp/facilis-dev/ai-probe/<ts>/results.json
+```
+
+Each run writes `results.json` (per-call metrics and raw answers) and `summary.md` under
+`/tmp/facilis-dev/ai-probe/<ts>/`. The checker applies each answer to a scratch copy of
+`examples/todo-app` and runs the project's own `tsc`, which catches what the structural
+validator cannot (wrong import paths, invented handler shapes, bad helper APIs).
+
+**What it measures.** Time to first token, wall time, prompt/cache-hit/completion/reasoning
+tokens, patch count, validator errors and warnings, and the off-peak dollar cost of the run.
+Prompt variants exist to size the quality gap: `baseline` (the IDE prompt as shipped),
+`conventions` (a short API-conventions addendum) and `golden` (the project's own route, page
+and schema as few-shot examples). The probe caps output at 16k tokens; the IDE sends no
+`max_tokens`, so a `finish_reason: length` here only says the answer was very long.
+
