@@ -8,7 +8,10 @@
 // Not yet migrated: the upstream-inherited editor chrome (Explorer, Search, Debug,
 // SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
 // Those move here file by file as they are touched — see ide/I18N.md.
+import { apiFlowEn } from "./en-api-flow";
+import { updatesEn } from "./en-updates";
 import { dataExplorerEn } from "./en-data-explorer";
+import { releasePreviewEn } from "./en-release-preview";
 import { gitRemoteEn } from "./en-git-remote";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -169,6 +172,9 @@ export const en = {
   "push.disabled": "This deployment does not allow publishing to a git host.",
   ...gitRemoteEn,
   ...dataExplorerEn,
+  ...apiFlowEn,
+  ...releasePreviewEn,
+  ...updatesEn,
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Type a command…",
   "palette.filePlaceholder": "Search files by name (append :line to jump)…",
@@ -282,18 +288,4 @@ export const en = {
   "chat.keyHint.deepseek": "Create a key at platform.deepseek.com → API keys.",
   "chat.keyHint.custom": "Any OpenAI-compatible endpoint. A local server needs no key.",
   "chat.keyHint.mock": "Built into dev builds; never calls a provider.",
-
-  // ── project updates (D-065) ───────────────────────────────────────────────
-  "updates.available": "Update available",
-  "updates.aheadBadge": "Newer project",
-  "updates.tooltip": "Project {project} · this Studio {build}",
-  "updates.title": "Project updates",
-  "updates.description": "This project was created by an older build of the Studio.",
-  "updates.ahead": "This project was created by a newer Studio. Open it there.",
-  "updates.projectVersion": "Project version",
-  "updates.buildVersion": "This Studio",
-  "updates.unknown": "unknown",
-  "updates.noRecipe":
-    "This Studio ships no upgrade recipe for this jump yet, so nothing is applied automatically. Export the project and recreate it from the current template, or use a build that includes the recipe.",
-  "updates.baseline": "Approved baseline: {baseline}",
 } as const;

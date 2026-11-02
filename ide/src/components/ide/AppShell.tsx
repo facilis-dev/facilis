@@ -11,6 +11,8 @@ import { DebugPanel } from "./DebugPanel";
 import { SourceControlPanel } from "./SourceControlPanel";
 import { ChatPanel } from "./ChatPanel";
 import { DataExplorerPanel } from "./DataExplorerPanel";
+import { ApiFlowPanel } from "./ApiFlowPanel";
+import { ReleasePreviewPanel } from "./ReleasePreviewPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -37,22 +39,25 @@ export function AppShell() {
   // the Explorer width. Only the automatic widen is undone: a width the user
   // dragged themselves (anything above the widen target) is left alone.
   const sidebarPanel = usePanelRef();
-  const widenedForChat = useRef(false);
+  const widenedForPanel = useRef(false);
   const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
+  // The visualizers want room too: the API graph and the release diff are unreadable
+  // in the Explorer's 16% width, so they get the same automatic widening as the chat.
+  const roomyView = chatOpen || snap.activeView === "api" || snap.activeView === "release";
   useEffect(() => {
     const panel = sidebarPanel.current;
     if (!panel) return;
     const percent = panel.getSize().asPercentage;
-    if (chatOpen) {
+    if (roomyView) {
       if (percent < 22) {
-        widenedForChat.current = true;
+        widenedForPanel.current = true;
         panel.resize("28%");
       }
-    } else if (widenedForChat.current && percent >= 26) {
-      widenedForChat.current = false;
+    } else if (widenedForPanel.current && percent >= 26) {
+      widenedForPanel.current = false;
       panel.resize("16%");
     }
-  }, [chatOpen, sidebarPanel]);
+  }, [roomyView, sidebarPanel]);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -175,6 +180,10 @@ export function AppShell() {
                   <SourceControlPanel />
                 ) : snap.activeView === "data" ? (
                   <DataExplorerPanel />
+                ) : snap.activeView === "api" ? (
+                  <ApiFlowPanel />
+                ) : snap.activeView === "release" ? (
+                  <ReleasePreviewPanel />
                 ) : snap.activeView === "chat" && chatEnabled ? (
                   <ChatPanel />
                 ) : (

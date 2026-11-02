@@ -8,6 +8,8 @@ import Moon from "~icons/lucide/moon";
 import Monitor from "~icons/lucide/monitor";
 import MessageSquare from "~icons/lucide/message-square";
 import Database from "~icons/lucide/database";
+import Workflow from "~icons/lucide/workflow";
+import GitCompare from "~icons/lucide/git-compare";
 import Check from "~icons/lucide/check";
 import { useTheme } from "next-themes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -51,7 +53,7 @@ function ActBtn({
   );
 }
 
-type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data";
+type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "api" | "release";
 
 export function ActivityBar() {
   const { c, snap } = useIde();
@@ -93,6 +95,20 @@ export function ActivityBar() {
       </ActBtn>
       <ActBtn label={t("activity.data")} active={shown("data")} onClick={() => select("data")}>
         <Database className="size-5" />
+      </ActBtn>
+      <ActBtn
+        label={t("activity.apiFlow")}
+        active={shown("api")}
+        onClick={() => select("api")}
+      >
+        <Workflow className="size-5" />
+      </ActBtn>
+      <ActBtn
+        label={t("activity.release")}
+        active={shown("release")}
+        onClick={() => select("release")}
+      >
+        <GitCompare className="size-5" />
       </ActBtn>
       <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
         <Bug className="size-5" />

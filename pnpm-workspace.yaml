@@ -18,3 +18,7 @@ catalog:
 allowBuilds:
   core-js: false
   esbuild: false
+
+minimumReleaseAgeExclude:
+  - "@xyflow/react@12.12.1"
+  - "@xyflow/system@0.0.84"
