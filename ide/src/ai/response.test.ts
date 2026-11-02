@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseAiResponse } from "./response";
+import { parseAiResponse, parseTurn } from "./response";
+import type { PatchValidationHost } from "./patch-validation";
 
 function json(value: unknown): string {
   return JSON.stringify(value);
@@ -137,5 +138,57 @@ describe("parseAiResponse", () => {
     if (result.ok) return;
     expect(result.kind).toBe("contract");
     expect(result.issues.some((issue) => issue.startsWith("requires_confirmation:"))).toBe(true);
+  });
+});
+
+const CONFIG = `import { defineConfig } from "@facilis/core";
+
+export default defineConfig({
+  auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
+});
+`;
+
+const SOURCES: Record<string, string> = {
+  "facilis.config.ts": CONFIG,
+  "db/schema.ts": "export {};\n",
+  "package.json": JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } }),
+  "locales/en.json": JSON.stringify({}),
+  "tsconfig.json": JSON.stringify({}),
+};
+
+function validationHost(): PatchValidationHost {
+  return {
+    files: () => ["facilis.config.ts", "db/schema.ts", "package.json", "locales/en.json"],
+    read: async (path) => SOURCES[path] ?? "",
+    manifestBase: () => null,
+    syntaxChecker: () => ({ check: async () => [] }),
+  };
+}
+
+describe("parseTurn", () => {
+  it("rejects an answer whose route fails validation", async () => {
+    const raw = json({
+      message: "x",
+      patches: [
+        { path: "server/routes/api/x.get.ts", action: "create", content: "export default 1;\n" },
+      ],
+    });
+    const result = await parseTurn(raw, validationHost());
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.kind).toBe("validation");
+    expect(result.issues[0]).toContain("route-security");
+  });
+
+  it("returns the validation result for a valid answer", async () => {
+    const content =
+      'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n';
+    const raw = json({
+      message: "x",
+      patches: [{ path: "server/routes/api/todos/index.get.ts", action: "create", content }],
+    });
+    const result = await parseTurn(raw, validationHost());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.validation.warnings).toEqual([]);
   });
 });

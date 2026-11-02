@@ -3,6 +3,7 @@
 // Split out of chat-session.ts, which is at the 300-line limit: the session class
 // owns behaviour, these are the shapes the host, the tests and the UI agree on.
 
+import type { SyntaxChecker } from "@facilis/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { CallModelInput, CallModelResult } from "./client";
 import { isConfigured } from "./settings";
@@ -21,6 +22,8 @@ export interface ChatHost {
   activeFile(): Promise<{ path: string; content: string } | null>;
   /** Preview base URL used for /__facilis/manifest, or null when nothing runs. */
   manifestBase(): string | null;
+  /** Rule 1's parser: Monaco's TypeScript worker; absent when the editor is not ready. */
+  syntaxChecker?(): SyntaxChecker | null;
   /** Reveal a project-relative path in the editor. */
   openFile(path: string): void;
 }

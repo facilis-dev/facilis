@@ -47,6 +47,8 @@ function fakeHost(): Harness {
             : "",
       activeFile: async () => null,
       manifestBase: () => null,
+      // Rule 1's parser in unit tests: no syntax findings (the fake VFS has no project).
+      syntaxChecker: () => ({ check: async () => [] }),
       openFile: () => {},
     },
   };

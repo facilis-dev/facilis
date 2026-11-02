@@ -51,6 +51,9 @@ export async function ensureInstructions(host: InstructionsWriteHost): Promise<s
     bridge: host.bridge,
     root: host.root,
     patches: [{ path: INSTRUCTIONS_PATH, action: "create", content: INSTRUCTIONS_TEMPLATE }],
+    // The scaffold is the IDE's own write, so rule 11's root allowlist is extended for
+    // this one call; the AI patch path never passes rootFiles.
+    rootFiles: [INSTRUCTIONS_PATH],
   });
   return result.errors;
 }

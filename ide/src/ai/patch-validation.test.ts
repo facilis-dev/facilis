@@ -1,0 +1,103 @@
+import { describe, expect, it } from "vitest";
+
+import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
+import type { FilePatch } from "@facilis/ai";
+
+const CONFIG = `import { defineConfig } from "@facilis/core";
+
+export default defineConfig({
+  auth: {
+    permissions: ["todos:read"],
+    roles: { admin: ["*"], user: ["todos:read"] },
+    defaultRole: "user",
+  },
+});
+`;
+
+const SCHEMA = `import { pgTable, text, uuid } from "drizzle-orm/pg-core";
+
+export const todos = pgTable("todos", { id: uuid("id").primaryKey(), title: text("title").notNull() });
+`;
+
+const SOURCES: Record<string, string> = {
+  "facilis.config.ts": CONFIG,
+  "db/schema.ts": SCHEMA,
+  "package.json": JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } }),
+  "locales/en.json": JSON.stringify({ "app.title": "Facilis" }),
+  "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
+};
+
+function host(overrides: Partial<PatchValidationHost> = {}): PatchValidationHost {
+  return {
+    files: () => [
+      "facilis.config.ts",
+      "db/schema.ts",
+      "package.json",
+      "locales/en.json",
+      "tsconfig.json",
+      "src/app.tsx",
+    ],
+    read: async (path) => SOURCES[path] ?? "",
+    manifestBase: () => null,
+    syntaxChecker: () => ({ check: async () => [] }),
+    ...overrides,
+  };
+}
+
+const ROUTE = "server/routes/api/ping.get.ts";
+
+function route(permission: string): string {
+  return (
+    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    "export default defineAuthorizedHandler(\n" +
+    '  { permission: ["' +
+    permission +
+    '"], dbTables: ["todos"] },\n' +
+    "  async () => null,\n" +
+    ");\n"
+  );
+}
+
+function patch(path: string, content: string): FilePatch {
+  return { path, action: "create", content };
+}
+
+describe("validatePatchesWithHost", () => {
+  it("blocks a route that does not use defineAuthorizedHandler", async () => {
+    const result = await validatePatchesWithHost(
+      [patch(ROUTE, "export default async () => null;\n")],
+      host(),
+    );
+    expect(result.validation.ok).toBe(false);
+    expect(result.validation.errors.map((entry) => entry.rule)).toContain("route-security");
+    expect(result.context.syntax.status).toBe("checked");
+  });
+
+  it("accepts a well-formed route", async () => {
+    const result = await validatePatchesWithHost([patch(ROUTE, route("todos:read"))], host());
+    expect(result.validation.errors).toEqual([]);
+    expect(result.validation.ok).toBe(true);
+  });
+
+  it("turns parser findings into rule-1 errors", async () => {
+    const result = await validatePatchesWithHost(
+      [patch("src/feature.ts", "export const value = ;\n")],
+      host({
+        syntaxChecker: () => ({
+          check: async () => [{ line: 1, column: 22, message: "Unexpected token" }],
+        }),
+      }),
+    );
+    expect(result.validation.errors).toEqual([
+      expect.objectContaining({ rule: "ts-parse", file: "src/feature.ts", line: 1, column: 22 }),
+    ]);
+  });
+
+  it("fails closed when no parser is injected", async () => {
+    const result = await validatePatchesWithHost(
+      [patch("src/feature.ts", "export const value = 1;\n")],
+      host({ syntaxChecker: () => null }),
+    );
+    expect(result.validation.errors[0]?.rule).toBe("ts-parse");
+  });
+});

@@ -9,6 +9,7 @@
 import { isDiffTabId, type IdeController } from "@/vv/controller";
 import { previewSrcFor } from "@/vv/preview-url";
 import { ChatSession, type ChatHost } from "./chat-session";
+import { createMonacoSyntaxChecker } from "./monaco-syntax";
 
 const sessions = new WeakMap<IdeController, ChatSession>();
 
@@ -69,5 +70,7 @@ function chatHost(controller: IdeController): ChatHost {
     openFile: (path) => {
       void controller.openEntry(absolute(path));
     },
+    // Rule 1's parser: the same TypeScript worker the editor's IntelliSense uses.
+    syntaxChecker: () => createMonacoSyntaxChecker(controller),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import { buildProjectContext, type FilePatch, type PatchContext } from "@facilis/ai";
 import { applyPatch, type PatchBridge } from "./apply-patch";
 
 interface RecordedCall {
@@ -143,5 +143,78 @@ describe("applyPatch", () => {
     });
     expect(fetchMock.mock.calls.length).toBe(0);
     vi.unstubAllGlobals();
+  });
+});
+
+const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis/core";
+
+export default defineConfig({
+  auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
+});
+`;
+
+function validatorContext(): PatchContext {
+  const project = buildProjectContext({
+    files: ["facilis.config.ts"],
+    sources: { "facilis.config.ts": VALIDATOR_CONFIG },
+    manifest: { routes: [] },
+  });
+  return { ...project, syntax: { status: "checked", findings: [] } };
+}
+
+describe("applyPatch with project context", () => {
+  it("blocks a route that fails the 16-rule validator before touching the VFS", async () => {
+    const { bridge, calls } = fakeBridge();
+    const result = await applyPatch({
+      bridge,
+      root,
+      patches: [
+        { path: "server/routes/api/x.get.ts", action: "create", content: "export default 1;\n" },
+      ],
+      context: validatorContext(),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.validation.errors.map((entry) => entry.rule)).toContain("route-security");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("writes a patch whose only findings are warnings", async () => {
+    const { bridge, calls } = fakeBridge();
+    const result = await applyPatch({
+      bridge,
+      root,
+      patches: [
+        {
+          path: "src/page.ts",
+          action: "create",
+          content: "export const label = t('missing.key');\n",
+        },
+      ],
+      context: validatorContext(),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.validation.warnings.some((entry) => entry.rule === "i18n-keys-registered")).toBe(
+      true,
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("allows an IDE-authored root file only when the caller asks for it", async () => {
+    const blocked = await applyPatch({
+      bridge: fakeBridge().bridge,
+      root,
+      patches: [{ path: "AGENTS.md", action: "create", content: "# instructions\n" }],
+      context: validatorContext(),
+    });
+    expect(blocked.ok).toBe(false);
+
+    const allowed = await applyPatch({
+      bridge: fakeBridge().bridge,
+      root,
+      patches: [{ path: "AGENTS.md", action: "create", content: "# instructions\n" }],
+      context: validatorContext(),
+      rootFiles: ["AGENTS.md"],
+    });
+    expect(allowed.ok).toBe(true);
   });
 });

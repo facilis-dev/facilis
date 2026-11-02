@@ -2,10 +2,12 @@
 //
 // A provider answer is untrusted text: it may carry prose, a markdown fence, unknown keys
 // or a patch that would escape the project. This module is the only place that turns that
-// text into the typed shape, so the UI never has to defend against it. Patch content is
-// checked here only structurally; @facilis/ai's validatePatch owns the safety rules.
+// text into the typed shape, so the UI never has to defend against it. parseAiResponse is
+// the context-free structural gate; parseTurn then runs the full SPEC §9.3 validator
+// against the project context before a proposal can exist.
 
 import { validatePatch, type FilePatch, type ValidationResult } from "@facilis/ai";
+import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import type { AiResponse } from "./types";
 
 export type AiParseResult =
@@ -169,4 +171,34 @@ export function parseAiResponse(raw: string): AiParseResult {
     },
     validation,
   };
+}
+
+/**
+ * Parse an answer and, when it proposes patches, validate them against the live project
+ * (SPEC §9.3). Errors from the context-dependent rules turn the answer into a
+ * `validation` failure before any proposal exists; `parseAiResponse` stays the
+ * context-free structural gate used by unit tests and by callers with no project.
+ */
+export async function parseTurn(
+  raw: string,
+  host: PatchValidationHost,
+  options: { signal?: AbortSignal } = {},
+): Promise<AiParseResult> {
+  const parsed = parseAiResponse(raw);
+  if (!parsed.ok || parsed.response.patches.length === 0) return parsed;
+  const checked = await validatePatchesWithHost(parsed.response.patches, host, {
+    requiresConfirmation: parsed.response.requiresConfirmation,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  });
+  if (!checked.validation.ok) {
+    return failure(
+      "validation",
+      "The proposed patches failed validation.",
+      checked.validation.errors.map(
+        (entry) => entry.rule + ": " + entry.file + ": " + entry.message,
+      ),
+      raw,
+    );
+  }
+  return { ...parsed, validation: checked.validation };
 }
