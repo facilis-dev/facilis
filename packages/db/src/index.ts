@@ -52,4 +52,17 @@ export {
   type SchemaSnapshot,
   type TableSnapshot,
 } from "./snapshot.ts";
+export {
+  liveSchemaSnapshot,
+  type LiveColumnSnapshot,
+  type LivePolicySnapshot,
+  type LiveSchemaSnapshot,
+  type LiveTableSnapshot,
+} from "./live-schema.ts";
+export {
+  canonicalColumnType,
+  diffSchemaSnapshots,
+  type SchemaDrift,
+  type SchemaDriftKind,
+} from "./schema-drift.ts";
 export { applyMigrations, applyStatements, type MigrationSource } from "./migrator.ts";

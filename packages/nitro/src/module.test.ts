@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Nitro } from "nitro/types";
 
 import { createFacilisNitroModule } from "./module.ts";
-import { NATIVE_OPENAPI_ROUTE, OPENAPI_FACADE_ROUTE } from "./constants.ts";
+import { DEV_SCHEMA_ROUTE, NATIVE_OPENAPI_ROUTE, OPENAPI_FACADE_ROUTE } from "./constants.ts";
 import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
 
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
@@ -73,6 +73,7 @@ describe("createFacilisNitroModule", () => {
       "/__facilis/manifest",
       "/__facilis/manifest/revision",
       "/__facilis/health",
+      DEV_SCHEMA_ROUTE,
       OPENAPI_FACADE_ROUTE,
     ]);
     expect(routes.every((handler) => handler["env"] === "dev")).toBe(true);

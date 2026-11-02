@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { Nitro, NitroEventHandler, NitroModule } from "nitro/types";
 
 import {
+  DEV_SCHEMA_ROUTE,
   HEALTH_ROUTE,
   MANIFEST_REVISION_ROUTE,
   MANIFEST_ROUTE,
@@ -149,6 +150,7 @@ function registerRuntimeHandlers(nitro: Nitro): void {
     add(MANIFEST_ROUTE, routeFile("manifest.get.ts"), DEV_ENV);
     add(MANIFEST_REVISION_ROUTE, routeFile("manifest-revision.get.ts"), DEV_ENV);
     add(HEALTH_ROUTE, routeFile("health.get.ts"), DEV_ENV);
+    add(DEV_SCHEMA_ROUTE, routeFile("dev-schema.get.ts"), DEV_ENV);
   }
   // The facade is dev-only unless the project explicitly enables OpenAPI in production.
   if (dev) add(OPENAPI_FACADE_ROUTE, routeFile("openapi.get.ts"), DEV_ENV);

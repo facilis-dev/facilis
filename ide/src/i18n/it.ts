@@ -2,6 +2,7 @@
 // English one, so this file can land incrementally (the parity test enforces that
 // every key here exists in English, not the other way round).
 import type { MessageKey } from "./index";
+import { dataExplorerIt } from "./it-data-explorer";
 import { gitRemoteIt } from "./it-git-remote";
 
 export const it: Partial<Record<MessageKey, string>> = {
@@ -160,6 +161,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "push.kernelStarting": "Il runtime si sta ancora avviando — riprova tra un momento.",
   "push.disabled": "Questa distribuzione non consente la pubblicazione su un host git.",
   ...gitRemoteIt,
+  ...dataExplorerIt,
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Digita un comando…",
   "palette.filePlaceholder": "Cerca file per nome (aggiungi :riga per saltarci)…",

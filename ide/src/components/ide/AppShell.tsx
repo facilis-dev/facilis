@@ -10,6 +10,7 @@ import { SearchPane } from "./SearchPane";
 import { DebugPanel } from "./DebugPanel";
 import { SourceControlPanel } from "./SourceControlPanel";
 import { ChatPanel } from "./ChatPanel";
+import { DataExplorerPanel } from "./DataExplorerPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -172,6 +173,8 @@ export function AppShell() {
                   <DebugPanel />
                 ) : snap.activeView === "scm" ? (
                   <SourceControlPanel />
+                ) : snap.activeView === "data" ? (
+                  <DataExplorerPanel />
                 ) : snap.activeView === "chat" && chatEnabled ? (
                   <ChatPanel />
                 ) : (
