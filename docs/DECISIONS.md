@@ -2632,6 +2632,132 @@ regressions; `pnpm typecheck`, `pnpm lint` and the file-length/theme checks are 
 browser path is green end to end on a fresh profile: `pnpm ide:smoke` drives the mock provider
 through rule 1 (the actual Monaco worker), the proposal card, Apply, the VFS write and Undo.
 
+### D-085 — The API Flow reads the AST-augmented OpenAPI document and renders it with React Flow
+**Status:** accepted (2026-11-02)
+
+SPEC §10.2 and §12 Phase 3 ask for an API visualizer: the project's API as a graph, with
+click-to-jump into the route source. The facade built in Phase 0/1 already publishes what the
+graph needs — `/_openapi.json` merges the AST pass's `x-permission`, `x-db-tables`,
+`x-db-columns` and `x-facilis-source` onto Nitro's native document (SPEC §6.9) — but nothing
+rendered it. The Entity Explorer (D-083) established the read pattern: a dev-only endpoint
+reached through the preview proxy, narrowed at the client boundary, shown in a new sidebar.
+
+**Decision.** A new `api` activity view backed by React Flow, without a new backend surface.
+
+- **Transport.** The panel fetches `GET <preview-proxy-base>/_openapi.json` with the same
+  throw-free client shape as the manifest and schema clients, refreshes on the 60-byte revision
+  poll and on demand, and renders "unreachable" instead of taking the editor down. The facade is
+  dev-only (404 in production), which is the same availability the other panels have.
+- **Model.** A pure module turns the operations into a deterministic layered graph: one node per
+  operation grouped by resource (the first path segment), one node per table, an edge
+  operation→table from `x-db-tables` (and from `x-db-columns` prefixes for routes that only name
+  columns). Layout is computed, not random, so the graph is stable across refreshes and testable
+  without a DOM.
+- **Interaction.** Clicking an operation node opens `x-facilis-source`; clicking a table node
+  opens `db/schema.ts`. Method and permission badges are read from the operation; a route whose
+  metadata the AST pass could not resolve simply shows fewer badges (the facade omits the field,
+  it never guesses).
+- **React Flow is the dependency SPEC §10.2 names** (`@xyflow/react` 12.12.1, 19 packages in the
+  lockfile). The node components are ours and use only semantic Tailwind role tokens, so theme
+  blocks flip them (D-043/D-044).
+
+**Rejected alternatives.** A hand-rolled SVG layout: more code, no pan/zoom/fit, and it would
+replace a dependency the spec already committed to. Fetching the manifest instead of the OpenAPI
+document: the manifest's route list has no operation summaries or permission metadata from Nitro,
+and the visualizer is specifically the API contract. A new editor tab kind: the tab strip is
+typed for file kinds (`text`/`image`/`directory`/`diff`/`notebook`), and every Facilis visualizer
+now lives in the activity bar (D-083 precedent) where it can be resized.
+
+**Consequences.** New dependency in the IDE bundle (React Flow is lazy-loaded by the view only when
+opened, like the other panel chunks). Routes without `x-facilis-source` are listed but not
+clickable; routes whose metadata the AST pass marked unresolved show no permission/table badges.
+Strings are in `en`/`it`; the panel has unit tests for parse, model and transport, and the browser
+smoke opens it and waits for nodes.
+
+**Verification.** 19 IDE tests (parse 6, model 7, transport 6) cover the `/_openapi.json`
+narrowing, the deterministic graph model and the throw-free fetch; the IDE's i18n parity suite
+includes the new block. `pnpm lint`, `pnpm typecheck` and `pnpm build` are green, and
+`pnpm ide:smoke` on a fresh profile opens the `api` activity view, waits for route and table
+nodes, clicks a route node and reaches its source file.
+
+### D-086 — Release Preview is a pure snapshot diff; the Studio reads the refs from the git tree instead of booting them
+**Status:** accepted (2026-11-02)
+
+SPEC §7.7 declared the `ReleasePreview` contract and SPEC §11.3 asked for four diff lenses, but
+no engine existed (the types shipped with a "engine lands in Phase 3.5" note) and O-008 left the
+boot strategy open (sequential boots vs `?at=<oid>`). `@facilis/db` cannot host the browser-side
+engine: it imports PGlite/Drizzle, and the Studio must never reach the database directly (§11.2).
+Booting the project at an old commit to introspect it would be slow, would mutate the VFS and
+would tie the preview to the runtime being healthy.
+
+**Decision.** A pure engine over snapshots, and snapshots read from the git tree.
+
+- **Engine.** `buildReleasePreview({ from, to, before, after, inUseRoutes?, pendingMigrations? })`
+  in `@facilis/core` (browser-safe, no I/O) returns the SPEC §7.7 `ReleasePreview`: schema
+  statements with risk, schema summary, API diff, security diff, breaking changes and warnings.
+  It is the one engine behind all lenses and is reusable by the Model B `get_release_preview`
+  tool (§9.5).
+- **Schema lens.** The schema statements are the migration files that ship between the two refs,
+  split tolerantly (quotes, comments, dollar-quoted bodies) and classified statement by statement:
+  `CREATE TABLE`/nullable `ADD COLUMN`/`CREATE INDEX`/`CREATE POLICY` safe; non-null without
+  default, UNIQUE, renames, constraints, policy alterations careful; drops, type/nullability
+  changes and RLS disable destructive. A drop becomes `breaking` when a route still references the
+  table or column via `x-db-tables`/`x-db-columns` (the cross-check SPEC §11.3 asks for).
+- **Other lenses.** API diff compares method+path across the refs and flags changed known fields
+  (permission, dbTables, sourceFile). Security diff compares declared policies per table and
+  reports RLS disabled on scoped tables; a policy whose SQL lost its `current_setting()` scope is
+  a `policy_broadened` change. The working-copy lens finally feeds the code↔live drift from
+  D-083's endpoint as the fourth view §11.3 lists.
+- **No boots (resolves O-008).** The Studio reads `db/schema.ts`, `server/routes/**` and the
+  migrations out of the VFS at `HEAD`/`origin/main`/tag with isomorphic-git (already a dependency,
+  D-019) and parses the declarations with a tolerant text parser. Migrations are the source of
+  schema statements, so the preview describes what will actually execute. The working-copy lens
+  reads the live VFS through the controller and merges the manifest's routes for metadata.
+- **Contract amendment.** `ApiDiff.changed` now matches §7.7 (`{ before, after, fields }`;
+  the placeholder was an array). `ApiRouteRef.dbTables` is optional because a route derived from
+  a filename at an old ref cannot know the handler's tables; an omitted field means "unknown at
+  this ref", never "no tables". Both are documented on the type and in §7.7.
+
+**Rejected alternatives.** Boot each ref (O-008's sequential-boots option): slow, mutates the
+VFS, needs a healthy runtime, and fails exactly when the preview matters most (a broken ref).
+Put the engine in `@facilis/db` (SPEC §5.2's original location): it cannot run in the browser
+bundle. Parse the TypeScript AST to recover `defineAuthorizedHandler` metadata at each ref: the
+AST pass is Node-only and the routes' known metadata already comes from the manifest for the
+working copy; method+path is enough to diff the API surface. Synthesize `CREATE TABLE` SQL from
+the declared schema: the preview must show the SQL that ships, not invented SQL.
+
+**Consequences.** No schema boot, no database dependency in the panel; the engine is deterministic
+and cheap, and the panels pay only the git/blob reads when opened. Limits are declared: column
+types and renames surface only through migration SQL, so an un-migrated schema edit is caught by
+the code↔live lens rather than the summary; a ref-derived route knows only method+path; policy
+clause changes need both sides to carry policy SQL; `origin/main` exists only after a fetch, and
+the remote lens says so instead of guessing. The working-copy card has no source for "has the
+target database applied this migration?", so `pendingMigrations` stays an engine input the panel
+does not fill yet; the code↔live drift is the card's signal.
+
+The browser-safe subpath forced one contract detail. `SecurityDiff`/`PolicyChange` carry a
+structural `ReleasePolicySnapshot` declared in `release.ts` instead of `@facilis/db`'s
+`PolicySnapshot`: even an `import type` from the db pulled `@types/pg` (and through it
+`@types/node`) into the Studio's browser program, where the Node and DOM `ReadableStream`
+typings collide and the vendor kernel stops typechecking. The shapes are identical, so values from
+`@facilis/db` stay assignable. For the same reason the IDE's `@types/node` was aligned to the
+workspace catalog (22.20.5) instead of its own 24.x pin: two Node typings produced two Vite
+instances and broke `@facilis/nitro`'s build. The engine file was split across
+`release-preview`/`release-sql`/`release-classify`/`release-breaking`/`release-security`/
+`release-api` to stay under 300 lines.
+
+**Verification.** 92 `@facilis/core` tests (31 new: splitter 3, classifier 20, engine 8; the
+contract test still pins §7.7) and 562 IDE tests (19 API Flow + 20 Release Preview + the i18n
+parity suite). The engine rejects/classifies statements, lifts drops to breaking on route
+references, diffs policies and RLS, and reports pending/destructive/policy warnings. `pnpm lint`,
+`pnpm typecheck` and `pnpm build` are green; the browser smoke opens the Release Preview, renders
+the working-copy lens and switches it. The git-reading adapter has its own unit test against a
+real temporary repository (HEAD, tag, old commit, missing ref, non-repo), so only the VFS fs
+adapter itself is smoke-only. `pnpm ide:smoke` on a fresh profile opens the Release Preview after
+the chat/write steps (so the project has git history), renders the content and switches to the
+working-copy lens; the full run is green.
+
+
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
@@ -2644,7 +2770,7 @@ through rule 1 (the actual Monaco worker), the proposal card, Apply, the VFS wri
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
 | O-006 | Publish target for `@facilis/*` (public npm vs private registry) | start workspace-only; decide before first publish | Phase 6 |
 | O-007 | Recommended default AI model | **resolved with D-045:** no enforced default; each provider preset carries an editable model default | done |
-| O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | schema-only `?at=<oid>` first, sequential behind a flag | Phase 3.5 |
+| O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | **resolved with D-086:** no boot — the Studio reads the refs from the git tree with isomorphic-git and diffs parsed snapshots | done |
 | O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch | done |
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
 

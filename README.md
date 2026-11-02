@@ -145,9 +145,10 @@ assembled from the example at build time, so there is no second copy to drift.
 **Phases 0–2 are implemented and verified** — the headless suites plus the browser harness
 (`pnpm ide:smoke` boots the framework in the IDE's WebContainer: `facilis()` mounts Nitro +
 PGlite + `/__facilis/*` on one origin, zero manifest warnings). The Studio (Phase 2) ships at
-<https://ide.facilis.dev>: git import/push/publish, tabs, PWA, managed builds. In Phase 3 the
-Entity Explorer has landed (D-083); in Phase 4 the AI chat and the full 16-rule patch validator
-are implemented (D-084). Generated projects install with **npm** (D-032) from IDE-served
+<https://ide.facilis.dev>: git import/push/publish, tabs, PWA, managed builds. Phase 3 is
+complete: the Entity Explorer (D-083), the API Flow (D-085) and the Release Preview (D-086). In
+Phase 4 the AI chat and the full 16-rule patch validator are implemented (D-084). Generated
+projects install with **npm** (D-032) from IDE-served
 `file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
 read by `facilis()` — and their `vite.config.ts` is just `[facilis(), react()]` (D-034); the
 template pins `@types/react`/`@types/react-dom` so the IDE's TypeScript service resolves
@@ -164,7 +165,9 @@ What exists today, runnable in this repo:
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 | Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
 | Entity Explorer | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/live-schema.ts` | `GET /__facilis/dev/schema` (dev-only, D-083) diffs `db/schema.ts` against `pg_catalog`: columns, RLS badges, typed drift, reverse route lookup |
-| AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 523 IDE tests |
+| API Flow | `ide/src/components/ide/ApiFlowPanel.tsx`, `ide/src/facilis/api-flow-*.ts` | React Flow graph over `/_openapi.json` (D-085): operations grouped by resource, table nodes, method/permission badges, click-to-jump to `x-facilis-source` |
+| Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | `buildReleasePreview` (D-086) diffs schema/API/security between refs with risk classes; refs read from the VFS via isomorphic-git, plus the code↔live drift card from D-083 |
+| AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 562 IDE tests |
 | Git round-trip and publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push over HTTPS through a stateless proxy (D-079), publish to GitHub/GitLab/Gitea (D-078), GitHub OAuth device flow (D-082) |
 | Deployment profiles and app updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | `open`/`managed` builds with a compiled policy and CSP (D-063/D-064/D-071/D-072), offline update recipes (D-065/D-070) |
 
@@ -198,7 +201,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk — headless ✅, browser harness ✅ for the Facilis template |
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
-| **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk — 🚧 Entity Explorer ✅ (D-083); API Flow and Release Preview remain |
+| **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), API Flow (D-085) and Release Preview (D-086) |
 | **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048) and 16-rule validator ✅ (D-084); retry loop and Model B remain |
 | **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/ui` and `@facilis/i18n-db` shipped; `@facilis/blocks` is still a manifest skeleton |
 | **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
@@ -211,7 +214,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
 
-→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.5
+→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.6
 
 Highlights inside:
 

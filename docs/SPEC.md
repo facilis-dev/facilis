@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.5 (Entity Explorer: dev schema endpoint + code↔live drift)
-**Status:** Phases 0–1 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 3 visualizers and the remainder of Phase 4 (the full patch validator) are in progress. The live per-phase state is in [`README.md`](../README.md#status).
+**Version:** 1.6 (Phase 3 visualizers complete: API Flow + Release Preview)
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator and the apply path; the retry loop and the Model B tool surface remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.6 — Phase 3 complete. The API Flow renders the AST-augmented `/_openapi.json` with React Flow and jumps to the route source (D-085); the Release Preview engine `buildReleasePreview` lands in `@facilis/core` with the SDK contract amendment for `ApiDiff.changed`/`ApiRouteRef.dbTables` (§7.7), and the Studio diffs git refs read from the VFS instead of booting them, resolving O-008 (D-086, §11.3).
 - v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. Retry loop and Model B remain.
 - v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
 - v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. Both findings came from the Phase 0 spike, retired after they landed in `@facilis/nitro` and `@facilis/db` (commit `de17169`).
@@ -402,13 +403,23 @@ export type {
   PolicySnapshot,
 } from "./manifest"
 
-// Release tooling
+// Release tooling (D-086: the engine is browser-safe so the Studio imports it)
+export { buildReleasePreview } from "./release-preview"
+export type {
+  ReleaseMigrationFile,
+  ReleasePreviewInput,
+  ReleaseRouteFact,
+  ReleaseSnapshot,
+  ReleaseTableFact,
+} from "./release-preview"
 export type {
   ReleasePreview,
   SchemaDiff,
   MigrationStatement,
   RiskClass,
   ApiDiff,
+  ApiRouteChange,
+  ApiRouteRef,
   SecurityDiff,
   BreakingChange,
   ReleaseWarning,
@@ -431,7 +442,6 @@ Exports:
   `facilis_app` role, so RLS is enforced by the database rather than by a privileged client
 - `policyContext` — `drizzle-policy` wrapper for tenant/role scoping
 - `rlsMigrationPlugin` — Drizzle-kit plugin that auto-appends RLS policies
-- `buildReleasePreview(from, to)` — schema diff engine
 - `PolicyScopedDatabase` — type of the db object passed to handlers
 - `facilisFiles` — file metadata table (content hash, name, mime, size, owner, tenant) with
   a restrictive tenant policy
@@ -1112,7 +1122,10 @@ interface ApiRouteRef {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   path: string
   permission?: string | string[]
-  dbTables: string[]
+  // Optional since D-086: a route derived from a filename at an old ref cannot know its
+  // tables; an omitted field means "unknown at this ref", never "no tables".
+  dbTables?: string[]
+  sourceFile?: string // additive, for jump-to
 }
 
 interface SecurityDiff {
@@ -1529,6 +1542,9 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 | `get_diff(ref?)` | unified diff |
 | `get_release_preview(from, to)` | `ReleasePreview` |
 
+**Status (2026-11-02): not implemented as a tool, but its engine exists** — `buildReleasePreview`
+in `@facilis/core` (D-086) is exactly the function the tool would call.
+
 ---
 
 ## 10. IDE (fork of Vivari Studio)
@@ -1552,9 +1568,9 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| API Visualizer | `ApiFlowPanel.tsx` + new tab kind | React Flow; fetches `/__facilis/manifest` |
-| Entity Explorer | `DataExplorerPanel.tsx` + new tab kind | Fetches schema; shows code ↔ live DB diff |
-| Release Preview | `ReleasePreviewPanel.tsx` + new tab kind | `buildReleasePreview(from, to)` |
+| API Visualizer | `ApiFlowPanel.tsx` + activity view | React Flow; fetches `/_openapi.json` (D-085) |
+| Entity Explorer | `DataExplorerPanel.tsx` + activity view | Fetches schema; shows code ↔ live DB diff |
+| Release Preview | `ReleasePreviewPanel.tsx` + activity view | `buildReleasePreview(from, to)` (D-086) |
 | Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + git auth |
 | GitHub sign-in | Git dialogs + `GitHubSignIn.tsx` | OAuth device flow, token in tab memory (D-082) |
 | Stored credentials | Extend git modal | WebCrypto storage in OPFS (planned, other hosts) |
@@ -1574,6 +1590,12 @@ VFS write. Rule 1 uses Monaco's TypeScript worker; the remaining rules read the 
 catalogs, blocks and routes. Validator warnings are carried in the proposal state but not yet
 rendered in the card (follow-up). Still Phase 4: the retry loop (§9.4) and the Model B tool
 surface (§9.5).
+
+**Status (2026-11-02): the Phase 3 visualizers are complete.** The Entity Explorer (D-083), the
+API Flow (D-085, React Flow over `/_openapi.json` with code jump) and the Release Preview (D-086,
+four lenses over `buildReleasePreview`) are activity views, lazy-loaded with the panel, and both
+new panels are covered by the browser smoke. Phase 3's exit criteria — a route edit updates the
+graph within the revision poll, and code↔live drift is visible — are met.
 
 ### 10.3 VFS Write Rule
 
@@ -1719,6 +1741,14 @@ Four diff lenses, one engine:
 - 🟠 Destructive: drop column/table, narrow type, tighten RLS
 - 🔴 Breaking: drops referenced by routes (cross-checked with `x-db-columns`)
 
+**Status (2026-11-02): implemented** (D-086). The pure engine `buildReleasePreview` lives in
+`@facilis/core` (browser-safe) and classifies the migration statements that ship between two
+refs; the Studio reads `db/schema.ts`, `server/routes/**` and the migrations out of the VFS at
+`HEAD`/`origin/main`/tag with isomorphic-git instead of booting the old ref (O-008 resolved), and
+shows three git lenses plus the code↔live card from D-083. The declaration parsers are tolerant
+text scans, so column types/renames surface only through migration SQL and a route derived at an
+old ref knows method+path only.
+
 ### 11.4 Dev-Only Endpoints
 
 | Endpoint | Purpose | Guard |
@@ -1787,8 +1817,9 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 
 **Exit criteria:** Hand-editing a route updates the graph within seconds. Drift between code and DB is visible.
 
-**Status (2026-11-02):** Entity Explorer implemented (D-083); the code↔live drift half of the exit
-criteria is met. API Flow and Release Preview remain.
+**Status (2026-11-02): complete.** Entity Explorer (D-083), API Flow (D-085) and Release Preview
+(D-086) ship as activity views; the code↔live drift and the route-graph refresh are covered by
+unit tests and by the browser smoke (a route edit bumps the revision the panels poll).
 
 ### Phase 4 — AI Orchestration (2–3 weeks)
 
