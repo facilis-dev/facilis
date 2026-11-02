@@ -1,17 +1,36 @@
-// The API Flow's pure view model (SPEC §10.2, §12 Phase 3): every OpenAPI operation,
-// the tables its `x-db-*` metadata touches, and the edges between them, laid out in
-// deterministic columns (one per resource) with the tables to the right. Free of React
-// and fetch so the grouping/layout rules stay testable.
+// The API Flow's pure view model (SPEC §10.2, §12 Phase 3; D-087): the OpenAPI
+// operations, the tables their `x-db-*` metadata touches, and the client files that
+// consume them, laid out as three deterministic columns — pages → routes → tables.
+//
+// Free of React and fetch so the grouping/layout rules stay testable; the node sizes
+// are exported so a test can prove node rectangles never overlap in a column.
 
 import type { ApiFlowData, ApiFlowWarning, ApiMethod, ApiOperation } from "./api-flow-client";
+import type { ApiConsumerRef, ApiFlowConsumers } from "./api-flow-consumers";
+import {
+  collectEdges,
+  collectTableUsage,
+  compareStrings,
+  routeNodeId,
+  tableNodeId,
+  tablesFor,
+} from "./api-flow-tables";
 
 /** Badge/legend order for the per-method counts. */
 export const METHOD_ORDER: readonly ApiMethod[] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
-// Layout units. Columns are resources, rows are the routes inside a resource.
-const COLUMN_WIDTH = 280;
-const ROW_HEIGHT = 92;
-const TABLE_COLUMN_GAP = 120;
+/** Fixed node sizes (px) — the layout stacks rows by these, never by measured heights. */
+export const FLOW_NODE_SIZE = {
+  page: { width: 240, height: 56 },
+  route: { width: 280, height: 96 },
+  table: { width: 180, height: 56 },
+} as const;
+
+const COLUMN_GAP = 90;
+const ROW_GAP = 16;
+const LANE_GAP = 40;
+const MAX_PER_LANE = 6;
+const ROUTE_X = FLOW_NODE_SIZE.page.width + COLUMN_GAP;
 const ROOT_RESOURCE = "root";
 
 /** The data a route node carries; a type alias so it satisfies React Flow's data bound. */
@@ -25,12 +44,25 @@ export type RouteNodeData = {
   /** Distinct tables the route declares through `x-db-tables`/`x-db-columns`. */
   tableCount: number;
   sourceFile: string | null;
+  /** Client files that reach this route (directly or through one import hop). */
+  consumers: readonly ApiConsumerRef[];
+  /** No client file references this route (the scan is textual, so it is a hint). */
+  unused: boolean;
 };
 
 /** The data a table node carries. */
 export type TableNodeData = {
   name: string;
   columnCount: number;
+  routeCount: number;
+};
+
+/** The data a page node carries (one client file that uses at least one route). */
+export type PageNodeData = {
+  path: string;
+  kind: ApiConsumerRef["kind"];
+  /** The module the page reaches the URL through, when the reference is indirect. */
+  via: string | null;
   routeCount: number;
 };
 
@@ -46,22 +78,36 @@ export interface ApiTableNode {
   position: { x: number; y: number };
 }
 
+export interface ApiPageNode {
+  id: string;
+  data: PageNodeData;
+  position: { x: number; y: number };
+}
+
 export interface ApiFlowEdge {
   id: string;
   source: string;
   target: string;
-  /** True when only `dbColumns` links the pair, i.e. a column-level dependency. */
+  /** Page→route reached through an import (indirect), or column-only route→table link. */
   dashed: boolean;
 }
 
 export interface ApiFlowStats {
   routes: number;
   tables: number;
+  pages: number;
   edges: number;
   byMethod: Record<ApiMethod, number>;
 }
 
+/** What the inspector currently shows (node ids, not node objects: the graph is rebuilt on refresh). */
+export type ApiFlowSelection =
+  | { readonly kind: "page"; readonly id: string }
+  | { readonly kind: "route"; readonly id: string }
+  | { readonly kind: "table"; readonly id: string };
+
 export interface ApiFlowGraph {
+  pages: ApiPageNode[];
   routes: ApiRouteNode[];
   tables: ApiTableNode[];
   edges: ApiFlowEdge[];
@@ -71,24 +117,29 @@ export interface ApiFlowGraph {
   openapiUnavailable: boolean;
 }
 
-interface TableUsage {
-  columns: Set<string>;
-  routes: Set<string>;
-}
-
-/** Build the panel's graph: routes grouped by resource, tables, edges and counts. */
-export function buildApiFlowGraph(data: ApiFlowData): ApiFlowGraph {
+/** Build the panel's graph: pages, routes grouped by resource, tables, edges and counts. */
+export function buildApiFlowGraph(
+  data: ApiFlowData,
+  consumers: ApiFlowConsumers | null = null,
+): ApiFlowGraph {
   const operations = [...data.operations].toSorted(compareOperations);
-  const resources = collectResources(operations);
-  const resourceIndex = new Map(resources.map((resource, index) => [resource, index]));
-  const rows = new Map<string, number>();
+  const consumersByRoute = consumers?.byRoute ?? {};
+  const { pages, links } = buildPages(operations, consumersByRoute);
+  const unused = new Set(consumers?.unusedRoutes ?? []);
 
+  const lanes = laneCount(operations);
+  const laneOf = assignLanes(operations, lanes);
+  const laneRows = Array.from({ length: lanes }, () => 0);
   const routes = operations.map((operation) => {
     const resource = resourceOf(operation.path);
-    const row = rows.get(resource) ?? 0;
-    rows.set(resource, row + 1);
+    const lane = laneOf.get(resource) ?? 0;
+    const row = laneRows[lane] ?? 0;
+    laneRows[lane] = row + 1;
+    const y = row * (FLOW_NODE_SIZE.route.height + ROW_GAP);
+    const x = ROUTE_X + lane * (FLOW_NODE_SIZE.route.width + LANE_GAP);
+    const id = routeNodeId(operation);
     return {
-      id: routeNodeId(operation),
+      id,
       data: {
         method: operation.method,
         path: operation.path,
@@ -97,15 +148,16 @@ export function buildApiFlowGraph(data: ApiFlowData): ApiFlowGraph {
         permission: operation.permission,
         tableCount: tablesFor(operation).length,
         sourceFile: operation.sourceFile,
+        consumers: consumersByRoute[id] ?? [],
+        unused: unused.has(id),
       },
-      position: { x: (resourceIndex.get(resource) ?? 0) * COLUMN_WIDTH, y: row * ROW_HEIGHT },
+      position: { x, y },
     } satisfies ApiRouteNode;
   });
 
+  const tableX = ROUTE_X + lanes * (FLOW_NODE_SIZE.route.width + LANE_GAP) - LANE_GAP + COLUMN_GAP;
   const usage = collectTableUsage(operations);
-  const tableNames = [...usage.keys()].toSorted(compareStrings);
-  const tableX = resources.length === 0 ? 0 : resources.length * COLUMN_WIDTH + TABLE_COLUMN_GAP;
-  const tables = tableNames.map((name, index) => {
+  const tables = [...usage.keys()].toSorted(compareStrings).map((name, index) => {
     const entry = usage.get(name);
     return {
       id: tableNodeId(name),
@@ -114,46 +166,122 @@ export function buildApiFlowGraph(data: ApiFlowData): ApiFlowGraph {
         columnCount: entry?.columns.size ?? 0,
         routeCount: entry?.routes.size ?? 0,
       },
-      position: { x: tableX, y: index * ROW_HEIGHT },
+      position: { x: tableX, y: index * (FLOW_NODE_SIZE.table.height + ROW_GAP) },
     } satisfies ApiTableNode;
   });
 
-  const edges = collectEdges(operations);
+  const edges = [...collectConsumerEdges(links), ...collectEdges(operations)];
   const byMethod: Record<ApiMethod, number> = { GET: 0, POST: 0, PUT: 0, PATCH: 0, DELETE: 0 };
   for (const operation of operations) byMethod[operation.method] += 1;
 
   return {
+    pages,
     routes,
     tables,
     edges,
     warnings: data.warnings,
-    stats: { routes: routes.length, tables: tables.length, edges: edges.length, byMethod },
+    stats: {
+      routes: routes.length,
+      tables: tables.length,
+      pages: pages.length,
+      edges: edges.length,
+      byMethod,
+    },
     openapiUnavailable: data.warnings.some((warning) => warning.code === "openapi-unavailable"),
   };
 }
 
-function routeNodeId(operation: ApiOperation): string {
-  return "route:" + operation.method + " " + operation.path;
+// ── pages (the client side) ─────────────────────────────────────────────────────────
+
+interface PageLink {
+  pageId: string;
+  routeId: string;
+  dashed: boolean;
 }
 
-function tableNodeId(name: string): string {
-  return "table:" + name;
+function buildPages(
+  operations: readonly ApiOperation[],
+  consumersByRoute: Readonly<Record<string, readonly ApiConsumerRef[]>>,
+): { pages: ApiPageNode[]; links: PageLink[] } {
+  const known = new Set(operations.map(routeNodeId));
+  const byPath = new Map<string, { ref: ApiConsumerRef; routes: Set<string> }>();
+  const links: PageLink[] = [];
+  const seenLinks = new Set<string>();
+  for (const [routeId, refs] of Object.entries(consumersByRoute)) {
+    if (!known.has(routeId)) continue;
+    for (const ref of refs) {
+      const entry = byPath.get(ref.path);
+      if (entry === undefined) {
+        byPath.set(ref.path, { ref, routes: new Set([routeId]) });
+      } else {
+        entry.routes.add(routeId);
+        if (entry.ref.via === null && ref.via !== null) entry.ref = ref;
+      }
+      const link = pageNodeId(ref.path) + "->" + routeId;
+      if (seenLinks.has(link)) continue;
+      seenLinks.add(link);
+      links.push({ pageId: pageNodeId(ref.path), routeId, dashed: ref.via !== null });
+    }
+  }
+  const ordered = [...byPath.entries()].toSorted((left, right) => {
+    const byKind = kindOrder(left[1].ref.kind) - kindOrder(right[1].ref.kind);
+    return byKind !== 0 ? byKind : compareStrings(left[0], right[0]);
+  });
+  const pages = ordered.map(([path, entry], index) => ({
+    id: pageNodeId(path),
+    data: { path, kind: entry.ref.kind, via: entry.ref.via, routeCount: entry.routes.size },
+    position: { x: 0, y: index * (FLOW_NODE_SIZE.page.height + ROW_GAP) },
+  }));
+  return { pages, links };
+}
+
+function laneCount(operations: readonly ApiOperation[]): number {
+  if (operations.length <= 12) return 1;
+  return Math.min(4, Math.max(2, Math.ceil(operations.length / MAX_PER_LANE)));
+}
+
+/** Distribute the resources over the lanes, greedily keeping the lanes the same height. */
+function assignLanes(operations: readonly ApiOperation[], lanes: number): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const operation of operations) {
+    const resource = resourceOf(operation.path);
+    counts.set(resource, (counts.get(resource) ?? 0) + 1);
+  }
+  const load = Array.from({ length: lanes }, () => 0);
+  const laneOf = new Map<string, number>();
+  for (const resource of [...counts.keys()].toSorted(compareResources)) {
+    let best = 0;
+    for (let lane = 1; lane < lanes; lane += 1) {
+      if ((load[lane] ?? 0) < (load[best] ?? 0)) best = lane;
+    }
+    laneOf.set(resource, best);
+    load[best] = (load[best] ?? 0) + (counts.get(resource) ?? 0);
+  }
+  return laneOf;
+}
+
+function kindOrder(kind: ApiConsumerRef["kind"]): number {
+  return kind === "page" ? 0 : kind === "component" ? 1 : kind === "lib" ? 2 : 3;
+}
+
+function collectConsumerEdges(links: readonly PageLink[]): ApiFlowEdge[] {
+  return links.map((link) => ({
+    id: "edge:" + link.pageId + "->" + link.routeId,
+    source: link.pageId,
+    target: link.routeId,
+    dashed: link.dashed,
+  }));
+}
+
+// ── ids ────────────────────────────────────────────────────────────────────────────
+
+function pageNodeId(path: string): string {
+  return "page:" + path;
 }
 
 function resourceOf(path: string): string {
   const match = /^\/api(?=\/|$)(?:\/([^/]+))?/.exec(path);
   return match?.[1] ?? ROOT_RESOURCE;
-}
-
-function tableOfColumn(column: string): string | null {
-  const dot = column.indexOf(".");
-  return dot > 0 ? column.slice(0, dot) : null;
-}
-
-/** Code-unit order: stable across locales and machines, unlike localeCompare. */
-function compareStrings(left: string, right: string): number {
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
 }
 
 function compareResources(left: string, right: string): number {
@@ -168,58 +296,4 @@ function compareOperations(left: ApiOperation, right: ApiOperation): number {
   const byPath = compareStrings(left.path, right.path);
   if (byPath !== 0) return byPath;
   return METHOD_ORDER.indexOf(left.method) - METHOD_ORDER.indexOf(right.method);
-}
-
-function collectResources(operations: readonly ApiOperation[]): string[] {
-  const names = new Set(operations.map((operation) => resourceOf(operation.path)));
-  return [...names].toSorted(compareResources);
-}
-
-function tablesFor(operation: ApiOperation): string[] {
-  const tables = new Set(operation.dbTables);
-  for (const column of operation.dbColumns) {
-    const table = tableOfColumn(column);
-    if (table !== null) tables.add(table);
-  }
-  return [...tables].toSorted(compareStrings);
-}
-
-function collectTableUsage(operations: readonly ApiOperation[]): Map<string, TableUsage> {
-  const usage = new Map<string, TableUsage>();
-  const ensure = (name: string): TableUsage => {
-    const existing = usage.get(name);
-    if (existing !== undefined) return existing;
-    const created: TableUsage = { columns: new Set(), routes: new Set() };
-    usage.set(name, created);
-    return created;
-  };
-  for (const operation of operations) {
-    const routeId = routeNodeId(operation);
-    for (const table of operation.dbTables) ensure(table).routes.add(routeId);
-    for (const column of operation.dbColumns) {
-      const table = tableOfColumn(column);
-      if (table === null) continue;
-      const entry = ensure(table);
-      entry.routes.add(routeId);
-      entry.columns.add(column.slice(table.length + 1));
-    }
-  }
-  return usage;
-}
-
-function collectEdges(operations: readonly ApiOperation[]): ApiFlowEdge[] {
-  const edges: ApiFlowEdge[] = [];
-  const seen = new Set<string>();
-  for (const operation of operations) {
-    const source = routeNodeId(operation);
-    const declared = new Set(operation.dbTables);
-    for (const table of tablesFor(operation)) {
-      const target = tableNodeId(table);
-      const id = "edge:" + source + "->" + target;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      edges.push({ id, source, target, dashed: !declared.has(table) });
-    }
-  }
-  return edges;
 }

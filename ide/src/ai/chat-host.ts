@@ -6,7 +6,8 @@
 // root-relative, SPEC §9.2); the editor speaks absolute VFS paths. Do the
 // conversion here, once, instead of in every consumer.
 
-import { isDiffTabId, type IdeController } from "@/vv/controller";
+import type { IdeController } from "@/vv/controller";
+import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createMonacoSyntaxChecker } from "./monaco-syntax";

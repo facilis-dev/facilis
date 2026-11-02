@@ -72,6 +72,8 @@ import { type MemInfo, probeMemory } from "./memory-probe";
 import { baseName, normDir, parentOf } from "./path-utils";
 import { readDirEntries } from "./file-tree";
 import { indexWorkspace, isIgnoredPath, type WorkspaceIndex } from "./workspace-index";
+import { apiFlowTabState, isApiFlowTabId, isDiffTabId } from "./synthetic-tabs";
+import { diffTabId, diffTargetOf } from "./synthetic-tabs";
 
 // The drop/paste readers live in file-tree.ts now. Components still import them
 // from here (this is the UI's facade); the split is controller-mechanical.
@@ -80,7 +82,7 @@ export { entriesFromDataTransfer } from "./file-tree";
 /** How an open tab renders. Named rather than spelled out at each use: it was
  *  written twice, and adding `notebook` to one of them type-checked everywhere
  *  except the assignment between them. */
-export type TabKind = "text" | "image" | "directory" | "diff" | "notebook";
+export type TabKind = "text" | "image" | "directory" | "diff" | "notebook" | "api-flow";
 type ActivityView = IdeSnapshot["activeView"];
 
 /** One open `.ipynb`: its document, the interpreter running it, and the actions
@@ -272,7 +274,7 @@ export interface IdeSnapshot {
   devtoolsOpen: boolean; // the chii DevTools panel (bottom split of the preview)
   devtoolsNonce: number; // bump to reload the DevTools frontend (re-attach to a new target)
   selectedDemo: string;
-  activeView: "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "api" | "release";
+  activeView: "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release";
   sidebarCollapsed: boolean;
   panelCollapsed: boolean;
   previewCollapsed: boolean;
@@ -289,14 +291,6 @@ export interface IdeSnapshot {
 
 /** The id of the one project template the IDE creates (D-051). */
 export const FACILIS_TEMPLATE_ID = "facilis";
-
-// A diff tab is a synthetic open-tab id: `vv-diff:<abs>`. It reuses the tab strip
-// (kind "diff") but must never be treated as a real file path (no read/save). The
-// filename still renders because baseName() splits on "/".
-const DIFF_PREFIX = "vv-diff:";
-export const diffTabId = (abs: string): string => DIFF_PREFIX + abs;
-export const isDiffTabId = (id: string | null): boolean => !!id && id.startsWith(DIFF_PREFIX);
-export const diffTargetOf = (id: string): string => id.slice(DIFF_PREFIX.length);
 
 // Drag-and-drop wire format: an internal Explorer drag carries the source's
 // absolute path under this MIME type; an OS drag carries File entries instead.
@@ -960,9 +954,9 @@ export class IdeController {
     abs: string,
     { preview = false, focus = true }: { preview?: boolean; focus?: boolean } = {},
   ) {
-    // A diff tab carries no real file — just activate it; EditorGroup mounts the
-    // Monaco diff editor. Detach the standard editor so it doesn't show stale text.
-    if (isDiffTabId(abs)) {
+    // Synthetic tabs (diff, API Flow) carry no real file — just activate them;
+    // EditorGroup mounts the custom pane. Detach the editor so it doesn't show stale text.
+    if (isDiffTabId(abs) || isApiFlowTabId(abs)) {
       if (!this.snap.openTabs.includes(abs)) return;
       this.set({ activeTab: abs });
       if (this.editor) this.editor.setModel(null);
@@ -1324,6 +1318,12 @@ export class IdeController {
   }
 
   // ── Source Control: diff tab + working-tree reload ──
+
+  /** Open (or focus) the API Flow tab in the editor area (D-087). */
+  openApiFlow() {
+    this.set(apiFlowTabState(this.snap));
+    if (this.editor) this.editor.setModel(null);
+  }
 
   /** Open a read-only diff (HEAD ↔ working tree) for a file as its own tab. */
   openDiff(abs: string) {

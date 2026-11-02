@@ -1,6 +1,7 @@
-// The API Flow canvas (SPEC §10.2, §12 Phase 3): the pure graph model rendered with
-// React Flow. Custom nodes only name theme roles (D-043/D-044); React Flow's own chrome
-// (edges, handles, controls) is mapped to the same roles through CSS variables.
+// The API Flow canvas (D-085/D-087): pages → routes → tables in three columns, rendered
+// with React Flow. Custom nodes only name theme roles (D-043/D-044); React Flow's own
+// chrome is mapped to the same roles through CSS variables. Clicking a node selects it for
+// the inspector, double-clicking opens its file.
 
 import "@xyflow/react/dist/style.css";
 import {
@@ -15,23 +16,32 @@ import {
   type NodeProps,
   type NodeTypes,
 } from "@xyflow/react";
+import FileCode from "~icons/lucide/file-code";
 import Table2 from "~icons/lucide/table-2";
 import { t } from "@/i18n";
-import type { ApiMethod } from "@/facilis/api-flow-client";
+import { METHOD_BADGES } from "./api-flow-badges";
 import {
   METHOD_ORDER,
   type ApiFlowGraph,
+  type ApiFlowSelection,
+  type ApiPageNode,
+  type ApiRouteNode,
+  type PageNodeData,
   type RouteNodeData,
   type TableNodeData,
 } from "@/facilis/api-flow-model";
 
+type PageFlowNode = Node<PageNodeData, "page">;
 type RouteFlowNode = Node<RouteNodeData, "route">;
 type TableFlowNode = Node<TableNodeData, "table">;
-type FlowNode = RouteFlowNode | TableFlowNode;
+type FlowNode = PageFlowNode | RouteFlowNode | TableFlowNode;
 
 interface ContentProps {
   graph: ApiFlowGraph;
-  onOpenRoute: (data: RouteNodeData) => void;
+  selected: ApiFlowSelection | null;
+  onSelect: (selection: ApiFlowSelection) => void;
+  onOpenRoute: (node: ApiRouteNode) => void;
+  onOpenPage: (node: ApiPageNode) => void;
   onOpenTable: () => void;
   linksDisabled: boolean;
 }
@@ -48,16 +58,22 @@ const CANVAS_TOKENS =
   "[--xy-controls-button-color:var(--foreground)] " +
   "[--xy-controls-button-border-color:var(--border)]";
 
-const METHOD_BADGES: Record<ApiMethod, string> = {
-  GET: "border-info/40 bg-info/10 text-info",
-  POST: "border-success/40 bg-success/10 text-success",
-  PUT: "border-warning/40 bg-warning/10 text-warning",
-  PATCH: "border-primary/40 bg-primary/10 text-primary",
-  DELETE: "border-destructive/40 bg-destructive/10 text-destructive",
-};
-
-export function ApiFlowContent({ graph, onOpenRoute, onOpenTable, linksDisabled }: ContentProps) {
+export function ApiFlowContent({
+  graph,
+  selected,
+  onSelect,
+  onOpenRoute,
+  onOpenPage,
+  onOpenTable,
+  linksDisabled,
+}: ContentProps) {
   const nodes: FlowNode[] = [
+    ...graph.pages.map((node): PageFlowNode => ({
+      id: node.id,
+      type: "page",
+      position: node.position,
+      data: node.data,
+    })),
     ...graph.routes.map((node): RouteFlowNode => ({
       id: node.id,
       type: "route",
@@ -78,10 +94,26 @@ export function ApiFlowContent({ graph, onOpenRoute, onOpenTable, linksDisabled 
     type: "smoothstep",
     ...(edge.dashed ? { style: { strokeDasharray: "4 2" } } : {}),
   }));
+  const findSelection = (node: FlowNode): ApiFlowSelection =>
+    node.type === "page"
+      ? { kind: "page", id: node.id }
+      : node.type === "table"
+        ? { kind: "table", id: node.id }
+        : { kind: "route", id: node.id };
   const onNodeClick: NodeMouseHandler<FlowNode> = (_event, node) => {
+    if (!linksDisabled) onSelect(findSelection(node));
+  };
+  const onNodeDoubleClick: NodeMouseHandler<FlowNode> = (_event, node) => {
     if (linksDisabled) return;
-    if (node.type === "route") onOpenRoute(node.data);
-    else onOpenTable();
+    if (node.type === "page") {
+      const page = graph.pages.find((entry) => entry.id === node.id);
+      if (page !== undefined) onOpenPage(page);
+    } else if (node.type === "table") {
+      onOpenTable();
+    } else {
+      const route = graph.routes.find((entry) => entry.id === node.id);
+      if (route !== undefined) onOpenRoute(route);
+    }
   };
 
   return (
@@ -92,16 +124,17 @@ export function ApiFlowContent({ graph, onOpenRoute, onOpenTable, linksDisabled 
           edges={edges}
           nodeTypes={NODE_TYPES}
           onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
+          fitViewOptions={{ padding: 0.18 }}
           nodesDraggable={false}
           nodesConnectable={false}
-          minZoom={0.2}
-          // A revision refetch replaces the nodes: remount so the new graph is fitted
-          // instead of keeping the previous viewport (SPEC §12 Phase 3 exit criteria).
-          key={nodes.map((node) => node.id).join("|")}
+          minZoom={0.15}
+          // A refetch replaces the graph: remount so the new one is fitted instead of
+          // keeping the previous viewport (SPEC §12 Phase 3 exit criteria).
+          key={nodes.map((node) => node.id + (selected?.id === node.id ? "*" : "")).join("|")}
         >
-          <Background color="var(--border)" gap={18} />
+          <Background color="var(--border)" gap={20} />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
@@ -110,12 +143,46 @@ export function ApiFlowContent({ graph, onOpenRoute, onOpenTable, linksDisabled 
   );
 }
 
-function RouteNodeView({ data }: NodeProps<RouteFlowNode>) {
+function PageNodeView({ data, selected }: NodeProps<PageFlowNode>) {
+  return (
+    <div
+      data-testid="api-flow-page"
+      title={t("apiFlow.openPage", { path: data.path })}
+      className={
+        "w-56 cursor-pointer rounded-md border bg-card px-2 py-1.5 text-card-foreground shadow-sm " +
+        (selected ? "border-primary ring-1 ring-primary" : "hover:border-ring")
+      }
+    >
+      <div className="flex items-center gap-1.5">
+        <FileCode className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{data.path}</span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+        <span className="rounded border px-1">{data.kind}</span>
+        <span>{t("apiFlow.pageRoutes", { count: data.routeCount })}</span>
+        {data.via !== null && (
+          <span
+            className="min-w-0 truncate"
+            title={t("apiFlow.inspector.via", { module: data.via })}
+          >
+            {t("apiFlow.inspector.via", { module: data.via })}
+          </span>
+        )}
+      </div>
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+function RouteNodeView({ data, selected }: NodeProps<RouteFlowNode>) {
   return (
     <div
       data-testid="api-flow-node"
       title={t("apiFlow.openRoute", { route: data.method + " " + data.path })}
-      className="w-56 cursor-pointer rounded-md border bg-card px-2 py-1.5 text-card-foreground shadow-sm hover:border-ring"
+      className={
+        "w-64 cursor-pointer rounded-md border bg-card px-2 py-1.5 text-card-foreground shadow-sm " +
+        (selected ? "border-primary ring-1 ring-primary" : "hover:border-ring")
+      }
     >
       <div className="flex items-center gap-1.5">
         <span
@@ -127,36 +194,38 @@ function RouteNodeView({ data }: NodeProps<RouteFlowNode>) {
           {data.method}
         </span>
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{data.path}</span>
-      </div>
-      {data.summary !== null && (
-        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">{data.summary}</p>
-      )}
-      <div className="mt-1 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-        {data.permission.length > 0 && (
-          <span
-            className="min-w-0 truncate"
-            title={t("apiFlow.permission", { permission: data.permission.join(", ") })}
-          >
-            {data.permission.join(", ")}
+        {data.unused && (
+          <span className="shrink-0 rounded border border-warning/50 px-1 text-[9px] text-warning">
+            {t("apiFlow.list.unused")}
           </span>
         )}
+      </div>
+      {data.summary !== null && (
+        <p className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">{data.summary}</p>
+      )}
+      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+        <span>{t("apiFlow.consumersCount", { count: data.consumers.length })}</span>
         {data.tableCount > 0 && (
           <span className="ml-auto shrink-0">
             {t("apiFlow.routeTables", { count: data.tableCount })}
           </span>
         )}
       </div>
+      <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function TableNodeView({ data }: NodeProps<TableFlowNode>) {
+function TableNodeView({ data, selected }: NodeProps<TableFlowNode>) {
   return (
     <div
       data-testid="api-flow-table"
       title={t("apiFlow.openTable")}
-      className="w-40 cursor-pointer rounded-md border bg-muted/40 px-2 py-1.5 shadow-sm hover:border-ring"
+      className={
+        "w-40 cursor-pointer rounded-md border bg-muted/40 px-2 py-1.5 shadow-sm " +
+        (selected ? "border-primary ring-1 ring-primary" : "hover:border-ring")
+      }
     >
       <div className="flex items-center gap-1.5">
         <Table2 className="size-3 shrink-0 text-muted-foreground" />
@@ -166,28 +235,28 @@ function TableNodeView({ data }: NodeProps<TableFlowNode>) {
       </div>
       <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
         <span>{t("apiFlow.tableColumns", { count: data.columnCount })}</span>
-        {data.routeCount > 0 && (
-          <span className="ml-auto shrink-0">
-            {t("apiFlow.tableRoutes", { count: data.routeCount })}
-          </span>
-        )}
+        <span className="ml-auto shrink-0">
+          {t("apiFlow.tableRoutes", { count: data.routeCount })}
+        </span>
       </div>
       <Handle type="target" position={Position.Left} />
     </div>
   );
 }
 
-const NODE_TYPES: NodeTypes = { route: RouteNodeView, table: TableNodeView };
+const NODE_TYPES: NodeTypes = { page: PageNodeView, route: RouteNodeView, table: TableNodeView };
 
 function ApiFlowFooter({ graph }: { graph: ApiFlowGraph }) {
-  const { routes, tables, edges, byMethod } = graph.stats;
+  const { routes, pages, tables, edges, byMethod } = graph.stats;
   return (
     <div className="shrink-0 space-y-1 border-t px-2 py-1.5 text-[10px] text-muted-foreground">
-      <p>{t("apiFlow.stats", { routes, tables, edges })}</p>
+      <p>{t("apiFlow.stats", { routes, pages, tables, edges })}</p>
       <ul className="flex flex-wrap items-center gap-1">
         <li className="font-medium text-foreground">{t("apiFlow.legend")}</li>
+        <li className="rounded border px-1">{t("apiFlow.legendPage")}</li>
         <li className="rounded border px-1">{t("apiFlow.legendRoute")}</li>
         <li className="rounded border bg-muted/40 px-1">{t("apiFlow.legendTable")}</li>
+        <li className="rounded border border-dashed px-1">{t("apiFlow.legendPageEdge")}</li>
         <li className="rounded border border-dashed px-1">{t("apiFlow.legendColumnEdge")}</li>
       </ul>
       <ul className="flex flex-wrap items-center gap-1">

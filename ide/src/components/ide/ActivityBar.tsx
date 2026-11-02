@@ -53,7 +53,7 @@ function ActBtn({
   );
 }
 
-type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "api" | "release";
+type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release";
 
 export function ActivityBar() {
   const { c, snap } = useIde();
@@ -98,8 +98,9 @@ export function ActivityBar() {
       </ActBtn>
       <ActBtn
         label={t("activity.apiFlow")}
-        active={shown("api")}
-        onClick={() => select("api")}
+        // The API Flow lives in the editor area (D-087), so it is active when its tab is.
+        active={snap.activeTab !== null && snap.tabKinds[snap.activeTab] === "api-flow"}
+        onClick={() => c.openApiFlow()}
       >
         <Workflow className="size-5" />
       </ActBtn>

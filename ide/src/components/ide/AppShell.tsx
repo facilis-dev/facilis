@@ -11,7 +11,6 @@ import { DebugPanel } from "./DebugPanel";
 import { SourceControlPanel } from "./SourceControlPanel";
 import { ChatPanel } from "./ChatPanel";
 import { DataExplorerPanel } from "./DataExplorerPanel";
-import { ApiFlowPanel } from "./ApiFlowPanel";
 import { ReleasePreviewPanel } from "./ReleasePreviewPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
@@ -41,23 +40,41 @@ export function AppShell() {
   const sidebarPanel = usePanelRef();
   const widenedForPanel = useRef(false);
   const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
-  // The visualizers want room too: the API graph and the release diff are unreadable
-  // in the Explorer's 16% width, so they get the same automatic widening as the chat.
-  const roomyView = chatOpen || snap.activeView === "api" || snap.activeView === "release";
+  // The release diff wants room too: it is unreadable in the Explorer's 16% width, so it
+  // gets the same automatic widening as the chat (the API graph lives in the editor, D-087).
+  const roomyView = chatOpen || snap.activeView === "release";
   useEffect(() => {
-    const panel = sidebarPanel.current;
-    if (!panel) return;
-    const percent = panel.getSize().asPercentage;
-    if (roomyView) {
-      if (percent < 22) {
-        widenedForPanel.current = true;
-        panel.resize("28%");
+    // The panel is unmounted while the sidebar is collapsed; restoring it (e.g. leaving
+    // the API Flow's focus mode for a sidebar view) can run this effect before the
+    // library has registered the new layout, and getSize() throws "Layout not found".
+    // Defer to the next frame and retry a few times instead of crashing the shell.
+    let attempts = 0;
+    const applyWidth = () => {
+      const panel = sidebarPanel.current;
+      if (!panel) return;
+      let percent: number;
+      try {
+        percent = panel.getSize().asPercentage;
+      } catch {
+        if (attempts < 5) {
+          attempts += 1;
+          requestAnimationFrame(applyWidth);
+        }
+        return;
       }
-    } else if (widenedForPanel.current && percent >= 26) {
-      widenedForPanel.current = false;
-      panel.resize("16%");
-    }
-  }, [roomyView, sidebarPanel]);
+      if (roomyView) {
+        if (percent < 22) {
+          widenedForPanel.current = true;
+          panel.resize("28%");
+        }
+      } else if (widenedForPanel.current && percent >= 26) {
+        widenedForPanel.current = false;
+        panel.resize("16%");
+      }
+    };
+    const frame = requestAnimationFrame(applyWidth);
+    return () => cancelAnimationFrame(frame);
+  }, [roomyView, sidebarPanel, snap.sidebarCollapsed]);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -180,8 +197,6 @@ export function AppShell() {
                   <SourceControlPanel />
                 ) : snap.activeView === "data" ? (
                   <DataExplorerPanel />
-                ) : snap.activeView === "api" ? (
-                  <ApiFlowPanel />
                 ) : snap.activeView === "release" ? (
                   <ReleasePreviewPanel />
                 ) : snap.activeView === "chat" && chatEnabled ? (

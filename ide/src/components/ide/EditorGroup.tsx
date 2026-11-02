@@ -2,13 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import X from "~icons/lucide/x";
 import ChevronRight from "~icons/lucide/chevron-right";
 import { cn } from "@/lib/utils";
-import {
-  VV_PATH_MIME,
-  entriesFromDataTransfer,
-  isDiffTabId,
-  diffTargetOf,
-  type WorkspaceFolder,
-} from "@/vv/controller";
+import { VV_PATH_MIME, entriesFromDataTransfer, type WorkspaceFolder } from "@/vv/controller";
+import { diffTargetOf, isApiFlowTabId, isDiffTabId } from "@/vv/synthetic-tabs";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,8 +22,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { FileIcon, FolderIcon } from "./fileIcon";
+import { FileIcon } from "./fileIcon";
 import { NotebookView } from "./NotebookView";
+import { ApiFlowPanel } from "./ApiFlowPanel";
+import { EditorTabLabel } from "./EditorTabLabel";
+import { t } from "@/i18n";
 import { useIde } from "./useIde";
 
 const baseName = (rel: string) => rel.split("/").pop() ?? rel;
@@ -142,7 +140,7 @@ export function EditorGroup() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-editor">
+    <div data-testid="editor-group" className="flex h-full flex-col bg-editor">
       {/* tab strip */}
       <div className="vv-tabs-scroll flex h-9 shrink-0 items-stretch overflow-x-auto border-b bg-chrome">
         {snap.openTabs.map((rel, i) => {
@@ -156,12 +154,13 @@ export function EditorGroup() {
                 : "shadow-[inset_2px_0_0_0_var(--primary)]"
               : "";
           const isDiff = isDiffTabId(rel);
+          const isApiFlow = isApiFlowTabId(rel);
           return (
             <ContextMenu key={rel}>
               <ContextMenuTrigger className="contents">
                 <div
                   ref={active ? activeTabRef : undefined}
-                  title={isDiff ? diffTargetOf(rel) : rel}
+                  title={isDiff ? diffTargetOf(rel) : isApiFlow ? t("apiFlow.tabTitle") : rel}
                   draggable
                   onClick={() => c.openFile(rel, { preview: isPreview })}
                   onDoubleClick={() => c.pinTab(rel)}
@@ -211,15 +210,12 @@ export function EditorGroup() {
                     dropSide,
                   )}
                 >
-                  {snap.tabKinds[rel] === "directory" ? (
-                    <FolderIcon className="size-3.5 shrink-0" />
-                  ) : (
-                    <FileIcon name={baseName(rel)} className="size-3.5 shrink-0" />
-                  )}
-                  <span className={cn(isPreview && "italic")}>
-                    {baseName(rel)}
-                    {isDiff && <span className="ml-1 opacity-60">(Working Tree)</span>}
-                  </span>
+                  <EditorTabLabel
+                    rel={rel}
+                    kind={snap.tabKinds[rel]}
+                    isDiff={isDiff}
+                    italic={isPreview}
+                  />
                   <button
                     className="flex size-4 items-center justify-center rounded hover:bg-accent"
                     onClick={(e) => {
@@ -269,8 +265,9 @@ export function EditorGroup() {
         })}
       </div>
 
-      {/* breadcrumb: Workspace-relative path of the active file (or diff target) */}
-      {snap.activeTab && (
+      {/* breadcrumb: Workspace-relative path of the active file (or diff target); the
+          API Flow tab has no file, so it has no breadcrumb. */}
+      {snap.activeTab && !isApiFlowTabId(snap.activeTab) && (
         <Breadcrumb
           abs={isDiffTabId(snap.activeTab) ? diffTargetOf(snap.activeTab) : snap.activeTab}
           folders={snap.workspaceFolders}
@@ -295,6 +292,7 @@ export function EditorGroup() {
         {activeKind === "notebook" && snap.activeTab && (
           <NotebookView key={snap.activeTab} abs={snap.activeTab} />
         )}
+        {activeKind === "api-flow" && <ApiFlowPanel placement="center" />}
         {!snap.activeTab && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {snap.projectTitle ? "Open a file from the Workspace" : "Press Run to start a project"}

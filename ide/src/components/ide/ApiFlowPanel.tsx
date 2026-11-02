@@ -1,24 +1,39 @@
-// The API Flow sidebar (SPEC §10.2, §12 Phase 3): the project's routes, the tables their
-// metadata touches and the edges between them, read from the dev-only `/_openapi.json`
-// facade through the preview proxy.
+// The API Flow (SPEC §10.2, §12 Phase 3; D-085/D-087): the project's routes, the tables
+// their metadata touches and the client pages that call them. It lives in the editor area
+// as a synthetic tab, so the graph gets the center width instead of the sidebar's.
 //
-// Read-only like the Entity Explorer: the revision poll (SPEC §6.6) refetches the graph
-// when the project changes and a node click jumps to the route's file. The transport is
-// throw-free, so an unreachable or booting project renders a state instead of taking the
-// editor down. All strings go through t() and every colour is a role token (D-043/D-044).
+// Read-only: the OpenAPI document is fetched through the preview proxy, the client files
+// are read from the VFS and scanned for /api references, and the revision poll (SPEC §6.6)
+// refetches when the project changes. Every read is throw-free, so an unreachable project
+// renders a state instead of taking the editor down.
 
 import { useEffect, useMemo, useState } from "react";
-import RefreshCw from "~icons/lucide/refresh-cw";
 import Workflow from "~icons/lucide/workflow";
+import List from "~icons/lucide/list";
+import Network from "~icons/lucide/network";
+import RefreshCw from "~icons/lucide/refresh-cw";
+import Maximize2 from "~icons/lucide/maximize-2";
+import Minimize2 from "~icons/lucide/minimize-2";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { fetchApiFlow, type ApiFlowResult } from "@/facilis/api-flow-client";
-import { buildApiFlowGraph, type RouteNodeData } from "@/facilis/api-flow-model";
+import { scanApiConsumers, type ApiFlowConsumers } from "@/facilis/api-flow-consumers";
+import {
+  buildApiFlowGraph,
+  type ApiFlowSelection,
+  type ApiPageNode,
+  type ApiRouteNode,
+} from "@/facilis/api-flow-model";
 import { fetchRevision } from "@/facilis/manifest-client";
 import type { IdeController, IdeSnapshot } from "@/vv/controller";
 import { previewSrcFor } from "@/vv/preview-url";
-import { ApiFlowContent } from "./ApiFlowContent";
+import { ApiFlowBody } from "./ApiFlowBody";
+import { ApiFlowInspector } from "./ApiFlowInspector";
 import { useIde } from "./useIde";
+
+const MAX_SCAN_FILES = 300;
+const MAX_SCAN_CHARS = 300_000;
+const MAX_FILE_CHARS = 80_000;
 
 /** The preview-proxy base for the running project, like DataExplorerPanel's previewBase. */
 function previewBase(controller: IdeController, snapshot: IdeSnapshot): string | null {
@@ -29,16 +44,19 @@ function previewBase(controller: IdeController, snapshot: IdeSnapshot): string |
   return previewSrcFor(controller.bridge, tab);
 }
 
-export function ApiFlowPanel() {
+export function ApiFlowPanel({ placement = "center" }: { placement?: "center" | "sidebar" }) {
   const { c, snap } = useIde();
   const base = previewBase(c, snap);
   const root = c.activeFolder?.rootPath ?? null;
   const [result, setResult] = useState<ApiFlowResult | null>(null);
+  const [consumers, setConsumers] = useState<ApiFlowConsumers | null>(null);
   const [loading, setLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
-  const graph = useMemo(() => (result?.ok ? buildApiFlowGraph(result.data) : null), [result]);
+  const [view, setView] = useState<"graph" | "list">("graph");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<ApiFlowSelection | null>(null);
 
-  // Load whenever the project becomes reachable or the user asks for a refresh.
+  // Load the OpenAPI document whenever the project becomes reachable or the user refreshes.
   useEffect(() => {
     if (base === null) {
       setResult(null);
@@ -55,8 +73,38 @@ export function ApiFlowPanel() {
     return () => controller.abort();
   }, [base, nonce]);
 
-  // SPEC §6.6: the 60-byte revision poll refetches only when the project changed, and
-  // only while the tab is visible.
+  // Scan the project's client files for the routes they call. Bounded and sequential: the
+  // kernel read is cheap but there is no point in reading a 300-file project for a panel.
+  useEffect(() => {
+    if (result === null || !result.ok || root === null) {
+      setConsumers(null);
+      return;
+    }
+    const operations = result.data.operations;
+    let cancelled = false;
+    const files = snap.files.filter(
+      (abs) => abs.startsWith(root + "/src/") && /\.(?:ts|tsx|js|jsx|mjs)$/.test(abs),
+    );
+    void (async () => {
+      const sources: { path: string; text: string }[] = [];
+      let budget = MAX_SCAN_CHARS;
+      for (const abs of files.slice(0, MAX_SCAN_FILES)) {
+        // oxlint-disable-next-line no-await-in-loop -- kernel reads are one-in-flight anyway
+        const text = await c.readFileText(abs);
+        if (text.length > MAX_FILE_CHARS) continue;
+        budget -= text.length;
+        if (budget < 0) break;
+        sources.push({ path: abs.slice(root.length + 1), text });
+      }
+      if (cancelled) return;
+      setConsumers(scanApiConsumers(sources, operations));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [c, root, result, nonce, snap.files]);
+
+  // SPEC §6.6: the 60-byte revision poll refetches only when the project changed.
   useEffect(() => {
     if (base === null) return;
     let last: string | null = null;
@@ -81,27 +129,105 @@ export function ApiFlowPanel() {
     };
   }, [base]);
 
-  const openRoute = (data: RouteNodeData) => {
-    if (root !== null && data.sourceFile !== null) {
-      void c.openEntry(root + "/" + data.sourceFile);
-    }
+  const graph = useMemo(() => {
+    if (result === null || !result.ok) return null;
+    const needle = query.trim().toLowerCase();
+    const operations =
+      needle.length === 0
+        ? result.data.operations
+        : result.data.operations.filter(
+            (operation) =>
+              operation.path.toLowerCase().includes(needle) ||
+              operation.method.toLowerCase().includes(needle),
+          );
+    return buildApiFlowGraph({ operations, warnings: result.data.warnings }, consumers);
+  }, [result, consumers, query]);
+
+  // A refresh can remove the selected node; keep the inspector coherent.
+  useEffect(() => {
+    if (graph === null || selected === null) return;
+    const exists =
+      selected.kind === "page"
+        ? graph.pages.some((node) => node.id === selected.id)
+        : selected.kind === "route"
+          ? graph.routes.some((node) => node.id === selected.id)
+          : graph.tables.some((node) => node.id === selected.id);
+    if (!exists) setSelected(null);
+  }, [graph, selected]);
+
+  const openPath = (path: string) => {
+    if (root === null) return;
+    void c.openEntry(root + "/" + path);
   };
+  const openRoute = (node: ApiRouteNode) => {
+    if (node.data.sourceFile !== null) openPath(node.data.sourceFile);
+  };
+  const openPage = (node: ApiPageNode) => openPath(node.data.path);
   const openTable = () => {
     if (root !== null) void c.openEntry(root + "/db/schema.ts");
   };
   const refresh = () => setNonce((value) => value + 1);
+  const shell = placement === "center" ? "bg-editor" : "bg-sidebar";
+  const linksDisabled = root === null;
+  // A graph needs width: one click hides the sidebar and the preview (and restores them
+  // when both are already hidden). In a narrow window this is the difference between the
+  // node labels and a thumbnail.
+  const focused = snap.sidebarCollapsed && snap.previewCollapsed && snap.panelCollapsed;
+  const toggleFocus = () => {
+    c.toggleSidebar(focused);
+    c.togglePreview(focused);
+    c.togglePanel(focused);
+  };
 
   return (
-    <aside
+    <section
       data-testid="api-flow-panel"
-      className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground"
+      className={"flex h-full min-h-0 flex-col " + shell}
       aria-label={t("apiFlow.title")}
     >
-      <div className="flex items-center justify-between gap-1 border-b px-2 py-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
           <Workflow className="size-3.5 shrink-0 text-brand" />
-          <span className="truncate">{t("apiFlow.title")}</span>
+          <span className="truncate">{t("apiFlow.tabTitle")}</span>
         </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("apiFlow.search")}
+          aria-label={t("apiFlow.search")}
+          className="mx-1 h-6 min-w-32 flex-1 rounded border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+        />
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant={view === "graph" ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={view === "graph"}
+            onClick={() => setView("graph")}
+          >
+            <Network />
+            {t("apiFlow.viewGraph")}
+          </Button>
+          <Button
+            variant={view === "list" ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+          >
+            <List />
+            {t("apiFlow.viewList")}
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={focused ? t("apiFlow.unfocus") : t("apiFlow.focus")}
+          title={focused ? t("apiFlow.unfocus") : t("apiFlow.focus")}
+          aria-pressed={focused}
+          onClick={toggleFocus}
+        >
+          {focused ? <Minimize2 /> : <Maximize2 />}
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -113,47 +239,36 @@ export function ApiFlowPanel() {
           <RefreshCw className={loading ? "animate-spin" : undefined} />
         </Button>
       </div>
-      <div className="min-h-0 flex-1">
-        {base === null ? (
-          <Empty title={t("apiFlow.unreachable")} body={t("apiFlow.unreachableHint")} />
-        ) : result === null && loading ? (
-          <p className="flex items-center gap-1.5 px-2 py-2 text-[11px] text-muted-foreground">
-            <RefreshCw className="size-3.5 animate-spin" />
-            {t("apiFlow.loading")}
-          </p>
-        ) : result !== null && !result.ok ? (
-          <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
-            <p className="font-medium text-destructive">
-              {t("apiFlow.error", { error: result.error })}
-            </p>
-            <Button variant="ghost" size="xs" className="mt-1" onClick={refresh}>
-              {t("apiFlow.retry")}
-            </Button>
-          </div>
-        ) : graph !== null && graph.stats.routes === 0 ? (
-          <Empty
-            title={t("apiFlow.empty")}
-            body={graph.openapiUnavailable ? t("apiFlow.openapiDisabled") : t("apiFlow.emptyHint")}
-          />
-        ) : graph !== null ? (
-          <ApiFlowContent
+      <div className="relative flex min-h-0 flex-1">
+        <div className="min-w-0 flex-1">
+          <ApiFlowBody
+            base={base}
+            result={result}
+            loading={loading}
             graph={graph}
+            query={query}
+            view={view}
+            selected={selected}
+            linksDisabled={linksDisabled}
+            onRetry={refresh}
+            onSelect={setSelected}
             onOpenRoute={openRoute}
+            onOpenPage={openPage}
             onOpenTable={openTable}
-            linksDisabled={root === null}
           />
-        ) : null}
+        </div>
+        {graph !== null && selected !== null && (
+          <ApiFlowInspector
+            graph={graph}
+            selection={selected}
+            linksDisabled={linksDisabled}
+            onClose={() => setSelected(null)}
+            onOpenRoute={openRoute}
+            onOpenPage={openPage}
+            onOpenTable={openTable}
+          />
+        )}
       </div>
-    </aside>
-  );
-}
-
-function Empty({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
-      <Workflow className="size-5 text-muted-foreground" />
-      <p className="text-xs font-medium">{title}</p>
-      <p className="text-[11px] text-muted-foreground">{body}</p>
-    </div>
+    </section>
   );
 }
