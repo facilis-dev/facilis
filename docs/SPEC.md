@@ -1829,8 +1829,9 @@ Model B tool surface remain. The validator's warnings still need a UI surface.
 **Status (2026-11-02):** the starter template question is settled — the generated project is
 `examples/todo-app`, and `starter/` stays empty until `@facilis/*` has a publish target (D-027,
 D-062). The demo script is [`DEMO.md`](./DEMO.md) (three minutes, fresh browser, Mock provider
-path included); it has not been rehearsed on a fresh browser yet. The add-block/add-route/
-security-checklist pages are still open.
+path included); its automated equivalent — `pnpm ide:smoke`, which drives the same flow on a real
+headless Chromium — passed on a fresh profile on 2026-11-02. A human rehearsal is still pending,
+as are the add-block/add-route/security-checklist pages.
 
 ### Phase 7+ — Post-MVP Backlog
 

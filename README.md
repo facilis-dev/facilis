@@ -201,7 +201,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk — 🚧 Entity Explorer ✅ (D-083); API Flow and Release Preview remain |
 | **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048) and 16-rule validator ✅ (D-084); retry loop and Model B remain |
 | **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/ui` and `@facilis/i18n-db` shipped; `@facilis/blocks` is still a manifest skeleton |
-| **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written (fresh-browser rehearsal pending); add-route/add-block/security how-to pages open |
+| **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
 
 **MVP target:** *"chat → working, secure, authenticated todo app"* in under 3 minutes from a fresh clone.
 

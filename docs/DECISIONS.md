@@ -2616,14 +2616,21 @@ rather than a full AST, so pathological route files can evade metadata checks; i
 static `t()` keys and the `en` catalogue only; migration detection is the presence of a created
 `.sql`; destructive detection covers tables/columns; the cross-checks against existing routes
 need a reachable manifest. Validator warnings are carried in the proposal state but not yet
-rendered in the UI (follow-up). At publish time (O-006) the Node subpath will need rolldown as a
+rendered in the UI (follow-up). Rule 1 runs against the editor's TypeScript service, which the
+editor tears down and re-creates when the project's dependency types finish loading: a request
+that lands in that window never answers, so the checker bounds every attempt (2.5 s) and retries
+across the restart, and a validation round bounds the manifest fetch (3 s) — a cold project can
+delay a proposal for a few seconds but can never leave the turn streaming; a service that never
+answers still fails closed. At publish time (O-006) the Node subpath will need rolldown as a
 real dependency or an injected checker. The retry loop (§9.4) is not implemented; `parseTurn`
 and `fix_hint`/`excerpt` are its seam. Cost: one context read plus one manifest fetch per
 validation round, and three rounds per Apply.
 
 **Verification.** 48 `@facilis/ai` tests (a suite per rule group, a realistic fixture project,
 rule 1 rejects invalid TS and accepts valid TS through rolldown) and 523 IDE tests with no
-regressions; `pnpm typecheck`, `pnpm lint` and the file-length/theme checks are green.
+regressions; `pnpm typecheck`, `pnpm lint` and the file-length/theme checks are green. The real
+browser path is green end to end on a fresh profile: `pnpm ide:smoke` drives the mock provider
+through rule 1 (the actual Monaco worker), the proposal card, Apply, the VFS write and Undo.
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
