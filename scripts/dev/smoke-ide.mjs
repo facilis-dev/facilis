@@ -20,6 +20,7 @@ import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
 import { runChatChecks } from "./smoke-chat.mjs";
+import { runPanelChecks } from "./smoke-panels.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -42,6 +43,7 @@ let facilisReport = null;
 let intellisenseReport = null;
 let writeReport = null;
 let chatReport = null;
+let panelReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
   if (!ok) failures.push(label);
@@ -305,6 +307,17 @@ async function main() {
     check(false, "chat checks ran", String(error));
   }
 
+  // Phase 3 visualizers: the API Flow graph and the Release Preview panel (D-085/D-086).
+  // Runs after the write/chat probes so the project has routes, a schema and git history.
+  try {
+    panelReport = await runPanelChecks({ page, check, ARTIFACTS });
+    for (const result of panelReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+    }
+  } catch (error) {
+    check(false, "panel checks ran", String(error));
+  }
+
   // Known upstream defect (docs/DECISIONS.md D-026): the first edit in a project with an
   // unresolved import makes monaco 0.55.1's TS worker spread a TS 6.0 diagnostic that
   // carries a repopulateInfo callback into its reply; structured clone rejects it.
@@ -458,6 +471,7 @@ async function main() {
         }
       : {}),
     ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
+    ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
 
