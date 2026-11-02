@@ -34,6 +34,11 @@ export function gitProxyConfigured(d: ResolvedDeployment): string | null {
   return d.projects.gitProxy;
 }
 
+/** The GitHub OAuth app for the device flow, or null when users paste a token (D-082). */
+export function githubOAuthClientId(d: ResolvedDeployment): string | null {
+  return d.projects.gitOAuth.githubClientId;
+}
+
 /** AI is available unless the deployment turned it off. */
 export function aiAvailable(d: ResolvedDeployment): boolean {
   return d.ai.mode !== "off";

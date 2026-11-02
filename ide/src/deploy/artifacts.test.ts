@@ -116,12 +116,14 @@ describe("deployment artifacts", () => {
       configHash: string;
       gitPush: boolean;
       gitProxy: string | null;
+      gitOAuth: boolean;
       artifacts: Record<string, string>;
     };
     expect(parsed.profile).toBe("managed");
     expect(parsed.configHash).toBe("abc123");
     expect(parsed.gitPush).toBe(false);
     expect(parsed.gitProxy).toBeNull();
+    expect(parsed.gitOAuth).toBe(false);
     expect(parsed.artifacts["index.html"]).toBe("deadbeef");
   });
 

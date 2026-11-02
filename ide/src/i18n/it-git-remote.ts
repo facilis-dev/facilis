@@ -12,7 +12,7 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "gitRemote.token": "Token di accesso o password (opzionale)",
   "gitRemote.tokenPlaceholder": "ghp_…, glpat-…, …",
   "gitRemote.tokenHint":
-    "Serve per i repository privati e per il push. GitHub accetta solo un token; GitLab e Gitea/Forgejo accettano anche la password dell'account. Usato per questa operazione e mai salvato.",
+    "Serve per i repository privati e per il push. GitHub: accedi qui sopra o incolla un token; GitLab e Gitea/Forgejo accettano anche la password dell'account. Usato per questa operazione e mai salvato.",
   "gitRemote.username": "Username (opzionale)",
   "gitRemote.usernamePlaceholder": "git",
   "gitRemote.usernameHint":
@@ -49,11 +49,29 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "import.secretInvalid": "Non sembra un token o una password validi.",
   "import.tokenOrPassword": "Token di accesso o password (opzionale)",
   "import.tokenOrPasswordHint":
-    "Per un repository privato. GitHub accetta solo un token; GitLab e Gitea/Forgejo accettano anche la password dell'account con l'username qui sotto. Usata per questo import e mai salvata.",
+    "Per un repository privato. GitHub: accedi qui sopra o incolla un token; GitLab e Gitea/Forgejo accettano anche la password dell'account con l'username qui sotto. Usata per questo import e mai salvata.",
   "import.username": "Username (opzionale)",
   "import.usernamePlaceholder": "il tuo username",
   "import.usernameHint":
     "Solo con la password dell'account (GitLab, Gitea/Forgejo) — GitHub richiede un token.",
+
+  // ── accesso con GitHub via device flow (D-082) ───────────────────────────
+  "github.signIn": "Accedi con GitHub",
+  "github.hint":
+    "Usa il device flow di GitHub: il 2FA resta su GitHub e non c'è un token da incollare. Il token resta solo in questa scheda.",
+  "github.contacting": "Contatto GitHub…",
+  "github.codeHint": "Inserisci questo codice su GitHub:",
+  "github.open": "Apri github.com/login/device",
+  "github.waiting": "In attesa dell'autorizzazione…",
+  "github.cancel": "Annulla",
+  "github.signedIn": "Accesso effettuato con GitHub.",
+  "github.signOut": "Esci",
+  "github.retry": "Riprova",
+  "github.denied": "Autorizzazione GitHub negata.",
+  "github.expired": "Il codice è scaduto — ricomincia.",
+  "github.network": "Impossibile raggiungere GitHub attraverso il proxy di questa installazione.",
+  "github.invalid": "Accesso con GitHub non riuscito. Riprova o incolla un token qui sotto.",
+  "github.unavailable": "L'accesso con GitHub non è disponibile in questa installazione.",
 
   // ── token help (shown by the import, publish and remote dialogs) ─────────
   "token.helpSummary": "Come creare un token",

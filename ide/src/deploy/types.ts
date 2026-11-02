@@ -33,6 +33,15 @@ export interface ProjectExports {
 /** Where real git-over-HTTPS reaches the hosts (D-079): the same origin, or a URL. */
 export type GitProxy = "same-origin" | string;
 
+/**
+ * The OAuth app that signs a user in without a pasted token (D-082). Only the public
+ * client id is configured; the device flow needs no client secret, so no secret is
+ * ever shipped.
+ */
+export interface GitOAuth {
+  github?: { clientId?: string };
+}
+
 export interface DeploymentCompany {
   name?: string;
   domain?: string;
@@ -54,6 +63,8 @@ export interface DeploymentProjects {
   exports?: ProjectExports;
   /** Stateless git proxy base (D-079); null means real git is compiled out. */
   gitProxy?: GitProxy;
+  /** The GitHub OAuth app for the device flow (D-082); absent means paste a token. */
+  gitOAuth?: GitOAuth;
   preview?: { origin?: string };
   shell?: ShellMode;
 }
@@ -114,6 +125,7 @@ export interface ResolvedDeployment {
     imports: { folder: boolean; git: boolean; share: boolean };
     exports: { git: boolean };
     gitProxy: string | null;
+    gitOAuth: { githubClientId: string | null };
     preview: { origin: string | null };
     shell: ShellMode;
   };

@@ -29,6 +29,7 @@ describe("deployment resolution", () => {
     expect(d.projects.imports).toEqual({ folder: true, git: true, share: true });
     expect(d.projects.exports).toEqual({ git: true });
     expect(d.projects.gitProxy).toBe("same-origin");
+    expect(d.projects.gitOAuth.githubClientId).toBeNull();
     expect(d.projects.admission).toBe("any");
     expect(d.ai.mode).toBe("byo");
     expect(d.updates.channel).toBe("latest");
@@ -41,6 +42,7 @@ describe("deployment resolution", () => {
     // Push is opt-in: a managed build never sends the company's code out by default.
     expect(d.projects.exports).toEqual({ git: false });
     expect(d.projects.gitProxy).toBeNull();
+    expect(d.projects.gitOAuth.githubClientId).toBeNull();
     expect(d.ai.mode).toBe("off");
     expect(d.packages.lockfile).toBe("required");
     expect(d.updates.channel).toBe("approved");
@@ -189,6 +191,58 @@ describe("deployment resolution", () => {
     );
     expect(d.projects.gitProxy).toBe("same-origin");
     expect(d.projects.exports).toEqual({ git: true });
+  });
+
+  it("resolves a GitHub OAuth client id for the device flow", () => {
+    const d = resolveDeployment({
+      profile: "open",
+      projects: { gitOAuth: { github: { clientId: " Iv1.facilis " } } },
+    });
+    expect(d.projects.gitOAuth.githubClientId).toBe("Iv1.facilis");
+  });
+
+  it("refuses a GitHub OAuth app without a proxy or a direction", () => {
+    expect(
+      errorOf(() =>
+        resolveDeployment({
+          profile: "managed",
+          company: { name: "Acme", domain: "facilis.acme.example" },
+          packages: { registry: "https://npm.acme.example" },
+          projects: {
+            preview: { origin: "https://preview.facilis.acme.example" },
+            gitOAuth: { github: { clientId: "Iv1.facilis" } },
+          },
+        }),
+      ),
+    ).toContain("projects.gitOAuth: requires projects.gitProxy");
+
+    expect(
+      errorOf(() =>
+        resolveDeployment({
+          profile: "open",
+          projects: {
+            imports: { git: false },
+            exports: { git: false },
+            gitOAuth: { github: { clientId: "Iv1.facilis" } },
+          },
+        }),
+      ),
+    ).toContain("projects.gitOAuth: requires projects.imports.git or projects.exports.git");
+  });
+
+  it("accepts a push-only GitHub OAuth app on a same-origin proxy", () => {
+    const d = resolveDeployment(
+      managed({
+        projects: {
+          preview: { origin: "https://preview.facilis.acme.example" },
+          exports: { git: true },
+          gitProxy: "same-origin",
+          gitOAuth: { github: { clientId: "Iv1.facilis" } },
+        },
+        network: { connect: ["https://npm.acme.example"] },
+      }),
+    );
+    expect(d.projects.gitOAuth.githubClientId).toBe("Iv1.facilis");
   });
 
   it("refuses providers when AI is off", () => {

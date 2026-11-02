@@ -18,6 +18,8 @@ import { loadGitIdentity, saveGitIdentity } from "@/vv/git-config";
 import { normalizeGitToken, providerForInput } from "@/vv/git-provider";
 import { ProjectPublish, type PushPlan } from "@/vv/project-publish";
 import { publishSession } from "@/vv/publish-session";
+import { githubSessionToken } from "@/vv/github-oauth";
+import { GitHubSignIn } from "./GitHubSignIn";
 import { PushRemoteFields } from "./PushRemoteFields";
 import { PushRemotePlan, PushRemoteProgress } from "./PushRemotePlan";
 
@@ -91,6 +93,8 @@ export function PushRemoteDialog() {
 
   const root = snap.workspaceFolders.find((f) => f.id === snap.activeFolderId)?.rootPath ?? null;
   const folderName = root === null ? null : folderLabelOf(root);
+  // An empty field falls back to the tab's GitHub sign-in (D-082).
+  const effectiveToken = token.trim() !== "" ? token.trim() : (githubSessionToken() ?? "");
   const blocked = !pushAllowed(deployment)
     ? t("push.disabled")
     : root === null
@@ -98,10 +102,10 @@ export function PushRemoteDialog() {
       : !snap.kernelReady
         ? t("push.kernelStarting")
         : null;
-  const canPlan = repository.trim() !== "" && token.trim() !== "" && !busy && snap.kernelReady;
+  const canPlan = repository.trim() !== "" && effectiveToken !== "" && !busy && snap.kernelReady;
   const changes = plan === null ? 0 : plan.adds.length + plan.updates.length + plan.deletes.length;
   const canPublish = plan !== null && changes > 0 && !busy;
-  const tokenInvalid = token.trim() !== "" && normalizeGitToken(token) === null;
+  const tokenInvalid = effectiveToken !== "" && normalizeGitToken(effectiveToken) === null;
   const summary =
     plan === null || changes === 0
       ? ""
@@ -159,7 +163,7 @@ export function PushRemoteDialog() {
   const checkChanges = async () => {
     // The blocked note is the inline explanation for these three cases.
     if (blocked !== null || !canPlan || root === null) return;
-    const typed = token.trim();
+    const typed = effectiveToken;
     if (normalizeGitToken(typed) === null) {
       setError(t("push.tokenInvalid"));
       return;
@@ -193,7 +197,7 @@ export function PushRemoteDialog() {
     setError("");
     try {
       const result = await publisher().push(plan, {
-        token,
+        token: effectiveToken,
         message,
         identity: { name: authorName, email: authorEmail },
         onProgress: (phase, done, total) => setProgress({ label: t(phaseKey(phase)), done, total }),
@@ -230,6 +234,14 @@ export function PushRemoteDialog() {
         {blocked !== null && <div className="text-xs text-muted-foreground">{blocked}</div>}
 
         <PushRemoteFields
+          signIn={
+            <GitHubSignIn
+              onToken={(value) => {
+                setToken(value ?? "");
+                clearPlan();
+              }}
+            />
+          }
           repository={repository}
           token={token}
           tokenInvalid={tokenInvalid}

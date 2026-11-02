@@ -16,6 +16,8 @@ function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) 
 }
 
 export interface PushRemoteFieldsProps {
+  /** Optional "sign in with GitHub" block rendered under the token field (D-082). */
+  signIn?: ReactNode;
   repository: string;
   token: string;
   tokenInvalid: boolean;
@@ -67,6 +69,8 @@ export function PushRemoteFields(props: PushRemoteFieldsProps) {
       {props.tokenInvalid && (
         <div className="text-xs text-destructive">{t("push.tokenInvalid")}</div>
       )}
+
+      {props.signIn}
 
       <label className="flex cursor-pointer items-center gap-2 text-sm">
         <input

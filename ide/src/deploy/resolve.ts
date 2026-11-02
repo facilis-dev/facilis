@@ -27,6 +27,12 @@ function normalizeGitProxy(value: string | undefined): string | null {
   return withoutTrailingSlash(raw);
 }
 
+/** Only the public OAuth client id is configured (D-082); blank means off. */
+function normalizeOAuthClientId(value: string | undefined): string | null {
+  const id = value?.trim() ?? "";
+  return id === "" ? null : id;
+}
+
 /** The CSP compares origins, so a configured URL is reduced to one. */
 function originOfUrl(value: string): string | null {
   try {
@@ -60,6 +66,7 @@ export function openDeployment(): ResolvedDeployment {
       // The hosted IDE serves the stateless proxy from its own origin (D-079); a bare
       // static deployment answers 404 and the client reports git as unavailable.
       gitProxy: "same-origin",
+      gitOAuth: { githubClientId: null },
       preview: { origin: null },
       shell: "shell",
     },
@@ -162,6 +169,22 @@ export function resolveDeployment(
     }
   }
 
+  // GitHub sign-in (D-082) is a second way to reach the same git proxy, never a
+  // replacement for it: the device flow calls github.com through that hop, so a
+  // client id without a proxy (or with no direction enabled) is dead configuration.
+  const gitOAuthClientId = normalizeOAuthClientId(raw.projects?.gitOAuth?.github?.clientId);
+  const effectiveProxy = normalizeGitProxy(raw.projects?.gitProxy) ?? defaults.gitProxy;
+  const effectiveImportsGit = raw.projects?.imports?.git ?? defaults.imports.git;
+  const effectiveExportsGit = raw.projects?.exports?.git ?? defaults.exports.git;
+  if (gitOAuthClientId !== null) {
+    if (effectiveProxy === null) {
+      issues.push("projects.gitOAuth: requires projects.gitProxy");
+    }
+    if (!effectiveImportsGit && !effectiveExportsGit) {
+      issues.push("projects.gitOAuth: requires projects.imports.git or projects.exports.git");
+    }
+  }
+
   if (issues.length > 0) throw new DeploymentError(source, issues);
 
   const resolved: ResolvedDeployment = {
@@ -186,6 +209,7 @@ export function resolveDeployment(
       },
       exports: { git: raw.projects?.exports?.git ?? defaults.exports.git },
       gitProxy: normalizeGitProxy(raw.projects?.gitProxy) ?? defaults.gitProxy,
+      gitOAuth: { githubClientId: gitOAuthClientId },
       preview: { origin: previewOrigin },
       shell: raw.projects?.shell ?? defaults.shell,
     },

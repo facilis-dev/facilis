@@ -32,6 +32,7 @@ describe("deployment config validation", () => {
         imports: { folder: false, git: false, share: false },
         exports: { git: true },
         gitProxy: "same-origin",
+        gitOAuth: { github: { clientId: "Iv1.facilis" } },
         preview: { origin: "https://preview.facilis.acme.example" },
         shell: "run-only",
       },
@@ -105,6 +106,23 @@ describe("deployment config validation", () => {
   it("rejects a git proxy that is neither same-origin nor a URL", () => {
     expect(issuesOf(() => validateDeployment({ projects: { gitProxy: "git-proxy" } }))).toContain(
       "deployment.projects.gitProxy: expected 'same-origin' or an absolute http(s) URL",
+    );
+  });
+
+  it("accepts a GitHub OAuth client id and rejects an empty one", () => {
+    expect(
+      validateDeployment({ projects: { gitOAuth: { github: { clientId: "Iv1.facilis" } } } }),
+    ).toEqual({ projects: { gitOAuth: { github: { clientId: "Iv1.facilis" } } } });
+    expect(
+      issuesOf(() => validateDeployment({ projects: { gitOAuth: { github: { clientId: " " } } } })),
+    ).toContain(
+      "deployment.projects.gitOAuth.github.clientId: expected a non-empty client id without spaces",
+    );
+  });
+
+  it("requires the github entry when gitOAuth is configured", () => {
+    expect(issuesOf(() => validateDeployment({ projects: { gitOAuth: {} } }))).toContain(
+      "deployment.projects.gitOAuth.github: required",
     );
   });
 

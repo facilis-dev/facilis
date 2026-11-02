@@ -98,7 +98,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | **AI mode (MVP)** | Model A — one-shot with preloaded `FacilisManifest` |
 | **AI mode (target)** | Model B — tool-use loop with explicit tool surface |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
-| **Git auth** | Personal Access Token, encrypted in OPFS via WebCrypto |
+| **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
 | **LLM** | BYO key, direct browser → provider |
 | **Source of truth** | Code only. Visual layer is read-only projection. |
@@ -114,7 +114,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 - `release.ref` — configurable per project, defaults to `origin/main`
 - `facilis.config.ts` — lives at repo root, committed; the **only** project config (framework sections plus optional Nitro options)
 - Blocks — code files: `index.tsx` + `manifest.ts`, published to NPM
-- PAT — one per git host, encrypted, never sent to LLM
+- Git credential — GitHub signs in with the OAuth device flow; other hosts take a PAT (or an account password where allowed). Per operation, never sent to the LLM
 - Migration ordering conflicts — Studio warns, developer resolves
 - Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed by auto-generated migration
 - Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
@@ -1552,8 +1552,9 @@ depends on (D-018, D-030).
 | API Visualizer | `ApiFlowPanel.tsx` + new tab kind | React Flow; fetches `/__facilis/manifest` |
 | Entity Explorer | `DataExplorerPanel.tsx` + new tab kind | Fetches schema; shows code ↔ live DB diff |
 | Release Preview | `ReleasePreviewPanel.tsx` + new tab kind | `buildReleasePreview(from, to)` |
-| Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + PAT auth |
-| PAT Auth | Extend git modal | WebCrypto storage in OPFS |
+| Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + git auth |
+| GitHub sign-in | Git dialogs + `GitHubSignIn.tsx` | OAuth device flow, token in tab memory (D-082) |
+| Stored credentials | Extend git modal | WebCrypto storage in OPFS (planned, other hosts) |
 | `applyPatch()` | `IdeController` method | Writes through `kernel.writeFiles` |
 
 **Status (2026-10-31):** the AI chat is implemented — BYO-key providers (OpenAI-compatible and
@@ -1807,7 +1808,7 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 ### Phase 7+ — Post-MVP Backlog
 
 - Model B tool surface
-- OAuth device flow (replace PAT UX)
+- OAuth device flow (GitHub done, D-082; GitLab/Gitea PKCE remains)
 - Visual "add resource" wizard
 - Flat-JSON data mode
 - Column-level `GRANT`

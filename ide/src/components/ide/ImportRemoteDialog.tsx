@@ -21,6 +21,8 @@ import {
 } from "@/vv/git-provider";
 import { proxyBase } from "@/vv/git-remote";
 import { gitAvailable } from "@/vv/project-clone";
+import { githubSessionToken } from "@/vv/github-oauth";
+import { GitHubSignIn } from "./GitHubSignIn";
 import { TokenHelp } from "./TokenHelp";
 
 /** The hosted service's host for a provider; a pasted URL overrides it. */
@@ -59,6 +61,8 @@ export function ImportRemoteDialog() {
     if (open) {
       setBusy(false);
       setProgress("");
+      // A GitHub device-flow sign-in survives the dialog, so reopening reuses it.
+      setToken(githubSessionToken() ?? "");
     } else {
       // Never keep a secret around after the dialog closed.
       setToken("");
@@ -188,6 +192,13 @@ export function ImportRemoteDialog() {
             </span>
             <TokenHelp />
           </label>
+
+          <GitHubSignIn
+            onToken={(value) => {
+              setToken(value ?? "");
+              if (value !== null) setUsername("");
+            }}
+          />
 
           {realGit && (
             <label className="flex flex-col gap-1.5">

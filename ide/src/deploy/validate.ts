@@ -158,7 +158,7 @@ export function validateDeployment(raw: unknown): DeploymentInput {
   if (projects) {
     checkKeys(
       projects,
-      ["admission", "imports", "exports", "gitProxy", "preview", "shell"],
+      ["admission", "imports", "exports", "gitProxy", "gitOAuth", "preview", "shell"],
       "deployment.projects",
       issues,
     );
@@ -181,6 +181,30 @@ export function validateDeployment(raw: unknown): DeploymentInput {
       issues.push(
         "deployment.projects.gitProxy: expected 'same-origin' or an absolute http(s) URL",
       );
+    }
+    const gitOAuth = fieldObject(projects, "gitOAuth", "deployment.projects", issues);
+    if (gitOAuth) {
+      checkKeys(gitOAuth, ["github"], "deployment.projects.gitOAuth", issues);
+      const github = fieldObject(gitOAuth, "github", "deployment.projects.gitOAuth", issues);
+      if (github) {
+        checkKeys(github, ["clientId"], "deployment.projects.gitOAuth.github", issues);
+        const clientId = fieldString(
+          github,
+          "clientId",
+          "deployment.projects.gitOAuth.github",
+          issues,
+        );
+        if (
+          clientId !== undefined &&
+          (clientId.trim() === "" || /\s/.test(clientId) || clientId.length > 128)
+        ) {
+          issues.push(
+            "deployment.projects.gitOAuth.github.clientId: expected a non-empty client id without spaces",
+          );
+        }
+      } else if (gitOAuth.github === undefined) {
+        issues.push("deployment.projects.gitOAuth.github: required");
+      }
     }
     const preview = fieldObject(projects, "preview", "deployment.projects", issues);
     if (preview) {

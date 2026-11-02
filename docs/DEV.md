@@ -468,3 +468,32 @@ through. The allowlist is the security boundary: it must name the hosts the depl
 and loopback/private hosts must not be added (the proxy would become a path into its own network).
 Because the token transits the proxy, run it on the deployment's own origin or in the company's
 network; there is nothing to back up or clean up.
+
+## 11. GitHub sign-in (device flow) in development (D-082)
+
+The git dialogs offer "Sign in with GitHub" when the deployment configures an OAuth app. The
+flow needs github.com through the same proxy, so the dev server is enough; there is no
+callback URL and no secret.
+
+1. Register an OAuth app once: GitHub → Settings → Developer settings → OAuth Apps → **New
+   OAuth App**. Any name and homepage work; enable **Enable Device Flow** and leave the
+   callback URL empty. Copy the client id (public, `Iv1.…`).
+2. Point the build at a config that carries it:
+
+   ```json
+   { "schemaVersion": 1, "profile": "open",
+     "projects": { "gitOAuth": { "github": { "clientId": "Iv1.0123456789abcdef" } } } }
+   ```
+
+   ```sh
+   FACILIS_DEPLOY_CONFIG=/tmp/facilis-oauth.json pnpm ide:dev
+   ```
+
+3. For the hosted build, the same key goes into the deployment config the CI uses; the id is
+   public, so it is not a secret. Without the key the button is absent and the dialogs keep
+   asking for a token.
+
+The token lives in the tab's memory only: a reload asks for a new sign-in, and **Sign out**
+drops it. The device code is shown in the dialog, never logged; the OAuth calls are
+`/git-proxy/github.com/login/device/code` and `/git-proxy/github.com/login/oauth/access_token`,
+so the dev proxy's allowlist must contain `github.com` (the default does).

@@ -15,6 +15,8 @@ import { useIde } from "./useIde";
 import { t, type MessageKey } from "@/i18n";
 import type { Credentials } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
+import { githubSessionToken } from "@/vv/github-oauth";
+import { GitHubSignIn } from "./GitHubSignIn";
 import { TokenHelp } from "./TokenHelp";
 
 // The session reports a machine phase; the dialog owns what the user reads. Both the
@@ -83,11 +85,13 @@ export function GitRemoteDialog() {
     state.ahead === 0 && state.behind === 0
       ? t("gitRemote.upToDate")
       : t("gitRemote.aheadBehind", { ahead: state.ahead, behind: state.behind });
+  // A field left empty falls back to the tab's GitHub sign-in (D-082). Operations
+  // keep clearing the field, so the token itself is never shown after use.
+  const effectiveToken = token.trim() !== "" ? token.trim() : (githubSessionToken() ?? "");
   const credentials = (): Credentials | undefined => {
-    const typed = token.trim();
-    if (typed === "") return undefined;
+    if (effectiveToken === "") return undefined;
     const name = username.trim();
-    return name === "" ? { token: typed } : { token: typed, username: name };
+    return name === "" ? { token: effectiveToken } : { token: effectiveToken, username: name };
   };
 
   const saveRemote = async () => {
@@ -212,6 +216,13 @@ export function GitRemoteDialog() {
                   <TokenHelp write />
                 </label>
 
+                <GitHubSignIn
+                  onToken={(value) => {
+                    setToken(value ?? "");
+                    if (value !== null) setUsername("");
+                  }}
+                />
+
                 <label className="flex flex-col gap-1.5">
                   <span className="text-xs font-medium text-muted-foreground">
                     {t("gitRemote.username")}
@@ -244,7 +255,7 @@ export function GitRemoteDialog() {
                   </Button>
                   <Button
                     onClick={() => void runPush()}
-                    disabled={busy || state.branch === null || token.trim() === ""}
+                    disabled={busy || state.branch === null || effectiveToken === ""}
                   >
                     {busy && phaseKey === "gitRemote.pushing" && (
                       <Loader className="size-4 animate-spin" />

@@ -179,6 +179,7 @@ export function renderEnvironment(input: ArtifactInput): string {
         previewOrigin: deployment.projects.preview.origin,
         gitPush: deployment.projects.exports.git,
         gitProxy: deployment.projects.gitProxy,
+        gitOAuth: deployment.projects.gitOAuth.githubClientId !== null,
         aiMode: deployment.ai.mode,
         skills: deployment.skills.allow,
         configHash: input.configHash,

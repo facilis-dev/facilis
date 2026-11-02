@@ -13,7 +13,7 @@ export const gitRemoteEn = {
   "gitRemote.token": "Access token or password (optional)",
   "gitRemote.tokenPlaceholder": "ghp_…, glpat-…, …",
   "gitRemote.tokenHint":
-    "Needed for private repositories and for pushing. GitHub accepts a token only; GitLab and Gitea/Forgejo also accept your account password. Used for this operation and never stored.",
+    "Needed for private repositories and for pushing. GitHub: sign in above or paste a token; GitLab and Gitea/Forgejo also accept your account password. Used for this operation and never stored.",
   "gitRemote.username": "Username (optional)",
   "gitRemote.usernamePlaceholder": "git",
   "gitRemote.usernameHint":
@@ -49,11 +49,29 @@ export const gitRemoteEn = {
   "import.secretInvalid": "That does not look like a valid token or password.",
   "import.tokenOrPassword": "Access token or password (optional)",
   "import.tokenOrPasswordHint":
-    "For a private repository. GitHub accepts a token only; GitLab and Gitea/Forgejo also accept your account password with the username below. Used for this import and never stored.",
+    "For a private repository. GitHub: sign in above or paste a token; GitLab and Gitea/Forgejo also accept your account password with the username below. Used for this import and never stored.",
   "import.username": "Username (optional)",
   "import.usernamePlaceholder": "your username",
   "import.usernameHint":
     "Only with an account password (GitLab, Gitea/Forgejo) — GitHub requires a token.",
+
+  // ── GitHub device flow sign-in (D-082) ───────────────────────────────────
+  "github.signIn": "Sign in with GitHub",
+  "github.hint":
+    "Uses GitHub's device flow: 2FA stays on GitHub and there is no token to paste. The token lives in this tab only.",
+  "github.contacting": "Contacting GitHub…",
+  "github.codeHint": "Enter this code on GitHub:",
+  "github.open": "Open github.com/login/device",
+  "github.waiting": "Waiting for authorization…",
+  "github.cancel": "Cancel",
+  "github.signedIn": "Signed in with GitHub.",
+  "github.signOut": "Sign out",
+  "github.retry": "Try again",
+  "github.denied": "GitHub authorization was denied.",
+  "github.expired": "The code expired — start again.",
+  "github.network": "Could not reach GitHub through this deployment's proxy.",
+  "github.invalid": "GitHub sign-in failed. Try again, or paste a token below.",
+  "github.unavailable": "GitHub sign-in is not available in this deployment.",
 
   // ── token help (shown by the import, publish and remote dialogs) ─────────
   "token.helpSummary": "How to create a token",

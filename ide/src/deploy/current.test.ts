@@ -3,6 +3,7 @@ import {
   aiAvailable,
   deployment,
   gitProxyConfigured,
+  githubOAuthClientId,
   importAllowed,
   pushAllowed,
   skillAllowed,
@@ -42,6 +43,15 @@ describe("the running profile", () => {
   it("reports where real git can reach the hosts", () => {
     expect(gitProxyConfigured(openDeployment())).toBe("same-origin");
     expect(gitProxyConfigured(managed)).toBeNull();
+  });
+
+  it("reports the GitHub OAuth app, when configured", () => {
+    expect(githubOAuthClientId(openDeployment())).toBeNull();
+    const withOAuth = resolveDeployment({
+      profile: "open",
+      projects: { gitOAuth: { github: { clientId: "Iv1.facilis" } } },
+    });
+    expect(githubOAuthClientId(withOAuth)).toBe("Iv1.facilis");
   });
 
   it("keeps AI off unless the deployment enabled it", () => {
