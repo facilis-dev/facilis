@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.4 (one config; `facilis()` mounts Nitro)
-**Status:** Phase 0 headless spike complete; browser/WebContainer items pending
+**Version:** 1.5 (Entity Explorer: dev schema endpoint + code↔live drift)
+**Status:** Phases 0–1 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 3 visualizers and the remainder of Phase 4 (the full patch validator) are in progress. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. Retry loop and Model B remain.
 - v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
 - v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. Both findings came from the Phase 0 spike, retired after they landed in `@facilis/nitro` and `@facilis/db` (commit `de17169`).
 - v1.2 — Renamed framework to **Facilis** (`@facilis/*`, `facilis.config.ts`, `/__facilis/*`, `Facilis*` types, `FACILIS_INITIAL_ADMIN`). Corrected runtime model: **Nitro v3 runs as a Vite plugin**, `vite dev` is the single dev server for frontend and backend. Added §10.6 "Runtime model inside Vivari". Updated Phase 0 tickets.
@@ -313,28 +314,14 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       ├── scripts/          in-browser npm/pnpm vendoring harnesses
 │       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
 │
-├── starter/                  Template repo users clone
-│   ├── server/               (Nitro server dir)
-│   │   └── routes/
-│   │       └── api/
-│   │           └── todos/
-│   │               ├── index.get.ts
-│   │               ├── index.post.ts
-│   │               └── [id].patch.ts
-│   ├── src/                  (React client)
-│   │   └── App.tsx
-│   ├── db/
-│   │   ├── schema.ts
-│   │   └── migrations/
-│   ├── locales/en.json
-│   ├── vite.config.ts        ◄── plugins: [facilis(), react()]
-│   ├── facilis.config.ts     ◄── release.ref, db, i18n, blocks, auth, nitro
-│   ├── package.json          ◄── scripts.dev = "vite dev"
-│   └── README.md
+├── starter/                  empty until @facilis/* has a publish target (D-027):
+│                             the template is generated from examples/todo-app at
+│                             IDE build time (D-062) — no second copy to drift
 │
 ├── examples/
-│   ├── todo-app/
-│   └── blog-json/
+│   ├── todo-app/             template source + Phase 1 acceptance app
+│   ├── ui-gallery/           @facilis/ui component gallery
+│   └── design-lab/           theme/direction exploration
 │
 ├── pnpm-workspace.yaml
 └── turbo.json
@@ -808,7 +795,7 @@ interface FacilisMetaResponse {
 |---|---|---|
 | `/__facilis/manifest/revision` | Cheap freshness poll (60 bytes) | `{ revision, generatedAt }` |
 | `/__facilis/health` | Boot detector | `{ status, bootedAt, revision }` |
-| `/__facilis/dev/schema` | Full schema introspection (Phase 4) | `SchemaSnapshot` |
+| `/__facilis/dev/schema` | Code ↔ live schema + typed drift (§11.1, D-083) | `{ code, live, drift, warnings }` |
 | `/__facilis/dev/query` | Read-only SQL console (Phase 4) | `{ columns, rows, rowCount, elapsedMs }` |
 
 ### 6.4 Error Model
@@ -1486,7 +1473,7 @@ Rules the AI must obey:
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
-| 1 | `ts-parse` | error | TypeScript compiles |
+| 1 | `ts-parse` | error | TypeScript parses (syntactic diagnostics; type errors belong to the editor's language service) |
 | 2 | `route-security` | error | Every route uses `defineAuthorizedHandler` |
 | 3 | `db-tables-present` | error | `dbTables` field present (empty OK) |
 | 4 | `db-tables-valid` | error | All `dbTables` exist in schema (or this patch) |
@@ -1495,13 +1482,26 @@ Rules the AI must obey:
 | 7 | `block-import-valid` | error | Every block import matches a `BlockManifest` |
 | 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required |
 | 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis/db` |
-| 10 | `rls-on-scoped-table` | error | New scoped table ships with a `pgPolicy` |
-| 11 | `file-path-allowed` | error | Files only in `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/` |
+| 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
+| 11 | `file-path-allowed` | error | Files only in `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/`, plus `facilis.config.ts` (`AGENTS.md` only through the IDE writer's explicit `rootFiles`) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
 | 13 | `i18n-keys-registered` | warning | All `t("key")` calls have keys in `locales/en.json` |
 | 14 | `migration-generated` | warning | Schema changes ship with a migration file |
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, a new migration file must update seeds |
+
+**Status (2026-11-02): implemented** in `@facilis/ai` (D-084). The main entry stays
+browser-safe: `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })`
+is synchronous and takes a typed `PatchContext` built by the caller from `facilis.config.ts`,
+`db/schema.ts`, `locales/en.json`, `package.json`/`tsconfig.json` paths and the live manifest;
+the patch is overlaid on that context before the rules read it. Rule 1 parses through an
+injected `SyntaxChecker` — Monaco's TypeScript worker in the IDE, the `@facilis/ai/node`
+subpath (rolldown/oxc) outside it — and fails closed when no checker answers. Rules 5, 13 and
+14 are warnings; the rest block the apply. The IDE validates at proposal time, re-validates the
+accepted files at Apply time and `applyPatch()` re-validates before the first VFS write.
+Declared limits: the rules scan text (not a full AST), i18n covers static `t()` keys and the
+`en` catalogue only, migration detection is the presence of a `.sql` file, destructive detection
+covers tables/columns, and the cross-checks against existing routes need a reachable manifest.
 
 ### 9.4 Retry Loop
 
@@ -1512,6 +1512,9 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 - **Max 2 retries.** Worst case 3× initial token cost.
 - Failures feed back with `fix_hint` + `excerpt` per error, not full files.
 - On final failure: show errors in chat; do not write to OPFS.
+
+**Status (2026-11-02): not implemented.** `parseTurn()` and the `fix_hint`/`excerpt` fields in
+`ValidationError` are the seam it will be built on (D-084).
 
 ### 9.5 Model B Tool Surface (Phase 4.5)
 
@@ -1562,8 +1565,15 @@ Anthropic protocols), Model A context, a streamed `message` field with a per-fil
 proposal, non-blocking browser-boundary warnings, an undo for a clean Apply, project instructions
 from a root `AGENTS.md`, and `applyPatch()` as the only write path (D-045…D-048). The write path lives in
 `ide/src/facilis/apply-patch.ts` rather than on `IdeController`, because the controller is
-pinned by the file-length ratchet (D-019); the activity view is `chat`. Still Phase 4: the full
-16-rule validator (SPEC §9.3), the retry loop (§9.4) and the Model B tool surface (§9.5).
+pinned by the file-length ratchet (D-019); the activity view is `chat`.
+
+**Status (2026-11-02): the full 16-rule validator is implemented** (D-084): `parseTurn()`
+validates a proposal against the live project before it is shown, the accepted files are
+re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
+VFS write. Rule 1 uses Monaco's TypeScript worker; the remaining rules read the config, schema,
+catalogs, blocks and routes. Validator warnings are carried in the proposal state but not yet
+rendered in the card (follow-up). Still Phase 4: the retry loop (§9.4) and the Model B tool
+surface (§9.5).
 
 ### 10.3 VFS Write Rule
 
@@ -1674,11 +1684,15 @@ await waitForPort(vivari, 5173)
 
 ### 11.1 Entity Explorer (Phase 3)
 
-- Reads from both `db/schema.ts` (via `getTableConfig`) and PGlite `information_schema`
-- **Diffs them**: shows drift like *"code says X, DB says Y — run `drizzle-kit migrate`"*
+- Reads from both `db/schema.ts` (via `getTableConfig`) and the live catalog (`pg_catalog`: `format_type`, `pg_get_expr`, `relrowsecurity`, `pg_policies`)
+- **Diffs them** through a pure function: typed drift like *"code says X, DB says Y — run the project's migrations"*
 - RLS status badges: 🟢 policy defined / 🟡 RLS on, no policy / 🔴 RLS off on scoped table
-- Reverse lookup: "used by these routes" (from `x-db-tables`)
-- Click to jump to `db/schema.ts` or route file in Monaco
+- Reverse lookup: "used by these routes" (from `x-db-tables`/`x-db-columns`)
+- Click to jump to `db/schema.ts` or the route file in Monaco
+
+**Status (2026-11-02): implemented** (D-083). `@facilis/db` exposes `liveSchemaSnapshot`
+and `diffSchemaSnapshots`; `GET /__facilis/dev/schema` is the dev-only transport (404 in
+production, origin-allowlisted) and the Studio renders it in the `data` activity view.
 
 ### 11.2 Query Preview (Phase 4)
 
@@ -1693,7 +1707,7 @@ Four diff lenses, one engine:
 
 | Lens | Compares | Answers |
 |---|---|---|
-| Code ↔ Live DB | `db/schema.ts` vs `information_schema` | In sync? |
+| Code ↔ Live DB | `db/schema.ts` vs live catalog | In sync? (engine: `diffSchemaSnapshots`, D-083) |
 | Working copy ↔ HEAD | OPFS vs last commit | What am I about to commit? |
 | HEAD ↔ origin/main | Local vs remote | What ships on next deploy? |
 | origin/main ↔ Tag | Remote vs release ref | What changed since last release? |
@@ -1709,7 +1723,7 @@ Four diff lenses, one engine:
 
 | Endpoint | Purpose | Guard |
 |---|---|---|
-| `GET /__facilis/dev/schema` | Full introspection | 404 in prod |
+| `GET /__facilis/dev/schema` | Code↔live schema + drift (§11.1, D-083) | 404 in prod, origin allowlist |
 | `POST /__facilis/dev/query` | Read-only SQL | 404 in prod, read-only prefix check |
 | `GET /__facilis/*` | Manifest sections | 404 in prod, origin allowlist |
 
@@ -1773,6 +1787,9 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 
 **Exit criteria:** Hand-editing a route updates the graph within seconds. Drift between code and DB is visible.
 
+**Status (2026-11-02):** Entity Explorer implemented (D-083); the code↔live drift half of the exit
+criteria is met. API Flow and Release Preview remain.
+
 ### Phase 4 — AI Orchestration (2–3 weeks)
 
 - Prompt builder + context assembly (Model A)
@@ -1784,6 +1801,10 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 - Apply → OPFS → HMR → refresh manifest
 
 **Exit criteria:** "Make a todo app" from blank starter produces a working, secure, authenticated app.
+
+**Status (2026-11-02):** Model A (prompt + context), the response parser, the 16-rule validator
+(D-084), the proposal/diff review and the apply path are implemented; the retry loop and the
+Model B tool surface remain. The validator's warnings still need a UI surface.
 
 ### Phase 5 — Headless Blocks + i18n (2 weeks)
 

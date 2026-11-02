@@ -2518,6 +2518,113 @@ once per deployment with device flow enabled; its client id is public. The proxy
 the token in transit as with a PAT (D-079). GitLab, Gitea/Forgejo and self-hosted hosts are
 unchanged: username/password where the host allows it, token otherwise.
 
+### D-083 — The Entity Explorer reads the live database through pg_catalog and diffs it against `db/schema.ts`
+**Status:** accepted (2026-11-02)
+
+SPEC §11.1 asks the Studio to show the schema `db/schema.ts` declares against the database
+the running project actually has, and to make the drift visible. The manifest is not enough:
+its `schema` section is a projection of the code, so it can never say what the database
+thinks. Reaching PGlite straight from the SPA would violate SPEC §11.2 and invariant 5, and
+the dev server has no endpoint that answers the live side.
+
+**Decision.** Add one dev-only endpoint and one pure diff, and render them in a new sidebar.
+
+- **Endpoint.** `GET /__facilis/dev/schema` is registered only when `nitro.options.dev` is
+  true and guarded by `guardDevRequest` (404 in production, 403 on an origin mismatch), like
+  the manifest (§6.8/§11.4). It answers `200 { code, live, drift, warnings }` and
+  `503 { code: "db_unavailable" }` when the runtime has no usable database. The db comes from
+  `getBootstrap()`; the route imports only `@facilis/db` and never a raw Drizzle client.
+- **Introspection lives in `@facilis/db`.** `liveSchemaSnapshot` reads `pg_catalog`
+  (`pg_class`/`pg_attribute`/`pg_attrdef`/`pg_index`/`pg_policies`), not `information_schema`:
+  `format_type()` renders types comparably, `pg_get_expr()` the defaults, and RLS/policies
+  have no `information_schema` equivalent. Tables are limited to `current_schema()`, and the
+  migrator's bookkeeping table is excluded — otherwise it would be permanent drift.
+- **The diff is a pure, typed function.** `diffSchemaSnapshots(code, live)` returns
+  `SchemaDrift[]` with a discriminated `kind`: table/column missing or extra, column type or
+  nullability, `rls_disabled` on a scoped table, and policy missing/extra/changed. The Release
+  Preview (§11.3, code↔live lens) can reuse it. Column types are canonicalised (Drizzle's
+  `varchar(120)`/`serial` vs the catalog's `character varying(120)`/`integer`) and policies are
+  compared by a normalised signature (command, restrictive/permissive, normalised qual/check)
+  because Postgres re-renders qualifiers.
+- **Sidebar.** A new `data` activity view (`appShell`), fed through the preview-proxy base like
+  the manifest client: tables with columns (type, PK, not-null), an RLS badge (policy defined /
+  RLS on without policy / RLS off, red when the table is scoped), the drift list, and "used by"
+  from `RouteMeta.dbTables`/`dbColumns`. Clicking a table opens `db/schema.ts`, a route its
+  `sourceFile`. Manual refresh plus a refetch on the 60-byte revision poll. `policy_extra` is a
+  warning of its own: a policy in the database but not in code is a security drift.
+
+**Rejected alternatives.** Introspecting PGlite from the panel (violates §11.2 and invariant 5).
+`information_schema` only (no RLS/policies and types need hand-maintained maps). Comparing raw
+policy SQL (systematic false positives). Exposing the endpoint in production (§8.5). Showing the
+migration tracking table as a normal table (permanent drift).
+
+**Consequences.** Every request recomputes both snapshots and runs two catalog queries — there is
+no cache; an open panel only pays the 60-byte revision poll. The response envelope is an additive
+contract; the IDE client narrows it at the boundary like the manifest and ignores unknown drift
+kinds. Custom/enum type names and unusual Postgres predicate rewrites can still produce a
+`column_type`/`policy_changed` false positive; the tests pin the renderings `rls.ts` generates.
+No new dependency; strings are in `en`/`it`.
+
+### D-084 — The AI patch validator enforces the 16 rules, with rule 1 injected and the project context built by the caller
+**Status:** accepted (2026-11-02)
+
+D-046/D-047 left the validator at the structural checks (path + content present) and deferred the
+16 rules of SPEC §9.3 to Phase 4; invariant 9 says a patch must pass the validator before it
+touches disk. The rules need things the structural gate never had: a TypeScript parser, the
+config (roles/permissions), the code schema plus the tables the patch adds, `locales/en.json`, the
+block manifests, the existing routes and import resolution. `@facilis/ai` is imported by the
+IDE's browser bundle, so the main entry cannot import a compiler.
+
+**Decision.** Keep `@facilis/ai` browser-safe and synchronous, and push the two async inputs to
+its edges.
+
+- **Typed context.** `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })`
+  stays synchronous and takes a `PatchContext` assembled by the caller with
+  `buildProjectContext(files, sources, manifest)`: `facilis.config.ts` (source authoritative, the
+  manifest as fallback), `db/schema.ts` (tables/columns/policies/RLS merged with the manifest's
+  live schema), `locales/en.json` merged with the manifest catalogue, the block manifests and
+  routes, and `package.json`/`tsconfig.json` paths for imports. The patch is overlaid on that
+  context once (`overlay.ts`), so every rule reads the post-patch world, including the tables and
+  permissions it removes.
+- **Rule 1 is an injected seam.** `SyntaxChecker` is supplied by the caller: the IDE passes
+  Monaco's TypeScript worker (`getSyntacticDiagnostics` on a disposable in-memory model — no
+  project model is swapped, open buffers are never touched), and Node tooling imports the
+  `@facilis/ai/node` subpath, which uses rolldown/oxc's `parseSync` (the same parser as
+  `@facilis/nitro`'s AST pass; dev-only, never in the browser bundle). A missing or throwing
+  checker fails the rule closed — a silent skip would defeat the gate.
+- **Rule 11's allowlist** is the six project roots plus `facilis.config.ts` (rule 16 needs it).
+  Root `AGENTS.md` is writable only by the IDE's own instructions writer through the explicit
+  `rootFiles` list, never by an AI patch.
+- **Three validation points.** Proposal time (`parseTurn`: no proposal exists if the rules
+  error), Apply time (`applyAccepted` re-validates the accepted files with a fresh context), and
+  `applyPatch()` itself re-validates before the first `vv-write`. Undo is deliberately not
+  re-validated: restoring a before-image must not be blocked by the rules it rolls back.
+  Rules 5, 13 and 14 stay warnings; the rest block.
+
+**Rejected alternatives.** The TypeScript compiler API: the workspace pins TypeScript 7 (the
+native port), which no longer exposes the JS compiler API; its only API wants an on-disk
+snapshot and a native language service — too heavy and fragile for the rule-1 test. Semantic
+type-checking in the browser by swapping Monaco's project models: risks open buffers/undo and
+produces false `TS2307` for files a patch creates and imports itself; type errors stay the
+editor's language service. A JS parser inside the main entry: breaks browser safety. Validating
+only on Apply: the card would show proposals that cannot be applied. Allowing any root file:
+lets a patch rewrite `package.json` or the README.
+
+**Consequences.** The managed AI gate (AI-SKILLS §4) can rely on the blocking rules 1–4, 6–12,
+15–16; secret scanning and a `package.json` policy remain future rules. The validator scans text
+rather than a full AST, so pathological route files can evade metadata checks; i18n covers
+static `t()` keys and the `en` catalogue only; migration detection is the presence of a created
+`.sql`; destructive detection covers tables/columns; the cross-checks against existing routes
+need a reachable manifest. Validator warnings are carried in the proposal state but not yet
+rendered in the UI (follow-up). At publish time (O-006) the Node subpath will need rolldown as a
+real dependency or an injected checker. The retry loop (§9.4) is not implemented; `parseTurn`
+and `fix_hint`/`excerpt` are its seam. Cost: one context read plus one manifest fetch per
+validation round, and three rounds per Apply.
+
+**Verification.** 48 `@facilis/ai` tests (a suite per rule group, a realistic fixture project,
+rule 1 rejects invalid TS and accepts valid TS through rolldown) and 523 IDE tests with no
+regressions; `pnpm typecheck`, `pnpm lint` and the file-length/theme checks are green.
+
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
@@ -2531,7 +2638,7 @@ unchanged: username/password where the host allows it, token otherwise.
 | O-006 | Publish target for `@facilis/*` (public npm vs private registry) | start workspace-only; decide before first publish | Phase 6 |
 | O-007 | Recommended default AI model | **resolved with D-045:** no enforced default; each provider preset carries an editable model default | done |
 | O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | schema-only `?at=<oid>` first, sequential behind a flag | Phase 3.5 |
-| O-009 | Validator rule 11 path allowlist vs rule 16 | extend allowlist with root config files (`facilis.config.ts` — the one project config, `vite.config.ts`, a legacy `nitro.config.ts` if a project still has one, `package.json`, `locales/`, `lib/`, `components/`) and let rule 16 handle role-sync | Phase 4 (validator) |
+| O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch | done |
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
 
 When an item is decided, move it to **Accepted** with a `D-0NN` entry and update
