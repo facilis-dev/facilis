@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
     "./i18n": "./src/i18n.ts",
+    "./release": "./src/release-preview.ts",
     "./package.json": "./package.json"
   },
   "files": [
