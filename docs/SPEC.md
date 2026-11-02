@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.6 (Phase 3 visualizers complete: API Flow + Release Preview)
+**Version:** 1.7 (API Flow in the editor area, with the pages that call it)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator and the apply path; the retry loop and the Model B tool surface remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.7 — The API Flow becomes an editor-area tab instead of a sidebar view, laid out as pages → routes → tables with an inspector and a list view; it now scans `src/**` for the client files that call each route and shows them as page nodes (direct references and one import hop, D-087). No contract change; §10.2/§12 follow.
 - v1.6 — Phase 3 complete. The API Flow renders the AST-augmented `/_openapi.json` with React Flow and jumps to the route source (D-085); the Release Preview engine `buildReleasePreview` lands in `@facilis/core` with the SDK contract amendment for `ApiDiff.changed`/`ApiRouteRef.dbTables` (§7.7), and the Studio diffs git refs read from the VFS instead of booting them, resolving O-008 (D-086, §11.3).
 - v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. Retry loop and Model B remain.
 - v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
@@ -1568,7 +1569,7 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| API Visualizer | `ApiFlowPanel.tsx` + activity view | React Flow; fetches `/_openapi.json` (D-085) |
+| API Visualizer | `ApiFlowPanel.tsx` + `api-flow` editor tab | React Flow over `/_openapi.json`; pages → routes → tables, inspector and list; client consumers from `src/**` (D-085/D-087) |
 | Entity Explorer | `DataExplorerPanel.tsx` + activity view | Fetches schema; shows code ↔ live DB diff |
 | Release Preview | `ReleasePreviewPanel.tsx` + activity view | `buildReleasePreview(from, to)` (D-086) |
 | Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + git auth |
@@ -1591,11 +1592,12 @@ catalogs, blocks and routes. Validator warnings are carried in the proposal stat
 rendered in the card (follow-up). Still Phase 4: the retry loop (§9.4) and the Model B tool
 surface (§9.5).
 
-**Status (2026-11-02): the Phase 3 visualizers are complete.** The Entity Explorer (D-083), the
-API Flow (D-085, React Flow over `/_openapi.json` with code jump) and the Release Preview (D-086,
-four lenses over `buildReleasePreview`) are activity views, lazy-loaded with the panel, and both
-new panels are covered by the browser smoke. Phase 3's exit criteria — a route edit updates the
-graph within the revision poll, and code↔live drift is visible — are met.
+**Status (2026-11-02): the Phase 3 visualizers are complete.** The Entity Explorer (D-083) and
+the Release Preview (D-086, four lenses over `buildReleasePreview`) are sidebar activity views;
+the API Flow (D-085, reworked by D-087) is an editor-area tab that shows pages → routes → tables,
+the inspector and the client pages that call each route. All are lazy-loaded, covered by the
+browser smoke, and Phase 3's exit criteria — a route edit updates the graph within the revision
+poll, and code↔live drift is visible — are met.
 
 ### 10.3 VFS Write Rule
 
@@ -1817,9 +1819,10 @@ needs a browser/WebContainer harness (Phase 0 items A1-A3/A6/A8-A12).
 
 **Exit criteria:** Hand-editing a route updates the graph within seconds. Drift between code and DB is visible.
 
-**Status (2026-11-02): complete.** Entity Explorer (D-083), API Flow (D-085) and Release Preview
-(D-086) ship as activity views; the code↔live drift and the route-graph refresh are covered by
-unit tests and by the browser smoke (a route edit bumps the revision the panels poll).
+**Status (2026-11-02): complete.** Entity Explorer (D-083), API Flow (D-085/D-087, editor tab
+with client consumers) and Release Preview (D-086) ship; the code↔live drift and the route-graph
+refresh are covered by unit tests and by the browser smoke (a route edit bumps the revision the
+panels poll).
 
 ### Phase 4 — AI Orchestration (2–3 weeks)
 

@@ -146,7 +146,8 @@ assembled from the example at build time, so there is no second copy to drift.
 (`pnpm ide:smoke` boots the framework in the IDE's WebContainer: `facilis()` mounts Nitro +
 PGlite + `/__facilis/*` on one origin, zero manifest warnings). The Studio (Phase 2) ships at
 <https://ide.facilis.dev>: git import/push/publish, tabs, PWA, managed builds. Phase 3 is
-complete: the Entity Explorer (D-083), the API Flow (D-085) and the Release Preview (D-086). In
+complete: the Entity Explorer (D-083), the API Flow (D-085/D-087, an editor-area tab that also
+shows the pages calling each route) and the Release Preview (D-086). In
 Phase 4 the AI chat and the full 16-rule patch validator are implemented (D-084). Generated
 projects install with **npm** (D-032) from IDE-served
 `file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
@@ -165,9 +166,9 @@ What exists today, runnable in this repo:
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 | Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
 | Entity Explorer | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/live-schema.ts` | `GET /__facilis/dev/schema` (dev-only, D-083) diffs `db/schema.ts` against `pg_catalog`: columns, RLS badges, typed drift, reverse route lookup |
-| API Flow | `ide/src/components/ide/ApiFlowPanel.tsx`, `ide/src/facilis/api-flow-*.ts` | React Flow graph over `/_openapi.json` (D-085): operations grouped by resource, table nodes, method/permission badges, click-to-jump to `x-facilis-source` |
+| API Flow | `ide/src/components/ide/ApiFlowPanel.tsx`, `ide/src/facilis/api-flow-*.ts` | React Flow editor tab over `/_openapi.json` (D-085/D-087): pages → routes → tables, inspector, list view, and a scan of `src/**` that shows which client pages call each route (direct or via one import), with unused-route hints |
 | Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | `buildReleasePreview` (D-086) diffs schema/API/security between refs with risk classes; refs read from the VFS via isomorphic-git, plus the code↔live drift card from D-083 |
-| AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 562 IDE tests |
+| AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 575 IDE tests |
 | Git round-trip and publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push over HTTPS through a stateless proxy (D-079), publish to GitHub/GitLab/Gitea (D-078), GitHub OAuth device flow (D-082) |
 | Deployment profiles and app updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | `open`/`managed` builds with a compiled policy and CSP (D-063/D-064/D-071/D-072), offline update recipes (D-065/D-070) |
 
@@ -214,7 +215,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
 
-→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.6
+→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.7
 
 Highlights inside:
 
