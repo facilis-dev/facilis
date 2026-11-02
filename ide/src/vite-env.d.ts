@@ -24,4 +24,14 @@ interface ImportMetaEnv {
    * Unset in the default deploy + local dev.
    */
   readonly VITE_PREVIEW_WILDCARD_DOMAIN?: string;
+  /**
+   * Dev-only AI probe hook (gitignored `ide/.env`): when set, the DeepSeek preset is
+   * configured in dev with this key, so the chat needs no manual key entry. Vite
+   * inlines VITE_* variables into the dev bundle; a production build never reads it.
+   */
+  readonly VITE_DEEPSEEK_API_KEY?: string;
+  /** Model for the dev seed; defaults to the preset's `deepseek-chat`. */
+  readonly VITE_DEEPSEEK_MODEL?: string;
+  /** Optional base URL override for the dev seed. */
+  readonly VITE_DEEPSEEK_BASE_URL?: string;
 }

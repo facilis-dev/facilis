@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { openDeployment, resolveDeployment } from "@/deploy/resolve";
 import type { DeploymentInput, ResolvedDeployment } from "@/deploy/types";
 import {
@@ -99,6 +99,39 @@ describe("AI settings persistence", () => {
     const mock = { providerId: "mock", apiKey: "", model: "mock", baseUrl: "" };
     expect(isConfigured(mock, true)).toBe(true);
     expect(isConfigured(mock, false)).toBe(false);
+  });
+});
+
+describe("dev env seed", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("configures the DeepSeek preset from VITE_ variables", () => {
+    vi.stubEnv("MODE", "development");
+    vi.stubEnv("VITE_DEEPSEEK_API_KEY", "  sk-from-env  ");
+    vi.stubEnv("VITE_DEEPSEEK_MODEL", "deepseek-flash");
+    vi.stubEnv("VITE_DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1");
+    expect(loadAiSettings(fakeStorage())).toEqual({
+      providerId: "deepseek",
+      apiKey: "sk-from-env",
+      model: "deepseek-flash",
+      baseUrl: "https://api.deepseek.com/v1",
+    });
+  });
+
+  it("defaults the model and wins over a stored entry", () => {
+    vi.stubEnv("MODE", "development");
+    vi.stubEnv("VITE_DEEPSEEK_API_KEY", "sk-from-env");
+    const storage = fakeStorage({ [AI_SETTINGS_KEY]: JSON.stringify(settings) });
+    expect(loadAiSettings(storage)?.model).toBe("deepseek-chat");
+    expect(loadAiSettings(storage)?.apiKey).toBe("sk-from-env");
+  });
+
+  it("does nothing when the env key is empty", () => {
+    vi.stubEnv("MODE", "development");
+    vi.stubEnv("VITE_DEEPSEEK_API_KEY", "");
+    expect(loadAiSettings(fakeStorage())).toBeNull();
   });
 });
 
