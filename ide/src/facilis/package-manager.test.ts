@@ -68,11 +68,16 @@ describe("generated project package manager", () => {
     }
   });
 
-  it("packs exactly the packages the template declares", () => {
+  it("packs every package the template declares", () => {
     // The repo script is the producer of the tarballs the IDE serves; a package added to
     // the template but not to the script (or the reverse) fails at create time in the VM.
     const match = /^PKGS="([^"]+)"/m.exec(facilisDepsScript);
     expect(match, "PKGS not found in scripts/dev/vendor-facilis-deps.sh").toBeTruthy();
-    expect(new Set((match?.[1] ?? "").split(" "))).toEqual(new Set(PACKAGES));
+    const packed = new Set((match?.[1] ?? "").split(" "));
+    // "ui" is the one legacy exception: the v1 component kit stays a workspace package
+    // (older examples import it) and the repo script still packs it, but template v2 does
+    // not ship it — its primitives are copied into src/components/ui.
+    expect(packed).toEqual(new Set([...PACKAGES, "ui"]));
+    expect(PACKAGES).not.toContain("ui");
   });
 });

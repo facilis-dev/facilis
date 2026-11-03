@@ -14,6 +14,7 @@ describe("example project source", () => {
         "src/app.tsx",
         "src/main.tsx",
         "src/lib/api.ts",
+        "src/lib/utils.ts",
         "src/styles.css",
         "server/routes/api/todos/[id].patch.ts",
         "db/schema.ts",
@@ -24,6 +25,8 @@ describe("example project source", () => {
         ".gitignore",
         "vite.config.ts",
         "facilis.config.ts",
+        // Top-level folder, not under src/: the generated vite.config.ts imports it.
+        "vite-plugins/tailwind-rescan.ts",
       ]),
     );
   });
@@ -36,7 +39,9 @@ describe("example project source", () => {
 
   it("reads the package.json the generated one is built from", () => {
     const pkg = JSON.parse(examplePackageJson()) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies["@facilis/ui"]).toBe("workspace:*");
+    // Template v2 copies its UI primitives into src/components/ui: the v1 kit is gone.
+    expect(pkg.dependencies["@facilis/ui"]).toBeUndefined();
+    expect(pkg.dependencies["@base-ui/react"]).toBeTruthy();
     expect(pkg.dependencies["react-router-dom"]).toBeTruthy();
   });
 });
@@ -73,25 +78,35 @@ describe("generated template", () => {
     expect(config).toContain('locales: ["en", "it"]');
   });
 
-  it("adds the HMR hint footer style to the example stylesheet", () => {
+  it("keeps the v2 Tailwind entry and appends the HMR hint in plain CSS", () => {
+    // The example stylesheet is verbatim except for the appended IDE hint: v2 starts with
+    // the Tailwind v4 import, and the hint pins only the class name the smoke replaces.
+    expect(files["src/styles.css"]).toContain('@import "tailwindcss";');
     expect(files["src/styles.css"]).toContain(".muted {");
-    expect(files["src/styles.css"]).toContain('@import "./styles/shell.css";');
+    // No v1 @facilis/ui tokens: the v2 template does not define them.
+    expect(files["src/styles.css"]).not.toContain("var(--space-4)");
+    expect(files["src/styles.css"]).not.toContain("var(--pad-page)");
+    expect(files["src/styles.css"]).not.toContain("var(--color-base-content)");
   });
 
   it("keeps the run manifest pointing at the example's entry", () => {
     expect(template.manifest.entry).toBe("src/app.tsx");
-    expect((template.manifest as FacilisManifest).assets).toHaveLength(6);
+    // auth, core, db, nitro, time — @facilis/ui is no longer shipped.
+    expect((template.manifest as FacilisManifest).assets).toHaveLength(5);
   });
 
   it("declares every @facilis package as a vendored tarball", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
-    for (const name of ["auth", "core", "db", "nitro", "time", "ui"]) {
+    for (const name of ["auth", "core", "db", "nitro", "time"]) {
       expect(pkg.dependencies["@facilis/" + name]).toBe(
         "file:./vendor/facilis-" + name + "-0.0.0.tgz",
       );
     }
+    expect(pkg.dependencies["@facilis/ui"]).toBeUndefined();
     expect(JSON.stringify(pkg)).not.toContain("workspace:");
+    const assets = (template.manifest as FacilisManifest).assets;
+    expect(assets.some((asset) => asset.path.includes("facilis-ui-"))).toBe(false);
   });
 });
