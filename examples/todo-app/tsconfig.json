@@ -9,5 +9,5 @@
       "~/*": ["./*"]
     }
   },
-  "include": ["src", "server", "db", "vite.config.ts", "facilis.config.ts"]
+  "include": ["src", "server", "db", "vite-plugins", "vite.config.ts", "facilis.config.ts"]
 }

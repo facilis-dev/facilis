@@ -1,6 +1,8 @@
-import { Select } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";
 import { LOCALES, useLocale } from "../lib/i18n.tsx";
+
+const LABELS = { en: "locale.en", it: "locale.it" } as const;
 
 /**
  * Persists the user's language choice. The catalogue keys are flat, so the option labels are
@@ -8,21 +10,26 @@ import { LOCALES, useLocale } from "../lib/i18n.tsx";
  */
 export function LocaleSwitch() {
   const { locale, setLocale } = useLocale();
+  const items = { en: t(LABELS.en), it: t(LABELS.it) };
 
   return (
     <Select
-      aria-label={t("locale.label")}
+      items={items}
       value={locale}
-      onChange={(event) => {
-        const next = event.target.value;
+      onValueChange={(next) => {
         if (next === "en" || next === "it") setLocale(next);
       }}
     >
-      {LOCALES.map((value) => (
-        <option key={value} value={value}>
-          {t("locale." + value)}
-        </option>
-      ))}
+      <SelectTrigger size="sm" aria-label={t("locale.label")} className="min-w-24">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {LOCALES.map((value) => (
+          <SelectItem key={value} value={value}>
+            {t(LABELS[value])}
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   );
 }

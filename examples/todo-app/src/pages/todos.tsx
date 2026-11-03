@@ -1,35 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Button,
-  Dialog,
-  EmptyState,
-  Page,
-  Select,
-  Skeleton,
-  TableToolbar,
-  toast,
-} from "@facilis/ui";
+import { toast } from "sonner";
 import { t } from "@facilis/core/i18n";
+import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
+import { TodoTable, type Todo } from "../components/todo-table.tsx";
+import { DEFAULT_FILTER, TodoToolbar, type StatusFilter } from "../components/todo-toolbar.tsx";
+import { Alert } from "../components/ui/alert.tsx";
+import { Button } from "../components/ui/button.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog.tsx";
+import { EmptyState } from "../components/ui/empty-state.tsx";
+import { Page } from "../components/ui/page.tsx";
+import { Skeleton } from "../components/ui/skeleton.tsx";
 import { api, errorMessageKey } from "../lib/api.ts";
 import { dueDateFromDate } from "../lib/dates.ts";
 import { hasPermission, useSession } from "../lib/session.tsx";
-import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
-import { TodoTable, type Todo } from "../components/todo-table.tsx";
 
 type TodosState =
   | { status: "loading" }
   | { status: "error"; messageKey: string }
   | { status: "ready"; todos: readonly Todo[] };
 
-type StatusFilter = "all" | "open" | "done";
-
-const DEFAULT_FILTER: StatusFilter = "all";
 const SKELETON_ROWS = [0, 1, 2, 3];
-
-function isStatusFilter(value: string): value is StatusFilter {
-  return value === "all" || value === "open" || value === "done";
-}
 
 export function TodosPage() {
   const { session } = useSession();
@@ -128,17 +125,17 @@ export function TodosPage() {
       />
 
       {state.status === "loading" ? (
-        <div className="app-skeleton" role="status" aria-label={t("common.loading")}>
+        <div className="flex flex-col gap-2" role="status" aria-label={t("common.loading")}>
           {SKELETON_ROWS.map((row) => (
-            <Skeleton key={row} height="3rem" />
+            <Skeleton key={row} className="h-12 w-full" />
           ))}
         </div>
       ) : null}
 
       {state.status === "error" ? (
-        <Alert tone="error">
+        <Alert variant="destructive" className="justify-between">
           <span>{t(state.messageKey)}</span>
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
+          <Button variant="outline" size="sm" onClick={() => void load()}>
             {t("common.retry")}
           </Button>
         </Alert>
@@ -146,32 +143,12 @@ export function TodosPage() {
 
       {state.status === "ready" ? (
         <>
-          <TableToolbar
-            className="app-todos-toolbar"
-            search={query}
-            onSearchChange={setQuery}
-            searchPlaceholder={t("todos.search.placeholder")}
-            searchLabel={t("todos.search.label")}
-            filters={
-              <Select
-                className="app-filter"
-                aria-label={t("todos.filter.label")}
-                value={filter}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (isStatusFilter(next)) setFilter(next);
-                }}
-              >
-                <option value="all">{t("todos.filter.all")}</option>
-                <option value="open">{t("todos.filter.open")}</option>
-                <option value="done">{t("todos.filter.done")}</option>
-              </Select>
-            }
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => titleInput.current?.focus()}>
-                {t("todos.new")}
-              </Button>
-            }
+          <TodoToolbar
+            query={query}
+            onQueryChange={setQuery}
+            filter={filter}
+            onFilterChange={setFilter}
+            onNew={() => titleInput.current?.focus()}
           />
 
           {todos.length === 0 ? (
@@ -218,29 +195,33 @@ export function TodosPage() {
 
       <Dialog
         open={pendingDelete !== null}
-        onClose={() => setPendingDelete(null)}
-        title={t("todos.delete.title")}
-        description={
-          pendingDelete === null
-            ? undefined
-            : t("todos.delete.description", { title: pendingDelete.title })
-        }
-        closeLabel={t("common.close")}
-        footer={
-          <div className="app-dialog-actions">
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent closeLabel={t("common.close")}>
+          <DialogHeader>
+            <DialogTitle>{t("todos.delete.title")}</DialogTitle>
+            <DialogDescription>
+              {pendingDelete === null
+                ? null
+                : t("todos.delete.description", { title: pendingDelete.title })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
             <Button variant="ghost" onClick={() => setPendingDelete(null)}>
               {t("common.cancel")}
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               disabled={busyId !== null}
               onClick={() => void confirmDelete()}
             >
               {t("todos.delete")}
             </Button>
-          </div>
-        }
-      />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }

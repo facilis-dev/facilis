@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import "@facilis/ui/theme.css";
 import "./styles.css";
 import { App } from "./app.tsx";
 import { appBasePath } from "./lib/api.ts";

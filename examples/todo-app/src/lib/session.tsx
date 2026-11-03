@@ -15,8 +15,8 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { Spinner } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
+import { Spinner } from "../components/ui/spinner.tsx";
 import { api } from "./api.ts";
 
 export interface Session {
@@ -110,7 +110,7 @@ export function useSession(): SessionValue {
 
 function GuardSpinner() {
   return (
-    <div className="app-loading">
+    <div className="flex min-h-[40vh] items-center justify-center p-8">
       <Spinner label={t("common.loading")} />
     </div>
   );

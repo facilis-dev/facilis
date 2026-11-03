@@ -1,11 +1,11 @@
-import { Button } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
 import { IconMoon, IconSun } from "./icons.tsx";
+import { Button } from "./ui/button.tsx";
 import { useTheme } from "../lib/theme.ts";
 
 /**
- * Flips the complete variable set theme.css applies. The icon previews the theme the click
- * switches to; the accessible name states the action, so the control is unambiguous either way.
+ * Flips the complete variable set the stylesheet applies. The icon previews the theme the
+ * click switches to; the accessible name states the action, so the control is unambiguous.
  */
 export function ThemeToggle() {
   const { theme, toggle } = useTheme();

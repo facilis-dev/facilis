@@ -1,7 +1,8 @@
 # Facilis todo app (Phase 1 acceptance app)
 
-Hand-written app that uses **only** the Facilis public packages: `@facilis/core`,
-`@facilis/db`, `@facilis/auth`, `@facilis/nitro`. It is the Phase 1 exit criterion
+Hand-written app whose framework, server and data layers use **only** the Facilis public
+packages: `@facilis/core`, `@facilis/db`, `@facilis/auth`, `@facilis/nitro`; the UI is a
+plain Tailwind CSS v4 + Base UI substrate. It is the Phase 1 exit criterion
 (spec §12, §14.2): every route is written with `defineAuthorizedHandler`, RLS policies are
 generated from the schema, auth tables and roles come from `facilis.config.ts`, and
 `/_openapi.json` carries `x-db-tables` through the framework AST pass.
@@ -61,8 +62,11 @@ src/app.tsx              one explicit route table + session provider + Toaster
 src/pages/               one file per route (login, register, todos, not-found)
 src/layouts/             project-owned shell (header/nav/session)
 src/components/          app-specific controls (theme toggle, locale switch)
+src/components/ui/       shadcn-style primitives copied into the project (Base UI)
 src/lib/                 api fetch wrapper, session guards, theme, i18n, dates
 src/lib/*.test.ts        unit tests for the pure helpers
+src/styles.css           Tailwind v4 entry + role tokens (the only stylesheet)
+vite-plugins/            VM-only dev workaround for tailwindcss#20605 (scanner rescan)
 locales/en.json, it.json flat i18n keys, exact parity
 facilis.config.ts        roles/permissions/db/i18n (SPEC Appendix B)
 scripts/verify-headless.sh   boots the app and asserts the whole Phase 1 contract
@@ -72,11 +76,16 @@ scripts/verify-headless.sh   boots the app and asserts the whole Phase 1 contrac
 
 The client is organized as `pages` (route components, data + view), `layouts` (shells
 that know the router and the session), `components` (app-specific pieces) and `lib` (pure
-logic: one fetch wrapper, session guards, theme, i18n, dates). The neutral UI templates
-(`Page`, `AuthShell`, `EmptyState`, `Spinner`) and all primitives come from
-`@facilis/ui`; colours and radii are role variables overridden in CSS, never component
-props. Dates go through `@facilis/time`, never `Date#toLocaleString`, and every
-user-facing string is a `t()` key present in both catalogues. The full contract is
+logic: one fetch wrapper, session guards, theme, i18n, dates).
+
+The UI layer is **Tailwind CSS v4 + Base UI**. The shadcn-style primitives live in
+`src/components/ui/` and are copied into the project: the app owns them and edits them
+directly, so there is no component package to install and no `components.json`. Theme role
+tokens (`--background`, `--primary`, the radii, the font) live in `src/styles.css` and
+components only name roles, so the `[data-theme="dark"]` block restyles everything.
+`@facilis/ui` is the v1 kit for older projects; this template does not import it. Dates go
+through `@facilis/time`, never `Date#toLocaleString`, and every user-facing string is a
+`t()` key present in both catalogues. The full contract is
 [`docs/FRONTEND.md`](../../docs/FRONTEND.md) (D-058).
 
 The UI shows: register → auto-login → todos (create with optional due date, toggle, delete,
