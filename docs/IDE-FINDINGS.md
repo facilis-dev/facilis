@@ -18,7 +18,7 @@ lose work; **medium** = noisy, confusing or slow; **low** = polish or tooling.
 | F-005 | medium | A dev checkout silently installs every project from scratch: the vendor depcache/locks are not assembled and only the terminal says so | verified |
 | F-006 | low | Create → preview takes ~130 s with a blank pane and no phase indicator | verified |
 | F-007 | low | Home action cards carry the whole card copy as their accessible name, so tooling cannot target "New project" | verified |
-| F-008 | ? | Explorer may not list a file created outside the UI | unverified |
+| F-008 | ? | Explorer may not list a file created outside the UI | blocked by F-001 |
 
 ## F-001 — preview stuck after a new module + importer
 
@@ -33,6 +33,15 @@ failure needs a module that the importer introduces in the same step.
 **Evidence:** `docs/findings/f1-preview-template.png` (before: login card),
 `f1-preview-after-write.png` (after: hint only), `f1-diagnose-applied.png` (control: single-file
 change applied).
+
+**Update 2026-11-03 (second repro, `spikes/ide-audit/land-home.mjs`).** The same two files were
+then built and served on the host: `npm run build` passes and the page renders exactly as written
+(`docs/findings/f1-site-home-host.png`). So the source is good, and the preview is not merely
+behind: reloading the preview frame from the parent did **not** apply the change either. That
+points at the preview's own reload/HMR recovery rather than at the content — the next step needs
+the preview's console and network trail (the outer console only shows the unrelated React
+script-tag error). Everything else about the loop works: the VFS wrote both files, the terminal
+reports the hot update, and the zip export carries them.
 
 **Why it matters:** this is the normal authoring move — add a page, wire the route. When it
 silently keeps the old UI, the user redeploys or rewrites code that is already right.
@@ -99,6 +108,7 @@ substring, and a screen reader announces the whole card copy as the button name.
 
 ## F-008 — explorer refresh (unverified)
 
-After writing `src/pages/home.tsx` through the VFS, the harness did not find the name in the DOM,
-but the `pages` folder was collapsed in the run, so this proves nothing either way. Worth a check
-next time the harness is extended: does the explorer list a file created outside the UI?
+After writing `src/pages/home.tsx` through the VFS, the harness did not find the name in the DOM
+even with the `pages` folder expanded, but the run never read the new file back from the VFS, so
+it is unproven whether the explorer or the write is at fault. The next harness must read the file
+back **first**, then judge the tree — otherwise F-008 is not a finding.
