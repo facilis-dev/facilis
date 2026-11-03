@@ -1,5 +1,10 @@
 # Base kit — components and logic for generated projects
 
+**Status (2026-11-03): the v1 contract.** New projects are generated from template v2 (D-090),
+whose UI is Tailwind CSS v4 + Base UI with shadcn-style components copied into the project.
+This document remains the contract for `@facilis/ui` (projects created before D-090, the UI
+gallery and the design lab); `@facilis/time` and `@facilis/i18n-db` are unaffected.
+
 Coordination contract for the **base layer a Facilis project can use**, i.e. code that a
 generated project (the app a developer builds in the IDE) imports, not code for the IDE
 itself. The IDE, its panels, its theme and its i18n are out of scope here.

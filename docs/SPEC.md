@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.8 (Source Control: diff tab and commit graph)
+**Version:** 1.9 (Template v2: Tailwind CSS v4 + shadcn-style source)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator and the apply path; the retry loop and the Model B tool surface remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.9 — The generated project is template v2 (D-090): Tailwind CSS v4 + Base UI with shadcn-style components copied into `src/components/ui` and owned by the project; the theme is the shadcn role vocabulary in `src/styles.css`, and a dev-only Vite plugin works around the WASI scanner bug (tailwindcss#20605). `@facilis/ui` is now the v1 kit and is no longer shipped into new projects. §2.1/§4/§4.2/§5.7 follow.
 - v1.8 — Source Control becomes a place where history is visible: clicking any change opens a side-by-side HEAD ↔ working-tree diff with the first hunk revealed (D-089), and a repository can open a commit graph as an editor-area tab — React Flow cards laid out by lane, with merge edges, branch and HEAD badges and a details inspector (D-088). No contract change; §10.2 follows.
 - v1.7 — The API Flow becomes an editor-area tab instead of a sidebar view, laid out as pages → routes → tables with an inspector and a list view; it now scans `src/**` for the client files that call each route and shows them as page nodes (direct references and one import hop, D-087). No contract change; §10.2/§12 follow.
 - v1.6 — Phase 3 complete. The API Flow renders the AST-augmented `/_openapi.json` with React Flow and jumps to the route source (D-085); the Release Preview engine `buildReleasePreview` lands in `@facilis/core` with the SDK contract amendment for `ApiDiff.changed`/`ApiRouteRef.dbTables` (§7.7), and the Studio diffs git refs read from the VFS instead of booting them, resolving O-008 (D-086, §11.3).
@@ -88,7 +89,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | ORM | **Drizzle ORM** |
 | In-browser DB | **PGlite** (WASM Postgres) |
 | Production DB | **PostgreSQL** |
-| Frontend | **React 19 + Tailwind CSS v4 + shadcn/ui** (Base UI primitives) |
+| Frontend | **React 19 + Tailwind CSS v4 + shadcn/ui** (Base UI primitives), with the components copied into the project (template v2, D-090) |
 | Validation | **Zod** via `nitro-openapi-schemas` |
 | Runtime | **Vivari** (WebContainer) — Vite + Nitro plugin + PGlite in browser |
 | API contract | Nitro OpenAPI (`/_openapi.json`), `x-db-tables` extension |
@@ -259,7 +260,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── ...
 │   │   └── package.json
 │   │
-│   ├── ui/                   @facilis/ui (D-055)
+│   ├── ui/                   @facilis/ui — the v1 kit (D-055); template v2 does not use it (D-090)
 │   │   ├── theme.css         role variables + .fc-* rules (the only colour literals)
 │   │   └── src/              Button, Input, Table, Toaster, … (plain CSS, no Tailwind)
 │   │
@@ -322,7 +323,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │                             IDE build time (D-062) — no second copy to drift
 │
 ├── examples/
-│   ├── todo-app/             template source + Phase 1 acceptance app
+│   ├── todo-app/             template source (v2: Tailwind + shadcn copy-in components, D-090)
+│   │                         + Phase 1 acceptance app
 │   ├── ui-gallery/           @facilis/ui component gallery
 │   └── design-lab/           theme/direction exploration
 │
@@ -344,15 +346,17 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── pages/                    login, register, todos, not-found
 │   ├── layouts/                  app-layout, auth-layout
 │   ├── components/               app-specific pieces (theme/locale/todo widgets)
-│   ├── lib/                      api, session, theme, i18n, dates
-│   └── styles/                   shell.css, pages.css
+│   │   └── ui/                   shadcn-style primitives, copied in and owned (D-090)
+│   ├── lib/                      api, session, theme, i18n, dates, utils (cn)
+│   └── styles.css                the Tailwind entry: @import + @theme + the theme blocks
+├── vite-plugins/                 tailwind-rescan.ts: dev-only HMR workaround (D-090)
 ├── db/
 │   ├── schema.ts                 Drizzle tables + policies + auth re-export
 │   └── migrations/               drizzle-kit output (incl. auth seed)
 ├── locales/en.json, it.json
 ├── .facilis/                     dev-only state, never source: db/snapshot.tar.gz, binary/
 ├── index.html
-├── vite.config.ts                plugins: [facilis(), react()]
+├── vite.config.ts                plugins: [tailwindcss(), tailwindRescanInVm(), facilis(), react()]
 ├── facilis.config.ts             the one config: roles, permissions, nitro options
 ├── tsconfig.json
 ├── package.json                  scripts.dev = "vite dev"
@@ -665,9 +669,14 @@ than replaces, so a cookie another handler staged on the same response survives.
 
 ### 5.7 `@facilis/ui`
 
-The base kit a generated project imports (D-055). Plain CSS + role variables, no Tailwind
-dependency and no theme props, so the components work in a project with no CSS framework and
-can be copied into it.
+**Status (2026-11-03): the v1 kit.** New projects are generated from template v2 (D-090), whose
+UI is Tailwind CSS v4 + Base UI with shadcn-style source copied into `src/components/ui`; the
+kit is no longer shipped into a generated project. It remains the UI of projects created before
+D-090, the UI gallery (`examples/ui-gallery`) and the design lab (`examples/design-lab`).
+
+The v1 base kit a project created before D-090 imports (D-055). Plain CSS + role variables, no
+Tailwind dependency and no theme props, so the components work in a project with no CSS
+framework and can be copied into it.
 
 - `@facilis/ui` exports `Button`, `Input`, `Textarea`, `Select`, `Checkbox`, `Field`,
   `Table` (+ `TableHeader`/`TableBody`/`TableFooter`/`TableRow`/`TableHead`/`TableCell`/

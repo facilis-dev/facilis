@@ -37,8 +37,10 @@ creation and updated only by an upgrade:
 
 - `environmentVersion` is the IDE build that created (or last upgraded) the project; it is
   what the indicator compares against.
-- `templateVersion` allows a scaffold-only update (new base files, new example features)
-  independent of the framework packages.
+- `templateVersion` allows a scaffold-only update (new base files, new example features),
+  independent of the framework packages. Template v2 (D-090) is such a change: projects created
+  before it keep their v1 UI until a recipe migrates them; nothing rewrites a project's
+  components implicitly.
 - `lockfileHash` makes a hand-edited `package.json`/lock drift visible instead of silently
   "up to date".
 - The marker is not `package.json`: it is Facilis metadata, it must survive dependency edits,

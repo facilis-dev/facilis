@@ -1,7 +1,9 @@
 # Facilis design direction
 
-**Status:** **A — Institutional is chosen as the app base** (owner decision, 2026-10-31). The
-brand layer (B or C, light + dark) is still to pick. The current kit reads dated ("Bootstrap 3"):
+**Status:** **A — Institutional is chosen as the app base** (owner decision, 2026-10-31), and it
+is implemented by the template-v2 tokens in `examples/todo-app/src/styles.css` (D-090) as well as
+by the v1 kit's
+`theme.css`. The brand layer (B or C, light + dark) is still to pick. The current kit reads dated ("Bootstrap 3"):
 system font, flat grey-on-grey surfaces, 1 px borders, no elevation, no type hierarchy and no
 page patterns. The fix is a **design layer** (tokens + composition + designed examples), not more
 component props: components stay small and copyable (D-055).

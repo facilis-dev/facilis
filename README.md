@@ -30,7 +30,7 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on the plain-CSS `@facilis/ui` kit. AI output is validated against 16 rules before it touches disk. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. AI output is validated against 16 rules before it touches disk. |
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
@@ -104,7 +104,7 @@ Everything runs **in your browser tab** — including the backend.
 | Backend | [Nitro v3](https://nitro.build) — as a Vite plugin, mounted by `facilis()` |
 | ORM | [Drizzle](https://orm.drizzle.team) |
 | In-browser DB | [PGlite](https://pglite.dev) |
-| Frontend (generated app) | React 19 + [`@facilis/ui`](packages/ui) — plain CSS (`.fc-*`) with daisyUI-style role variables, React Router; no utility framework required (D-055/D-058/D-060) |
+| Frontend (generated app) | React 19 + Tailwind CSS v4 + shadcn/ui (Base UI) with the components copied into the project (`src/components/ui`), React Router (D-090; v1 projects use the plain-CSS [`@facilis/ui`](packages/ui) kit, D-055/D-058/D-060) |
 | Frontend (this IDE) | Tailwind CSS v4 + shadcn/ui (Base UI primitives), inherited from the Vivari Studio fork |
 | Runtime | [Vivari](https://github.com/maitrungduc1410/vivari) |
 | Validation | [Zod](https://zod.dev) |
@@ -241,8 +241,9 @@ Highlights inside:
 5. **Roles are code.** Declared in `facilis.config.ts`, seeded by migrations, assigned at runtime.
 6. **Extend via NPM.** Blocks are packages. No plugin registry, no manifest file.
 7. **The Studio is a shell.** The product is the framework packages and the OpenAPI contract.
-8. **The kit is standard CSS.** `@facilis/ui` ships `.fc-*` classes and role variables, not
-   utility classes: a generated app needs no CSS framework to look right (D-055/D-060).
+8. **The kit is copy-in source.** Template v2 generates Tailwind CSS v4 + Base UI and ships its
+   shadcn-style components as source the project owns (`src/components/ui`); `@facilis/ui` remains
+   the v1 plain-CSS kit for older projects (D-055/D-090).
 
 ---
 
