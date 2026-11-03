@@ -354,8 +354,10 @@ Facilis has no backend, so the site can host the actual Studio. Both pillars are
 same click: the environment opens instantly (speed) and the first generated route already has its
 permission and its policy (security).
 
-Sequence: `/try` = waitlist + recorded demo **now** → allowlisted Studio when the browser Phase 0
-items close → public at Phase 2. Build the route on day one so the site never needs restructuring.
+Sequence: `/try` = **a redirect to `ide.facilis.dev`** while the Studio is allowlisted, then the
+public entry point when the browser Phase 0 items close. It is a top-level navigation, not an
+iframe: COOP/COEP are not inherited by frames and `facilis.dev` has no WebContainer. There is no
+waitlist at launch ("in attesa" only).
 
 Other interactive slots worth the design time:
 
@@ -368,23 +370,23 @@ Other interactive slots worth the design time:
 
 ## 7. Build
 
-**Astro 5 + Starlight (docs) + React islands + Tailwind v4, static, Cloudflare Pages.**
-
-| Option | Verdict |
-|---|---|
-| Astro + Starlight | ✅ zero JS by default, MDX docs, full control of landing pages |
-| Vite + React SPA | reuses shadcn/ui, but hand-rolled docs and SEO; revisit if we dogfood |
-| Next.js / Nuxt | ❌ a server contradicts the product's central claim |
+**Static export of a Facilis app created in the Studio (D-091), on Cloudflare Pages.** Every
+route is prerendered to HTML at build time from the app's own React tree and hydrated in the
+browser; no server runs in production. Astro + Starlight was the earlier proposal (W-2) and is
+superseded for the site: the catalog is copy-in component source, so a second rendering stack would
+duplicate it, and dogfooding is the point. `/docs` can still adopt Starlight later if its MDX
+tooling earns the second stack.
 
 - **Headers for `/try`:** `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp` (WebContainer requirement, spec §13 risk 7; publish
   the recipes — our users hit the same wall).
 - **Perf budget:** static HTML, LCP under 1.2s, no render-blocking webfont, under 50 KB JS on `/`.
   A speed pillar argued on a slow page is self-defeating.
-- **Analytics:** Plausible or self-hosted Umami. No cookie banner — and say so in the footer.
+- **Analytics:** none at launch. The footer says so. Adding Plausible or self-hosted Umami later
+  is a decision, not a default.
 - **OG images** generated at build (Satori), one per page.
-- **Dogfooding:** don't rebuild the marketing site on Facilis yet. Dogfood the *demo app*.
-  "This site is a Facilis app" is a great line at Phase 6, not now.
+- **Dogfooding:** the marketing site *is* a Facilis app (D-091) — created in the Studio, exported,
+  prerendered, deployed statically. The build journal is published, so the claim is checkable.
 - **Content:** MDX in-repo, reviewed in PRs. No CMS.
 
 ---
@@ -476,10 +478,10 @@ suggests calm precision — lean on that, not on gradients.
 | W-1 | Domain | ✅ `facilis.dev` — canonical, `www` 301s to apex (D-020) |
 | W-9 | Message architecture | ✅ two pillars: **security without friction**, **speed without setup**; no-lock-in is the trust layer |
 | W-10 | Which pillar leads the homepage | proposed: security leads (bigger budget holder), speed closes (bigger daily pain). A/B against speed-led |
-| W-2 | Site stack | proposed: Astro + Starlight + Tailwind v4 on Cloudflare Pages |
-| W-3 | EN only, or EN + IT at launch | proposed: EN only; IT if we target the local community |
-| W-4 | Waitlist tool | proposed: Buttondown, or a bare `mailto:` for zero vendors |
+| W-2 | Site stack | ✅ static export of a Studio-created Facilis app (D-091); Astro/Starlight only for `/docs` if it earns it |
+| W-3 | EN only, or EN + IT at launch | ✅ EN only; IT later if we target the local community |
+| W-4 | Waitlist tool | ✅ none at launch — "in attesa" until the Studio is public |
 | W-5 | Publish `/spec` and `/decisions` verbatim? | proposed: yes — it's the credibility play |
 | W-6 | `/try` gating | waitlist → allowlist → public |
 | W-11 | AI-security message | ✅ the browser is the sandbox — extends pillar 1; no third pillar |
-| W-12 | Product name on the site | open: D-018 says the product is "the IDE"; the copy still says "Studio". Pick one, use it everywhere |
+| W-12 | Product name on the site | ✅ **IDE** everywhere; `ide.facilis.dev` is the URL |
