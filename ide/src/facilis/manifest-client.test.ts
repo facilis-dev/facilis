@@ -5,6 +5,7 @@ import {
   manifestBaseUrl,
   parseEnvelope,
   parseRevision,
+  readDeclaredPermissions,
 } from "./manifest-client";
 
 function jsonResponse(body: unknown, init: { status?: number; etag?: string } = {}): Response {
@@ -163,5 +164,31 @@ describe("fetchRevision", () => {
     const result = await fetchRevision("http://host/preview/3000");
     expect(result).toEqual({ ok: false, status: 200, error: "invalid revision body" });
     vi.unstubAllGlobals();
+  });
+});
+
+const manifestWithAuth = (auth: unknown) => ({ project: { config: { auth } } });
+
+describe("readDeclaredPermissions", () => {
+  it("reads the config's declared permissions in order", () => {
+    expect(
+      readDeclaredPermissions(manifestWithAuth({ permissions: ["todos:read", "stats:read"] })),
+    ).toEqual(["todos:read", "stats:read"]);
+  });
+
+  it("returns [] when the config is absent or malformed", () => {
+    expect(readDeclaredPermissions({})).toEqual([]);
+    expect(readDeclaredPermissions({ project: {} })).toEqual([]);
+    expect(readDeclaredPermissions(manifestWithAuth(undefined))).toEqual([]);
+    expect(readDeclaredPermissions(manifestWithAuth({ permissions: "todos:read" }))).toEqual([]);
+    expect(readDeclaredPermissions(manifestWithAuth({ permissions: ["ok", 3, null, ""] }))).toEqual(
+      ["ok"],
+    );
+  });
+
+  it("dedupes repeated declarations", () => {
+    expect(
+      readDeclaredPermissions(manifestWithAuth({ permissions: ["a:b", "a:b", "c:d"] })),
+    ).toEqual(["a:b", "c:d"]);
   });
 });

@@ -20,6 +20,7 @@ import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
 import { runChatChecks } from "./smoke-chat.mjs";
+import { runPanelChecks } from "./smoke-panels.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -42,6 +43,7 @@ let facilisReport = null;
 let intellisenseReport = null;
 let writeReport = null;
 let chatReport = null;
+let panelReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
   if (!ok) failures.push(label);
@@ -305,6 +307,17 @@ async function main() {
     check(false, "chat checks ran", String(error));
   }
 
+  // Phase 3 visualizers: the project graph and the Release Preview panel (D-092/D-086).
+  // Runs after the write/chat probes so the project has routes, a schema and git history.
+  try {
+    panelReport = await runPanelChecks({ page, check, ARTIFACTS });
+    for (const result of panelReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+    }
+  } catch (error) {
+    check(false, "panel checks ran", String(error));
+  }
+
   // Known upstream defect (docs/DECISIONS.md D-026): the first edit in a project with an
   // unresolved import makes monaco 0.55.1's TS worker spread a TS 6.0 diagnostic that
   // carries a repopulateInfo callback into its reply; structured clone rejects it.
@@ -384,11 +397,14 @@ async function main() {
         )) === "OK",
         "delete: dialog opened from the row",
       );
-      const dialogReady = await waitFor("Boolean(document.querySelector('input'))", 15000);
+      const dialogInput = "document.querySelector('[data-slot=\"dialog-content\"] input')";
+      const dialogReady = await waitFor("Boolean(" + dialogInput + ")", 15000);
       check(dialogReady, "delete: confirmation dialog opens");
       if (dialogReady) {
         const typed = await page.evaluate(
-          "(() => { const input = document.querySelector('input');" +
+          "(() => { const input = " +
+            dialogInput +
+            ";" +
             " if (!input) return 'NOTFOUND';" +
             " const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;" +
             " set.call(input, " +
@@ -396,11 +412,18 @@ async function main() {
             "); input.dispatchEvent(new Event('input', { bubbles: true })); return 'OK'; })()",
         );
         check(typed === "OK", "delete: project name typed");
-        const confirmed = await page.evaluate(
-          "(() => { const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').trim() === 'Delete project' && !el.disabled);" +
-            " if (!b) return 'NOTFOUND'; b.click(); return 'OK'; })()",
+        // React enables the button from the typed state: wait for it instead of racing the render.
+        const enabled =
+          "[...document.querySelectorAll('[data-slot=\"dialog-content\"] button')].find((el) => (el.innerText || '').trim() === 'Delete project' && !el.disabled)";
+        check(
+          await waitFor("Boolean(" + enabled + ")", 5000),
+          "delete: confirm enabled after typing the name",
         );
-        check(confirmed === "OK", "delete: confirm enabled after typing the name");
+        await page.evaluate(
+          "(() => { const b = " +
+            enabled +
+            "; if (b) b.click(); return b ? 'OK' : 'NOTFOUND'; })()",
+        );
         const removedFiles = await waitFor(
           "window.__ide.pathInfo(" + JSON.stringify(projectRoot) + ").then((p) => !p.exists)",
           30000,
@@ -448,6 +471,7 @@ async function main() {
         }
       : {}),
     ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
+    ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
 

@@ -8,6 +8,11 @@ export interface AuthContext {
   readonly userId: string;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
+  /**
+   * SHA-256 (hex) of the session id (D-099): the sudo audit log correlates a request with
+   * the session it ran under without ever storing the value of the cookie.
+   */
+  readonly sessionHash?: string;
 }
 
 /** Shape of `facilis.config.ts`'s `auth` block that @facilis/auth needs. */

@@ -1,10 +1,24 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Nitro } from "nitro/types";
 
 import { createFacilisNitroModule } from "./module.ts";
-import { NATIVE_OPENAPI_ROUTE, OPENAPI_FACADE_ROUTE } from "./constants.ts";
-import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
+import {
+  DEV_QUERY_ROUTE,
+  DEV_SCHEMA_ROUTE,
+  DEV_VIEW_ROUTE,
+  NATIVE_OPENAPI_ROUTE,
+  OPENAPI_FACADE_ROUTE,
+} from "./constants.ts";
+import {
+  VIRTUAL_CONFIG_ID,
+  VIRTUAL_DB_SCHEMA_ID,
+  VIRTUAL_DB_VIEWS_ID,
+  VIRTUAL_OPENAPI_META_ID,
+} from "./virtual-ids.ts";
 
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
 
@@ -73,6 +87,9 @@ describe("createFacilisNitroModule", () => {
       "/__facilis/manifest",
       "/__facilis/manifest/revision",
       "/__facilis/health",
+      DEV_SCHEMA_ROUTE,
+      DEV_QUERY_ROUTE,
+      DEV_VIEW_ROUTE,
       OPENAPI_FACADE_ROUTE,
     ]);
     expect(routes.every((handler) => handler["env"] === "dev")).toBe(true);
@@ -125,6 +142,37 @@ describe("createFacilisNitroModule", () => {
     const code = await render(mock.options.virtual[VIRTUAL_DB_SCHEMA_ID]);
     expect(code).toContain("import * as schema from");
     expect(code).toContain("db/schema.ts");
+  });
+
+  it("exports an empty views module when the project declares no views", async () => {
+    const mock = createMockNitro();
+    setup(mock);
+
+    const code = await render(mock.options.virtual[VIRTUAL_DB_VIEWS_ID]);
+    expect(code).toBe("export default [];");
+  });
+
+  it("collects db/views/*.ts and db/views.ts into the views module", () => {
+    const directory = mkdtempSync(join(tmpdir(), "facilis-views-"));
+    try {
+      mkdirSync(join(directory, "db", "views"), { recursive: true });
+      writeFileSync(join(directory, "db", "views.ts"), "export {};");
+      writeFileSync(join(directory, "db", "views", "b.ts"), "export {};");
+      writeFileSync(join(directory, "db", "views", "a.ts"), "export {};");
+      writeFileSync(join(directory, "db", "views", "a.test.ts"), "export {};");
+      const mock = createMockNitro({ rootDir: directory });
+      setup(mock);
+
+      const template = mock.options.virtual[VIRTUAL_DB_VIEWS_ID];
+      expect(typeof template).toBe("function");
+      const code = (template as () => string)();
+      expect(code).toContain("db/views.ts");
+      expect(code.indexOf("a.ts")).toBeLessThan(code.indexOf("b.ts"));
+      expect(code).not.toContain("a.test.ts");
+      expect(code).toContain("export default [v0, v1, v2];");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("never registers #facilis/openapi-meta: the Vite plugin must own it", () => {

@@ -5,7 +5,7 @@
 // against what the model claimed. The same before-image is what Undo writes back.
 // No write happens here.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch, ValidationResult } from "@facilis/ai";
 import { fileDiff } from "./diff";
 import { scanPatchWarnings } from "./patch-warnings";
 import type { ChatProposal, ProposedFile } from "./types";
@@ -18,6 +18,7 @@ export async function buildProposal(
   notes: readonly string[],
   requiresConfirmation: boolean,
   read: FileReader,
+  validation?: ValidationResult,
 ): Promise<ChatProposal> {
   const files: ProposedFile[] = [];
   for (const patch of patches) {
@@ -41,5 +42,6 @@ export async function buildProposal(
     notes: [...notes],
     requiresConfirmation,
     warnings: scanPatchWarnings(patches),
+    ...(validation === undefined ? {} : { validation }),
   };
 }

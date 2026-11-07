@@ -127,7 +127,18 @@ export async function runChatChecks({ page, check, ARTIFACTS }) {
       if (!streamingSeen) await sleep(25);
     }
     record(streamingSeen, "chat streaming bubble shown");
-    record(await waitFor(page, bodyHas("Proposed changes"), 20000), "chat proposal shown");
+    const proposalShown = await waitFor(page, bodyHas("Proposed changes"), 20000);
+    // A validator rejection is surfaced as a parse error; its detail is what makes a
+    // failure diagnosable, so it belongs in the FAIL line rather than only in the PNG.
+    const proposalDetail = proposalShown
+      ? ""
+      : await page.evaluate(
+          "(() => { const a = document.querySelector('aside[aria-label=\\\"AI Chat\\\"]');" +
+            " if (!a) return 'NO PANEL';" +
+            " const pre = a.querySelector('pre');" +
+            " return ((a.innerText || '') + ' || DETAIL: ' + (pre ? pre.textContent : 'NO DETAIL')).slice(0, 900); })()",
+        );
+    record(proposalShown, "chat proposal shown", proposalDetail);
     record(await waitFor(page, bodyHas("src/chat-demo.ts"), 5000), "chat proposal lists the file");
     record((await page.evaluate(clickIn(panel, "Apply all"))) === "OK", "chat apply clicked");
     record(await waitFor(page, bodyHas("Applied 1 file(s)"), 15000), "chat patch applied");

@@ -25,10 +25,19 @@ export type {
   AuthorizedHandlerConfig,
   AuthorizedHandlerContext,
 } from "./route.ts";
+export type {
+  AuditedElevationContext,
+  SudoHandler,
+  SudoOptions,
+  SystemHandler,
+  SystemOptions,
+} from "./sudo.ts";
 
 export type {
   FacilisContext,
   FacilisEventContext,
+  FacilisHandlerContext,
+  FacilisHandlerEvent,
   FacilisRequest,
   FacilisRequestEvent,
   FacilisResponse,
@@ -87,14 +96,25 @@ export type {
   SchemaFileRevisionSource,
 } from "./revision.ts";
 
+export { buildReleasePreview } from "./release-preview.ts";
+export type {
+  ReleaseMigrationFile,
+  ReleasePolicyFact,
+  ReleasePreviewInput,
+  ReleaseRouteFact,
+  ReleaseSnapshot,
+  ReleaseTableFact,
+} from "./release-preview.ts";
 export type {
   ApiDiff,
+  ApiRouteChange,
   ApiRouteRef,
   BreakingChange,
   GitRef,
   MigrationStatement,
   MigrationStatementKind,
   PolicyChange,
+  ReleasePolicySnapshot,
   ReleasePreview,
   ReleaseWarning,
   RiskClass,

@@ -6,9 +6,12 @@
 // root-relative, SPEC §9.2); the editor speaks absolute VFS paths. Do the
 // conversion here, once, instead of in every consumer.
 
-import { isDiffTabId, type IdeController } from "@/vv/controller";
+import type { IdeController } from "@/vv/controller";
+import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
+import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
+import { createMonacoSyntaxChecker } from "./monaco-syntax";
 
 const sessions = new WeakMap<IdeController, ChatSession>();
 
@@ -69,5 +72,10 @@ function chatHost(controller: IdeController): ChatHost {
     openFile: (path) => {
       void controller.openEntry(absolute(path));
     },
+    // Rule 1's parser: the same TypeScript worker the editor's IntelliSense uses.
+    syntaxChecker: () => createMonacoSyntaxChecker(controller),
+    // The 16-rule validator reads analyzer facts: the worker analyzes the project before and
+    // after the proposal; a thrown error blocks validation.
+    analyze: (patches, signal) => analyzePatches(controller, patches, signal),
   };
 }

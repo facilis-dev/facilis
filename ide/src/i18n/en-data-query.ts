@@ -1,0 +1,60 @@
+// The Data Explorer SQL console strings (D-097), spread into `en` in en.ts.
+//
+// The main catalogue is at its 300-line limit, so this feature block lives in its own
+// module — same rule as en-data-explorer.ts. Keys stay flat.
+export const dataQueryEn = {
+  "dataQuery.tabTitle": "SQL console",
+  "dataQuery.open": "Open SQL console",
+  "dataQuery.title": "SQL console",
+  "dataQuery.editorLabel": "SQL query",
+  "dataQuery.placeholder": "select * from todos limit 50",
+  "dataQuery.run": "Run",
+  "dataQuery.runShortcut": "Run (Ctrl/Cmd + Enter)",
+  "dataQuery.running": "Running query…",
+  "dataQuery.noBase": "The project is not running",
+  "dataQuery.noBaseHint": "Run the project to query its live database.",
+  "dataQuery.idle": "Write a query and press Run.",
+  "dataQuery.idleHint": "Ctrl/Cmd + Enter runs it; the results appear here.",
+  "dataQuery.retry": "Try again",
+  "dataQuery.error": "The query failed: {error}",
+  "dataQuery.httpStatus": "HTTP {status}",
+  "dataQuery.network": "Network error",
+  "dataQuery.code.invalid_body": "The query request was malformed.",
+  "dataQuery.code.invalid_sql": "That SQL cannot be run.",
+  "dataQuery.code.query_failed": "The query failed while running.",
+  "dataQuery.code.unknown": "The query did not run.",
+  "dataQuery.rowCount": "{count} row(s)",
+  "dataQuery.elapsed": "{ms} ms",
+  "dataQuery.truncated": "Results truncated by the row limit",
+  "dataQuery.null": "NULL",
+  "dataQuery.noRows": "No rows.",
+  "dataQuery.rlsWarning":
+    "This console runs as the developer, so RLS is not applied here. Created views follow the base tables' RLS, or the permission chosen for them.",
+  "dataQuery.createView": "Create view",
+  "dataQuery.createPath": "db/views/{slug}.ts",
+  "dataQuery.create.title": "Create a view from this query",
+  "dataQuery.create.description":
+    "The view is created in the running database and its definition is written to {path}.",
+  "dataQuery.create.nameLabel": "View name",
+  "dataQuery.create.namePlaceholder": "active_todos",
+  "dataQuery.create.nameHint": "Lowercase letters, digits and underscores; starts with a letter.",
+  "dataQuery.create.nameInvalid": "Use a lowercase name (a-z, 0-9, _) that starts with a letter.",
+  "dataQuery.create.columnsInvalid": "The result has columns that cannot be used in a view.",
+  "dataQuery.create.permissionLabel": "View permission",
+  "dataQuery.create.permissionNone": "None — base tables' permissions (RLS applies)",
+  "dataQuery.create.permissionHint":
+    "A permission view is gated by that permission instead of the base tables' RLS.",
+  "dataQuery.create.permissionNote":
+    "This view runs with the {permission} permission as a definer view: the underlying tables' RLS does NOT apply.",
+  "dataQuery.create.rlsNote": "The view runs with the permissions (RLS) of the tables it selects.",
+  "dataQuery.create.submit": "Create view",
+  "dataQuery.create.creating": "Creating…",
+  "dataQuery.create.error.invalidName": "The view name is not valid.",
+  "dataQuery.create.error.invalidSql": "That query cannot be turned into a view.",
+  "dataQuery.create.error.failed": "Could not create the view.",
+  "dataQuery.create.error.invalidPermission":
+    "That permission is not declared in facilis.config.ts.",
+  "dataQuery.create.error.generic": "Could not create the view: {error}",
+  "dataQuery.writeFailed": "The view was created, but writing {path} failed: {error}",
+  "dataQuery.viewCreated": "View {name} created — {path}",
+} as const;

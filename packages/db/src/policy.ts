@@ -10,6 +10,8 @@ export interface PolicyScope {
   readonly tenantId?: string;
   readonly userId?: string;
   readonly roles?: readonly string[];
+  /** The session's expanded permissions, read by permission views (D-098). */
+  readonly permissions?: readonly string[];
 }
 
 /** Transaction handed to `runWithPolicyScope` callbacks. */
@@ -80,11 +82,13 @@ export async function runWithPolicyScope<T>(
     }
 
     const roles = JSON.stringify(scope.roles ?? []);
+    const permissions = JSON.stringify(scope.permissions ?? []);
     await tx.execute(sql`
       select
         set_config('app.tenant_id', ${scope.tenantId ?? ""}, true),
         set_config('app.user_id', ${scope.userId ?? ""}, true),
-        set_config('app.roles', ${roles}, true)
+        set_config('app.roles', ${roles}, true),
+        set_config('app.permissions', ${permissions}, true)
     `);
 
     return fn(tx);

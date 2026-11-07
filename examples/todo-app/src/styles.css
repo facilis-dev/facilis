@@ -1,7 +1,169 @@
 /*
- * App styles entry: @facilis/ui/theme.css owns the base layer and all tokens (D-055/D-059);
- * these files only arrange this project's shell and screens, so a theme block restyles them.
+ * Style entry for the generated project (v2): Tailwind CSS v4 utilities over shadcn role
+ * tokens, with the Base UI primitives copied into src/components/ui. There is no UI kit
+ * package: a generated app owns its components and its theme (D-062).
  */
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
 
-@import "./styles/shell.css";
-@import "./styles/pages.css";
+/* lib/theme.ts writes data-theme="light"|"dark" on <html>, so the dark variant keys off that
+   attribute instead of shadcn's default `.dark` class. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* Utilities only ever name roles; the values live once per theme block below. */
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* Direction A palette, the same role values the v1 kit shipped (packages/ui/theme.css):
+   colour literals exist only in these blocks, so a theme is a complete variable set. */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #f7f8f9;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #15803d;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f4;
+  --secondary-foreground: #1f2937;
+  --muted: #eef1f4;
+  --muted-foreground: #5f6b7a;
+  --accent: #16a34a;
+  --accent-foreground: #ffffff;
+  --destructive: #b91c1c;
+  --border: #e2e5e9;
+  --input: #e2e5e9;
+  --ring: #16a34a;
+  --radius: 0.5rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0b0d10;
+  --foreground: #f4f5f7;
+  --card: #14171a;
+  --card-foreground: #f4f5f7;
+  --popover: #14171a;
+  --popover-foreground: #f4f5f7;
+  --primary: #4ade80;
+  --primary-foreground: #052e16;
+  --secondary: #1a1f24;
+  --secondary-foreground: #f4f5f7;
+  --muted: #1a1f24;
+  --muted-foreground: #94a3b8;
+  --accent: #22c55e;
+  --accent-foreground: #052e16;
+  --destructive: #f87171;
+  --border: #2a3038;
+  --input: #2a3038;
+  --ring: #22c55e;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* Tailwind v4's preflight drops v3's pointer cursor on buttons; restore it once. */
+  button:not(:disabled, [aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  a {
+    color: var(--primary);
+    text-underline-offset: 2px;
+  }
+
+  /* One visible ring for controls outside the copied components (links, native fields). The
+     components add their own ring because their utilities outrank this base rule. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * Base UI popups mount and unmount instantly (this project has no tw-animate-css), so the
+ * copied dialog/select primitives get a short entry animation from their state attributes.
+ * The `scale` property composes with the dialog's translate-based centring.
+ */
+@keyframes facilis-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes facilis-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+[data-slot="dialog-overlay"][data-open],
+[data-slot="dialog-content"][data-open],
+[data-slot="select-content"][data-open] {
+  animation: facilis-fade-in 120ms ease-out;
+}
+
+[data-slot="dialog-content"][data-open],
+[data-slot="select-content"][data-open] {
+  animation-name: facilis-pop-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dialog-overlay"][data-open],
+  [data-slot="dialog-content"][data-open],
+  [data-slot="select-content"][data-open] {
+    animation: none;
+  }
+}

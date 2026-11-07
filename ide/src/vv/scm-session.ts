@@ -20,6 +20,7 @@
 
 import type { KernelBridge } from "./kernel";
 import { createGitFs, type GitFs } from "./git-fs";
+import { loadGit, type GitApi } from "./git-api";
 import { loadGitIdentity, type GitIdentity } from "./git-config";
 
 // Directories never worth walking for status (also covered by a good .gitignore,
@@ -73,8 +74,6 @@ export interface ScmSnapshot {
   repos: RepoState[]; // ordered like workspaceFolders
 }
 
-type GitApi = any; // isomorphic-git, lazily imported
-
 function emptyRepo(root: string, name: string): RepoState {
   return {
     root,
@@ -95,7 +94,6 @@ function emptyRepo(root: string, name: string): RepoState {
 export class ScmSession {
   private readonly fs: GitFs;
   private listeners = new Set<() => void>();
-  private gitPromise: Promise<GitApi> | null = null;
   private refreshSeq = 0;
   // Coalesce refreshes: a status walk fires many synchronous kernel-fs ops (each
   // parks the kernel worker on Atomics.wait), and the kernel worker's message loop
@@ -154,20 +152,6 @@ export class ScmSession {
     this.setRepo(root, { commitMessage: message });
   }
 
-  // Lazy-load isomorphic-git (a ~1 MB chunk Vite code-splits) on first git use.
-  // isomorphic-git assumes a global `Buffer` in the browser, so install the
-  // `buffer` polyfill BEFORE importing it (otherwise every op throws
-  // "Buffer is not defined"). Scoped here so the polyfill + chunk only load when
-  // git is actually used.
-  private loadGit(): Promise<GitApi> {
-    if (!this.gitPromise) {
-      this.gitPromise = ensureBuffer()
-        .then(() => import("isomorphic-git"))
-        .then((m) => (m as { default?: GitApi }).default ?? m);
-    }
-    return this.gitPromise;
-  }
-
   private rel(root: string, abs: string): string {
     return abs.startsWith(root + "/") ? abs.slice(root.length + 1) : abs.replace(/^\/+/, "");
   }
@@ -219,7 +203,7 @@ export class ScmSession {
         continue;
       }
       try {
-        const git = await this.loadGit();
+        const git = await loadGit();
         if (!this.repo(root)) continue;
         const branch = await git
           .currentBranch({ fs: this.fs, dir: root, fullname: false })
@@ -282,7 +266,7 @@ export class ScmSession {
       return;
     }
     try {
-      const git = await this.loadGit();
+      const git = await loadGit();
       if (seq !== this.refreshSeq || !this.repo(root)) return;
       const dir = root;
       const [branch, branches, matrix] = await Promise.all([
@@ -353,7 +337,7 @@ export class ScmSession {
   async init(root: string): Promise<void> {
     if (!this.repo(root)) return;
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.init({ fs: this.fs, dir: root, defaultBranch: "main" });
       // Seed a sensible .gitignore if the project lacks one, so `node_modules`
       // and build output never flood the status list (and never get committed).
@@ -369,7 +353,7 @@ export class ScmSession {
 
   async stage(root: string, change: GitChange): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       if (change.letter === "D")
         await git.remove({ fs: this.fs, dir: root, filepath: change.path });
       else await git.add({ fs: this.fs, dir: root, filepath: change.path });
@@ -379,7 +363,7 @@ export class ScmSession {
 
   async unstage(root: string, change: GitChange): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.resetIndex({ fs: this.fs, dir: root, filepath: change.path });
     });
     await this.refresh();
@@ -390,7 +374,7 @@ export class ScmSession {
     if (!cur) return;
     const items = cur.changes.slice();
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       for (const c of items) {
         if (c.letter === "D") await git.remove({ fs: this.fs, dir: root, filepath: c.path });
         else await git.add({ fs: this.fs, dir: root, filepath: c.path });
@@ -404,7 +388,7 @@ export class ScmSession {
     if (!cur) return;
     const items = cur.staged.slice();
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       for (const c of items) await git.resetIndex({ fs: this.fs, dir: root, filepath: c.path });
     });
     await this.refresh();
@@ -414,7 +398,7 @@ export class ScmSession {
    * restore it from HEAD. Fires onWorkdirChanged so the editor/Explorer refresh. */
   async discard(root: string, change: GitChange): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       if (change.letter === "U") {
         await this.fs.promises.unlink(change.abs);
       } else {
@@ -432,7 +416,7 @@ export class ScmSession {
       return false;
     }
     const ok = await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.commit({
         fs: this.fs,
         dir: root,
@@ -448,7 +432,7 @@ export class ScmSession {
 
   async createBranch(root: string, name: string, checkout = true): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.branch({ fs: this.fs, dir: root, ref: name, checkout });
     });
     if (checkout) this.onWorkdirChanged?.();
@@ -457,7 +441,7 @@ export class ScmSession {
 
   async checkoutBranch(root: string, name: string): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.checkout({ fs: this.fs, dir: root, ref: name });
     });
     this.onWorkdirChanged?.();
@@ -466,7 +450,7 @@ export class ScmSession {
 
   async deleteBranch(root: string, name: string): Promise<void> {
     await this.withBusy(root, async () => {
-      const git = await this.loadGit();
+      const git = await loadGit();
       await git.deleteBranch({ fs: this.fs, dir: root, ref: name });
     });
     await this.refresh();
@@ -478,7 +462,7 @@ export class ScmSession {
     const repo = this.repoForPath(abs);
     if (!repo || !repo.isRepo) return "";
     try {
-      const git = await this.loadGit();
+      const git = await loadGit();
       const oid = await git.resolveRef({ fs: this.fs, dir: repo.root, ref: "HEAD" });
       const { blob } = await git.readBlob({
         fs: this.fs,
@@ -514,18 +498,4 @@ function unstagedLetter(workdir: number, stage: number): ChangeLetter | null {
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-// isomorphic-git expects a global `Buffer` in the browser. Install the `buffer`
-// polyfill once, before the isomorphic-git chunk is imported. Idempotent.
-let bufferReady: Promise<void> | null = null;
-function ensureBuffer(): Promise<void> {
-  const g = globalThis as { Buffer?: unknown };
-  if (g.Buffer) return Promise.resolve();
-  if (!bufferReady) {
-    bufferReady = import("buffer").then(({ Buffer }) => {
-      if (!g.Buffer) g.Buffer = Buffer;
-    });
-  }
-  return bufferReady;
 }

@@ -2,7 +2,14 @@
 // English one, so this file can land incrementally (the parity test enforces that
 // every key here exists in English, not the other way round).
 import type { MessageKey } from "./index";
+import { updatesIt } from "./it-updates";
+import { dataExplorerIt } from "./it-data-explorer";
+import { dataQueryIt } from "./it-data-query";
+import { releasePreviewIt } from "./it-release-preview";
 import { gitRemoteIt } from "./it-git-remote";
+import { sourceControlIt } from "./it-source-control";
+import { commitGraphIt } from "./it-commit-graph";
+import { projectGraphIt } from "./it-project-graph";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -160,6 +167,13 @@ export const it: Partial<Record<MessageKey, string>> = {
   "push.kernelStarting": "Il runtime si sta ancora avviando — riprova tra un momento.",
   "push.disabled": "Questa distribuzione non consente la pubblicazione su un host git.",
   ...gitRemoteIt,
+  ...sourceControlIt,
+  ...commitGraphIt,
+  ...projectGraphIt,
+  ...dataExplorerIt,
+  ...dataQueryIt,
+  ...releasePreviewIt,
+  ...updatesIt,
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Digita un comando…",
   "palette.filePlaceholder": "Cerca file per nome (aggiungi :riga per saltarci)…",
@@ -274,18 +288,4 @@ export const it: Partial<Record<MessageKey, string>> = {
   "chat.keyHint.custom":
     "Qualsiasi endpoint compatibile OpenAI. Un server locale non richiede chiave.",
   "chat.keyHint.mock": "Incluso nelle build di sviluppo; non chiama mai un provider.",
-
-  // ── project updates (D-065) ───────────────────────────────────────────────
-  "updates.available": "Aggiornamento disponibile",
-  "updates.aheadBadge": "Progetto più recente",
-  "updates.tooltip": "Progetto {project} · questo Studio {build}",
-  "updates.title": "Aggiornamenti del progetto",
-  "updates.description": "Questo progetto è stato creato da una versione precedente dello Studio.",
-  "updates.ahead": "Questo progetto è stato creato da uno Studio più recente. Aprilo lì.",
-  "updates.projectVersion": "Versione progetto",
-  "updates.buildVersion": "Questo Studio",
-  "updates.unknown": "sconosciuta",
-  "updates.noRecipe":
-    "Questo Studio non include ancora una ricetta di aggiornamento per questo salto, quindi non viene applicato nulla automaticamente. Esporta il progetto e ricrealo dal template corrente, oppure usa una build che includa la ricetta.",
-  "updates.baseline": "Baseline approvata: {baseline}",
 };

@@ -65,10 +65,26 @@ export interface FacilisRequestEvent {
   req: { headers: Headers };
   res?: { headers: Headers; status?: number; statusText?: string };
 }
+
+// The handler-visible event (D-099): the root client is NOT on it.
+export interface FacilisHandlerEvent {
+  context: {
+    auth?: AuthContext | null;
+    facilis?: { defaultTenantId?: string }; // no db
+    params?: Record<string, string>;
+  };
+  req: FacilisRequestEvent["req"];
+  res?: FacilisRequestEvent["res"];
+}
 ```
 
 An `H3Event` satisfies this structurally. Middleware order inside Nitro: `facilis-context`
 (boots db, sets `context.facilis`) then `facilis-session` (sets `context.auth`, may be `null`).
+`defineAuthorizedHandler` takes the full `FacilisRequestEvent`, captures the root client before
+running the project handler, and passes a `FacilisHandlerEvent` whose `facilis` carries only
+`defaultTenantId`. A handler therefore reaches the DB only through `ctx.db` (policy-scoped) and
+`ctx.sudo`/`ctx.system` (audited elevation); it cannot obtain a policy-free client. The
+analyzer warns `route-direct-db` for code that tries (raw `facilis.db`, `createDb` import).
 
 ### 4.2 Postgres GUCs (exact names — policies depend on them)
 
@@ -77,6 +93,7 @@ An `H3Event` satisfies this structurally. Middleware order inside Nitro: `facili
 | `app.tenant_id` | uuid text | `runWithPolicyScope` |
 | `app.user_id` | uuid text | `runWithPolicyScope` |
 | `app.roles` | JSON array text, e.g. `["admin","manager"]` | `runWithPolicyScope` |
+| `app.permissions` | JSON array text, the session's expanded permissions (D-098) | `runWithPolicyScope` |
 
 Every policy that reads a GUC **must** use `nullif(current_setting(<name>, true), '')` before
 casting (see SPEC §8.4.5 and the Phase 0 finding: after `RESET` a GUC reads as `''`).
@@ -198,7 +215,8 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
 ## 6. `@facilis/auth` (data-auth)
 
 ```ts
-export interface AuthContext { userId: string; roles: readonly string[]; permissions: readonly string[] } // no tenant (D-040)
+export interface AuthContext { userId: string; roles: readonly string[]; permissions: readonly string[];
+  sessionHash?: string } // SHA-256 of the session id for the sudo audit (D-099); no tenant (D-040)
 export interface AuthConfig { permissions: readonly string[]; roles: Readonly<Record<string, readonly string[]>>;
   defaultRole: string; sessionDurationMs: number }
 export function expandRoles(roles: readonly string[], config: AuthConfig): string[];
@@ -234,10 +252,20 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void> {
   dbColumns?: readonly string[];      // "table.column"
   description?: string;
 }
-export interface AuthorizedHandlerContext<B, Q, P> { auth: AuthContext; body: B; query: Q; params: P; db: PolicyScopedDatabase }
+export interface SudoOptions { operation: string; reason: string; tables: readonly string[] }
+export interface SystemOptions extends SudoOptions { actor: `system:${string}` }
+export type SudoHandler = <T>(options: SudoOptions, fn: (systemDb: PolicyScopedDatabase) => Promise<T>) => Promise<T>;
+export type SystemHandler = <T>(options: SystemOptions, fn: (systemDb: PolicyScopedDatabase) => Promise<T>) => Promise<T>;
+
+export interface AuthorizedHandlerContext<B, Q, P> {
+  auth: AuthContext; body: B; query: Q; params: P;
+  db: PolicyScopedDatabase;       // policy-scoped, never raw
+  sudo: SudoHandler;              // audited elevation, requires a session (D-099)
+  system: SystemHandler;          // audited elevation for public/bootstrap routes (D-099)
+}
 export function defineAuthorizedHandler<B, Q, P>(
   config: AuthorizedHandlerConfig<B, Q, P>,
-  handler: (event: FacilisRequestEvent, ctx: AuthorizedHandlerContext<B, Q, P>) => Promise<unknown> | unknown,
+  handler: (event: FacilisHandlerEvent, ctx: AuthorizedHandlerContext<B, Q, P>) => Promise<unknown> | unknown,
 ): (event: FacilisRequestEvent) => Promise<unknown>;
 
 export function buildManifest(input: BuildManifestInput): FacilisManifest;   // SPEC §7.3
@@ -249,7 +277,7 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 
 - `defineAuthorizedHandler` semantics: session → permission → Zod parse → scoped DB → handler.
   It must **not** call `defineRouteMeta` at runtime (it is a Nitro build macro; Phase 0 A16).
-  Static metadata extraction is the AST pass in `@facilis/nitro`.
+  Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
 - Config validation must cross-check roles/permissions (unknown permission in a role → error),
   and `defaultRole` must exist (SPEC §8.4.1).
 - Manifest types: re-export `SchemaSnapshot`/`TableSnapshot`/... from `@facilis/db` so the public
@@ -260,9 +288,9 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 ## 8. `@facilis/nitro` (nitro-impl)
 
 ```ts
-export function facilis(options?: FacilisOptions): FacilisPlugins; // [FacilisVitePlugin, ...Plugin[]]
+export function facilis(): FacilisPlugins;          // [FacilisVitePlugin, ...Plugin[]]
 export const facilisNitroModule: NitroModule;             // plain { name, setup(nitro) }, NOT defineNitroModule
-export function scanRouteMetadata(options: ScanOptions): Promise<RouteMetadataMap>;
+export function scanRouteMetadata(options: ScanOptions): RouteMetadataMap; // sync, { rootDir, onWarning? }
 export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataMap): OpenApiDocument;
 ```
 
@@ -280,14 +308,19 @@ export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataM
   or keep a `nitro.config.ts`; a legacy one is still read by Nitro's c12 loader but
   `facilis.config.ts` wins.
 - Inside `setup`, `nitro.options.handlers` / `nitro.options.virtual` are available (see spec §5.6).
-- The Phase 0 prototype (commit `de17169`, retired 2026-11-01) proved the approach with
-  `parseSync`/`transformSync` from `rolldown/utils`; the implementation is
-  `packages/nitro/src/ast/extract-metadata.ts` plus `packages/nitro/src/facade.ts`.
-- The AST pass only sees **object literals**. When `dbTables`/`permission`/`description` are not
-  statically resolvable, emit a `ManifestWarning` (`code: "meta-not-static"`) instead of guessing,
-  and also surface it through `/_openapi.json` as an `x-facilis-warning`.
-- Route-file edits must invalidate the virtual module (Vite `server.watcher` + `moduleGraph`),
-  so HMR keeps the spec fresh (SPEC §6.9 consequence).
+- The static pass is `@facilis/analyze`'s route facts (D-092/D-093), not a Nitro-local parser:
+  `packages/nitro/src/route-metadata.ts` maps `RouteFact[]` and `packages/nitro/src/rolldown-parser.ts`
+  injects `parseSync` from `rolldown/utils`. That adapter must not import
+  `@facilis/analyze/node` (oxc-parser): the generated project's Vite config runs inside the
+  WebContainer, where only the bundler's oxc is proven to load.
+- The facts come from the interpreter, not object-literal regexes: same-file and one-hop
+  imported consts resolve; wrapper-less route files are **listed** with `wrapper: invalid`;
+  there is no `defineRouteMeta` fallback. A field the interpreter cannot determine stays
+  `unresolved` (the facade omits it and adds an `x-facilis-warning`; the manifest warning keeps
+  the analyzer's diagnostic code).
+- Any project source edit (not just route files) must invalidate the virtual module (Vite
+  `server.watcher` + `moduleGraph`): the analyzer reads config and imported consts too
+  (SPEC §6.9).
 
 Integration wiring (confirmed with the Lead while writing the Phase 1 example app):
 - virtual modules: `#facilis/config` (project `facilis.config.ts`), `#facilis/db-schema` (project

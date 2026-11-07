@@ -26,7 +26,9 @@
     "ide:smoke": "node scripts/dev/smoke-ide.mjs",
     "ide:smoke:multitab": "node scripts/dev/smoke-multitab.mjs",
     "lint:ide-theme": "node scripts/check-ide-theme.mjs",
-    "pg:e2e": "node scripts/postgres-e2e.mjs"
+    "pg:e2e": "node scripts/postgres-e2e.mjs",
+    "ai:probe": "node --experimental-strip-types scripts/dev/ai-probe.mjs",
+    "ai:probe:check": "node --experimental-strip-types scripts/dev/ai-probe-check.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

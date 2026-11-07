@@ -56,13 +56,18 @@ export function injectHmrHint(appSource: string): string {
   );
 }
 
+// Plain values, not the old v1 kit tokens: template v2 ships Tailwind CSS v4 and a
+// copy-in component kit, so the generated stylesheet defines no --space-* / --color-*
+// custom properties for this rule to reference. Only the class name and the
+// HMR_HINT string are load-bearing (scripts/dev/smoke-write.mjs replaces that exact
+// string), so the declarations can be plain CSS.
 const HINT_STYLE = `
 /* IDE smoke hint (D-062): the element the write test replaces. */
 .muted {
   margin: 0;
-  padding: var(--space-4) var(--pad-page);
-  color: var(--color-base-content);
-  font-size: var(--text-sm);
+  padding: 1rem 2rem;
+  color: #5f6b7a;
+  font-size: 0.875rem;
   opacity: 0.6;
 }
 `;

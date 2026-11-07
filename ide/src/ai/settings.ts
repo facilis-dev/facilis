@@ -36,6 +36,26 @@ function text(value: unknown): string {
 }
 
 /**
+ * Dev-only seed (AI-PROBE): a key in the gitignored `ide/.env` configures the
+ * DeepSeek preset, so a local session can talk to the model without typing the key.
+ * Vite inlines VITE_* variables into the dev bundle only; the mode gate keeps a
+ * production build from ever carrying them.
+ */
+function seedFromEnv(): AiSettings | null {
+  // "development" is the Vite dev-server mode: vitest runs in "test", and a
+  // production build in "production", so neither can ever pick the key up.
+  if (import.meta.env.MODE !== "development") return null;
+  const apiKey = text(import.meta.env.VITE_DEEPSEEK_API_KEY);
+  if (apiKey === "") return null;
+  return {
+    providerId: "deepseek",
+    apiKey,
+    model: text(import.meta.env.VITE_DEEPSEEK_MODEL) || "deepseek-chat",
+    baseUrl: text(import.meta.env.VITE_DEEPSEEK_BASE_URL),
+  };
+}
+
+/**
  * The saved settings, or null when nothing usable was stored. Never throws.
  *
  * A managed build owns the provider set and the endpoint (D-063): a stored
@@ -48,15 +68,19 @@ export function loadAiSettings(
   storage: SettingsStorage | null = defaultStorage(),
   d: ResolvedDeployment = deployment,
 ): AiSettings | null {
-  if (!storage) return null;
+  const seed = seedFromEnv();
+  if (!storage) return seed;
   try {
     const raw = storage.getItem(AI_SETTINGS_KEY);
-    if (!raw) return null;
+    if (!raw) return seed;
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
+    if (typeof parsed !== "object" || parsed === null) return seed;
     const record = parsed as Record<string, unknown>;
     const providerId = text(record.providerId);
-    if (!providerId) return null;
+    if (!providerId) return seed;
+    // The seed wins over saved settings while it is present: the hook exists for
+    // local probing, and unsetting the env key restores whatever the dialog saved.
+    if (seed !== null) return seed;
     return {
       providerId,
       apiKey: text(record.apiKey),
@@ -64,7 +88,7 @@ export function loadAiSettings(
       baseUrl: d.profile === "managed" ? "" : text(record.baseUrl),
     };
   } catch {
-    return null;
+    return seed;
   }
 }
 

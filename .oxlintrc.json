@@ -17,7 +17,8 @@
     "**/coverage/**",
     "**/.turbo/**",
     "vendor/**/*",
-    ".worktrees/**"
+    ".worktrees/**",
+    "spikes/**/*"
   ],
   "overrides": [
     {

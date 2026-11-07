@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
+import { analyzeHostFiles } from "./analysis-fixtures";
 import { applyAccepted, applyUndo, type ActionHost } from "./chat-actions";
+import type { PatchValidationHost } from "./patch-validation";
 import type { ChatProposal } from "./types";
 
 function host(failSuffix?: string): ActionHost & { calls: string[] } {
@@ -96,5 +98,64 @@ describe("chat actions", () => {
       "vv-write:/home/user/project/src/App.tsx",
     ]);
     expect(applied).toMatchObject({ kind: "undo", ok: true });
+  });
+});
+
+const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis/core";
+
+export default defineConfig({
+  auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
+});
+`;
+
+function validationHost(): PatchValidationHost {
+  const files = () => ["facilis.config.ts"];
+  const read = async (path: string) => (path === "facilis.config.ts" ? VALIDATOR_CONFIG : "");
+  return {
+    files,
+    read,
+    manifestBase: () => null,
+    syntaxChecker: () => ({ check: async () => [] }),
+    analyze: (patches) => analyzeHostFiles(files(), read, patches),
+  };
+}
+
+describe("apply with live validation", () => {
+  it("does not write when the project context blocks the accepted files", async () => {
+    const actionHost = host();
+    const result = await applyAccepted(
+      actionHost,
+      proposal([
+        {
+          patch: {
+            path: "server/routes/api/x.get.ts",
+            action: "create",
+            content: "export default 1;\n",
+          },
+          before: null,
+        },
+      ]),
+      validationHost(),
+    );
+    expect(actionHost.calls).toEqual([]);
+    expect(result.applied).toMatchObject({ kind: "apply", ok: false, written: [], deleted: [] });
+    expect(result.applied.errors[0]).toContain("route-security");
+    expect(result.undo).toBeNull();
+  });
+
+  it("writes when the live context accepts the accepted files", async () => {
+    const actionHost = host();
+    const result = await applyAccepted(
+      actionHost,
+      proposal([
+        {
+          patch: { path: "src/next.ts", action: "create", content: "export const next = 1;\n" },
+          before: null,
+        },
+      ]),
+      validationHost(),
+    );
+    expect(actionHost.calls).toEqual(["vv-write:/home/user/project/src/next.ts"]);
+    expect(result.applied.ok).toBe(true);
   });
 });

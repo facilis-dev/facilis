@@ -2,7 +2,6 @@
   "ide/src/vv/controller.ts": 2518,
   "ide/src/components/ide/Explorer.tsx": 942,
   "ide/src/components/ide/Home.tsx": 491,
-  "ide/src/components/ide/SourceControlPanel.tsx": 675,
   "ide/src/components/ide/NotebookView.tsx": 659,
   "ide/src/vv/debug-session.ts": 567,
   "ide/src/vv/scm-session.ts": 531,

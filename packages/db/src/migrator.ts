@@ -8,7 +8,8 @@ import type { FacilisDb } from "./client.ts";
 /** drizzle-kit separates statements in generated SQL files with this marker. */
 const STATEMENT_BREAKPOINT = "--> statement-breakpoint";
 
-const TRACKING_TABLE = "_facilis_applied_statements";
+/** Bookkeeping table owned by this package, not by the project schema: introspection skips it. */
+export const MIGRATION_TRACKING_TABLE = "_facilis_applied_statements";
 
 export type MigrationSource = string | readonly string[] | { readonly directory: string };
 
@@ -24,7 +25,7 @@ export async function applyStatements(db: FacilisDb, statements: readonly string
   await db.db.transaction(async (tx) => {
     await tx.execute(
       sql.raw(
-        `CREATE TABLE IF NOT EXISTS ${TRACKING_TABLE} (id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`,
+        `CREATE TABLE IF NOT EXISTS ${MIGRATION_TRACKING_TABLE} (id text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`,
       ),
     );
 
@@ -43,14 +44,16 @@ export async function applyStatements(db: FacilisDb, statements: readonly string
 
       // eslint-disable-next-line no-await-in-loop
       const seen = await tx.execute(
-        sql`select 1 from ${sql.identifier(TRACKING_TABLE)} where id = ${id}`,
+        sql`select 1 from ${sql.identifier(MIGRATION_TRACKING_TABLE)} where id = ${id}`,
       );
       if (seen.rows.length > 0) continue;
 
       // eslint-disable-next-line no-await-in-loop
       await tx.execute(sql.raw(trimmed));
       // eslint-disable-next-line no-await-in-loop
-      await tx.execute(sql`insert into ${sql.identifier(TRACKING_TABLE)} (id) values (${id})`);
+      await tx.execute(
+        sql`insert into ${sql.identifier(MIGRATION_TRACKING_TABLE)} (id) values (${id})`,
+      );
     }
   });
 }

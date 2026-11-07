@@ -1,17 +1,20 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Nitro, NitroEventHandler, NitroModule } from "nitro/types";
 
 import {
+  DEV_QUERY_ROUTE,
+  DEV_SCHEMA_ROUTE,
+  DEV_VIEW_ROUTE,
   HEALTH_ROUTE,
   MANIFEST_REVISION_ROUTE,
   MANIFEST_ROUTE,
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
 } from "./constants.ts";
-import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID } from "./virtual-ids.ts";
+import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID, VIRTUAL_DB_VIEWS_ID } from "./virtual-ids.ts";
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
 const MIDDLEWARE_DIR = new URL("./middleware/", import.meta.url);
@@ -60,6 +63,7 @@ function registerVirtualModules(nitro: Nitro, rootDir: string): void {
   nitro.options.virtual ??= {};
   nitro.options.virtual[VIRTUAL_CONFIG_ID] = () => renderConfigModule(rootDir, versions);
   nitro.options.virtual[VIRTUAL_DB_SCHEMA_ID] = () => renderDbSchemaModule(rootDir);
+  nitro.options.virtual[VIRTUAL_DB_VIEWS_ID] = () => renderDbViewsModule(rootDir);
   // `#facilis/openapi-meta` is deliberately NOT registered here: Nitro's virtual plugin
   // runs before user Vite plugins inside the nitro environment, so a Nitro virtual would
   // shadow the `facilis()` plugin's module and route-file edits would never invalidate it
@@ -90,6 +94,30 @@ function renderDbSchemaModule(rootDir: string): string {
   const schemaPath = join(rootDir, DB_SCHEMA_ENTRY);
   if (!existsSync(schemaPath)) return "export default {};";
   return `import * as schema from ${JSON.stringify(schemaPath)};\nexport default schema;`;
+}
+
+const DB_VIEWS_ENTRY = join("db", "views.ts");
+const DB_VIEWS_DIR = join("db", "views");
+
+/**
+ * db/views/*.ts (and the single-file db/views.ts form) as one array of namespaces, so the
+ * runtime can create every declared view without importing the project's module graph.
+ * A missing directory renders as an empty array: a project without views is valid.
+ */
+function renderDbViewsModule(rootDir: string): string {
+  const files: string[] = [];
+  const single = join(rootDir, DB_VIEWS_ENTRY);
+  if (existsSync(single)) files.push(single);
+  const directory = join(rootDir, DB_VIEWS_DIR);
+  if (existsSync(directory)) {
+    for (const name of readdirSync(directory).toSorted()) {
+      if (name.endsWith(".ts") && !name.endsWith(".test.ts")) files.push(join(directory, name));
+    }
+  }
+  if (files.length === 0) return "export default [];";
+  const imports = files.map((file, index) => `import * as v${index} from ${JSON.stringify(file)};`);
+  const list = files.map((_file, index) => `v${index}`).join(", ");
+  return [...imports, `export default [${list}];`].join("\n");
 }
 
 function readTextFile(filePath: string): string | null {
@@ -149,6 +177,9 @@ function registerRuntimeHandlers(nitro: Nitro): void {
     add(MANIFEST_ROUTE, routeFile("manifest.get.ts"), DEV_ENV);
     add(MANIFEST_REVISION_ROUTE, routeFile("manifest-revision.get.ts"), DEV_ENV);
     add(HEALTH_ROUTE, routeFile("health.get.ts"), DEV_ENV);
+    add(DEV_SCHEMA_ROUTE, routeFile("dev-schema.get.ts"), DEV_ENV);
+    add(DEV_QUERY_ROUTE, routeFile("dev-query.post.ts"), DEV_ENV);
+    add(DEV_VIEW_ROUTE, routeFile("dev-view.post.ts"), DEV_ENV);
   }
   // The facade is dev-only unless the project explicitly enables OpenAPI in production.
   if (dev) add(OPENAPI_FACADE_ROUTE, routeFile("openapi.get.ts"), DEV_ENV);

@@ -1,0 +1,43 @@
+{
+  "name": "@facilis/analyze",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Facilis AST analyzer: static facts for the project DSL (routes, schema, relations, pages) with an injected parser.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fs": "./src/fs.ts",
+    "./node": "./src/node.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "dev": "tsc -p tsconfig.json --noEmit --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest run",
+    "analyze": "node --experimental-strip-types scripts/analyze.ts"
+  },
+  "peerDependencies": {
+    "oxc-parser": "0.157.0"
+  },
+  "peerDependenciesMeta": {
+    "oxc-parser": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "oxc-parser": "0.157.0",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

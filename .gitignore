@@ -155,6 +155,7 @@ coverage/
 .turbo/
 *.tsbuildinfo
 .env*
+!ide/.env.example
 spikes/*/node_modules/
 
 # IDE app (own toolchain, separate install)

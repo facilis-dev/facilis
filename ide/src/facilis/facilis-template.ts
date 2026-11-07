@@ -19,8 +19,12 @@ import { templateOverrides } from "./template-overrides";
  * (D-032). The specs are written relative (portable) and made absolute by
  * scripts/vendor-paths.cjs before every install, because npm's own re-derivation of a
  * relative file: target is what breaks inside the VM.
+ *
+ * "ui" is absent: the v1 component kit was removed (D-096), and template v2 copies its
+ * primitives into the project (src/components/ui) instead of shipping a package, so no
+ * tarball is inlined and no file: dependency is declared.
  */
-export const TEMPLATE_PACKAGES = ["auth", "core", "db", "nitro", "time", "ui"] as const;
+export const TEMPLATE_PACKAGES = ["analyze", "auth", "core", "db", "nitro", "time"] as const;
 
 /** One binary file a template ships beside its sources (see project-assets.ts). */
 export type TemplateAsset = { path: string; asset: string };

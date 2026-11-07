@@ -10,6 +10,8 @@ import { SearchPane } from "./SearchPane";
 import { DebugPanel } from "./DebugPanel";
 import { SourceControlPanel } from "./SourceControlPanel";
 import { ChatPanel } from "./ChatPanel";
+import { DataExplorerPanel } from "./DataExplorerPanel";
+import { ReleasePreviewPanel } from "./ReleasePreviewPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -36,22 +38,43 @@ export function AppShell() {
   // the Explorer width. Only the automatic widen is undone: a width the user
   // dragged themselves (anything above the widen target) is left alone.
   const sidebarPanel = usePanelRef();
-  const widenedForChat = useRef(false);
+  const widenedForPanel = useRef(false);
   const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
+  // The release diff wants room too: it is unreadable in the Explorer's 16% width, so it
+  // gets the same automatic widening as the chat.
+  const roomyView = chatOpen || snap.activeView === "release";
   useEffect(() => {
-    const panel = sidebarPanel.current;
-    if (!panel) return;
-    const percent = panel.getSize().asPercentage;
-    if (chatOpen) {
-      if (percent < 22) {
-        widenedForChat.current = true;
-        panel.resize("28%");
+    // The panel is unmounted while the sidebar is collapsed; restoring it (e.g. switching
+    // from the chat to a sidebar view) can run this effect before the library has
+    // registered the new layout, and getSize() throws "Layout not found".
+    // Defer to the next frame and retry a few times instead of crashing the shell.
+    let attempts = 0;
+    const applyWidth = () => {
+      const panel = sidebarPanel.current;
+      if (!panel) return;
+      let percent: number;
+      try {
+        percent = panel.getSize().asPercentage;
+      } catch {
+        if (attempts < 5) {
+          attempts += 1;
+          requestAnimationFrame(applyWidth);
+        }
+        return;
       }
-    } else if (widenedForChat.current && percent >= 26) {
-      widenedForChat.current = false;
-      panel.resize("16%");
-    }
-  }, [chatOpen, sidebarPanel]);
+      if (roomyView) {
+        if (percent < 22) {
+          widenedForPanel.current = true;
+          panel.resize("28%");
+        }
+      } else if (widenedForPanel.current && percent >= 26) {
+        widenedForPanel.current = false;
+        panel.resize("16%");
+      }
+    };
+    const frame = requestAnimationFrame(applyWidth);
+    return () => cancelAnimationFrame(frame);
+  }, [roomyView, sidebarPanel, snap.sidebarCollapsed]);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -172,6 +195,10 @@ export function AppShell() {
                   <DebugPanel />
                 ) : snap.activeView === "scm" ? (
                   <SourceControlPanel />
+                ) : snap.activeView === "data" ? (
+                  <DataExplorerPanel />
+                ) : snap.activeView === "release" ? (
+                  <ReleasePreviewPanel />
                 ) : snap.activeView === "chat" && chatEnabled ? (
                   <ChatPanel />
                 ) : (

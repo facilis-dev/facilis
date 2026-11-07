@@ -13,7 +13,12 @@
 // fan-out only floods its queue and makes "which file failed" ambiguous. Failures are
 // collected per file — a half-applied patch is reported as such, never retried blindly.
 
-import { validatePatch, type FilePatch, type ValidationResult } from "@facilis/ai";
+import {
+  validatePatch,
+  type FilePatch,
+  type PatchContext,
+  type ValidationResult,
+} from "@facilis/ai";
 import { fetchRevision } from "./manifest-client";
 
 /** The slice of KernelBridge a patch needs. Structural so the unit test stays a plain fake. */
@@ -34,6 +39,12 @@ export interface ApplyPatchInput {
    * is refreshed after a clean write so the caller learns the manifest may have changed. */
   manifestBase?: string;
   signal?: AbortSignal;
+  /** Full project context; when present the 16-rule validator runs before any write. */
+  context?: PatchContext;
+  /** The AIResponse `requires_confirmation` flag, for rule 15. */
+  requiresConfirmation?: boolean;
+  /** Root files this write may touch (the IDE's AGENTS.md scaffold only). */
+  rootFiles?: readonly string[];
 }
 
 export interface ApplyPatchResult {
@@ -59,7 +70,13 @@ function absolutePath(root: string, relative: string): string {
 }
 
 export async function applyPatch(input: ApplyPatchInput): Promise<ApplyPatchResult> {
-  const validation = validatePatch(input.patches);
+  const validation = validatePatch(input.patches, {
+    ...(input.context === undefined ? {} : { context: input.context }),
+    ...(input.requiresConfirmation === undefined
+      ? {}
+      : { requiresConfirmation: input.requiresConfirmation }),
+    ...(input.rootFiles === undefined ? {} : { allowedRootFiles: input.rootFiles }),
+  });
   if (!validation.ok) {
     return { ok: false, validation, written: [], deleted: [], revision: null, errors: [] };
   }

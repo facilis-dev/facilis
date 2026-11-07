@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis/db";
 
-import { randomToken } from "./crypto.ts";
+import { randomToken, sha256Hex } from "./crypto.ts";
 import { expandRoles, type AuthConfig } from "./roles.ts";
 import { sessions, userRoles, users, type AuthUser, type SessionRow } from "./tables.ts";
 
@@ -124,7 +124,10 @@ export function sessionMiddleware(
         permissions: expandRoles(roles, deps.config),
       };
     });
-    event.context.auth = auth;
+    // Only a valid session gets a hash: the audit trail correlates requests with a session
+    // without ever storing the cookie value (D-099).
+    event.context.auth =
+      auth === null ? null : { ...auth, sessionHash: await sha256Hex(sessionId) };
   };
 }
 

@@ -1,9 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { applyStatements, createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
+import { applyStatements, applyViews, createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
 import { seedStatements, sessionMiddleware, type SessionEvent } from "@facilis/auth";
 import type { FacilisConfig, ManifestWarning } from "@facilis/core";
 import config, { configError, projectRoot } from "#facilis/config";
+import dbViewModules from "#facilis/db-views";
 import dbSchema from "#facilis/db-schema";
 
 import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
@@ -17,6 +18,7 @@ import { isProductionEnvironment } from "./env.ts";
 import { readDefaultTenantId } from "./tenant.ts";
 import { readTextFile } from "./project-files.ts";
 import { splitSqlStatements } from "./sql.ts";
+import { provisionSystemRole } from "./system-role.ts";
 
 export interface BootstrapState {
   readonly db: FacilisDb | null;
@@ -132,9 +134,19 @@ async function bootstrap(): Promise<BootstrapState> {
     warnings.push(
       warning(
         "db_migrations_skipped",
-        "Postgres target: migrations and the app role are provisioned by the deploy step, not at boot.",
+        "Postgres target: migrations, roles and views are provisioned by the deploy step, not at boot.",
       ),
     );
+    // Views are DDL like migrations: a restricted runtime role cannot create them, so the
+    // deploy step owns them and the boot only reports that it skipped the step.
+    if (dbViewModules.length > 0) {
+      warnings.push(
+        warning(
+          "view_ddl_skipped",
+          "Postgres target: SQL views are provisioned by the deploy step, not at boot.",
+        ),
+      );
+    }
   }
 
   if (devPersistenceEnabled) {
@@ -201,6 +213,27 @@ async function bootstrapDevelopmentDatabase(
     warnings.push(
       warning("app_role_failed", `Could not provision the app role: ${describe(error)}`),
     );
+  }
+
+  // D-099: the system role is the sudo identity; provision it after the app role so the
+  // membership grant can reference it.
+  await provisionSystemRole(db, warnings);
+
+  // Views are code (D-097): create/replace them after the app role exists, because the
+  // security_invoker view must be granted to that role. A broken view is a warning, never a
+  // failed boot, and the endpoint returns the same failures on demand.
+  if (dbViewModules.length === 0) return;
+  try {
+    const applied = await applyViews(db, dbViewModules, {
+      permissions: projectConfig.auth.permissions,
+    });
+    for (const failure of applied.failed) {
+      warnings.push(
+        warning("view_failed", `View "${failure.name}" could not be created: ${failure.error}`),
+      );
+    }
+  } catch (error) {
+    warnings.push(warning("view_failed", `Views could not be applied: ${describe(error)}`));
   }
 }
 

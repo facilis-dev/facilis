@@ -12,7 +12,9 @@ export default defineAuthorizedHandler(
     dbColumns: ["users.email", "users.tenantId", "user_roles.role"],
     description: "Register a user with the default role.",
   },
-  async (_event, { body, db }) => {
+  async (_event, { body, db, system }) => {
+    // The duplicate check is a read: keep it on the anonymous, policy-scoped client so RLS
+    // still decides what this caller may see.
     const existing = await db
       .select({ id: users.id })
       .from(users)
@@ -21,28 +23,49 @@ export default defineAuthorizedHandler(
 
     if (existing.length > 0) return fail("conflict", { email: "already_registered" });
 
+    // Hashing is CPU work: do it outside the elevated block (never hold the system role
+    // across an operation that does not need it).
     const passwordHash = await hashPassword(body.password);
-    const [user] = await db
-      .insert(users)
-      // The tenant comes from the deployment scope (FACILIS_TENANT_ID / DEFAULT_TENANT_ID),
-      // set as app.tenant_id by defineAuthorizedHandler; the column default reads it (D-040).
-      .values({ email: body.email, passwordHash })
-      .returning({ id: users.id, email: users.email });
 
-    if (user === undefined) return fail("internal_error");
+    // The caller is anonymous (registration runs before a session exists): it has no
+    // permission on the auth tables, and RLS would deny these writes. They belong to the
+    // framework's auth subsystem, not to the browser, so they run as the audited
+    // `system:auth` actor — never by widening the anonymous route's permissions or by
+    // handing the handler a raw database client.
+    const registration = await system(
+      {
+        actor: "system:auth",
+        operation: "user:register",
+        reason: "Registration creates the user and default role before a session exists.",
+        tables: ["users", "user_roles"],
+      },
+      async (systemDb) => {
+        const [user] = await systemDb
+          .insert(users)
+          // The tenant comes from the deployment scope (FACILIS_TENANT_ID / DEFAULT_TENANT_ID),
+          // set as app.tenant_id by defineAuthorizedHandler; the column default reads it (D-040).
+          .values({ email: body.email, passwordHash })
+          .returning({ id: users.id, email: users.email });
 
-    await db
-      .insert(userRoles)
-      .values({ userId: user.id, role: config.auth.defaultRole })
-      .onConflictDoNothing();
+        if (user === undefined) return null;
 
-    // First registration whose email matches FACILIS_INITIAL_ADMIN becomes admin.
-    const promoted = await registerInitialAdmin(db, user.id);
+        await systemDb
+          .insert(userRoles)
+          .values({ userId: user.id, role: config.auth.defaultRole })
+          .onConflictDoNothing();
+
+        // First registration whose email matches FACILIS_INITIAL_ADMIN becomes admin.
+        const promoted = await registerInitialAdmin(systemDb, user.id);
+        return { user, promoted };
+      },
+    );
+
+    if (registration === null) return fail("internal_error");
 
     return {
-      id: user.id,
-      email: user.email,
-      role: promoted ? "admin" : config.auth.defaultRole,
+      id: registration.user.id,
+      email: registration.user.email,
+      role: registration.promoted ? "admin" : config.auth.defaultRole,
     };
   },
 );

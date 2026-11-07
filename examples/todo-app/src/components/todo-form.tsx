@@ -1,7 +1,9 @@
 import { useState, type FormEvent, type RefObject } from "react";
-import { Button, Card, DatePicker, Field, Input } from "@facilis/ui";
 import { t } from "@facilis/core/i18n";
-import { useLocale } from "../lib/i18n.tsx";
+import { Button } from "./ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card.tsx";
+import { Field } from "./ui/field.tsx";
+import { Input } from "./ui/input.tsx";
 
 export type TodoDraft = { title: string; dueDate: Date | null };
 
@@ -12,56 +14,59 @@ export type TodoFormProps = {
   onCreate: (draft: TodoDraft) => Promise<boolean>;
 };
 
+/** The date input's "YYYY-MM-DD" is a local calendar day: parse it as local midnight. */
+function dateFromInput(value: string): Date | null {
+  return value === "" ? null : new Date(value + "T00:00:00");
+}
+
 /** Create form as an A card: title + optional due date, cleared only after a saved todo. */
 export function TodoForm({ canWrite, creating, titleInput, onCreate }: TodoFormProps) {
-  const { locale } = useLocale();
   const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [dueDate, setDueDate] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = title.trim();
     if (trimmed.length === 0) return;
-    const saved = await onCreate({ title: trimmed, dueDate });
+    const saved = await onCreate({ title: trimmed, dueDate: dateFromInput(dueDate) });
     if (saved) {
       setTitle("");
-      setDueDate(null);
+      setDueDate("");
     }
   }
 
   return (
-    <Card title={t("todos.new")} description={t("todos.form.description")}>
-      <form className="app-todos-form" onSubmit={(event) => void handleSubmit(event)}>
-        <Field label={t("todos.column.title")} className="app-todos-form__title">
-          <Input
-            ref={titleInput}
-            type="text"
-            placeholder={t("todos.title.placeholder")}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </Field>
-        <Field label={t("todos.dueDate")} className="app-todos-form__date">
-          <DatePicker
-            value={dueDate}
-            onChange={setDueDate}
-            locale={locale}
-            labels={{
-              previousMonth: t("datepicker.previous_month"),
-              nextMonth: t("datepicker.next_month"),
-              today: t("datepicker.today"),
-              clear: t("datepicker.clear"),
-              chooseTime: t("datepicker.choose_time"),
-              calendarLabel: t("datepicker.calendar"),
-              hoursLabel: t("datepicker.hours"),
-              minutesLabel: t("datepicker.minutes"),
-            }}
-          />
-        </Field>
-        <Button type="submit" disabled={!canWrite || creating || title.trim().length === 0}>
-          {t("todos.add")}
-        </Button>
-      </form>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("todos.new")}</CardTitle>
+        <CardDescription>{t("todos.form.description")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end"
+          onSubmit={(event) => void handleSubmit(event)}
+        >
+          <Field label={t("todos.column.title")} className="min-w-0 flex-1">
+            <Input
+              ref={titleInput}
+              type="text"
+              placeholder={t("todos.title.placeholder")}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </Field>
+          <Field label={t("todos.dueDate")} className="sm:w-44">
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" disabled={!canWrite || creating || title.trim().length === 0}>
+            {t("todos.add")}
+          </Button>
+        </form>
+      </CardContent>
     </Card>
   );
 }

@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { Toaster } from "@facilis/ui";
+import { Toaster } from "./components/ui/sonner.tsx";
 import { AppLayout } from "./layouts/app-layout.tsx";
 import { AuthLayout } from "./layouts/auth-layout.tsx";
 import { useLocale } from "./lib/i18n.tsx";

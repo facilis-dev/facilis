@@ -97,20 +97,30 @@ describe("policy scope over the postgres wire protocol", () => {
   it("runs the callback as facilis_app and clears the GUCs after commit", async () => {
     const inside = await runWithPolicyScope(
       db,
-      { tenantId: TENANT_T, userId: OWNER_T },
+      { tenantId: TENANT_T, userId: OWNER_T, permissions: ["todos:read"] },
       async (tx) => {
         const result = await tx.execute(
-          sql.raw("select current_user as role, current_setting('app.tenant_id', true) as tenant"),
+          sql.raw(
+            "select current_user as role, current_setting('app.tenant_id', true) as tenant, " +
+              "current_setting('app.permissions', true) as permissions",
+          ),
         );
         return result.rows[0];
       },
     );
-    expect(inside).toEqual({ role: "facilis_app", tenant: TENANT_T });
+    expect(inside).toEqual({
+      role: "facilis_app",
+      tenant: TENANT_T,
+      permissions: '["todos:read"]',
+    });
 
     const outside = await db.db.execute(
-      sql.raw("select current_setting('app.tenant_id', true) as tenant"),
+      sql.raw(
+        "select current_setting('app.tenant_id', true) as tenant, " +
+          "current_setting('app.permissions', true) as permissions",
+      ),
     );
-    expect(outside.rows[0]).toEqual({ tenant: "" });
+    expect(outside.rows[0]).toEqual({ tenant: "", permissions: "" });
   });
 
   it("inserts through the serial sequence granted to facilis_app", async () => {

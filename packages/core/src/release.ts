@@ -1,11 +1,9 @@
-import type { PolicySnapshot } from "@facilis/db";
-
 /**
  * Release-preview contract types (SPEC §7.7).
  *
- * Type declarations only: the diff engine lands in Phase 3.5 (SPEC §11.3). The Studio's
- * ReleasePreviewPanel is written against these shapes so the engine can be added without
- * touching UI code.
+ * The engine that fills them is `buildReleasePreview` in ./release-preview.ts; these
+ * declarations stay separate so the Studio and the Node tooling can import the contract
+ * without pulling the diff code in.
  */
 
 export interface GitRef {
@@ -57,31 +55,61 @@ export interface SchemaDiff {
 }
 
 /**
- * SPEC §7.7 references `ApiDiff` without declaring it. This is the minimal placeholder
- * until the Phase 3.5 diff engine fixes the shape; the Lead tracks it as a spec gap.
+ * SPEC §7.7 `ApiRouteRef`.
+ *
+ * `dbTables` and `permission` are optional because a release snapshot built from a git
+ * ref can only derive method + path from the route filename: the handler config lives in
+ * the source, and only the working-copy manifest can read it. Omitting the field means
+ * "not known at this ref", never "no tables" (D-086).
  */
 export interface ApiRouteRef {
   readonly method: string;
   readonly path: string;
+  readonly permission?: string | readonly string[];
+  readonly dbTables?: readonly string[];
+  /** Additive (SPEC §7.7 does not list it): route source file for jump-to, as RouteMeta. */
+  readonly sourceFile?: string;
+}
+
+/** One route whose known metadata differs between the two refs (SPEC §7.7). */
+export interface ApiRouteChange {
+  readonly before: ApiRouteRef;
+  readonly after: ApiRouteRef;
+  readonly fields: readonly string[];
 }
 
 export interface ApiDiff {
   readonly added: readonly ApiRouteRef[];
   readonly removed: readonly ApiRouteRef[];
-  readonly changed: readonly ApiRouteRef[];
+  readonly changed: readonly ApiRouteChange[];
+}
+
+/**
+ * Structural copy of `@facilis/db`'s `PolicySnapshot` (SPEC §7.3). It is declared here
+ * instead of imported: the browser-safe `@facilis/core/release` subpath must not pull
+ * `@facilis/db`'s declarations, which reach `@types/pg` and, through it, `@types/node`
+ * into the Studio's browser program — the Node and DOM `ReadableStream` typings then
+ * clash (D-086). The shapes are identical, so a db snapshot value stays assignable.
+ */
+export interface ReleasePolicySnapshot {
+  readonly name: string;
+  readonly command: "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "ALL";
+  readonly using: string | null;
+  readonly withCheck: string | null;
+  readonly sql: string;
 }
 
 export interface PolicyChange {
   readonly table: string;
   readonly policy: string;
-  readonly before: PolicySnapshot;
-  readonly after: PolicySnapshot;
+  readonly before: ReleasePolicySnapshot;
+  readonly after: ReleasePolicySnapshot;
   readonly direction: "narrowed" | "broadened" | "unknown";
 }
 
 export interface SecurityDiff {
-  readonly policiesAdded: readonly PolicySnapshot[];
-  readonly policiesDropped: readonly PolicySnapshot[];
+  readonly policiesAdded: readonly ReleasePolicySnapshot[];
+  readonly policiesDropped: readonly ReleasePolicySnapshot[];
   readonly policiesChanged: readonly PolicyChange[];
   readonly rlsDisabled: readonly { readonly table: string }[];
 }

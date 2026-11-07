@@ -47,7 +47,7 @@ export interface ManifestQuery {
   signal?: AbortSignal;
 }
 
-const MANIFEST_PATH = "/__facilis/manifest";
+export const MANIFEST_PATH = "/__facilis/manifest";
 const REVISION_PATH = "/__facilis/manifest/revision";
 
 /** Strip the trailing slash so the endpoint path never doubles it, and drop a query or
@@ -111,6 +111,28 @@ export function parseEnvelope(value: unknown): ManifestEnvelope | null {
   };
 }
 
+/**
+ * The permissions declared in `manifest.project.config.auth.permissions` (FacilisConfig).
+ * Manifest sections are optional and the envelope stays `unknown`, so this narrows
+ * defensively and returns [] when the config is absent or unreachable.
+ */
+export function readDeclaredPermissions(manifest: Record<string, unknown>): string[] {
+  let node: unknown = manifest;
+  for (const key of ["project", "config", "auth"]) {
+    if (!isRecord(node)) return [];
+    node = node[key];
+  }
+  if (!isRecord(node) || !Array.isArray(node["permissions"])) return [];
+  const permissions: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of node["permissions"]) {
+    if (typeof entry !== "string" || entry.length === 0 || seen.has(entry)) continue;
+    seen.add(entry);
+    permissions.push(entry);
+  }
+  return permissions;
+}
+
 /** SPEC §6.3 revision poll. */
 export function parseRevision(value: unknown): ManifestRevision | null {
   if (!isRecord(value)) return null;
@@ -145,6 +167,21 @@ async function getJson(
 }
 
 /**
+ * Fetch and parse a manifest from an already-built URL (a caller that had to preserve the
+ * preview's kernel token builds the URL itself). Never throws.
+ */
+export async function fetchManifestAt(url: string, signal?: AbortSignal): Promise<ManifestResult> {
+  const result = await getJson(url, signal);
+  if (result.networkError !== null) return { ok: false, status: 0, error: result.networkError };
+  if (result.status !== 200)
+    return { ok: false, status: result.status, error: "HTTP " + result.status };
+  const envelope = parseEnvelope(result.body);
+  if (envelope === null)
+    return { ok: false, status: result.status, error: "invalid manifest envelope" };
+  return { ok: true, envelope, etag: result.etag };
+}
+
+/**
  * Fetch the full manifest (SPEC §6.2). Never throws: a booting, unreachable or broken
  * project comes back as ok:false with the reason, which is what the panels render.
  */
@@ -156,14 +193,7 @@ export async function fetchManifest(
   if (query.sections && query.sections.length > 0) params.set("sections", query.sections.join(","));
   if (query.format) params.set("format", query.format);
   const suffix = params.toString().length > 0 ? "?" + params.toString() : "";
-  const result = await getJson(endpoint(baseUrl, MANIFEST_PATH) + suffix, query.signal);
-  if (result.networkError !== null) return { ok: false, status: 0, error: result.networkError };
-  if (result.status !== 200)
-    return { ok: false, status: result.status, error: "HTTP " + result.status };
-  const envelope = parseEnvelope(result.body);
-  if (envelope === null)
-    return { ok: false, status: result.status, error: "invalid manifest envelope" };
-  return { ok: true, envelope, etag: result.etag };
+  return fetchManifestAt(endpoint(baseUrl, MANIFEST_PATH) + suffix, query.signal);
 }
 
 /**

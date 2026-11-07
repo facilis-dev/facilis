@@ -1,9 +1,12 @@
 # Generated-project frontend — pages, layouts, components
 
 How a Facilis project's client is organised. This is the **generated app's** frontend (the
-thing a developer builds in the IDE), not the IDE itself. It builds on the base kit
-(`@facilis/ui`, D-055), the date logic (`@facilis/time`, D-056) and the i18n runtime
-(`@facilis/core/i18n`, plus optional `@facilis/i18n-db/client`, D-057).
+thing a developer builds in the IDE), not the IDE itself. The UI layer is template v2 (D-090):
+Tailwind CSS v4 + Base UI, with shadcn-style primitives copied into the project and owned by it.
+The v1 `@facilis/ui` kit (D-055) was removed (D-096); projects created before D-090 are not
+supported. The stack builds on
+the date logic (`@facilis/time`, D-056) and the i18n runtime (`@facilis/core/i18n`, plus the
+optional `@facilis/i18n-db/client`, D-057).
 
 Reference implementation: `examples/todo-app/src` (real Nitro/PGlite backend: auth, todos).
 It is the acceptance app for this organisation, so the pattern is runnable, not a sketch.
@@ -19,15 +22,26 @@ src/
 │   ├── register.tsx
 │   ├── todos.tsx
 │   └── not-found.tsx
-├── layouts/              page shells; compose @facilis/ui templates with the router
+├── layouts/              page shells; compose the ui primitives with the router
 │   └── app-layout.tsx    header/nav/theme/locale/session + <Outlet/>
-├── components/           app-specific pieces (theme-toggle, locale-switch, future widgets)
-└── lib/                  non-React logic shared by pages/layouts
-    ├── api.ts            fetch wrapper + error codes
-    ├── session.tsx       session provider/hooks + guards
-    ├── theme.ts          data-theme persistence + hook
-    ├── i18n.tsx          catalogue boot + locale state + hook
-    └── dates.ts          project-level date formatting on top of @facilis/time
+├── components/           app-specific pieces (theme-toggle, locale-switch, todo widgets)
+│   └── ui/               shadcn-style primitives, copied in once and owned (D-090)
+│       ├── button.tsx
+│       ├── input.tsx
+│       ├── select.tsx
+│       ├── dialog.tsx
+│       ├── table.tsx
+│       └── …
+├── lib/                  non-React logic shared by pages/layouts
+│   ├── api.ts            fetch wrapper + error codes
+│   ├── session.tsx       session provider/hooks + guards
+│   ├── theme.ts          data-theme persistence + hook
+│   ├── i18n.tsx          catalogue boot + locale state + hook
+│   ├── dates.ts          project-level date formatting on top of @facilis/time
+│   └── utils.ts          cn() — clsx + tailwind-merge
+├── styles.css            Tailwind entry: @import "tailwindcss" + @theme + theme blocks
+└── styles/               optional app-specific layout CSS
+
 ```
 
 Rules:
@@ -36,9 +50,14 @@ Rules:
   `<main>`/`<header>`. Every string goes through `t()`.
 - **Layouts** own navigation and session chrome. They are project code and are copied per
   project (a sidebar is app-specific); only the neutral shells (`Page`, `AuthShell`,
-  `EmptyState`, `Spinner`) live in `@facilis/ui`.
-- **Components** start in `src/components`; a component is promoted to `@facilis/ui` only
-  when it is generic and themeable through the role variables.
+  `EmptyState`, `Spinner`) live in `src/components/ui`.
+- **Components** start in `src/components`; the shadcn-style primitives live in
+  `src/components/ui`, are copied in once (template v2, D-090) and belong to the project. There
+  is no separate component package to promote to: customise by editing the file, and build
+  app-specific pieces beside it.
+- **Tailwind utilities are the styling API**, with `cn()` for conditional classes and `cva` for
+  variant surfaces (as in `button.tsx`). A component that needs more than that gets a small
+  local wrapper or a `styles.css` rule; there is no second utility layer.
 - **lib** is framework-free where possible: pure helpers take their inputs (locale, dates,
   storage values) so they are unit-testable without a DOM.
 - Named exports only; kebab-case files; React components PascalCase; files ≤ 300 lines.
@@ -118,9 +137,12 @@ export function PublicOnly({ children }: { children: ReactNode }): ReactElement;
 - `logout()` posts `/api/auth/logout`, refreshes the session and lands on `/login`.
 - Roles/permissions come from the session; conditional UI uses them (`session.permissions`).
 
-## 5. Theme — `lib/theme.ts`
+## 5. Theme — `lib/theme.ts` + `src/styles.css`
 
-The kit is variable-driven (D-055); the app only decides which complete set applies.
+The theme is variable-driven (D-090, direction A): `src/styles.css` maps the shadcn role
+vocabulary (`--background`, `--foreground`, `--card`, `--primary`, `--muted`, `--border`,
+`--ring`, …) through `@theme inline` and holds complete `:root`/`[data-theme="light"]` and
+`[data-theme="dark"]` sets. The app only decides which set applies; no component names a colour.
 
 ```ts
 export type Theme = "light" | "dark";
@@ -133,7 +155,10 @@ export function resolveTheme(stored: string | null, prefersDark: boolean): Theme
 
 - `localStorage["facilis.theme"]`; `document.documentElement.dataset.theme = theme`.
 - No component knows the values; adding a project theme means another `[data-theme] block`
-  in CSS, not component edits.
+  in `styles.css`, not component edits. `@custom-variant dark (&:is([data-theme="dark"] *))`
+  is what makes the `dark:` utilities follow the attribute.
+- Rebranding is editing the variables (direction A's greens, radii and densities are already
+  there); deeper changes are Tailwind classes or a copied component.
 
 ## 6. i18n — `lib/i18n.tsx`
 
@@ -170,21 +195,18 @@ export function isOverdue(iso: string | null, options?: { today?: string; timeZo
 
 ## 8. Page states
 
-Every page that loads data renders three explicit states, using kit templates:
+Every page that loads data renders three explicit states, using the copied primitives:
 
 1. loading → `<Skeleton>` rows/cards, or `<Spinner label={t("common.loading")} />` for a
    whole surface;
 2. error → `<Alert tone="error">` + retry button;
 3. empty → `<EmptyState title description action />`; otherwise content.
 
-Tables compose `TableToolbar` (search/filters/actions) and `Pagination` with translated
-`summaryLabel`/`previousLabel`/`nextLabel`; destructive actions ask through `Dialog`;
-`DatePicker`, `Combobox` and `TagPicker` cover the richer form fields, with `Field` wiring the
-label/description/invalid state and the `labels` props carrying `t()` strings.
-
-Long-form text is a `MarkdownEditor` value rendered through the exported `Markdown`; a field
-stored per language is a `TranslationsInput` over the project's `locales`, and the server
-resolves the user's language with `@facilis/i18n-db` (D-057) when that package is enabled.
+Tables use the `Table` primitives plus an app-specific toolbar (search + filter controls from
+`Input`/`Select`/`Button`); destructive actions ask through `Dialog`; `Field` wires the
+label/description/invalid state. Richer patterns (calendar picker, combobox, markdown editor,
+translations input) are not in the template: a project adds the primitive when it needs it, which
+keeps the starter lean and is exactly the copy-in model the catalog will use.
 
 Mutations toast the outcome (`toast.success` / `toast.error(t(errorMessageKey(error)))`);
 they never replace the page with an error blob.
@@ -196,7 +218,7 @@ they never replace the page with an error blob.
 | Route | Page | Demonstrates |
 |---|---|---|
 | `/login`, `/register` | LoginPage/RegisterPage | `AuthShell`, `Field`+`Input`, API error codes, session refresh |
-| `/todos` | TodosPage | `Page`, create form with date input, `Table`, checkbox toggle, delete, `Badge` for overdue, loading/empty/error, toasts |
+| `/todos` | TodosPage | `Page`, create form with a native date input, `Table`, checkbox toggle, delete through `Dialog`, `Badge` for overdue, loading/empty/error, sonner toasts |
 | `*` | NotFoundPage | `EmptyState` |
 
 Run: `pnpm --filter @facilis/example-todo-app dev` (Vite + Nitro on one origin).
@@ -208,5 +230,5 @@ Gates: `typecheck`, `lint`, `test` (pure lib helpers), `build`.
   lines; every user-facing string via `t()` with en+it entries.
 - No colour literals in the app (variables only); no direct `fetch` outside `lib/api.ts`;
   no date formatting outside `lib/dates.ts`.
-- The same structure is what the IDE project template adopts later (out of scope here:
-  `ide/src/facilis/**` stays untouched).
+- The UI layer is the generated project's UI layer: template v2 (D-090) is this structure,
+  not a parallel one. The v1 kit was removed (D-096).

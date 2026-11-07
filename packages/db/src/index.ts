@@ -52,4 +52,75 @@ export {
   type SchemaSnapshot,
   type TableSnapshot,
 } from "./snapshot.ts";
+export {
+  liveSchemaSnapshot,
+  type LiveColumnSnapshot,
+  type LivePolicySnapshot,
+  type LiveSchemaSnapshot,
+  type LiveTableSnapshot,
+} from "./live-schema.ts";
+export {
+  canonicalColumnType,
+  diffSchemaSnapshots,
+  type SchemaDrift,
+  type SchemaDriftKind,
+} from "./schema-drift.ts";
 export { applyMigrations, applyStatements, type MigrationSource } from "./migrator.ts";
+export {
+  applyViews,
+  collectViewMetadata,
+  defineView,
+  grantViewSelect,
+  isFacilisView,
+  viewCreateStatement,
+  viewDefinitionStatement,
+  viewMetadata,
+  ViewDefinitionError,
+  VIEW_BRAND,
+  VIEW_NAME_PATTERN,
+  VIEW_PERMISSION_PATTERN,
+  type DefineViewOptions,
+  type FacilisView,
+  type ViewApplyFailure,
+  type ViewApplyOptions,
+  type ViewApplyResult,
+  type ViewErrorCode,
+  type ViewMetadata,
+} from "./views.ts";
+export {
+  ensureSystemRole,
+  runAsSystem,
+  runWithSystemRole,
+  SUDO_ID_GUC,
+  SYSTEM_ROLE,
+  type RunAsSystemOptions,
+  type RunWithSystemRoleOptions,
+} from "./sudo.ts";
+export {
+  newSudoId,
+  resetSudoAuditSink,
+  setSudoAuditSink,
+  writeSudoAudit,
+  SudoAuditUnavailableError,
+  type SudoAuditEvent,
+  type SudoAuditEventName,
+  type SudoAuditSink,
+} from "./sudo-audit.ts";
+export {
+  firstKeyword,
+  hasMultipleStatements,
+  isReadOnlySql,
+  stripTrailingSemicolon,
+} from "./read-only-sql.ts";
+export {
+  createLiveView,
+  DEFAULT_QUERY_LIMIT,
+  MAX_QUERY_LIMIT,
+  QueryExecutionError,
+  QUERY_STATEMENT_TIMEOUT_MS,
+  runReadOnlyQuery,
+  toJsonValue,
+  type QueryColumn,
+  type QueryExecution,
+  type QueryExecutionErrorCode,
+} from "./query-console.ts";

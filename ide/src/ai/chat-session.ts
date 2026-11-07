@@ -1,14 +1,12 @@
 // The AI chat session: conversation state, streaming, proposal review and apply
 // (D-045/D-046/D-047).
 //
-// One instance per controller (chat-host.ts keeps it in a WeakMap), so switching
-// sidebar views keeps the conversation. The session talks to the editor only
-// through ChatHost, to the model only through an injected call, and to the VFS
-// only through chat-actions.ts — the validated applyPatch() path.
+// One instance per controller (chat-host.ts keeps it in a WeakMap), so switching sidebar
+// views keeps the conversation. Editor access is ChatHost, model access the injected call,
+// and the VFS is reached only through chat-actions.ts — the validated applyPatch() path.
 //
-// Safety rule (SPEC §9.3 / invariant 9): the model never touches disk. A turn
-// produces a reviewable proposal; only the user's Apply reaches applyPatch(), and
-// a clean Apply can be undone because the proposal kept the before-images.
+// Safety rule (invariant 9): the model never touches disk. A turn produces a reviewable
+// proposal; only the user's Apply reaches applyPatch(), and a clean Apply can be undone.
 
 import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
@@ -18,7 +16,7 @@ import { errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
-import { parseAiResponse } from "./response";
+import { parseTurn } from "./response";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
@@ -242,7 +240,7 @@ export class ChatSession {
 
   /** Turn a complete answer into the final bubble plus an optional proposal. */
   private async finishAnswer(text: string): Promise<void> {
-    const parsed = parseAiResponse(text);
+    const parsed = await parseTurn(text, this.host);
     if (!parsed.ok) {
       this.dropStream();
       const detail = [parsed.error, ...parsed.issues].filter(Boolean).join("\n");
@@ -258,6 +256,7 @@ export class ChatSession {
         response.notes,
         response.requiresConfirmation,
         (path) => this.host.read(path),
+        parsed.validation,
       ),
     });
   }
@@ -273,6 +272,7 @@ export class ChatSession {
       const { applied, undo } = await applyAccepted(
         { bridge: this.host.bridge, root, manifestBase: this.host.manifestBase() },
         proposal,
+        this.host,
       );
       this.emit({ phase: "idle", applied, undo, ...(applied.ok ? { proposal: null } : {}) });
     } catch (error) {

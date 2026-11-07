@@ -1,12 +1,13 @@
 // IDE-specific wrappers around examples/todo-app, the single source of the generated
 // project (D-062).
 //
-// The @facilis/* packages are workspace-only (O-006), so the generated project installs
-// them from tarballs the IDE serves from its own public directory. npm is the installer
-// and the tarballs are inlined INTO the create request (manifest.assets, project-assets.ts,
-// D-032), then declared as file: dependencies: no package manager has to reach the studio
-// over HTTP to install them, and the project keeps working once it leaves the IDE. This is
-// interim until the packages are published.
+// The @facilis/* framework packages are workspace-only (O-006), so the generated project
+// installs them from tarballs the IDE serves from its own public directory. npm is the
+// installer and the tarballs are inlined INTO the create request (manifest.assets,
+// project-assets.ts, D-032), then declared as file: dependencies: no package manager has to
+// reach the studio over HTTP to install them, and the project keeps working once it leaves
+// the IDE. This is interim until the packages are published. The v1 UI kit was removed
+// (D-096): template v2 copies its primitives into src/components/ui.
 //
 // Everything else the project contains comes from examples/todo-app (example-template.ts);
 // this file only writes what cannot: the npm wrapper, the standalone tsconfig and the
@@ -45,7 +46,7 @@ function packageJson(): string {
   for (const [name, spec] of Object.entries(extras)) {
     if (dependencies[name] === undefined) dependencies[name] = spec;
   }
-  const devDependencies = {
+  const devDependencies: Record<string, string> = {
     // The IDE feeds installed @types/*.d.ts files to Monaco's TypeScript service, so a
     // project without these reports TS2307 "Cannot find module 'react'" on src/app.tsx.
     "@types/react": example.devDependencies["@types/react"] ?? "19.3.0",
@@ -54,6 +55,19 @@ function packageJson(): string {
     "@vitejs/plugin-react": example.devDependencies["@vitejs/plugin-react"] ?? "6.1.2",
     vite: example.devDependencies["vite"] ?? "8.3.5",
   };
+  // Tailwind CSS v4 is the v2 template's styling layer, but its toolchain is a VM-only
+  // addition and must not leak into the example: @tailwindcss/oxide-wasm32-wasi is the
+  // Tailwind engine's wasm32 binding. The VM reports process.arch "wasm32", so that
+  // optional dependency resolves normally there, while on the host the package is
+  // EBADPLATFORM and would break the example's install. Pinning it to the same exact
+  // version as tailwindcss keeps the engine and its binding in lockstep. A v1 project has
+  // no tailwindcss dependency, so it gets none of the three.
+  const tailwindcss = example.devDependencies["tailwindcss"];
+  if (tailwindcss !== undefined) {
+    devDependencies["tailwindcss"] = tailwindcss;
+    devDependencies["@tailwindcss/vite"] = example.devDependencies["@tailwindcss/vite"] ?? "4.3.5";
+    devDependencies["@tailwindcss/oxide-wasm32-wasi"] = tailwindcss;
+  }
   return (
     JSON.stringify(
       {
@@ -125,8 +139,10 @@ const readme = `# facilis-app
 
 A Facilis starter app scaffolded by the Facilis IDE and running in its browser VM.
 
-It is the generated-project reference: auth + todos pages composed from @facilis/ui,
-with the API, schema and i18n catalogues from examples/todo-app.
+It is the generated-project reference: auth + todos pages built on Tailwind CSS v4 and
+Base UI, with shadcn-style components copied into src/components/ui, plus the API, schema
+and i18n catalogues from examples/todo-app. There is no UI kit package: the components live
+in the project.
 
 ## Package manager
 

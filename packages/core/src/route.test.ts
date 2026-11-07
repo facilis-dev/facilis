@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
-import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
+import type { FacilisEventContext, FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import {
   defineAuthorizedHandler,
   type AuthorizedHandlerConfig,
@@ -126,7 +126,7 @@ describe("defineAuthorizedHandler", () => {
   it("runs a public route without a session and passes a null auth", async () => {
     const handler = vi.fn(
       (
-        _event: FacilisRequestEvent,
+        _event: FacilisHandlerEvent,
         ctx: AuthorizedHandlerContext<void, void, void, AuthContext | null>,
       ) => ({
         auth: ctx.auth,
@@ -142,7 +142,7 @@ describe("defineAuthorizedHandler", () => {
 
     expect(result.auth).toBeNull();
     // O-003: anonymous requests fall back to the framework single-tenant id (RLS WITH CHECK).
-    expect(result.db.scopedFor).toEqual({ tenantId: DEFAULT_TENANT_ID });
+    expect(result.db.scopedFor).toEqual({ tenantId: DEFAULT_TENANT_ID, permissions: [] });
     expect(dbMock.calls).toHaveLength(1);
   });
 
@@ -151,7 +151,7 @@ describe("defineAuthorizedHandler", () => {
 
     await route(makeEvent({ auth: null, defaultTenantId: "tenant-default" }));
 
-    expect(dbMock.calls[0]?.scope).toEqual({ tenantId: "tenant-default" });
+    expect(dbMock.calls[0]?.scope).toEqual({ tenantId: "tenant-default", permissions: [] });
   });
 
   it("scopes authenticated requests to the deployment tenant, with user and roles", async () => {
@@ -160,16 +160,12 @@ describe("defineAuthorizedHandler", () => {
     // D-040: the session cannot widen or change the tenant; only the deployment value counts.
     await route(makeEvent({ auth: AUTH, defaultTenantId: "tenant-default" }));
 
-    expect(dbMock.calls[0]?.scope).toEqual({
-      tenantId: "tenant-default",
-      userId: AUTH.userId,
-      roles: AUTH.roles,
-    });
+    expect(dbMock.calls[0]?.scope).toEqual({ tenantId: "tenant-default", ...AUTH });
   });
 
   it("validates params, query and body and passes parsed values to the handler", async () => {
     const handler = vi.fn(
-      (_event: FacilisRequestEvent, ctx: { body: unknown; query: unknown; params: unknown }) => ({
+      (_event: FacilisHandlerEvent, ctx: { body: unknown; query: unknown; params: unknown }) => ({
         body: ctx.body,
         query: ctx.query,
         params: ctx.params,

@@ -1,0 +1,83 @@
+{
+  "ok": true,
+  "startedAt": "2026-11-03T19:10:18.666Z",
+  "timings": {
+    "kernelOnlineMs": 1556,
+    "installToPreviewPaintMs": 129538
+  },
+  "project": {
+    "root": "/home/user/projects/facilis-dev",
+    "name": "facilis-dev",
+    "packageJson": "{\n  \"name\": \"facilis-app\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"packageManager\": \"npm@12.2.1\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\",\n    \"preinstall\": \"node scripts/check-pm.mjs\"\n  },\n  \"dependencies\": {\n    \"@base-ui/react\": \"1.9.0\",\n    \"@electric-sql/pglite\": \"0.5.11\",\n    \"@facilis/auth\": \"file:/home/user/projects/facilis-dev/vendor/facilis-auth-0.0.0.tgz\",\n    \"@facilis/core\": \"file:/home/user/projects/facilis-dev/vendor/facilis-core-0.0.0.tgz\",\n    \"@facilis/db\": \"file:/home/user/projects/facilis-dev/vendor/facilis-db-0.0.0.tgz\",\n    \"@facilis/nitro\": \"file:/home/user/projects/facilis-dev/vendor/facilis-nitro-0.0.0.tgz\",\n    \"@facilis/time\": \"file:/home/user/projects/facilis-dev/vendor/facilis-time-0.0.0.tgz\",\n    \"@fontsource-variable/geist\": \"5.2.9\",\n    \"class-variance-authority\": \"0.7.1\",\n    \"clsx\": \"2.1.1\",\n    \"drizzle-orm\": \"0.45.4\",\n    \"lucide-react\": \"1.66.0\",\n    \"nitro\": \"3.0.260903-beta\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\",\n    \"react-router-dom\": \"7.18.5\",\n    \"sonner\": \"2.0.7\",\n    \"tailwind-merge\": \"3.7.0\",\n    \"zod\": \"4.6.7\",\n    \"picomatch\": \"^4.0.3\",\n    \"@vercel/queue\": \"^0.5.1\",\n    \"rolldown\": \"1.2.15\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"19.3.0\",\n    \"@types/react-dom\": \"19.3.0\",\n    \"@types/node\": \"22.20.5\",\n    \"@rolldown/binding-wasm32-wasi\": \"~1.2.0\",\n    \"@vitejs/plugin-react\": \"6.1.2\",\n    \"vite\": \"8.3.5\",\n    \"tailwindcss\": \"4.3.3\",\n    \"@tailwindcss/vite\": \"4.3.3\",\n    \"@tailwindcss/oxide-wasm32-wasi\": \"4.3.3\"\n  },\n  \"overrides\": {\n    \"@emnapi/core\": \"2.0.0-beta.2\",\n    \"@emnapi/runtime\": \"2.0.0-beta.2\"\n  }\n}\n",
+    "appTsx": "import { Navigate, Route, Routes } from \"react-router-dom\";\nimport { Toaster } from \"./components/ui/sonner.tsx\";\nimport { AppLayout } from \"./layouts/app-layout.tsx\";\nimport { AuthLayout } from \"./layouts/auth-layout.tsx\";\nimport { useLocale } from \"./lib/i18n.tsx\";\nimport { PublicOnly, RequireAuth, SessionProvider } from \"./lib/session.tsx\";\nimport { LoginPage } from \"./pages/login.tsx\";\nimport { NotFoundPage } from \"./pages/not-found.tsx\";\nimport { RegisterPage } from \"./pages/register.tsx\";\nimport { TodosPage } from \"./pages/todos.tsx\";\n\n/**\n * Providers plus the one explicit route table (docs/FRONTEND.md section 2). Keeping it in a\n * single place is the point: the AI edits routes here, not in a file-based convention.\n */\nexport function App() {\n  // The catalogue itself is module state; subscribing once at the root re-renders every page\n  // (pages keep calling plain t(), docs/FRONTEND.md section 6) whenever the locale changes.\n  useLocale();\n\n  return (\n    <SessionProvider>\n      <Routes>\n        <Route element={<AppLayout />}>\n          <Route path=\"/\" element={<Navigate to=\"/todos\" replace />} />\n          <Route\n            path=\"/todos\"\n            element={\n              <RequireAuth>\n                <TodosPage />\n              </RequireAuth>\n            }\n          />\n        </Route>\n        <Route\n          path=\"/login\"\n          element={\n            <PublicOnly>\n              <AuthLayout>\n                <LoginPage />\n              </AuthLayout>\n            </PublicOnly>\n          }\n        />\n        <Route\n          path=\"/register\"\n          element={\n            <PublicOnly>\n              <AuthLayout>\n                <RegisterPage />\n              </AuthLayout>\n            </PublicOnly>\n          }\n        />\n        <Route path=\"*\" element={<NotFoundPage />} />\n      </Routes>\n      <Toaster />\n      <p className=\"muted\">Edit src/app.tsx and save to test HMR.</p>\n    </SessionProvider>\n  );\n}\n",
+    "zipPath": "/tmp/facilis-dev/spike-facilis-site/1793733018666/downloads/facilis-dev.zip"
+  },
+  "downloads": [],
+  "checks": [
+    {
+      "ok": true,
+      "label": "kernel online",
+      "detail": "1556ms"
+    },
+    {
+      "ok": true,
+      "label": "new-project dialog opens",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project name filled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "Create button enabled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project created, install started",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "preview painted (install + dev in VM)",
+      "detail": "129538ms"
+    },
+    {
+      "ok": true,
+      "label": "project root resolved",
+      "detail": "/home/user/projects/facilis-dev"
+    },
+    {
+      "ok": true,
+      "label": "exportProjectZip invoked",
+      "detail": "OK"
+    },
+    {
+      "ok": true,
+      "label": "project zip downloaded",
+      "detail": "/tmp/facilis-dev/spike-facilis-site/1793733018666/downloads/facilis-dev.zip (242276 bytes)"
+    }
+  ],
+  "createDialog": {
+    "text": "New project\n\nA Facilis app — Nitro, PGlite and React, scaffolded for you.\n\nProject name\nDirectory\nInstall and run install dependencies and start the dev server after creating.\nCancel\nCreate\nClose",
+    "buttons": [
+      "Cancel",
+      "Create",
+      "Close"
+    ]
+  },
+  "previewProbe": {
+    "hintText": "Edit src/app.tsx and save to test HMR.",
+    "bodyBg": "rgb(247, 248, 249)"
+  },
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template)."
+    }
+  ],
+  "pageErrors": [],
+  "finishedAt": "2026-11-03T19:12:36.430Z"
+}

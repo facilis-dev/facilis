@@ -1,6 +1,6 @@
 /**
- * @facilis/nitro — the `facilis()` Vite plugin, its Nitro module, the framework AST
- * pass and the OpenAPI facade (SPEC §5.6, §6.9, §13 risk 3).
+ * @facilis/nitro — the `facilis()` Vite plugin, its Nitro module, the framework route
+ * metadata pass and the OpenAPI facade (SPEC §5.6, §6.9, §13 risk 3).
  *
  * Entry points: `@facilis/nitro` (everything), `@facilis/nitro/vite` (plugin),
  * `@facilis/nitro/module` (Nitro module), `@facilis/nitro/session` (route-facing server
@@ -8,6 +8,7 @@
  */
 
 export {
+  DEV_SCHEMA_ROUTE,
   HEALTH_ROUTE,
   MANIFEST_REVISION_ROUTE,
   MANIFEST_ROUTE,
@@ -22,7 +23,7 @@ export type {
   OpenApiPathItem,
 } from "./facade.ts";
 export { createFacilisNitroModule, facilisNitroModule } from "./module.ts";
-export { scanRouteMetadata } from "./ast/scanner.ts";
+export { scanRouteMetadata } from "./route-metadata.ts";
 export type {
   FacilisOptions,
   HttpMethod,

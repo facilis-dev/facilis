@@ -1,0 +1,1116 @@
+{
+  "ok": true,
+  "startedAt": "2026-11-03T18:39:56.336Z",
+  "timings": {
+    "kernelOnlineMs": 1535,
+    "installToPreviewPaintMs": 128747
+  },
+  "checks": [
+    {
+      "ok": true,
+      "label": "kernel online",
+      "detail": "1535ms"
+    },
+    {
+      "ok": true,
+      "label": "new-project dialog opens",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project name filled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "Create button enabled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project created, install started",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "preview painted (install + dev in VM)",
+      "detail": "128747ms"
+    },
+    {
+      "ok": true,
+      "label": "project root resolved",
+      "detail": "/home/user/projects/template-v2-mw118p0v"
+    },
+    {
+      "ok": true,
+      "label": "generated package.json has no @facilis/ui",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "generated package.json depends on @base-ui/react",
+      "detail": "1.9.0"
+    },
+    {
+      "ok": true,
+      "label": "generated package.json has sonner + lucide-react",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "generated devDependencies ship the Tailwind trio",
+      "detail": "tailwindcss=4.3.3 vite=4.3.3 oxide=4.3.3"
+    },
+    {
+      "ok": true,
+      "label": "the Tailwind trio is pinned to one exact version",
+      "detail": "4.3.3"
+    },
+    {
+      "ok": true,
+      "label": "generated devDependencies keep vite + plugin-react",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "generated styles.css is the Tailwind entry",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "generated project ships the HMR rescan plugin",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "node_modules has no @facilis/ui",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "node_modules has tailwindcss",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "node_modules has @base-ui/react",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "node_modules has sonner",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "node_modules has lucide-react",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "preview renders the HMR hint (smoke contract)",
+      "detail": "Edit src/app.tsx and save to test HMR."
+    },
+    {
+      "ok": true,
+      "label": "preview uses no legacy .fc-* kit class",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "Tailwind base layer paints the theme background",
+      "detail": "rgb(247, 248, 249)"
+    },
+    {
+      "ok": true,
+      "label": "Geist font loaded from the template theme",
+      "detail": "\"Geist Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "ok": true,
+      "label": "preview ships generated Tailwind CSS",
+      "detail": "cssLength=50995"
+    },
+    {
+      "ok": true,
+      "label": "template app.tsx contains the exact HMR hint",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "HMR edit prepared",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "VV write landed (new class in the source)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "HMR: new arbitrary utility applied without touching styles.css",
+      "detail": "rgb(18, 52, 86)"
+    }
+  ],
+  "files": {
+    "packageJson": "{\n  \"name\": \"facilis-app\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"packageManager\": \"npm@12.2.1\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\",\n    \"preinstall\": \"node scripts/check-pm.mjs\"\n  },\n  \"dependencies\": {\n    \"@base-ui/react\": \"1.9.0\",\n    \"@electric-sql/pglite\": \"0.5.11\",\n    \"@facilis/auth\": \"file:/home/user/projects/template-v2-mw118p0v/vendor/facilis-auth-0.0.0.tgz\",\n    \"@facilis/core\": \"file:/home/user/projects/template-v2-mw118p0v/vendor/facilis-core-0.0.0.tgz\",\n    \"@facilis/db\": \"file:/home/user/projects/template-v2-mw118p0v/vendor/facilis-db-0.0.0.tgz\",\n    \"@facilis/nitro\": \"file:/home/user/projects/template-v2-mw118p0v/vendor/facilis-nitro-0.0.0.tgz\",\n    \"@facilis/time\": \"file:/home/user/projects/template-v2-mw118p0v/vendor/facilis-time-0.0.0.tgz\",\n    \"@fontsource-variable/geist\": \"5.2.9\",\n    \"class-variance-authority\": \"0.7.1\",\n    \"clsx\": \"2.1.1\",\n    \"drizzle-orm\": \"0.45.4\",\n    \"lucide-react\": \"1.66.0\",\n    \"nitro\": \"3.0.260903-beta\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\",\n    \"react-router-dom\": \"7.18.5\",\n    \"sonner\": \"2.0.7\",\n    \"tailwind-merge\": \"3.7.0\",\n    \"zod\": \"4.6.7\",\n    \"picomatch\": \"^4.0.3\",\n    \"@vercel/queue\": \"^0.5.1\",\n    \"rolldown\": \"1.2.15\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"19.3.0\",\n    \"@types/react-dom\": \"19.3.0\",\n    \"@types/node\": \"22.20.5\",\n    \"@rolldown/binding-wasm32-wasi\": \"~1.2.0\",\n    \"@vitejs/plugin-react\": \"6.1.2\",\n    \"vite\": \"8.3.5\",\n    \"tailwindcss\": \"4.3.3\",\n    \"@tailwindcss/vite\": \"4.3.3\",\n    \"@tailwindcss/oxide-wasm32-wasi\": \"4.3.3\"\n  },\n  \"overrides\": {\n    \"@emnapi/core\": \"2.0.0-beta.2\",\n    \"@emnapi/runtime\": \"2.0.0-beta.2\"\n  }\n}\n"
+  },
+  "hmr": {
+    "firstTry": true,
+    "probe": {
+      "hintFound": true,
+      "hintText": "Edit src/app.tsx and save to test HMR.",
+      "probeFound": true,
+      "probeBg": "rgb(18, 52, 86)",
+      "hasFcClass": false,
+      "bodyBg": "rgb(247, 248, 249)",
+      "bodyFont": "\"Geist Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "cssLength": 51053,
+      "cssHasArbitrary": true,
+      "cssHasTailwind": true
+    }
+  },
+  "probes": [
+    {
+      "hintFound": true,
+      "hintText": "Edit src/app.tsx and save to test HMR.",
+      "probeFound": false,
+      "probeBg": null,
+      "hasFcClass": false,
+      "bodyBg": "rgb(247, 248, 249)",
+      "bodyFont": "\"Geist Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "cssLength": 50995,
+      "cssHasArbitrary": false,
+      "cssHasTailwind": true
+    },
+    {
+      "hintFound": true,
+      "hintText": "Edit src/app.tsx and save to test HMR.",
+      "probeFound": true,
+      "probeBg": "rgb(18, 52, 86)",
+      "hasFcClass": false,
+      "bodyBg": "rgb(247, 248, 249)",
+      "bodyFont": "\"Geist Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "cssLength": 51053,
+      "cssHasArbitrary": true,
+      "cssHasTailwind": true
+    }
+  ],
+  "runSamples": [
+    {
+      "at": 329,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n\n\n\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\n"
+        }
+      ]
+    },
+    {
+      "at": 4334,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "3 requests · 9.5 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\nsts · 9.5 MB"
+        }
+      ]
+    },
+    {
+      "at": 8337,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "6 requests · 19.8 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n"
+        }
+      ]
+    },
+    {
+      "at": 12351,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "4 requests · 10.8 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\nsts · 10.8 MB"
+        }
+      ]
+    },
+    {
+      "at": 16355,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "4 requests · 10.8 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n"
+        }
+      ]
+    },
+    {
+      "at": 20367,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "4 requests · 10.8 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n"
+        }
+      ]
+    },
+    {
+      "at": 24374,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "10 requests · 16.8 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\nests · 16.8 MB"
+        }
+      ]
+    },
+    {
+      "at": 28380,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "36 requests · 50.7 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\nests · 50.7 MB"
+        }
+      ]
+    },
+    {
+      "at": 32398,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 36411,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 40430,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 44443,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 48454,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 52467,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 56485,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 60498,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 64514,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 68528,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 72542,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 76557,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 80561,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 84572,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 88588,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 92600,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 96617,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "65 requests · 74.9 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 100634,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "21 requests · 28.1 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\nests · 28.1 MB"
+        }
+      ]
+    },
+    {
+      "at": 104639,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "58 requests · 37.5 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\nests · 37.5 MB"
+        }
+      ]
+    },
+    {
+      "at": 108643,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "63 requests · 43.4 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 112649,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "104 requests · 19.7 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 17 requ\n⠋ fetching · 19 requ\n⠙ fetching · 24 requ\n⠹ fetching · 47 requ\n⠸ fetching · 57 requ\n⠼ fetching · 63 requ\n⠴ fetching · 72 requ\n⠦ fetching · 80 requ\n⠧ fetching · 81 requ\n⠇ fetching · 83 requ\n⠏ fetching · 87 requ\n⠋ fetching · 91 requ\n⠙ fetching · 94 requ\n⠹ fetching · 101 req\n⠸ fetching · 102 req\n⠼ fetching · 103 req\n⠴ fetching · 104 req\nuests · 19.7 MB"
+        }
+      ]
+    },
+    {
+      "at": 116654,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "108 requests · 29.6 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 17 requ\n⠋ fetching · 19 requ\n⠙ fetching · 24 requ\n⠹ fetching · 47 requ\n⠸ fetching · 57 requ\n⠼ fetching · 63 requ\n⠴ fetching · 72 requ\n⠦ fetching · 80 requ\n⠧ fetching · 81 requ\n⠇ fetching · 83 requ\n⠏ fetching · 87 requ\n⠋ fetching · 91 requ\n⠙ fetching · 94 requ\n⠹ fetching · 101 req\n⠸ fetching · 102 req\n⠼ fetching · 103 req\n⠴ fetching · 104 req\n⠦ fetching · 106 req\n⠧ fetching · 108 req\nuests · 29.6 MB"
+        }
+      ]
+    },
+    {
+      "at": 120659,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "installing",
+        "detail": "108 requests · 29.6 MB",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (16711 files, 185.0 MB).\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\ntemplate-v2-mw118p0v\n$ node scripts/vendo\nr-paths.cjs && npm i\nnstall && npm run de\nv -- --configLoader \nnative\n[facilis] resolved 5\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 17 requ\n⠋ fetching · 19 requ\n⠙ fetching · 24 requ\n⠹ fetching · 47 requ\n⠸ fetching · 57 requ\n⠼ fetching · 63 requ\n⠴ fetching · 72 requ\n⠦ fetching · 80 requ\n⠧ fetching · 81 requ\n⠇ fetching · 83 requ\n⠏ fetching · 87 requ\n⠋ fetching · 91 requ\n⠙ fetching · 94 requ\n⠹ fetching · 101 req\n⠸ fetching · 102 req\n⠼ fetching · 103 req\n⠴ fetching · 104 req\n⠦ fetching · 106 req\n⠧ fetching · 108 req\n\nadded 117 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\n"
+        }
+      ]
+    },
+    {
+      "at": 124663,
+      "phase": {
+        "rootPath": "/home/user/projects/template-v2-mw118p0v",
+        "name": "template-v2-mw118p0v",
+        "phase": "starting",
+        "detail": "",
+        "startedAt": 1793731202043
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (16711 files, 185.0 MB).\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[intellisense] template-v2-mw118p0v: loaded 2348 dependency type file(s)\n[kernel] pid 9 listening on :3000\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "cilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 17 requ\n⠋ fetching · 19 requ\n⠙ fetching · 24 requ\n⠹ fetching · 47 requ\n⠸ fetching · 57 requ\n⠼ fetching · 63 requ\n⠴ fetching · 72 requ\n⠦ fetching · 80 requ\n⠧ fetching · 81 requ\n⠇ fetching · 83 requ\n⠏ fetching · 87 requ\n⠋ fetching · 91 requ\n⠙ fetching · 94 requ\n⠹ fetching · 101 req\n⠸ fetching · 102 req\n⠼ fetching · 103 req\n⠴ fetching · 104 req\n⠦ fetching · 106 req\n⠧ fetching · 108 req\n\nadded 117 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\nℹ Using index.html a\ns renderer template.\n                    \n       6:42:03 PM\n\n  VITE v8.3.5  ready\n in 1790 ms\n\n  ➜  Local:   http:/\n/localhost:3000/\n  ➜  Network: use --\nhost to expose\n  ➜  press h + enter\n to show help\n6:42:05 PM [vite] (c\nlient) [optimizer] b\nundling dependencies\n...\n"
+        }
+      ]
+    },
+    {
+      "at": 128747,
+      "phase": null,
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+46ms).\n  [boot] codecs compiled (+46ms).\nKernel ready.\n  [boot] kernel ready in 68ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (16711 files, 185.0 MB).\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[intellisense] template-v2-mw118p0v: loaded 2348 dependency type file(s)\n[kernel] pid 9 listening on :3000\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "cilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 3 reque\n⠦ fetching · 4 reque\n⠧ fetching · 3 reque\n⠇ fetching · 4 reque\n⠏ fetching · 5 reque\n⠋ fetching · 6 reque\n⠙ fetching · 7 reque\n⠹ fetching · 8 reque\n⠸ fetching · 9 reque\n⠼ fetching · 10 requ\n⠴ fetching · 11 requ\n⠦ fetching · 12 requ\n⠧ fetching · 13 requ\n⠇ fetching · 14 requ\n⠏ fetching · 15 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 20 requ\n⠸ fetching · 27 requ\n⠼ fetching · 33 requ\n⠴ fetching · 34 requ\n⠦ fetching · 36 requ\n⠧ fetching · 37 requ\n⠇ fetching · 46 requ\n⠏ fetching · 47 requ\n⠋ fetching · 50 requ\n⠙ fetching · 55 requ\n⠹ fetching · 60 requ\n⠸ fetching · 63 requ\n⠼ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,22\n7 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠴ fetching · 4 reque\n⠦ fetching · 8 reque\n⠧ fetching · 11 requ\n⠇ fetching · 13 requ\n⠏ fetching · 16 requ\n⠋ fetching · 18 requ\n⠙ fetching · 19 requ\n⠹ fetching · 21 requ\n⠸ fetching · 24 requ\n⠼ fetching · 28 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 34 requ\n⠇ fetching · 36 requ\n⠏ fetching · 38 requ\n⠋ fetching · 47 requ\n⠙ fetching · 52 requ\n⠹ fetching · 54 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 17 requ\n⠋ fetching · 19 requ\n⠙ fetching · 24 requ\n⠹ fetching · 47 requ\n⠸ fetching · 57 requ\n⠼ fetching · 63 requ\n⠴ fetching · 72 requ\n⠦ fetching · 80 requ\n⠧ fetching · 81 requ\n⠇ fetching · 83 requ\n⠏ fetching · 87 requ\n⠋ fetching · 91 requ\n⠙ fetching · 94 requ\n⠹ fetching · 101 req\n⠸ fetching · 102 req\n⠼ fetching · 103 req\n⠴ fetching · 104 req\n⠦ fetching · 106 req\n⠧ fetching · 108 req\n\nadded 117 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\nℹ Using index.html a\ns renderer template.\n                    \n       6:42:03 PM\n\n  VITE v8.3.5  ready\n in 1790 ms\n\n  ➜  Local:   http:/\n/localhost:3000/\n  ➜  Network: use --\nhost to expose\n  ➜  press h + enter\n to show help\n6:42:05 PM [vite] (c\nlient) [optimizer] b\nundling dependencies\n...\n"
+        }
+      ]
+    }
+  ],
+  "projectRoot": "/home/user/projects/template-v2-mw118p0v",
+  "terminalTail": "[boot] shell (Process Worker) booted in 98ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 145ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +316ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] template-v2-mw118p0v: no node_modules yet — run `npm install` for\n dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (16711 files, 185.0 MB).\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[intellisense] template-v2-mw118p0v: loaded 2348 dependency type file(s)\n[kernel] pid 9 listening on :3000\n \nVivari shell — type commands, Enter to run.\n/$  \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nlient) hmr update /s\nrc/app.tsx, /src/sty\nles.css\n6:42:12 PM [vite] (c\nlient) hmr update /s\nrc/styles.css\n ",
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template)."
+    },
+    {
+      "type": "warning",
+      "text": "[vivari]  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!doctype \"... is not valid JSON). This build was assembled without it, so nothing is prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`."
+    },
+    {
+      "type": "warning",
+      "text": "[vivari]  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<', \"<!doctype \"... is not valid JSON). This build was assembled without it, so nothing is prebuilt and every project installs from scratch. Fix: `npm run vendor:depcache`."
+    }
+  ],
+  "pageErrors": [],
+  "failedRequests": [
+    "404 http://127.0.0.1:5199/favicon.ico"
+  ],
+  "downloads": {
+    "count": 66,
+    "totalBytes": 73887746,
+    "relevantCount": 0
+  },
+  "statusText": "template-v2-mw118p0v\nHome\nWORKSPACE\nTEMPLATE-V2-MW118P0V\n.facilis\ndb\nlocales\nnode_modules\nscripts\nserver\nsrc\ncomponents\nlayouts\nlib\npages\napp.tsx\nmain.tsx\nstyles.css\nvendor\nvite-plugins\n.npmrc\nfacilis.app.json\nfacilis.config.ts\nindex.html\npackage-lock.json\npackage.json\nREADME.md\ntsconfig.json\nvite.config.ts\napp.tsx\nWorkspace\ntemplate-v2-mw118p0v\nsrc\napp.tsx\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\nimport { Navigate, Route, Routes } from \"react-router-dom\";\nimport { Toaster } from \"./components/ui/sonner.tsx\";\nimport { AppLayout } from \"./layouts/app-layout.tsx\";\nimport { AuthLayout } from \"./layouts/auth-layout.tsx\";\nimport { useLocale } from \"./lib/i18n.tsx\";\nimport { PublicOnly, RequireAuth, SessionProvider } from \"./lib/session.tsx\";\nimport { LoginPage } from \"./pages/login.tsx\";\nimport { NotFoundPage } from \"./pages/not-found.tsx\";\nimport { RegisterPage } from \"./pages/register.tsx\";\nimport { TodosPage } from \"./pages/todos.tsx\";\n/**\n * Providers plus the one explicit route table (docs/FRONTEND.md section 2). Keeping it in a\nCONSOLE\nTERMINAL\nPORTS\n1\nlient) hmr update /s\nrc/app.tsx, /src/sty\nles.css\n6:42:12 PM [vite] (c\nlient) hmr update /s\nrc/styles.css\n \nsh 1\nnpm run dev -- --configLoader native\nFacilis — Todos\n0\n0\ntemplate-v2-mw118p0v running — edits hot-reload\nLn 1, Col 1\nSpaces: 2\nTypeScript\nGo to Line\n\nSearch for a command to run...\n\nIndentation\n\nSearch for a command to run...\n\nSelect Language Mode\n\nSearch for a command to run...\n\nCommand Palette\n\nSearch for a command to run...",
+  "terminalHighlights": [
+    "6:42:12 PM [vite] (c"
+  ],
+  "finishedAt": "2026-11-03T18:42:12.872Z"
+}

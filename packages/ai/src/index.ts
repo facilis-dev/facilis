@@ -1,63 +1,42 @@
 /**
- * @facilis/ai — prompt assembly, response parsing and the patch validator.
+ * @facilis/ai — the SPEC §9.3 patch validator and the contracts it shares with the IDE
+ * chat (patches, findings, project context).
  *
- * Phase 0 skeleton: `validatePatch` performs the structural checks that need no
- * TypeScript program (path safety, payload presence). The full 16-rule validator
- * (spec §9.3) arrives in Phase 4.
+ * This entry must stay browser-safe: no TypeScript/oxc parser, no Node builtin, no
+ * filesystem. Rule 1's parser is injected as a {@link SyntaxChecker} (the IDE passes
+ * Monaco's TypeScript worker; Node tooling imports the `@facilis/ai/node` subpath, the
+ * only module that imports a parser). Project facts come from @facilis/analyze's Analysis,
+ * which the caller builds from the VFS file map; every analyzer import here is type-only,
+ * so no analyzer runtime value is bundled into the IDE.
  */
 
-export interface FilePatch {
-  path: string;
-  action: "create" | "update" | "delete";
-  content?: string;
-}
-
-export interface ValidationError {
-  rule: string;
-  severity: "error" | "warning";
-  file: string;
-  message: string;
-}
-
-export interface ValidationResult {
-  ok: boolean;
-  errors: ValidationError[];
-  warnings: ValidationError[];
-}
-
-const PATH_SEGMENTS = new Set(["..", "."]);
-
-function validateFilePatch(patch: FilePatch): ValidationError[] {
-  const errors: ValidationError[] = [];
-  const segments = patch.path.split("/");
-  const isUnsafePath =
-    patch.path.trim().length === 0 ||
-    patch.path.startsWith("/") ||
-    segments.some((s) => PATH_SEGMENTS.has(s));
-
-  if (isUnsafePath) {
-    errors.push({
-      rule: "file-path-allowed",
-      severity: "error",
-      file: patch.path,
-      message: "Patch paths must be relative to the project root.",
-    });
-  }
-
-  if (patch.action !== "delete" && (patch.content ?? "").length === 0) {
-    errors.push({
-      rule: "content-present",
-      severity: "error",
-      file: patch.path,
-      message: "Create and update patches must include file content.",
-    });
-  }
-
-  return errors;
-}
-
-export function validatePatch(patches: readonly FilePatch[]): ValidationResult {
-  const errors = patches.flatMap(validateFilePatch);
-
-  return { ok: errors.length === 0, errors, warnings: [] };
-}
+export { buildProjectContext } from "./context.ts";
+export { checkPatchSyntax } from "./syntax-runner.ts";
+export type {
+  Analysis,
+  BlockFacts,
+  ColumnFact,
+  ConfigFacts,
+  Diagnostic,
+  FileFacts,
+  FilePatch,
+  ImportAlias,
+  ImportFact,
+  LocaleCatalogs,
+  PatchContext,
+  ProjectContext,
+  ProjectContextInput,
+  RouteFact,
+  SchemaSummary,
+  SourceRef,
+  SyntaxCheck,
+  SyntaxChecker,
+  SyntaxFinding,
+  SyntaxIssue,
+  TableFact,
+  TranslationCallFact,
+  ValidatePatchOptions,
+  ValidationError,
+  ValidationResult,
+} from "./types.ts";
+export { validatePatch } from "./validator.ts";

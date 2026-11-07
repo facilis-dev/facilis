@@ -30,7 +30,7 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on the plain-CSS `@facilis/ui` kit. AI output is validated against 16 rules before it touches disk. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. AI output is validated against 16 rules before it touches disk. |
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
@@ -75,7 +75,7 @@ Everything runs **in your browser tab** — including the backend.
 │                                                     │
 │  ┌───────────────────────────────────────────────┐  │
 │  │  Facilis Studio (fork of Vivari Studio)       │  │
-│  │  Editor · AI Chat · API Flow · Data · Release │  │
+│  │  Editor · AI Chat · Graph · Data · Release   │  │
 │  └───────────────────────────────────────────────┘  │
 │                       │                             │
 │  ┌───────────────────────────────────────────────┐  │
@@ -104,7 +104,7 @@ Everything runs **in your browser tab** — including the backend.
 | Backend | [Nitro v3](https://nitro.build) — as a Vite plugin, mounted by `facilis()` |
 | ORM | [Drizzle](https://orm.drizzle.team) |
 | In-browser DB | [PGlite](https://pglite.dev) |
-| Frontend (generated app) | React 19 + [`@facilis/ui`](packages/ui) — plain CSS (`.fc-*`) with daisyUI-style role variables, React Router; no utility framework required (D-055/D-058/D-060) |
+| Frontend (generated app) | React 19 + Tailwind CSS v4 + shadcn/ui (Base UI) with the components copied into the project (`src/components/ui`), React Router (D-090; the v1 plain-CSS kit was removed, D-096) |
 | Frontend (this IDE) | Tailwind CSS v4 + shadcn/ui (Base UI primitives), inherited from the Vivari Studio fork |
 | Runtime | [Vivari](https://github.com/maitrungduc1410/vivari) |
 | Validation | [Zod](https://zod.dev) |
@@ -131,34 +131,48 @@ mounts serves `/api/*` and `/__facilis/*`, and PGlite boots inside the Nitro wor
 cd examples/todo-app && ./scripts/verify-headless.sh
 ```
 
+The [three-minute demo script](docs/DEMO.md) walks the same flow in the browser.
+
 The template the IDE scaffolds **is** [`examples/todo-app`](examples/todo-app) (D-062): one
-source for the starter, so editing the example changes what "New project" creates. A
-cloneable `starter/` repository is Phase 2 work.
+source for the starter, so editing the example changes what "New project" creates.
+`starter/` stays empty until `@facilis/*` has a publish target (D-027, D-062): the template is
+assembled from the example at build time, so there is no second copy to drift.
 
 ---
 
 ## Status
 
-**Phase 1 implemented and verified headlessly, and the browser harness now exists: the
-Facilis framework boots inside the IDE's WebContainer (2026-10-28 spike — `pnpm ide:smoke`
-is green end to end: `facilis()` mounts Nitro + PGlite +
-`/__facilis/*` on one origin, zero manifest warnings). Generated projects install with
-**npm** (D-032) from IDE-served `file:` tarballs, ship **one config** — `facilis.config.ts`,
-whose optional `nitro` section is read by `facilis()` — and their `vite.config.ts` is just
-`[facilis(), react()]` (D-034); the template pins `@types/react`/`@types/react-dom` so the
-IDE's TypeScript service resolves React. See [`docs/DECISIONS.md`](docs/DECISIONS.md)
-D-022…D-034 and D-063…D-072.**
+**Phases 0–2 are implemented and verified** — the headless suites plus the browser harness
+(`pnpm ide:smoke` boots the framework in the IDE's WebContainer: `facilis()` mounts Nitro +
+PGlite + `/__facilis/*` on one origin, zero manifest warnings). The Studio (Phase 2) ships at
+<https://ide.facilis.dev>: git import/push/publish, tabs, PWA, managed builds. Phase 3 is
+complete: the Entity Explorer (D-083), the AST project graph (D-092; it replaced the API Flow,
+D-095), the Data Explorer's query console + declarative views (D-097) and the Release Preview
+(D-086). In
+Phase 4 the AI chat and the full 16-rule patch validator are implemented (D-084). Generated
+projects install with **npm** (D-032) from IDE-served
+`file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
+read by `facilis()` — and their `vite.config.ts` is just `[facilis(), react()]` (D-034); the
+template pins `@types/react`/`@types/react-dom` so the IDE's TypeScript service resolves
+React. See [`docs/DECISIONS.md`](docs/DECISIONS.md), D-022…D-034 and D-063…D-084.
 
 What exists today, runnable in this repo:
 
 | Piece | Where | Evidence |
 |---|---|---|
-| Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | 175 unit/integration tests, strict TS, zero lint errors |
+| Core packages (`core`, `db`, `auth`, `nitro`) | `packages/` | unit/integration suites (PGlite-backed), strict TS, zero lint errors |
 | Binary storage (`@facilis/storage`) | `packages/storage/` | content-addressed local + S3-compatible drivers (S3/R2/MinIO via SigV4), signed download tokens; 12 tests |
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.2.0` + 19 fork commits (`e654919`); branch map in the fork's `FORK.md`, policy in D-030 |
 | Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
 | Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
+| Entity Explorer | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/live-schema.ts` | `GET /__facilis/dev/schema` (dev-only, D-083) diffs `db/schema.ts` against `pg_catalog`: columns, RLS badges, typed drift, reverse route lookup; the request is kernel-mediated, so a popped-out preview works (D-097) |
+| Query console + declarative views | `ide/src/components/ide/DataQuery*.tsx`, `packages/db/src/{views,query-console}.ts` | `data-query` tab: `POST /__facilis/dev/query` runs one read-only statement (read-only transaction, 5 s timeout, capped rows) and Create-view writes `db/views/<name>.ts` with `defineView`; the framework creates the view `security_invoker`, so routes inherit the base tables' RLS (D-097) |
+| Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/src/` | `project-graph` editor tab over `@facilis/analyze` facts (D-092): pages → routes → tables plus FK/`relations()` edges, fullscreen, edge filters, drag, layout in `.facilis/graph.json`; no runtime endpoint |
+| Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | `buildReleasePreview` (D-086) diffs schema/API/security between refs with risk classes; refs read from the VFS via isomorphic-git, plus the code↔live drift card from D-083 |
+| AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 575 IDE tests |
+| Git round-trip and publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push over HTTPS through a stateless proxy (D-079), publish to GitHub/GitLab/Gitea (D-078), GitHub OAuth device flow (D-082) |
+| Deployment profiles and app updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | `open`/`managed` builds with a compiled policy and CSP (D-063/D-064/D-071/D-072), offline update recipes (D-065/D-070) |
 
 Security and delivery choices from the last pass (details in
 [`docs/DECISIONS.md`](docs/DECISIONS.md), design in [MANAGED-DEPLOYMENT.md](docs/MANAGED-DEPLOYMENT.md)
@@ -189,11 +203,11 @@ The full specification — architecture, types, endpoint contracts, security mod
 |---|---|---|
 | **0** | Feasibility spike (Vivari + Vite/Nitro + PGlite + RLS) | 1–2 wk — headless ✅, browser harness ✅ for the Facilis template |
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
-| **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk |
-| **3** | Visualizers (API flow, entity explorer, release preview) | 2 wk |
-| **4** | AI orchestration + patch validator | 2–3 wk |
-| **5** | Headless blocks + i18n + RoleAssignment | 2 wk |
-| **6** | Polish + MVP demo | 1–2 wk |
+| **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
+| **3** | Visualizers (project graph, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), project graph (D-092, replaced the API Flow, D-095) and Release Preview (D-086), plus the query console + declarative views (D-097); O-011 keeps the declared-AST half and preview mode C |
+| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048) and 16-rule validator ✅ (D-084); retry loop and Model B remain |
+| **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/i18n-db` shipped (the v1 `@facilis/ui` kit was removed, D-096); `@facilis/blocks` is still a manifest skeleton |
+| **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
 
 **MVP target:** *"chat → working, secure, authenticated todo app"* in under 3 minutes from a fresh clone.
 
@@ -203,7 +217,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
 
-→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.4
+→ **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.7
 
 Highlights inside:
 
@@ -229,8 +243,9 @@ Highlights inside:
 5. **Roles are code.** Declared in `facilis.config.ts`, seeded by migrations, assigned at runtime.
 6. **Extend via NPM.** Blocks are packages. No plugin registry, no manifest file.
 7. **The Studio is a shell.** The product is the framework packages and the OpenAPI contract.
-8. **The kit is standard CSS.** `@facilis/ui` ships `.fc-*` classes and role variables, not
-   utility classes: a generated app needs no CSS framework to look right (D-055/D-060).
+8. **The kit is copy-in source.** Template v2 generates Tailwind CSS v4 + Base UI and ships its
+   shadcn-style components as source the project owns (`src/components/ui`); the v1 plain-CSS
+   kit was removed (D-096).
 
 ---
 

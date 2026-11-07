@@ -1,7 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AuthShell, Button, Field, Input, toast } from "@facilis/ui";
+import { toast } from "sonner";
 import { t } from "@facilis/core/i18n";
+import { AuthShell } from "../components/ui/auth-shell.tsx";
+import { Button } from "../components/ui/button.tsx";
+import { Field } from "../components/ui/field.tsx";
+import { Input } from "../components/ui/input.tsx";
 import { api, errorMessageKey } from "../lib/api.ts";
 import { rememberEmail, useSession } from "../lib/session.tsx";
 
@@ -45,12 +49,15 @@ export function LoginPage() {
       title={t("auth.login.title")}
       subtitle={t("auth.login.subtitle")}
       footer={
-        <p>
-          {t("auth.login.footer")} <Link to="/register">{t("auth.login.to_register")}</Link>
-        </p>
+        <>
+          {t("auth.login.footer")}{" "}
+          <Link className="font-medium text-primary hover:underline" to="/register">
+            {t("auth.login.to_register")}
+          </Link>
+        </>
       }
     >
-      <form className="app-form" onSubmit={(event) => void handleSubmit(event)}>
+      <form className="flex flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
         <Field label={t("auth.email")}>
           <Input
             type="email"
@@ -70,7 +77,7 @@ export function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
         </Field>
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting} className="w-full">
           {t("auth.login.submit")}
         </Button>
       </form>

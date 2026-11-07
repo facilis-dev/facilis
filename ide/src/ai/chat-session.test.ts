@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
+import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import type { AiSettings } from "./types";
 
@@ -28,6 +29,13 @@ interface Harness {
 
 function fakeHost(): Harness {
   const writes: string[] = [];
+  const files = () => ["facilis.config.ts", "src/App.tsx"];
+  const read = async (path: string) =>
+    path === "src/App.tsx"
+      ? "export const App = () => null;\n"
+      : path === "facilis.config.ts"
+        ? "export default {};\n"
+        : "";
   return {
     writes,
     host: {
@@ -38,15 +46,13 @@ function fakeHost(): Harness {
           return { ok: true };
         },
       },
-      files: () => ["facilis.config.ts", "src/App.tsx"],
-      read: async (path) =>
-        path === "src/App.tsx"
-          ? "export const App = () => null;\n"
-          : path === "facilis.config.ts"
-            ? "export default {};\n"
-            : "",
+      files,
+      read,
+      analyze: (patches) => analyzeHostFiles(files(), read, patches),
       activeFile: async () => null,
       manifestBase: () => null,
+      // Rule 1's parser in unit tests: no syntax findings (the fake VFS has no project).
+      syntaxChecker: () => ({ check: async () => [] }),
       openFile: () => {},
     },
   };

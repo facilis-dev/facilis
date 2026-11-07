@@ -330,7 +330,7 @@ under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
 | Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
 | Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. npm also re-derives a RELATIVE `file:` target when it normalizes a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists | the template's install command runs `scripts/vendor-paths.cjs` first, which pins the `@facilis/*` specs to absolute paths and fails loudly if a `vendor/` tarball is missing (D-032 follow-up); bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` |
-| Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its AST pass imports `rolldown/utils`, so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
+| Facilis template uses Vite 8 | the framework's `@facilis/nitro` peers `vite@8.3.5` and its route-metadata pass imports `rolldown/utils` (the WebContainer-safe parser, D-093), so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
 
 | Two tabs on one origin | each tab is its own kernel and dev server, so a pair costs ~0.7 GB of worker memory and the second tab boots +2.5-2.9 s (it restores the shared tree); both dev servers bind the same in-VM port, and the VFS mirror's index is per origin | preview traffic is routed per preview frame by the Service Worker, the index is merged per tab under a Web Lock, and the Studio claims each project so two tabs cannot open the same one — `pnpm ide:smoke:multitab` asserts it (D-033) |
 
@@ -497,3 +497,43 @@ The token lives in the tab's memory only: a reload asks for a new sign-in, and *
 drops it. The device code is shown in the dialog, never logged; the OAuth calls are
 `/git-proxy/github.com/login/device/code` and `/git-proxy/github.com/login/oauth/access_token`,
 so the dev proxy's allowlist must contain `github.com` (the default does).
+## 12. AI probe — live model cost and speed (`scripts/dev/ai-probe.mjs`)
+
+A live probe for the IDE chat: it sends realistic feature requests to a real provider,
+measures token consumption and latency, then runs the generated patches through the same
+16-rule validator the chat uses and (optionally) typechecks them. It is **not part of the
+gate** — it needs the network and a real key.
+
+**Setup.** The key lives in the gitignored `ide/.env`, the same file Vite reads:
+
+```sh
+cp ide/.env.example ide/.env
+# then set VITE_DEEPSEEK_API_KEY=... (and optionally VITE_DEEPSEEK_MODEL / VITE_DEEPSEEK_BASE_URL)
+```
+
+In dev the IDE seeds the DeepSeek preset from those variables (the D-045 settings, dev-only
+and mode-gated), so the chat is configured on first boot without typing the key. Unset
+`VITE_DEEPSEEK_API_KEY` to fall back to whatever the settings dialog saved. The value is
+inlined into the dev bundle only, so never put a production key there.
+
+**Run.**
+
+```sh
+pnpm ai:probe                                   # 5 tasks x 3 transport variants
+pnpm ai:probe -- --tasks=route-stats,page-stats --configs=chat-default
+pnpm ai:probe -- --prompt=golden --configs=flash-nothink
+pnpm ai:probe:check /tmp/facilis-dev/ai-probe/<ts>/results.json
+```
+
+Each run writes `results.json` (per-call metrics and raw answers) and `summary.md` under
+`/tmp/facilis-dev/ai-probe/<ts>/`. The checker applies each answer to a scratch copy of
+`examples/todo-app` and runs the project's own `tsc`, which catches what the structural
+validator cannot (wrong import paths, invented handler shapes, bad helper APIs).
+
+**What it measures.** Time to first token, wall time, prompt/cache-hit/completion/reasoning
+tokens, patch count, validator errors and warnings, and the off-peak dollar cost of the run.
+Prompt variants exist to size the quality gap: `baseline` (the IDE prompt as shipped),
+`conventions` (a short API-conventions addendum) and `golden` (the project's own route, page
+and schema as few-shot examples). The probe caps output at 16k tokens; the IDE sends no
+`max_tokens`, so a `finish_reason: length` here only says the answer was very long.
+

@@ -68,11 +68,14 @@ describe("generated project package manager", () => {
     }
   });
 
-  it("packs exactly the packages the template declares", () => {
+  it("packs every package the template declares", () => {
     // The repo script is the producer of the tarballs the IDE serves; a package added to
     // the template but not to the script (or the reverse) fails at create time in the VM.
     const match = /^PKGS="([^"]+)"/m.exec(facilisDepsScript);
     expect(match, "PKGS not found in scripts/dev/vendor-facilis-deps.sh").toBeTruthy();
-    expect(new Set((match?.[1] ?? "").split(" "))).toEqual(new Set(PACKAGES));
+    const packed = new Set((match?.[1] ?? "").split(" "));
+    // Exact parity, no exceptions: every tarball the script packs is one the template ships.
+    // The v1 component kit was removed (D-096), so there is no legacy entry any more.
+    expect(packed).toEqual(new Set(PACKAGES));
   });
 });
