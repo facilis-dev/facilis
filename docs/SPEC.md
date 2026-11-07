@@ -1698,7 +1698,8 @@ in `@facilis/core` (D-086) is exactly the function the tool would call.
 one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
 read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
 capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
-path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) (O-016); not implemented.
+path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
+phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21) and implementation is phase 1.
 
 ---
 

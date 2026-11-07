@@ -1,9 +1,24 @@
 # PTC tool runtime (Model B) — design proposal
 
-**Status:** proposal, not implemented (2026-11-07). Tracked as **O-016** in
-[`DECISIONS.md`](./DECISIONS.md). Related: [`SPEC.md`](./SPEC.md) §9.1/§9.4/§9.5,
-[`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat), D-084 (validator),
-D-100 (repair loop).
+**Status:** accepted (2026-11-07, **D-101**), not implemented. The phase-0 isolation spike
+([`spikes/ptc-sandbox/`](../spikes/ptc-sandbox/README.md)) passed 21/21 checks in Chromium 156.
+Tracked as **O-016** in [`DECISIONS.md`](./DECISIONS.md). Related: [`SPEC.md`](./SPEC.md)
+§9.1/§9.4/§9.5, [`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat),
+D-084 (validator), D-100 (repair loop).
+
+## Accepted decisions (2026-11-07)
+
+- **PTC pure.** The model writes one JavaScript program per step; there is no native
+  function-calling mode in phase 1 (an adapter can be layered on the same registry later).
+- **Sandbox.** Sandboxed iframe (opaque origin) + one blob Worker per program + parent-side
+  tool RPC. The runner page is served with a **CSP response header** (cross-browser), not the
+  Chrome-only `csp=""` attribute.
+- **Spike first.** Phase 0 proved isolation, RPC, worker termination and parent responsiveness
+  before any tool work (results in §5).
+- **`validate` tool.** The model can run the 16-rule validator on candidate patches before its
+  final answer. The final §9.3 gate **stays mandatory** (invariant 9): the goal is that the
+  model self-checks and the user almost never sees a final validation failure, not removing the
+  safety net.
 
 **One line:** the model stops receiving the project as preloaded context and instead writes a
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
@@ -123,6 +138,17 @@ The program is **untrusted code**. Options considered:
 | SES / ShadowRealm | not portable/available across the target browsers today | deferred |
 | Server-side sandbox | there is no server in the open IDE; managed could add one later | out of scope |
 
+**Phase-0 evidence (2026-11-07).** `spikes/ptc-sandbox` (Chromium 156, COOP/COEP, 21/21):
+the frame origin is `null`; parent DOM, localStorage, IndexedDB and OPFS are blocked; `fetch`
+is blocked; the tool RPC and blob-Worker creation work inside the opaque frame; the worker
+inherits the restrictions and `terminate()` stops a busy loop; a 1.2 s busy loop in the frame
+delayed the parent timer by 0 ms (Chromium's isolated sandboxed iframes). The header-CSP runner
+was verified as well. Cross-browser (Firefox/Safari) remains a phase-1 gate, and process
+isolation is a bonus: `terminate()` is the contract, not the process boundary.
+**Architecture settled by the spike:** the program runs in the worker inside the opaque iframe;
+the iframe relays only `{ id, tool, args }` to the parent; the parent enforces the policy and
+can drop the whole frame when the worker is unresponsive.
+
 Rules for the sandbox host:
 
 - The iframe gets **no origin privileges**: no `allow-same-origin`, no popups, no forms, no
@@ -154,6 +180,14 @@ confined to the project root, and go through one policy function.
 | `get_manifest` | `{}` | live manifest summary (blocks, revision) — no secrets |
 | `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
+| `validate` | `{ patches }` | the same `validatePatch()` findings the final gate uses (SPEC §9.3); read-only, writes nothing |
+
+**The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
+validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
+validation and the user's Apply stay in place (invariant 9); with the pre-flight tool the final
+gate should almost never fire, so the red "invalid patch set" flow disappears from normal use
+while the safety net remains. The tool must call the same pure function as the final gate —
+never a second implementation of the rules.
 
 Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is
@@ -234,25 +268,26 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 
 | Phase | Scope | Exit gate |
 |---|---|---|
-| 0 (spike) | iframe sandbox + RPC + limits under COOP/COEP/WebContainer; fake tools; bomb/timeout tests | credentials-free proof: opaque origin, no OPFS/storage/network, clean termination |
-| 1 (MVP) | ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop + trace UI; dev flag; repair loop switches to tools and drops the content stopgap | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; validator still blocks bad patches |
+| 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
+| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop + trace UI; `validate` tool; dev flag; repair loop switches to tools and drops the content stopgap | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 
 ## 13. Open questions (O-016)
 
-1. **Sandbox substrate:** opaque-origin iframe (recommended) vs a WebContainer-isolated process.
-   The spike answers whether the iframe survives the IDE's COOP/COEP + kernel setup.
-2. **Script vs native function calling:** PTC as the primary mode (user's direction); keep a
-   native-tools adapter as a later provider-compatibility mode?
-3. **Final-answer protocol:** `script` and `patches` mutually exclusive in one object
-   (recommended) vs a separate "done" turn.
-4. **Exploration budget:** 6 turns / 32 calls / 5 s defaults — tune on the eval corpus.
-5. **MCP transports:** remote HTTP only at first; stdio needs a desktop host.
-6. **Managed policy:** which servers/tools are allowed by default (probably none).
-7. **Repair stopgap:** keep D-100's bounded current-file injection until phase 1, or remove it now
+Resolved 2026-11-07 (D-101): sandbox substrate (opaque-origin iframe + inner blob Worker, proved
+by the phase-0 spike), PTC-pure protocol, spike-first order, and the `validate` self-check with
+the final gate kept as a safety net.
+
+Still open:
+
+1. **Exploration budget:** 6 turns / 32 calls / 5 s defaults — tune on the eval corpus.
+2. **MCP transports:** remote HTTP only at first; stdio needs a desktop host.
+3. **Managed policy:** which servers/tools are allowed by default (probably none).
+4. **Repair stopgap:** keep D-100's bounded current-file injection until phase 1, or remove it now
    and accept weaker whole-file repairs in the meantime.
+5. **Browser matrix:** Firefox/Safari isolation and CSP-header behavior before a managed rollout.
 
 ## 14. Test strategy
 
