@@ -132,6 +132,32 @@ describe("parseAiResponse", () => {
     expect(created.issues[0]).toContain("content-present");
   });
 
+  it("accepts a script turn and keeps the program", () => {
+    const result = parseAiResponse(json({ message: "explore", script: "return await tools.list_files({});" }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.response.script).toBe("return await tools.list_files({});");
+    expect(result.response.patches).toEqual([]);
+  });
+
+  it("rejects a turn that mixes a script and patches", () => {
+    const result = parseAiResponse(json({ message: "x", script: "return 1", patches: BODY.patches }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.kind).toBe("contract");
+    expect(result.issues.some((issue) => issue.startsWith("script:"))).toBe(true);
+  });
+
+  it("rejects a non-string or oversized script", () => {
+    const notString = parseAiResponse(json({ message: "x", script: 42 }));
+    expect(notString.ok).toBe(false);
+    if (!notString.ok) expect(notString.issues.some((i) => i.startsWith("script:"))).toBe(true);
+
+    const tooLong = parseAiResponse(json({ message: "x", script: "x".repeat(20_000) }));
+    expect(tooLong.ok).toBe(false);
+    if (!tooLong.ok) expect(tooLong.issues.some((i) => i.includes("too long"))).toBe(true);
+  });
+
   it("drops non-string notes entries", () => {
     const result = parseAiResponse(json({ message: "x", notes: ["keep", 2, null] }));
     expect(result.ok).toBe(true);

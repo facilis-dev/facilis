@@ -1,4 +1,5 @@
-// The SPEC §9.4 turn loop: ask the model, validate, and ask it to correct a rejected answer.
+// The SPEC §9.4/§9.5 turn loop: ask the model, let it explore with PTC programs, validate
+// the final answer, and ask it to correct a rejected one.
 //
 // Kept out of ChatSession (which owns the visible conversation) so the control flow is
 // unit-testable and the session stays under the 300-line limit. The loop never writes to
@@ -6,9 +7,25 @@
 
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
+import {
+  formatScriptResult,
+  MAX_SCRIPT_TURNS,
+  MAX_TOOL_CALLS_PER_TURN,
+  type PtcRunner,
+  type PtcRunResult,
+  type PtcTraceEntry,
+} from "./ptc/protocol";
 import { buildRepairMessages, formatFailure, MAX_REPAIR_ATTEMPTS } from "./repair";
-import { parseTurn, type AiParseFailure, type AiParseResult } from "./response";
+import {
+  parseAiResponse,
+  validateResponse,
+  type AiParseFailure,
+  type AiParseResult,
+} from "./response";
 import type { AiChatTurn, AiSettings, ChatFailure } from "./types";
+
+/** Model calls per user message: the first answer, the corrections and the explorations. */
+const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_REPAIR_ATTEMPTS + 1;
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -21,13 +38,17 @@ export interface TurnInput {
   onText: (chunk: string) => void;
   /** Called before each correction request with the 1-based attempt and the cap. */
   onRepair: (attempt: number, max: number) => void;
+  /** Present when the PTC tool runtime is available (D-101). */
+  runner?: PtcRunner | null;
+  /** Called after each exploration program (the trace UI lands in the next phase). */
+  onScript?: (result: PtcRunResult, turn: number) => void;
 }
 
 export type TurnOutcome =
-  | { ok: true; parsed: Extract<AiParseResult, { ok: true }> }
+  | { ok: true; parsed: Extract<AiParseResult, { ok: true }>; trace: PtcTraceEntry[] }
   | { ok: false; failure: ChatFailure };
 
-/** Keep the provider's alternating-role requirement even when a repair turn is merged. */
+/** Keep the provider's alternating-role requirement even when a turn is merged. */
 function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
   const last = turns.at(-1);
   if (last !== undefined && last.role === turn.role) {
@@ -45,34 +66,127 @@ function isInternalFailure(failure: AiParseFailure): boolean {
   );
 }
 
+function parsingFailure(failure: AiParseFailure): TurnOutcome {
+  return { ok: false, failure: { kind: "parse", message: formatFailure(failure) } };
+}
+
+/**
+ * Ask the model to fix a rejected answer. Returns a failure when the correction budget is
+ * gone or the rejection is internal; otherwise appends the repair turns and returns null.
+ */
+async function requestRepair(
+  input: TurnInput,
+  failure: AiParseFailure,
+  repairs: number,
+  turns: AiChatTurn[],
+): Promise<TurnOutcome | null> {
+  if (repairs >= MAX_REPAIR_ATTEMPTS || isInternalFailure(failure)) return parsingFailure(failure);
+  const next = repairs + 1;
+  input.onRepair(next, MAX_REPAIR_ATTEMPTS);
+  const messages = await buildRepairMessages({
+    failure,
+    attempt: next,
+    max: MAX_REPAIR_ATTEMPTS,
+    read: input.host.read,
+    toolsAvailable: input.runner !== null && input.runner !== undefined,
+  });
+  for (const turn of messages) appendTurn(turns, turn);
+  return null;
+}
+
 export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   const turns: AiChatTurn[] = [...input.messages];
-  for (let attempt = 0; ; attempt += 1) {
+  const trace: PtcTraceEntry[] = [];
+  let repairs = 0;
+  let scripts = 0;
+  let toolCalls = 0;
+  let modelCalls = 0;
+
+  for (;;) {
+    if (input.signal.aborted) {
+      return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
+    }
+    if (modelCalls >= MAX_MODEL_CALLS) {
+      return {
+        ok: false,
+        failure: {
+          kind: "parse",
+          message: "The assistant used its whole exploration and correction budget without a final answer.",
+        },
+      };
+    }
+    const first = modelCalls === 0;
+    modelCalls += 1;
     const result = await input.call({
       settings: input.settings,
       system: input.system,
       messages: turns,
       signal: input.signal,
       // Only the first answer streams: a rejected attempt's bubble is dropped anyway, and
-      // the repair status line already tells the user what is happening.
-      ...(attempt === 0 ? { onText: input.onText } : {}),
+      // the repair/exploration status line already tells the user what is happening.
+      ...(first ? { onText: input.onText } : {}),
     });
     if (!result.ok) return { ok: false, failure: result.failure };
 
-    const parsed = await parseTurn(result.text, input.host, { signal: input.signal });
-    if (parsed.ok) return { ok: true, parsed };
-
-    if (attempt >= MAX_REPAIR_ATTEMPTS || isInternalFailure(parsed)) {
-      return { ok: false, failure: { kind: "parse", message: formatFailure(parsed) } };
+    const parsed = parseAiResponse(result.text);
+    if (!parsed.ok) {
+      const stop = await requestRepair(input, parsed, repairs, turns);
+      if (stop !== null) return stop;
+      repairs += 1;
+      continue;
     }
-    const next = attempt + 1;
-    input.onRepair(next, MAX_REPAIR_ATTEMPTS);
-    const repair = await buildRepairMessages({
-      failure: parsed,
-      attempt: next,
-      max: MAX_REPAIR_ATTEMPTS,
-      read: input.host.read,
+
+    if (parsed.response.script !== undefined) {
+      const runner = input.runner ?? null;
+      if (runner === null) {
+        return {
+          ok: false,
+          failure: {
+            kind: "parse",
+            message: "The assistant tried to run a program, but the tool runtime is not available.",
+          },
+        };
+      }
+      if (scripts >= MAX_SCRIPT_TURNS) {
+        return {
+          ok: false,
+          failure: {
+            kind: "parse",
+            message:
+              "The assistant exceeded the exploration budget (" + MAX_SCRIPT_TURNS + " programs).",
+          },
+        };
+      }
+      const run = await runner.run(parsed.response.script, {
+        signal: input.signal,
+        toolCallBudget: MAX_TOOL_CALLS_PER_TURN - toolCalls,
+      });
+      if (input.signal.aborted) {
+        return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
+      }
+      scripts += 1;
+      toolCalls += run.toolCalls;
+      trace.push(...run.trace);
+      input.onScript?.(run, scripts);
+      appendTurn(turns, { role: "assistant", content: result.text });
+      appendTurn(turns, { role: "user", content: formatScriptResult(run) });
+      continue;
+    }
+
+    const checked = await validateResponse(parsed.response, input.host, {
+      signal: input.signal,
+      raw: result.text,
     });
-    for (const turn of repair) appendTurn(turns, turn);
+    if (!checked.ok) {
+      const stop = await requestRepair(input, checked, repairs, turns);
+      if (stop !== null) return stop;
+      repairs += 1;
+      continue;
+    }
+    return {
+      ok: true,
+      parsed: { ok: true, response: parsed.response, validation: checked.validation },
+      trace,
+    };
   }
 }

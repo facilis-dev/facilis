@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PtcToolSpec } from "./ptc/protocol";
 import { buildSystemPrompt, SYSTEM_PROMPT, type PromptContext } from "./prompt";
 
 function context(overrides: Partial<PromptContext> = {}): PromptContext {
@@ -93,6 +94,28 @@ describe("SYSTEM_PROMPT", () => {
     expect(contractAt).toBeGreaterThan(-1);
     expect(repairAt).toBeGreaterThan(contractAt);
     expect(repairAt).toBeGreaterThan(SYSTEM_PROMPT.indexOf("Never put secrets"));
+  });
+});
+
+const TOOLS: PtcToolSpec[] = [
+  { name: "read_file", signature: "read_file({ path, startLine?, endLine? })", description: "Read a slice." },
+  { name: "validate", signature: "validate({ patches })", description: "Run the patch validator." },
+];
+
+describe("buildSystemPrompt with the PTC runtime", () => {
+  it("teaches the script/answer protocol and lists the registered tools", () => {
+    const prompt = buildSystemPrompt(context({ tools: TOOLS }));
+    expect(prompt).toContain("## Project exploration (PTC)");
+    expect(prompt).toContain('"script" string instead of "patches"');
+    expect(prompt).toContain("at most 6 per request");
+    expect(prompt).toContain("read_file({ path, startLine?, endLine? })");
+    expect(prompt).toContain("validate({ patches })");
+    expect(prompt).toContain("self-check");
+  });
+
+  it("leaves the protocol out when the runtime is off", () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).not.toContain("## Project exploration (PTC)");
   });
 });
 

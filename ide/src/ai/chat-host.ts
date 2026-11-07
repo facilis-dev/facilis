@@ -12,6 +12,10 @@ import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createMonacoSyntaxChecker } from "./monaco-syntax";
+import { PTC_ENABLED } from "./ptc/flags";
+import { createPtcRunner } from "./ptc/runner";
+import { createRunnerFrameChild } from "./ptc/runner-frame";
+import { createToolRouter } from "./ptc/tools";
 
 const sessions = new WeakMap<IdeController, ChatSession>();
 
@@ -19,7 +23,20 @@ const sessions = new WeakMap<IdeController, ChatSession>();
 export function chatFor(controller: IdeController): ChatSession {
   const existing = sessions.get(controller);
   if (existing) return existing;
-  const session = new ChatSession(chatHost(controller));
+  const host = chatHost(controller);
+  // D-101: phase 1 is dev-only; the runner is created per session and its sandbox frames
+  // are created/removed per program, so no cross-turn state survives in the page.
+  const session = new ChatSession(
+    host,
+    PTC_ENABLED
+      ? {
+          runner: createPtcRunner({
+            childFactory: createRunnerFrameChild(),
+            executorFactory: () => createToolRouter(host),
+          }),
+        }
+      : {},
+  );
   sessions.set(controller, session);
   return session;
 }

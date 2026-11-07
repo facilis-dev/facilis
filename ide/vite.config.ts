@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { deploymentPlugin } from "./vite.deployment.ts";
+import { ptcRunnerHeaders } from "./vite.ptc.ts";
 import { swScope } from "./vite.isolation.ts";
 // The two headers that unlock SharedArrayBuffer (cross-origin isolation). Without
 // them `SharedArrayBuffer` is undefined and the whole runtime cannot run. Applied
@@ -271,6 +272,7 @@ export default defineConfig({
     serveDevtools(),
     vvPrecacheAndHints(),
     deploymentPlugin(),
+    ptcRunnerHeaders(),
   ],
   resolve: {
     alias: {

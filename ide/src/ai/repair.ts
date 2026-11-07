@@ -25,6 +25,12 @@ export interface RepairInput {
   max: number;
   /** Read a project-relative file; "" when it does not exist. */
   read: (path: string) => Promise<string>;
+  /**
+   * When the PTC tool runtime is available the model reads what it needs itself, so the
+   * correction stops inlining file content (D-101; the inline path is the fallback until
+   * the runtime is on everywhere).
+   */
+  toolsAvailable?: boolean;
 }
 
 function cap(text: string, limit: number): string {
@@ -62,7 +68,12 @@ const CONTRACT = [
   "- Do not remove tables, columns, routes, permissions or keys the request did not ask to remove.",
 ].join("\n");
 
-function report(failure: AiParseFailure, attempt: number, max: number): string {
+function report(
+  failure: AiParseFailure,
+  attempt: number,
+  max: number,
+  toolsAvailable: boolean,
+): string {
   const lines = [
     "Your previous answer was rejected before anything was written to the project. This is correction " +
       attempt +
@@ -76,6 +87,13 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
   } else {
     lines.push("", "## Why the answer was rejected", failure.error);
     if (failure.issues.length > 0) lines.push(...failure.issues.map((issue) => "- " + issue));
+  }
+  if (toolsAvailable) {
+    lines.push(
+      "",
+      "## Tools",
+      "Read-only tools are available in a script turn. Use read_file/search to inspect the files the findings name instead of guessing their content, and call validate on the corrected patch set before your final answer.",
+    );
   }
   lines.push("", "## Response contract", CONTRACT);
   return lines.join("\n");
@@ -137,10 +155,13 @@ export async function buildRepairMessages(input: RepairInput): Promise<AiChatTur
   const turns: AiChatTurn[] = [];
   const raw = input.failure.raw.trim();
   if (raw.length > 0) turns.push({ role: "assistant", content: cap(raw, RAW_ANSWER_CHAR_CAP) });
-  const files = await currentFiles(input.failure.patchedFiles, input.read);
+  const toolsAvailable = input.toolsAvailable === true;
+  const files = toolsAvailable ? [] : await currentFiles(input.failure.patchedFiles, input.read);
   turns.push({
     role: "user",
-    content: report(input.failure, input.attempt, input.max) + fileSection(files),
+    content:
+      report(input.failure, input.attempt, input.max, toolsAvailable) +
+      (toolsAvailable ? "" : fileSection(files)),
   });
   return turns;
 }

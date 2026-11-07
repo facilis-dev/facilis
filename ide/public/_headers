@@ -48,3 +48,9 @@
 
 /manifest.json
   Cache-Control: no-cache
+
+# The PTC sandbox runner (D-101, docs/PTC.md §5): its own CSP so a program has no egress.
+# The /* rule above already supplies COOP/COEP; this page must never inherit the app CSP.
+/ptc-runner.html
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; worker-src blob:
+  Cache-Control: no-store

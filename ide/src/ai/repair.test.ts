@@ -83,6 +83,22 @@ describe("buildRepairMessages", () => {
     expect(request).toContain(SCHEMA);
   });
 
+  it("points at the tools instead of inlining files when the runtime is available", async () => {
+    const turns = await buildRepairMessages({
+      failure: failure(),
+      attempt: 1,
+      max: MAX_REPAIR_ATTEMPTS,
+      read,
+      toolsAvailable: true,
+    });
+    const request = turns.at(-1)?.content ?? "";
+    expect(request).toContain("## Tools");
+    expect(request).toContain("read_file/search");
+    expect(request).toContain("validate");
+    expect(request).not.toContain("## Current content of the files");
+    expect(request).not.toContain(SCHEMA);
+  });
+
   it("omits the assistant turn when the provider returned no text", async () => {
     const turns = await buildRepairMessages({
       failure: failure({ kind: "empty", findings: [], issues: [], raw: "  " }),

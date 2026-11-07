@@ -6,6 +6,7 @@
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { CallModelInput, CallModelResult } from "./client";
+import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
 import type { AiChatTurn, AiSettings, ChatMessage, ChatState } from "./types";
 
@@ -44,6 +45,8 @@ export interface ChatSessionOptions {
   loadSettings?: () => AiSettings | null;
   saveSettings?: (settings: AiSettings) => void;
   now?: () => number;
+  /** The PTC tool runtime (D-101); null keeps the pre-tools behaviour. */
+  runner?: PtcRunner | null;
 }
 
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */

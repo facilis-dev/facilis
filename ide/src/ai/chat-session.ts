@@ -1,10 +1,8 @@
 // The AI chat session: conversation state, streaming, proposal review and apply
 // (D-045/D-046/D-047).
-//
 // One instance per controller (chat-host.ts keeps it in a WeakMap), so switching sidebar
 // views keeps the conversation. Editor access is ChatHost, model access the injected call,
 // and the VFS is reached only through chat-actions.ts — the validated applyPatch() path.
-//
 // Safety rule (invariant 9): the model never touches disk. A turn produces a reviewable
 // proposal; only the user's Apply reaches applyPatch(), and a clean Apply can be undone.
 
@@ -16,6 +14,7 @@ import { errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
+import type { PtcRunner } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
@@ -30,13 +29,13 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
+  private readonly runner: PtcRunner | null;
   private readonly stream: StreamAccumulator;
   private listeners = new Set<() => void>();
   private state: ChatState;
   private controller: AbortController | null = null;
   private seq = 0;
   private cancelled = false;
-  /** The assistant bubble the stream is filling, when it has started. */
   private streamId: string | null = null;
 
   constructor(host: ChatHost, options: ChatSessionOptions = {}) {
@@ -45,6 +44,7 @@ export class ChatSession {
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
+    this.runner = options.runner ?? null;
     this.stream = new StreamAccumulator(this.now);
     this.state = initialState(this.load());
   }
@@ -60,8 +60,7 @@ export class ChatSession {
 
   private emit(patch: Partial<ChatState>): void {
     this.state = { ...this.state, ...patch };
-    // Set iteration tolerates a listener that unsubscribes while it runs; React
-    // never subscribes synchronously from inside a store notification.
+    // Set iteration tolerates a listener unsubscribing mid-notify; React never subscribes here.
     for (const listener of this.listeners) listener();
   }
 
@@ -102,9 +101,7 @@ export class ChatSession {
     this.controller?.abort();
   }
 
-  openFile(path: string): void {
-    this.host.openFile(path);
-  }
+  openFile = (path: string): void => this.host.openFile(path);
 
   async openInstructions(): Promise<void> {
     const error = await openProjectInstructions(this.host);
@@ -158,7 +155,9 @@ export class ChatSession {
     const abort = new AbortController();
     this.controller = abort;
     try {
-      const built = await buildChatContext(this.host, abort.signal);
+      const built = await buildChatContext(this.host, abort.signal, {
+        tools: this.runner?.specs() ?? [],
+      });
       if (abort.signal.aborted) return;
       this.emit({ context: built.context });
       const outcome = await runTurn({
@@ -168,6 +167,7 @@ export class ChatSession {
         messages: replayTurns(messages, HISTORY_LIMIT),
         host: this.host,
         signal: abort.signal,
+        runner: this.runner,
         onText: (chunk) => this.streamChunk(chunk),
         onRepair: (attempt, max) => {
           this.dropStream();

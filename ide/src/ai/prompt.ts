@@ -8,6 +8,8 @@
 // It never carries an API key: keys live in AiSettings and travel only to the provider
 // as an Authorization header.
 
+import { describeTools, type PtcToolSpec } from "./ptc/protocol";
+
 const MANIFEST_CHAR_CAP = 16_000;
 const FILE_CONTENT_CHAR_CAP = 12_000;
 const FILE_LIST_CAP = 500;
@@ -27,7 +29,19 @@ export interface PromptContext {
   configFile: { path: string; content: string } | null;
   /** The user's AGENTS.md, when the project has one (D-048). */
   instructions: { path: string; content: string } | null;
+  /** PTC tool specs; empty when the runtime is off (D-101). */
+  tools?: readonly PtcToolSpec[];
 }
+
+/** Teaches the script/answer protocol when the PTC runtime is available (D-101). */
+const PTC_PROMPT = [
+  "## Project exploration (PTC)",
+  'You can explore the project before answering. To do that, return ONE JSON object with a "script" string instead of "patches":',
+  '{"message": string, "script": string, "notes": string[], "requires_confirmation": false}',
+  'The program is an async function body: top-level await and return are allowed, and "tools" is its only global. The return value must be JSON (no class instances). You then receive one user turn with the result (or a typed failure) and may run another program (at most 6 per request) or answer with the normal AIResponse.',
+  "Do not assume file contents you were not given: use the tools to read the smallest slice you need, locate code with search, and call validate on your candidate patch set before the final answer. The framework validates the final answer again; the validate tool is your self-check, not a replacement.",
+  "Tools:",
+].join("\n");
 
 /** The shared rules (SPEC §9.2) and the one-object response contract (SPEC §9.3 rule 15). */
 export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change a generated Facilis project by returning one JSON patch set per turn.
@@ -61,7 +75,7 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 
 ## Validation repair
 If the latest user message says your previous answer was rejected, it is a validation repair report, not a new request: fix every finding it lists and return one complete corrected AIResponse JSON object in the same shape as above.
-- The report gives the rule, file, message, fix_hint and line/excerpt of each finding, plus the current content of the files your rejected patches tried to update or delete. Treat that content as the source of truth.
+- The report gives the rule, file, message, fix_hint and line/excerpt of each finding, plus either the current content of the files your rejected patches tried to update (when the tool runtime is off) or the instruction to read them with the tools. Treat the given content as the source of truth.
 - When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
 - Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.`;
 
@@ -88,6 +102,9 @@ function fence(code: string): string[] {
 export function buildSystemPrompt(context: PromptContext): string {
   const files = context.files.toSorted();
   const lines: string[] = [SYSTEM_PROMPT, ""];
+
+  const tools = context.tools ?? [];
+  if (tools.length > 0) lines.push(PTC_PROMPT, describeTools(tools), "");
 
   if (context.instructions !== null) {
     lines.push(

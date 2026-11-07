@@ -40,10 +40,12 @@ export interface AiChatTurn {
   content: string;
 }
 
-/** SPEC §9.2: the only thing the model may return. */
+/** SPEC §9.2 + D-101: one object per turn, either an exploration program or a patch set. */
 export interface AiResponse {
   message: string;
   patches: FilePatch[];
+  /** A PTC program to run before answering (SPEC §9.5); absent on a final answer. */
+  script?: string;
   notes: string[];
   requiresConfirmation: boolean;
 }

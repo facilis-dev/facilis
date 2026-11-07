@@ -17,6 +17,7 @@ import {
   type ValidationResult,
 } from "@facilis/ai";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
+import { MAX_PROGRAM_CHARS } from "./ptc/protocol";
 import type { AiResponse } from "./types";
 
 export interface AiParseFailure {
@@ -167,6 +168,19 @@ export function parseAiResponse(raw: string): AiParseResult {
   }
   const requiresConfirmation = rawConfirmation === true;
 
+  // D-101: a turn is either one exploration program or one patch set, never both.
+  const rawScript = parsed.script;
+  let script: string | undefined;
+  if (rawScript !== undefined) {
+    if (typeof rawScript !== "string") issues.push("script: must be a string when present");
+    else if (rawScript.trim().length === 0) issues.push("script: must not be empty");
+    else if (rawScript.length > MAX_PROGRAM_CHARS)
+      issues.push("script: is too long (max " + MAX_PROGRAM_CHARS + " characters)");
+    else if (parsedPatches.patches.length > 0)
+      issues.push("script: must be the only action in a turn (omit patches)");
+    else script = rawScript;
+  }
+
   if (issues.length > 0) {
     return failure(
       "contract",
@@ -195,11 +209,44 @@ export function parseAiResponse(raw: string): AiParseResult {
     response: {
       message,
       patches: parsedPatches.patches,
+      ...(script === undefined ? {} : { script }),
       notes: parsedNotes.notes,
       requiresConfirmation,
     },
     validation,
   };
+}
+
+export type ResponseValidation = { ok: true; validation: ValidationResult } | AiParseFailure;
+
+/**
+ * Validate an already-parsed answer against the live project (SPEC §9.3). The turn loop
+ * uses it on the final answer; `parseTurn` keeps the raw-text convenience. A script turn
+ * carries no patches, so it validates to a clean result (the turn loop handles the program).
+ */
+export async function validateResponse(
+  response: AiResponse,
+  host: PatchValidationHost,
+  options: { signal?: AbortSignal; raw?: string } = {},
+): Promise<ResponseValidation> {
+  if (response.patches.length === 0) {
+    return { ok: true, validation: { ok: true, errors: [], warnings: [] } };
+  }
+  const checked = await validatePatchesWithHost(response.patches, host, {
+    requiresConfirmation: response.requiresConfirmation,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  });
+  if (!checked.validation.ok) {
+    return failure(
+      "validation",
+      "The proposed patches failed validation.",
+      checked.validation.errors.map(oneLine),
+      options.raw ?? "",
+      checked.validation.errors,
+      response.patches,
+    );
+  }
+  return { ok: true, validation: checked.validation };
 }
 
 /**
@@ -215,19 +262,7 @@ export async function parseTurn(
 ): Promise<AiParseResult> {
   const parsed = parseAiResponse(raw);
   if (!parsed.ok || parsed.response.patches.length === 0) return parsed;
-  const checked = await validatePatchesWithHost(parsed.response.patches, host, {
-    requiresConfirmation: parsed.response.requiresConfirmation,
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-  });
-  if (!checked.validation.ok) {
-    return failure(
-      "validation",
-      "The proposed patches failed validation.",
-      checked.validation.errors.map(oneLine),
-      raw,
-      checked.validation.errors,
-      parsed.response.patches,
-    );
-  }
+  const checked = await validateResponse(parsed.response, host, { ...options, raw });
+  if (!checked.ok) return checked;
   return { ...parsed, validation: checked.validation };
 }
