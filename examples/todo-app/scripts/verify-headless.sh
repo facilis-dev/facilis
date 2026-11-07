@@ -140,7 +140,7 @@ STATUS="$(status -b "$COOKIES_A" -X DELETE "$BASE/api/todos/$TODO_ID")"
 [ "$STATUS" = "200" ] || fail "owner DELETE returned $STATUS, expected 200"
 echo "owner DELETE => 200"
 
-# --- background jobs (D-102) ------------------------------------------------
+# --- background jobs (D-107) ------------------------------------------------
 # Scheduled an hour out so the scheduler cannot claim it while we inspect/cancel it.
 RUN_AT="$(node -e 'console.log(new Date(Date.now() + 60 * 60 * 1000).toISOString())')"
 JOB="$(curl -sf -b "$COOKIES_A" -X POST -H 'content-type: application/json' \

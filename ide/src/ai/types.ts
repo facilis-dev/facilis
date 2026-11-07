@@ -47,6 +47,8 @@ export interface AiResponse {
   patches: FilePatch[];
   /** A PTC program to run before answering (SPEC §9.5); absent on a final answer. */
   script?: string;
+  /** Another part of the same patch set follows (the answer hit the output limit, D-106). */
+  continue?: boolean;
   notes: string[];
   requiresConfirmation: boolean;
 }
@@ -121,7 +123,9 @@ export type ChatFailureKind =
   | "empty"
   | "unsupported"
   /** The answer arrived but was not a usable AIResponse (parse/validation). */
-  | "parse";
+  | "parse"
+  /** The validator's own parser/analyzer was unavailable: not the model's mistake. */
+  | "validator";
 
 /** A provider failure. The message is technical and shown as detail, never translated. */
 export interface ChatFailure {
@@ -179,6 +183,8 @@ export interface ChatState {
   trace: ChatTraceRun[];
   /** The 1-based exploration program currently running, or null. */
   exploring: number | null;
+  /** A patch set arriving in parts (D-106): the 1-based part requested, or null. */
+  patchParts: { part: number; max: number } | null;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;

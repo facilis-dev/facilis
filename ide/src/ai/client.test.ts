@@ -56,12 +56,12 @@ function brokenStream(): Response {
   return new Response(body, { status: 200 });
 }
 
-function openAiFrames(parts: readonly string[]): string[] {
+function openAiFrames(parts: readonly string[], finishReason = "stop"): string[] {
   return [
     ...parts.map(
       (part) => 'data: {"choices":[{"delta":{"content":' + JSON.stringify(part) + "}}]}\n\n",
     ),
-    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"' + finishReason + '"}]}\n\n',
     "data: [DONE]\n\n",
   ];
 }
@@ -102,6 +102,26 @@ describe("callModel", () => {
     expect(init.method).toBe("POST");
     expect(init.headers).toMatchObject({ authorization: "Bearer sk-secret" });
     expect(JSON.parse(String(init.body))).toMatchObject({ model: "test-model", stream: true });
+  });
+
+  it("marks an answer stopped at the output limit as truncated", async () => {
+    stubFetch(async () => responseFrom(openAiFrames(["Hello"], "length")));
+    const result = await callModel({ settings: openAi, system: "", messages: [] });
+    expect(result).toEqual({ ok: true, text: "Hello", truncated: true });
+
+    stubFetch(async () =>
+      responseFrom([
+        'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Bon"}}\n\n',
+        'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"max_tokens"}}\n\n',
+        'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+      ]),
+    );
+    const anthropicResult = await callModel({
+      settings: anthropic,
+      system: "",
+      messages: [],
+    });
+    expect(anthropicResult).toEqual({ ok: true, text: "Bon", truncated: true });
   });
 
   it("streams and concatenates an Anthropic answer", async () => {

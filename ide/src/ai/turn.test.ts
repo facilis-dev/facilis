@@ -1,134 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
-import { analyzeHostFiles } from "./analysis-fixtures";
 import type { CallModelInput } from "./client";
-import type { PatchValidationHost } from "./patch-validation";
-import {
-  MAX_SCRIPT_TURNS,
-  type PtcRunner,
-  type PtcRunResult,
-  type PtcToolSpec,
-} from "./ptc/protocol";
+import { MAX_SCRIPT_TURNS, type PtcRunResult } from "./ptc/protocol";
 import { runTurn } from "./turn";
-import type { AiSettings } from "./types";
-
-const settings: AiSettings = {
-  providerId: "custom",
-  apiKey: "sk-test",
-  model: "test-model",
-  baseUrl: "http://provider.test/v1",
-};
-
-const NEW_FILE: FilePatch = { path: "src/new.ts", action: "create", content: "export const x = 1;\n" };
-
-const ROUTE: FilePatch = {
-  path: "server/routes/api/ping.get.ts",
-  action: "create",
-  content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
-    'export default defineAuthorizedHandler({ permission: ["todos:write"], dbTables: [] }, async () => null);\n',
-};
-
-function answer(patches: FilePatch[] = []): string {
-  return JSON.stringify({
-    message: "Here is the change.",
-    patches,
-    notes: [],
-    requires_confirmation: false,
-  });
-}
-
-function script(program: string): string {
-  return JSON.stringify({
-    message: "Let me look.",
-    script: program,
-    notes: [],
-    requires_confirmation: false,
-  });
-}
-
-const FILES = ["facilis.config.ts", "db/schema.ts", "package.json", "locales/en.json", "tsconfig.json"];
-const CONFIG = `import { defineConfig } from "@facilis/core";
-
-export default defineConfig({
-  auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
-});
-`;
-
-function host(): PatchValidationHost {
-  const read = async (path: string) => {
-    if (path === "facilis.config.ts") return CONFIG;
-    if (path === "db/schema.ts") return "export {};\n";
-    if (path === "package.json") {
-      return JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } });
-    }
-    if (path === "locales/en.json" || path === "tsconfig.json") return "{}";
-    return "";
-  };
-  return {
-    files: () => FILES,
-    read,
-    manifestBase: () => null,
-    syntaxChecker: () => ({ check: async () => [] }),
-    analyze: (patches) => analyzeHostFiles(FILES, read, patches),
-  };
-}
-
-const SPEC: PtcToolSpec = { name: "list_files", signature: "list_files({ dir? })", description: "List files." };
-
-function runner(result: PtcRunResult | ((program: string) => PtcRunResult)): PtcRunner {
-  return {
-    specs: () => [SPEC],
-    run: async (program) => (typeof result === "function" ? result(program) : result),
-    dispose: () => {},
-  };
-}
-
-function okRun(value: unknown, calls = 1): PtcRunResult {
-  return {
-    ok: true,
-    value: value as PtcRunResult["value"],
-    toolCalls: calls,
-    elapsedMs: 3,
-    trace: [{ name: "list_files", args: "{}", ok: true, durationMs: 2, bytes: 12 }],
-  };
-}
-
-function capture(texts: string[], calls: CallModelInput[], onTurn?: (call: number) => void): (input: CallModelInput) => Promise<{ ok: true; text: string }> {
-  return async (input) => {
-    calls.push(input);
-    onTurn?.(calls.length);
-    const text = texts[Math.min(calls.length - 1, texts.length - 1)] ?? texts.at(-1) ?? "";
-    return { ok: true, text };
-  };
-}
-
-const SIGNAL = new AbortController().signal;
-
-interface Hooks {
-  onScriptStart?: (program: string, turn: number) => void;
-  onScript?: (result: PtcRunResult, program: string) => void;
-}
-
-async function run(
-  texts: string[],
-  ptc: PtcRunner | null,
-  calls: CallModelInput[],
-  hooks: Hooks = {},
-) {
-  return runTurn({
-    call: capture(texts, calls),
-    settings,
-    system: "system",
-    messages: [{ role: "user", content: "add a file" }],
-    host: host(),
-    signal: SIGNAL,
-    onText: () => {},
-    onRepair: () => {},
-    runner: ptc,
-    ...hooks,
-  });
-}
+import {
+  answer,
+  capture,
+  host,
+  NEW_FILE,
+  okRun,
+  ROUTE,
+  ROUTE_FIXED,
+  run,
+  runner,
+  script,
+  SIGNAL,
+  settings,
+} from "./turn-fixtures";
 
 describe("runTurn with PTC exploration", () => {
   it("runs a program, returns its result to the model, then accepts the final answer", async () => {
@@ -147,6 +34,30 @@ describe("runTurn with PTC exploration", () => {
     expect(outcome.trace).toHaveLength(1);
   });
 
+  it("does not spend a repair round on a validator outage", async () => {
+    const calls: CallModelInput[] = [];
+    const outcome = await runTurn({
+      call: capture([answer([NEW_FILE])], calls),
+      settings,
+      system: "system",
+      messages: [{ role: "user", content: "add a file" }],
+      host: {
+        ...host(),
+        analyze: async () => {
+          throw new Error("analyzer worker did not become ready");
+        },
+      },
+      signal: SIGNAL,
+      onText: () => {},
+      onRepair: () => {},
+      runner: runner(okRun(null, 0)),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.failure.kind).toBe("validator");
+    expect(calls).toHaveLength(1);
+  });
+
   it("reports each program through the start and finish callbacks", async () => {
     const calls: CallModelInput[] = [];
     const started: string[] = [];
@@ -161,14 +72,11 @@ describe("runTurn with PTC exploration", () => {
     expect(finished).toEqual(["return 1:true"]);
   });
 
-  it("rejects a program when the runtime is off", async () => {
+  it("tells the model when a program returned nothing", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([script("return 1")], null, calls);
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.kind).toBe("parse");
-    expect(outcome.failure.message).toContain("not available");
-    expect(calls).toHaveLength(1);
+    const outcome = await run([script("await tools.list_files({})"), answer([NEW_FILE])], runner(okRun(null, 1)), calls);
+    expect(outcome.ok).toBe(true);
+    expect(calls[1]?.messages.at(-1)?.content).toContain("returned no value");
   });
 
   it("feeds a failed program back as data and lets the model recover", async () => {
@@ -198,7 +106,7 @@ describe("runTurn with PTC exploration", () => {
 
   it("does not inline file content in a repair when the tools are available", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([answer([ROUTE]), answer([NEW_FILE])], runner(okRun(null, 0)), calls);
+    const outcome = await run([answer([ROUTE]), answer([ROUTE_FIXED])], runner(okRun(null, 0)), calls);
     expect(outcome.ok).toBe(true);
     expect(calls).toHaveLength(2);
     const repair = calls[1]?.messages.at(-1)?.content ?? "";

@@ -34,6 +34,7 @@ Facilis redefines it:
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
+| ⏱️ **Background jobs** | A persisted `facilis_jobs` queue with config-driven concurrency, retry and timeout. Definitions live in `server/jobs/**`; `ctx.jobs` enqueues (returning an id), schedules at a future instant, lists the queue and cancels; every run is audited in a system context. Jobs are independent — workflows are a later construct (D-107). |
 | 🔍 **API visualizer** | Your OpenAPI spec, rendered as an interactive graph. Click a route → jump to its source. Auto-updates on save. |
 | 🗃️ **Entity explorer** | Schema introspection from both code and live DB. See drift immediately. Jump from table to the routes that use it. |
 | 🚢 **Release preview** | Before you push: see the exact migration SQL, risk-classified (`safe` / `careful` / `destructive` / `breaking`), cross-checked against your API. No more surprise column drops in prod. |
@@ -151,7 +152,8 @@ D-095), the Data Explorer's query console + declarative views (D-097) and the Re
 (D-086). In
 Phase 4 the AI chat, the full 16-rule patch validator (D-084) and the §9.4 repair loop
 (D-100) are implemented; Model B is now a PTC tool runtime (D-101, [design](docs/PTC.md)) whose
-phase-0 sandbox spike and dev-only read-only tool chain have landed. Generated
+phase-0 sandbox spike and the read-only tool chain have landed; the tool runtime is now the
+chat's only mode (D-103). Generated
 projects install with **npm** (D-032) from IDE-served
 `file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
 read by `facilis()` — and their `vite.config.ts` is just `[facilis(), react()]` (D-034); the
@@ -166,7 +168,8 @@ What exists today, runnable in this repo:
 | Binary storage (`@facilis/storage`) | `packages/storage/` | content-addressed local + S3-compatible drivers (S3/R2/MinIO via SigV4), signed download tokens; 12 tests |
 | IDE app (Vivari fork, MIT, starts at `v1.1.2`) | `ide/` | provenance, patch set and `diff -r` against upstream in [`ide/README.md`](ide/README.md) |
 | Vivari engine (our fork, git submodule) | `vendor/vivari/` | pinned to `facilis/main` = upstream `v1.2.0` + 19 fork commits (`e654919`); branch map in the fork's `FORK.md`, policy in D-030 |
-| Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest and `x-db-tables` |
+| Phase 1 acceptance todo app | [`examples/todo-app`](examples/todo-app) | `scripts/verify-headless.sh` asserts auth, RBAC, CRUD, RLS isolation, manifest, `x-db-tables` and the background-job lifecycle (enqueue a future `runAt` → `queued` → cancel → `cancelled`) |
+| Background jobs | `packages/core/src/jobs*.ts`, `packages/db/src/jobs.ts`, `packages/nitro/src/runtime/jobs/` | `@facilis/nitro` engine/store/boot suites and `@facilis/core` contract suites; every attempt runs through `runAsSystem` (`system:job:<name>` audit), the PGlite store joins the request transaction (nested-`BEGIN` deadlock regression test), and the example verify script exercises the full lifecycle (D-107) |
 | Facilis project template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke`: green — Home creates a Facilis app (the only creation path, D-051), the preview paints it, manifest zero warnings, `x-db-tables`, 401 on unauthenticated route, and the editor's TypeScript service resolves its imports (no TS2307) |
 | Entity Explorer | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/live-schema.ts` | `GET /__facilis/dev/schema` (dev-only, D-083) diffs `db/schema.ts` against `pg_catalog`: columns, RLS badges, typed drift, reverse route lookup; the request is kernel-mediated, so a popped-out preview works (D-097) |
 | Query console + declarative views | `ide/src/components/ide/DataQuery*.tsx`, `packages/db/src/{views,query-console}.ts` | `data-query` tab: `POST /__facilis/dev/query` runs one read-only statement (read-only transaction, 5 s timeout, capped rows) and Create-view writes `db/views/<name>.ts` with `defineView`; the framework creates the view `security_invoker`, so routes inherit the base tables' RLS (D-097) |
@@ -207,7 +210,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
 | **3** | Visualizers (project graph, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), project graph (D-092, replaced the API Flow, D-095) and Release Preview (D-086), plus the query console + declarative views (D-097); O-011 keeps the declared-AST half and preview mode C |
-| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 16-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101): sandbox spike ✅ (21/21), read-only tool chain ✅ dev-only (runner/tools/validate), exploration trace UI ✅ (dev-only); eval corpus + browser matrix remaining |
+| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 16-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101) and the chat's only mode (D-103): sandbox spike ✅ (21/21), read-only tool chain ✅ (runner/tools/validate), exploration trace UI ✅; eval corpus + browser matrix remaining |
 | **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/i18n-db` shipped (the v1 `@facilis/ui` kit was removed, D-096); `@facilis/blocks` is still a manifest skeleton |
 | **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
 

@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.12 (permission views + audited sudo, D-098/D-099)
-**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path and the §9.4 repair loop; the Model B tool surface remains. The live per-phase state is in [`README.md`](../README.md#status).
+**Version:** 1.13 (background jobs + permission views + audited sudo, D-098/D-099/D-107)
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.13 — Background jobs (D-107): a durable `facilis_jobs` queue with config-driven concurrency, retry, timeout and cancellation; named definitions in `server/jobs/**/*.ts`; the server-only `ctx.jobs` API (enqueue returns an id, schedule at an instant, read the queue/running jobs, cancel); every attempt in a system context through `runAsSystem` with the sudo audit; persisted queue state with at-least-once recovery. There is no workflow construct yet (O-017). §5.1/§5.2/§5.6/§7.1/§7.4/§7.9/§8.4.5/§14.2 follow.
 - v1.12 — Views gain an optional own permission (D-098): without it they keep the D-097 invoker behaviour (base tables' RLS); with it they are definer views (`security_invoker = false`) gated by that permission in `app.permissions`, and the base tables are not consulted — the view is a table-like resource, full read-only SQL, developer-owned. The Create-view dialog offers the permissions declared in `facilis.config.ts`. Sudo (D-099) adds an audited server-side system context: `ctx.sudo({ operation, reason, tables }, fn)` runs inside a SAVEPOINT as `facilis_system` (NOLOGIN, NOSUPERUSER, BYPASSRLS, DML only), records `started`/`succeeded`/`failed` entries on a dedicated append-only log (stdout JSON lines for now; not a DB table) with the user + session hash, and fails closed if the log is unavailable. `ctx.system` is the session-less system actor for public/bootstrap routes (registration), the handler event no longer carries the raw client (`ctx.db` is the only default DB surface; escalation is only sudo/system), `runAsSystem` is the job/CLI counterpart, and the analyzer warns `route-direct-db` for raw client access. §5.2/§5.3/§7.4/§8.4.5/§8.5/§8.6/§11.2/§11.4/§12 follow.
 - v1.11 — The Data Explorer gains a query console and declarative SQL views (D-097): `POST /__facilis/dev/query` runs one read-only statement (read-only transaction, 5 s timeout, capped rows) and its Create-view action stores `db/views/<name>.ts` with `defineView(...)`, while the framework creates the view with `security_invoker = true` so a route selecting it inherits the base tables' RLS. The live transport is now kernel-mediated (same-origin preview URL through the Studio's Service Worker), which fixes the panel when the app preview is popped out (O-011 narrowed to the declared AST half and preview mode C). §4.2/§5.2/§6.3/§10.2/§11.1/§11.2/§11.4/§12 follow.
 - v1.10 — The API Flow panel is removed (D-095): the project graph is the single API/schema visualizer, and it needs no booted app. The Data Explorer keeps the live code↔DB drift but its connection strategy is open (O-011: declared schema from AST first, live drift through a kernel-mediated dev proxy instead of the preview iframe). `/_openapi.json` remains a framework endpoint; §10.2/§11.1/§12 follow.
@@ -432,7 +433,7 @@ export type {
 // i18n
 export { t } from "./i18n"
 
-// Background jobs (D-102; the full type surface is §7.9)
+// Background jobs (D-107; the full type surface is §7.9)
 export { defineJob, isJobDefinition, serializeJobData, JobError } from "./jobs"
 export type {
   EnqueueJobOptions,
@@ -482,14 +483,14 @@ Exports:
   an undeclared view permission is a `view_failed` warning, never a silent grant (§11.2, D-098)
 - `facilisJobs` — the persistent job-queue table (name, status, JSONB input/output, attempts,
   maxAttempts, timeoutMs, runAt/startedAt/finishedAt, tenant): tenant-scoped with the framework RLS
-  policy, re-exported by the project's `db/schema.ts` so a Drizzle migration owns its DDL (D-102).
+  policy, re-exported by the project's `db/schema.ts` so a Drizzle migration owns its DDL (D-107).
   The engine's own queue reads/writes run as `facilis_app` under the deployment tenant; only a job
   *body* runs as `facilis_system` (see the audited-sudo bullet)
 - `ensureSystemRole(db)`, `runWithSystemRole(db, { sudoId }, fn)`, `runAsSystem(db, opts, fn)`,
   `writeSudoAudit` — the audited sudo identity and append-only trail behind `ctx.sudo`
   (§7.4/§8.4.5, D-099). `facilis_system` is `NOLOGIN NOSUPERUSER BYPASSRLS` with DML grants only;
   it is never assigned to users and never referenced by a policy. `runAsSystem`, the job/CLI
-  counterpart, accepts `tables: []` when a job declares no audit tables (D-102); `ctx.sudo`/
+  counterpart, accepts `tables: []` when a job declares no audit tables (D-107); `ctx.sudo`/
   `ctx.system` still require a non-empty subset
 
 ### 5.3 `@facilis/auth`
@@ -715,7 +716,7 @@ than replaces, so a cookie another handler staged on the same response survives.
 
 **Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session helpers are their own entry point because they import h3 while core's route contract does not (contracts §4.1): the single `FacilisRequestEvent` → `H3Event` narrowing lives there, and a handler stays free of h3 imports.
 
-**Background jobs (D-102).** A project's server code can start an independent unit of work and
+**Background jobs (D-107).** A project's server code can start an independent unit of work and
 schedule it for a future instant, then read, inspect or cancel it. The design reference is
 [`JOBS.md`](./JOBS.md); the public types are §7.9.
 
@@ -1140,7 +1141,7 @@ interface AuthorizedHandlerContext<Body, Query, Params> {
   db: PolicyScopedDatabase                    // pre-scoped, never raw
   sudo: SudoHandler                           // audited elevation, §8.4.5; requires a session
   system: SystemHandler                       // audited elevation for public/bootstrap routes
-  jobs: JobsApi                               // server-only job queue (D-102), no HTTP surface
+  jobs: JobsApi                               // server-only job queue (D-107), no HTTP surface
 }
 
 interface SudoHandler {
@@ -1368,7 +1369,7 @@ interface ProjectRegistry {
 
 ### 7.9 Job API
 
-The background-job contract (D-102; design reference [`JOBS.md`](./JOBS.md)). A job is an
+The background-job contract (D-107; design reference [`JOBS.md`](./JOBS.md)). A job is an
 independent, server-side unit of work: it receives serialized data, always runs in a system
 context (its own transaction as `facilis_system`, audited), and returns serialized data. The
 queue is reachable only from server code, so it is never an HTTP surface of its own.
@@ -1692,7 +1693,7 @@ be a non-empty subset of the route's `dbTables`, the call requires a session, an
 rejected. Public/bootstrap routes that have no session (registration, initial admin) use the
 sibling `ctx.system({ actor: "system:<job>", operation, reason, tables }, fn)`: the same audited
 flow, with the system actor recorded instead of a user. Background jobs use the same audited
-flow through `runAsSystem` (D-102): the job/CLI counterpart opens its own transaction instead of
+flow through `runAsSystem` (D-107): the job/CLI counterpart opens its own transaction instead of
 joining a request, records `system:job:<name>`, and accepts `tables: []` when the definition
 declares no audit tables — `ctx.sudo` and `ctx.system` keep requiring a non-empty subset. The
 trail is a dedicated append-only log, never a database table, so it survives the rollback it
@@ -1795,6 +1796,11 @@ names the tenant and cannot name a different one (D-040).
 | Wall time | 10–20s | 30–60s |
 | Accuracy | Good for small tasks | Good for any task |
 
+**Status (2026-11-07): the chat always uses the tool-backed mode** (D-101/D-103); the table is
+the design history. Model A's context assembly (file list, config, manifest, AGENTS.md) remains
+as context, not as a separate chat mode, and Model B's per-call tool list was superseded by PTC
+(§9.5).
+
 ### 9.2 System Prompt (Shared Core)
 
 Rules the AI must obey:
@@ -1806,7 +1812,7 @@ Rules the AI must obey:
 5. Use existing blocks; do not create new ones unprompted
 6. All strings via `t("key")`
 7. Minimal patches; match existing style
-8. Output is a single `AIResponse` JSON object; no prose outside
+8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 
 ### 9.3 Patch Validator (16 Rules)
@@ -1838,10 +1844,12 @@ edits. The caller supplies them — the IDE analyzes the VFS snapshot and the pa
 its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
 `@facilis/ai/node` helper. Sources are read only for `package.json` (installed packages) and
 `tsconfig.json` (path aliases); blocks still come from the live manifest because registration is
-runtime state. Rule 1 parses through an injected `SyntaxChecker` — Monaco's TypeScript worker in
-the IDE, the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails closed when no
-checker answers. If the analyzer itself is unavailable the IDE fails the round closed with a
-`project-analysis` error and never applies the patch. Rules 5, 13 and 14 are warnings; the rest
+runtime state. Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
+parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails
+closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
+closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
+an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
+round asking the model to fix it (D-105). Rules 5, 13 and 14 are warnings; the rest
 block the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
 time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
@@ -1854,24 +1862,48 @@ findings feed the §9.4 repair loop.
 ### 9.4 Retry Loop
 
 ```
-Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → fail
+Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → (errors) → retry 3 → fail
 ```
 
-**Status (2026-11-07): implemented** in the IDE chat (D-100).
+**Status (2026-11-07): implemented** in the IDE chat (D-100, hardened by D-102).
 
-- **Max 2 retries** (3 attempts total). Worst case 3× initial token cost.
+- **Max 3 retries** (4 attempts total). Worst case 4× initial token cost.
 - **Any rejected answer starts a repair**, not only a validator error: unparseable JSON, an
   `AIResponse` contract violation or a rule violation all re-ask the model.
-- **The repair request is one user-role turn** carrying a numbered findings list with `rule`,
-  `file`, `message`, `fix_hint` and `line`/`excerpt`, a reminder of the `AIResponse` contract,
-  and the **current content of the existing files** the rejected patches tried to update or
-  delete. That last part is the documented clarification of "not full files": a `create` or
-  `update` patch carries the complete file, so a whole-file rewrite cannot be repaired blind.
-  The content is bounded like the rest of the prompt context.
+- **The repair request is one user-role turn** carrying a **fix plan grouped by file, root cause
+  first** (schema/config before the route findings they usually cause), the files the rejected
+  answer touched, a numbered findings list with `rule`, `file`, `message`, `fix_hint` and
+  `line`/`excerpt`, and a reminder of the `AIResponse` contract. Validation stays **set-level**
+  on purpose: the rules are cross-patch (a route may reference a table added in the same set, a
+  permission may be added in the same set), so per-file validation would report false errors;
+  the feedback is per-file instead, and the `validate` tool lets the model check candidate
+  subsets while iterating (D-102).
+- **The repair request never inlines file content.** The chat has one mode (D-103): the
+  correction tells the model to `read_file` every file it will re-emit and to `validate` the
+  exact set it will return, so a `create`/`update` whole-file rewrite is repaired from the
+  tools, not from prompt-stuffed content (D-101/D-102).
 - **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
   the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
   progress to the UI.
+- **Validator outages are not repairs.** A finding marked `infrastructure` — rule 1's parser or
+  the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
+  temporarily unavailable and nothing is written; no correction round is spent asking the model
+  to fix a worker (D-105).
+- **Large patch sets arrive in parts (D-106).** A provider cuts an answer at its output limit
+  (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends
+  2–3 files per answer, marks every part but the last with `"continue": true`, and the turn loop
+  merges the parts by path (a later part may correct a file), ORs the destructive flag, keeps the
+  notes and validates the merged set once (the rules are cross-file). The chat shows
+  "sending the patch set in parts (n/6)"; the budget is 6 parts per answer set and exhausting it
+  fails constructively without writing. A correction keeps the rejected set and re-emits only the
+  files it changes (`delete` drops one), so fixing two files of a three-part set is one answer. The
+  model-call backstop is 22 per user message; its failure reports how many calls the exploration,
+  the parts and the corrections consumed. If the provider cut the answer anyway, the client marks
+  it `truncated` and the IDE salvages the complete patch objects before the cut
+  (`ide/src/ai/salvage.ts`), then asks for the rest instead of reporting a raw JSON error. Only
+  an answer with no recoverable patch goes through the ordinary repair, whose report now carries
+  the cut-off explanation and the part protocol.
 - **On final failure:** the findings are shown in the chat and **nothing is written** to OPFS.
 
 ### 9.5 Model B Tool Surface (Phase 4.5)
@@ -1895,7 +1927,9 @@ one JavaScript program per step; the IDE executes it in an opaque-origin sandbox
 read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
 capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
 path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
-phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21) and implementation is phase 1.
+phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
+landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
+remain.
 
 ---
 
@@ -1940,12 +1974,14 @@ pinned by the file-length ratchet (D-019); the activity view is `chat`.
 **Status (2026-11-02): the full 16-rule validator is implemented** (D-084): `parseTurn()`
 validates a proposal against the live project before it is shown, the accepted files are
 re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
-VFS write. Rule 1 uses Monaco's TypeScript worker; the remaining rules read the config, schema,
-catalogs, blocks and routes. Validator warnings are carried in the proposal state but not yet
-rendered in the card (follow-up). The §9.4 repair loop is implemented (D-100): a rejected
-answer is re-asked up to twice with its findings and the current content of the files the
-patch tried to rewrite, and the final failure shows the findings without writing. Still
-Phase 4: the Model B tool surface (§9.5).
+VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
+config, schema, catalogs, blocks and routes. Validator warnings are carried in the proposal
+state but not yet rendered in the card (follow-up). The §9.4 repair loop is implemented
+(D-100/D-102): a rejected answer is re-asked up to three times with a root-cause-first fix plan
+and the findings (the model reads files with the PTC tools; nothing is inlined), and the final
+failure shows the findings without writing. A parser/analyzer outage is reported as a validator
+outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
+(D-103); the eval corpus and browser matrix remain.
 
 **Status (2026-11-06): the project graph replaced the API Flow.** D-092's `project-graph` editor
 tab is the single pages → routes → tables visualizer (plus FK/relations edges), built from
@@ -2248,7 +2284,8 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 **Status (2026-11-02):** Model A (prompt + context), the response parser, the 16-rule validator
 (D-084), the proposal/diff review and the apply path are implemented; the §9.4 repair loop
-(D-100) is implemented too; the Model B tool surface remains. The validator's warnings still
+(D-100) is implemented too and the PTC tool runtime is the chat's only mode (D-103); the eval
+corpus and browser matrix remain. The validator's warnings still
 need a UI surface.
 
 ### Phase 5 — Headless Blocks + i18n (2 weeks)
@@ -2354,7 +2391,7 @@ see `examples/todo-app/scripts/verify-headless.sh` and D-015.
 - Background jobs: a `server/jobs/**` definition runs in a system context and returns data;
   `ctx.jobs.enqueue` returns an id; a future-`runAt` job is inspectable and cancellable; a
   persisted queue survives a boot; the example app verifies it in
-  `scripts/verify-headless.sh` (D-102)
+  `scripts/verify-headless.sh` (D-107)
 
 ### 14.3 Phase 4 (MVP)
 
@@ -2457,7 +2494,7 @@ export default defineConfig({
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
   },
-  // Background-job queue (D-102): every key has a default, so the block is optional.
+  // Background-job queue (D-107): every key has a default, so the block is optional.
   jobs: {
     maxConcurrent: 2,      // attempts executing at the same time
     maxAttempts: 1,        // total attempts per job; 1 = no retry

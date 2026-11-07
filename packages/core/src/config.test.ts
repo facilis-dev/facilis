@@ -57,7 +57,7 @@ describe("defineConfig", () => {
     expect(config.i18n).toEqual({ defaultLocale: "en", locales: ["en"] });
     expect(config.blocks).toEqual({ packages: [] });
     expect(config.auth.sessionDurationMs).toBe(1000 * 60 * 60 * 24 * 7);
-    // The queue is safe by default: two slots, no retry, persisted (D-102).
+    // The queue is safe by default: two slots, no retry, persisted (D-107).
     expect(config.jobs).toEqual({
       maxConcurrent: 2,
       maxAttempts: 1,

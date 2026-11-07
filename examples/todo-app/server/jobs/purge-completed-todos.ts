@@ -12,7 +12,7 @@ export default defineJob({
     olderThanDays: z.number().int().positive().max(365).default(7),
   }),
   output: z.object({ deleted: z.number().int().nonnegative() }),
-  // The sudo audit records what the job touches; the body runs as facilis_system (D-102).
+  // The sudo audit records what the job touches; the body runs as facilis_system (D-107).
   tables: ["todos"],
   maxAttempts: 2,
   timeoutMs: 10_000,

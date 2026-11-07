@@ -11,6 +11,7 @@ export const chatEn = {
   "chat.stop": "Stop",
   "chat.thinking": "Thinking…",
   "chat.repairing": "Correcting the patch set ({attempt}/{max})…",
+  "chat.patchParts": "Sending the patch set in parts… ({part}/{max})",
   "chat.applying": "Applying…",
   "chat.footer": "AI can make mistakes — review every patch before applying.",
   "chat.configured": "{provider} · {model}",
@@ -94,4 +95,7 @@ export const chatEn = {
   "chat.trace.failed": "failed ({kind})",
   "chat.trace.tools": "{n} tool call(s)",
   "chat.trace.program": "Program",
+  "chat.error.validator": "The validator is temporarily unavailable — try again in a moment.",
+  "chat.streaming": "Writing the answer…",
+  "chat.busy.elapsed": "{seconds}s",
 } as const;

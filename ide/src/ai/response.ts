@@ -9,6 +9,10 @@
 // A failure keeps the structured findings (rule, file, fix_hint, line, excerpt) and the
 // rejected patches, not just the one-line issues: the SPEC §9.4 repair turn feeds those
 // back to the model, and the chat shows them under the error.
+//
+// D-106: an answer the provider cut at its output limit (or that stops mid-JSON) is marked
+// `truncated`; the turn loop salvages its complete patches (salvage.ts) and asks for the
+// rest instead of reporting a bare JSON error to the user.
 
 import {
   validatePatch,
@@ -18,11 +22,14 @@ import {
 } from "@facilis/ai";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import { MAX_PROGRAM_CHARS } from "./ptc/protocol";
+import { isRecord, parseNotes, parsePatches } from "./response-shape";
 import type { AiResponse } from "./types";
 
 export interface AiParseFailure {
   ok: false;
   kind: "empty" | "json" | "contract" | "validation";
+  /** The provider cut the answer off (output limit) or the JSON stops mid-value. */
+  truncated: boolean;
   error: string;
   /** One-line structural issues, in the validator's `rule: file: message` form. */
   issues: string[];
@@ -45,15 +52,7 @@ function failure(
   findings: ValidationError[] = [],
   patchedFiles: FilePatch[] = [],
 ): AiParseFailure {
-  return { ok: false, kind, error, issues, findings, patchedFiles, raw };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isAction(value: unknown): value is FilePatch["action"] {
-  return value === "create" || value === "update" || value === "delete";
+  return { ok: false, kind, truncated: false, error, issues, findings, patchedFiles, raw };
 }
 
 /** Strip a surrounding fence if there is one, else peel prose off both ends. */
@@ -66,80 +65,39 @@ function unwrap(text: string): string {
   return text;
 }
 
-interface ParsedPatches {
-  patches: FilePatch[];
-  issues: string[];
-}
-
-function parsePatches(value: unknown): ParsedPatches {
-  if (value === undefined) return { patches: [], issues: [] };
-  if (!Array.isArray(value)) return { patches: [], issues: ["patches: must be an array"] };
-
-  const patches: FilePatch[] = [];
-  const issues: string[] = [];
-
-  value.forEach((item, index) => {
-    const label = `patches[${index}]`;
-    if (!isRecord(item)) {
-      issues.push(`${label}: must be an object`);
-      return;
-    }
-
-    const path = item.path;
-    if (typeof path !== "string" || path.trim().length === 0) {
-      issues.push(`${label}.path: must be a non-empty string`);
-      return;
-    }
-
-    const action = item.action;
-    if (!isAction(action)) {
-      issues.push(`${label}.action: must be "create", "update" or "delete"`);
-      return;
-    }
-
-    const content = item.content;
-    if (content !== undefined && typeof content !== "string") {
-      issues.push(`${label}.content: must be a string when present`);
-      return;
-    }
-
-    // Missing content is left to validatePatch, which requires it for create/update and
-    // allows a delete to omit it.
-    const patch: FilePatch = { path, action };
-    if (typeof content === "string") patch.content = content;
-    patches.push(patch);
-  });
-
-  return { patches, issues };
-}
-
-function parseNotes(value: unknown): { notes: string[]; issue: string | null } {
-  if (value === undefined) return { notes: [], issue: null };
-  if (!Array.isArray(value)) return { notes: [], issue: "notes: must be an array" };
-  // Tolerant on purpose: notes are advisory, so a stray non-string entry is dropped
-  // instead of failing a turn whose patches are valid.
-  return {
-    notes: value.filter((entry): entry is string => typeof entry === "string"),
-    issue: null,
-  };
+/**
+ * V8 reports a cut answer as an error at the very end of the parsed text; a missing comma
+ * or a stray token is reported earlier. The provider's finish reason is the stronger signal,
+ * so this is only the fallback when the stream never carried one.
+ */
+function cutAtEnd(body: string, error: unknown): boolean {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("Unexpected end of JSON input")) return true;
+  const position = /at position (\d+)/.exec(message);
+  return position !== null && Number(position[1]) >= body.length - 1;
 }
 
 function oneLine(error: ValidationError): string {
   return `${error.rule}: ${error.file}: ${error.message}`;
 }
 
-export function parseAiResponse(raw: string): AiParseResult {
+export function parseAiResponse(
+  raw: string,
+  options: { truncated?: boolean } = {},
+): AiParseResult {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return failure("empty", "The provider returned an empty response.", [], raw);
   }
 
+  const body = unwrap(trimmed);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(unwrap(trimmed));
+    parsed = JSON.parse(body);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return failure("json", message, [], raw);
+    const truncated = options.truncated === true || cutAtEnd(body, error);
+    return { ...failure("json", message, [], raw), truncated };
   }
 
   if (!isRecord(parsed)) {
@@ -162,6 +120,16 @@ export function parseAiResponse(raw: string): AiParseResult {
   const parsedNotes = parseNotes(parsed.notes);
   if (parsedNotes.issue !== null) issues.push(parsedNotes.issue);
 
+  // D-106: a patch set too large for one answer arrives in parts, each part but the last
+  // flagged with continue: true.
+  const rawContinue = parsed.continue;
+  let more = false;
+  if (rawContinue !== undefined && typeof rawContinue !== "boolean") {
+    issues.push("continue: must be a boolean");
+  } else if (rawContinue === true) {
+    more = true;
+  }
+
   const rawConfirmation = parsed.requires_confirmation;
   if (rawConfirmation !== undefined && typeof rawConfirmation !== "boolean") {
     issues.push("requires_confirmation: must be a boolean");
@@ -179,6 +147,10 @@ export function parseAiResponse(raw: string): AiParseResult {
     else if (parsedPatches.patches.length > 0)
       issues.push("script: must be the only action in a turn (omit patches)");
     else script = rawScript;
+  }
+
+  if (more && parsedPatches.patches.length === 0) {
+    issues.push("continue: requires at least one patch");
   }
 
   if (issues.length > 0) {
@@ -210,6 +182,7 @@ export function parseAiResponse(raw: string): AiParseResult {
       message,
       patches: parsedPatches.patches,
       ...(script === undefined ? {} : { script }),
+      ...(more ? { continue: true } : {}),
       notes: parsedNotes.notes,
       requiresConfirmation,
     },

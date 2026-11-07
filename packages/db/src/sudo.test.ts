@@ -248,7 +248,7 @@ describe("audited sudo", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it("accepts an empty tables list for a job that declares no audit table (D-102)", async () => {
+  it("accepts an empty tables list for a job that declares no audit table (D-107)", async () => {
     captureAudit();
     const result = await runAsSystem(
       db,

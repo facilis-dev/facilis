@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
+import type { PtcRunner } from "./ptc/protocol";
 import type { AiSettings } from "./types";
+
+/** The chat has no non-PTC mode (D-103); these sessions never explore, so specs are empty. */
+const EMPTY_RUNNER: PtcRunner = {
+  specs: () => [],
+  run: async () => ({ ok: true, value: null, toolCalls: 0, elapsedMs: 0, trace: [] }),
+  dispose: () => {},
+};
 
 const root = "/home/user/project";
 
@@ -59,6 +67,7 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
     loadSettings: () => settings,
     saveSettings: () => {},
     now: () => 1,
+      runner: EMPTY_RUNNER,
   });
 }
 
@@ -215,20 +224,21 @@ describe("ChatSession does not repair internal failures", () => {
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
+      runner: EMPTY_RUNNER,
       },
     );
 
     await chat.send("add a file");
     expect(calls).toBe(1);
     const state = chat.getSnapshot();
-    expect(state.error?.kind).toBe("parse");
+    expect(state.error?.kind).toBe("validator");
     expect(state.error?.message).toContain("project-analysis");
     expect(harness.writes).toEqual([]);
   });
 });
 
 describe("ChatSession repair of a destructive schema rewrite", () => {
-  it("feeds the current schema back and accepts the corrected whole-file patch", async () => {
+  it("feeds the findings back with a root-cause plan and accepts the correction", async () => {
     const calls: { messages: readonly { role: string; content: string }[] }[] = [];
     const bad = answer({ path: "db/schema.ts", action: "update", content: ATTACHMENTS_ONLY });
     const good = answer({ path: "db/schema.ts", action: "update", content: SCHEMA_WITH_ATTACHMENTS });
@@ -240,6 +250,7 @@ describe("ChatSession repair of a destructive schema rewrite", () => {
       loadSettings: () => settings,
       saveSettings: () => {},
       now: () => 1,
+      runner: EMPTY_RUNNER,
     });
 
     await chat.send("add an attachments table to todos");
@@ -250,8 +261,11 @@ describe("ChatSession repair of a destructive schema rewrite", () => {
     const repair = calls[1]?.messages.at(-1)?.content ?? "";
     expect(repair).toContain("destructive-confirmed");
     expect(repair).toContain('drops table "todos"');
-    expect(repair).toContain('export const todos = pgTable("todos"');
-    expect(repair).toContain("## Current content of the files your rejected answer tried to rewrite");
+    expect(repair).toContain("## Fix plan (root cause first)");
+    expect(repair).toContain("- db/schema.ts — 1 finding(s): destructive-confirmed");
+    expect(repair).toContain("## Your rejected answer touched");
+    expect(repair).toContain("read_file it first");
+    expect(repair).not.toContain("## Current content of the files");
 
     expect(state.error).toBeNull();
     expect(state.proposal?.files[0]?.patch.path).toBe("db/schema.ts");

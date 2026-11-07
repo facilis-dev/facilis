@@ -2,7 +2,7 @@ import type { PolicyScopedDatabase } from "@facilis/db";
 import type { z } from "zod";
 
 /**
- * The background-job contract (D-102, docs/JOBS.md).
+ * The background-job contract (D-107, docs/JOBS.md).
  *
  * A job is an independent, server-side unit of work: it receives serialized data, always
  * runs in a system context (its own transaction as `facilis_system`, audited), and
@@ -208,7 +208,7 @@ export interface JobQueueStats {
 }
 
 /**
- * The server-only job API carried by the route context (D-102).
+ * The server-only job API carried by the route context (D-107).
  *
  * There is deliberately no HTTP route behind it: an app that needs a user-facing surface
  * writes a normal `defineAuthorizedHandler` route and calls these functions.
@@ -227,7 +227,7 @@ export interface JobsApi {
   /**
    * Framework plumbing, not an app-facing knob: returns this API bound to a request's
    * policy-scoped transaction, so queue calls join the request instead of opening a second
-   * transaction on the single PGlite connection (D-102, docs/JOBS.md §8).
+   * transaction on the single PGlite connection (D-107, docs/JOBS.md §8).
    */
   bindScope?(scope: PolicyScopedDatabase): JobsApi;
 }

@@ -16,7 +16,7 @@ export interface PatchContextHost {
   read(path: string): Promise<string>;
   /** Preview base URL for /__facilis/manifest, or null when nothing runs. */
   manifestBase(): string | null;
-  /** Rule 1's parser (Monaco's TypeScript worker in the IDE); null when unavailable. */
+  /** Rule 1's parser (the analyzer worker's oxc parser in the IDE); null when unavailable. */
   syntaxChecker?(): SyntaxChecker | null;
   /**
    * Analyze the project before and after the patch set. Implemented by the IDE through the

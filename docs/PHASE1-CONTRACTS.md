@@ -63,7 +63,7 @@ export interface FacilisRequestEvent {
     facilis?: {
       db: FacilisDb;
       defaultTenantId?: string;
-      jobs?: JobsApi; // started jobs runtime, D-102 (absent until/if boot succeeds)
+      jobs?: JobsApi; // started jobs runtime, D-107 (absent until/if boot succeeds)
     };
   };
   req: { headers: Headers };
@@ -84,13 +84,13 @@ export interface FacilisHandlerEvent {
 
 An `H3Event` satisfies this structurally. Middleware order inside Nitro: `facilis-context`
 (boots db, sets `context.facilis` — including the started jobs runtime as `facilis.jobs` when
-D-102 boot succeeded) then `facilis-session` (sets `context.auth`, may be `null`).
+D-107 boot succeeded) then `facilis-session` (sets `context.auth`, may be `null`).
 `defineAuthorizedHandler` takes the full `FacilisRequestEvent`, captures the root client before
 running the project handler, and passes a `FacilisHandlerEvent` whose `facilis` carries only
-`defaultTenantId` (the job API is `ctx.jobs`, D-102, never the event). A handler therefore
+`defaultTenantId` (the job API is `ctx.jobs`, D-107, never the event). A handler therefore
 reaches the DB only through `ctx.db` (policy-scoped) and `ctx.sudo`/`ctx.system` (audited
 elevation), drives background jobs through `ctx.jobs` (bound to the request's policy
-transaction as `bindScope`, D-102), and cannot obtain a policy-free client.
+transaction as `bindScope`, D-107), and cannot obtain a policy-free client.
 The analyzer warns `route-direct-db` for code that tries (raw `facilis.db`, `createDb`
 import).
 
@@ -333,12 +333,12 @@ export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataM
 Integration wiring (confirmed with the Lead while writing the Phase 1 example app):
 - virtual modules: `#facilis/config` (project `facilis.config.ts`), `#facilis/db-schema` (project
   `db/schema.ts` namespace), `#facilis/openapi-meta`, `#facilis/jobs` (project
-  `server/jobs/**/*.ts` as `JobModule[]`, D-102).
+  `server/jobs/**/*.ts` as `JobModule[]`, D-107).
 - middleware `facilis-context`: lazily `createDb({ schema })` once per process, then (dev only)
   apply `<config.db.migrationsDir>/*.sql` sorted via `applyStatements` and seed
   `role_permissions` from `seedFromConfig(config.auth)`. After the db roles/views setup it
   starts the jobs runtime (`bootJobs`: registry from `#facilis/jobs`, store choice, engine
-  `start()`, D-102), carries it in `BootstrapState.jobs` and exposes both
+  `start()`, D-107), carries it in `BootstrapState.jobs` and exposes both
   `event.context.facilis.db` and `event.context.facilis.jobs`. A bootstrap failure is recorded
   as a manifest warning (manifest stays 200 partial); handlers then see no db and return
   `db_unavailable`. Jobs boot degrades instead of failing: an invalid definition, a missing

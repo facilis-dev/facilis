@@ -18,7 +18,14 @@ export interface CallModelInput {
   onText?: (chunk: string) => void;
 }
 
-export type CallModelResult = { ok: true; text: string } | { ok: false; failure: ChatFailure };
+export type CallModelResult =
+  | {
+      ok: true;
+      text: string;
+      /** The provider stopped at its output limit, so the answer is incomplete. */
+      truncated?: boolean;
+    }
+  | { ok: false; failure: ChatFailure };
 
 /** A provider error body is detail, not a payload: cap it for the bubble. */
 const ERROR_BODY_LIMIT = 300;
@@ -126,6 +133,7 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
   if (response.body === null) return failed("stream", "The provider response had no body.");
 
   let text = "";
+  let stopReason: string | undefined;
   try {
     await readSse(response.body, (data) => {
       if (data === "[DONE]") return;
@@ -137,6 +145,7 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
       }
       const event = parseProviderEvent(preset.protocol, payload);
       if (event.error !== undefined) throw new Error(event.error);
+      if (event.stopReason !== undefined) stopReason = event.stopReason;
       if (event.text !== undefined) {
         text += event.text;
         input.onText?.(event.text);
@@ -150,5 +159,10 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
   }
 
   if (text.length === 0) return failed("empty", "The provider returned no text.");
+  // "length"/"max_tokens" means the provider cut the answer at its output limit, so the
+  // patch-set JSON cannot be complete: the turn loop requests the rest in parts (D-106).
+  if (stopReason === "length" || stopReason === "max_tokens") {
+    return { ok: true, text, truncated: true };
+  }
   return { ok: true, text };
 }

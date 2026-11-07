@@ -56,7 +56,7 @@ export interface AuthorizedHandlerContext<
    */
   system: SystemHandler;
   /**
-   * Server-only background-job queue (D-102): enqueue/schedule a job, read the queue or a
+   * Server-only background-job queue (D-107): enqueue/schedule a job, read the queue or a
    * job by id, force it to stop. Jobs always execute in a system context; this API has no
    * HTTP surface of its own.
    */
@@ -233,7 +233,7 @@ export function defineAuthorizedHandler<
     try {
       return await runWithPolicyScope(facilis.db, scope, async (db) => {
         // Queue calls made by the handler must run in this transaction: opening a second one
-        // on the single PGlite connection would deadlock the request (D-102, JOBS §8).
+        // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
         const elevations = createElevationContext({
           event,

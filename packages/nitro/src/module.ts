@@ -129,7 +129,7 @@ function renderDbViewsModule(rootDir: string): string {
 const JOBS_ENTRY = join("server", "jobs");
 
 /**
- * server/jobs/**\/*.ts as `JobModule` entries (D-102, docs/JOBS.md §5): one default export
+ * server/jobs/**\/*.ts as `JobModule` entries (D-107, docs/JOBS.md §5): one default export
  * per file, nested directories allowed, colocated `*.test.ts` ignored. A project without
  * jobs is valid, so a missing directory renders as an empty array.
  */

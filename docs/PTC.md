@@ -1,15 +1,17 @@
 # PTC tool runtime (Model B) — design proposal
 
-**Status:** accepted (2026-11-07, **D-101**), not implemented. The phase-0 isolation spike
-([`spikes/ptc-sandbox/`](../spikes/ptc-sandbox/README.md)) passed 21/21 checks in Chromium 156.
-Tracked as **O-016** in [`DECISIONS.md`](./DECISIONS.md). Related: [`SPEC.md`](./SPEC.md)
-§9.1/§9.4/§9.5, [`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat),
-D-084 (validator), D-100 (repair loop).
+**Status:** accepted (2026-11-07, **D-101**) and now the chat's **only mode** (**D-103**). The
+phase-0 isolation spike ([`spikes/ptc-sandbox/`](../spikes/ptc-sandbox/README.md)) passed 21/21
+checks in Chromium 156; the phase-1 chain and the exploration trace UI landed; the eval corpus
+and the browser matrix remain. Related: [`SPEC.md`](./SPEC.md) §9.1/§9.4/§9.5,
+[`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat), D-084 (validator),
+D-100 (repair loop), D-102 (repair hardening).
 
 ## Accepted decisions (2026-11-07)
 
-- **PTC pure.** The model writes one JavaScript program per step; there is no native
-  function-calling mode in phase 1 (an adapter can be layered on the same registry later).
+- **PTC pure and single-mode.** The model writes one JavaScript program per step; there is no
+  native function-calling mode in phase 1 (an adapter can be layered on the same registry later),
+  and there is no non-PTC chat fallback (D-103: always on, no dev flag).
 - **Sandbox.** Sandboxed iframe (opaque origin) + one blob Worker per program + parent-side
   tool RPC. The runner page is served with a **CSP response header** (cross-browser), not the
   Chrome-only `csp=""` attribute.
@@ -209,10 +211,10 @@ Tool output is **data**: it can be quoted, never treated as instructions.
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
-- The repair loop (§9.4) feeds findings only when the runtime is on: the correction tells the
-  model to `read_file` the implicated paths and to `validate` the corrected set. The D-100
-  inline-content fallback remains only while the runtime is off (production until the phase-4
-  rollout), so a build without tools still repairs whole-file rewrites.
+- The repair loop (§9.4) feeds a fix plan grouped by file, root cause first, then the findings;
+  with the runtime on it tells the model to `read_file` the implicated paths and to `validate`
+  the exact set before answering (D-102: three corrections, set-level validation, per-file
+  feedback). The runtime is always on, so the correction never inlines file content (D-103).
 
 ## 8. MCP (phase 3)
 
@@ -272,12 +274,12 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Phase | Scope | Exit gate |
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
-| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; dev flag; repair loop switches to tools; **chain + trace UI landed 2026-11-07 — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
+| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 
-**Phase 1 chain landed (2026-11-07), behind `PTC_ENABLED` (`import.meta.env.DEV`).**
+**Phase 1 chain landed (2026-11-07) and always on (D-103).**
 
 - Wire vocabulary and caps: `ide/src/ai/ptc/protocol.ts`; policy (project-root confinement,
   excluded/secret paths, redaction, glob scoping): `policy.ts`; the nine read-only tools including

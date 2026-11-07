@@ -11,6 +11,7 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.stop": "Interrompi",
   "chat.thinking": "Sto pensando…",
   "chat.repairing": "Correggo le patch ({attempt}/{max})…",
+  "chat.patchParts": "Invio il set di patch a parti… ({part}/{max})",
   "chat.applying": "Applicazione…",
   "chat.footer": "L'AI può sbagliare — rivedi ogni patch prima di applicarla.",
   "chat.configured": "{provider} · {model}",
@@ -95,4 +96,7 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.trace.failed": "fallita ({kind})",
   "chat.trace.tools": "{n} chiamata/e tool",
   "chat.trace.program": "Programma",
+  "chat.error.validator": "Il validatore non è disponibile in questo momento — riprova tra poco.",
+  "chat.streaming": "Sto scrivendo la risposta…",
+  "chat.busy.elapsed": "{seconds}s",
 };

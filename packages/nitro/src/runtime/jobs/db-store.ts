@@ -1,4 +1,4 @@
-// The Drizzle-backed job store (D-102, docs/JOBS.md §8).
+// The Drizzle-backed job store (D-107, docs/JOBS.md §8).
 //
 // Every operation runs through `runWithPolicyScope`, i.e. as facilis_app with
 // `app.tenant_id` set: a new row's tenant_id comes from the tenantColumn default (the same
@@ -44,7 +44,7 @@ export function createDbJobStore(options: {
    *
    * When a scope is bound (a handler's `ctx.jobs`), the operation joins that request
    * transaction instead: PGlite is single-connection and a nested BEGIN would deadlock the
-   * request that is waiting for the queue call to return (D-102, docs/JOBS.md §8).
+   * request that is waiting for the queue call to return (D-107, docs/JOBS.md §8).
    */
   function run<T>(fn: (tx: PolicyScopedDatabase) => Promise<T>): Promise<T> {
     return scope === undefined ? runWithPolicyScope(db, { tenantId }, fn) : fn(scope);

@@ -11,7 +11,7 @@ import { buildChatContext } from "./chat-context";
 import { beginTraceRun, completeTraceRun } from "./chat-trace";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
-import { errorText, initialState, replayTurns } from "./chat-session-types";
+import { TURN_IDLE, TURN_RESET, errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
@@ -30,7 +30,7 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
-  private readonly runner: PtcRunner | null;
+  private readonly runner: PtcRunner;
   private readonly stream: StreamAccumulator;
   private listeners = new Set<() => void>();
   private state: ChatState;
@@ -39,13 +39,13 @@ export class ChatSession {
   private cancelled = false;
   private streamId: string | null = null;
 
-  constructor(host: ChatHost, options: ChatSessionOptions = {}) {
+  constructor(host: ChatHost, options: ChatSessionOptions) {
     this.host = host;
     this.call = options.call ?? callModel;
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
-    this.runner = options.runner ?? null;
+    this.runner = options.runner;
     this.stream = new StreamAccumulator(this.now);
     this.state = initialState(this.load());
   }
@@ -140,16 +140,14 @@ export class ChatSession {
       applied: null,
       undo: null,
       streaming: false,
-      repair: null,
-      trace: [],
-      exploring: null,
+      ...TURN_RESET,
       error: null,
     });
     const abort = new AbortController();
     this.controller = abort;
     try {
       const built = await buildChatContext(this.host, abort.signal, {
-        tools: this.runner?.specs() ?? [],
+        tools: this.runner.specs(),
       });
       if (abort.signal.aborted) return;
       this.emit({ context: built.context });
@@ -164,12 +162,16 @@ export class ChatSession {
         onText: (chunk) => this.streamChunk(chunk),
         onRepair: (attempt, max) => {
           this.dropStream();
-          this.emit({ repair: { attempt, max } });
+          this.emit({ repair: { attempt, max }, patchParts: null });
         },
         onScriptStart: (program, turn) =>
           this.emit({ exploring: turn, trace: beginTraceRun(this.state.trace, program) }),
         onScript: (result, program) =>
           this.emit({ exploring: null, trace: completeTraceRun(this.state.trace, result, program) }),
+        onPatches: (part, max) => {
+          this.dropStream();
+          this.emit({ patchParts: { part, max } });
+        },
       });
       if (this.cancelled) return;
       if (!outcome.ok) {
@@ -205,8 +207,7 @@ export class ChatSession {
       this.emit({
         phase: "idle",
         streaming: false,
-        repair: null,
-        exploring: null,
+        ...TURN_IDLE,
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }

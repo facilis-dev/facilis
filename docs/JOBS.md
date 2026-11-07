@@ -1,6 +1,6 @@
 # Background jobs — design
 
-**Status:** implemented (D-102). This document is the design reference behind SPEC §5.6,
+**Status:** implemented (D-107). This document is the design reference behind SPEC §5.6,
 §7.1 and §7.9: the contract, the runtime semantics and the rejected alternatives, including
 the evaluation of Nitro's own task system requested before the feature was accepted.
 

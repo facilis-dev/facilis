@@ -9,7 +9,7 @@ import { rolePermissions, roles, sessions, userRoles, users } from "@facilis/aut
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
 // generates them together with the application tables. The job queue is framework state
-// the project owns the DDL for, so it is re-exported the same way (D-102, JOBS §8).
+// the project owns the DDL for, so it is re-exported the same way (D-107, JOBS §8).
 export { facilisJobs, rolePermissions, roles, sessions, userRoles, users };
 
 export const todos = pgTable(

@@ -3646,7 +3646,192 @@ tool/server allowlist remain open (O-016, PTC.md §13).
 **Verification.** `node spikes/ptc-sandbox/run.mjs` → 21/21. Phase-1 tests will cover the tool
 policy, script runner, turn loop and the registry↔prompt parity.
 
-### D-102 — Background jobs: a durable queue on framework primitives, not Nitro's tasks
+### D-102 — Repair hardening: three corrections, per-file fix plan, canonical prompt shapes
+**Status:** accepted (2026-11-07)
+
+The first real PTC test surfaced two failures: the model's first script usually misused the
+tools, and the two-correction budget sometimes ran out before a patch set was valid (one schema
+rewrite produced several route findings, and each round fixed a symptom). The user asked for a
+validation that works per file and repeats more often.
+
+**Decision.**
+
+- **Three corrections** after the first answer (`MAX_REPAIR_ATTEMPTS = 3`; `MAX_MODEL_CALLS`
+  becomes 6 programs + 3 corrections + the answer = 10). The script budget is unchanged.
+- **Validation stays set-level; the feedback becomes per-file.** Per-file *validation* is not
+  sound: the 16 rules include cross-patch rules (a route may reference a table added in the same
+  set, a permission may be added to the config in the same set, a schema rewrite interacts with
+  every existing route), so validating one file against the current project would report false
+  errors. The repair report builds a **fix plan grouped by file, root cause first**
+  (`db/schema.ts`/`facilis.config.ts` before route consequences, `destructive-confirmed` before
+  its dependent findings), lists the files the rejected answer touched, and keeps the full
+  numbered findings. The `validate` tool can still check candidate subsets while iterating.
+- **Prompt hardening for the first-round failures:** canonical route and scoped-table shapes
+  (copied from `examples/todo-app`), an exact script-turn example, "call every tool with one
+  object argument", "the return value is the only data you receive: end with `return`", "no
+  markdown fences inside the script", "read before re-emit", and the `validate`-before-answer
+  rule. The response contract mentions the `script` alternative when the PTC section is present.
+- **Self-correcting tool errors:** a refused call reaches the model as
+  `<tool> <signature>: <reason>` (e.g. `read_file({ path, startLine?, endLine? }): path is
+  required`); a program that returns nothing is reported with the `return` hint. The catalogue
+  moves to `ide/src/ai/ptc/tool-specs.ts` to keep the router under the file-length limit.
+
+**Rejected alternatives.** *Validate each patch in isolation*: false positives on the cross-patch
+rules; the validator's contract is the resulting project. *Unbounded retries*: token cost; three
+rounds plus a grouped plan cover the observed failures. *Native tool calling instead of PTC*: out
+of scope (D-101).
+
+**Consequences.** Worst case ten model calls per user message; the repair prompt gains a plan and
+a touched-file list, bounded by the existing caps. The final validator remains the only boundary
+by design: the goal is that the model validates its own set first and the user rarely sees a
+rejection.
+
+**Verification.** `repair.test.ts` (root-cause ordering, plan, touched files, cap),
+`chat-session-repair.test.ts` (four-call exhaustion, three correction attempts),
+`prompt.test.ts` (canonical shapes, object args, return rule, script contract),
+`turn.test.ts` (no-value hint); full gates green.
+
+### D-103 — The chat has one mode: PTC is always on
+**Status:** accepted (2026-11-07)
+
+The user asked to remove the non-PTC chat mode after testing the tool runtime. Keeping two paths
+(preloaded context without tools, and the tool runtime behind a dev flag) doubles the surface and
+lets the weaker path drift: the repair loop still carried an inline-file fallback, the prompt had
+a tools/no-tools branch, and the production build behaved differently from the one under test.
+
+**Decision.**
+
+- `PTC_ENABLED` and `ide/src/ai/ptc/flags.ts` are gone: `chat-host.ts` always constructs the
+  runner (`createPtcRunner` with a per-run tool router) and `ChatSessionOptions.runner` is a
+  required field.
+- `runTurn` requires the runner; there is no "tool runtime unavailable" branch and no prompt
+  mode switch.
+- The D-100 inline-file repair fallback is removed: the correction always sends the fix plan and
+  tells the model to `read_file` the implicated files and to `validate` the exact set it will
+  return (D-102).
+- Production now needs the per-path headers for `/ptc-runner.html` (CSP
+  `default-src 'none'; script-src 'unsafe-inline'; worker-src blob:` plus the site's COOP/COEP).
+  They ship in `ide/public/_headers` (Cloudflare Pages) and in `ide/vite.ptc.ts` for
+  dev/preview; another host must reproduce them. Without the CSP the iframe keeps its opaque
+  origin but loses the egress block, so the header is a deployment requirement (PTC.md §5).
+- The dev mock's "ptc"/"esplora" trigger stays as a no-key way to exercise the trace.
+- Model A's context assembly (file list, config, manifest, AGENTS.md) stays as context, not as a
+  second mode: removing it would make every first turn start blind.
+
+**Rejected alternatives.** *Keep a fallback switch*: two chat behaviours to test and document,
+and the tool runtime already covers the fallback's use cases. *Remove the preloaded context too*:
+it is context assembly, not a mode. *Keep the dev flag until the eval corpus exists*: the user
+wants the single path now; the eval corpus still tunes budgets but no longer gates a second mode.
+
+**Consequences.** Every chat turn uses the PTC runtime (and therefore needs the runner page
+served with its headers). The pre-PTC path remains in the spec as history (Model A, D-045/D-046).
+Cross-browser isolation is still a gate (PTC.md §13); Chromium only so far.
+
+**Verification.** `ChatSessionOptions.runner` is required and every session test injects one;
+the turn loop has no runtime-off branch; `repair.ts` has no file-inlining path; the full gates
+are green and `node scripts/dev/check-ptc-runner.mjs` still passes 9/9.
+
+### D-105 — Rule 1 uses the analyzer's oxc parser; validator outages are not repairs
+**Status:** accepted (2026-11-07)
+
+The user hit `[ts-parse] db/schema.ts: TypeScript syntax could not be checked: Timed out parsing
+the patched file` on a real turn. Rule 1 was injected with Monaco's TypeScript language service —
+a viewer feature (IntelliSense) that is re-created on cold projects and can hang — while every
+other rule already reads the framework analyzer, the warm oxc-based worker that parses the same
+files. The rejection also went through the repair loop, so the model was asked to fix a timeout
+it could not fix, burning corrections and ending in a misleading "invalid patch set".
+
+**Decision.**
+
+- The IDE's rule-1 checker is `createAnalyzerSyntaxChecker()` (`ide/src/ai/analyzer-syntax.ts`):
+  it runs `analyzeProjectFiles` on the patched file (a one-file map) in the analyzer worker and
+  keeps only `parse-error` diagnostics. `ide/src/ai/monaco-syntax.ts` and its test are deleted;
+  Monaco remains the editor's IntelliSense surface only, and `scripts/dev/smoke-intellisense.mjs`
+  keeps testing that viewer feature. Node tooling keeps `@facilis/ai/node` (rolldown/oxc), so
+  rule 1 has one parser family in the browser and in Node.
+- `ValidationError.infrastructure` marks findings about the validator's own plumbing: rule 1
+  when the checker cannot answer, and `project-analysis` when the analyzer is down. The turn
+  loop returns `ChatFailureKind "validator"` without a repair round; the chat shows "validator
+  temporarily unavailable — retry in a moment" and writes nothing.
+- No second browser parser: the analyzer is already required by every other rule, so a Monaco
+  fallback would validate half the rules with a different parser.
+
+**Rejected alternatives.** *Keep Monaco with more retries*: that was the 6×2.5 s loop that timed
+out; a viewer service is the wrong dependency for a gate. *Fallback to Monaco only when the
+analyzer is down*: the analyzer is required anyway, so the fallback would be partial. *Treat the
+outage as a model repair*: the model cannot fix a worker.
+
+**Consequences.** Rule 1 fails closed on the analyzer worker (the 30 s readiness/analysis budget
+in `analyze-client.ts`); a one-file analyze per patched file is cheap on the warm worker. The
+validator has one parser family and the chat no longer spends corrections on infrastructure
+outages: a dead analyzer surfaces as a retryable validator error, not as a bad patch.
+
+**Verification.** `analyzer-syntax.test.ts` (parse-error mapping, non-parse diagnostics ignored,
+fail closed), `validator-context.test.ts` (infrastructure flag), `turn.test.ts` (no repair on
+infrastructure), `chat-session-validation.test.ts` (validator kind), i18n parity; full gates
+green.
+
+### D-106 — Large patch sets arrive in parts; a cut answer is not a parse error
+**Status:** accepted (2026-11-07)
+
+A real turn — "add attachments (upload, preview, download) to the todo app" — produced a ~28 KB
+answer that the provider cut at its output limit. The cut landed right after a complete patch
+object, so the JSON ended mid-array: `JSON.parse` failed with `Expected ',' or ']' after array
+element in JSON at position 28469`, the chat showed that raw error, and the repair loop asked the
+model to resend the whole set — which the same limit cut again, until the three corrections were
+gone. The user saw "the assistant could not produce a valid patch set" for a request that was
+just too large for one answer.
+
+**Decision.**
+
+- The client surfaces the provider's stop reason (`finish_reason: "length"` /
+  `stop_reason: "max_tokens"`) as `CallModelResult.truncated` (`ide/src/ai/client.ts`); when a
+  stream carries no stop reason, the parser marks a JSON error at the end of the text as
+  truncated too (`ide/src/ai/response.ts`).
+- The model may split a set: every part is a complete `AIResponse`, and `"continue": true` marks
+  every part but the last. `ide/src/ai/turn.ts` merges the parts by path (a later part may correct
+  a file), ORs `requires_confirmation`, keeps the notes and validates the merged set once
+  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n/6)". The part
+  budget is 6 per answer set — the initial set and each correction start over — and a part without
+  patches still needs a message.
+- A correction **keeps the rejected set** (`beginCorrection` in `patch-set.ts`): the model re-emits
+  only the files the findings name, files it omits keep their rejected patch, and `"delete"` drops
+  one. This is what keeps a correction cheap: a fix to two files of a three-part set is one answer,
+  not another three parts.
+- The model-call backstop is 22 per user message (6 exploration programs + 6 parts + the final
+  answer + up to 3 corrections × 3 calls). When it runs out the failure reports what consumed the
+  calls ("N model calls: X exploration program(s), Y patch part(s), Z correction(s)"), so the
+  budgets can be tuned from a real turn instead of a guess. A part that only repeats files already
+  received gets an explicit continuation line instead of silently spending calls.
+- A cut answer is not thrown away: `ide/src/ai/salvage.ts` scans the `patches` array with a
+  string-aware brace scan and keeps the complete patch objects before the cut; the turn asks for
+  the rest with the list of files already received (their content is not re-sent). If no complete
+  patch survives, the repair report gains a "## The answer was cut off" section with the part
+  protocol instead of only the raw JSON error.
+- The system prompt, the repair contract and the new large-set guidance tell the model to keep an
+  answer under the output limit and send at most 2–3 files per part.
+
+**Rejected alternatives.** *Raise `max_tokens`*: provider- and model-dependent (Anthropic
+rejects values above the model's limit) and the set already exceeds a conservative cap. *Retry
+the same answer after cutting it*: the tail is lost and the next attempt has the same budget.
+*Validate each part separately*: the §9.3 rules are cross-file, so a part would false-positive;
+the merged set is validated once, exactly like a one-answer set.
+
+**Consequences.** A feature spanning more than one answer completes; a cut answer keeps its work
+and asks for the remainder; a genuinely malformed answer still gets the ordinary repair (now with
+the part advice), with the raw JSON error as detail only. The conversation stays bounded: each
+part is recorded as a synthetic assistant turn listing its paths, not the raw part content, which
+would push the next request over the context window. A correction is usually a single call
+because it merges, so the common large-feature turn costs one exploration pass, two or three parts
+and one correction; six parts of ~8k tokens remain the worst case for one answer.
+
+**Verification.** `salvage.test.ts` (cut tail, brace inside content, missing separator, malformed
+element), `response.test.ts` (continue contract, truncation detection), `turn.test.ts` (merge,
+merge of a correction that re-emits one file, salvage continuation, part and model-call budgets,
+the reported counter breakdown), `chat-session-repair.test.ts` (part progress in the chat state),
+`client.test.ts`/`provider.test.ts` (stop reasons); full gates green.
+
+### D-107 — Background jobs: a durable queue on framework primitives, not Nitro's tasks
 **Status:** accepted (2026-11-07)
 
 The user asked for background jobs: a configurable concurrency/retry/timeout budget; project code

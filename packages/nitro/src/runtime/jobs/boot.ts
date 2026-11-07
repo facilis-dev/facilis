@@ -19,7 +19,7 @@ export interface BootJobsOptions {
 }
 
 /**
- * Boots the background-job runtime (D-102, docs/JOBS.md §8).
+ * Boots the background-job runtime (D-107, docs/JOBS.md §8).
  *
  * Never throws: a broken queue degrades to "no jobs" with a manifest warning, because the
  * dev server must still serve the project (contracts §8). The returned runtime is carried by

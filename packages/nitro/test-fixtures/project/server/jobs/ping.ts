@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defineJob } from "@facilis/core";
 
 /**
- * Module-test fixture: a scanned job definition for `#facilis/jobs` (D-102).
+ * Module-test fixture: a scanned job definition for `#facilis/jobs` (D-107).
  * Never executed by the nitro tests; it only has to look like a valid module.
  */
 export default defineJob({

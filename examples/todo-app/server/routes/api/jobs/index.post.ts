@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { defineAuthorizedHandler } from "@facilis/core";
 
-// The framework exposes ctx.jobs to server code only (D-102, JOBS §6); this route is the
+// The framework exposes ctx.jobs to server code only (D-107, JOBS §6); this route is the
 // app's own authenticated surface over it, with its own permission and body contract.
 export default defineAuthorizedHandler(
   {

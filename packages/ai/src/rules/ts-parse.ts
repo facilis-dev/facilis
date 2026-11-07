@@ -1,8 +1,8 @@
 /**
  * Rule 1 `ts-parse` (SPEC §9.3): every script file the patch writes must parse.
  *
- * The parser itself is injected — the IDE passes Monaco's TypeScript worker, Node tooling
- * passes `@facilis/ai/node` — so `@facilis/ai` never imports TypeScript. When the
+ * The parser itself is injected — the IDE passes the analyzer worker's oxc parser, Node
+ * tooling passes `@facilis/ai/node` — so `@facilis/ai` never imports TypeScript. When the
  * injected checker is unavailable the rule fails closed: a patch is never written with
  * rule 1 silently skipped.
  */
@@ -47,6 +47,7 @@ export function tsParseErrors(
       message: "TypeScript syntax could not be checked: " + syntax.reason,
       fix_hint:
         "Wait for the editor's TypeScript service to load and retry; rule 1 fails closed on purpose.",
+      infrastructure: true,
     }));
   }
   const byFile = new Map(sources.map((source) => [source.path, source]));

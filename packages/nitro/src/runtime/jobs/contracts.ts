@@ -2,7 +2,7 @@ import type { JobDefinition, JobJson, JobListOptions, JobStatus } from "@facilis
 import type { PolicyScopedDatabase } from "@facilis/db";
 
 /**
- * Internal contracts of the job runtime (D-102, docs/JOBS.md §9).
+ * Internal contracts of the job runtime (D-107, docs/JOBS.md §9).
  *
  * The engine and the stores both code against this file so the persistence layer can change
  * (Drizzle table, in-memory fallback) without touching scheduling semantics. `StoredJob` uses
@@ -89,7 +89,7 @@ export interface JobStore {
   /**
    * Optional view whose operations join `scope` (the request's policy transaction) instead
    * of opening a new one. PGlite is single-connection: a nested BEGIN would deadlock, so a
-   * handler's `ctx.jobs` must reuse the transaction it already runs in (D-102, JOBS §8).
+   * handler's `ctx.jobs` must reuse the transaction it already runs in (D-107, JOBS §8).
    */
   scoped?(scope: PolicyScopedDatabase): JobStore;
 }

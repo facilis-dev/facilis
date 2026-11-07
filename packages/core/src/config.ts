@@ -64,7 +64,7 @@ export interface FacilisConfig {
   readonly i18n: FacilisI18nConfig;
   readonly blocks: FacilisBlocksConfig;
   readonly auth: FacilisAuthConfig;
-  /** Background-job queue settings (D-102, docs/JOBS.md §4). */
+  /** Background-job queue settings (D-107, docs/JOBS.md §4). */
   readonly jobs: FacilisJobsConfig;
   readonly nitro: FacilisNitroOptions;
 }
@@ -91,7 +91,7 @@ export interface FacilisConfigInput {
     readonly defaultRole: string;
     readonly sessionDurationMs?: number;
   };
-  /** Background-job queue settings; every key has a default (D-102). */
+  /** Background-job queue settings; every key has a default (D-107). */
   readonly jobs?: FacilisJobsConfigInput;
 }
 

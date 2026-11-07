@@ -4,8 +4,7 @@
  * The main entry must stay browser-safe, so this subpath is the only place that imports
  * runtime code from a parser: rule 1's rolldown `parseSync` (oxc) and, for tests/tooling,
  * @facilis/analyze's oxc adapter so a project file map can be analyzed without a browser.
- * The IDE never imports this module: it injects Monaco's TypeScript worker and its own
- * analyzer adapter instead.
+ * The IDE never imports this module: it injects the analyzer worker's oxc parser instead.
  */
 
 import { analyzeProject, type Analysis, type PathAlias } from "@facilis/analyze";

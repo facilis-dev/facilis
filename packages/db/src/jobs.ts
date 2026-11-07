@@ -1,4 +1,4 @@
-// The persisted job queue (D-102, docs/JOBS.md §8).
+// The persisted job queue (D-107, docs/JOBS.md §8).
 //
 // The queue is framework state, not application data: it is tenant-scoped so the structural
 // invariant holds (`pgPolicy` + `ENABLE ROW LEVEL SECURITY`), the project re-exports the

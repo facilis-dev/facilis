@@ -41,6 +41,7 @@ function analyzerUnavailable(reason: string): ValidationResult {
         message: "The project analyzer is unavailable: " + reason,
         fix_hint:
           "Wait for the project analyzer to load and retry; patches are not validated without it.",
+        infrastructure: true,
       },
     ],
     warnings: [],

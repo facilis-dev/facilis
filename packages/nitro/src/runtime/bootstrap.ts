@@ -29,7 +29,7 @@ export interface BootstrapState {
   readonly warnings: readonly ManifestWarning[];
   readonly startedAt: string;
   /**
-   * Background-job runtime (D-102); null when the db or the job boot failed. The context
+   * Background-job runtime (D-107); null when the db or the job boot failed. The context
    * middleware carries `jobs.api` on `event.context.facilis`.
    */
   readonly jobs: JobsRuntime | null;
@@ -181,7 +181,7 @@ async function bootstrap(): Promise<BootstrapState> {
   }
 
   // The queue starts after the roles/views exist: its own writes run as facilis_app, while
-  // a job body escalates to facilis_system (D-102). A failure there is a warning, not a 500.
+  // a job body escalates to facilis_system (D-107). A failure there is a warning, not a 500.
   const jobs = await bootJobs({
     db,
     // isFacilisConfig deliberately does not require `jobs`, so an older virtual config can

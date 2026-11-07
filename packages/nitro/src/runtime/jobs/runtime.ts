@@ -10,7 +10,7 @@ import type { PolicyScopedDatabase } from "@facilis/db";
 
 import type { JobEngine, StoredJob } from "./contracts.ts";
 
-/** The booted job runtime carried by `BootstrapState` (D-102). */
+/** The booted job runtime carried by `BootstrapState` (D-107). */
 export interface JobsRuntime {
   readonly api: JobsApi;
   start(): Promise<void>;
@@ -40,7 +40,7 @@ export function toJobRecord(job: StoredJob): JobRecord {
 }
 
 /**
- * Adapts the engine to the server-only `ctx.jobs` surface (D-102, docs/JOBS.md §6).
+ * Adapts the engine to the server-only `ctx.jobs` surface (D-107, docs/JOBS.md §6).
  *
  * The relative `delayMs` form is resolved here, not in the engine: the engine only knows
  * absolute instants, which keeps its scheduling deterministic and its tests clock-free.
@@ -72,7 +72,7 @@ export function createJobsApi(engine: JobEngine, maxConcurrent: number): JobsApi
       const counts = await engine.stats();
       return { ...counts, maxConcurrent } satisfies JobQueueStats;
     },
-    // Framework plumbing (D-102, docs/JOBS.md §8): the route wrapper binds the API to the
+    // Framework plumbing (D-107, docs/JOBS.md §8): the route wrapper binds the API to the
     // request's policy transaction so queue calls join it instead of opening a nested one.
     bindScope(scope: PolicyScopedDatabase): JobsApi {
       const scopedEngine = engine.scoped?.(scope) ?? engine;

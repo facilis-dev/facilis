@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The `jobs` section of `facilis.config.ts` (D-102, docs/JOBS.md §4).
+ * The `jobs` section of `facilis.config.ts` (D-107, docs/JOBS.md §4).
  *
  * Defaults are deliberately conservative: no retry (at-least-once makes retries a business
  * decision), two slots and a 30 s attempt bound. A definition may override maxAttempts and

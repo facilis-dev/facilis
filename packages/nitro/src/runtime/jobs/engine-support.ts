@@ -1,7 +1,7 @@
 import type { JobTimers } from "./contracts.ts";
 
 /**
- * Small helpers shared by the scheduler and its view (D-102, docs/JOBS.md §7).
+ * Small helpers shared by the scheduler and its view (D-107, docs/JOBS.md §7).
  *
  * Split out of engine.ts to keep the scheduler under the 300-line gate; none of this needs
  * the engine's closure state.

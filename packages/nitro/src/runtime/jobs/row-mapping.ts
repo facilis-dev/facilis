@@ -1,4 +1,4 @@
-// Row <-> store-contract mapping for the persistent job queue (D-102).
+// Row <-> store-contract mapping for the persistent job queue (D-107).
 //
 // Kept apart from db-store.ts so each file stays well under the 300-line limit and the
 // mapping is the single place that knows the text status column and the JSONB columns.

@@ -137,8 +137,15 @@ export function boundedJson(value: unknown, limit = MAX_TRACE_ARGS_CHARS): strin
 export function formatScriptResult(result: PtcRunResult): string {
   const lines: string[] = [];
   if (result.ok) {
-    lines.push("The program finished. Its return value (JSON):");
-    lines.push(boundedJson(result.value ?? null, MAX_TOOL_RESULT_CHARS));
+    if (result.value === null || result.value === undefined) {
+      // The common first-program mistake: statements without a return teach the model nothing.
+      lines.push(
+        "The program finished but returned no value. End the script with `return <data>;` — the return value is the only data you receive.",
+      );
+    } else {
+      lines.push("The program finished. Its return value (JSON):");
+      lines.push(boundedJson(result.value, MAX_TOOL_RESULT_CHARS));
+    }
   } else {
     const kind = result.error?.kind ?? "exception";
     lines.push("The program failed (" + kind + "): " + (result.error?.message ?? "unknown error"));

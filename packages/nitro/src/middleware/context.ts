@@ -21,7 +21,7 @@ const handler = async (event: H3Event): Promise<void> => {
     db: state.db,
     defaultTenantId: readDefaultTenantId(),
     // `ctx.jobs` is required by the handler contract: attach it whenever the runtime
-    // booted. Without it the wrapper substitutes a `job_unavailable` fallback (D-102).
+    // booted. Without it the wrapper substitutes a `job_unavailable` fallback (D-107).
     ...(state.jobs === null ? {} : { jobs: state.jobs.api }),
   };
 };

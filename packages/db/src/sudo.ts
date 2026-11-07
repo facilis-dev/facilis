@@ -144,7 +144,7 @@ export async function runAsSystem<T>(
 /**
  * Rejects a job call that could not produce a meaningful audit entry.
  *
- * An empty `tables` list is deliberately allowed here (D-102): a job may declare that it
+ * An empty `tables` list is deliberately allowed here (D-107): a job may declare that it
  * touches no audit-relevant table, and it is the only caller permitted to do so —
  * `ctx.sudo`/`ctx.system` still reject an empty subset in @facilis/core.
  */
@@ -167,7 +167,7 @@ function assertSystemRunOptions(options: RunAsSystemOptions): void {
 
 /**
  * An array of non-empty strings, possibly empty: a job that declares no audit table still
- * produces a valid audit entry (D-102). The empty case is left to the caller's policy, so
+ * produces a valid audit entry (D-107). The empty case is left to the caller's policy, so
  * runAsSystem can accept it while the route-scoped sudo keeps its non-empty subset rule.
  */
 function isStringList(value: unknown): value is readonly string[] {

@@ -53,7 +53,7 @@ One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 
 ## Background jobs
 
-`server/jobs/purge-completed-todos.ts` is a `defineJob` definition (D-102): Zod
+`server/jobs/purge-completed-todos.ts` is a `defineJob` definition (D-107): Zod
 `input`/`output`, the `tables` the sudo audit records, and a `run` body that receives the
 **system-scoped** database (`facilis_system`: RLS bypassed, own transaction, audited) even
 though the queue itself runs as `facilis_app`. Definitions are loaded through the
@@ -82,7 +82,7 @@ store with a `jobs_table_missing` manifest warning.
 ```
 db/schema.ts             todos + re-exported auth tables and facilis_jobs, RLS policies, enableRLS
 db/migrations/           0000: DDL + policies; 0001: tenant defaults + role seed; 0002: facilis_jobs
-server/jobs/             defineJob definitions loaded through #facilis/jobs (D-102)
+server/jobs/             defineJob definitions loaded through #facilis/jobs (D-107)
 server/routes/api/...    defineAuthorizedHandler only (todos, auth, jobs)
 src/main.tsx             bootstrap: theme + i18n + router
 src/app.tsx              one explicit route table + session provider + Toaster

@@ -27,7 +27,7 @@ export interface FacilisEventContext {
     db: FacilisDb;
     /** Single-tenant fallback scope for unauthenticated requests (registration/login). */
     defaultTenantId?: string;
-    /** Server-only background-job API, started by the same middleware (D-102). */
+    /** Server-only background-job API, started by the same middleware (D-107). */
     jobs?: JobsApi;
   };
   /** Router params populated by Nitro (h3 `event.context.params`). */
