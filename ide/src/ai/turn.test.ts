@@ -112,7 +112,7 @@ interface Hooks {
 
 async function run(
   texts: string[],
-  ptc: PtcRunner | null,
+  ptc: PtcRunner,
   calls: CallModelInput[],
   hooks: Hooks = {},
 ) {
@@ -166,16 +166,6 @@ describe("runTurn with PTC exploration", () => {
     const outcome = await run([script("await tools.list_files({})"), answer([NEW_FILE])], runner(okRun(null, 1)), calls);
     expect(outcome.ok).toBe(true);
     expect(calls[1]?.messages.at(-1)?.content).toContain("returned no value");
-  });
-
-  it("rejects a program when the runtime is off", async () => {
-    const calls: CallModelInput[] = [];
-    const outcome = await run([script("return 1")], null, calls);
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.kind).toBe("parse");
-    expect(outcome.failure.message).toContain("not available");
-    expect(calls).toHaveLength(1);
   });
 
   it("feeds a failed program back as data and lets the model recover", async () => {

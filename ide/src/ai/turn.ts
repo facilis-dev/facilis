@@ -38,8 +38,8 @@ export interface TurnInput {
   onText: (chunk: string) => void;
   /** Called before each correction request with the 1-based attempt and the cap. */
   onRepair: (attempt: number, max: number) => void;
-  /** Present when the PTC tool runtime is available (D-101). */
-  runner?: PtcRunner | null;
+  /** The PTC tool runtime; the chat has no other mode (D-103). */
+  runner: PtcRunner;
   /** Called just before an exploration program starts (1-based program number). */
   onScriptStart?: (program: string, turn: number) => void;
   /** Called after each exploration program with its outcome. */
@@ -89,8 +89,6 @@ async function requestRepair(
     failure,
     attempt: next,
     max: MAX_REPAIR_ATTEMPTS,
-    read: input.host.read,
-    toolsAvailable: input.runner !== null && input.runner !== undefined,
   });
   for (const turn of messages) appendTurn(turns, turn);
   return null;
@@ -139,16 +137,6 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
     }
 
     if (parsed.response.script !== undefined) {
-      const runner = input.runner ?? null;
-      if (runner === null) {
-        return {
-          ok: false,
-          failure: {
-            kind: "parse",
-            message: "The assistant tried to run a program, but the tool runtime is not available.",
-          },
-        };
-      }
       if (scripts >= MAX_SCRIPT_TURNS) {
         return {
           ok: false,
@@ -162,7 +150,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       const program = parsed.response.script;
       const turnNumber = scripts + 1;
       input.onScriptStart?.(program, turnNumber);
-      const run = await runner.run(program, {
+      const run = await input.runner.run(program, {
         signal: input.signal,
         toolCallBudget: MAX_TOOL_CALLS_PER_TURN - toolCalls,
       });

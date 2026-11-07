@@ -45,8 +45,8 @@ export interface ChatSessionOptions {
   loadSettings?: () => AiSettings | null;
   saveSettings?: (settings: AiSettings) => void;
   now?: () => number;
-  /** The PTC tool runtime (D-101); null keeps the pre-tools behaviour. */
-  runner?: PtcRunner | null;
+  /** The PTC tool runtime (D-101). The chat has no non-PTC mode (D-103). */
+  runner: PtcRunner;
 }
 
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */

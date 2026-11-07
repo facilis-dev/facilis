@@ -20,7 +20,21 @@ const FINDING: ValidationError = {
   excerpt: "permission: [\"todos:write\"],",
 };
 
-const SCHEMA = "export const todos = pgTable(\"todos\", { id: text(\"id\") });\n";
+const SCHEMA_FINDING: ValidationError = {
+  rule: "destructive-confirmed",
+  severity: "error",
+  file: "db/schema.ts",
+  message: "Destructive schema change without confirmation.",
+  fix_hint: "Re-emit the schema keeping the table.",
+};
+
+const ROUTE_FINDING: ValidationError = {
+  rule: "db-tables-valid",
+  severity: "error",
+  file: "server/routes/api/todos/index.get.ts",
+  message: "The patch removes table todos.",
+  fix_hint: "Keep the table.",
+};
 
 function failure(overrides: Partial<AiParseFailure> = {}): AiParseFailure {
   return {
@@ -34,8 +48,6 @@ function failure(overrides: Partial<AiParseFailure> = {}): AiParseFailure {
     ...overrides,
   };
 }
-
-const read = async (path: string): Promise<string> => (path === "db/schema.ts" ? SCHEMA : "");
 
 describe("formatFindings", () => {
   it("turns each finding into what is wrong and what to change", () => {
@@ -60,7 +72,9 @@ describe("formatFailure", () => {
   });
 
   it("falls back to the structural issues when there are no findings", () => {
-    const text = formatFailure(failure({ kind: "contract", findings: [], issues: ["message: must be a string"] }));
+    const text = formatFailure(
+      failure({ kind: "contract", findings: [], issues: ["message: must be a string"] }),
+    );
     expect(text).toContain("The proposed patches failed validation.");
     expect(text).toContain("- message: must be a string");
   });
@@ -72,136 +86,19 @@ describe("formatFailure", () => {
   });
 });
 
-describe("buildRepairMessages", () => {
-  it("replays the rejected answer and requests a bounded correction", async () => {
-    const turns = await buildRepairMessages({ failure: failure(), attempt: 1, max: MAX_REPAIR_ATTEMPTS, read });
-    expect(turns).toHaveLength(2);
-    expect(turns[0]).toEqual({ role: "assistant", content: '{"message":"x","patches":[]}' });
-    const request = turns[1]?.content ?? "";
-    expect(turns[1]?.role).toBe("user");
-    expect(request).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
-    expect(request).toContain("## Validation findings");
-    expect(request).toContain("Fix: Declare it in auth.permissions");
-    expect(request).toContain("## Response contract");
-    expect(request).toContain("complete file content");
-    // A whole-file update cannot be repaired blind: the current file is included.
-    expect(request).toContain("## Current content of the files your rejected answer tried to rewrite");
-    expect(request).toContain("### db/schema.ts");
-    expect(request).toContain(SCHEMA);
-  });
-
-  it("points at the tools instead of inlining files when the runtime is available", async () => {
-    const turns = await buildRepairMessages({
-      failure: failure(),
-      attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
-      read,
-      toolsAvailable: true,
-    });
-    const request = turns.at(-1)?.content ?? "";
-    expect(request).toContain("## Tools");
-    expect(request).toContain("read_file it before re-emitting it");
-    expect(request).toContain("validate on the exact patch set");
-    expect(request).not.toContain("## Current content of the files");
-    expect(request).not.toContain(SCHEMA);
-  });
-
-  it("omits the assistant turn when the provider returned no text", async () => {
-    const turns = await buildRepairMessages({
-      failure: failure({ kind: "empty", findings: [], issues: [], raw: "  " }),
-      attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
-      read,
-    });
-    expect(turns).toHaveLength(1);
-    expect(turns[0]?.role).toBe("user");
-  });
-
-  it("caps a huge file instead of blowing the request budget", async () => {
-    const turns = await buildRepairMessages({
-      failure: failure(),
-      attempt: 2,
-      max: MAX_REPAIR_ATTEMPTS,
-      read: async () => "x".repeat(50_000),
-    });
-    const request = turns.at(-1)?.content ?? "";
-    expect(request).toContain("[truncated]");
-    expect(request.length).toBeLessThan(40_000);
-  });
-
-  it("never reads a model-authored path outside the project root", async () => {
-    const requested: string[] = [];
-    const turns = await buildRepairMessages({
-      failure: failure({ patchedFiles: [{ path: "../escape.ts", action: "update", content: "x" }] }),
-      attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
-      read: async (path) => {
-        requested.push(path);
-        return "secret";
-      },
-    });
-    expect(requested).toEqual([]);
-    expect(turns.at(-1)?.content).not.toContain("secret");
-  });
-
-  it("does not offer a delete patch as a file to re-emit", async () => {
-    const requested: string[] = [];
-    const turns = await buildRepairMessages({
-      failure: failure({
-        patchedFiles: [
-          { path: "db/schema.ts", action: "update", content: "old" },
-          { path: "src/old.ts", action: "delete" },
-        ],
-      }),
-      attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
-      read: async (path) => {
-        requested.push(path);
-        return path === "db/schema.ts" ? SCHEMA : "old content";
-      },
-    });
-    const request = turns.at(-1)?.content ?? "";
-    expect(requested).toEqual(["db/schema.ts"]);
-    expect(request).toContain("### db/schema.ts");
-    expect(request).not.toContain("### src/old.ts");
-    expect(request).toContain("action delete still deletes");
-  });
-
-  it("skips files that do not exist yet (a create patch has no base)", async () => {
-    const turns = await buildRepairMessages({
-      failure: failure({ patchedFiles: [{ path: "src/new.ts", action: "create", content: "x" }] }),
-      attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
-      read,
-    });
-    expect(turns.at(-1)?.content).not.toContain("Current content");
-  });
-});
-
 describe("root-cause ordering", () => {
-  const schemaFinding: ValidationError = {
-    rule: "destructive-confirmed",
-    severity: "error",
-    file: "db/schema.ts",
-    message: "Destructive schema change without confirmation.",
-    fix_hint: "Re-emit the schema keeping the table.",
-  };
-  const routeFinding: ValidationError = {
-    rule: "db-tables-valid",
-    severity: "error",
-    file: "server/routes/api/todos/index.get.ts",
-    message: "The patch removes table todos.",
-    fix_hint: "Keep the table.",
-  };
-
   it("puts schema and config findings before route consequences", () => {
-    const ordered = prioritizeFindings([routeFinding, schemaFinding, { ...routeFinding, file: "src/a.ts" }]);
+    const ordered = prioritizeFindings([
+      ROUTE_FINDING,
+      SCHEMA_FINDING,
+      { ...ROUTE_FINDING, file: "src/a.ts" },
+    ]);
     expect(ordered[0]?.file).toBe("db/schema.ts");
     expect(ordered.at(-1)?.file).toBe("src/a.ts");
   });
 
   it("writes a per-file fix plan and names the files the answer touched", () => {
-    const text = formatFixPlan([routeFinding, schemaFinding], [
+    const text = formatFixPlan([ROUTE_FINDING, SCHEMA_FINDING], [
       { path: "db/schema.ts", action: "update", content: "x" },
       { path: "server/routes/api/todos/index.get.ts", action: "create", content: "x" },
     ]);
@@ -211,18 +108,47 @@ describe("root-cause ordering", () => {
     expect(text).toContain("## Your rejected answer touched");
     expect(text).toContain("- db/schema.ts (update)");
   });
+});
 
-  it("includes the plan in the correction turn", async () => {
+describe("buildRepairMessages", () => {
+  it("replays the rejected answer and requests a root-cause-first correction", async () => {
     const turns = await buildRepairMessages({
-      failure: failure({ findings: [routeFinding, schemaFinding] }),
+      failure: failure({ findings: [ROUTE_FINDING, SCHEMA_FINDING] }),
       attempt: 1,
       max: MAX_REPAIR_ATTEMPTS,
-      read,
-      toolsAvailable: true,
     });
-    const request = turns.at(-1)?.content ?? "";
+    expect(turns).toHaveLength(2);
+    expect(turns[0]).toEqual({ role: "assistant", content: '{"message":"x","patches":[]}' });
+    const request = turns[1]?.content ?? "";
+    expect(turns[1]?.role).toBe("user");
+    expect(request).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
     expect(request).toContain("## Fix plan (root cause first)");
     expect(request).toContain("## Validation findings");
+    expect(request).toContain("## Tools");
+    expect(request).toContain("read_file it before re-emitting it");
+    expect(request).toContain("validate on the exact patch set");
+    expect(request).toContain("## Response contract");
     expect(request.indexOf("## Fix plan")).toBeLessThan(request.indexOf("## Validation findings"));
+  });
+
+  it("omits the assistant turn when the provider returned no text", async () => {
+    const turns = await buildRepairMessages({
+      failure: failure({ kind: "empty", findings: [], issues: [], raw: "  " }),
+      attempt: 1,
+      max: MAX_REPAIR_ATTEMPTS,
+    });
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.role).toBe("user");
+  });
+
+  it("caps a huge rejected answer instead of echoing it whole", async () => {
+    const turns = await buildRepairMessages({
+      failure: failure({ raw: "x".repeat(50_000) }),
+      attempt: 2,
+      max: MAX_REPAIR_ATTEMPTS,
+    });
+    const request = turns.at(-1)?.content ?? "";
+    expect(turns[0]?.content).toContain("[truncated]");
+    expect(request).toContain("correction 2 of " + MAX_REPAIR_ATTEMPTS);
   });
 });

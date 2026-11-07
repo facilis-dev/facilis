@@ -4,7 +4,15 @@ import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import type { CallModelInput } from "./client";
+import type { PtcRunner } from "./ptc/protocol";
 import type { AiSettings } from "./types";
+
+/** The chat has no non-PTC mode (D-103); these sessions never explore, so specs are empty. */
+const EMPTY_RUNNER: PtcRunner = {
+  specs: () => [],
+  run: async () => ({ ok: true, value: null, toolCalls: 0, elapsedMs: 0, trace: [] }),
+  dispose: () => {},
+};
 
 const root = "/home/user/project";
 
@@ -76,6 +84,7 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
     loadSettings: () => settings,
     saveSettings: () => {},
     now: () => 1,
+      runner: EMPTY_RUNNER,
   });
 }
 

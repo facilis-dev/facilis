@@ -30,7 +30,7 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
-  private readonly runner: PtcRunner | null;
+  private readonly runner: PtcRunner;
   private readonly stream: StreamAccumulator;
   private listeners = new Set<() => void>();
   private state: ChatState;
@@ -39,13 +39,13 @@ export class ChatSession {
   private cancelled = false;
   private streamId: string | null = null;
 
-  constructor(host: ChatHost, options: ChatSessionOptions = {}) {
+  constructor(host: ChatHost, options: ChatSessionOptions) {
     this.host = host;
     this.call = options.call ?? callModel;
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
-    this.runner = options.runner ?? null;
+    this.runner = options.runner;
     this.stream = new StreamAccumulator(this.now);
     this.state = initialState(this.load());
   }
@@ -149,7 +149,7 @@ export class ChatSession {
     this.controller = abort;
     try {
       const built = await buildChatContext(this.host, abort.signal, {
-        tools: this.runner?.specs() ?? [],
+        tools: this.runner.specs(),
       });
       if (abort.signal.aborted) return;
       this.emit({ context: built.context });
