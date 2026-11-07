@@ -162,6 +162,8 @@ export interface ProviderEvent {
   text?: string;
   done?: boolean;
   error?: string;
+  /** Why the provider ended the answer: "stop", "length" / "max_tokens", "end_turn"… */
+  stopReason?: string;
 }
 
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -238,7 +240,10 @@ function openAiEvent(value: unknown): ProviderEvent {
   if (isRecord(delta) && typeof delta.content === "string" && delta.content.length > 0) {
     event.text = delta.content;
   }
-  if (choice.finish_reason !== null && choice.finish_reason !== undefined) event.done = true;
+  if (typeof choice.finish_reason === "string") {
+    event.done = true;
+    event.stopReason = choice.finish_reason;
+  }
   return event;
 }
 
@@ -254,6 +259,12 @@ function anthropicEvent(value: unknown): ProviderEvent {
     }
     case "message_stop":
       return { done: true };
+    case "message_delta": {
+      // Anthropic reports why the message ended here: "end_turn", "max_tokens", …
+      const delta = value.delta;
+      if (!isRecord(delta) || typeof delta.stop_reason !== "string") return {};
+      return { stopReason: delta.stop_reason };
+    }
     case "error": {
       const error = messageOf(value.error);
       return error === undefined ? {} : { error };

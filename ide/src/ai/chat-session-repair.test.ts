@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
+import { MAX_PATCH_TURNS } from "./patch-set";
 import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import type { CallModelInput } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
@@ -202,6 +203,40 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
     expect(calls[1]?.messages.map((turn) => turn.role)).toEqual(["user"]);
     expect(calls[1]?.messages[0]?.content).toContain("## Why the answer was rejected");
     expect(chat.getSnapshot().error).toBeNull();
+  });
+
+  it("keeps a patch set sent in parts and reports each part", async () => {
+    const second: FilePatch = { path: "src/two.ts", action: "create", content: "export const y = 2;\n" };
+    const calls: CallModelInput[] = [];
+    const parts: ({ part: number; max: number } | null)[] = [];
+    const chat = sessionWith(async (input) => {
+      calls.push(input);
+      parts.push(chat.getSnapshot().patchParts);
+      return calls.length === 1
+        ? {
+            ok: true,
+            text: JSON.stringify({
+              message: "part 1",
+              patches: [NEW_FILE],
+              notes: [],
+              requires_confirmation: false,
+              continue: true,
+            }),
+          }
+        : { ok: true, text: answer(second) };
+    });
+
+    await chat.send("add two files");
+    const state = chat.getSnapshot();
+    expect(parts).toEqual([null, { part: 1, max: MAX_PATCH_TURNS }]);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.messages.at(-1)?.content).toContain("Continue the patch set");
+    expect(state.patchParts).toBeNull();
+    expect(state.error).toBeNull();
+    expect(state.proposal?.files.map((file) => file.patch.path)).toEqual([
+      "src/new.ts",
+      "src/two.ts",
+    ]);
   });
 
   it("does not retry a provider failure", async () => {

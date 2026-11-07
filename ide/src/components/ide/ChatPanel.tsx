@@ -82,6 +82,7 @@ export function ChatPanel() {
     state.repair,
     state.trace.length,
     state.exploring,
+    state.patchParts,
   ]);
 
   // A quiet spinner is not enough: show how long the current step has been running.
@@ -103,7 +104,9 @@ export function ChatPanel() {
       ? t("chat.exploring", { n: state.exploring })
       : state.repair !== null
         ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
-        : state.phase === "applying"
+        : state.patchParts !== null
+          ? t("chat.patchParts", { part: state.patchParts.part, max: state.patchParts.max })
+          : state.phase === "applying"
           ? t("chat.applying")
           : state.streaming
             ? t("chat.streaming")

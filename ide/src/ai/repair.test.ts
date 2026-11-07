@@ -40,6 +40,7 @@ function failure(overrides: Partial<AiParseFailure> = {}): AiParseFailure {
   return {
     ok: false,
     kind: "validation",
+    truncated: false,
     error: "The proposed patches failed validation.",
     issues: ["permission-valid: server/routes/api/todo.get.ts: ..."],
     findings: [FINDING],
@@ -77,6 +78,20 @@ describe("formatFailure", () => {
     );
     expect(text).toContain("The proposed patches failed validation.");
     expect(text).toContain("- message: must be a string");
+  });
+
+  it("leads with the cut-off explanation when the answer was truncated", () => {
+    const text = formatFailure(
+      failure({
+        kind: "json",
+        truncated: true,
+        findings: [],
+        issues: [],
+        error: "Unexpected end of JSON input",
+      }),
+    );
+    expect(text).toContain("cut the answer at its output limit");
+    expect(text).toContain("Unexpected end of JSON input");
   });
 
   it("returns just the error when there is no detail", () => {
@@ -139,6 +154,24 @@ describe("buildRepairMessages", () => {
     });
     expect(turns).toHaveLength(1);
     expect(turns[0]?.role).toBe("user");
+  });
+
+  it("explains a cut-off answer and the part protocol", async () => {
+    const turns = await buildRepairMessages({
+      failure: failure({
+        kind: "json",
+        truncated: true,
+        findings: [],
+        issues: [],
+        raw: '{"message":"x","patches":[',
+      }),
+      attempt: 1,
+      max: MAX_REPAIR_ATTEMPTS,
+    });
+    const request = turns.at(-1)?.content ?? "";
+    expect(request).toContain("## The answer was cut off");
+    expect(request).toContain('"continue": true');
+    expect(request).toContain("at most 2-3 files per answer");
   });
 
   it("caps a huge rejected answer instead of echoing it whole", async () => {

@@ -9,6 +9,7 @@ import {
   type PtcRunResult,
   type PtcToolSpec,
 } from "./ptc/protocol";
+import { MAX_PATCH_TURNS } from "./patch-set";
 import { runTurn } from "./turn";
 import type { AiSettings } from "./types";
 
@@ -108,6 +109,7 @@ const SIGNAL = new AbortController().signal;
 interface Hooks {
   onScriptStart?: (program: string, turn: number) => void;
   onScript?: (result: PtcRunResult, program: string) => void;
+  onPatches?: (part: number, max: number) => void;
 }
 
 async function run(
@@ -129,6 +131,73 @@ async function run(
     ...hooks,
   });
 }
+
+const SECOND_FILE: FilePatch = {
+  path: "src/second.ts",
+  action: "create",
+  content: "export const y = 2;\n",
+};
+
+function part(patches: FilePatch[], extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    message: "part",
+    patches,
+    notes: [],
+    requires_confirmation: false,
+    ...extra,
+  });
+}
+
+describe("runTurn with a patch set sent in parts (D-106)", () => {
+  it("merges the parts and validates the complete set", async () => {
+    const calls: CallModelInput[] = [];
+    const seen: { part: number; max: number }[] = [];
+    const outcome = await run(
+      [part([NEW_FILE], { continue: true }), answer([SECOND_FILE])],
+      runner(okRun(null, 0)),
+      calls,
+      { onPatches: (partNumber, max) => seen.push({ part: partNumber, max }) },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(calls).toHaveLength(2);
+    expect(seen).toEqual([{ part: 1, max: MAX_PATCH_TURNS }]);
+    expect(outcome.parsed.response.patches).toEqual([NEW_FILE, SECOND_FILE]);
+    const continuation = calls[1]?.messages.at(-1)?.content ?? "";
+    expect(continuation).toContain("Continue the patch set");
+    expect(continuation).toContain("src/new.ts (create)");
+  });
+
+  it("keeps the complete patches of a cut-off answer and asks for the rest", async () => {
+    const full = part([NEW_FILE, SECOND_FILE]);
+    const cut = full.slice(
+      0,
+      full.indexOf(JSON.stringify(SECOND_FILE)) + JSON.stringify(SECOND_FILE).length,
+    );
+    expect(() => JSON.parse(cut)).toThrow();
+
+    const calls: CallModelInput[] = [];
+    const outcome = await run([cut, answer([])], runner(okRun(null, 0)), calls);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.parsed.response.patches).toEqual([NEW_FILE, SECOND_FILE]);
+    expect(calls[1]?.messages.at(-1)?.content).toContain("cut off");
+    expect(calls[1]?.messages.at(-1)?.content).toContain("src/second.ts (create)");
+  });
+
+  it("stops when the patch set needs more parts than the budget allows", async () => {
+    const calls: CallModelInput[] = [];
+    const outcome = await run([part([NEW_FILE], { continue: true })], runner(okRun(null, 0)), calls);
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.failure.kind).toBe("parse");
+    expect(outcome.failure.message).toContain("more than " + MAX_PATCH_TURNS);
+    expect(calls).toHaveLength(MAX_PATCH_TURNS);
+  });
+});
 
 describe("runTurn with PTC exploration", () => {
   it("runs a program, returns its result to the model, then accepts the final answer", async () => {

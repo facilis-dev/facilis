@@ -4,9 +4,21 @@
 // Kept out of ChatSession (which owns the visible conversation) so the control flow is
 // unit-testable and the session stays under the 300-line limit. The loop never writes to
 // the project: it returns either a parsed answer or the failure the chat shows.
+//
+// D-106: when an answer is cut at the provider's output limit (or the model sends a large
+// set in parts with "continue": true), the loop keeps the complete patches it received and
+// asks for the rest; the merged set is what the validator sees.
 
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
+import {
+  addPatches,
+  completeResponse,
+  emptyPatchSet,
+  formatContinuation,
+  formatReceived,
+  MAX_PATCH_TURNS,
+} from "./patch-set";
 import {
   formatScriptResult,
   MAX_SCRIPT_TURNS,
@@ -22,10 +34,11 @@ import {
   type AiParseFailure,
   type AiParseResult,
 } from "./response";
+import { salvagePatches } from "./salvage";
 import type { AiChatTurn, AiSettings, ChatFailure } from "./types";
 
-/** Model calls per user message: the first answer, the corrections and the explorations. */
-const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_REPAIR_ATTEMPTS + 1;
+/** Model calls per user message: the first answer, corrections, explorations and parts. */
+const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_REPAIR_ATTEMPTS + MAX_PATCH_TURNS + 1;
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -44,6 +57,8 @@ export interface TurnInput {
   onScriptStart?: (program: string, turn: number) => void;
   /** Called after each exploration program with its outcome. */
   onScript?: (result: PtcRunResult, program: string) => void;
+  /** Called when another part of the same patch set is requested (1-based part). */
+  onPatches?: (part: number, max: number) => void;
 }
 
 export type TurnOutcome =
@@ -76,6 +91,20 @@ function parsingFailure(failure: AiParseFailure): TurnOutcome {
   return { ok: false, failure: { kind: "parse", message: formatFailure(failure) } };
 }
 
+/** The patch set spent its whole part budget without ever finishing. */
+function patchBudgetFailure(): TurnOutcome {
+  return {
+    ok: false,
+    failure: {
+      kind: "parse",
+      message:
+        "The patch set needed more than " +
+        MAX_PATCH_TURNS +
+        " parts, so it was not completed. Nothing was written: split the request into smaller changes or ask for fewer files at once.",
+    },
+  };
+}
+
 /**
  * Ask the model to fix a rejected answer. Returns a failure when the correction budget is
  * gone or the rejection is internal; otherwise appends the repair turns and returns null.
@@ -102,6 +131,7 @@ async function requestRepair(
 export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   const turns: AiChatTurn[] = [...input.messages];
   const trace: PtcTraceEntry[] = [];
+  let patchSet = emptyPatchSet();
   let repairs = 0;
   let scripts = 0;
   let toolCalls = 0;
@@ -116,7 +146,8 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
         ok: false,
         failure: {
           kind: "parse",
-          message: "The assistant used its whole exploration and correction budget without a final answer.",
+          message:
+            "The assistant used its whole exploration, part and correction budget without a final answer.",
         },
       };
     }
@@ -133,8 +164,27 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
     });
     if (!result.ok) return { ok: false, failure: result.failure };
 
-    const parsed = parseAiResponse(result.text);
+    const parsed = parseAiResponse(result.text, { truncated: result.truncated === true });
     if (!parsed.ok) {
+      // A cut-off answer still carries complete patches: keep them and ask for the rest
+      // instead of asking for everything again (the same limit would cut it again).
+      const salvaged = parsed.kind === "json" ? salvagePatches(result.text) : [];
+      if (salvaged.length > 0) {
+        if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
+        patchSet = addPatches(patchSet, {
+          message: "",
+          patches: salvaged,
+          notes: [],
+          requiresConfirmation: false,
+        });
+        input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
+        appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
+        appendTurn(turns, {
+          role: "user",
+          content: formatContinuation({ set: patchSet, cutOff: true, cutAt: result.text.length }),
+        });
+        continue;
+      }
       const stop = await requestRepair(input, parsed, repairs, turns);
       if (stop !== null) return stop;
       repairs += 1;
@@ -171,11 +221,22 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       continue;
     }
 
-    const checked = await validateResponse(parsed.response, input.host, {
+    patchSet = addPatches(patchSet, parsed.response);
+    if (parsed.response.continue === true) {
+      if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
+      input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
+      appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
+      appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet }) });
+      continue;
+    }
+
+    const checked = await validateResponse(completeResponse(patchSet), input.host, {
       signal: input.signal,
       raw: result.text,
     });
     if (!checked.ok) {
+      // A correction re-emits the whole set, so the next answer starts a fresh sequence.
+      patchSet = emptyPatchSet();
       const stop = await requestRepair(input, checked, repairs, turns);
       if (stop !== null) return stop;
       repairs += 1;
@@ -183,7 +244,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
     }
     return {
       ok: true,
-      parsed: { ok: true, response: parsed.response, validation: checked.validation },
+      parsed: { ok: true, response: completeResponse(patchSet), validation: checked.validation },
       trace,
     };
   }

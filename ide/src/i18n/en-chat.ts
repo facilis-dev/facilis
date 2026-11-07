@@ -11,6 +11,7 @@ export const chatEn = {
   "chat.stop": "Stop",
   "chat.thinking": "Thinking…",
   "chat.repairing": "Correcting the patch set ({attempt}/{max})…",
+  "chat.patchParts": "Sending the patch set in parts… ({part}/{max})",
   "chat.applying": "Applying…",
   "chat.footer": "AI can make mistakes — review every patch before applying.",
   "chat.configured": "{provider} · {model}",

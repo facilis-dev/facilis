@@ -109,10 +109,20 @@ export function formatFixPlan(
 
 /** The detail a caller shows for a rejected answer: findings when present, else issues. */
 export function formatFailure(failure: AiParseFailure): string {
-  if (failure.findings.length > 0)
-    return failure.error + "\n\n" + formatFindings(failure.findings);
-  if (failure.issues.length === 0) return failure.error;
-  return failure.error + "\n\n" + failure.issues.map((issue) => "- " + issue).join("\n");
+  const lines: string[] = [];
+  if (failure.truncated) {
+    lines.push(
+      "The provider cut the answer at its output limit, so the patch set is incomplete; nothing was written.",
+    );
+  }
+  if (failure.findings.length > 0) {
+    lines.push(failure.error + "\n\n" + formatFindings(failure.findings));
+  } else if (failure.issues.length === 0) {
+    lines.push(failure.error);
+  } else {
+    lines.push(failure.error + "\n\n" + failure.issues.map((issue) => "- " + issue).join("\n"));
+  }
+  return lines.join("\n\n");
 }
 
 const CONTRACT = [
@@ -121,6 +131,7 @@ const CONTRACT = [
   "- create and update carry the complete file content; delete omits it.",
   "- Re-emit every existing declaration in a file you rewrite; only add the requested change.",
   "- Do not remove tables, columns, routes, permissions or keys the request did not ask to remove.",
+  '- If the set would exceed the output limit, split it: at most 2-3 files per answer, "continue": true on every part but the last.',
 ].join("\n");
 
 function report(failure: AiParseFailure, attempt: number, max: number): string {
@@ -130,7 +141,7 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
       " of " +
       max +
       ".",
-    "Fix every finding below and reply with the complete corrected AIResponse.",
+    "Fix every finding below and reply with the complete corrected AIResponse: it replaces the rejected set, so include every file the set needs (send it in parts if it is large).",
   ];
   if (failure.kind === "validation") {
     lines.push("", formatFixPlan(failure.findings, failure.patchedFiles));
@@ -138,6 +149,13 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
   } else {
     lines.push("", "## Why the answer was rejected", failure.error);
     if (failure.issues.length > 0) lines.push(...failure.issues.map((issue) => "- " + issue));
+  }
+  if (failure.truncated) {
+    lines.push(
+      "",
+      "## The answer was cut off",
+      "The provider stopped your answer at its output limit, so it arrived as incomplete JSON. The complete patches before the cut were kept. Send the rest in parts: at most 2-3 files per answer, and set \"continue\": true on every part but the last (the last part may carry no patches if every file was already sent).",
+    );
   }
   lines.push(
     "",

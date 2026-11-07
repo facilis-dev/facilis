@@ -164,6 +164,44 @@ describe("parseAiResponse", () => {
     if (result.ok) expect(result.response.notes).toEqual(["keep"]);
   });
 
+  it("accepts a part of a patch set flagged with continue", () => {
+    const result = parseAiResponse(
+      json({ message: "part 1", patches: BODY.patches, continue: true }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.response.continue).toBe(true);
+  });
+
+  it("rejects continue without patches or with a non-boolean value", () => {
+    const empty = parseAiResponse(json({ message: "x", patches: [], continue: true }));
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) expect(empty.issues.some((issue) => issue.startsWith("continue:"))).toBe(true);
+
+    const wrong = parseAiResponse(json({ message: "x", patches: BODY.patches, continue: "yes" }));
+    expect(wrong.ok).toBe(false);
+    if (!wrong.ok) expect(wrong.issues.some((issue) => issue.startsWith("continue:"))).toBe(true);
+  });
+
+  it("marks an answer that stops mid-JSON as truncated", () => {
+    const raw = json(BODY).slice(0, -2); // drop the closing "]}"; the patches array is unclosed
+    const result = parseAiResponse(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.kind).toBe("json");
+    expect(result.truncated).toBe(true);
+  });
+
+  it("does not mark a mid-answer syntax error as truncated", () => {
+    const raw =
+      '{"message":"x","patches":[{"path":"src/a.ts","action":"create","content":"x"}' +
+      '{"path":"src/b.ts","action":"create","content":"y"}]}';
+    const result = parseAiResponse(raw);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.kind).toBe("json");
+    expect(result.truncated).toBe(false);
+  });
+
   it("rejects a non-boolean requires_confirmation", () => {
     const result = parseAiResponse(json({ message: "x", requires_confirmation: "true" }));
     expect(result.ok).toBe(false);

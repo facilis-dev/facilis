@@ -119,13 +119,22 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 - path is relative to the project root and must stay under server/, src/, db/, lib/, components/ or locales/.
 - "create" and "update" carry the complete file content; "delete" omits content.
 - When a "Project exploration (PTC)" section is present, a turn may instead carry "script": a raw JavaScript program with no patches (see that section).
+- "continue": true marks a part of a patch set that continues in the next answer (see Large patch sets). Omit it on the last part.
 - Never put secrets, tokens, API keys or credentials in any file.
+
+## Large patch sets
+The provider cuts an answer at its output limit (often ~8,000 tokens, roughly 25,000 characters). A patch set that would exceed it must be split:
+- Send at most 2-3 complete files per answer.
+- Every part is a complete JSON object in the shape above; set "continue": true on every part but the last.
+- The last part omits "continue"; it may carry no patches if every file was already sent, and its message describes the whole change.
+- The framework validates all parts together; when the set is split, validate is only useful for what fits in one program, so read_file every file before re-emitting it instead.
 
 ## Validation repair
 If the latest user message says your previous answer was rejected, it is a validation repair report, not a new request: fix every finding it lists and return one complete corrected AIResponse JSON object in the same shape as above.
 - The report gives the rule, file, message, fix_hint and line/excerpt of each finding, plus either the current content of the files your rejected patches tried to update (when the tool runtime is off) or the instruction to read them with the tools. Treat the given content as the source of truth.
 - When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
-- Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.`;
+- Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.
+- If the corrected set is too large for one answer, send it in parts with "continue": true (Large patch sets).`;
 
 function capped(text: string, cap: number): string {
   if (text.length <= cap) return text;

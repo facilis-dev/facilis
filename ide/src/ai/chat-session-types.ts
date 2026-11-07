@@ -69,6 +69,21 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** State a new turn clears: the transcript keeps its trace after a finished turn. */
+export const TURN_RESET: Pick<ChatState, "repair" | "trace" | "exploring" | "patchParts"> = {
+  repair: null,
+  trace: [],
+  exploring: null,
+  patchParts: null,
+};
+
+/** State a finished turn clears without dropping the visible trace. */
+export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts"> = {
+  repair: null,
+  exploring: null,
+  patchParts: null,
+};
+
 export function initialState(settings: AiSettings | null): ChatState {
   return {
     phase: "idle",
@@ -77,9 +92,7 @@ export function initialState(settings: AiSettings | null): ChatState {
     applied: null,
     undo: null,
     streaming: false,
-    repair: null,
-    trace: [],
-    exploring: null,
+    ...TURN_RESET,
     error: null,
     settings,
     configured: isConfigured(settings),
