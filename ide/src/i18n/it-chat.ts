@@ -95,4 +95,6 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.trace.failed": "fallita ({kind})",
   "chat.trace.tools": "{n} chiamata/e tool",
   "chat.trace.program": "Programma",
+  "chat.streaming": "Sto scrivendo la risposta…",
+  "chat.busy.elapsed": "{seconds}s",
 };
