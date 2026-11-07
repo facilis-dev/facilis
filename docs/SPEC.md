@@ -1,7 +1,7 @@
 # 📘 Facilis — Full Specification
 
 **Version:** 1.12 (permission views + audited sudo, D-098/D-099)
-**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path and the §9.4 repair loop; the Model B tool surface remains. The live per-phase state is in [`README.md`](../README.md#status).
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
@@ -1599,6 +1599,11 @@ names the tenant and cannot name a different one (D-040).
 | Wall time | 10–20s | 30–60s |
 | Accuracy | Good for small tasks | Good for any task |
 
+**Status (2026-11-07): the chat always uses the tool-backed mode** (D-101/D-103); the table is
+the design history. Model A's context assembly (file list, config, manifest, AGENTS.md) remains
+as context, not as a separate chat mode, and Model B's per-call tool list was superseded by PTC
+(§9.5).
+
 ### 9.2 System Prompt (Shared Core)
 
 Rules the AI must obey:
@@ -1674,13 +1679,10 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
   permission may be added in the same set), so per-file validation would report false errors;
   the feedback is per-file instead, and the `validate` tool lets the model check candidate
   subsets while iterating (D-102).
-- **When the PTC runtime is on** (D-101) the repair request does **not** inline file content: it
-  tells the model to `read_file` every file it will re-emit and to `validate` the exact set it
-  will return. The inline fallback below applies only to runtime-off builds.
-- **The inline fallback (runtime off)** includes the **current content of the existing files**
-  the rejected patches tried to update or delete. That is the documented clarification of "not
-  full files": a `create` or `update` patch carries the complete file, so a whole-file rewrite
-  cannot be repaired blind. The content is bounded like the rest of the prompt context.
+- **The repair request never inlines file content.** The chat has one mode (D-103): the
+  correction tells the model to `read_file` every file it will re-emit and to `validate` the
+  exact set it will return, so a `create`/`update` whole-file rewrite is repaired from the
+  tools, not from prompt-stuffed content (D-101/D-102).
 - **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
   the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
@@ -1708,7 +1710,9 @@ one JavaScript program per step; the IDE executes it in an opaque-origin sandbox
 read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
 capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
 path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
-phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21) and implementation is phase 1.
+phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
+landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
+remain.
 
 ---
 
@@ -2061,7 +2065,8 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 **Status (2026-11-02):** Model A (prompt + context), the response parser, the 16-rule validator
 (D-084), the proposal/diff review and the apply path are implemented; the §9.4 repair loop
-(D-100) is implemented too; the Model B tool surface remains. The validator's warnings still
+(D-100) is implemented too and the PTC tool runtime is the chat's only mode (D-103); the eval
+corpus and browser matrix remain. The validator's warnings still
 need a UI surface.
 
 ### Phase 5 — Headless Blocks + i18n (2 weeks)
