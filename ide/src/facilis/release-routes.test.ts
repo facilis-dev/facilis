@@ -7,15 +7,18 @@ const TEMPLATE_ROUTES = "server/routes/api/todos/index.get.ts";
 describe("routesFromFiles", () => {
   it("derives every route of the template from its file name", () => {
     const routes = routesFromFiles(Object.keys(exampleProjectFiles()));
-    expect(routes).toHaveLength(8);
+    expect(routes).toHaveLength(11);
     expect(routes.map((route) => route.method + " " + route.path)).toEqual([
+      "DELETE /api/jobs/:id",
       "DELETE /api/todos/:id",
       "GET /api/auth/session",
+      "GET /api/jobs/:id",
       "GET /api/todos",
       "PATCH /api/todos/:id",
       "POST /api/auth/login",
       "POST /api/auth/logout",
       "POST /api/auth/register",
+      "POST /api/jobs",
       "POST /api/todos",
     ]);
     const list = routes.find((route) => route.path === "/api/todos" && route.method === "GET");
@@ -76,7 +79,13 @@ describe("mergeRouteMetadata", () => {
   it("fills the manifest metadata onto the file-derived routes and keeps manifest-only ones", () => {
     const derived = routesFromFiles([TEMPLATE_ROUTES]);
     const metadata = parseManifestRoutes([
-      { method: "GET", path: "/api/todos", sourceFile: TEMPLATE_ROUTES, permission: "todos:read", dbTables: ["todos"] },
+      {
+        method: "GET",
+        path: "/api/todos",
+        sourceFile: TEMPLATE_ROUTES,
+        permission: "todos:read",
+        dbTables: ["todos"],
+      },
       { method: "GET", path: "/api/health" },
     ]);
     const merged = mergeRouteMetadata(derived, metadata);

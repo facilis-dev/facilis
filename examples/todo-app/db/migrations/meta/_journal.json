@@ -15,6 +15,13 @@
       "when": 1793453630833,
       "tag": "0001_tenant_default",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794064555552,
+      "tag": "0002_condemned_bloodscream",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,7 @@
     "@facilis/analyze": "workspace:*",
     "@facilis/auth": "workspace:*",
     "@facilis/core": "workspace:*",
-    "@facilis/db": "workspace:*"
+    "@facilis/db": "workspace:*",
+    "drizzle-orm": "0.45.4"
   }
 }

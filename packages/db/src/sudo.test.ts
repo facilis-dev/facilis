@@ -248,14 +248,29 @@ describe("audited sudo", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it("rejects a job call that could not produce a meaningful audit entry", async () => {
+  it("accepts an empty tables list for a job that declares no audit table (D-102)", async () => {
+    captureAudit();
+    const result = await runAsSystem(
+      db,
+      { actor: "system:nightly", operation: "documents:prune", reason: "prune", tables: [] },
+      async () => "done",
+    );
+
+    expect(result).toBe("done");
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "succeeded"]);
+    // The audit entry stays complete and explicitly says "no tables", never omits the field.
+    expect(audit[0]).toMatchObject({ tables: [] });
+    expect(audit[1]).toMatchObject({ tables: [] });
+  });
+
+  it("still rejects tables that are not non-empty strings", async () => {
     captureAudit();
     const fn = vi.fn();
 
     await expect(
       runAsSystem(
         db,
-        { actor: "system:nightly", operation: "documents:prune", reason: "prune", tables: [] },
+        { actor: "system:nightly", operation: "documents:prune", reason: "prune", tables: [""] },
         fn,
       ),
     ).rejects.toThrow(/sudo_invalid_tables/);

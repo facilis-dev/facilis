@@ -2,10 +2,11 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { applyStatements, applyViews, createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
 import { seedStatements, sessionMiddleware, type SessionEvent } from "@facilis/auth";
-import type { FacilisConfig, ManifestWarning } from "@facilis/core";
+import { DEFAULT_JOBS_CONFIG, type FacilisConfig, type ManifestWarning } from "@facilis/core";
 import config, { configError, projectRoot } from "#facilis/config";
 import dbViewModules from "#facilis/db-views";
 import dbSchema from "#facilis/db-schema";
+import jobModules from "#facilis/jobs";
 
 import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
 import { resolveDbTarget } from "./db-target.ts";
@@ -15,6 +16,8 @@ import {
   readDevDbSnapshot,
 } from "./dev-db-persistence.ts";
 import { isProductionEnvironment } from "./env.ts";
+import { bootJobs } from "./jobs/boot.ts";
+import type { JobsRuntime } from "./jobs/runtime.ts";
 import { readDefaultTenantId } from "./tenant.ts";
 import { readTextFile } from "./project-files.ts";
 import { splitSqlStatements } from "./sql.ts";
@@ -25,6 +28,11 @@ export interface BootstrapState {
   readonly config: FacilisConfig | null;
   readonly warnings: readonly ManifestWarning[];
   readonly startedAt: string;
+  /**
+   * Background-job runtime (D-102); null when the db or the job boot failed. The context
+   * middleware carries `jobs.api` on `event.context.facilis`.
+   */
+  readonly jobs: JobsRuntime | null;
   /** Cached session handler; rebuilt lazily because it closes over the db client. */
   sessionHandler?: (event: SessionEvent) => Promise<void>;
 }
@@ -59,14 +67,18 @@ async function bootstrap(): Promise<BootstrapState> {
   const warnings: ManifestWarning[] = [];
   const startedAt = new Date().toISOString();
   const projectConfig = readProjectConfig(warnings);
-  if (projectConfig === null) return { db: null, config: null, warnings, startedAt };
+  if (projectConfig === null) {
+    return { db: null, config: null, warnings, startedAt, jobs: null };
+  }
 
   // The environment, not the config alone, decides where data lives (D-068): a deployment
   // sets a Postgres URL and the same build runs there. Every refusal is a warning, so a
   // misconfigured production boot degrades to "no database" instead of crashing.
   const resolved = resolveDbTarget(projectConfig, process.env);
   warnings.push(...resolved.warnings);
-  if (resolved.target === null) return { db: null, config: projectConfig, warnings, startedAt };
+  if (resolved.target === null) {
+    return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
+  }
   const target = resolved.target;
   const usesPglite = target.driver === "pglite";
 
@@ -99,7 +111,7 @@ async function bootstrap(): Promise<BootstrapState> {
   } catch (error) {
     if (snapshot === null) {
       warnings.push(warning("db_unavailable", `Could not open the database: ${describe(error)}`));
-      return { db: null, config: projectConfig, warnings, startedAt };
+      return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
     }
     // A corrupt or incompatible snapshot must not make the project unbootable: warn and
     // start from an empty cluster instead (the old file is replaced by the next dump).
@@ -121,7 +133,7 @@ async function bootstrap(): Promise<BootstrapState> {
       warnings.push(
         warning("db_unavailable", `Could not open the database: ${describe(retryError)}`),
       );
-      return { db: null, config: projectConfig, warnings, startedAt };
+      return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
     }
   }
 
@@ -168,7 +180,19 @@ async function bootstrap(): Promise<BootstrapState> {
     });
   }
 
-  return { db, config: projectConfig, warnings, startedAt };
+  // The queue starts after the roles/views exist: its own writes run as facilis_app, while
+  // a job body escalates to facilis_system (D-102). A failure there is a warning, not a 500.
+  const jobs = await bootJobs({
+    db,
+    // isFacilisConfig deliberately does not require `jobs`, so an older virtual config can
+    // still hand an undefined section to a newer runtime: fall back to the documented defaults.
+    jobsConfig: projectConfig.jobs ?? DEFAULT_JOBS_CONFIG,
+    modules: jobModules,
+    tenantId: readDefaultTenantId(),
+    warnings,
+  });
+
+  return { db, config: projectConfig, warnings, startedAt, jobs };
 }
 
 function readProjectConfig(warnings: ManifestWarning[]): FacilisConfig | null {

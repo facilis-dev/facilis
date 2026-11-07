@@ -17,7 +17,13 @@ const handler = async (event: H3Event): Promise<void> => {
   if (state.db === null) return;
 
   const context = event.context as FacilisEventContext;
-  context.facilis = { db: state.db, defaultTenantId: readDefaultTenantId() };
+  context.facilis = {
+    db: state.db,
+    defaultTenantId: readDefaultTenantId(),
+    // `ctx.jobs` is required by the handler contract: attach it whenever the runtime
+    // booted. Without it the wrapper substitutes a `job_unavailable` fallback (D-102).
+    ...(state.jobs === null ? {} : { jobs: state.jobs.api }),
+  };
 };
 
 export default handler;

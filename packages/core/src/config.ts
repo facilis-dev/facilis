@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+import {
+  facilisJobsConfigSchema,
+  type FacilisJobsConfig,
+  type FacilisJobsConfigInput,
+} from "./jobs-config.ts";
+
+export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
+export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+
 /**
  * The configuration contract of a Facilis project (SPEC §7.1).
  *
@@ -55,6 +64,8 @@ export interface FacilisConfig {
   readonly i18n: FacilisI18nConfig;
   readonly blocks: FacilisBlocksConfig;
   readonly auth: FacilisAuthConfig;
+  /** Background-job queue settings (D-102, docs/JOBS.md §4). */
+  readonly jobs: FacilisJobsConfig;
   readonly nitro: FacilisNitroOptions;
 }
 
@@ -80,6 +91,8 @@ export interface FacilisConfigInput {
     readonly defaultRole: string;
     readonly sessionDurationMs?: number;
   };
+  /** Background-job queue settings; every key has a default (D-102). */
+  readonly jobs?: FacilisJobsConfigInput;
 }
 
 /**
@@ -153,6 +166,7 @@ const baseConfigSchema = z.strictObject({
   i18n: i18nSchema,
   blocks: blocksSchema,
   auth: authSchema,
+  jobs: facilisJobsConfigSchema,
   nitro: nitroSchema,
 });
 

@@ -22,4 +22,14 @@ export default defineConfig({
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
   },
+  // Background jobs (D-102): every key is shown once; a definition may override
+  // maxAttempts/timeoutMs, the rest is queue-wide.
+  jobs: {
+    maxConcurrent: 2,
+    maxAttempts: 2,
+    retryDelayMs: 1000,
+    timeoutMs: 10_000,
+    pollIntervalMs: 500,
+    persist: true,
+  },
 });

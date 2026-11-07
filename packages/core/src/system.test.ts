@@ -3,6 +3,7 @@ import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
 import type { FacilisHandlerEvent } from "./event.ts";
+import type { JobsApi } from "./jobs.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { SudoHandler, SystemHandler, SystemOptions } from "./sudo.ts";
 
@@ -44,6 +45,8 @@ const AUTH: AuthContext = {
   sessionHash: SESSION_HASH,
 };
 const FAKE_DB = { driver: "pglite", close: async () => {} } as unknown as FacilisDb;
+// The context middleware always attaches the queue; its identity is irrelevant to these tests.
+const JOBS = { enqueue: vi.fn() } as unknown as JobsApi;
 
 let audit: SudoAuditEvent[];
 let consoleError: ReturnType<typeof vi.spyOn>;
@@ -80,7 +83,7 @@ describe("ctx.system", () => {
     );
 
     const result = (await route({
-      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1" } },
+      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/auth/register", method: "POST" },
     })) as { systemDb: { systemFor: string }; ctxDb: unknown };
 
@@ -122,7 +125,7 @@ describe("ctx.system", () => {
     );
 
     await route({
-      context: { auth: AUTH, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1" } },
+      context: { auth: AUTH, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/users/fix", method: "POST" },
     });
 
@@ -147,7 +150,7 @@ describe("ctx.system", () => {
     );
 
     const response = (await route({
-      context: { auth: null, facilis: { db: FAKE_DB } },
+      context: { auth: null, facilis: { db: FAKE_DB, jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/auth/register" },
     })) as Response;
 
@@ -174,7 +177,7 @@ describe("ctx.system", () => {
     expect(
       (
         (await route({
-          context: { auth: null, facilis: { db: FAKE_DB } },
+          context: { auth: null, facilis: { db: FAKE_DB, jobs: JOBS } },
           req: { headers: new Headers(), url: "http://localhost/api/auth/register" },
         })) as Response
       ).status,
@@ -198,7 +201,7 @@ describe("ctx.system", () => {
     expect(
       (
         (await route({
-          context: { auth: AUTH, facilis: { db: FAKE_DB } },
+          context: { auth: AUTH, facilis: { db: FAKE_DB, jobs: JOBS } },
           req: { headers: new Headers(), url: "http://localhost/api/outer" },
         })) as Response
       ).status,
@@ -221,7 +224,7 @@ describe("ctx.system", () => {
     expect(
       (
         (await route({
-          context: { auth: AUTH, facilis: { db: FAKE_DB } },
+          context: { auth: AUTH, facilis: { db: FAKE_DB, jobs: JOBS } },
           req: { headers: new Headers(), url: "http://localhost/api/outer" },
         })) as Response
       ).status,
@@ -232,7 +235,7 @@ describe("ctx.system", () => {
 
   it("never exposes the raw root client on the handler event", async () => {
     const outer = {
-      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1" } },
+      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/test", method: "GET" },
       res: { headers: new Headers() },
     };

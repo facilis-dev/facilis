@@ -1,10 +1,16 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+import {
+  facilisJobs,
+  ownerIsolationPolicy,
+  tenantColumn,
+  tenantIsolationPolicy,
+} from "@facilis/db";
 import { rolePermissions, roles, sessions, userRoles, users } from "@facilis/auth";
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
-// generates them together with the application tables.
-export { rolePermissions, roles, sessions, userRoles, users };
+// generates them together with the application tables. The job queue is framework state
+// the project owns the DDL for, so it is re-exported the same way (D-102, JOBS §8).
+export { facilisJobs, rolePermissions, roles, sessions, userRoles, users };
 
 export const todos = pgTable(
   "todos",

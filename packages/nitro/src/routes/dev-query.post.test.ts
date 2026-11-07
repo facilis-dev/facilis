@@ -20,7 +20,7 @@ function event(payload: unknown, origin?: string): H3Event {
 }
 
 function state(db: FacilisDb | null): BootstrapState {
-  return { db, config: null, warnings: [], startedAt: "2026-11-06T00:00:00.000Z" };
+  return { db, config: null, warnings: [], startedAt: "2026-11-06T00:00:00.000Z", jobs: null };
 }
 
 async function body(response: Response): Promise<Record<string, unknown>> {

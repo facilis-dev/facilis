@@ -431,6 +431,24 @@ export type {
 
 // i18n
 export { t } from "./i18n"
+
+// Background jobs (D-102; the full type surface is §7.9)
+export { defineJob, isJobDefinition, serializeJobData, JobError } from "./jobs"
+export type {
+  EnqueueJobOptions,
+  JobDefinition,
+  JobErrorCode,
+  JobJson,
+  JobListOptions,
+  JobOverrides,
+  JobQueueStats,
+  JobRecord,
+  JobRunContext,
+  JobStatus,
+  JobsApi,
+} from "./jobs"
+export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config"
+export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config"
 ```
 
 ### 5.2 `@facilis/db`
@@ -462,10 +480,17 @@ Exports:
 - `applyViews(db, modules, { permissions })`, `viewDefinitionStatement(name, sql, permission?)`,
   `runReadOnlyQuery(db, sql, limit)` — the boot/dev tooling behind `POST /__facilis/dev/query|view`;
   an undeclared view permission is a `view_failed` warning, never a silent grant (§11.2, D-098)
+- `facilisJobs` — the persistent job-queue table (name, status, JSONB input/output, attempts,
+  maxAttempts, timeoutMs, runAt/startedAt/finishedAt, tenant): tenant-scoped with the framework RLS
+  policy, re-exported by the project's `db/schema.ts` so a Drizzle migration owns its DDL (D-102).
+  The engine's own queue reads/writes run as `facilis_app` under the deployment tenant; only a job
+  *body* runs as `facilis_system` (see the audited-sudo bullet)
 - `ensureSystemRole(db)`, `runWithSystemRole(db, { sudoId }, fn)`, `runAsSystem(db, opts, fn)`,
   `writeSudoAudit` — the audited sudo identity and append-only trail behind `ctx.sudo`
   (§7.4/§8.4.5, D-099). `facilis_system` is `NOLOGIN NOSUPERUSER BYPASSRLS` with DML grants only;
-  it is never assigned to users and never referenced by a policy
+  it is never assigned to users and never referenced by a policy. `runAsSystem`, the job/CLI
+  counterpart, accepts `tables: []` when a job declares no audit tables (D-102); `ctx.sudo`/
+  `ctx.system` still require a non-empty subset
 
 ### 5.3 `@facilis/auth`
 
@@ -690,7 +715,44 @@ than replaces, so a cookie another handler staged on the same response survives.
 
 **Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session helpers are their own entry point because they import h3 while core's route contract does not (contracts §4.1): the single `FacilisRequestEvent` → `H3Event` narrowing lives there, and a handler stays free of h3 imports.
 
-### 5.7 `@facilis/ui` — removed
+**Background jobs (D-102).** A project's server code can start an independent unit of work and
+schedule it for a future instant, then read, inspect or cancel it. The design reference is
+[`JOBS.md`](./JOBS.md); the public types are §7.9.
+
+- **Definitions** are one default export per `server/jobs/**/*.ts` (`defineJob`), nested
+  directories allowed, `*.test.ts` ignored. The Nitro module registers the `#facilis/jobs`
+  virtual module (the same mechanism as `#facilis/config`), which renders the scanned modules as
+  `JobModule[]`; an invalid or duplicate definition becomes a `job_definition_invalid` manifest
+  warning and is skipped, never a boot failure.
+- **Engine.** `src/runtime/jobs/engine.ts` starts at most `jobs.maxConcurrent` attempts, claims
+  due `queued` rows in `runAt` order, retries a failed attempt after `retryDelayMs` while
+  `attempts < maxAttempts`, aborts an attempt at its `timeoutMs`, and cancels a queued or running
+  job through the attempt's `AbortSignal`. Enqueue wakes the tick; a timer still re-polls.
+- **Persistence and recovery.** With `jobs.persist` and a migrated `facilis_jobs` table the queue
+  survives a Nitro worker reload or process restart; `start()` recovers rows left `running` —
+  re-queued at `now` when attempts remain, else `failed` with an `interrupted` error (at-least-once
+  semantics). A project without the migration degrades to the in-memory store with a
+  `jobs_table_missing` warning; a runtime that fails to start is a `jobs_boot_failed` warning, and
+  a scheduler/store failure during a tick is a `jobs_runtime_error` warning. Boot never fails
+  because of jobs, and a handler whose `ctx.jobs` is the unavailable fallback rejects every call
+  with `JobError("job_unavailable")` instead of failing the route.
+- **System context.** Every attempt runs through `runAsSystem` (actor `system:job:<name>`,
+  operation `jobs:<name>`, the definition's `tables`) in its own `facilis_system` transaction,
+  audited started/succeeded/failed on the sudo-audit sink; the job body receives that scoped
+  client, never the app client.
+- **`ctx.jobs` only.** `defineAuthorizedHandler` carries `JobsApi`: enqueue/schedule returns
+  `{ id }`, then `get`/`list`/`queue`/`running`/`cancel`/`stats`. There is deliberately **no HTTP
+  endpoint** behind it — a project that needs a user-facing surface writes a normal
+  `defineAuthorizedHandler` route with its own permission and Zod body (the example does). The
+  API is also on `event.context.facilis.jobs` for framework middleware.
+- **Config** is the six-key `jobs` section of `facilis.config.ts` (§7.1). Jobs are independent:
+  the job context does not expose `jobs.enqueue`, so no chain is expressible — a workflow is a
+  separate construct (O-017).
+- **Runtime boundary.** The scheduler assumes one long-lived server process per database. A
+  serverless deployment that freezes the process cannot promise a scheduled instant (O-017); a
+  hard reload is what the at-least-once recovery covers.
+
+### 5.7 `@facilis/ui` — removed`
 
 **Removed (D-096).** The package, its two example apps (`examples/ui-gallery`,
 `examples/design-lab`), its tarball vendoring and its `theme.css` contract are gone. Template v2
@@ -955,6 +1017,14 @@ interface FacilisConfig {
     defaultRole: string                  // assigned on registration
     sessionDurationMs: number
   }
+  jobs: {
+    maxConcurrent: number      // attempts executing at the same time (default 2)
+    maxAttempts: number        // total attempts per job; 1 = no retry (default 1)
+    retryDelayMs: number       // fixed delay before a retry (default 5000)
+    timeoutMs: number          // wall-clock bound of one attempt (default 30000)
+    pollIntervalMs: number     // scheduler tick, minimum 100 (default 1000)
+    persist: boolean           // keep the queue in facilis_jobs (default true)
+  }
 }
 ```
 
@@ -1070,6 +1140,7 @@ interface AuthorizedHandlerContext<Body, Query, Params> {
   db: PolicyScopedDatabase                    // pre-scoped, never raw
   sudo: SudoHandler                           // audited elevation, §8.4.5; requires a session
   system: SystemHandler                       // audited elevation for public/bootstrap routes
+  jobs: JobsApi                               // server-only job queue (D-102), no HTTP surface
 }
 
 interface SudoHandler {
@@ -1295,6 +1366,127 @@ interface ProjectRegistry {
 }
 ```
 
+### 7.9 Job API
+
+The background-job contract (D-102; design reference [`JOBS.md`](./JOBS.md)). A job is an
+independent, server-side unit of work: it receives serialized data, always runs in a system
+context (its own transaction as `facilis_system`, audited), and returns serialized data. The
+queue is reachable only from server code, so it is never an HTTP surface of its own.
+
+```typescript
+interface FacilisJobsConfig {
+  maxConcurrent: number      // attempts running at the same time (default 2)
+  maxAttempts: number        // total attempts per job including the first; 1 = no retry (default 1)
+  retryDelayMs: number       // fixed delay before a retry (default 5000)
+  timeoutMs: number          // wall-clock bound of one attempt (default 30000)
+  pollIntervalMs: number     // scheduler tick, minimum 100 (default 1000)
+  persist: boolean           // keep the queue in facilis_jobs (default true)
+}
+
+type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled"
+
+type JobJson = null | boolean | number | string | JobJson[] | { [key: string]: JobJson }
+
+interface JobRunContext<Input> {
+  jobId: string              // the id enqueue returned
+  name: string
+  attempt: number            // 1-based attempt number of this instance
+  data: Input                // the parsed input
+  signal: AbortSignal        // aborted on cancellation, timeout or shutdown
+  db: PolicyScopedDatabase   // system-scoped transaction (facilis_system)
+}
+
+interface JobDefinition<Input = unknown, Output = unknown> {
+  name: string               // enqueue key, unique across the registry
+  input: z.ZodType<Input>    // parsed at enqueue and before every attempt
+  output: z.ZodType<Output>  // parsed before the result is persisted
+  tables?: readonly string[] // sudo-audit tables; [] when the job reads none
+  maxAttempts?: number       // per-job override of jobs.maxAttempts
+  timeoutMs?: number         // per-job override of jobs.timeoutMs
+  run: (ctx: JobRunContext<Input>) => Promise<Output> | Output
+}
+
+function defineJob<Input, Output>(
+  definition: JobDefinition<Input, Output>
+): JobDefinition<Input, Output>
+function isJobDefinition(value: unknown): value is JobDefinition
+function serializeJobData(value: unknown, code: JobErrorCode): JobJson
+
+class JobError extends Error {
+  code:
+    | "job_unknown"
+    | "job_invalid_input"
+    | "job_invalid_output"
+    | "job_invalid_schedule"
+    | "job_unavailable"
+}
+
+interface JobRecord {
+  id: string
+  name: string
+  status: JobStatus
+  input: JobJson
+  output: JobJson | null     // only for "succeeded"
+  error: string | null       // last failure message (server-only, truncated)
+  attempts: number
+  maxAttempts: number
+  timeoutMs: number
+  runAt: string              // ISO-8601
+  createdAt: string
+  startedAt: string | null
+  finishedAt: string | null
+}
+
+interface JobListOptions {
+  status?: JobStatus | readonly JobStatus[]
+  name?: string
+  limit?: number             // default 50, capped at 200
+}
+
+interface JobQueueStats {
+  queued: number
+  running: number
+  succeeded: number
+  failed: number
+  cancelled: number
+  maxConcurrent: number
+}
+
+interface EnqueueJobOptions {
+  runAt?: string | Date      // absolute instant; exclusive with delayMs
+  delayMs?: number           // relative delay in milliseconds
+}
+
+interface JobsApi {
+  enqueue(name: string, data: unknown, options?: EnqueueJobOptions): Promise<{ id: string }>
+  get(id: string): Promise<JobRecord | null>
+  list(options?: JobListOptions): Promise<JobRecord[]>
+  queue(): Promise<JobRecord[]>    // status "queued", runAt ascending
+  running(): Promise<JobRecord[]>  // status "running"
+  cancel(id: string): Promise<boolean>
+  stats(): Promise<JobQueueStats>
+  bindScope?(scope: PolicyScopedDatabase): JobsApi  // framework plumbing, see below
+}
+```
+
+`defineJob` validates the authored definition at module load (name pattern, Zod schemas, positive
+integer overrides); `isJobDefinition` is the structural guard the registry uses on a scanned
+module. Both the input and the result cross a JSON round-trip (`serializeJobData`): what the queue
+stores is exactly what the job receives and what `get`/`list` return. `JobsApi` is on the
+authorized-handler context (`ctx.jobs`, §7.4) and on the request event's
+`context.facilis.jobs`; it has no HTTP surface of its own. A route always has `ctx.jobs`: if the
+runtime failed to boot (the `jobs_boot_failed` manifest warning) the context middleware omits
+`facilis.jobs` and the handler receives an unavailable API whose every call rejects with
+`JobError("job_unavailable")` — a route that never touches jobs keeps serving, and a route that
+calls the API handles the coded failure instead of a framework-wide 500. The unavailable
+implementation itself is internal; only the code is public through `JobError`. The route wrapper
+binds `ctx.jobs` to the request's policy-scoped transaction (`bindScope`, framework plumbing):
+PGlite is a single connection, so a queue call that opened its own transaction would deadlock the
+request waiting for it. A job attempt is the opposite case — it runs outside a request and opens
+its own system transaction. Every attempt
+runs through `runAsSystem` with actor `system:job:<name>` and the definition's `tables` —
+possibly `[]` — so the job body always sees a system-scoped transaction (§8.4.5).
+
 ---
 
 ## 8. Security Model
@@ -1499,8 +1691,12 @@ the role switch (fail closed): if the sink is unwritable the escalation is refus
 be a non-empty subset of the route's `dbTables`, the call requires a session, and nesting is
 rejected. Public/bootstrap routes that have no session (registration, initial admin) use the
 sibling `ctx.system({ actor: "system:<job>", operation, reason, tables }, fn)`: the same audited
-flow, with the system actor recorded instead of a user; jobs use `runAsSystem`. The trail is a
-dedicated append-only log, never a database table, so it survives the rollback it describes; the
+flow, with the system actor recorded instead of a user. Background jobs use the same audited
+flow through `runAsSystem` (D-102): the job/CLI counterpart opens its own transaction instead of
+joining a request, records `system:job:<name>`, and accepts `tables: []` when the definition
+declares no audit tables — `ctx.sudo` and `ctx.system` keep requiring a non-empty subset. The
+trail is a dedicated append-only log, never a database table, so it survives the rollback it
+describes; the
 default sink is one JSON line on stdout (`facilis:sudo …`), replaceable by the deploy (O-014).
 Entries carry the acting user or system actor, the session hash (never the raw cookie), roles,
 tenant, route/method, the route's permission, operation, reason, tables, request id and outcome.
@@ -2155,6 +2351,10 @@ see `examples/todo-app/scripts/verify-headless.sh` and D-015.
 - Auth tables created, roles seeded from config
 - `FACILIS_INITIAL_ADMIN` grants admin on first registration
 - `/__facilis/manifest` returns full manifest with no warnings
+- Background jobs: a `server/jobs/**` definition runs in a system context and returns data;
+  `ctx.jobs.enqueue` returns an id; a future-`runAt` job is inspectable and cancellable; a
+  persisted queue survives a boot; the example app verifies it in
+  `scripts/verify-headless.sh` (D-102)
 
 ### 14.3 Phase 4 (MVP)
 
@@ -2256,6 +2456,15 @@ export default defineConfig({
     },
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
+  },
+  // Background-job queue (D-102): every key has a default, so the block is optional.
+  jobs: {
+    maxConcurrent: 2,      // attempts executing at the same time
+    maxAttempts: 1,        // total attempts per job; 1 = no retry
+    retryDelayMs: 5000,    // fixed delay before a retry
+    timeoutMs: 30000,      // wall-clock bound of one attempt
+    pollIntervalMs: 1000,  // scheduler tick
+    persist: true,         // keep the queue in facilis_jobs
   },
   // Optional: Nitro options, passed through unchanged. Facilis supplies the framework
   // defaults (`serverDir: "./server"`, `experimental.openAPI: true`) underneath, so

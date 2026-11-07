@@ -51,12 +51,39 @@ One process: Vite serves the client and mounts Nitro (spec §10.6). Open
    enforces RLS (a superuser would bypass it). The tenant is the deployment's, never the
    session's, and the database fills it from `app.tenant_id` (D-040) — no route names it.
 
+## Background jobs
+
+`server/jobs/purge-completed-todos.ts` is a `defineJob` definition (D-102): Zod
+`input`/`output`, the `tables` the sudo audit records, and a `run` body that receives the
+**system-scoped** database (`facilis_system`: RLS bypassed, own transaction, audited) even
+though the queue itself runs as `facilis_app`. Definitions are loaded through the
+`#facilis/jobs` virtual module; an invalid or duplicate one becomes a `job_definition_invalid`
+manifest warning and is skipped, never a boot failure. The design reference is
+[docs/JOBS.md](../../docs/JOBS.md).
+
+The framework exposes `ctx.jobs` to server code only, so this app puts its own authenticated
+surface over it:
+
+| Route | Does |
+|---|---|
+| `POST /api/jobs` | Enqueue `purge-completed-todos` (`olderThanDays`, optional `runAt` ISO instant) -> `{ id }` |
+| `GET /api/jobs/:id` | The serialized `JobRecord` (status, input, attempts, timestamps) |
+| `DELETE /api/jobs/:id` | Cancel a queued job or abort a running one -> `{ cancelled: true }` |
+
+The `jobs` section of `facilis.config.ts` shows every key once: `maxConcurrent`,
+`maxAttempts`, `retryDelayMs`, `timeoutMs`, `pollIntervalMs`, `persist`. With
+`persist: true` the queue lives in `facilis_jobs`, which `db/schema.ts` re-exports from
+`@facilis/db`, so `pnpm db:generate` owns its DDL (`0002`: the queue table + its RLS policy).
+Queue state survives the dev-server worker reload; a missing table degrades to the in-memory
+store with a `jobs_table_missing` manifest warning.
+
 ## Layout
 
 ```
-db/schema.ts             todos + re-exported auth tables, RLS policies, enableRLS
-db/migrations/           0000: DDL + policies; 0001: tenant-column defaults + role seed
-server/routes/api/...    defineAuthorizedHandler only
+db/schema.ts             todos + re-exported auth tables and facilis_jobs, RLS policies, enableRLS
+db/migrations/           0000: DDL + policies; 0001: tenant defaults + role seed; 0002: facilis_jobs
+server/jobs/             defineJob definitions loaded through #facilis/jobs (D-102)
+server/routes/api/...    defineAuthorizedHandler only (todos, auth, jobs)
 src/main.tsx             bootstrap: theme + i18n + router
 src/app.tsx              one explicit route table + session provider + Toaster
 src/pages/               one file per route (login, register, todos, not-found)
@@ -101,9 +128,12 @@ It checks: health + revision, full manifest with no warnings, `?format=summary` 
 (<2000 chars), ETag/304, invalid `sections` 400, cross-origin 403, `/_openapi.json`
 `x-db-tables`/`x-permission`, registration with `FACILIS_INITIAL_ADMIN` -> admin, default
 role for a second user, login/session permissions, todo CRUD, RLS isolation (the second user
-sees nothing, cross-user DELETE is 404), input-validation 400s and anonymous 401.
+sees nothing, cross-user DELETE is 404), a future-scheduled job that is enqueued, inspected,
+cancelled and observed as `cancelled` without racing the scheduler, input-validation 400s and
+anonymous 401.
 
 ```bash
-# regenerate the DDL after a schema change (the seed migration is generated from the config):
+# regenerate the DDL after a schema change (db/schema.ts re-exports framework tables too;
+# the seed migration 0001_seed_roles.sql is generated from the config):
 pnpm db:generate
 ```

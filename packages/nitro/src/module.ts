@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, type Dirent } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Nitro, NitroEventHandler, NitroModule } from "nitro/types";
 
@@ -14,7 +14,12 @@ import {
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
 } from "./constants.ts";
-import { VIRTUAL_CONFIG_ID, VIRTUAL_DB_SCHEMA_ID, VIRTUAL_DB_VIEWS_ID } from "./virtual-ids.ts";
+import {
+  VIRTUAL_CONFIG_ID,
+  VIRTUAL_DB_SCHEMA_ID,
+  VIRTUAL_DB_VIEWS_ID,
+  VIRTUAL_JOBS_ID,
+} from "./virtual-ids.ts";
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
 const MIDDLEWARE_DIR = new URL("./middleware/", import.meta.url);
@@ -64,6 +69,7 @@ function registerVirtualModules(nitro: Nitro, rootDir: string): void {
   nitro.options.virtual[VIRTUAL_CONFIG_ID] = () => renderConfigModule(rootDir, versions);
   nitro.options.virtual[VIRTUAL_DB_SCHEMA_ID] = () => renderDbSchemaModule(rootDir);
   nitro.options.virtual[VIRTUAL_DB_VIEWS_ID] = () => renderDbViewsModule(rootDir);
+  nitro.options.virtual[VIRTUAL_JOBS_ID] = () => renderJobsModule(rootDir);
   // `#facilis/openapi-meta` is deliberately NOT registered here: Nitro's virtual plugin
   // runs before user Vite plugins inside the nitro environment, so a Nitro virtual would
   // shadow the `facilis()` plugin's module and route-file edits would never invalidate it
@@ -118,6 +124,44 @@ function renderDbViewsModule(rootDir: string): string {
   const imports = files.map((file, index) => `import * as v${index} from ${JSON.stringify(file)};`);
   const list = files.map((_file, index) => `v${index}`).join(", ");
   return [...imports, `export default [${list}];`].join("\n");
+}
+
+const JOBS_ENTRY = join("server", "jobs");
+
+/**
+ * server/jobs/**\/*.ts as `JobModule` entries (D-102, docs/JOBS.md §5): one default export
+ * per file, nested directories allowed, colocated `*.test.ts` ignored. A project without
+ * jobs is valid, so a missing directory renders as an empty array.
+ */
+function renderJobsModule(rootDir: string): string {
+  const files = collectJobDefinitionFiles(join(rootDir, JOBS_ENTRY));
+  if (files.length === 0) return "export default [];";
+  const imports = files.map((file, index) => `import job${index} from ${JSON.stringify(file)};`);
+  const entries = files.map((file, index) => {
+    const projectPath = relative(rootDir, file).split(sep).join("/");
+    return `{ file: ${JSON.stringify(projectPath)}, definition: job${index} }`;
+  });
+  return [...imports, `export default [${entries.join(", ")}];`].join("\n");
+}
+
+/** Depth-first, explicitly sorted so the registry (and its warnings) is deterministic. */
+function collectJobDefinitionFiles(directory: string): string[] {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const files: string[] = [];
+  for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
+    const filePath = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectJobDefinitionFiles(filePath));
+    } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
+      files.push(filePath);
+    }
+  }
+  return files;
 }
 
 function readTextFile(filePath: string): string | null {

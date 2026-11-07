@@ -97,6 +97,13 @@ export {
   type RunWithSystemRoleOptions,
 } from "./sudo.ts";
 export {
+  FACILIS_JOB_STATUSES,
+  facilisJobs,
+  type FacilisJobRow,
+  type FacilisJobStatus,
+  type NewFacilisJobRow,
+} from "./jobs.ts";
+export {
   newSudoId,
   resetSudoAuditSink,
   setSudoAuditSink,

@@ -17,6 +17,7 @@ import {
   VIRTUAL_CONFIG_ID,
   VIRTUAL_DB_SCHEMA_ID,
   VIRTUAL_DB_VIEWS_ID,
+  VIRTUAL_JOBS_ID,
   VIRTUAL_OPENAPI_META_ID,
 } from "./virtual-ids.ts";
 
@@ -170,6 +171,48 @@ describe("createFacilisNitroModule", () => {
       expect(code.indexOf("a.ts")).toBeLessThan(code.indexOf("b.ts"));
       expect(code).not.toContain("a.test.ts");
       expect(code).toContain("export default [v0, v1, v2];");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("exports the project's server/jobs definitions as the jobs virtual module", async () => {
+    const mock = createMockNitro();
+    setup(mock);
+
+    const code = await render(mock.options.virtual[VIRTUAL_JOBS_ID]);
+    expect(code).toContain("import job0 from");
+    expect(code).toContain('file: "server/jobs/ping.ts"');
+    expect(code).toContain("definition: job0");
+  });
+
+  it("exports an empty jobs module when the project declares none", async () => {
+    const mock = createMockNitro({ rootDir: `${projectRoot}/does-not-exist/` });
+    setup(mock);
+
+    expect(await render(mock.options.virtual[VIRTUAL_JOBS_ID])).toBe("export default [];");
+  });
+
+  it("recurses into nested job directories, sorted, ignoring tests", () => {
+    const directory = mkdtempSync(join(tmpdir(), "facilis-jobs-"));
+    try {
+      mkdirSync(join(directory, "server", "jobs", "nested"), { recursive: true });
+      writeFileSync(join(directory, "server", "jobs", "b.ts"), "export {};");
+      writeFileSync(join(directory, "server", "jobs", "a.ts"), "export {};");
+      writeFileSync(join(directory, "server", "jobs", "a.test.ts"), "export {};");
+      writeFileSync(join(directory, "server", "jobs", "nested", "c.ts"), "export {};");
+      const mock = createMockNitro({ rootDir: directory });
+      setup(mock);
+
+      const template = mock.options.virtual[VIRTUAL_JOBS_ID];
+      expect(typeof template).toBe("function");
+      const code = (template as () => string)();
+      expect(code.indexOf("server/jobs/a.ts")).toBeLessThan(code.indexOf("server/jobs/b.ts"));
+      expect(code.indexOf("server/jobs/b.ts")).toBeLessThan(
+        code.indexOf("server/jobs/nested/c.ts"),
+      );
+      expect(code).not.toContain("a.test.ts");
+      expect(code).toContain("export default [{");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

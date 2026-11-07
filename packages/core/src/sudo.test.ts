@@ -3,6 +3,7 @@ import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
+import type { JobsApi } from "./jobs.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { SudoHandler } from "./sudo.ts";
 
@@ -44,6 +45,8 @@ const AUTH: AuthContext = {
 };
 
 const FAKE_DB = { driver: "pglite", close: async () => {} } as unknown as FacilisDb;
+// The context middleware always attaches the queue; its identity is irrelevant to sudo tests.
+const JOBS = { enqueue: vi.fn() } as unknown as JobsApi;
 
 interface FakeEventOptions {
   auth?: AuthContext | null;
@@ -58,7 +61,7 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   return {
     context: {
       auth: options.auth === undefined ? AUTH : options.auth,
-      facilis: { db: FAKE_DB, defaultTenantId: "tenant-1" },
+      facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS },
     },
     req: {
       headers,

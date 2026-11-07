@@ -25,6 +25,14 @@ const FULL_CONFIG: FacilisConfig = {
   i18n: { defaultLocale: "en", locales: ["en", "fr"] },
   blocks: { packages: ["@facilis/blocks"] },
   auth: SPEC_AUTH,
+  jobs: {
+    maxConcurrent: 3,
+    maxAttempts: 2,
+    retryDelayMs: 500,
+    timeoutMs: 5000,
+    pollIntervalMs: 500,
+    persist: false,
+  },
   nitro: { serverDir: "./backend" },
 };
 
@@ -49,6 +57,15 @@ describe("defineConfig", () => {
     expect(config.i18n).toEqual({ defaultLocale: "en", locales: ["en"] });
     expect(config.blocks).toEqual({ packages: [] });
     expect(config.auth.sessionDurationMs).toBe(1000 * 60 * 60 * 24 * 7);
+    // The queue is safe by default: two slots, no retry, persisted (D-102).
+    expect(config.jobs).toEqual({
+      maxConcurrent: 2,
+      maxAttempts: 1,
+      retryDelayMs: 5000,
+      timeoutMs: 30_000,
+      pollIntervalMs: 1000,
+      persist: true,
+    });
     expect(config.nitro).toEqual({});
   });
 
@@ -132,6 +149,18 @@ describe("defineConfig", () => {
         },
       }),
     ).toThrow(/duplicate permission "todos:read"/);
+  });
+
+  it("validates the jobs section and rejects an unknown key", () => {
+    expect(() => defineConfig({ auth: SPEC_AUTH, jobs: { maxConcurrent: 0 } as never })).toThrow(
+      /maxConcurrent/,
+    );
+    expect(() =>
+      defineConfig({
+        auth: SPEC_AUTH,
+        jobs: { concurrency: 2 } as unknown as FacilisConfig["jobs"],
+      }),
+    ).toThrow(/Unrecognized key/);
   });
 
   it("rejects an invalid database mode", () => {

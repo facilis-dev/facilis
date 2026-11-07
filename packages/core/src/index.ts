@@ -18,6 +18,30 @@ export type {
   FacilisReleaseConfig,
 } from "./config.ts";
 
+export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
+export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+export {
+  defineJob,
+  isJobDefinition,
+  JOB_ERROR_CODES,
+  JOB_STATUSES,
+  JobError,
+  serializeJobData,
+} from "./jobs.ts";
+export type {
+  EnqueueJobOptions,
+  JobDefinition,
+  JobErrorCode,
+  JobJson,
+  JobListOptions,
+  JobOverrides,
+  JobQueueStats,
+  JobRecord,
+  JobRunContext,
+  JobStatus,
+  JobsApi,
+} from "./jobs.ts";
+
 export { defineAuthorizedHandler } from "./route.ts";
 export type {
   AuthContext,

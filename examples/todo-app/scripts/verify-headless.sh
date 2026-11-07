@@ -4,7 +4,8 @@
 # Boots the single Vite+Nitro dev server and asserts, over HTTP:
 #   health, manifest (+ summary budget, ETag/304, 400, 403), OpenAPI x-* metadata,
 #   registration + FACILIS_INITIAL_ADMIN, login/session, todo CRUD, RLS isolation,
-#   cross-user 404, input-validation 400s and the anonymous 401 contract.
+#   background jobs (enqueue/status/cancel), cross-user 404, input-validation 400s and
+#   the anonymous 401 contract.
 #
 # Usage: ./scripts/verify-headless.sh        (from examples/todo-app)
 set -euo pipefail
@@ -138,6 +139,32 @@ echo "cross-user DELETE => 404 (RLS hides the row)"
 STATUS="$(status -b "$COOKIES_A" -X DELETE "$BASE/api/todos/$TODO_ID")"
 [ "$STATUS" = "200" ] || fail "owner DELETE returned $STATUS, expected 200"
 echo "owner DELETE => 200"
+
+# --- background jobs (D-102) ------------------------------------------------
+# Scheduled an hour out so the scheduler cannot claim it while we inspect/cancel it.
+RUN_AT="$(node -e 'console.log(new Date(Date.now() + 60 * 60 * 1000).toISOString())')"
+JOB="$(curl -sf -b "$COOKIES_A" -X POST -H 'content-type: application/json' \
+  -d "{\"runAt\":\"$RUN_AT\"}" "$BASE/api/jobs")" || fail "job enqueue failed"
+echo "job enqueued: $JOB"
+JOB_ID="$(echo "$JOB" | json "j.id")"
+[ -n "$JOB_ID" ] || fail "job enqueue returned no id"
+
+JOB_GET="$(curl -sf -b "$COOKIES_A" "$BASE/api/jobs/$JOB_ID")"
+echo "job status: $JOB_GET"
+echo "$JOB_GET" | json "j.id" | grep -qx "$JOB_ID" \
+  || fail "GET /api/jobs/$JOB_ID returned a different id"
+echo "$JOB_GET" | json "j.status" | grep -qx queued \
+  || fail "scheduled job is not queued (it raced the scheduler)"
+
+JOB_CANCEL="$(curl -sf -b "$COOKIES_A" -X DELETE "$BASE/api/jobs/$JOB_ID")"
+echo "job cancel: $JOB_CANCEL"
+echo "$JOB_CANCEL" | json "j.cancelled" | grep -qx true \
+  || fail "DELETE /api/jobs/$JOB_ID did not return cancelled:true"
+
+JOB_CANCELLED="$(curl -sf -b "$COOKIES_A" "$BASE/api/jobs/$JOB_ID")"
+echo "$JOB_CANCELLED" | json "j.status" | grep -qx cancelled \
+  || fail "cancelled job did not report status cancelled"
+echo "jobs: enqueue -> queued -> cancel -> cancelled OK"
 
 # --- contract guards --------------------------------------------------------
 STATUS="$(status "$BASE/api/todos")"

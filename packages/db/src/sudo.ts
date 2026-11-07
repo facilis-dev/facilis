@@ -141,7 +141,13 @@ export async function runAsSystem<T>(
   }
 }
 
-/** Rejects a job call that could not produce a meaningful audit entry. */
+/**
+ * Rejects a job call that could not produce a meaningful audit entry.
+ *
+ * An empty `tables` list is deliberately allowed here (D-102): a job may declare that it
+ * touches no audit-relevant table, and it is the only caller permitted to do so —
+ * `ctx.sudo`/`ctx.system` still reject an empty subset in @facilis/core.
+ */
 function assertSystemRunOptions(options: RunAsSystemOptions): void {
   if (typeof options.actor !== "string" || !options.actor.startsWith("system:")) {
     throw new Error('sudo_invalid_actor: actor must be "system:<job>" for a system run.');
@@ -152,15 +158,21 @@ function assertSystemRunOptions(options: RunAsSystemOptions): void {
   if (typeof options.reason !== "string" || options.reason.trim().length === 0) {
     throw new Error("sudo_invalid_reason: reason must be a non-empty string.");
   }
-  if (!isNonEmptyStringArray(options.tables)) {
-    throw new Error("sudo_invalid_tables: tables must be a non-empty array of strings.");
+  if (!isStringList(options.tables)) {
+    throw new Error(
+      "sudo_invalid_tables: tables must be an array of non-empty strings (possibly empty).",
+    );
   }
 }
 
-function isNonEmptyStringArray(value: unknown): value is readonly string[] {
+/**
+ * An array of non-empty strings, possibly empty: a job that declares no audit table still
+ * produces a valid audit entry (D-102). The empty case is left to the caller's policy, so
+ * runAsSystem can accept it while the route-scoped sudo keeps its non-empty subset rule.
+ */
+function isStringList(value: unknown): value is readonly string[] {
   return (
     Array.isArray(value) &&
-    value.length > 0 &&
     value.every((entry): entry is string => typeof entry === "string" && entry.length > 0)
   );
 }

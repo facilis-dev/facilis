@@ -29,6 +29,15 @@ declare module "#facilis/db-views" {
   export default modules;
 }
 
+/**
+ * Every definition module under server/jobs/ (one default export per file), for the job
+ * registry: nested directories are allowed, tests are skipped (D-102, docs/JOBS.md §5).
+ */
+declare module "#facilis/jobs" {
+  const modules: ReadonlyArray<import("./runtime/jobs/contracts.ts").JobModule>;
+  export default modules;
+}
+
 declare module "#facilis/openapi-meta" {
   const metadata: import("./types.ts").RouteMetadataMap;
   export default metadata;

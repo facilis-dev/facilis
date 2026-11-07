@@ -1,4 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["src/**/*.test.ts"]
+  "//": "The PGlite test harness is test-only, like @facilis/auth's test-support.ts: it must not ship in dist.",
+  "exclude": ["src/**/*.test.ts", "src/runtime/jobs/db-store-test-harness.ts"]
 }

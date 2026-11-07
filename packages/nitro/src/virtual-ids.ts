@@ -10,6 +10,7 @@
 export const VIRTUAL_CONFIG_ID = "#facilis/config";
 export const VIRTUAL_DB_SCHEMA_ID = "#facilis/db-schema";
 export const VIRTUAL_DB_VIEWS_ID = "#facilis/db-views";
+export const VIRTUAL_JOBS_ID = "#facilis/jobs";
 export const VIRTUAL_OPENAPI_META_ID = "#facilis/openapi-meta";
 
 /** Resolved ids must start with \0 so no on-disk file can shadow them. */

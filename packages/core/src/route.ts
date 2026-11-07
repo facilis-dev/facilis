@@ -4,6 +4,7 @@ import type { z } from "zod";
 
 import { fail, invalidInput } from "./errors.ts";
 import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
+import { unavailableJobs, type JobsApi } from "./jobs.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
 import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
@@ -54,6 +55,12 @@ export interface AuthorizedHandlerContext<
    * anonymous caller. Same savepoint/role/audit flow as sudo, same nesting guard.
    */
   system: SystemHandler;
+  /**
+   * Server-only background-job queue (D-102): enqueue/schedule a job, read the queue or a
+   * job by id, force it to stop. Jobs always execute in a system context; this API has no
+   * HTTP surface of its own.
+   */
+  jobs: JobsApi;
 }
 
 /** The outer handler the framework returns; it receives the full request context. */
@@ -214,6 +221,10 @@ export function defineAuthorizedHandler<
     const facilis = event.context.facilis;
     // A route that touches the DB without a booted db cannot be served: fail loudly, not 200.
     if (facilis === undefined) return fail("db_unavailable");
+    // The context middleware attaches the queue once the db booted. A missing runtime (an
+    // unexpected boot failure) must not take the whole route down: the fallback fails only
+    // the job calls, with a code the route can handle.
+    const jobs = facilis.jobs ?? unavailableJobs();
 
     const scope = resolveScope(auth, facilis);
     // The raw root client stays here in the wrapper: the handler event exposes only the safe
@@ -221,6 +232,9 @@ export function defineAuthorizedHandler<
     const handlerEvent = toHandlerEvent(event, facilis);
     try {
       return await runWithPolicyScope(facilis.db, scope, async (db) => {
+        // Queue calls made by the handler must run in this transaction: opening a second one
+        // on the single PGlite connection would deadlock the request (D-102, JOBS §8).
+        const requestJobs = jobs.bindScope?.(db) ?? jobs;
         const elevations = createElevationContext({
           event,
           db,
@@ -237,6 +251,7 @@ export function defineAuthorizedHandler<
           db,
           sudo: elevations.sudo,
           system: elevations.system,
+          jobs: requestJobs,
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;
         // this single cast bridges the conditional overload type to the actual value.

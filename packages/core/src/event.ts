@@ -1,6 +1,8 @@
 import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
+import type { JobsApi } from "./jobs.ts";
+
 /**
  * Structural request/response surface owned by core (contracts §4.1).
  *
@@ -25,6 +27,8 @@ export interface FacilisEventContext {
     db: FacilisDb;
     /** Single-tenant fallback scope for unauthenticated requests (registration/login). */
     defaultTenantId?: string;
+    /** Server-only background-job API, started by the same middleware (D-102). */
+    jobs?: JobsApi;
   };
   /** Router params populated by Nitro (h3 `event.context.params`). */
   params?: Record<string, string>;
