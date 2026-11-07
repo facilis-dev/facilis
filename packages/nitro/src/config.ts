@@ -64,7 +64,12 @@ export async function loadFacilisConfig(root: string): Promise<FacilisConfig | n
   try {
     module = await import(pathToFileURL(configPath).href);
   } catch (error) {
-    throw new Error(`[facilis] failed to load ${configPath}`, { cause: error });
+    // The import itself can be the authoring error: a module-level `defineConfig(...)` that
+    // fails validation throws here, and the real reason must reach the terminal — a bare
+    // "failed to load" sends the author hunting for resolution problems that do not exist.
+    throw new Error(`[facilis] failed to load ${configPath}: ${describeError(error)}`, {
+      cause: error,
+    });
   }
 
   // The file usually default-exports defineConfig(...), which has already validated and
@@ -101,6 +106,12 @@ function mergePlainObjects(
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** The message of a thrown value, for wrapping it into a one-line loader error. */
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 function defaultExport(module: unknown): unknown {

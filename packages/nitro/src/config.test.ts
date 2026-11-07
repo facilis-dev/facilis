@@ -11,6 +11,7 @@ import {
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
 const absentRoot = fileURLToPath(new URL("../test-fixtures/absent", import.meta.url));
 const invalidRoot = fileURLToPath(new URL("../test-fixtures/invalid-config", import.meta.url));
+const throwingRoot = fileURLToPath(new URL("../test-fixtures/throwing-config", import.meta.url));
 
 describe("mergeNitroOptions", () => {
   it("uses the Facilis defaults when the project declares nothing", () => {
@@ -68,5 +69,13 @@ describe("loading a project's config", () => {
 
   it("names the file and the schema violation when the config is invalid", async () => {
     await expect(loadFacilisConfig(invalidRoot)).rejects.toThrow(/invalid .*facilis\.config\.ts/);
+  });
+
+  it("surfaces why a config file threw while being imported", async () => {
+    // A module-level defineConfig() that fails validation throws from the import; swallowing
+    // that reason turns a one-line authoring fix into a resolution hunt (D-107).
+    await expect(loadFacilisConfig(throwingRoot)).rejects.toThrow(
+      /failed to load .*facilis\.config\.ts: Invalid facilis config:[\s\S]*Unrecognized key/,
+    );
   });
 });
