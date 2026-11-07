@@ -49,6 +49,11 @@ export interface ValidationError {
   message: string;
   /** What to change to clear the finding. */
   fix_hint: string;
+  /**
+   * The finding is about the validator's own plumbing (parser/analyzer unavailable), not the
+   * patch. The IDE must not ask the model to repair it; it retries or reports it to the user.
+   */
+  infrastructure?: boolean;
   line?: number;
   column?: number;
   /** The offending source line, capped, when it is cheap to provide. */
@@ -73,7 +78,7 @@ export interface SyntaxFinding extends SyntaxIssue {
 }
 
 /**
- * The rule-1 seam. The IDE injects Monaco's TypeScript worker; Node tooling injects
+ * The rule-1 seam. The IDE injects the analyzer worker's oxc parser; Node tooling injects
  * `@facilis/ai/node` (the subpath is the only place that imports a parser).
  */
 export interface SyntaxChecker {

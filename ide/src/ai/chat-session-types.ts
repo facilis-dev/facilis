@@ -23,7 +23,7 @@ export interface ChatHost {
   activeFile(): Promise<{ path: string; content: string } | null>;
   /** Preview base URL used for /__facilis/manifest, or null when nothing runs. */
   manifestBase(): string | null;
-  /** Rule 1's parser: Monaco's TypeScript worker; absent when the editor is not ready. */
+  /** Rule 1's parser: the analyzer worker (oxc); null when it cannot answer (fails closed). */
   syntaxChecker?(): SyntaxChecker | null;
   /**
    * Analyze the project before and after a patch set (the browser analyzer worker). The

@@ -60,12 +60,16 @@ function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
   turns.push(turn);
 }
 
-/** An analyzer outage cannot be fixed by the model, so a repair round would be wasted. */
+/** A validator outage (parser/analyzer) cannot be fixed by the model: no repair round. */
 function isInternalFailure(failure: AiParseFailure): boolean {
-  return (
-    failure.findings.length > 0 &&
-    failure.findings.every((finding) => finding.rule === "project-analysis")
+  if (failure.findings.length === 0) return false;
+  return failure.findings.every(
+    (finding) => finding.infrastructure === true || finding.rule === "project-analysis",
   );
+}
+
+function validatorFailure(failure: AiParseFailure): TurnOutcome {
+  return { ok: false, failure: { kind: "validator", message: formatFailure(failure) } };
 }
 
 function parsingFailure(failure: AiParseFailure): TurnOutcome {
@@ -82,7 +86,8 @@ async function requestRepair(
   repairs: number,
   turns: AiChatTurn[],
 ): Promise<TurnOutcome | null> {
-  if (repairs >= MAX_REPAIR_ATTEMPTS || isInternalFailure(failure)) return parsingFailure(failure);
+  if (isInternalFailure(failure)) return validatorFailure(failure);
+  if (repairs >= MAX_REPAIR_ATTEMPTS) return parsingFailure(failure);
   const next = repairs + 1;
   input.onRepair(next, MAX_REPAIR_ATTEMPTS);
   const messages = await buildRepairMessages({

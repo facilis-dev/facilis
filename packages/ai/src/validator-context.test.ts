@@ -23,6 +23,7 @@ describe("rule 1 ts-parse", () => {
       syntax: { status: "unavailable", reason: "worker not loaded" },
     });
     expect(rulesOf(result.errors)).toContain("ts-parse");
+    expect(result.errors[0]?.infrastructure).toBe(true);
   });
 
   it("reports parser findings with line and column", () => {

@@ -94,6 +94,7 @@ export const chatEn = {
   "chat.trace.failed": "failed ({kind})",
   "chat.trace.tools": "{n} tool call(s)",
   "chat.trace.program": "Program",
+  "chat.error.validator": "The validator is temporarily unavailable — try again in a moment.",
   "chat.streaming": "Writing the answer…",
   "chat.busy.elapsed": "{seconds}s",
 } as const;

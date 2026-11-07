@@ -231,7 +231,7 @@ describe("ChatSession does not repair internal failures", () => {
     await chat.send("add a file");
     expect(calls).toBe(1);
     const state = chat.getSnapshot();
-    expect(state.error?.kind).toBe("parse");
+    expect(state.error?.kind).toBe("validator");
     expect(state.error?.message).toContain("project-analysis");
     expect(harness.writes).toEqual([]);
   });

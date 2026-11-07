@@ -126,6 +126,7 @@ describe("validatePatchesWithHost", () => {
         severity: "error",
         file: "<project>",
         message: expect.stringContaining("analyzer worker did not become ready"),
+        infrastructure: true,
       }),
     ]);
     expect(result.validation.errors[0]?.fix_hint).toContain("patches are not validated");

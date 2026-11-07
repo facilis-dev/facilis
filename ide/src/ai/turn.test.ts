@@ -147,6 +147,30 @@ describe("runTurn with PTC exploration", () => {
     expect(outcome.trace).toHaveLength(1);
   });
 
+  it("does not spend a repair round on a validator outage", async () => {
+    const calls: CallModelInput[] = [];
+    const outcome = await runTurn({
+      call: capture([answer([NEW_FILE])], calls),
+      settings,
+      system: "system",
+      messages: [{ role: "user", content: "add a file" }],
+      host: {
+        ...host(),
+        analyze: async () => {
+          throw new Error("analyzer worker did not become ready");
+        },
+      },
+      signal: SIGNAL,
+      onText: () => {},
+      onRepair: () => {},
+      runner: runner(okRun(null, 0)),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.failure.kind).toBe("validator");
+    expect(calls).toHaveLength(1);
+  });
+
   it("reports each program through the start and finish callbacks", async () => {
     const calls: CallModelInput[] = [];
     const started: string[] = [];

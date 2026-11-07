@@ -121,7 +121,9 @@ export type ChatFailureKind =
   | "empty"
   | "unsupported"
   /** The answer arrived but was not a usable AIResponse (parse/validation). */
-  | "parse";
+  | "parse"
+  /** The validator's own parser/analyzer was unavailable: not the model's mistake. */
+  | "validator";
 
 /** A provider failure. The message is technical and shown as detail, never translated. */
 export interface ChatFailure {

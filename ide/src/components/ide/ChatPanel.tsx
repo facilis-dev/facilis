@@ -41,6 +41,8 @@ function errorText(failure: ChatFailure): string {
       return t("chat.error.unsupported");
     case "parse":
       return t("chat.parse.error");
+    case "validator":
+      return t("chat.error.validator");
   }
 }
 
@@ -185,7 +187,7 @@ export function ChatPanel() {
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                 <p className="font-medium text-destructive">{errorText(state.error)}</p>
-                {state.error.kind === "parse" && (
+                {(state.error.kind === "parse" || state.error.kind === "validator") && (
                   <p className="mt-0.5 text-[10px] text-muted-foreground">{t("chat.parse.hint")}</p>
                 )}
                 {state.error.message.length > 0 && (
