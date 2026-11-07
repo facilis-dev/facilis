@@ -6,7 +6,8 @@
 // "unreachable" state instead of taking the editor down with it. The payload narrowing
 // lives in data-explorer-parse.ts so this module stays a transport.
 
-import { fetchManifest, manifestBaseUrl } from "./manifest-client";
+import { devEndpointUrl } from "./dev-base";
+import { fetchManifestAt, MANIFEST_PATH } from "./manifest-client";
 import { parseRoutes, parseSchemaPayload } from "./data-explorer-parse";
 
 const SCHEMA_PATH = "/__facilis/dev/schema";
@@ -94,8 +95,7 @@ export interface DataExplorerQuery {
 }
 
 function endpoint(baseUrl: string, path: string): string {
-  const base = manifestBaseUrl(baseUrl);
-  return base.length === 0 ? path : base + path;
+  return devEndpointUrl(baseUrl, path);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -117,7 +117,11 @@ async function getJson(
 }
 
 async function loadRoutes(baseUrl: string, signal?: AbortSignal): Promise<ExplorerRoute[]> {
-  const result = await fetchManifest(baseUrl, { sections: ["routes"], signal });
+  // Build the URL through devEndpointUrl so the kernel token survives; the section is
+  // appended after it, where the token already is.
+  const manifestUrl = devEndpointUrl(baseUrl, MANIFEST_PATH);
+  const separator = manifestUrl.includes("?") ? "&" : "?";
+  const result = await fetchManifestAt(manifestUrl + separator + "sections=routes", signal);
   if (!result.ok) return [];
   return parseRoutes(result.envelope.manifest["routes"]);
 }

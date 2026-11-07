@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
+import { analyzeHostFiles } from "./analysis-fixtures";
 import { applyAccepted, applyUndo, type ActionHost } from "./chat-actions";
 import type { PatchValidationHost } from "./patch-validation";
 import type { ChatProposal } from "./types";
@@ -108,11 +109,14 @@ export default defineConfig({
 `;
 
 function validationHost(): PatchValidationHost {
+  const files = () => ["facilis.config.ts"];
+  const read = async (path: string) => (path === "facilis.config.ts" ? VALIDATOR_CONFIG : "");
   return {
-    files: () => ["facilis.config.ts"],
-    read: async (path) => (path === "facilis.config.ts" ? VALIDATOR_CONFIG : ""),
+    files,
+    read,
     manifestBase: () => null,
     syntaxChecker: () => ({ check: async () => [] }),
+    analyze: (patches) => analyzeHostFiles(files(), read, patches),
   };
 }
 

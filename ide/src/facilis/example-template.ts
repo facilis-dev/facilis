@@ -6,10 +6,6 @@
 // Only the IDE-specific wrappers are written in this package: package.json (workspace
 // specs become vendored tarballs), tsconfig (extends the repo base), npm hooks, the
 // liveness ping route and the HMR hint (see template-overrides.ts).
-//
-// vite-plugins/ is a top-level folder in the example (not under src/), so it needs its
-// own glob entry: the generated vite.config.ts imports its Tailwind rescan plugin, and a
-// missing file would only fail inside the VM.
 
 const EXAMPLE_DIR = "examples/todo-app/";
 const EXAMPLE_PATH = new RegExp(EXAMPLE_DIR.replace(/\//g, "\\/"));
@@ -20,7 +16,6 @@ const rawSources = import.meta.glob<string>(
     "!../../../examples/todo-app/src/**/*.test.*",
     "../../../examples/todo-app/server/**/*.ts",
     "../../../examples/todo-app/db/**/*",
-    "../../../examples/todo-app/vite-plugins/**/*.ts",
     "../../../examples/todo-app/locales/*.json",
     "../../../examples/todo-app/index.html",
     "../../../examples/todo-app/.gitignore",

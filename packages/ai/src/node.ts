@@ -1,12 +1,15 @@
 /**
- * Node-only TypeScript/TSX syntax checker, exported as `@facilis/ai/node` (D-084).
+ * Node-only helpers, exported as `@facilis/ai/node` (D-084, D-092).
  *
- * The main entry must stay browser-safe, so this subpath is the only place a parser is
- * imported — and it is rolldown's `parseSync` (oxc), the same TS parser
- * `@facilis/nitro` uses for its route AST pass, not a second compiler implementation.
- * The IDE never imports this module: it injects Monaco's TypeScript worker instead.
+ * The main entry must stay browser-safe, so this subpath is the only place that imports
+ * runtime code from a parser: rule 1's rolldown `parseSync` (oxc) and, for tests/tooling,
+ * @facilis/analyze's oxc adapter so a project file map can be analyzed without a browser.
+ * The IDE never imports this module: it injects Monaco's TypeScript worker and its own
+ * analyzer adapter instead.
  */
 
+import { analyzeProject, type Analysis, type PathAlias } from "@facilis/analyze";
+import { createOxcParser as createAnalyzerParser } from "@facilis/analyze/node";
 import { parseSync } from "rolldown/utils";
 
 import type { SyntaxChecker, SyntaxIssue } from "./types.ts";
@@ -54,4 +57,20 @@ export function createTypeScriptSyntaxChecker(): SyntaxChecker {
       }
     },
   };
+}
+
+/**
+ * Analyze a project file map with the Node oxc parser. Tests/tooling only: the browser
+ * passes its own parser adapter to `analyzeProject`, and the main entry never imports
+ * this module (it would pull a parser into the IDE bundle).
+ */
+export function analyzeProjectSources(
+  files: ReadonlyMap<string, string>,
+  aliases?: readonly PathAlias[],
+): Analysis {
+  return analyzeProject({
+    files,
+    parser: createAnalyzerParser(),
+    ...(aliases === undefined ? {} : { aliases }),
+  });
 }

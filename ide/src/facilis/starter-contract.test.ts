@@ -29,7 +29,14 @@ describe("generated starter contract", () => {
     expect(login).toContain('import { setSessionCookie } from "@facilis/nitro/session"');
     expect(login).toContain("setSessionCookie(event, session.id");
     expect(login).not.toContain('headers.set("set-cookie"');
-    expect(files["server/routes/api/auth/register.post.ts"]).toContain("hashPassword(");
+    const register = files["server/routes/api/auth/register.post.ts"];
+    expect(register).toContain("hashPassword(");
+    // D-099: an anonymous caller has no permission on the auth tables; the writes are an
+    // audited system operation, never direct DB access from the handler.
+    expect(register).toContain("system(");
+    expect(register).toContain('actor: "system:auth"');
+    expect(register).toContain('operation: "user:register"');
+    expect(register).not.toContain("facilis.db");
   });
 
   it("inserts through an authorized handler without naming the tenant", () => {

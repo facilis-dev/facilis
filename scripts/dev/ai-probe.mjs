@@ -24,7 +24,10 @@ import {
   checkPatchSyntax,
   validatePatch,
 } from "../../packages/ai/src/index.ts";
-import { createTypeScriptSyntaxChecker } from "../../packages/ai/src/node.ts";
+import {
+  analyzeProjectSources,
+  createTypeScriptSyntaxChecker,
+} from "../../packages/ai/src/node.ts";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 const EXAMPLE = join(REPO, "examples/todo-app");
@@ -105,7 +108,7 @@ const TASKS = [
 const CONVENTIONS_PROMPT = [
   "## Project API conventions (verified in the existing code; follow exactly)",
   '- Server route (server/routes/...): import { defineAuthorizedHandler } from "@facilis/core"; import { todos } from "~/db/schema"; export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: ["todos"], query: z.object({}) }, async (_event, { auth, body, query, params, db }) => { ... }); the context carries auth/body/query/params/db - never import a db client from "@facilis/db".',
-  '- Client page (src/pages/...): import { Page, Button } from "@facilis/ui"; import { t } from "@facilis/core/i18n"; call the server through the api helper in src/lib/api.ts; src/ must never use process, Buffer, fs or server-only packages.',
+  '- Client page (src/pages/...): use the components in src/components/ui; import { t } from "@facilis/core/i18n"; call the server through the api helper in src/lib/api.ts; src/ must never use process, Buffer, fs or server-only packages.',
   '- Schema (db/schema.ts): import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db"; define pgTable(...).enableRLS() with the policies; re-export the @facilis/auth tables, never redefine them.',
   '- i18n: add every new string to locales/en.json and locales/it.json and render it with t("key").',
 ].join("\n");
@@ -192,27 +195,36 @@ function synthesizeManifest(files) {
 
 function projectFixture() {
   const files = listFiles(EXAMPLE);
-  const sources = {};
-  for (const path of [
-    "facilis.config.ts",
-    "db/schema.ts",
-    "locales/en.json",
-    "package.json",
-    "tsconfig.json",
-  ]) {
-    sources[path] = readExample(path);
-  }
+  const sources = new Map();
+  for (const path of files) sources.set(path, readExample(path));
   const manifest = synthesizeManifest(files);
+  const contextOf = (analysis, before, aliases) =>
+    buildProjectContext({
+      files,
+      analysis,
+      before,
+      manifest,
+      ...(aliases === undefined ? {} : { aliases }),
+      sources: {
+        "package.json": sources.get("package.json") ?? "",
+        "tsconfig.json": sources.get("tsconfig.json") ?? "",
+      },
+    });
+  // The analyzer needs the tsconfig aliases too, so read the project once without them,
+  // derive the aliases from the context, then re-analyze with the module graph they describe.
+  const first = analyzeProjectSources(sources);
+  const { aliases } = contextOf(first, first);
+  const before = analyzeProjectSources(sources, aliases);
+  const context = contextOf(before, before, aliases);
   const system = buildSystemPrompt({
     manifest,
     manifestRevision: "probe",
     files,
     activeFile: null,
-    configFile: { path: "facilis.config.ts", content: sources["facilis.config.ts"] },
+    configFile: { path: "facilis.config.ts", content: sources.get("facilis.config.ts") ?? "" },
     instructions: null,
   });
-  const context = buildProjectContext({ files, sources, manifest });
-  return { files, system, context };
+  return { files, system, context, before, manifest, sources, aliases };
 }
 
 // ---------------------------------------------------------------------------
@@ -395,7 +407,7 @@ function parseAnswer(raw) {
   };
 }
 
-async function validateAnswer(response, context) {
+async function validateAnswer(response, fixture) {
   let findings = [];
   let syntax = { status: "unavailable", reason: "probe" };
   try {
@@ -404,6 +416,25 @@ async function validateAnswer(response, context) {
   } catch (error) {
     syntax = { status: "unavailable", reason: redact(String(error)) };
   }
+  // Analyze the effective (post-patch) file map, exactly like the IDE: the rules must see
+  // the patched routes and schema, not the pre-patch project.
+  const effective = new Map(fixture.sources);
+  for (const patch of response.patches) {
+    if (patch.action === "delete") effective.delete(patch.path);
+    else if (typeof patch.content === "string") effective.set(patch.path, patch.content);
+  }
+  const analysis = analyzeProjectSources(effective, fixture.aliases);
+  const context = buildProjectContext({
+    files: fixture.files,
+    analysis,
+    before: fixture.before,
+    manifest: fixture.manifest,
+    aliases: fixture.aliases,
+    sources: {
+      "package.json": effective.get("package.json") ?? "",
+      "tsconfig.json": effective.get("tsconfig.json") ?? "",
+    },
+  });
   const result = validatePatch(response.patches, {
     context: { ...context, syntax },
     requiresConfirmation: response.requiresConfirmation,
@@ -418,7 +449,7 @@ function costOf(model, usage) {
   };
 }
 
-async function runOne(config, task, system, context) {
+async function runOne(config, task, system, fixture) {
   let call;
   try {
     call = await callStream(config, system, task.prompt);
@@ -432,7 +463,7 @@ async function runOne(config, task, system, context) {
   const parsed = parseAnswer(call.text);
   let validation = null;
   if (parsed.ok && parsed.response.patches.length > 0) {
-    validation = await validateAnswer(parsed.response, context);
+    validation = await validateAnswer(parsed.response, fixture);
   }
   const usage = call.usage ?? {};
   const hit = usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
@@ -671,7 +702,7 @@ async function main() {
       const startedAt = Date.now();
       // Sequential on purpose: latency and prompt-cache hits are the measurement.
       // oxlint-disable-next-line no-await-in-loop
-      const result = await runOne(config, task, system, fixture.context);
+      const result = await runOne(config, task, system, fixture);
       results.push(result);
       const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
       if (result.error !== undefined) {

@@ -6,6 +6,7 @@
 // every failure comes back as a `problem` the panel renders, so a broken repository or a
 // missing remote never takes the editor down.
 
+import { analyzeProjectFiles } from "./analyze-client";
 import { buildReleasePreview } from "./release-engine";
 import type { GitRef, ReleasePreview, ReleaseRouteFact } from "./release-engine";
 import type { IdeController } from "@/vv/controller";
@@ -28,11 +29,7 @@ import {
 } from "./release-git";
 
 export type ReleaseLoadProblem =
-  | "no-project"
-  | ReleaseLensUnavailable
-  | "ref-missing"
-  | "snapshot-missing"
-  | "engine";
+  "no-project" | ReleaseLensUnavailable | "ref-missing" | "snapshot-missing" | "engine";
 
 export interface ReleaseLensLoad {
   readonly refs: ReleaseRefInventory;
@@ -86,12 +83,16 @@ export async function loadReleaseLens(
     return failed(refs, preset, preset.id === "working" ? "no-head" : "ref-missing", preset.to);
   }
 
-  const before = await readSnapshotAt(root, preset.from, fs);
+  const before = await readSnapshotAt(root, preset.from, fs, analyzeProjectFiles);
   if (before === null) return failed(refs, preset, "snapshot-missing", preset.from);
   const after =
     preset.id === "working"
-      ? await readWorkingSnapshot(controller, routeMetadata.length > 0 ? routeMetadata : undefined)
-      : await readSnapshotAt(root, to.ref, fs);
+      ? await readWorkingSnapshot(
+          controller,
+          analyzeProjectFiles,
+          routeMetadata.length > 0 ? routeMetadata : undefined,
+        )
+      : await readSnapshotAt(root, to.ref, fs, analyzeProjectFiles);
   if (after === null) return failed(refs, preset, "snapshot-missing", preset.to);
 
   try {

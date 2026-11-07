@@ -1,7 +1,13 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { AuthContext } from "@facilis/auth";
 
-import type { FacilisContext, FacilisRequestEvent, FacilisResponse } from "./event.ts";
+import type {
+  FacilisContext,
+  FacilisHandlerContext,
+  FacilisHandlerEvent,
+  FacilisRequestEvent,
+  FacilisResponse,
+} from "./event.ts";
 
 describe("FacilisRequestEvent", () => {
   it("is satisfied by a plain structural event", () => {
@@ -42,5 +48,15 @@ describe("FacilisRequestEvent", () => {
     expectTypeOf<NonNullable<FacilisContext["facilis"]>["defaultTenantId"]>().toEqualTypeOf<
       string | undefined
     >();
+  });
+
+  it("types the handler event without the raw root database client", () => {
+    // D-099: a handler sees only the safe facilis fields; ctx.db is the policy-scoped client.
+    expectTypeOf<NonNullable<FacilisHandlerContext["facilis"]>>().toEqualTypeOf<{
+      defaultTenantId?: string;
+    }>();
+    expectTypeOf<NonNullable<FacilisHandlerContext["facilis"]>>().not.toHaveProperty("db");
+    // A full request event (middleware, Nitro) is still assignable to the handler event.
+    expectTypeOf<FacilisRequestEvent>().toMatchTypeOf<FacilisHandlerEvent>();
   });
 });

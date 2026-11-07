@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildProjectContext, type FilePatch, type PatchContext } from "@facilis/ai";
+import { analyzePatchesOf } from "@/ai/analysis-fixtures";
 import { applyPatch, type PatchBridge } from "./apply-patch";
 
 interface RecordedCall {
@@ -153,25 +154,26 @@ export default defineConfig({
 });
 `;
 
-function validatorContext(): PatchContext {
-  const project = buildProjectContext({
-    files: ["facilis.config.ts"],
-    sources: { "facilis.config.ts": VALIDATOR_CONFIG },
-    manifest: { routes: [] },
-  });
+function validatorContext(patches: readonly FilePatch[]): PatchContext {
+  // The context is the project *after* the patch set, so build it from the fixture's
+  // pre-patch sources with the same overlay the analyzer worker applies.
+  const base = new Map([["facilis.config.ts", VALIDATOR_CONFIG]]);
+  const { before, after } = analyzePatchesOf(base, patches);
+  const project = buildProjectContext({ files: [...base.keys()], analysis: after, before });
   return { ...project, syntax: { status: "checked", findings: [] } };
 }
 
 describe("applyPatch with project context", () => {
   it("blocks a route that fails the 16-rule validator before touching the VFS", async () => {
     const { bridge, calls } = fakeBridge();
+    const patches: FilePatch[] = [
+      { path: "server/routes/api/x.get.ts", action: "create", content: "export default 1;\n" },
+    ];
     const result = await applyPatch({
       bridge,
       root,
-      patches: [
-        { path: "server/routes/api/x.get.ts", action: "create", content: "export default 1;\n" },
-      ],
-      context: validatorContext(),
+      patches,
+      context: validatorContext(patches),
     });
     expect(result.ok).toBe(false);
     expect(result.validation.errors.map((entry) => entry.rule)).toContain("route-security");
@@ -180,17 +182,18 @@ describe("applyPatch with project context", () => {
 
   it("writes a patch whose only findings are warnings", async () => {
     const { bridge, calls } = fakeBridge();
+    const patches: FilePatch[] = [
+      {
+        path: "src/page.ts",
+        action: "create",
+        content: "export const label = t('missing.key');\n",
+      },
+    ];
     const result = await applyPatch({
       bridge,
       root,
-      patches: [
-        {
-          path: "src/page.ts",
-          action: "create",
-          content: "export const label = t('missing.key');\n",
-        },
-      ],
-      context: validatorContext(),
+      patches,
+      context: validatorContext(patches),
     });
     expect(result.ok).toBe(true);
     expect(result.validation.warnings.some((entry) => entry.rule === "i18n-keys-registered")).toBe(
@@ -200,19 +203,22 @@ describe("applyPatch with project context", () => {
   });
 
   it("allows an IDE-authored root file only when the caller asks for it", async () => {
+    const patches: FilePatch[] = [
+      { path: "AGENTS.md", action: "create", content: "# instructions\n" },
+    ];
     const blocked = await applyPatch({
       bridge: fakeBridge().bridge,
       root,
-      patches: [{ path: "AGENTS.md", action: "create", content: "# instructions\n" }],
-      context: validatorContext(),
+      patches,
+      context: validatorContext(patches),
     });
     expect(blocked.ok).toBe(false);
 
     const allowed = await applyPatch({
       bridge: fakeBridge().bridge,
       root,
-      patches: [{ path: "AGENTS.md", action: "create", content: "# instructions\n" }],
-      context: validatorContext(),
+      patches,
+      context: validatorContext(patches),
       rootFiles: ["AGENTS.md"],
     });
     expect(allowed.ok).toBe(true);

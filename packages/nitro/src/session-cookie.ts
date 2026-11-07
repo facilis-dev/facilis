@@ -1,5 +1,5 @@
 import { SESSION_COOKIE_NAME } from "@facilis/auth";
-import type { FacilisRequestEvent } from "@facilis/core";
+import type { FacilisHandlerEvent } from "@facilis/core";
 import { deleteCookie, getCookie, setCookie, type H3Event } from "nitro/h3";
 
 /**
@@ -31,7 +31,7 @@ export interface SessionCookieOptions {
  * event: core, auth and db never import h3, so a handler can be reused by any Fetch
  * runtime (contracts §4.1). The cast is the one place that narrows back to the runtime.
  */
-function h3Event(event: FacilisRequestEvent): H3Event {
+function h3Event(event: FacilisHandlerEvent): H3Event {
   if (event.res === undefined) {
     throw new Error(
       "facilis: the server event has no response headers to stage the session cookie on",
@@ -42,7 +42,7 @@ function h3Event(event: FacilisRequestEvent): H3Event {
 
 /** Sets `facilis_session` on the response of the current request. */
 export function setSessionCookie(
-  event: FacilisRequestEvent,
+  event: FacilisHandlerEvent,
   sessionId: string,
   options: SessionCookieOptions,
 ): void {
@@ -56,12 +56,12 @@ export function setSessionCookie(
 }
 
 /** Expires `facilis_session` on the response of the current request (logout). */
-export function clearSessionCookie(event: FacilisRequestEvent): void {
+export function clearSessionCookie(event: FacilisHandlerEvent): void {
   deleteCookie(h3Event(event), SESSION_COOKIE_NAME, { path: COOKIE_PATH });
 }
 
 /** Reads the session id from the request; `null` when the request carries no session. */
-export function sessionIdFromRequest(event: FacilisRequestEvent): string | null {
+export function sessionIdFromRequest(event: FacilisHandlerEvent): string | null {
   const value = getCookie(event as unknown as H3Event, SESSION_COOKIE_NAME);
   return value === undefined || value.length === 0 ? null : value;
 }

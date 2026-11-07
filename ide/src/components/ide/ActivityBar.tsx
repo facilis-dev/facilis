@@ -8,7 +8,7 @@ import Moon from "~icons/lucide/moon";
 import Monitor from "~icons/lucide/monitor";
 import MessageSquare from "~icons/lucide/message-square";
 import Database from "~icons/lucide/database";
-import Workflow from "~icons/lucide/workflow";
+import Network from "~icons/lucide/network";
 import GitCompare from "~icons/lucide/git-compare";
 import Check from "~icons/lucide/check";
 import { useTheme } from "next-themes";
@@ -97,12 +97,12 @@ export function ActivityBar() {
         <Database className="size-5" />
       </ActBtn>
       <ActBtn
-        label={t("activity.apiFlow")}
-        // The API Flow lives in the editor area (D-087), so it is active when its tab is.
-        active={snap.activeTab !== null && snap.tabKinds[snap.activeTab] === "api-flow"}
-        onClick={() => c.openApiFlow()}
+        label={t("activity.projectGraph")}
+        // The project graph also lives in the editor area, so it is active when its tab is.
+        active={snap.activeTab !== null && snap.tabKinds[snap.activeTab] === "project-graph"}
+        onClick={() => c.openProjectGraph()}
       >
-        <Workflow className="size-5" />
+        <Network className="size-5" />
       </ActBtn>
       <ActBtn
         label={t("activity.release")}

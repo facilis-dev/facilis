@@ -4,8 +4,10 @@
 // old commit (slow, mutates the VFS, needs a healthy runtime). isomorphic-git runs on the
 // main thread over the kernel VFS through createGitFs (the silent vv-git-fs RPC), and the
 // ~1 MB module is lazy-loaded with the Buffer polyfill installed first (same pattern as
-// scm-session.ts). Every exported function is throw-free: a missing ref or a broken repo is
-// data the panel renders, never an exception that reaches the editor.
+// scm-session.ts). The schema is `@facilis/analyze` facts over the ref's DSL sources (D-094),
+// so the analyzer is injected rather than imported: the Studio passes its worker, tests a
+// parser they can run. Every exported function is throw-free: a missing ref, a broken repo
+// or a failed analysis is data the panel renders, never an exception that reaches the editor.
 
 import type { FsClient } from "isomorphic-git";
 import type { IdeController } from "@/vv/controller";
@@ -14,13 +16,16 @@ import type {
   ReleaseMigrationFile,
   ReleaseRouteFact,
   ReleaseSnapshot,
-  ReleaseTableFact,
 } from "./release-engine";
 import type { ReleaseRefInventory } from "./release-preview-model";
 import { mergeRouteMetadata, routesFromFiles } from "./release-routes";
-import { parseSchemaTables } from "./release-schema";
+import {
+  isSchemaSourcePath,
+  readReleaseSchema,
+  schemaSourcePaths,
+  type SchemaAnalyzer,
+} from "./release-schema";
 
-const SCHEMA_FILE = "db/schema.ts";
 const ROUTES_DIR = "server/routes/";
 const MIGRATIONS_DIR = "db/migrations/";
 
@@ -34,10 +39,7 @@ const EMPTY_REFS: ReleaseRefInventory = {
 };
 
 /** Branches (local + `origin/*`), tags and the current HEAD of the repository at `root`. */
-export async function listReleaseRefs(
-  root: string,
-  fs: FsClient,
-): Promise<ReleaseRefInventory> {
+export async function listReleaseRefs(root: string, fs: FsClient): Promise<ReleaseRefInventory> {
   try {
     const git = await loadGit();
     const [headOid, branch, local, remote, tags] = await Promise.all([
@@ -94,12 +96,14 @@ function classifyRef(
 
 /**
  * The declared schema, route files and migrations at `ref`. Null when the ref does not
- * resolve, the repository is missing or an unreadable tree makes the snapshot meaningless.
+ * resolve, the repository is missing, or an unreadable tree or failed analysis makes the
+ * snapshot meaningless (a diff must never see tables that were silently dropped).
  */
 export async function readSnapshotAt(
   root: string,
   ref: string,
   fs: FsClient,
+  analyze: SchemaAnalyzer,
 ): Promise<ReleaseSnapshot | null> {
   try {
     const git = await loadGit();
@@ -108,6 +112,7 @@ export async function readSnapshotAt(
     return await assembleSnapshot({
       files,
       routes: routesFromFiles(files),
+      analyze,
       readText: async (file) => {
         try {
           const { blob } = await git.readBlob({ fs, dir: root, oid, filepath: file });
@@ -129,18 +134,21 @@ export async function readSnapshotAt(
  */
 export async function readWorkingSnapshot(
   controller: IdeController,
+  analyze: SchemaAnalyzer,
   routeMetadata?: readonly ReleaseRouteFact[],
 ): Promise<ReleaseSnapshot | null> {
   const root = controller.activeFolder?.rootPath ?? null;
   if (root === null) return null;
   try {
-    const files = controller.getSnapshot().files
-      .filter((file) => file.startsWith(root + "/"))
+    const files = controller
+      .getSnapshot()
+      .files.filter((file) => file.startsWith(root + "/"))
       .map((file) => file.slice(root.length + 1));
     const relevant = relevantFiles(files);
     return await assembleSnapshot({
       files: relevant,
       routes: routesFromFiles(relevant),
+      analyze,
       routeMetadata,
       readText: async (file) => {
         try {
@@ -158,13 +166,18 @@ export async function readWorkingSnapshot(
 interface SnapshotSource {
   readonly files: readonly string[];
   readonly routes: readonly ReleaseRouteFact[];
+  readonly analyze: SchemaAnalyzer;
   readonly routeMetadata?: readonly ReleaseRouteFact[] | undefined;
   readonly readText: (file: string) => Promise<string | null>;
 }
 
-async function assembleSnapshot(source: SnapshotSource): Promise<ReleaseSnapshot> {
-  const schemaSource = await source.readText(SCHEMA_FILE);
-  const tables: ReleaseTableFact[] = parseSchemaTables(schemaSource ?? "");
+async function assembleSnapshot(source: SnapshotSource): Promise<ReleaseSnapshot | null> {
+  const tables = await readReleaseSchema(
+    schemaSourcePaths(source.files),
+    source.readText,
+    source.analyze,
+  );
+  if (tables === null) return null;
   const routes =
     source.routeMetadata === undefined
       ? [...source.routes]
@@ -179,10 +192,10 @@ async function assembleSnapshot(source: SnapshotSource): Promise<ReleaseSnapshot
   return { schema: { tables }, routes, migrations };
 }
 
-/** Only the files a snapshot reads: the schema, the route modules and the migrations. */
+/** Only the files a snapshot reads: schema sources, route modules and migrations. */
 function relevantFiles(files: readonly string[]): string[] {
   return files.filter(
-    (file) => file === SCHEMA_FILE || file.startsWith(ROUTES_DIR) || isMigration(file),
+    (file) => isSchemaSourcePath(file) || file.startsWith(ROUTES_DIR) || isMigration(file),
   );
 }
 

@@ -1,24 +1,24 @@
 /**
  * Assembles the typed project context the validator rules read.
  *
- * The caller supplies raw material only (file list, a few sources, the live manifest);
- * this module parses it once. Sources are authoritative — they are the code — and the
- * manifest fills what the code cannot say (routes, registered blocks, the live schema
- * including framework tables). Everything is browser-safe.
+ * After D-092 this is a pure mapping, not a parser: the caller hands in the effective
+ * (post-patch) Analysis and optionally the pre-patch one, and the facts are projected onto
+ * the validator's contract. The only bytes read here are package.json and tsconfig.json
+ * (installed packages and path aliases), which the analyzer does not model as facts.
+ * Everything is browser-safe.
  */
 
-import { parseConfigSource } from "./config-facts.ts";
 import { factsFromManifest } from "./manifest-facts.ts";
-import { normalizeProjectPath } from "./paths.ts";
-import { parseSchemaSource } from "./schema-facts.ts";
+import { normalizeProjectPath, SCHEMA_PATH } from "./paths.ts";
 import type {
+  Analysis,
   BlockFacts,
   ConfigFacts,
   ImportAlias,
   ProjectContext,
   ProjectContextInput,
-  RouteFacts,
-  TableFacts,
+  RouteFact,
+  TableFact,
 } from "./types.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -33,41 +33,6 @@ function normalizeSources(
     normalized[normalizeProjectPath(path)] = content;
   }
   return normalized;
-}
-
-function mergeConfig(primary: ConfigFacts, fallback: ConfigFacts | null): ConfigFacts {
-  if (fallback === null) return primary;
-  const auth = primary.hasAuth ? primary : fallback;
-  return {
-    ...primary,
-    parsed: primary.parsed || fallback.parsed,
-    hasAuth: auth.hasAuth,
-    permissions: auth.permissions,
-    roles: auth.roles,
-    defaultRole: primary.defaultRole ?? fallback.defaultRole,
-    defaultLocale: primary.defaultLocale ?? fallback.defaultLocale,
-    locales: primary.locales.length > 0 ? primary.locales : fallback.locales,
-    blocksPackages:
-      primary.blocksPackages.length > 0 ? primary.blocksPackages : fallback.blocksPackages,
-    ...(primary.parsed
-      ? {}
-      : {
-          migrationsDir: fallback.migrationsDir,
-          tenantColumns: fallback.tenantColumns,
-          ownerColumns: fallback.ownerColumns,
-        }),
-  };
-}
-
-/** Code tables win over manifest tables with the same name; both are kept otherwise. */
-function mergeTables(
-  manifestTables: readonly TableFacts[],
-  codeTables: readonly TableFacts[],
-): TableFacts[] {
-  const merged = new Map<string, TableFacts>();
-  for (const table of manifestTables) merged.set(table.name, table);
-  for (const table of codeTables) merged.set(table.name, table);
-  return [...merged.values()];
 }
 
 function parseJsonRecord(text: string): Record<string, unknown> | null {
@@ -113,32 +78,36 @@ function aliasesFromSource(source: string | undefined): ImportAlias[] {
   return aliases;
 }
 
-/** Build the typed context, preferring code over the live manifest. */
+/**
+ * The default-locale catalogue: the analyzer's facts first, the manifest only underneath
+ * as a fallback. `analysis.locales.en` is the generated project's source of truth; when
+ * the project's default locale is not English, its catalogue is the next best fact.
+ */
+function flattenCatalog(analysis: Analysis, config: ConfigFacts): Record<string, string> {
+  const defaultLocale = config.defaultLocale ?? "en";
+  const analyzerCatalog =
+    analysis.locales["en"] ?? analysis.locales[defaultLocale] ?? ({} as Record<string, string>);
+  return { ...analyzerCatalog };
+}
+
+/** Build the typed context from analyzer facts; the manifest only contributes fallbacks. */
 export function buildProjectContext(input: ProjectContextInput): ProjectContext {
   const sources = normalizeSources(input.sources);
   const manifest = factsFromManifest(input.manifest);
-  const sourceConfig = parseConfigSource(sources["facilis.config.ts"] ?? "");
-  const config = mergeConfig(sourceConfig, manifest.config);
-  const codeTables = parseSchemaSource(sources["db/schema.ts"] ?? "", config);
-  const configTableNames = new Set(codeTables.map((table) => table.name));
-  const manifestTables = manifest.tables.filter((table) => !configTableNames.has(table.name));
-  const catalog = parseJsonRecord(sources["locales/en.json"] ?? "");
-  const locales: Record<string, string> = { ...manifest.locales };
-  if (catalog !== null) {
-    for (const [key, text] of Object.entries(catalog)) {
-      if (typeof text === "string") locales[key] = text;
-    }
-  }
-  const blocks: BlockFacts[] = manifest.blocks;
-  const routes: RouteFacts[] = manifest.routes;
+  const analysis = input.analysis;
+  const before = input.before ?? analysis;
+  const config = analysis.config;
+  const analyzerCatalog = flattenCatalog(analysis, config);
+  const locales: Record<string, string> = { ...manifest.locales, ...analyzerCatalog };
+  const blocks: readonly BlockFacts[] = manifest.blocks;
+  const routes: readonly RouteFact[] = analysis.routes;
+  const tables: readonly TableFact[] = analysis.tables;
   return {
     files: input.files.map(normalizeProjectPath).filter((path) => path.length > 0),
-    sources,
+    analysis,
+    before,
     config,
-    schema: {
-      parsed: sourceConfig.parsed || manifest.tables.length > 0,
-      tables: mergeTables(manifestTables, codeTables),
-    },
+    schema: { parsed: analysis.files.includes(SCHEMA_PATH), tables },
     locales,
     blocks,
     routes,

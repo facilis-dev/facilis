@@ -53,7 +53,7 @@ export function roleConfigSyncErrors(
     });
     return errors;
   }
-  const changes = changedFacts(state.beforeConfig, after);
+  const changes = changedFacts(state.before.config, after);
   if (changes.length === 0 || hasMigrationPatch(patches, state.migrationsDir)) return [];
   errors.push({
     rule: "role-config-sync",

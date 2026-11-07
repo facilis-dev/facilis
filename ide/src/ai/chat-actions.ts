@@ -11,7 +11,7 @@
 // Splitting it from ChatSession keeps the session under the 300-line limit and
 // makes the undo plan unit-testable.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch, PatchContext } from "@facilis/ai";
 import { applyPatch, type PatchBridge } from "@/facilis/apply-patch";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import type { ChatApplied, ChatProposal, ChatUndo } from "./types";
@@ -62,33 +62,36 @@ export async function applyAccepted(
 ): Promise<{ applied: ChatApplied; undo: ChatUndo | null }> {
   const accepted = proposal.files.filter((file) => file.accepted);
   const patches = accepted.map((file) => file.patch);
-  const checked =
-    validationHost === undefined
-      ? null
-      : await validatePatchesWithHost(patches, validationHost, {
-          requiresConfirmation: proposal.requiresConfirmation,
-        });
-  if (checked !== null && !checked.validation.ok) {
-    // Nothing was written: report the blocking errors through the same card a failed
-    // apply uses, and keep the proposal so the user can fix and retry.
-    return {
-      applied: {
-        kind: "apply",
-        ok: false,
-        written: [],
-        deleted: [],
-        errors: validationIssues(checked.validation),
-        revision: null,
-      },
-      undo: null,
-    };
+  let context: PatchContext | undefined;
+  if (validationHost !== undefined) {
+    const checked = await validatePatchesWithHost(patches, validationHost, {
+      requiresConfirmation: proposal.requiresConfirmation,
+    });
+    // A null context means the analyzer was unavailable, which is a blocking result like
+    // any validation error: applyPatch must never run without the context (invariant 9).
+    if (!checked.validation.ok || checked.context === null) {
+      // Nothing was written: report the blocking errors through the same card a failed
+      // apply uses, and keep the proposal so the user can fix and retry.
+      return {
+        applied: {
+          kind: "apply",
+          ok: false,
+          written: [],
+          deleted: [],
+          errors: validationIssues(checked.validation),
+          revision: null,
+        },
+        undo: null,
+      };
+    }
+    context = checked.context;
   }
   const result = await applyPatch({
     ...request(host),
     patches,
-    ...(checked === null
+    ...(context === undefined
       ? {}
-      : { context: checked.context, requiresConfirmation: proposal.requiresConfirmation }),
+      : { context, requiresConfirmation: proposal.requiresConfirmation }),
   });
   const before = new Map(accepted.map((file) => [file.patch.path, file.before]));
   // Only the files that landed are undoable: a partial apply must not claim to

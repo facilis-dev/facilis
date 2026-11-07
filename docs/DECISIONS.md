@@ -2636,7 +2636,8 @@ browser path is green end to end on a fresh profile: `pnpm ide:smoke` drives the
 through rule 1 (the actual Monaco worker), the proposal card, Apply, the VFS write and Undo.
 
 ### D-085 — The API Flow reads the AST-augmented OpenAPI document and renders it with React Flow
-**Status:** accepted (2026-11-02)
+**Status:** superseded by D-095 (2026-11-06); kept as history
+**Originally:** accepted (2026-11-02)
 
 SPEC §10.2 and §12 Phase 3 ask for an API visualizer: the project's API as a graph, with
 click-to-jump into the route source. The facade built in Phase 0/1 already publishes what the
@@ -2765,7 +2766,8 @@ working-copy lens; the full run is green.
 
 
 ### D-087 — The API Flow moves into the editor area and shows the client consumers of each route
-**Status:** accepted (2026-11-02)
+**Status:** superseded by D-095 (2026-11-06); kept as history
+**Originally:** accepted (2026-11-02)
 
 D-085 put the API Flow in the sidebar. At the Explorer's 16% width a 7-route graph already
 rendered unreadably: the node cards grew past their fixed row height and overlapped, and the
@@ -2789,7 +2791,7 @@ the files that call each route.
   `FLOW_NODE_SIZE` values, a unit test asserts no two node rectangles overlap, and the graph is
   fitted on open/refresh (a ResizeObserver refits it when the window or the side panels change).
 - **Consumers.** The panel reads the project's `src/**` files from the VFS (bounded: 300 files /
-  300k chars) and `scanApiConsumers` matches literal `/api/…` references to the operations:
+  300k chars) and `scanManifestConsumers` (named `scanApiConsumers` then) matches literal `/api/…` references to the operations:
   direct references, template literals matched by their static prefix, a one-hop import graph
   (alias `@/` and relative) so pages that call `src/lib/api.ts` are attributed to the routes,
   and dynamic segments matched against `:id`/`[id]`/`{id}`/`*`. Page nodes are connected to
@@ -2970,15 +2972,17 @@ with shadcn-style components copied into the project as source.
   the **same exact version** to the generated `devDependencies` only. Putting it in the example
   breaks the host install (`EBADPLATFORM`, `cpu: wasm32`), and a version skew between the compiler
   and the binding is the failure mode to avoid.
-- **HMR is worked around, not forked.** `vite-plugins/tailwind-rescan.ts` is a dev-only Vite plugin
-  that runs only in the VM (`process.arch === "wasm32"`); after a debounced source change it
-  rewrites `src/styles.css` with its own bytes. The mtime change makes `@tailwindcss/vite` recreate
-  its compiler and scanner, so a new utility class is seen and the CSS HMR update reaches the
-  preview; the file's content never changes. The upstream issue is open and the workaround is small,
-  deletable and does not touch the compiler.
+- **HMR was worked around, not forked — removed in Tailwind 4.3.5.** `vite-plugins/tailwind-rescan.ts`
+  was a dev-only Vite plugin that ran only in the VM (`process.arch === "wasm32"`); after a
+  debounced source change it rewrote `src/styles.css` with its own bytes, and the mtime change made
+  `@tailwindcss/vite` recreate its compiler and scanner. Tailwind 4.3.5 fixed the WASI scanner
+  (tailwindlabs/tailwindcss#20605), so the plugin, its `vite-plugins/` folder, the generated
+  project's `@types/node` devDependency and the `node` tsconfig types were deleted. The
+  verification below is the 4.3.5 run that closed it.
 - **`@facilis/ui` stays as the v1 kit.** Projects created before D-090 keep their import and their
   vendored tarball; the package remains for them, the UI gallery and the design lab. New projects
-  do not receive its tarball.
+  do not receive its tarball. **Superseded by D-096:** the kit, both example apps and its
+  documentation were removed; there is no v1 project to support.
 - **The template is still examples/todo-app (D-062).** The single-source rule, the byte-identical
   drift test and the IDE override map are unchanged; only the example's UI layer moved.
 
@@ -3007,6 +3011,17 @@ in-VM `npm install` (69 requests, 85.3 MB), Vite 8.3.5 dev, preview painted 120.
 `src/styles.css` (a reload-only workaround had failed first — the stylesheet mtime is what makes
 the Vite plugin recreate its scanner). Host gates: example typecheck/test (33 tests)/lint/build,
 IDE typecheck/tests (597), file-length OK. Evidence: `spikes/template-v2/` (report, screenshots).
+
+**Amendment (2026-11-07, Tailwind 4.3.5).** The workaround is deleted. Re-running the Studio
+harness against the final template — `vite.config.ts` with no `tailwindRescanInVm`, no
+`vite-plugins/` folder, no generated `@types/node` — a new `bg-[#7c3aed]` utility written into
+`src/app.tsx` through the VFS moved the preview's computed background to `rgb(124, 58, 237)` with no
+stylesheet touch. Run: kernel online 1.5 s, preview painted 116.7 s after create, all 30 harness
+checks green, the generated project asserted to ship no rescan plugin and no config reference, the
+Tailwind trio all 4.3.5. Host gates after the removal: `pnpm lint` (0 errors), `typecheck`
+19/19, `test` 19/19, `build` 12/12. The facilis.dev site carried the same copy and dropped it too
+(separate repo, commit `e366de5`). Evidence: `spikes/tailwind-435/run.mjs` and its report
+(artifact dir `/tmp/facilis-dev/spike-template-v2/1794038170654`, untracked).
 
 ### D-091 — facilis.dev is a static site created inside the Studio, and the catalog is its own data
 **Status:** accepted (2026-11-03)
@@ -3084,6 +3099,453 @@ not deploy). Dogfooding exposed four gaps recorded in the journal: exported depe
 absolute VM `file:` paths (G1), the project is npm-only by a preinstall guard (G2), the only way
 back to a repository is the zip export (G3), and the generated devDependencies are not portable —
 the two WASM-only bindings make a host `npm install` fail with `EBADPLATFORM` (G4).
+### D-092 — Project introspection is a zero-build AST interpreter of the framework DSL, rendered as one graph
+
+**Status:** accepted (2026-11-04)
+
+The Studio and the AI layer learn the project's schema and API surface from dev-only runtime
+endpoints (`/__facilis/manifest`, `/_openapi.json`, `/__facilis/dev/schema`). That couples
+introspection to a booted Vite/Nitro/PGlite runtime, and the same facts are re-read by four
+different text scanners (`packages/nitro/src/ast`, `packages/ai/src/{scan,config-facts,schema-facts}`,
+`ide/src/facilis/release-schema.ts`, `ide/src/facilis/api-flow-consumers.ts`). The scanners
+disagree (property vs SQL column names, spoofable AI rules, route forms the manifest misses),
+and the panels degrade exactly when the project is broken. The spec's "everything is code" rule
+makes the declarations the source of truth; it does not require executing them to read them.
+
+**Decision.** Add `@facilis/analyze`, a browser-safe package that interprets the framework's
+declarative DSL with an injected parser and **zero build-time execution** of project code. It
+produces one fact model (routes, config, tables/columns/policies, FK and `relations()` edges,
+i18n, client consumers, diagnostics) and one project graph.
+
+- **Parser.** `oxc-parser` behind the injected `Parser` contract: the Node/CI adapter uses the
+  native/wasm build, the Studio worker uses the browser wasm entry. The generated project keeps
+  its existing rolldown/oxc pass until the WebContainer wasm path is proven; the AST shape is
+  normalized to the repo's structural node helpers. The parser is pinned with the bundler's oxc
+  generation where practical.
+- **DSL contract.** Routes must default-export the `@facilis/core` `defineAuthorizedHandler`
+  call; config is `defineConfig`; schema is `pgTable` plus the whitelisted column builders,
+  methods and policy helpers; client calls go through the single `api()` transport; i18n uses
+  literal `t()`. Values are read through a bounded static subset (literals, same-file consts
+  and one-hop project imports, static templates/arithmetic). Anything else is an explicit
+  unknown, never an empty value: `dbTables === null` is unknown, while `[]` is "no DB".
+- **Relations.** `.references(...)` (physical FK) and Drizzle `relations(...)` (logical
+  one/many) are distinct edge kinds. `dbColumns` and `ScopeFact.column` use Drizzle property
+  names; the SQL name stays on the column fact. Framework tables reached by re-export are read
+  from the installed `@facilis/*` source.
+- **Graph.** One editor-area graph (pages → routes → tables, plus table→table FK/relation
+  edges), not two panels: fullscreen, per-edge-kind filters, draggable nodes, auto-layout with
+  manual override, source jumps, integrity badges. The layout is local editor state in
+  `<project>/.facilis/graph.json` (gitignored), written through `kernel.writeFiles`; it is
+  never an input to validation and never AI-writable.
+- **Diagnostics.** The analyzer reports codes with severity (`route-wrapper`,
+  `route-config-static`, `permission-declared`, `db-tables-present`, `db-tables-known`,
+  `body-validated`, `no-raw-db`, `schema-static`, `rls-on-scoped-table`,
+  `fk-target-known`, `client-transport`, `page-path-static`, `i18n-key`,
+  `config-*`, `parse-error`, `unknown`). The CI/lint gate fails on errors; the IDE shows
+  them live. Runtime `defineAuthorizedHandler` stays the security boundary.
+
+**Rejected alternatives.** *Annotations/JSDoc as a second source of truth*: text, forgeable,
+omitted by models, and it duplicates the executed wrapper. *Build-time evaluation of config/
+schema*: faithful but re-introduces a build step and cannot work for old git refs in the
+browser; the bounded DSL interpreter keeps the zero-build property. *Keeping endpoints as the
+only source*: boot-coupled and the four scanners already disagree. *One parser for the
+WebContainer too, now*: the oxc-parser VM path relies on a runtime package download and
+`node:wasi`, unverified; the normalized AST contract keeps that migration open. *Free-form
+Drizzle re-implementation beyond the whitelist*: unknown is safer than a guessed type.
+
+**Consequences.** One fact model replaces the text scanners (they are deleted once parity tests
+pass); the IDE and AI can work with the dev server down; endpoints remain for live state
+(catalog/drift/boot) and as the runtime oracle for divergence tests. The analyzer owns a small
+DSL interpreter whose maintenance is the schema whitelist and the static subset; a parser
+version bump is a deliberate change with fixture tests. The Studio pays a lazy-loaded wasm
+worker (oxc wasm + one emnapi pin) and a startup analysis of the project's source files. The
+DSL restrictions are enforced by the gate, so a project that steps outside the contract gets a
+diagnostic instead of silently missing facts.
+
+**Verification.** `@facilis/analyze`: 60 tests green (config/routes/i18n/schema/relations/
+clients/graph + module graph/static eval), `typecheck`, `lint`, build and the 300-line check
+green. Spike on `examples/todo-app`: 443 files, 8 routes, 6 tables (including re-exported auth
+tables), 4 pages with calls, 18 graph nodes / 31 edges, 0 diagnostics; the fixture project
+covers invalid routes, const/imported config, FK + both relation kinds, path builders and the
+transport violation. The IDE side is implemented on the same facts: a lazy wasm worker
+(`analyze-worker` + 1.5 MB `parser.wasm32-wasip1` asset, one pinned emnapi pair) and the
+`project-graph` editor tab (fullscreen, edge filters, drag, `.facilis/graph.json`). IDE
+typecheck, 83 test files / 642 tests, lint, theme and build are green. The browser smoke run
+passes the new graph checks end to end in the real Studio (activity → panel → worker →
+tables/routes/pages rendered); its four failures are the unrelated chat provider/settings
+checks, outside this change.
+
+### D-093 — Nitro and the AI validator consume the analyzer; the WebContainer path keeps rolldown as its parser
+
+**Status:** accepted (2026-11-04)
+
+D-092 introduced `@facilis/analyze` and committed to deleting the duplicated text scanners
+once parity tests passed. The cutover has one hard environment constraint: the Nitro Vite
+plugin runs inside the generated project's `vite.config.ts` under the Studio's WebContainer,
+where the config is loaded with `--configLoader native` and only the bundler's own oxc
+(`rolldown/utils`, already a template dependency) is proven to load. `@facilis/analyze/node`
+imports `oxc-parser`, whose VM path (runtime package download + `node:wasi`) is unverified;
+shipping it in the generated project would put the dev server behind an unproven dependency.
+
+**Decision.** The analyzer's main entry is parser-injected and dependency-free; adapters stay
+on explicit subpaths. The Nitro plugin injects `parseSync` from `rolldown/utils` through a
+small `Parser` adapter and loads the project map from the new `@facilis/analyze/fs` subpath
+(node:fs only, no parser). The IDE keeps its browser wasm parser in the worker. The AI
+validator's pure `validatePatch` now consumes the analyzer's **effective (post-patch)
+`Analysis`** plus the pre-patch one for inverse edits; the IDE builds both from one cached VFS
+snapshot and the patch overlay on the single warm worker, and fails the round closed with a
+`project-analysis` error if the analyzer is unavailable (it never falls back to text scanning).
+`@facilis/ai` imports the analyzer types only, so its main entry stays browser-safe; the Node
+helper lives in `@facilis/ai/node`. `@facilis/analyze` becomes part of the generated project's
+vendored tarball set (its `oxc-parser` dependency is an optional peer, so the VM never installs
+it) and `@facilis/analyze/fs` ships compiled.
+
+**Deleted (replaced by the analyzer):** `packages/nitro/src/ast/**` (scanner, extractor,
+static eval, route-path + tests), `packages/ai/src/{scan,config-facts,schema-facts}.ts`, and the
+Nitro `rolldown` AST scanner tests. The two remaining scanners are intentionally not deleted
+yet: `ide/src/facilis/release-schema.ts` reads a **historical single file** at an arbitrary git
+ref (the analyzer needs a full module graph, which the git-tree workbook does not provide) and
+`ide/src/facilis/api-flow-consumers.ts` is a live-manifest consumer view, not a source-of-truth
+reader. Both are tracked as follow-ups; D-092's "one fact model" rule applies to project
+introspection, which they no longer duplicate (release preview diffs refs; API Flow renders the
+running manifest).
+
+**Consequences.** Nitro's manifest/OpenAPI facts now change when any project source changes
+(config and imported consts are analyzer input), not only when a route file changes. The
+manifest lists wrapper-less routes with `security: "unknown"` instead of omitting them, and the
+`defineRouteMeta` fallback is gone. Permission metadata is normalized to an array. Methods
+outside core's five are omitted with a warning (the manifest `HttpMethod` contract is
+unchanged). The AI rules are no longer spoofable by comments/strings: wrapper, body-read,
+`dbTables` and permissions are AST facts; `dbColumns` use Drizzle property names end-to-end;
+rules 10/14/15 ignore framework re-exported tables.
+
+**Verification.** `@facilis/analyze` 66 tests; `@facilis/ai` 61 tests (same rule scenarios plus
+new fact seams); `@facilis/nitro` 120 tests including the injected-parser `as const` proof and
+the "any source edit invalidates" test; IDE 84 files / 649 tests. Root `lint` (0 errors),
+`typecheck` (23 tasks), `test` (21 tasks), `build` (15 tasks), file-length and theme checks green.
+Browser smoke (real Studio + WebContainer): project-graph checks pass; the four unrelated chat
+provider/settings checks remain. `@facilis/nitro` grep confirms no `@facilis/analyze/node`
+import in source or dist.
+
+**Follow-up (2026-11-05, D-094).** The two scanners named above are gone: the Release Preview
+reads its schema through the analyzer and the consumer scan is `manifest-consumers.ts`.
+
+### D-094 — Release Preview reads its schema from the analyzer; the API Flow consumer scan is named for its manifest scope
+
+**Status:** accepted (2026-11-05)
+
+D-093 left two text scanners in the Studio and recorded why. Re-checked against their actual
+inputs, one limit did not hold: the Release Preview compares refs **without booting them**,
+which is exactly the analyzer's model (a plain file map plus an injected parser) — the
+"historical single file" constraint was a property of the old reader, not of the problem.
+
+**Decision.** `readSnapshotAt`/`readWorkingSnapshot` collect the ref's `db/**` DSL sources and
+`facilis.config.ts` (the config can move `tenantColumns`/`ownerColumns`, which decide the
+table's `scope`) and hand them to the same warm analyzer worker the project graph and the AI
+validator use. The analyzer is a parameter of the release reader, so the Node test injects the
+native parser and the Studio passes `analyzeProjectFiles`; `release-schema.ts` is now a pure
+mapping plus source selection. The release contract is unchanged: `columns` stay Drizzle
+property names and policies stay names. `scoped` becomes the analyzer's config-driven
+`TableFact.scope` instead of the old `tenant|owner|user_id` name heuristic (a `userId` column
+is session identity, not a scope column). A failed analysis returns a `null` snapshot, so the
+panel reports the ref as unreadable rather than diffing a schema whose tables silently
+vanished — the same fail-closed rule as the AI validator. Migration SQL and
+`release-routes.ts` are untouched: column types/renames still surface only through SQL, and a
+route derived at an old ref still knows method+path only.
+
+`api-flow-consumers.ts` is kept on purpose: it matches `/api` URL literals in client sources
+against the **live manifest's** operations, answering "what does the running app call?" — it is
+not a second reader of the project DSL (URL literals are not DSL facts). It is renamed
+`manifest-consumers.ts` (`scanManifestConsumers`, `ManifestConsumers`,
+`ManifestConsumerRef`) so the module name states which truth it consumes.
+
+**Follow-up (D-095).** The API Flow was removed and this scan with it: the project graph answers
+the page → route question from AST facts without a runtime endpoint.
+
+**Consequences.** The Release Preview now depends on the analyzer worker being available,
+exactly like the project graph and the validator. A ref snapshot performs one extra read per
+`db/**` source plus `facilis.config.ts`, and its schema facts are no longer spoofable by
+comments or strings. No text scanner over project sources remains for DSL facts; the only
+source-text scan left is the manifest consumer URL match, which does not interpret the DSL.
+
+**Verification.** IDE 84 files / 651 tests, typecheck, lint (0 errors), `build:app`, file-length
+(781 files) and theme checks green; root `lint` (0 errors), `typecheck` (23 tasks), `test`
+(21 tasks) and `build` (15 tasks) green. The release reader tests inject the Node parser (no
+worker) and the release schema tests assert the analyzer's facts for the template and for
+helper/policy expansion. Browser smoke (real Studio + WebContainer): 119 checks pass, including
+the Release Preview and API Flow panels (the latter existed at the time); the same four
+unrelated chat provider/settings checks remain.
+
+### D-095 — The API Flow panel is removed; the project graph is the single API/schema visualizer
+
+**Status:** accepted (2026-11-06)
+
+D-085/D-087 shipped an API Flow that rendered `/_openapi.json` through the preview proxy and
+scanned `src/**` for consumers. D-092 then added the project graph: the same pages → routes →
+tables structure (plus FK/`relations()` edges) from `@facilis/analyze`, with no runtime
+endpoint, no preview and no polling. Keeping both duplicated the visualizer and the
+route/page/table model, while the OpenAPI-driven one only works while the project is reachable
+through the Studio's preview frame — when the app is opened in its own tab (and in the isolated
+preview modes) the Studio's fetch to the preview origin is cross-origin and the panel degrades
+to "unreachable". The AST graph does not have that failure mode.
+
+**Decision.** Remove the whole API Flow surface: `ApiFlowPanel` and its four subcomponents,
+`api-flow-{client,model,parse,tables}.ts` (+ tests), the `manifest-consumers` scan it used,
+the `api-flow` synthetic tab (controller method, tab kind, editor rendering, breadcrumb/title),
+its `activity.apiFlow` button, the `en/it-api-flow.ts` catalogues, the browser-smoke block and
+the `05-api-flow.png` artifact. `/_openapi.json` stays a framework endpoint (SPEC §6.9): it is
+still the published API contract for the generated app and external tooling; only the Studio
+panel goes. The project graph is the single visualizer: it answers the page → route → table
+question from AST facts and works with no booted app.
+
+**Data Explorer is not removed.** It keeps the live code ↔ DB drift, but its transport is the
+remaining reachability question: it builds `/__facilis/dev/schema` from the preview iframe URL,
+so it needs a live preview tab and a same-origin preview (mode A). It does not work when the app
+is opened in its own isolated tab, and its declared half duplicates the analyzer. Recorded as
+O-011 with the proposed direction: declared tables from AST immediately, live drift through a
+kernel-mediated dev proxy (the Studio already hosts the kernel) instead of the preview frame,
+so no preview is needed to connect; the PGlite-snapshot alternative is rejected (stale data,
+a second Wasm instance, unsafe concurrent writers). Not implemented in this change.
+
+**Consequences.** One visualizer, one graph model (D-092). The IDE loses OpenAPI-driven consumer
+attribution; the project graph's page/route/table structure already covers the structural view.
+The tab kinds become text/image/directory/diff/notebook/commit-graph/project-graph. The manifest
+consumer scan is deleted, closing the D-094 rename follow-up by removal. The i18n catalogues
+shrink by the API Flow block, and no IDE code reads `/_openapi.json` anymore. O-011 is the next
+step for the Data Explorer.
+
+**Verification.** IDE 80 files / 619 tests, typecheck, lint (0 errors), `build:app`,
+file-length (764 files) and theme checks green; root `lint`/`typecheck`/`test`/`build` green.
+Browser smoke re-run with the API Flow block removed: 95 checks pass, including the project
+graph and the Release Preview; the 11 failures are all in the pre-existing chat flow (provider/
+settings selection plus its downstream proposal/apply/undo checks and the two global console/
+request checks they trip). Chat is currently known-broken and out of scope for this change;
+every non-chat check passes.
+
+### D-096 — `@facilis/ui` is removed: there is no v1 kit to support
+**Status:** accepted (2026-11-06)
+
+D-055 made the v1 kit the generated app's UI when a generated project had no CSS framework and a
+tarball was the only way to ship components. D-090 replaced that for new projects: template v2 is
+Tailwind CSS v4 + Base UI with shadcn-style source copied into the project, which the project owns
+and edits. Keeping the old kit alive bought nothing except a package, two example apps, a vendoring
+step and documentation that still presented it as the fallback — and there is no v1 project to
+support.
+
+**Decision.** Delete `@facilis/ui` and everything that existed to exercise or ship it.
+
+- `packages/ui/` is gone, with its `theme.css` contract and its `.fc-*` rules.
+- Its two example apps are gone: `examples/ui-gallery` (the kit gallery) and
+  `examples/design-lab` (the theme/direction exploration). `examples/todo-app` is the only
+  example, and it uses the copy-in components.
+- `scripts/dev/vendor-facilis-deps.sh` no longer packs it (the IDE's template tarball set,
+  `TEMPLATE_PACKAGES`, already excluded it), and the AI probe prompt no longer tells the model to
+  import it.
+- `docs/BASE-KIT-CONTRACTS.md` is deleted. `docs/SPEC.md` §5.7 marks the kit removed and keeps the
+  v1 description only as history; `README`, `AGENTS`, `FRONTEND` and the todo app's comments stop
+  presenting it as a fallback.
+- The generated-project tests keep the guard (no UI-kit tarball in a project's `package.json`),
+  now stated without a package name.
+
+**Rejected alternatives.** *Keep the package but stop documenting it*: a package nothing generates
+still has to build, be maintained and be tested, and it stays a fallback in the decision log.
+*Keep the gallery as a design tool*: the design lab existed to pick the direction; the direction is
+now in `styles.css` and the site.
+
+**Consequences.** The workspace shrinks by a package and two examples, and the vendored tarball set
+loses an entry; no project can import the kit any more. Projects created before D-090 are not
+migrated. The UI story is one stack: template v2's copy-in source.
+
+**Verification.** `pnpm install` prunes the workspace, no workspace package depends on
+`@facilis/ui`, and `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` run without it.
+`grep -r "@facilis/ui"` over the tree returns only historical ADR/SPEC prose.
+
+### D-097 — The Data Explorer gets a query console and declarative SQL views
+**Status:** accepted (2026-11-06)
+
+The Data Explorer could only read the live schema, and it reached that schema through the
+preview iframe URL: a popped-out preview or an isolated preview origin left the panel
+unreachable. The user asked to keep the table list on the left, and to add a central pane that
+runs SQL, shows rows live, and turns a finished query into a reusable view in the code — with
+views following the permissions of the underlying tables. D-095 left the connection in O-011.
+
+**Decision.** Three parts, one contract.
+
+- **Kernel-mediated transport.** Panels build requests from a same-origin
+  `/preview/<port>/…` URL carrying the kernel token, which the Studio's Service Worker routes
+  to the in-VM dev server, instead of the preview iframe's `src`. The token is preserved when a
+  path is appended (it stays in the query string), so the same base serves the schema endpoint,
+  the query endpoint and the manifest. Popped-out previews work; the embedded iframe is no
+  longer required.
+- **Query console.** `POST /__facilis/dev/query` runs one statement in a `READ ONLY` transaction
+  with a 5 s `statement_timeout`; a prefix check (SELECT/WITH/VALUES/TABLE, one statement)
+  gives the friendly error, the transaction is the boundary (a SELECT calling a writing function
+  is rejected there), and the statement is wrapped in an outer LIMIT with a `truncated` flag.
+  Rows are JSON-safe values (bigint/Date/bytea/jsonb normalised) and columns carry their
+  Postgres type name from `pg_type`, which the Studio's code generator consumes.
+- **Declarative views.** A view is code: `db/views/<name>.ts` declares it with
+  `defineView({ name, columns, query })` from `@facilis/db`, one file per view (no import
+  merge). `#facilis/db-views` collects the modules, and the dev boot applies
+  `CREATE OR REPLACE VIEW "name" WITH (security_invoker = true) AS <literal query>` after
+  migrations and the app-role bootstrap, then grants SELECT to `facilis_app`. The Create-view
+  button validates the SQL, creates the view live through `POST /__facilis/dev/view` (so it is
+  usable immediately), and writes the file through the kernel's `vv-write` — the Studio never
+  touches OPFS. `defineView` returns a Drizzle view, so a route selects from it like a table.
+- **Permissions follow the base tables.** `security_invoker` makes the view execute as the
+  invoking role, which is the policy-scoped `facilis_app` every route already runs as; the base
+  tables' RLS and grants therefore are the view's permissions. The framework always emits the
+  option and there is no flag to turn it off. `packages/db/src/views.test.ts` proves both
+  directions: a plain superuser-owned view returns every row through the app role, the declared
+  view returns only the caller's.
+- **Console RLS.** The console itself runs as the connecting superuser (SPEC §11.2's "superuser
+  (with warning)" mode), so a developer previews all rows; the UI says so. A per-user/role mode
+  stays open as O-012.
+- **Production.** Views are DDL: on a Postgres target the boot skips them with a
+  `view_ddl_skipped` warning, exactly like migrations, and the deploy step provisions them from
+  the same code.
+
+**Rejected alternatives.** *PGlite snapshot in a Studio worker*: stale data, a second Wasm
+instance and concurrent writers (already rejected in O-011). *Creating the view only in code
+without applying it live*: the next query would not see it, so the button would lie. *Drizzle
+`pgView(...).as(sql)` plus drizzle-kit output*: arbitrary result sets need declared column types
+and a migration channel, and a view generated from a console query is not really a migration;
+framework-time CREATE OR REPLACE keeps views derived from code with zero build. *A code-level
+saved query instead of a database view*: permissions would be inherited trivially, but the user
+asked for views in the code, and the security_invoker guarantee is the contract worth testing.
+*Materialised views*: a refresh lifecycle is a separate design.
+
+**Consequences.** `@facilis/db` grows `views.ts`, `query-console.ts` and `read-only-sql.ts`;
+`@facilis/nitro` gains the `#facilis/db-views` virtual module and the two dev routes (three
+dev endpoints total). A generated project may have a `db/views/` directory. The IDE gains a
+`data-query` editor tab and the kernel-mediated base. Preview mode C has no same-origin SW, so
+the transport is still undefined there, and the declared-from-AST table list is still planned
+(O-011). The analyzer/manifest do not know views yet, so a route that selects from one declares
+its base tables in `dbTables`; extending the facts, the graph and the reverse lookup is O-013.
+
+**Verification.** `@facilis/db` 14 files / 107 tests (views under RLS, read-only transaction, JSON-safe rows), `@facilis/nitro` 19 files / 137 tests (both routes, guard/404, virtual module, view failure as a warning), IDE 83 files / 646 tests, IDE typecheck/lint (0 errors)/file-length/theme green (controller 2517 lines, under its 2518 ratchet). Root `lint` (0 errors, 212 warnings), `typecheck` (19 tasks), `test` (19 tasks) and `build` (12 tasks) green. The generated `defineView` file shape compiles inside `examples/todo-app`. Browser smoke re-run: 108 checks pass, including the Data Explorer table list and the whole query console flow (open, type, run, rows rendered); the 6 failures are all in the pre-existing chat flow (settings/provider picker, the proposal's file list, the patch reaching the VFS) plus the two global console/request checks it trips. Chat is known-broken and out of scope for this change; every non-chat check passes.
+
+### D-098 — Views may carry their own permission: definer views with an `app.permissions` gate
+**Status:** accepted (2026-11-07)
+
+The user asked for views with dedicated permissions: most should follow the base tables (D-097),
+but some must be reachable without access to the underlying rows (statistics, projections, a
+"public" projection of a restricted table). D-097 made `security_invoker = true` mandatory, which
+is the safe default but cannot express that, and the user accepted the trade-off: a view is a
+table-like resource, the developer owns what its SQL exposes.
+
+**Decision.** `permission` is an optional field of `defineView`. Absent: D-097 unchanged
+(`security_invoker = true`, base tables' RLS/grants). Present: the framework creates the view
+`WITH (security_invoker = false)` and wraps the query as `select * from (<query>) as "q" where
+nullif(current_setting('app.permissions', true), '')::jsonb ? '<permission>'`; that permission
+alone gates access and the base tables are not consulted. The permission must match the
+identifier pattern and be declared in `facilis.config.ts`; `applyViews` reports an undeclared
+one as a `view_failed` warning (boot stays up), the dev endpoint answers 400
+`invalid_permission`, and `PolicyScope.permissions` travels in `app.permissions` beside the
+other GUCs. Views remain full read-only SQL (the D-097 static single-statement rule), not a DSL.
+The Create-view dialog offers the declared permissions (a selector) and the generated
+`db/views/<name>.ts` keeps the choice; the console request is validated against the config
+server-side.
+
+**Why this shape.** A permission view behaves like a table with its own permission. The gate is
+defense-in-depth (it survives a route that forgot its `permission`, or a context that never had
+it) but not a boundary against deliberately hostile code: `app.permissions` is a custom GUC any
+role can set. Primary authorization stays route RBAC; the definer ownership is what makes the
+mode work, and the SQL is the developer's responsibility.
+
+**Rejected alternatives.** *One Postgres role per app role/permission*: app roles are not
+Postgres roles, policies read GUCs, and it multiplies roles (SPEC §8.4.5). *A restricted
+aggregate/projection DSL*: less useful than full read-only SQL, and the user chose full SQL.
+*Column-level grants*: the model grants whole tables and it does not solve cross-RLS aggregates.
+*Keeping every view invoker-only*: cannot express statistics without the underlying data.
+*Materialised views*: refresh lifecycle, a separate design.
+
+**Consequences.** `ViewMetadata.permission/access` is exposed for the manifest; `createLiveView`
+and `POST /__facilis/dev/view` take an optional permission; `applyViews(db, modules,
+{ permissions })` validates it at boot. The analyzer's route↔view reverse lookup (O-013) will
+check that a route using a permission view declares that permission; until then the DB gate is
+the runtime check. Definer views bypass RLS by design: the release preview and the AI validator
+should flag new ones (follow-up). Selector strings are i18n keys in the Studio.
+
+**Verification.** `@facilis/db` 17 files / 127 tests (8 permission-view tests: definer returns
+cross-owner aggregates through `facilis_app`, zero rows without `app.permissions`, rows with it,
+invoker unchanged, invalid/undeclared permission as data; the existing RLS leak/enforcement
+tests stay green). `@facilis/nitro` 20 files / 143 tests (endpoint accepts a declared permission,
+400 `invalid_permission` otherwise, boot validation). IDE 83 files / 654 tests (selector,
+codegen exact file with/without `permission`, client payload). Root `lint` (0 errors, 212
+warnings), `typecheck` (19 tasks), `test` (19 tasks), `build` (12 tasks), file-length (674 files,
+limit 300) and theme gates green.
+
+### D-099 — Audited sudo: a framework system role and a dedicated append-only log
+**Status:** accepted (2026-11-07)
+
+The user needs server-side operations with global DB permissions when the caller's permissions
+must stay narrower (a user reads a resource, the API creates a derived record with a system
+identity), and wants every such access traced with the user session. A database audit table was
+explicitly rejected: it disappears exactly when the transaction rolls back, and the user does not
+want audit rows in the DB. The log pipeline/retention was deliberately left for later ("an easy
+`console.log` for now").
+
+**Decision.** A framework Postgres role `facilis_system` (`NOLOGIN NOSUPERUSER BYPASSRLS`, DML
+grants only, no DDL, never assigned to users, never referenced by a policy) is provisioned by the
+dev boot (`ensureSystemRole`, after `ensureAppRole`) or the deploy step;
+`GRANT facilis_system TO facilis_app` lets the production connection `SET ROLE`.
+`ctx.sudo({ operation, reason, tables }, fn)` is on authorized handlers: it validates the call
+(non-empty strings, `tables` a non-empty subset of the route's `dbTables`, no nesting, **a
+session is required** — jobs use `runAsSystem`), appends a `started` audit entry (fail closed: an
+unwritable sink refuses the escalation), runs `fn` inside a SAVEPOINT as `facilis_system` with
+`app.sudo_id`, restores `SET LOCAL ROLE facilis_app` on success (never `RESET ROLE`, which would
+return to the dev superuser), and appends `succeeded`/`failed` (`errorCode:
+handler_failed`, never the internal message). `runAsSystem({ actor: "system:<job>", ... })` is
+the job/CLI counterpart with its own transaction and the same sink.
+
+The trail is a dedicated append-only log, not a table: one JSON line per event on stdout
+(`facilis:sudo {…}`, the default sink, replaceable with `setSudoAuditSink`), carrying id,
+timestamp, event, actor (`user:<id>`/`system:<job>`), actorUserId, sessionHash (SHA-256 of the
+session id, never the raw cookie), roles, tenant, route/method, the route's declared permission,
+operation, reason, tables, request id, outcome, error code and duration. `writeSudoAudit` has no
+update/delete counterpart. The session hash comes from `sessionMiddleware` via WebCrypto (the
+auth package stays runtime-agnostic).
+
+**Rejected alternatives.** *A raw superuser client handed to handlers*: impossible in production
+(the connection is `facilis_app`) and unauditable. *Impersonating the admin app role*
+(`app.roles += 'admin'`): insufficient for owner/cross-tenant writes, leaves no trail, and
+silently changes what "admin" means. *A `SECURITY DEFINER` function per operation*: more DDL, no
+session/request metadata, the function body becomes the permission surface. *A `sudo_audit`
+table*: the trail must survive the rollback it describes; also rejected by the user. *Per-row
+provenance column*: not wanted now; the log id (and `app.sudo_id` inside the block) is enough.
+
+**Consequences.** SPEC §8.4.5 gets one named exception to "no Postgres roles" (§5.2/§8.6 too).
+Sudo requires a session; jobs use `runAsSystem`. The audit is started/outcome only: the
+commit/rollback of the enclosing request transaction and a hash-chained file/WORM sink are not
+implemented (O-014); definer-view reads are not logged per query (O-015). An analyzer fact for
+sudo call sites and the validator rule are follow-ups, as is the AST check that `tables` is a
+subset of `dbTables` (the runtime check exists today).
+
+**Verification.** `@facilis/db` 17 files / 127 tests (role attributes and membership, BYPASSRLS
+read/write inside the block, role restored + GUC cleared, savepoint rollback on throw,
+`runAsSystem` audit ids, fail-closed sink; Postgres-wire GUC assertions in the policy test).
+`@facilis/core` 13 files / 100 tests (`ctx.sudo` success/failure, audit transitions, validation,
+no nesting, session required, subset of `dbTables`). `@facilis/auth` 6 files / 41 tests
+(`sessionHash`). `@facilis/nitro` 20 files / 143 tests (system-role boot warning, dev-view
+permission). IDE 83 files / 654 tests; root lint/typecheck/test/build, file-length and theme
+green.
+
+**Follow-up (2026-11-07): the request DB is bounded; public routes use `ctx.system`.** The
+handler event is now `FacilisHandlerEvent`: `defineAuthorizedHandler` captures the root client
+and passes a copy whose `facilis` carries only `defaultTenantId`, so `ctx.db` (policy-scoped)
+is the only default DB surface and any further operation goes through `ctx.sudo`/`ctx.system`.
+Public or bootstrap routes with no session (registration, initial admin) got
+`ctx.system({ actor: "system:<job>", operation, reason, tables }, fn)`: the same
+SAVEPOINT/role/audit flow, no session, system actor recorded (no user/session hash), a shared
+nesting guard with sudo. The example's registration keeps the duplicate-email read on `ctx.db`
+and performs the user/default-role/initial-admin writes inside one `ctx.system` call
+(`system:auth`, `user:register`). The analyzer adds a `route-direct-db` warning when route code
+reaches for the raw client (raw `facilis.db` or a `createDb` import), so the direct policy-free
+path is visible in the manifest and explicitly "not recommended". Verification: `@facilis/core`
+14 files / **109 tests** (system elevation, shared nesting, handler event without `db`),
+`@facilis/analyze` 10 files / **71 tests** (direct-db warning), example 5 files / 33 tests,
+template consumers typecheck; the full root gates stay green.
+
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
@@ -3099,6 +3561,11 @@ the two WASM-only bindings make a host `npm install` fail with `EBADPLATFORM` (G
 | O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | **resolved with D-086:** no boot — the Studio reads the refs from the git tree with isomorphic-git and diffs parsed snapshots | done |
 | O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch | done |
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
+| O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
+| O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
+| O-013 | Views are not in the analyzer facts, project graph or reverse lookup; a route using one declares its base tables in `dbTables` | parse `defineView` (`db/views/**`) into `ViewFact`s and expand a route's `dbTables` through the views it selects; add their edges to the graph and the AI validator's table namespace. With D-098 carry `permission`/`access` and check that a route using a permission view declares that permission | Phase 4 |
+| O-014 | Sudo audit pipeline: the default is one stdout JSON line; retention/WORM, tamper-evidence, and the enclosing transaction's fate are undesigned | add a sink selected by env (`FACILIS_AUDIT_SINK`: stdout/file), a hash-chained file record (optional HMAC key) with `verifyAuditLog`, and `committed`/`rolled_back` entries appended after the request transaction resolves; document the retention responsibility of the deploy | Phase 4 |
+| O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 
 When an item is decided, move it to **Accepted** with a `D-0NN` entry and update
 `docs/SPEC.md` if a contract changes.

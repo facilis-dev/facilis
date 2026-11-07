@@ -74,10 +74,8 @@ describe("generated project package manager", () => {
     const match = /^PKGS="([^"]+)"/m.exec(facilisDepsScript);
     expect(match, "PKGS not found in scripts/dev/vendor-facilis-deps.sh").toBeTruthy();
     const packed = new Set((match?.[1] ?? "").split(" "));
-    // "ui" is the one legacy exception: the v1 component kit stays a workspace package
-    // (older examples import it) and the repo script still packs it, but template v2 does
-    // not ship it — its primitives are copied into src/components/ui.
-    expect(packed).toEqual(new Set([...PACKAGES, "ui"]));
-    expect(PACKAGES).not.toContain("ui");
+    // Exact parity, no exceptions: every tarball the script packs is one the template ships.
+    // The v1 component kit was removed (D-096), so there is no legacy entry any more.
+    expect(packed).toEqual(new Set(PACKAGES));
   });
 });

@@ -25,10 +25,19 @@ export type {
   AuthorizedHandlerConfig,
   AuthorizedHandlerContext,
 } from "./route.ts";
+export type {
+  AuditedElevationContext,
+  SudoHandler,
+  SudoOptions,
+  SystemHandler,
+  SystemOptions,
+} from "./sudo.ts";
 
 export type {
   FacilisContext,
   FacilisEventContext,
+  FacilisHandlerContext,
+  FacilisHandlerEvent,
   FacilisRequest,
   FacilisRequestEvent,
   FacilisResponse,

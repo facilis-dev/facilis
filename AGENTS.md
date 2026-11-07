@@ -17,7 +17,7 @@ structural (compiler/framework), not optional lint rules.
 Repository layout (see spec §4):
 
 ```
-packages/    @facilis/core, db, auth, blocks, ai, nitro, ui (the v1 component kit, D-090)
+packages/    @facilis/core, db, auth, blocks, ai, nitro, analyze (AST facts, D-092)
 ide/         Facilis IDE app (MIT fork of Vivari Studio)    [Phase 0+]
 vendor/vivari/  Vivari via our fork (git SUBMODULE, MIT), pinned to `facilis/main`
              [never edited here, never shipped, not in the pnpm workspace; see D-030]
@@ -143,7 +143,7 @@ starts from upstream `packages/studio` at the pinned tag, then follows **this re
 rules: workspace member, strict TypeScript, the root oxlint/Prettier config, vitest, and the
 300-line limit (via the baseline ratchet for the inherited files). Keep the UI stack
 (Tailwind v4 + shadcn/Base UI, React 19, Monaco/xterm) and isolate Facilis changes in new
-modules (`ChatPanel`, `ApiFlowPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
+modules (`ChatPanel`, `ProjectGraphPanel`, `DataExplorerPanel`, `ReleasePreviewPanel`) rather than
 rewriting upstream files. The kernel it runs on is the `vendor/vivari` submodule of our
 Vivari fork, pinned to `facilis/main` (read-only; bump the commit — never edit the worktree —
 see D-030 and `vendor/README.md`). See spec §10 and `ide/README.md` for the exact patch set.

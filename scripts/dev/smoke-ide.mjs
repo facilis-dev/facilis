@@ -307,7 +307,7 @@ async function main() {
     check(false, "chat checks ran", String(error));
   }
 
-  // Phase 3 visualizers: the API Flow graph and the Release Preview panel (D-085/D-086).
+  // Phase 3 visualizers: the project graph and the Release Preview panel (D-092/D-086).
   // Runs after the write/chat probes so the project has routes, a schema and git history.
   try {
     panelReport = await runPanelChecks({ page, check, ARTIFACTS });

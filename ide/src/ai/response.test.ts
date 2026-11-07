@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { analyzeHostFiles } from "./analysis-fixtures";
 import { parseAiResponse, parseTurn } from "./response";
 import type { PatchValidationHost } from "./patch-validation";
 
@@ -157,11 +158,14 @@ const SOURCES: Record<string, string> = {
 };
 
 function validationHost(): PatchValidationHost {
+  const files = () => ["facilis.config.ts", "db/schema.ts", "package.json", "locales/en.json"];
+  const read = async (path: string) => SOURCES[path] ?? "";
   return {
-    files: () => ["facilis.config.ts", "db/schema.ts", "package.json", "locales/en.json"],
-    read: async (path) => SOURCES[path] ?? "",
+    files,
+    read,
     manifestBase: () => null,
     syntaxChecker: () => ({ check: async () => [] }),
+    analyze: (patches) => analyzeHostFiles(files(), read, patches),
   };
 }
 
@@ -182,6 +186,7 @@ describe("parseTurn", () => {
 
   it("returns the validation result for a valid answer", async () => {
     const content =
+      'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
       'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n';
     const raw = json({
       message: "x",

@@ -3,7 +3,8 @@
 How a Facilis project's client is organised. This is the **generated app's** frontend (the
 thing a developer builds in the IDE), not the IDE itself. The UI layer is template v2 (D-090):
 Tailwind CSS v4 + Base UI, with shadcn-style primitives copied into the project and owned by it.
-Projects created before D-090 use the v1 `@facilis/ui` kit (D-055) instead. Both kinds build on
+The v1 `@facilis/ui` kit (D-055) was removed (D-096); projects created before D-090 are not
+supported. The stack builds on
 the date logic (`@facilis/time`, D-056) and the i18n runtime (`@facilis/core/i18n`, plus the
 optional `@facilis/i18n-db/client`, D-057).
 
@@ -40,8 +41,6 @@ src/
 │   └── utils.ts          cn() — clsx + tailwind-merge
 ├── styles.css            Tailwind entry: @import "tailwindcss" + @theme + theme blocks
 └── styles/               optional app-specific layout CSS
-
-vite-plugins/             tailwind-rescan.ts — dev-only HMR workaround (D-090)
 
 ```
 
@@ -232,4 +231,4 @@ Gates: `typecheck`, `lint`, `test` (pure lib helpers), `build`.
 - No colour literals in the app (variables only); no direct `fetch` outside `lib/api.ts`;
   no date formatting outside `lib/dates.ts`.
 - The UI layer is the generated project's UI layer: template v2 (D-090) is this structure,
-  not a parallel one. `@facilis/ui` is the v1 kit for older projects and the gallery.
+  not a parallel one. The v1 kit was removed (D-096).

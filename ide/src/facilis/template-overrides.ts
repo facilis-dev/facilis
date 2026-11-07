@@ -56,7 +56,7 @@ export function injectHmrHint(appSource: string): string {
   );
 }
 
-// Plain values, not the v1 @facilis/ui tokens: template v2 ships Tailwind CSS v4 and a
+// Plain values, not the old v1 kit tokens: template v2 ships Tailwind CSS v4 and a
 // copy-in component kit, so the generated stylesheet defines no --space-* / --color-*
 // custom properties for this rule to reference. Only the class name and the
 // HMR_HINT string are load-bearing (scripts/dev/smoke-write.mjs replaces that exact

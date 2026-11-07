@@ -2,13 +2,14 @@
 // English one, so this file can land incrementally (the parity test enforces that
 // every key here exists in English, not the other way round).
 import type { MessageKey } from "./index";
-import { apiFlowIt } from "./it-api-flow";
 import { updatesIt } from "./it-updates";
 import { dataExplorerIt } from "./it-data-explorer";
+import { dataQueryIt } from "./it-data-query";
 import { releasePreviewIt } from "./it-release-preview";
 import { gitRemoteIt } from "./it-git-remote";
 import { sourceControlIt } from "./it-source-control";
 import { commitGraphIt } from "./it-commit-graph";
+import { projectGraphIt } from "./it-project-graph";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -168,8 +169,9 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...gitRemoteIt,
   ...sourceControlIt,
   ...commitGraphIt,
+  ...projectGraphIt,
   ...dataExplorerIt,
-  ...apiFlowIt,
+  ...dataQueryIt,
   ...releasePreviewIt,
   ...updatesIt,
   // ── command palette ──────────────────────────────────────────────────────

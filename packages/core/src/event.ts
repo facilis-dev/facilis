@@ -48,4 +48,28 @@ export interface FacilisRequestEvent {
   res?: FacilisResponse;
 }
 
+/**
+ * The handler-visible context: the middleware state minus the raw database client.
+ *
+ * The root Drizzle client lives only in `FacilisEventContext.facilis.db`, which
+ * `defineAuthorizedHandler` captures before the project handler runs. A handler sees just
+ * `ctx.db` (policy-scoped) and the audited sudo/system wrappers, so a raw, policy-free
+ * client is not reachable from the handler surface at all (D-099, structural not convention).
+ */
+export interface FacilisHandlerContext {
+  auth?: AuthContext | null;
+  facilis?: {
+    /** Single-tenant fallback scope for unauthenticated requests (registration/login). */
+    defaultTenantId?: string;
+  };
+  params?: Record<string, string>;
+}
+
+/** The event a route handler receives; share `req`/`res` with the outer request event. */
+export interface FacilisHandlerEvent {
+  context: FacilisHandlerContext;
+  req: FacilisRequest;
+  res?: FacilisResponse;
+}
+
 export type FacilisContext = FacilisEventContext;

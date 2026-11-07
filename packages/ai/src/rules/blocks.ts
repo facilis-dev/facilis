@@ -1,15 +1,24 @@
 /**
  * Rule 7 `block-import-valid` (SPEC §9.3): every block the patch imports must match a
  * registered `BlockManifest`. Blocks are a reviewed supply chain (D-067), so an import
- * names a block the project already has; a brand-new block component is rule 5's
- * "do not create new blocks unprompted".
+ * names a block the project already has; a brand-new block component is rule 5's "do not
+ * create new blocks unprompted".
+ *
+ * The imports are the analyzer's FileFacts, so re-exports and dynamic imports are covered
+ * by the same AST truth the rest of validation uses.
  */
 
 import type { EffectiveState } from "../overlay.ts";
-import { collectImports } from "../scan.ts";
-import type { PatchContext, ValidationError } from "../types.ts";
+import type { ImportFact, PatchContext, ValidationError } from "../types.ts";
 
 const DEFAULT_BLOCKS_PACKAGE = "@facilis/blocks";
+
+/** The import names a block import introduces: named imports and default-import locals. */
+function namesOf(imported: ImportFact): string[] {
+  if (imported.kind === "named" && imported.imported !== null) return [imported.imported];
+  if (imported.kind === "default" && imported.local !== null) return [imported.local];
+  return [];
+}
 
 /** The block name an import points at, or null when the specifier is not a block import. */
 function blockNameFromPath(specifier: string, packages: ReadonlySet<string>): string | null {
@@ -33,22 +42,23 @@ export function blockImportErrors(state: EffectiveState, context: PatchContext):
   const known = new Set(context.blocks.map((block) => block.name));
   const errors: ValidationError[] = [];
   const seen = new Set<string>();
-  for (const source of state.patchedSources) {
-    for (const reference of collectImports(source.content)) {
-      const fromPackageRoot = [...packages].some((pkg) => reference.specifier === pkg);
-      const pathName = blockNameFromPath(reference.specifier, packages);
-      const candidates = fromPackageRoot ? reference.names : pathName === null ? [] : [pathName];
+  for (const facts of state.patchedFileFacts) {
+    for (const imported of facts.imports) {
+      const fromPackageRoot = packages.has(imported.specifier);
+      const pathName = blockNameFromPath(imported.specifier, packages);
+      const candidates = fromPackageRoot ? namesOf(imported) : pathName === null ? [] : [pathName];
       for (const candidate of candidates) {
-        const key = source.path + "\u0000" + candidate;
+        const key = facts.path + "\u0000" + candidate;
         if (known.has(candidate) || seen.has(key)) continue;
         seen.add(key);
         errors.push({
           rule: "block-import-valid",
           severity: "error",
-          file: source.path,
+          file: facts.path,
           message: 'Block import "' + candidate + '" does not match a registered BlockManifest.',
           fix_hint:
             "Import an existing block manifest, or stop importing it; do not create new blocks unprompted (SPEC §9.2 rule 5).",
+          line: imported.source.line,
         });
       }
     }

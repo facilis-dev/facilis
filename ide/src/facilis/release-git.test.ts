@@ -1,10 +1,21 @@
 // The git-reading layer, exercised against a real repository in a temp directory: the VFS
 // adapter is the only part the browser smoke covers, and the ref/blob logic is worth a unit
 // test because a wrong tree read is silent (an empty snapshot looks like "nothing changed").
+import { analyzeProject } from "@facilis/analyze";
 import * as git from "isomorphic-git";
 import type { FsClient } from "isomorphic-git";
 import { afterEach, describe, expect, it } from "vitest";
+import { createBrowserOxcParser } from "./oxc-browser";
 import { listReleaseRefs, readSnapshotAt, resolveReleaseRef } from "./release-git";
+import type { SchemaAnalyzer } from "./release-schema";
+
+// The same analyzer the Studio worker runs, on the Node parser binding: the release reader
+// only needs the analyzer's contract, so the test does not boot a Worker.
+const parser = createBrowserOxcParser();
+const analyze: SchemaAnalyzer = async (files) => ({
+  ok: true,
+  analysis: analyzeProject({ files, parser }),
+});
 
 // The IDE's app tsconfig is a browser program with no Node types, so a literal
 // `import "node:fs"` would pull @types/node in and clash with the DOM/vendor
@@ -85,7 +96,8 @@ async function firstCommit(): Promise<string> {
   const root = await initRepo();
   await write(root, "db/schema.ts", SCHEMA_V1);
   await write(root, ROUTE_FILE, ROUTE);
-  return commit(root, "initial", ["db/schema.ts", ROUTE_FILE]);
+  await commit(root, "initial", ["db/schema.ts", ROUTE_FILE]);
+  return root;
 }
 
 describe("release git reader", () => {
@@ -107,7 +119,7 @@ describe("release git reader", () => {
       oid: head,
     });
 
-    const snapshot = await readSnapshotAt(root, "HEAD", fs);
+    const snapshot = await readSnapshotAt(root, "HEAD", fs, analyze);
     expect(snapshot?.schema.tables.map((table) => table.name)).toEqual(["todos"]);
     expect(snapshot?.schema.tables[0]?.columns).toEqual(["id", "title"]);
     expect(snapshot?.routes.map((route) => route.method + " " + route.path)).toEqual([
@@ -135,8 +147,8 @@ describe("release git reader", () => {
     });
     expect((await listReleaseRefs(root, fs)).tags).toEqual(["v0.1.0"]);
 
-    const old = await readSnapshotAt(root, "v0.1.0", fs);
-    const tip = await readSnapshotAt(root, "HEAD", fs);
+    const old = await readSnapshotAt(root, "v0.1.0", fs, analyze);
+    const tip = await readSnapshotAt(root, "HEAD", fs, analyze);
     expect(old?.schema.tables[0]?.columns).toEqual(["id", "title"]);
     expect(tip?.schema.tables[0]?.columns).toEqual(["id", "title", "done"]);
     expect(old?.migrations).toEqual([]);
@@ -147,7 +159,7 @@ describe("release git reader", () => {
   it("turns missing refs and non-repositories into empty data, never exceptions", async () => {
     const empty = await mkdtemp(join(tmpdir(), "facilis-release-empty-"));
     created.push(empty);
-    expect(await readSnapshotAt(empty, "HEAD", fs)).toBeNull();
+    expect(await readSnapshotAt(empty, "HEAD", fs, analyze)).toBeNull();
     expect(await resolveReleaseRef(empty, "HEAD", fs)).toBeNull();
     expect(await listReleaseRefs(empty, fs)).toEqual({
       head: null,
@@ -157,7 +169,15 @@ describe("release git reader", () => {
     });
 
     const root = await firstCommit();
-    expect(await readSnapshotAt(root, "origin/main", fs)).toBeNull();
+    expect(await readSnapshotAt(root, "origin/main", fs, analyze)).toBeNull();
     expect(await resolveReleaseRef(root, "does-not-exist", fs)).toBeNull();
+  });
+
+  it("fails closed when the analyzer cannot run", async () => {
+    const root = await firstCommit();
+    expect(await readSnapshotAt(root, "HEAD", fs, analyze)).not.toBeNull();
+    const broken: SchemaAnalyzer = async () => ({ ok: false, error: "no parser" });
+    // A schema with silently missing tables would invent migrations, so it is "unreadable".
+    expect(await readSnapshotAt(root, "HEAD", fs, broken)).toBeNull();
   });
 });

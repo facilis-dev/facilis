@@ -74,13 +74,15 @@ import { baseName, normDir, parentOf } from "./path-utils";
 import { readDirEntries } from "./file-tree";
 import { indexWorkspace, isIgnoredPath, type WorkspaceIndex } from "./workspace-index";
 import {
-  apiFlowTabState,
   commitGraphTabState,
+  dataQueryTabState,
   diffTabState,
   diffTargetOf,
-  isApiFlowTabId,
   isCommitGraphTabId,
+  isDataQueryTabId,
   isDiffTabId,
+  isProjectGraphTabId,
+  projectGraphTabState,
 } from "./synthetic-tabs";
 
 // The drop/paste readers live in file-tree.ts now. Components still import them
@@ -91,7 +93,14 @@ export { entriesFromDataTransfer } from "./file-tree";
  *  written twice, and adding `notebook` to one of them type-checked everywhere
  *  except the assignment between them. */
 export type TabKind =
-  "text" | "image" | "directory" | "diff" | "notebook" | "api-flow" | "commit-graph";
+  | "text"
+  | "image"
+  | "directory"
+  | "diff"
+  | "notebook"
+  | "commit-graph"
+  | "project-graph"
+  | "data-query";
 type ActivityView = IdeSnapshot["activeView"];
 
 /** One open `.ipynb`: its document, the interpreter running it, and the actions
@@ -962,9 +971,15 @@ export class IdeController {
     abs: string,
     { preview = false, focus = true }: { preview?: boolean; focus?: boolean } = {},
   ) {
-    // Synthetic tabs (diff, API Flow, commit graph) carry no real file — just activate them;
-    // EditorGroup mounts the custom pane. Detach the editor so it doesn't show stale text.
-    if (isDiffTabId(abs) || isApiFlowTabId(abs) || isCommitGraphTabId(abs)) {
+    // Synthetic tabs (diff, commit graph, project graph, data query) carry no real file —
+    // just activate them; EditorGroup mounts the custom pane. Detach the editor so it
+    // doesn't show stale text.
+    if (
+      isDiffTabId(abs) ||
+      isCommitGraphTabId(abs) ||
+      isProjectGraphTabId(abs) ||
+      isDataQueryTabId(abs)
+    ) {
       if (!this.snap.openTabs.includes(abs)) return;
       this.set({ activeTab: abs });
       if (this.editor) this.editor.setModel(null);
@@ -1327,12 +1342,6 @@ export class IdeController {
 
   // ── Source Control: diff tab + working-tree reload ──
 
-  /** Open (or focus) the API Flow tab in the editor area (D-087). */
-  openApiFlow() {
-    this.set(apiFlowTabState(this.snap));
-    if (this.editor) this.editor.setModel(null);
-  }
-
   /** Open a read-only diff (HEAD ↔ working tree) for a file as its own tab. */
   openDiff(abs: string) {
     this.set(diffTabState(this.snap, abs));
@@ -1341,6 +1350,16 @@ export class IdeController {
   /** Open (or focus) a repository's commit-graph tab (D-088). */
   openCommitGraph(root: string) {
     this.set(commitGraphTabState(this.snap, root));
+    if (this.editor) this.editor.setModel(null);
+  }
+  /** Open (or focus) the project-graph tab (AST graph contract §7). */
+  openProjectGraph() {
+    this.set(projectGraphTabState(this.snap));
+    if (this.editor) this.editor.setModel(null);
+  }
+  /** Open (or focus) the Data Explorer's SQL query console (D-097). */
+  openDataQuery() {
+    this.set(dataQueryTabState(this.snap));
     if (this.editor) this.editor.setModel(null);
   }
 

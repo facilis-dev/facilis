@@ -18,23 +18,13 @@ import {
   lensPresets,
   type ReleaseLensId,
 } from "@/facilis/release-preview-model";
-import type { IdeController, IdeSnapshot } from "@/vv/controller";
-import { previewSrcFor } from "@/vv/preview-url";
+import { devBase } from "@/facilis/dev-base";
 import { ReleasePreviewContent, type CodeLiveState } from "./ReleasePreviewContent";
 import { useIde } from "./useIde";
 
-/** The preview-proxy base for the running project, like DataExplorerPanel.previewBase(). */
-function previewBase(controller: IdeController, snapshot: IdeSnapshot): string | null {
-  const tab =
-    snapshot.previewTabs.find((entry) => entry.id === snapshot.activePreviewId) ??
-    snapshot.previewTabs.find((entry) => entry.port !== null);
-  if (tab === undefined || tab.port === null) return null;
-  return previewSrcFor(controller.bridge, tab);
-}
-
 export function ReleasePreviewPanel() {
   const { c, snap } = useIde();
-  const base = previewBase(c, snap);
+  const base = devBase(c.bridge, snap);
   const root = c.activeFolder?.rootPath ?? null;
   const [lens, setLens] = useState<ReleaseLensId>("working");
   const [load, setLoad] = useState<ReleaseLensLoad | null>(null);

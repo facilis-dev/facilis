@@ -66,7 +66,6 @@ src/components/ui/       shadcn-style primitives copied into the project (Base U
 src/lib/                 api fetch wrapper, session guards, theme, i18n, dates
 src/lib/*.test.ts        unit tests for the pure helpers
 src/styles.css           Tailwind v4 entry + role tokens (the only stylesheet)
-vite-plugins/            VM-only dev workaround for tailwindcss#20605 (scanner rescan)
 locales/en.json, it.json flat i18n keys, exact parity
 facilis.config.ts        roles/permissions/db/i18n (SPEC Appendix B)
 scripts/verify-headless.sh   boots the app and asserts the whole Phase 1 contract
@@ -83,7 +82,7 @@ The UI layer is **Tailwind CSS v4 + Base UI**. The shadcn-style primitives live 
 directly, so there is no component package to install and no `components.json`. Theme role
 tokens (`--background`, `--primary`, the radii, the font) live in `src/styles.css` and
 components only name roles, so the `[data-theme="dark"]` block restyles everything.
-`@facilis/ui` is the v1 kit for older projects; this template does not import it. Dates go
+There is no UI kit package: the components live in the project. Dates go
 through `@facilis/time`, never `Date#toLocaleString`, and every user-facing string is a
 `t()` key present in both catalogues. The full contract is
 [`docs/FRONTEND.md`](../../docs/FRONTEND.md) (D-058).

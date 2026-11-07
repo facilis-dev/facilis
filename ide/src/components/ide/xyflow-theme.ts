@@ -1,6 +1,6 @@
 // React Flow theme bridge (D-044): the library's own CSS variables mapped to the IDE's
 // role tokens, so a canvas follows the active theme block instead of the library's
-// light-only defaults. Shared by the API Flow and commit-graph canvases.
+// light-only defaults. Shared by the commit-graph and project-graph canvases.
 export const XYFLOW_THEME_TOKENS =
   "[--xy-edge-stroke:var(--border)] [--xy-edge-stroke-selected:var(--primary)] " +
   "[--xy-handle-background-color:var(--muted-foreground)] " +

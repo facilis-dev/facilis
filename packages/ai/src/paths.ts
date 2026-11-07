@@ -7,6 +7,11 @@
 
 const SCRIPT_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
+/** The project files whose facts the validator treats specially. */
+export const CONFIG_PATH = "facilis.config.ts";
+export const SCHEMA_PATH = "db/schema.ts";
+export const LOCALES_PATH = "locales/en.json";
+
 /** Roots a patch may write to (SPEC §9.3 rule 11). */
 export const ALLOWED_ROOTS = ["server/", "src/", "db/", "lib/", "components/", "locales/"];
 
@@ -25,27 +30,6 @@ export function normalizeProjectPath(path: string): string {
 
 export function isScriptPath(path: string): boolean {
   return SCRIPT_EXTENSIONS.some((extension) => path.endsWith(extension));
-}
-
-export function isModularPath(path: string): boolean {
-  return (
-    path.endsWith(".ts") ||
-    path.endsWith(".tsx") ||
-    path.endsWith(".js") ||
-    path.endsWith(".jsx") ||
-    path.endsWith(".mjs") ||
-    path.endsWith(".cjs")
-  );
-}
-
-export function isRoutePath(path: string): boolean {
-  return normalizeProjectPath(path).startsWith("server/routes/") && isModularPath(path);
-}
-
-export function isMigrationPath(path: string, migrationsDir: string): boolean {
-  const normalized = normalizeProjectPath(path);
-  const directory = normalizeProjectPath(migrationsDir).replace(/\/+$/, "");
-  return normalized.startsWith(directory + "/") && normalized.endsWith(".sql");
 }
 
 /** True when the normalized path is inside a root rule 11 allows. */

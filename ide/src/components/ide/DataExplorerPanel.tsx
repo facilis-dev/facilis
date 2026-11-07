@@ -8,28 +8,19 @@
 import { useEffect, useMemo, useState } from "react";
 import Database from "~icons/lucide/database";
 import RefreshCw from "~icons/lucide/refresh-cw";
+import SquareTerminal from "~icons/lucide/square-terminal";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { fetchDataExplorer, type DataExplorerResult } from "@/facilis/data-explorer-client";
 import { buildExplorerView, type ExplorerRouteUsage } from "@/facilis/data-explorer-model";
+import { devBase } from "@/facilis/dev-base";
 import { fetchRevision } from "@/facilis/manifest-client";
-import type { IdeController, IdeSnapshot } from "@/vv/controller";
-import { previewSrcFor } from "@/vv/preview-url";
 import { DataExplorerContent } from "./DataExplorerContent";
 import { useIde } from "./useIde";
 
-/** The preview-proxy base for the running project, like chat-host's manifestBase(). */
-function previewBase(controller: IdeController, snapshot: IdeSnapshot): string | null {
-  const tab =
-    snapshot.previewTabs.find((entry) => entry.id === snapshot.activePreviewId) ??
-    snapshot.previewTabs.find((entry) => entry.port !== null);
-  if (tab === undefined || tab.port === null) return null;
-  return previewSrcFor(controller.bridge, tab);
-}
-
 export function DataExplorerPanel() {
   const { c, snap } = useIde();
-  const base = previewBase(c, snap);
+  const base = devBase(c.bridge, snap);
   const root = c.activeFolder?.rootPath ?? null;
   const [result, setResult] = useState<DataExplorerResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,16 +82,28 @@ export function DataExplorerPanel() {
           <Database className="size-3.5 shrink-0 text-brand" />
           <span className="truncate">{t("dataExplorer.title")}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("dataExplorer.refresh")}
-          title={t("dataExplorer.refresh")}
-          disabled={base === null || loading}
-          onClick={() => setNonce((value) => value + 1)}
-        >
-          <RefreshCw className={loading ? "animate-spin" : undefined} />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="data-query-open"
+            aria-label={t("dataQuery.open")}
+            title={t("dataQuery.open")}
+            onClick={() => c.openDataQuery()}
+          >
+            <SquareTerminal />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("dataExplorer.refresh")}
+            title={t("dataExplorer.refresh")}
+            disabled={base === null || loading}
+            onClick={() => setNonce((value) => value + 1)}
+          >
+            <RefreshCw className={loading ? "animate-spin" : undefined} />
+          </Button>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {base === null ? (

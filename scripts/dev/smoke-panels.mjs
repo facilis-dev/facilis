@@ -1,10 +1,10 @@
-// Phase 3 visualizer acceptance: the API Flow (now an editor-area tab, D-087) and the
-// Release Preview panel.
+// Phase 3 visualizer acceptance: the project graph (AST, D-092), the Data Explorer and its
+// SQL console (D-083/D-097), and the Release Preview panel (D-086).
 //
-// The project under test has routes, a schema, client pages that call the API and (after
-// the write checks) commits, so both panels have real data: the API Flow reads the
-// AST-augmented /_openapi.json and scans src/ for consumers, the Release Preview reads the
-// git refs out of the VFS. No mocking and no network: this is the same UI a developer uses.
+// The project under test has routes, a schema and (after the write checks) commits, so the
+// panels have real data: the project graph reads the analyzer facts from the VFS worker, the
+// Data Explorer and the query console read the running dev server, the Release Preview reads
+// the git refs out of the VFS. No mocking and no network: this is the same UI a developer uses.
 
 import { runScmChecks } from "./smoke-scm.mjs";
 
@@ -28,19 +28,27 @@ function clickActivity(label) {
   );
 }
 
-function clickByText(scope, text) {
+function clickTestId(testId) {
   return (
-    "(() => { const root = document.querySelector(" +
-    JSON.stringify(scope) +
-    "); if (!root) return 'NOTFOUND'; const button = [...root.querySelectorAll('button')].find(" +
-    "(candidate) => (candidate.innerText || '').trim().includes(" +
-    JSON.stringify(text) +
-    ")); if (!button || button.disabled) return 'NOTFOUND'; button.click(); return 'OK'; })()"
+    "(() => { const element = document.querySelector('[data-testid=" +
+    JSON.stringify(testId) +
+    "]'); if (!element) return 'NOTFOUND'; element.click(); return 'OK'; })()"
+  );
+}
+
+function typeIntoTestId(testId, value) {
+  return (
+    "(() => { const element = document.querySelector('[data-testid=" +
+    JSON.stringify(testId) +
+    "]'); if (!element) return 'NOTFOUND';" +
+    " const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;" +
+    " setter.call(element, " +
+    JSON.stringify(value) +
+    "); element.dispatchEvent(new Event('input', { bubbles: true })); return 'OK'; })()"
   );
 }
 
 const COUNT = (selector) => "document.querySelectorAll(" + JSON.stringify(selector) + ").length";
-const ACTIVE_TAB = "String(window.__ide.getSnapshot().activeTab || '')";
 
 export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const checks = [];
@@ -49,138 +57,104 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     checks.push({ ok, label, detail });
   };
 
-  // ── API Flow: an editor-area tab (D-087), not a sidebar view ──
-  record((await page.evaluate(clickActivity("API Flow"))) === "OK", "api flow: activity opens");
+  // ── Project graph (D-092): the AST analyzer runs in a worker over the VFS, with no
+  // runtime endpoint; the panel is only useful if the wasm parser actually loaded. ──
   record(
-    await waitFor(
-      page,
-      "Boolean(document.querySelector('[data-testid=\"api-flow-panel\"]'))",
-      15000,
-    ),
-    "api flow: panel mounted",
+    (await page.evaluate(clickActivity("Project graph"))) === "OK",
+    "project graph: activity opens",
   );
   record(
     await waitFor(
       page,
-      "(() => { const el = document.querySelector('[data-testid=\"api-flow-panel\"]');" +
-        " const group = document.querySelector('[data-testid=\"editor-group\"]');" +
-        " return !!el && !!group && group.contains(el) && el.getBoundingClientRect().width > 150; })()",
+      "Boolean(document.querySelector('[data-testid=\"project-graph-panel\"]'))",
       15000,
     ),
-    "api flow: panel uses the center area, not the sidebar",
+    "project graph: panel mounted",
+  );
+  const graphCanvas = await waitFor(
+    page,
+    "Boolean(document.querySelector('[data-testid=\"project-graph-canvas\"]'))",
+    60000,
   );
   record(
-    await waitFor(
-      page,
-      "Boolean(document.querySelector('[data-testid=\"api-flow-canvas\"]'))",
-      15000,
-    ),
-    "api flow: canvas mounted",
-  );
-  const nodes = await waitFor(page, COUNT('[data-testid="api-flow-node"]') + " > 0", 30000);
-  record(
-    nodes,
-    "api flow: routes rendered as nodes",
-    nodes ? "" : await page.evaluate("(document.body.innerText || '').slice(0, 300)"),
+    graphCanvas,
+    "project graph: analyzer result rendered",
+    graphCanvas ? "" : await page.evaluate("(document.body.innerText || '').slice(0, 400)"),
   );
   record(
-    await waitFor(page, COUNT('[data-testid="api-flow-table"]') + " > 0", 15000),
-    "api flow: tables rendered as nodes",
+    await waitFor(page, COUNT('[data-testid="project-graph-table"]') + " > 0", 30000),
+    "project graph: tables rendered",
   );
   record(
-    await waitFor(page, COUNT('[data-testid="api-flow-page"]') + " > 0", 20000),
-    "api flow: the client pages that call the API are shown",
+    await waitFor(page, COUNT('[data-testid="project-graph-route"]') + " > 0", 30000),
+    "project graph: routes rendered",
   );
+  record(
+    await waitFor(page, COUNT('[data-testid="project-graph-page"]') + " > 0", 30000),
+    "project graph: pages rendered",
+  );
+  await page.screenshot(ARTIFACTS + "/05b-project-graph.png");
 
-  // Focus mode: hiding sidebar + preview gives the graph the window width.
-  const focusClicked = await page.evaluate(
-    "(() => { const button = [...document.querySelectorAll('button')].find(" +
-      " (candidate) => (candidate.getAttribute('aria-label') || '').startsWith('Focus: hide'));" +
-      " if (!button) return 'NOTFOUND'; button.click(); return 'OK'; })()",
+  // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar keeps the
+  // table list; the console posts to the same-origin dev endpoint through the kernel. The
+  // activity entry toggles the sidebar, so a second click reopens it if it was collapsed. ──
+  let dataTables = await waitFor(page, COUNT('[data-testid="data-explorer-table"]') + " > 0", 750);
+  if (dataTables) {
+    record(true, "data explorer: activity opens");
+  } else {
+    record((await page.evaluate(clickActivity("Data"))) === "OK", "data explorer: activity opens");
+    dataTables = await waitFor(page, COUNT('[data-testid="data-explorer-table"]') + " > 0", 20000);
+    if (!dataTables) {
+      await page.evaluate(clickActivity("Data"));
+      dataTables = await waitFor(
+        page,
+        COUNT('[data-testid="data-explorer-table"]') + " > 0",
+        20000,
+      );
+    }
+  }
+  record(
+    dataTables,
+    "data explorer: tables rendered",
+    dataTables ? "" : await page.evaluate("(document.body.innerText || '').slice(0, 400)"),
   );
-  record(focusClicked === "OK", "api flow: focus mode control present");
+  record(
+    (await page.evaluate(clickTestId("data-query-open"))) === "OK",
+    "query console: open button works",
+  );
   record(
     await waitFor(
       page,
-      "(() => { const el = document.querySelector('[data-testid=\"api-flow-panel\"]');" +
-        " return !!el && el.getBoundingClientRect().width > 500; })()",
-      10000,
+      "Boolean(document.querySelector('[data-testid=\"data-query-panel\"]'))",
+      15000,
     ),
-    "api flow: focus mode gives the graph the window width",
+    "query console: panel mounted",
   );
-
-  // Selecting a node opens the inspector; its "Open file" button jumps to the source.
-  // Not every route has x-facilis-source (the template's /health does not), so try the
-  // nodes until one offers an enabled "Open file".
-  let selected = "NOTFOUND";
-  const nodeCount = await page.evaluate(COUNT('[data-testid="api-flow-node"]'));
-  for (let index = 0; index < Math.min(nodeCount, 12) && selected !== "OK"; index += 1) {
-    // oxlint-disable-next-line no-await-in-loop -- driving the browser one click at a time
-    await page.evaluate(
-      "(() => { const nodes = [...document.querySelectorAll('[data-testid=\"api-flow-node\"]')];" +
-        " const node = nodes[" +
-        index +
-        "]; if (!node) return 'NOTFOUND'; node.click(); return 'OK'; })()",
-    );
-    // oxlint-disable-next-line no-await-in-loop -- the inspector renders after the click
-    await sleep(150);
-    // oxlint-disable-next-line no-await-in-loop -- same interaction, sequential by nature
-    selected = await page.evaluate(
-      "(() => { const aside = document.querySelector('[data-testid=\"api-flow-inspector\"]');" +
-        " if (!aside) return 'NOTFOUND';" +
-        " const button = [...aside.querySelectorAll('button')].find(" +
-        " (candidate) => (candidate.innerText || '').includes('Open file') && !candidate.disabled);" +
-        " return button ? 'OK' : 'NOTFOUND'; })()",
+  record(
+    (await page.evaluate(
+      typeIntoTestId("data-query-editor", "select count(*) as count from todos"),
+    )) === "OK",
+    "query console: SQL entered",
+  );
+  const runEnabled = await waitFor(
+    page,
+    "Boolean(document.querySelector('[data-testid=\"data-query-run\"]:not([disabled])'))",
+    5000,
+  );
+  record(runEnabled, "query console: run enabled");
+  if (runEnabled) {
+    record(
+      (await page.evaluate(clickTestId("data-query-run"))) === "OK",
+      "query console: run clicked",
     );
   }
-  record(selected === "OK", "api flow: a route with a source file was selected");
+  const rows = await waitFor(page, COUNT('[data-testid="data-query-row"]') + " > 0", 30000);
   record(
-    await waitFor(
-      page,
-      "Boolean(document.querySelector('[data-testid=\"api-flow-inspector\"]'))",
-      10000,
-    ),
-    "api flow: inspector shows the node details",
+    rows,
+    "query console: rows rendered",
+    rows ? "" : await page.evaluate("(document.body.innerText || '').slice(-600)"),
   );
-  record(
-    (await page.evaluate(clickByText('[data-testid="api-flow-inspector"]', "Open file"))) === "OK",
-    "api flow: inspector opens the source file",
-  );
-  record(
-    await waitFor(page, "/server\\/routes\\//.test(" + ACTIVE_TAB + ")", 10000),
-    "api flow: code jump reached the route source",
-    await page.evaluate(ACTIVE_TAB),
-  );
-
-  // Opening the file switched the active tab; bring the API Flow back for the list toggle.
-  record(
-    (await page.evaluate(clickActivity("API Flow"))) === "OK",
-    "api flow: tab re-focused after the jump",
-  );
-  await waitFor(
-    page,
-    "Boolean(document.querySelector('[data-testid=\"api-flow-canvas\"]'))",
-    15000,
-  );
-
-  // The list view is the same data without the graph; the toggle must switch it.
-  record(
-    (await page.evaluate(clickByText('[data-testid="api-flow-panel"]', "List"))) === "OK",
-    "api flow: list view selected",
-  );
-  record(
-    await waitFor(
-      page,
-      "Boolean(document.querySelector('[data-testid=\"api-flow-list\"]'))",
-      10000,
-    ),
-    "api flow: list view rendered",
-  );
-  record(
-    (await page.evaluate(clickByText('[data-testid="api-flow-panel"]', "Graph"))) === "OK",
-    "api flow: graph view restored",
-  );
-  await page.screenshot(ARTIFACTS + "/05-api-flow.png");
+  await page.screenshot(ARTIFACTS + "/06b-data-query.png");
 
   // ── Source Control: diff tab + commit graph (D-088/D-089) ──
   await runScmChecks({ page, check, ARTIFACTS });

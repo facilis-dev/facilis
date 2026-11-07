@@ -1,11 +1,16 @@
 /**
  * Rules 10 `rls-on-scoped-table`, 14 `migration-generated` and 15
  * `destructive-confirmed` (SPEC §9.3), read from the effective code schema.
+ *
+ * Only tables the project declares itself count (`source.file === db/schema.ts`): the
+ * framework tables re-exported from `@facilis/auth` ship their own RLS and must not be
+ * re-flagged here. Scope is the analyzer's ScopeFact or a tenant/owner column property.
  */
 
-import { hasMigrationPatch, SCHEMA_PATH, type EffectiveState } from "../overlay.ts";
+import type { EffectiveState } from "../overlay.ts";
+import { hasMigrationPatch, SCHEMA_PATH } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";
-import type { FilePatch, TableFacts, ValidationError } from "../types.ts";
+import type { FilePatch, TableFact, ValidationError } from "../types.ts";
 
 function error(rule: string, file: string, message: string, fix_hint: string): ValidationError {
   return { rule, severity: "error", file, message, fix_hint };
@@ -15,17 +20,39 @@ function warning(rule: string, file: string, message: string, fix_hint: string):
   return { rule, severity: "warning", file, message, fix_hint };
 }
 
+/** True when this patch set touches the project schema file (create, update or delete). */
+function touchesSchema(state: EffectiveState): boolean {
+  return state.patchedPaths.has(SCHEMA_PATH) || state.deletedPaths.has(SCHEMA_PATH);
+}
+
+function normalized(value: string): string {
+  return value.replaceAll("_", "").replaceAll("-", "").toLowerCase();
+}
+
+/** A table is scoped when the analyzer saw a scope or a configured tenant/owner column. */
+function isScoped(
+  table: TableFact,
+  tenantColumns: readonly string[],
+  ownerColumns: readonly string[],
+): boolean {
+  if (table.scope !== null) return true;
+  const names = new Set([...tenantColumns, ...ownerColumns].map(normalized));
+  return table.columns.some(
+    (column) => names.has(normalized(column.property)) || names.has(normalized(column.name)),
+  );
+}
+
 /**
- * Rule 10: a schema rewrite is a complete re-emission of db/schema.ts, so every scoped
- * table in the result must ship its RLS policy — `.enableRLS()` plus a policy helper
- * (invariant 4). The check is not limited to new tables: dropping the policy from an
- * existing scoped table is the same security regression.
+ * Rule 10: a schema rewrite is a complete re-emission of the schema, so every scoped table
+ * in the result must ship its RLS policy — .enableRLS() plus a policy (invariant 4). The
+ * check is not limited to new tables: dropping the policy from an existing scoped table is
+ * the same security regression.
  */
 export function rlsErrors(state: EffectiveState): ValidationError[] {
-  if (!state.patchedPaths.has(SCHEMA_PATH) && !state.deletedPaths.has(SCHEMA_PATH)) return [];
+  if (!touchesSchema(state)) return [];
   const errors: ValidationError[] = [];
   for (const table of state.afterSchemaTables) {
-    if (!table.scoped) continue;
+    if (!isScoped(table, state.config.tenantColumns, state.config.ownerColumns)) continue;
     if (table.rlsEnabled && table.policies.length > 0) continue;
     errors.push(
       error(
@@ -44,11 +71,11 @@ export function migrationWarnings(
   patches: readonly FilePatch[],
   state: EffectiveState,
 ): ValidationError[] {
-  const touchesSchema = patches.some((patch) => {
+  const touches = patches.some((patch) => {
     const path = normalizeProjectPath(patch.path);
     return path === SCHEMA_PATH && patch.action !== "delete";
   });
-  if (!touchesSchema) return [];
+  if (!touches) return [];
   if (hasMigrationPatch(patches, state.migrationsDir)) return [];
   return [
     warning(
@@ -62,15 +89,17 @@ export function migrationWarnings(
   ];
 }
 
-function removedColumns(before: readonly TableFacts[], after: readonly TableFacts[]): string[] {
+function removedColumns(before: readonly TableFact[], after: readonly TableFact[]): string[] {
   const afterByName = new Map(after.map((table) => [table.name, table]));
   const removed: string[] = [];
   for (const table of before) {
     const current = afterByName.get(table.name);
-    if (current === undefined || table.columns.length === 0 || current.columns.length === 0)
+    if (current === undefined || table.columns.length === 0 || current.columns.length === 0) {
       continue;
+    }
+    const currentColumns = new Set(current.columns.map((column) => column.property));
     for (const column of table.columns) {
-      if (!current.columns.includes(column)) removed.push(table.name + "." + column);
+      if (!currentColumns.has(column.property)) removed.push(table.name + "." + column.property);
     }
   }
   return removed;
@@ -81,7 +110,6 @@ export function destructiveErrors(
   state: EffectiveState,
   requiresConfirmation: boolean,
 ): ValidationError[] {
-  if (!state.patchedPaths.has(SCHEMA_PATH) && !state.deletedPaths.has(SCHEMA_PATH)) return [];
   const afterNames = new Set(state.afterSchemaTables.map((table) => table.name));
   const droppedTables = state.beforeSchemaTables
     .map((table) => table.name)

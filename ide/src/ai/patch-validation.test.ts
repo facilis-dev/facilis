@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import type { FilePatch } from "@facilis/ai";
+import { analyzeHostFiles } from "./analysis-fixtures";
+import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 
 const CONFIG = `import { defineConfig } from "@facilis/core";
 
@@ -27,8 +28,10 @@ const SOURCES: Record<string, string> = {
   "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
 };
 
+type HostBase = Omit<PatchValidationHost, "analyze">;
+
 function host(overrides: Partial<PatchValidationHost> = {}): PatchValidationHost {
-  return {
+  const base: HostBase = {
     files: () => [
       "facilis.config.ts",
       "db/schema.ts",
@@ -41,6 +44,11 @@ function host(overrides: Partial<PatchValidationHost> = {}): PatchValidationHost
     manifestBase: () => null,
     syntaxChecker: () => ({ check: async () => [] }),
     ...overrides,
+  };
+  return {
+    ...base,
+    // The fixture host is a VFS, not a worker: analyze what it would read at call time.
+    analyze: overrides.analyze ?? ((patches) => analyzeHostFiles(base.files(), base.read, patches)),
   };
 }
 
@@ -70,7 +78,7 @@ describe("validatePatchesWithHost", () => {
     );
     expect(result.validation.ok).toBe(false);
     expect(result.validation.errors.map((entry) => entry.rule)).toContain("route-security");
-    expect(result.context.syntax.status).toBe("checked");
+    expect(result.context?.syntax.status).toBe("checked");
   });
 
   it("accepts a well-formed route", async () => {
@@ -99,5 +107,27 @@ describe("validatePatchesWithHost", () => {
       host({ syntaxChecker: () => null }),
     );
     expect(result.validation.errors[0]?.rule).toBe("ts-parse");
+  });
+
+  it("fails closed with a blocking result when the analyzer is unavailable", async () => {
+    const result = await validatePatchesWithHost(
+      [patch("src/feature.ts", "export const value = 1;\n")],
+      host({
+        analyze: async () => {
+          throw new Error("analyzer worker did not become ready within 30s");
+        },
+      }),
+    );
+    expect(result.context).toBeNull();
+    expect(result.validation.ok).toBe(false);
+    expect(result.validation.errors).toEqual([
+      expect.objectContaining({
+        rule: "project-analysis",
+        severity: "error",
+        file: "<project>",
+        message: expect.stringContaining("analyzer worker did not become ready"),
+      }),
+    ]);
+    expect(result.validation.errors[0]?.fix_hint).toContain("patches are not validated");
   });
 });

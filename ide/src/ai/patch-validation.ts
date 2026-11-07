@@ -1,18 +1,21 @@
 // Contextual validation before a proposal is shown and before anything is written
-// (SPEC §9.3, invariant 9).
+// (SPEC §9.3, invariant 9; task-10).
 //
-// Two async steps the pure validator cannot do on its own: assemble the project context
-// from the VFS/manifest, and run rule 1 through the injected TypeScript parser. The
-// result is a PatchContext the synchronous validatePatch() consumes; errors block the
-// caller, warnings never do.
+// The project facts come from the analyzer worker: the host analyzes the project before and
+// after the patch set, then this module maps those facts (plus the two source files and the
+// live manifest) into the PatchContext the synchronous validatePatch() consumes. If the
+// analyzer is unavailable, validation fails closed with a blocking result: a proposal without
+// a context must never reach applyPatch().
 
 import {
+  buildProjectContext,
   checkPatchSyntax,
   validatePatch,
+  type Analysis,
   type FilePatch,
   type PatchContext,
+  type ProjectContext,
   type SyntaxCheck,
-  type SyntaxFinding,
   type SyntaxChecker,
   type ValidationResult,
 } from "@facilis/ai";
@@ -22,8 +25,30 @@ export type PatchValidationHost = PatchContextHost;
 
 export interface PatchesValidation {
   validation: ValidationResult;
-  /** The exact context the rules saw; also the input applyPatch() re-validates with. */
-  context: PatchContext;
+  /** The exact context the rules saw; null when the project analyzer was unavailable. */
+  context: PatchContext | null;
+}
+
+/** The blocking finding for "the project could not be analyzed". */
+function analyzerUnavailable(reason: string): ValidationResult {
+  return {
+    ok: false,
+    errors: [
+      {
+        rule: "project-analysis",
+        severity: "error",
+        file: "<project>",
+        message: "The project analyzer is unavailable: " + reason,
+        fix_hint:
+          "Wait for the project analyzer to load and retry; patches are not validated without it.",
+      },
+    ],
+    warnings: [],
+  };
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function syntaxCheck(
@@ -35,23 +60,45 @@ async function syntaxCheck(
   }
   try {
     // No "aborted" short-circuit: a skipped parse must not look like a clean one.
-    const findings: SyntaxFinding[] = await checkPatchSyntax(patches, checker);
+    const findings = await checkPatchSyntax(patches, checker);
     return { status: "checked", findings };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { status: "unavailable", reason };
+    return { status: "unavailable", reason: messageOf(error) };
   }
 }
 
-/** Validate a patch set against the live project; the only async step of validation. */
+interface Analyses {
+  before: Analysis;
+  after: Analysis;
+}
+
+/**
+ * Validate a patch set against the live project. Never throws for an analyzer outage (that
+ * is a blocking validation result); a cancellation is rethrown so the chat can drop the turn.
+ */
 export async function validatePatchesWithHost(
   patches: readonly FilePatch[],
   host: PatchValidationHost,
   options: { requiresConfirmation?: boolean; signal?: AbortSignal } = {},
 ): Promise<PatchesValidation> {
+  let analyses: Analyses;
+  try {
+    analyses = await host.analyze(patches, options.signal);
+  } catch (error) {
+    if (options.signal?.aborted === true) throw error;
+    return { validation: analyzerUnavailable(messageOf(error)), context: null };
+  }
+
   const loaded = await loadProjectContext(host, options.signal);
   const syntax = await syntaxCheck(loaded.checker, patches);
-  const context: PatchContext = { ...loaded.context, syntax };
+  const project: ProjectContext = buildProjectContext({
+    files: host.files(),
+    sources: loaded.sources,
+    ...(loaded.manifest === undefined ? {} : { manifest: loaded.manifest }),
+    analysis: analyses.after,
+    before: analyses.before,
+  });
+  const context: PatchContext = { ...project, syntax };
   const validation = validatePatch(patches, {
     context,
     ...(options.requiresConfirmation === undefined

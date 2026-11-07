@@ -4,6 +4,8 @@ node_modules/
 .output/
 dist/
 .turbo/
+# Studio layout/editor state (docs/findings/ast-dsl-contract.md §7).
+.facilis/
 coverage/
 *.log
 *.tsbuildinfo

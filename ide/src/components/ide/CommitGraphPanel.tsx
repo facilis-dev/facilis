@@ -58,7 +58,7 @@ export function CommitGraphPanel({ root }: { root: string }) {
   }, [graph, selectedId]);
 
   // A graph needs width: one click hides the sidebar and the preview (and restores them
-  // when both are already hidden), as the API Flow does.
+  // when both are already hidden), as the project graph does.
   const focused = snap.sidebarCollapsed && snap.previewCollapsed && snap.panelCollapsed;
   const toggleFocus = () => {
     c.toggleSidebar(focused);

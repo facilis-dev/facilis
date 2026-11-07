@@ -28,8 +28,10 @@ export const releasePreviewIt: Partial<Record<MessageKey, string>> = {
     "Nessun tag di rilascio — crea un tag su un commit per confrontarlo.",
   "releasePreview.problem.no-project": "Apri prima un progetto.",
   "releasePreview.problem.ref-missing": "Il ref {ref} non esiste in questo repository.",
-  "releasePreview.problem.snapshot-missing": "Impossibile leggere l'albero del progetto su {ref}.",
-  "releasePreview.problem.engine": "Il motore di rilascio non ha potuto confrontare i due snapshot.",
+  "releasePreview.problem.snapshot-missing":
+    "Impossibile leggere o analizzare l'albero del progetto su {ref}.",
+  "releasePreview.problem.engine":
+    "Il motore di rilascio non ha potuto confrontare i due snapshot.",
 
   "releasePreview.summary.title": "Riepilogo dei rischi",
   "releasePreview.summary.schema":

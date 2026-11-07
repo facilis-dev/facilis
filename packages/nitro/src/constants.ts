@@ -7,3 +7,7 @@ export const MANIFEST_REVISION_ROUTE = "/__facilis/manifest/revision";
 export const HEALTH_ROUTE = "/__facilis/health";
 /** Live schema introspection for the Entity Explorer (SPEC §6.3/§11.4). */
 export const DEV_SCHEMA_ROUTE = "/__facilis/dev/schema";
+/** Read-only SQL console for the Data Explorer (SPEC §11.2, D-097). */
+export const DEV_QUERY_ROUTE = "/__facilis/dev/query";
+/** Create/replace a security_invoker view from the query console (D-097). */
+export const DEV_VIEW_ROUTE = "/__facilis/dev/view";

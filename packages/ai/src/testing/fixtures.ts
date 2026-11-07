@@ -1,16 +1,24 @@
 /**
- * Shared fixtures for the validator tests: a realistic todo-app context.
+ * Shared fixtures for the validator tests: a realistic todo-app project analyzed with
+ * @facilis/analyze, plus the patch overlay applied to its file map.
  *
- * Sources are parsed by the same `buildProjectContext` the IDE uses, so the tests cover
- * the context builder and the rules together instead of hand-writing parsed facts.
+ * Tests build the effective (post-patch) Analysis exactly as the IDE does — project the
+ * patch onto the pre-patch file map and analyze the result — so every rule runs against
+ * AST facts instead of a tolerant text scan.
  */
 
 import {
   buildProjectContext,
+  validatePatch,
   type FilePatch,
+  type ImportAlias,
   type PatchContext,
   type SyntaxCheck,
+  type ValidatePatchOptions,
+  type ValidationResult,
 } from "../index.ts";
+import { normalizeProjectPath } from "../paths.ts";
+import { analyzeProjectSources } from "../node.ts";
 
 export const CONFIG = `import { defineConfig } from "@facilis/core";
 
@@ -26,6 +34,11 @@ export default defineConfig({
   },
 });
 `;
+
+export const CONFIG_IT = CONFIG.replace(
+  'i18n: { defaultLocale: "en", locales: ["en"] },',
+  'i18n: { defaultLocale: "it", locales: ["en", "it"] },',
+);
 
 export const SCHEMA = `import { boolean, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
@@ -80,79 +93,105 @@ export default defineAuthorizedHandler(
 );
 `;
 
+/** Path aliases the Node analyzer gets, mirroring tsconfig's "~/*": ["./*"]. */
+const ANALYZER_ALIASES: readonly ImportAlias[] = [{ prefix: "~/", target: "" }];
+
+/** Registered blocks and a manifest-only catalog key (the fallback merge test reads it). */
 export function manifest(): unknown {
   return {
-    project: {
-      config: {
-        db: { migrationsDir: "db/migrations" },
-        i18n: { defaultLocale: "en", locales: ["en"] },
-        blocks: { packages: ["@facilis/blocks"] },
-        auth: {
-          permissions: ["todos:read", "todos:write"],
-          roles: { admin: ["*"], user: ["todos:read", "todos:write"] },
-          defaultRole: "user",
-        },
-      },
-    },
-    routes: [
-      {
-        method: "GET",
-        path: "/api/todos",
-        permission: ["todos:read"],
-        dbTables: ["todos"],
-        dbColumns: ["todos.title"],
-        security: "required",
-        sourceFile: "server/routes/api/todos/index.get.ts",
-      },
-    ],
     blocks: [{ name: "DataTable" }, { name: "ResourceForm" }],
-    schema: { tables: [] },
-    i18n: { defaultLocale: "en", catalogs: { en: { "app.title": "Facilis todos" } } },
+    i18n: { defaultLocale: "en", catalogs: { en: { "manifest.only": "Manifest fallback" } } },
   };
 }
 
-export const BASE_FILES = [
-  "facilis.config.ts",
-  "db/schema.ts",
-  "db/migrations/meta/_journal.json",
-  "locales/en.json",
-  "locales/it.json",
-  "package.json",
-  "tsconfig.json",
-  "server/routes/api/todos/index.get.ts",
-  "src/app.tsx",
-  "src/lib/i18n.ts",
-  "src/lib/api.ts",
-];
+export const BASE_SOURCES: Readonly<Record<string, string>> = {
+  "facilis.config.ts": CONFIG,
+  "db/schema.ts": SCHEMA,
+  "locales/en.json": LOCALES,
+  "locales/it.json": LOCALES,
+  "package.json": PACKAGE_JSON,
+  "tsconfig.json": TSCONFIG,
+  "server/routes/api/todos/index.get.ts": ROUTE_SOURCE,
+  "src/lib/i18n.ts": "export const t = (key: string) => key;\n",
+  "src/lib/api.ts": "export const api = true;\n",
+};
+
+/** Project the patch set onto a file map, like the IDE's apply-to-VFS projection. */
+export function applyPatches(
+  base: ReadonlyMap<string, string>,
+  patches: readonly FilePatch[],
+): Map<string, string> {
+  const files = new Map(base);
+  for (const patch of patches) {
+    const path = normalizeProjectPath(patch.path);
+    if (patch.action === "delete") {
+      files.delete(path);
+      continue;
+    }
+    if (typeof patch.content === "string") files.set(path, patch.content);
+  }
+  return files;
+}
 
 export interface ContextOptions {
-  files?: readonly string[];
+  /** Base-source overrides (the pre-patch project). */
   sources?: Readonly<Record<string, string>>;
+  /** Base files to drop (e.g. locales/en.json, to exercise the locale fallback). */
+  omit?: readonly string[];
+  /** Pre-patch file list; defaults to the base source keys. */
+  files?: readonly string[];
   manifest?: unknown;
   syntax?: SyntaxCheck;
+  packages?: readonly string[];
+  aliases?: readonly ImportAlias[];
 }
 
-/** Build a full {@link PatchContext} for a validator test. */
-export function makeContext(options: ContextOptions = {}): PatchContext {
-  const sources: Record<string, string> = {
-    "facilis.config.ts": CONFIG,
-    "db/schema.ts": SCHEMA,
-    "locales/en.json": LOCALES,
-    "locales/it.json": LOCALES,
-    "package.json": PACKAGE_JSON,
-    "tsconfig.json": TSCONFIG,
-    "server/routes/api/todos/index.get.ts": ROUTE_SOURCE,
-    "src/lib/i18n.ts": "export const t = (key: string) => key;\n",
-    "src/lib/api.ts": "export const api = true;\n",
-    ...options.sources,
-  };
-  const files = options.files ?? [...BASE_FILES, ...Object.keys(sources)];
+/** Build the effective PatchContext for one patch set. */
+export function makeContext(
+  patches: readonly FilePatch[] = [],
+  options: ContextOptions = {},
+): PatchContext {
+  const base: Record<string, string> = { ...BASE_SOURCES, ...options.sources };
+  for (const path of options.omit ?? []) delete base[path];
+  const baseMap = new Map(Object.entries(base));
+  const effectiveMap = applyPatches(baseMap, patches);
+  const before = analyzeProjectSources(baseMap, ANALYZER_ALIASES);
+  const analysis = analyzeProjectSources(effectiveMap, ANALYZER_ALIASES);
+  const sources: Record<string, string> = {};
+  for (const path of ["package.json", "tsconfig.json"]) {
+    const content = effectiveMap.get(path);
+    if (content !== undefined) sources[path] = content;
+  }
   const project = buildProjectContext({
-    files,
+    files: options.files ?? [...baseMap.keys()],
+    analysis,
+    before,
+    manifest: options.manifest === undefined ? manifest() : options.manifest,
     sources,
-    ...(options.manifest === undefined ? { manifest: manifest() } : { manifest: options.manifest }),
+    ...(options.packages === undefined ? {} : { packages: options.packages }),
+    ...(options.aliases === undefined ? {} : { aliases: options.aliases }),
   });
   return { ...project, syntax: options.syntax ?? { status: "checked", findings: [] } };
+}
+
+export interface ValidateOptions extends ContextOptions {
+  requiresConfirmation?: boolean;
+  allowedRootFiles?: readonly string[];
+}
+
+/** Build the context for the patch set, then validate it (the IDE's whole round). */
+export function validate(
+  patches: readonly FilePatch[],
+  options: ValidateOptions = {},
+): { result: ValidationResult; context: PatchContext } {
+  const context = makeContext(patches, options);
+  const overrides: Pick<ValidatePatchOptions, "requiresConfirmation" | "allowedRootFiles"> = {};
+  if (options.requiresConfirmation !== undefined) {
+    overrides.requiresConfirmation = options.requiresConfirmation;
+  }
+  if (options.allowedRootFiles !== undefined) overrides.allowedRootFiles = options.allowedRootFiles;
+  const result = validatePatch(patches, { context, ...overrides });
+  return { result, context };
 }
 
 export function create(path: string, content: string): FilePatch {

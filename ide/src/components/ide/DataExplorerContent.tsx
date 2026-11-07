@@ -141,7 +141,7 @@ function TableSection({
   linksDisabled: boolean;
 }) {
   return (
-    <section className="rounded-md border bg-background/40">
+    <section data-testid="data-explorer-table" className="rounded-md border bg-background/40">
       <div className="flex items-start gap-1 px-2 py-1.5">
         <button
           type="button"

@@ -1,10 +1,16 @@
 // The icon + title of one editor tab. Split from EditorGroup.tsx to stay under the
-// file-length ratchet; synthetic tabs (diff, API Flow, commit graph) have no basename to
-// render, so they carry their own label.
-import Workflow from "~icons/lucide/workflow";
+// file-length ratchet; synthetic tabs (diff, commit graph, project graph, data query) have
+// no basename to render, so they carry their own label.
 import GitFork from "~icons/lucide/git-fork";
+import Network from "~icons/lucide/network";
+import SquareTerminal from "~icons/lucide/square-terminal";
 import { t } from "@/i18n";
-import { commitGraphRootOf, isApiFlowTabId, isCommitGraphTabId } from "@/vv/synthetic-tabs";
+import {
+  commitGraphRootOf,
+  isCommitGraphTabId,
+  isDataQueryTabId,
+  isProjectGraphTabId,
+} from "@/vv/synthetic-tabs";
 import type { TabKind } from "@/vv/controller";
 import { FileIcon, FolderIcon } from "./fileIcon";
 
@@ -21,19 +27,24 @@ export function EditorTabLabel({
   isDiff: boolean;
   italic: boolean;
 }) {
-  const isApiFlow = isApiFlowTabId(rel);
   const isCommitGraph = isCommitGraphTabId(rel);
-  const label = isApiFlow
-    ? t("apiFlow.tabTitle")
-    : isCommitGraph
-      ? baseName(commitGraphRootOf(rel))
-      : baseName(rel);
+  const isProjectGraph = isProjectGraphTabId(rel);
+  const isDataQuery = isDataQueryTabId(rel);
+  const label = isProjectGraph
+    ? t("projectGraph.tabTitle")
+    : isDataQuery
+      ? t("dataQuery.tabTitle")
+      : isCommitGraph
+        ? baseName(commitGraphRootOf(rel))
+        : baseName(rel);
   return (
     <>
       {kind === "directory" ? (
         <FolderIcon className="size-3.5 shrink-0" />
-      ) : isApiFlow ? (
-        <Workflow className="size-3.5 shrink-0" />
+      ) : isProjectGraph ? (
+        <Network className="size-3.5 shrink-0" />
+      ) : isDataQuery ? (
+        <SquareTerminal className="size-3.5 shrink-0" />
       ) : isCommitGraph ? (
         <GitFork className="size-3.5 shrink-0" />
       ) : (

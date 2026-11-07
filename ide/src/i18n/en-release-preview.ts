@@ -22,13 +22,15 @@ export const releasePreviewEn = {
   "releasePreview.lens.remote.hint": "HEAD ↔ origin — what ships on the next deploy?",
   "releasePreview.lens.tag.hint": "Tag ↔ origin — what changed since the last release?",
 
-  "releasePreview.unavailable.no-head": "This project has no git history yet — commit something first.",
+  "releasePreview.unavailable.no-head":
+    "This project has no git history yet — commit something first.",
   "releasePreview.unavailable.remote-missing":
     "No origin branch to compare with. Fetch or push the remote first.",
-  "releasePreview.unavailable.tag-missing": "No release tag yet — tag a commit to compare against it.",
+  "releasePreview.unavailable.tag-missing":
+    "No release tag yet — tag a commit to compare against it.",
   "releasePreview.problem.no-project": "Open a project first.",
   "releasePreview.problem.ref-missing": "The ref {ref} does not resolve in this repository.",
-  "releasePreview.problem.snapshot-missing": "Could not read the project tree at {ref}.",
+  "releasePreview.problem.snapshot-missing": "Could not read or analyze the project tree at {ref}.",
   "releasePreview.problem.engine": "The release engine could not diff the two snapshots.",
 
   "releasePreview.summary.title": "Risk summary",
@@ -83,7 +85,8 @@ export const releasePreviewEn = {
   "releasePreview.codeLive.loading": "Comparing db/schema.ts with the live database…",
   "releasePreview.codeLive.synced": "Code and live database are in sync.",
   "releasePreview.codeLive.drift": "{count} drift(s) between code and the live database.",
-  "releasePreview.codeLive.unreachable": "Live database not reachable — run the project to compare.",
+  "releasePreview.codeLive.unreachable":
+    "Live database not reachable — run the project to compare.",
   "releasePreview.codeLive.open": "Open db/schema.ts",
 
   "releasePreview.open": "Open {path}",

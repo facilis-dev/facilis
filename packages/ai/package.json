@@ -23,6 +23,9 @@
     "lint": "oxlint src",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@facilis/analyze": "workspace:*"
+  },
   "devDependencies": {
     "oxlint": "catalog:",
     "rolldown": "1.2.15",

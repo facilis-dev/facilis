@@ -41,12 +41,12 @@ export function AppShell() {
   const widenedForPanel = useRef(false);
   const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
   // The release diff wants room too: it is unreadable in the Explorer's 16% width, so it
-  // gets the same automatic widening as the chat (the API graph lives in the editor, D-087).
+  // gets the same automatic widening as the chat.
   const roomyView = chatOpen || snap.activeView === "release";
   useEffect(() => {
-    // The panel is unmounted while the sidebar is collapsed; restoring it (e.g. leaving
-    // the API Flow's focus mode for a sidebar view) can run this effect before the
-    // library has registered the new layout, and getSize() throws "Layout not found".
+    // The panel is unmounted while the sidebar is collapsed; restoring it (e.g. switching
+    // from the chat to a sidebar view) can run this effect before the library has
+    // registered the new layout, and getSize() throws "Layout not found".
     // Defer to the next frame and retry a few times instead of crashing the shell.
     let attempts = 0;
     const applyWidth = () => {

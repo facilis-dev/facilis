@@ -3,14 +3,16 @@
  *
  * Rule 9 keeps raw database clients inside `@facilis/db` (invariant 5); drizzle operators
  * and `drizzle-orm/pg-core` are the schema DSL and stay allowed. Rule 12 checks that every
- * static import resolves against the effective file set, the project's aliases and the
+ * module reference resolves against the effective file set, the project's aliases and the
  * packages package.json declares — no filesystem, no node_modules walk.
+ *
+ * Both read the analyzer's ImportFacts, so static imports, re-exports, dynamic imports and
+ * `require()` share the same AST truth.
  */
 
 import type { EffectiveState } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";
-import { callsFunction, collectImports, lineAt, maskSource } from "../scan.ts";
-import type { PatchContext, ValidationError } from "../types.ts";
+import type { ImportAlias, ImportFact, PatchContext, ValidationError } from "../types.ts";
 
 const RAW_DRIVER =
   /^drizzle-orm\/(?:pglite|node-postgres|postgres-js|bun-sqlite|neon|vercel-postgres|aws-data-api|libsql|expo-sqlite|d1|op-sqlite|singlestore|tidb-serverless)$/;
@@ -91,42 +93,44 @@ function error(
   };
 }
 
-function stripQuery(specifier: string): string {
-  const cut = specifier.search(/[?#]/);
-  return cut === -1 ? specifier : specifier.slice(0, cut);
-}
-
-function packageNameOf(specifier: string): string {
-  const parts = specifier.split("/");
-  if (specifier.startsWith("@")) return parts.slice(0, 2).join("/");
-  return parts[0] ?? specifier;
+/** Imports deduped per statement: a named-import clause produces one fact per name. */
+function statementImports(imports: readonly ImportFact[]): ImportFact[] {
+  const seen = new Set<string>();
+  const unique: ImportFact[] = [];
+  for (const imported of imports) {
+    const key = imported.specifier + "\u0000" + imported.source.line;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(imported);
+  }
+  return unique;
 }
 
 export function rawDbAccessErrors(state: EffectiveState): ValidationError[] {
   const errors: ValidationError[] = [];
-  for (const source of state.patchedSources) {
-    const references = collectImports(source.content);
-    for (const reference of references) {
-      if (!RAW_DRIVER.test(reference.specifier) && !RAW_CLIENTS.has(reference.specifier)) continue;
+  for (const facts of state.patchedFileFacts) {
+    const imports = statementImports(facts.imports);
+    for (const imported of imports) {
+      if (!RAW_DRIVER.test(imported.specifier) && !RAW_CLIENTS.has(imported.specifier)) continue;
       errors.push(
         error(
           "no-raw-db-access",
-          source.path,
-          'Importing "' + reference.specifier + '" is a raw database client outside @facilis/db.',
+          facts.path,
+          'Importing "' + imported.specifier + '" is a raw database client outside @facilis/db.',
           "Go through the policy-scoped db the handler receives (invariant 5).",
-          lineAt(source.content, reference.index),
+          imported.source.line,
         ),
       );
     }
-    const rawDrizzleImport = references.find((reference) => reference.specifier === "drizzle-orm");
-    if (rawDrizzleImport !== undefined && callsFunction(maskSource(source.content), "drizzle")) {
+    const rawDrizzleImport = imports.find((imported) => imported.specifier === "drizzle-orm");
+    if (rawDrizzleImport !== undefined && facts.calls.some((call) => call.name === "drizzle")) {
       errors.push(
         error(
           "no-raw-db-access",
-          source.path,
+          facts.path,
           "Constructing a raw drizzle() client is not allowed outside @facilis/db.",
           "Use the policy-scoped db from the handler context; import operators from drizzle-orm instead (invariant 5).",
-          lineAt(source.content, rawDrizzleImport.index),
+          rawDrizzleImport.source.line,
         ),
       );
     }
@@ -161,7 +165,7 @@ function relativeBase(fromPath: string, specifier: string): string {
   return resolved.join("/");
 }
 
-function aliasBase(specifier: string, aliases: PatchContext["aliases"]): string | null {
+function aliasBase(specifier: string, aliases: readonly ImportAlias[]): string | null {
   for (const alias of aliases) {
     if (!specifier.startsWith(alias.prefix)) continue;
     return normalizeProjectPath(alias.target + specifier.slice(alias.prefix.length));
@@ -169,14 +173,25 @@ function aliasBase(specifier: string, aliases: PatchContext["aliases"]): string 
   return null;
 }
 
+function stripQuery(specifier: string): string {
+  const cut = specifier.search(/[?#]/);
+  return cut === -1 ? specifier : specifier.slice(0, cut);
+}
+
+function packageNameOf(specifier: string): string {
+  const parts = specifier.split("/");
+  if (specifier.startsWith("@")) return parts.slice(0, 2).join("/");
+  return parts[0] ?? specifier;
+}
+
 export function importResolveErrors(
   state: EffectiveState,
   context: PatchContext,
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  for (const source of state.patchedSources) {
-    for (const reference of collectImports(source.content)) {
-      const specifier = stripQuery(reference.specifier);
+  for (const facts of state.patchedFileFacts) {
+    for (const imported of statementImports(facts.imports)) {
+      const specifier = stripQuery(imported.specifier);
       if (specifier.length === 0) continue;
       if (specifier.startsWith("node:") || NODE_BUILTINS.has(specifier)) continue;
       if (/^[a-z][a-z0-9+.-]*:/i.test(specifier)) continue;
@@ -185,7 +200,7 @@ export function importResolveErrors(
       if (relative) {
         const base = specifier.startsWith("/")
           ? specifier.replace(/^\/+/, "")
-          : relativeBase(source.path, specifier);
+          : relativeBase(facts.path, specifier);
         if (fileExists(state.files, base)) continue;
       } else {
         const alias = aliasBase(specifier, context.aliases);
@@ -198,12 +213,12 @@ export function importResolveErrors(
       errors.push(
         error(
           "import-resolves",
-          source.path,
-          'Import "' + reference.specifier + '" does not resolve.',
+          facts.path,
+          'Import "' + imported.specifier + '" does not resolve.',
           relative
             ? "Point the import at a file that exists (or is created by this patch)."
             : "Use a package declared in package.json; new dependencies need user approval.",
-          lineAt(source.content, reference.index),
+          imported.source.line,
         ),
       );
     }

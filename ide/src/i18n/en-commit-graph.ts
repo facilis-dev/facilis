@@ -1,7 +1,7 @@
 // The commit-graph strings (D-088), spread into `en` in en.ts.
 //
 // The catalogue sits at the 300-line limit, so this feature block lives in its own module
-// instead of growing en.ts — same rule as en-api-flow.ts. Keys stay flat.
+// instead of growing en.ts — same rule as en-data-explorer.ts. Keys stay flat.
 export const commitGraphEn = {
   "commitGraph.tabTitle": "Commit Graph",
   "commitGraph.open": "Open commit graph",

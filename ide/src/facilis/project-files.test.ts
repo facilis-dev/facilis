@@ -29,10 +29,8 @@ describe("generated project config", () => {
     const viteConfig = files["vite.config.ts"];
     expect(viteConfig).not.toMatch(/from ["']nitro/);
     expect(viteConfig).not.toContain("nitro(");
-    // The v2 styling layer plus its VM rescan workaround run in the same Vite dev server.
-    expect(viteConfig).toContain(
-      "plugins: [tailwindcss(), tailwindRescanInVm(), facilis(), react()]",
-    );
+    // The v2 styling layer runs in the same Vite dev server.
+    expect(viteConfig).toContain("plugins: [tailwindcss(), facilis(), react()]");
   });
 
   it("keeps the in-VM Nitro runner in facilis.config.ts", () => {
@@ -49,20 +47,14 @@ describe("generated project config", () => {
     const devDependencies = parse<PackageJson>("package.json").devDependencies;
     expect(devDependencies["@types/react"]).toBe("19.3.0");
     expect(devDependencies["@types/react-dom"]).toBe("19.3.0");
-    // vite-plugins/tailwind-rescan.ts imports node:path and reads process.arch, so
-    // without the node types Monaco reports TS2307/TS2580 on a file the template ships.
-    expect(devDependencies["@types/node"]).toBe("22.20.5");
   });
 
-  it("typechecks the template's own config and vite-plugins sources", () => {
+  it("typechecks the template's own config", () => {
     const tsconfig = parse<Tsconfig & { compilerOptions: { types: string[] } }>("tsconfig.json");
     expect(tsconfig.include).not.toContain("nitro.config.ts");
     expect(tsconfig.include).toContain("facilis.config.ts");
-    // The template's top-level vite-plugins/ folder must be typechecked with the project.
-    expect(tsconfig.include).toContain("vite-plugins");
-    // vite-plugins/tailwind-rescan.ts imports node:path and reads process.arch, so the
-    // generated project needs node's globals as well as Vite's.
-    expect(tsconfig.compilerOptions.types).toEqual(["vite/client", "node"]);
+    // The generated project is browser code: Vite's client types, no node globals.
+    expect(tsconfig.compilerOptions.types).toEqual(["vite/client"]);
   });
 
   it("pins the Tailwind toolchain and the VM-only oxide binding to one version", () => {
@@ -71,12 +63,12 @@ describe("generated project config", () => {
     // while the same dependency breaks the host install with EBADPLATFORM.
     const devDependencies = parse<PackageJson>("package.json").devDependencies;
     const tailwindcss = devDependencies["tailwindcss"];
-    expect(tailwindcss).toBe("4.3.3");
+    expect(tailwindcss).toBe("4.3.5");
     expect(devDependencies["@tailwindcss/vite"]).toBe(tailwindcss);
     expect(devDependencies["@tailwindcss/oxide-wasm32-wasi"]).toBe(tailwindcss);
   });
 
-  it("never ships the v1 @facilis/ui kit in the generated package.json", () => {
+  it("never ships a UI kit tarball in the generated package.json", () => {
     // Template v2 copies its shadcn-style primitives into src/components/ui, so the kit is
     // neither a dependency nor a vendored tarball: there is nothing to install or fetch.
     const pkg = parse<PackageJson>("package.json");

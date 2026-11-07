@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
+import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import type { AiSettings } from "./types";
 
@@ -28,6 +29,9 @@ interface Harness {
 
 function fakeHost(): Harness {
   const writes: string[] = [];
+  const files = () => ["facilis.config.ts", "src/App.tsx"];
+  const read = async (path: string) =>
+    path === "src/App.tsx" ? "export const App = () => null;\n" : "";
   return {
     writes,
     host: {
@@ -38,8 +42,9 @@ function fakeHost(): Harness {
           return { ok: true };
         },
       },
-      files: () => ["facilis.config.ts", "src/App.tsx"],
-      read: async (path) => (path === "src/App.tsx" ? "export const App = () => null;\n" : ""),
+      files,
+      read,
+      analyze: (patches) => analyzeHostFiles(files(), read, patches),
       activeFile: async () => null,
       manifestBase: () => null,
       syntaxChecker: () => ({ check: async () => [] }),
@@ -75,21 +80,31 @@ const ROUTE_PATCH: FilePatch = {
   path: "server/routes/api/ping.get.ts",
   action: "create",
   content:
+    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
     'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n',
 };
 
 function contextualHost(allowed: () => boolean): Harness {
   const harness = fakeHost();
+  const files = () => ["facilis.config.ts", "db/schema.ts", "package.json", "src/App.tsx"];
+  const read = async (path: string) => {
+    if (path === "facilis.config.ts") return allowed() ? VALIDATOR_CONFIG : EMPTY_CONFIG;
+    if (path === "db/schema.ts") return "export {};\n";
+    // Rule 12 resolves the route's "@facilis/core" import through this declaration.
+    if (path === "package.json") {
+      return JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } });
+    }
+    return "";
+  };
   return {
     writes: harness.writes,
     host: {
       ...harness.host,
-      files: () => ["facilis.config.ts", "db/schema.ts", "src/App.tsx"],
-      read: async (path) => {
-        if (path === "facilis.config.ts") return allowed() ? VALIDATOR_CONFIG : EMPTY_CONFIG;
-        if (path === "db/schema.ts") return "export {};\n";
-        return "";
-      },
+      files,
+      read,
+      // Re-analyze through the overridable read: the "project changed after the proposal"
+      // test depends on the analyzer seeing the *current* config at Apply time.
+      analyze: (patches) => analyzeHostFiles(files(), read, patches),
     },
   };
 }

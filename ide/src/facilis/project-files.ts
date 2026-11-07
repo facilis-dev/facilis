@@ -6,8 +6,8 @@
 // installer and the tarballs are inlined INTO the create request (manifest.assets,
 // project-assets.ts, D-032), then declared as file: dependencies: no package manager has to
 // reach the studio over HTTP to install them, and the project keeps working once it leaves
-// the IDE. This is interim until the packages are published. The v1 @facilis/ui kit is not
-// in that set: template v2 copies its primitives into src/components/ui.
+// the IDE. This is interim until the packages are published. The v1 UI kit was removed
+// (D-096): template v2 copies its primitives into src/components/ui.
 //
 // Everything else the project contains comes from examples/todo-app (example-template.ts);
 // this file only writes what cannot: the npm wrapper, the standalone tsconfig and the
@@ -51,10 +51,6 @@ function packageJson(): string {
     // project without these reports TS2307 "Cannot find module 'react'" on src/app.tsx.
     "@types/react": example.devDependencies["@types/react"] ?? "19.3.0",
     "@types/react-dom": example.devDependencies["@types/react-dom"] ?? "19.3.0",
-    // The generated project ships vite-plugins/tailwind-rescan.ts, which imports
-    // node:path and reads process.arch: without node's declarations Monaco reports
-    // TS2307/TS2580 on a file the template ships. The workspace catalog pin.
-    "@types/node": "22.20.5",
     "@rolldown/binding-wasm32-wasi": "~1.2.0",
     "@vitejs/plugin-react": example.devDependencies["@vitejs/plugin-react"] ?? "6.1.2",
     vite: example.devDependencies["vite"] ?? "8.3.5",
@@ -69,7 +65,7 @@ function packageJson(): string {
   const tailwindcss = example.devDependencies["tailwindcss"];
   if (tailwindcss !== undefined) {
     devDependencies["tailwindcss"] = tailwindcss;
-    devDependencies["@tailwindcss/vite"] = example.devDependencies["@tailwindcss/vite"] ?? "4.3.3";
+    devDependencies["@tailwindcss/vite"] = example.devDependencies["@tailwindcss/vite"] ?? "4.3.5";
     devDependencies["@tailwindcss/oxide-wasm32-wasi"] = tailwindcss;
   }
   return (
@@ -120,10 +116,10 @@ const tsconfig = `{
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "paths": { "~/*": ["./*"] }
   },
-  "include": ["src", "server", "db", "vite-plugins", "vite.config.ts", "facilis.config.ts"]
+  "include": ["src", "server", "db", "vite.config.ts", "facilis.config.ts"]
 }
 `;
 
@@ -145,8 +141,8 @@ A Facilis starter app scaffolded by the Facilis IDE and running in its browser V
 
 It is the generated-project reference: auth + todos pages built on Tailwind CSS v4 and
 Base UI, with shadcn-style components copied into src/components/ui, plus the API, schema
-and i18n catalogues from examples/todo-app. The v1 @facilis/ui component kit is not used
-by v2 projects.
+and i18n catalogues from examples/todo-app. There is no UI kit package: the components live
+in the project.
 
 ## Package manager
 

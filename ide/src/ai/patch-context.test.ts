@@ -1,25 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { analyzeSources } from "./analysis-fixtures";
 import { loadProjectContext, type PatchContextHost } from "./patch-context";
 
-const CONFIG = `import { defineConfig } from "@facilis/core";
-
-export default defineConfig({
-  auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
-});
-`;
-
-const SCHEMA = `import { pgTable, text, uuid } from "drizzle-orm/pg-core";
-
-export const todos = pgTable("todos", { id: uuid("id").primaryKey(), title: text("title").notNull() });
-`;
+const ANALYSIS = analyzeSources(new Map());
 
 const SOURCES: Record<string, string> = {
-  "facilis.config.ts": CONFIG,
-  "db/schema.ts": SCHEMA,
-  "locales/en.json": JSON.stringify({ "app.title": "Facilis" }),
   "package.json": JSON.stringify({ dependencies: { react: "19.3.1" } }),
   "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
+  "facilis.config.ts": "export default {};\n",
 };
 
 function host(overrides: Partial<PatchContextHost> = {}): PatchContextHost {
@@ -28,6 +17,7 @@ function host(overrides: Partial<PatchContextHost> = {}): PatchContextHost {
     read: async (path) => SOURCES[path] ?? "",
     manifestBase: () => null,
     syntaxChecker: () => ({ check: async () => [] }),
+    analyze: async () => ({ before: ANALYSIS, after: ANALYSIS }),
     ...overrides,
   };
 }
@@ -44,16 +34,15 @@ afterEach(() => {
 });
 
 describe("loadProjectContext", () => {
-  it("parses the project sources into the validator context", async () => {
+  it("reads only the two raw sources the analyzer does not model", async () => {
     const loaded = await loadProjectContext(host());
-    expect(loaded.context.config.permissions).toEqual(["todos:read"]);
-    expect(loaded.context.schema.tables.map((table) => table.name)).toEqual(["todos"]);
-    expect(loaded.context.locales["app.title"]).toBe("Facilis");
-    expect(loaded.context.packages).toContain("react");
+    expect(Object.keys(loaded.sources).sort()).toEqual(["package.json", "tsconfig.json"]);
+    expect(loaded.sources["package.json"]).toContain("react");
+    expect(loaded.manifest).toBeUndefined();
     expect(loaded.checker).not.toBeNull();
   });
 
-  it("includes the live manifest when the project is running", async () => {
+  it("passes the live manifest through when the project is running", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -81,12 +70,10 @@ describe("loadProjectContext", () => {
     const loaded = await loadProjectContext(
       host({ manifestBase: () => "http://127.0.0.1:5199/preview/3000" }),
     );
-    expect(loaded.context.routes).toHaveLength(1);
-    expect(loaded.context.blocks).toEqual([{ name: "DataTable" }]);
-    expect(loaded.context.locales["todos.title"]).toBe("Todos");
+    expect(loaded.manifest).toMatchObject({ blocks: [{ name: "DataTable" }] });
   });
 
-  it("treats an unreadable project as an empty context", async () => {
+  it("treats an unreadable project as empty base material", async () => {
     const loaded = await loadProjectContext(
       host({
         files: () => [],
@@ -95,8 +82,7 @@ describe("loadProjectContext", () => {
         },
       }),
     );
-    expect(loaded.context.files).toEqual([]);
-    expect(loaded.context.schema.tables).toEqual([]);
+    expect(loaded.sources).toEqual({});
     expect(loaded.checker).not.toBeNull();
   });
 });

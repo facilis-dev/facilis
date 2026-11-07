@@ -1,7 +1,7 @@
 /*
  * Style entry for the generated project (v2): Tailwind CSS v4 utilities over shadcn role
- * tokens, with the Base UI primitives copied into src/components/ui. The v1 @facilis/ui kit
- * is not imported: a generated app owns its components and its theme (D-062).
+ * tokens, with the Base UI primitives copied into src/components/ui. There is no UI kit
+ * package: a generated app owns its components and its theme (D-062).
  */
 @import "tailwindcss";
 @import "@fontsource-variable/geist";

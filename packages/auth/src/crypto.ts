@@ -16,6 +16,7 @@ export interface SubtleCryptoLike {
     baseKey: unknown,
     length: number,
   ): Promise<ArrayBuffer>;
+  digest(algorithm: "SHA-256", data: Uint8Array): Promise<ArrayBuffer>;
 }
 
 export interface WebCryptoLike {
@@ -78,6 +79,15 @@ export function randomToken(byteLength: number): string {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
+}
+
+/**
+ * SHA-256 of a string as lowercase hex. WebCrypto only, so the session-hash path also runs
+ * inside the browser WebContainer; the raw value is never stored or logged.
+ */
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await webcrypto().subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** Compares secrets without leaking the index of the first mismatch. */

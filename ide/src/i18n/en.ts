@@ -8,13 +8,14 @@
 // Not yet migrated: the upstream-inherited editor chrome (Explorer, Search, Debug,
 // SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
 // Those move here file by file as they are touched — see ide/I18N.md.
-import { apiFlowEn } from "./en-api-flow";
 import { updatesEn } from "./en-updates";
 import { dataExplorerEn } from "./en-data-explorer";
+import { dataQueryEn } from "./en-data-query";
 import { releasePreviewEn } from "./en-release-preview";
 import { gitRemoteEn } from "./en-git-remote";
 import { sourceControlEn } from "./en-source-control";
 import { commitGraphEn } from "./en-commit-graph";
+import { projectGraphEn } from "./en-project-graph";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -175,8 +176,9 @@ export const en = {
   ...gitRemoteEn,
   ...sourceControlEn,
   ...commitGraphEn,
+  ...projectGraphEn,
   ...dataExplorerEn,
-  ...apiFlowEn,
+  ...dataQueryEn,
   ...releasePreviewEn,
   ...updatesEn,
   // ── command palette ──────────────────────────────────────────────────────

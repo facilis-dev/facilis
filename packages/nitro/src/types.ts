@@ -3,15 +3,14 @@ import type { ManifestWarning } from "@facilis/core";
 /** HTTP methods a Facilis route file can declare (SPEC §7.3 RouteMeta.method). */
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-/** Config keys the AST pass can extract statically; anything else is ignored. */
+/** Config keys the route metadata pass can extract; anything else is ignored. */
 export type MetadataField = "permission" | "dbTables" | "dbColumns" | "description";
 
 /**
  * One route's statically extracted metadata.
  *
- * `unresolved` records which fields were present but not statically readable, so
- * the OpenAPI facade can omit them instead of publishing a wrong value (SPEC §13
- * risk 3 / §6.9).
+ * `unresolved` records which fields were not statically readable, so the OpenAPI
+ * facade can omit them instead of publishing a wrong value (SPEC §13 risk 3 / §6.9).
  */
 export interface RouteMetadata {
   method: HttpMethod;
@@ -32,15 +31,16 @@ export interface RouteMetadata {
 export type RouteMetadataMap = Readonly<Record<string, Readonly<Record<string, RouteMetadata>>>>;
 
 export interface ScanOptions {
-  /** Absolute path to the project's `server/routes` directory. */
-  routesDir: string;
-  /** Absolute project root; when set, `sourceFile` becomes project-relative. */
-  rootDir?: string;
-  /** Receives file-level warnings (unparseable files) that belong to no route. */
+  /** Absolute project root; the analyzer owns the project's DSL layout (D-092). */
+  rootDir: string;
+  /** Receives warnings that belong to no route (parse/config diagnostics). */
   onWarning?: (warning: ManifestWarning) => void;
 }
 
-export interface FacilisOptions {
-  /** `server/routes` by default; relative paths resolve against the Vite root. */
-  routesDir?: string;
-}
+/**
+ * Reserved plugin options.
+ *
+ * The analyzer derives the route layout (`server/routes/**`) from the project root (D-092),
+ * so `facilis()` takes no options today; the type stays exported for the documented API.
+ */
+export type FacilisOptions = Record<string, never>;

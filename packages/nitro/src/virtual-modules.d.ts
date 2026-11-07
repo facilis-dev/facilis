@@ -23,6 +23,12 @@ declare module "#facilis/db-schema" {
   export default schema;
 }
 
+/** Every module under db/views/ plus db/views.ts, for the framework's view creation. */
+declare module "#facilis/db-views" {
+  const modules: ReadonlyArray<Readonly<Record<string, unknown>>>;
+  export default modules;
+}
+
 declare module "#facilis/openapi-meta" {
   const metadata: import("./types.ts").RouteMetadataMap;
   export default metadata;

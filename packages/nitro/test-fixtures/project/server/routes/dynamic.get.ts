@@ -1,12 +1,13 @@
 import { defineAuthorizedHandler } from "@facilis/core";
 
-const tables = ["todos"];
+// `as const` exercises the analyzer's static reader through the rolldown parser adapter.
+const tables = ["todos"] as const;
 
 export default defineAuthorizedHandler(
   {
     permission: "todos:read",
     dbTables: tables,
-    description: "Imported table list: not statically resolvable.",
+    description: "Same-file const table list, read statically by the analyzer.",
   },
   async () => tables,
 );

@@ -3,8 +3,11 @@
  *
  * Without a context only the two context-free structural checks run (the parser gate);
  * with a context the full rule set runs. Rules 5, 13 and 14 are warnings (they never
- * block); the others are errors and make `ok` false, which is what stops the IDE's
- * apply path before it writes anything (invariant 9).
+ * block); the others are errors and make `ok` false, which is what stops the IDE's apply
+ * path before it writes anything (invariant 9).
+ *
+ * Every contextual rule reads @facilis/analyze's fact model (D-092): the effective
+ * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
  */
 
 import { buildEffectiveState } from "./overlay.ts";
@@ -18,7 +21,11 @@ import {
   routeDbColumnsWarnings,
   routeDbTablesErrors,
 } from "./rules/routes-metadata.ts";
-import { routeSecurityErrors } from "./rules/routes-security.ts";
+import {
+  routeDbTablesPresentErrors,
+  routeInputErrors,
+  routeSecurityErrors,
+} from "./rules/routes-security.ts";
 import { structuralErrors } from "./rules/structural.ts";
 import { tsParseErrors } from "./rules/ts-parse.ts";
 import type { FilePatch, ValidatePatchOptions, ValidationResult } from "./types.ts";
@@ -34,10 +41,12 @@ export function validatePatch(
     const state = buildEffectiveState(context, patches);
     errors.push(...tsParseErrors(patches, context.syntax));
     errors.push(...routeSecurityErrors(state));
-    errors.push(...routeDbTablesErrors(state, context));
-    warnings.push(...routeDbColumnsWarnings(state, context));
-    errors.push(...permissionErrors(state, context));
+    errors.push(...routeDbTablesPresentErrors(state));
+    errors.push(...routeDbTablesErrors(state));
+    warnings.push(...routeDbColumnsWarnings(state));
+    errors.push(...permissionErrors(state));
     errors.push(...blockImportErrors(state, context));
+    errors.push(...routeInputErrors(state));
     errors.push(...rawDbAccessErrors(state));
     errors.push(...rlsErrors(state));
     errors.push(...importResolveErrors(state, context));

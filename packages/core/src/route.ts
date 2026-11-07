@@ -3,7 +3,8 @@ import { runWithPolicyScope, type PolicyScope, type PolicyScopedDatabase } from 
 import type { z } from "zod";
 
 import { fail, invalidInput } from "./errors.ts";
-import type { FacilisRequestEvent } from "./event.ts";
+import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
+import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
 import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
 /**
@@ -41,8 +42,21 @@ export interface AuthorizedHandlerContext<
   params: P;
   /** Pre-scoped client: never the raw database (SPEC §7.4). */
   db: PolicyScopedDatabase;
+  /**
+   * Audited elevation for operations the route's permission/RLS cannot allow directly
+   * (D-099). Runs the callback as facilis_system inside the request transaction, logging
+   * started/succeeded/failed; the route's own permission check still applies.
+   */
+  sudo: SudoHandler;
+  /**
+   * Audited system elevation for public/bootstrap routes that have no session (D-099):
+   * registration/bootstrap writes run as the named `system:<job>` actor, never as the
+   * anonymous caller. Same savepoint/role/audit flow as sudo, same nesting guard.
+   */
+  system: SystemHandler;
 }
 
+/** The outer handler the framework returns; it receives the full request context. */
 export type AuthorizedHandler = (event: FacilisRequestEvent) => Promise<unknown>;
 
 /**
@@ -127,17 +141,49 @@ async function parseRequestInput<B, Q, P>(
   return { ok: true, body: body.value, query: query.value, params: params.value };
 }
 
+/**
+ * The event a project handler receives: the same req/res objects and a context copy that
+ * keeps auth/params plus ONLY the safe facilis fields. The root Drizzle client
+ * (`facilis.db`) is captured by the wrapper and never reaches the handler surface (D-099).
+ */
+function toHandlerEvent(
+  event: FacilisRequestEvent,
+  facilis: NonNullable<FacilisRequestEvent["context"]["facilis"]>,
+): FacilisHandlerEvent {
+  const { auth, params } = event.context;
+  const defaultTenantId = facilis.defaultTenantId;
+  return {
+    context: {
+      ...(auth === undefined ? {} : { auth }),
+      ...(params === undefined ? {} : { params }),
+      ...(defaultTenantId === undefined ? {} : { facilis: { defaultTenantId } }),
+    },
+    req: event.req,
+    ...(event.res === undefined ? {} : { res: event.res }),
+  };
+}
+
+/** The request scope: tenant is always resolved, unlike the general PolicyScope contract. */
+interface ResolvedScope extends PolicyScope {
+  readonly tenantId: string;
+}
+
 function resolveScope(
   auth: AuthContext | null,
   facilis: { defaultTenantId?: string } | undefined,
-): PolicyScope {
+): ResolvedScope {
   // The tenant is the deployment's, never the session's (D-040): this is the only value RLS
   // will accept, so a session cannot widen or change the scope. Anonymous routes
   // (registration/login) get the same value, which is what makes the tenant column default
   // and the RLS WITH CHECK agree. The framework constant is the fallback so an app that
   // forgets FACILIS_TENANT_ID behaves like the Nitro middleware.
   const tenantId = facilis?.defaultTenantId ?? DEFAULT_TENANT_ID;
-  return auth === null ? { tenantId } : { tenantId, userId: auth.userId, roles: auth.roles };
+  // Permissions travel in app.permissions for permission views (D-098); they are the
+  // session's expanded set, never the route's required list.
+  const permissions = auth?.permissions ?? [];
+  return auth === null
+    ? { tenantId, permissions }
+    : { tenantId, permissions, userId: auth.userId, roles: auth.roles };
 }
 
 export function defineAuthorizedHandler<
@@ -148,7 +194,7 @@ export function defineAuthorizedHandler<
 >(
   config: AuthorizedHandlerConfig<B, Q, P> & { permission: Permission },
   handler: (
-    event: FacilisRequestEvent,
+    event: FacilisHandlerEvent,
     ctx: AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>>,
   ) => Promise<unknown> | unknown,
 ): AuthorizedHandler {
@@ -170,19 +216,32 @@ export function defineAuthorizedHandler<
     if (facilis === undefined) return fail("db_unavailable");
 
     const scope = resolveScope(auth, facilis);
+    // The raw root client stays here in the wrapper: the handler event exposes only the safe
+    // context fields, so the audited elevation wrappers are the sole escalation path.
+    const handlerEvent = toHandlerEvent(event, facilis);
     try {
       return await runWithPolicyScope(facilis.db, scope, async (db) => {
+        const elevations = createElevationContext({
+          event,
+          db,
+          auth,
+          permissions: requiredPermissions,
+          dbTables: config.dbTables,
+          tenantId: scope.tenantId,
+        });
         const ctx: AuthorizedHandlerContext<B, Q, P, AuthContext | null> = {
           auth,
           body: input.body,
           query: input.query,
           params: input.params,
           db,
+          sudo: elevations.sudo,
+          system: elevations.system,
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;
         // this single cast bridges the conditional overload type to the actual value.
         return await handler(
-          event,
+          handlerEvent,
           ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>>,
         );
       });

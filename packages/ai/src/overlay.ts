@@ -1,55 +1,49 @@
 /**
  * The pre-patch project context overlaid with one patch set.
  *
- * Every context-dependent rule reads this state instead of re-deriving the patch: the
- * effective config/schema/locales and the file set are computed once, so a rule cannot
- * accidentally validate against the pre-patch world. Pure and browser-safe.
+ * After D-092 this is fact-based: the caller supplies the effective (post-patch) Analysis
+ * and the pre-patch one, so the overlay only projects them plus the patch-shaped
+ * bookkeeping the rules need (file set, patched paths, removed facts). It never parses
+ * project sources; the one JSON read is the patched locale catalogue, because rule 13 must
+ * tell "no keys" from "broken catalogue". Pure and browser-safe.
  */
 
-import { parseConfigSource } from "./config-facts.ts";
-import { normalizeProjectPath } from "./paths.ts";
-import { maskSource } from "./scan.ts";
-import { parseSchemaSource } from "./schema-facts.ts";
-import type { ConfigFacts, FilePatch, PatchContext, TableFacts } from "./types.ts";
+import type { Analysis, ConfigFacts, FileFacts, TableFact } from "@facilis/analyze";
 
-/** A post-patch source file with its comments masked once. */
-export interface PatchedSource {
-  path: string;
-  content: string;
-  masked: string;
-}
+import { LOCALES_PATH, normalizeProjectPath, SCHEMA_PATH } from "./paths.ts";
+import type { FilePatch, PatchContext } from "./types.ts";
+
+export { CONFIG_PATH, LOCALES_PATH, SCHEMA_PATH } from "./paths.ts";
 
 export interface EffectiveState {
   /** Project-relative files that exist after the patch. */
   files: ReadonlySet<string>;
-  /** Project sources after the patch (patched content wins, deletes removed). */
-  sources: Readonly<Record<string, string>>;
-  beforeConfig: ConfigFacts;
-  config: ConfigFacts;
-  /** Every table after the patch: manifest facts merged with the effective code schema. */
-  schemaTables: readonly TableFacts[];
-  beforeSchemaTables: readonly TableFacts[];
-  afterSchemaTables: readonly TableFacts[];
-  locales: Readonly<Record<string, string>>;
-  /** False when a patched locales/en.json is not valid JSON. */
-  localesValid: boolean;
-  /** Created/updated files, with comments masked, in patch order. */
-  patchedSources: readonly PatchedSource[];
   /** Every path the patch touches, and those it deletes. */
   patchedPaths: ReadonlySet<string>;
   deletedPaths: ReadonlySet<string>;
+  /** Effective analysis + the pre-patch one, for inverse edits. */
+  analysis: Analysis;
+  before: Analysis;
+  /** Module facts of the created/updated files (from the effective analysis). */
+  patchedFileFacts: readonly FileFacts[];
+  /** Effective config after the patch (analyzer facts). */
+  config: ConfigFacts;
+  /** Every effective table, including framework tables re-exported into the schema. */
+  schemaTables: readonly TableFact[];
+  /** Tables declared in the code schema before and after the patch (no re-exports). */
+  beforeSchemaTables: readonly TableFact[];
+  afterSchemaTables: readonly TableFact[];
+  locales: Readonly<Record<string, string>>;
+  /** False when a patched locales/en.json is not a valid JSON catalogue. */
+  localesValid: boolean;
+  migrationsDir: string;
   removedTables: readonly string[];
   removedPermissions: readonly string[];
-  migrationsDir: string;
 }
 
-export const CONFIG_PATH = "facilis.config.ts";
-export const SCHEMA_PATH = "db/schema.ts";
-export const LOCALES_PATH = "locales/en.json";
-
-function parseCatalog(text: string): Record<string, string> | null {
+function parseCatalog(content: string): Record<string, string> | null {
   try {
-    const parsed: unknown = JSON.parse(text);
+    const parsed: unknown = JSON.parse(content);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
     const catalog: Record<string, string> = {};
     for (const [key, value] of Object.entries(parsed)) {
@@ -61,21 +55,18 @@ function parseCatalog(text: string): Record<string, string> | null {
   }
 }
 
-function mergeTables(base: readonly TableFacts[], added: readonly TableFacts[]): TableFacts[] {
-  const merged = new Map<string, TableFacts>();
-  for (const table of base) merged.set(table.name, table);
-  for (const table of added) merged.set(table.name, table);
-  return [...merged.values()];
+/** A table the project declares in its own schema file (not a framework re-export). */
+function isSchemaTable(table: TableFact): boolean {
+  return normalizeProjectPath(table.source.file) === SCHEMA_PATH;
 }
 
 /** True when the patch creates a SQL migration file in the configured directory. */
 export function hasMigrationPatch(patches: readonly FilePatch[], migrationsDir: string): boolean {
+  const directory = normalizeProjectPath(migrationsDir).replace(/\/+$/, "");
   return patches.some(
     (patch) =>
       patch.action === "create" &&
-      normalizeProjectPath(patch.path).startsWith(
-        normalizeProjectPath(migrationsDir).replace(/\/+$/, "") + "/",
-      ) &&
+      normalizeProjectPath(patch.path).startsWith(directory + "/") &&
       normalizeProjectPath(patch.path).endsWith(".sql"),
   );
 }
@@ -95,72 +86,46 @@ export function buildEffectiveState(
     else if (typeof patch.content === "string") patched.set(path, patch.content);
   }
 
-  const beforeConfig = context.config;
-  const config = patched.has(CONFIG_PATH)
-    ? parseConfigSource(patched.get(CONFIG_PATH) ?? "")
-    : context.config;
-
-  const beforeSchemaTables = context.schema.tables.filter((table) => table.source === "schema");
-  let afterSchemaTables: TableFacts[];
-  let extraTables: TableFacts[];
-  if (deleted.has(SCHEMA_PATH)) {
-    afterSchemaTables = [];
-    extraTables = [];
-  } else if (patched.has(SCHEMA_PATH)) {
-    const parsed = parseSchemaSource(patched.get(SCHEMA_PATH) ?? "", config);
-    afterSchemaTables = parsed.filter((table) => table.source === "schema");
-    extraTables = parsed.filter((table) => table.source !== "schema");
-  } else {
-    afterSchemaTables = beforeSchemaTables;
-    extraTables = context.schema.tables.filter((table) => table.source === "re-export");
-  }
-  const beforeNames = new Set(beforeSchemaTables.map((table) => table.name));
-  const manifestTables = context.schema.tables.filter(
-    (table) => table.source === "manifest" && !beforeNames.has(table.name),
-  );
+  const analysis = context.analysis;
+  const before = context.before;
+  const config = analysis.config;
+  const beforeSchemaTables = before.tables.filter(isSchemaTable);
+  const afterSchemaTables = analysis.tables.filter(isSchemaTable);
   const afterNames = new Set(afterSchemaTables.map((table) => table.name));
+  const beforeNames = new Set(beforeSchemaTables.map((table) => table.name));
 
   let locales = context.locales;
   let localesValid = true;
-  if (patched.has(LOCALES_PATH)) {
-    const catalog = parseCatalog(patched.get(LOCALES_PATH) ?? "");
+  const catalogContent = patched.get(LOCALES_PATH);
+  if (catalogContent !== undefined) {
+    const catalog = parseCatalog(catalogContent);
     if (catalog === null) localesValid = false;
     else locales = catalog;
   }
 
   const files = new Set(context.files.map(normalizeProjectPath));
-  const sources: Record<string, string> = { ...context.sources };
-  for (const path of deleted) {
-    files.delete(path);
-    delete sources[path];
-  }
-  for (const [path, content] of patched) {
-    files.add(path);
-    sources[path] = content;
-  }
-
-  const patchedSources: PatchedSource[] = [];
-  for (const [path, content] of patched) {
-    patchedSources.push({ path, content, masked: maskSource(content) });
-  }
+  for (const path of deleted) files.delete(path);
+  for (const path of patched.keys()) files.add(path);
 
   return {
     files,
-    sources,
-    beforeConfig,
+    patchedPaths,
+    deletedPaths: deleted,
+    analysis,
+    before,
+    patchedFileFacts: analysis.fileFacts.filter((facts) =>
+      patchedPaths.has(normalizeProjectPath(facts.path)),
+    ),
     config,
-    schemaTables: mergeTables(manifestTables, [...extraTables, ...afterSchemaTables]),
+    schemaTables: analysis.tables,
     beforeSchemaTables,
     afterSchemaTables,
     locales,
     localesValid,
-    patchedSources,
-    patchedPaths,
-    deletedPaths: deleted,
+    migrationsDir: normalizeProjectPath(config.migrationsDir),
     removedTables: [...beforeNames].filter((name) => !afterNames.has(name)),
-    removedPermissions: beforeConfig.permissions.filter(
+    removedPermissions: before.config.permissions.filter(
       (permission) => !config.permissions.includes(permission),
     ),
-    migrationsDir: normalizeProjectPath(config.migrationsDir),
   };
 }

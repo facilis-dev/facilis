@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
 
+import { sha256Hex } from "./crypto.ts";
 import type { AuthConfig } from "./roles.ts";
 import {
   createSession,
@@ -93,11 +94,22 @@ describe("session lifecycle", () => {
     const event = eventWithCookie(`theme=dark; ${SESSION_COOKIE_NAME}=${id}; other=1`);
     await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
 
+    // D-099: the audit trail correlates with the session by hash, never by the raw id.
+    const sessionHash = await sha256Hex(id);
     expect(event.context.auth).toEqual({
       userId,
       roles: ["admin"],
       permissions: ["todos:read", "todos:write"],
+      sessionHash,
     });
+    expect(sessionHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(sessionHash).not.toBe(id);
+  });
+
+  it("leaves sessionHash unset for an anonymous request", async () => {
+    const event = eventWithCookie(undefined);
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
+    expect(event.context.auth).toBeNull();
   });
 
   it("sets auth to null when the cookie is absent, empty or unknown", async () => {

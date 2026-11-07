@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { deploymentPlugin } from "./vite.deployment.ts";
+import { swScope } from "./vite.isolation.ts";
 // The two headers that unlock SharedArrayBuffer (cross-origin isolation). Without
 // them `SharedArrayBuffer` is undefined and the whole runtime cannot run. Applied
 // to the dev server, the preview server, AND — via the plugin below — every
@@ -18,26 +19,6 @@ const isolation = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
-
-// Grant the preview Service Worker (served at /sw.js) a root scope so it can
-// intercept /preview/<port>/... for the whole origin.
-function swScope(): Plugin {
-  const mw = (req: any, res: any, next: any) => {
-    for (const [k, v] of Object.entries(isolation)) res.setHeader(k, v);
-    if (req.url && req.url.split("?")[0].endsWith("/sw.js"))
-      res.setHeader("Service-Worker-Allowed", "/");
-    next();
-  };
-  return {
-    name: "vv-cross-origin-isolation",
-    configureServer(server) {
-      server.middlewares.use(mw);
-    },
-    configurePreviewServer(server) {
-      server.middlewares.use(mw);
-    },
-  };
-}
 
 // Vendor the in-browser DevTools locally (no CDN → COEP-safe). We serve two
 // things same-origin:
@@ -284,7 +265,7 @@ export default defineConfig({
     // Iconify icons compiled to inline SVG React components at build time — offline
     // (no CDN → COEP-safe) and tree-shaken. Used as `~icons/<collection>/<name>`.
     Icons({ compiler: "jsx", jsx: "react" }),
-    swScope(),
+    swScope(isolation),
     // After swScope so its header middleware (COEP/COOP) runs first and stamps
     // these responses before we stream the vendored DevTools assets.
     serveDevtools(),
@@ -311,5 +292,14 @@ export default defineConfig({
     fs: { allow: [fileURLToPath(new URL("../", import.meta.url))] },
   },
   preview: { headers: isolation },
+  optimizeDeps: {
+    // The analyzer worker imports oxc-parser's browser entry (wasm32-wasip1): a top-level
+    // await module that fetches `new URL("./parser.wasm32-wasip1.wasm", import.meta.url)`.
+    // Pre-bundling rewrites that URL and loses the TLA, so both packages stay source. The
+    // single emnapi version is a workspace-root override (pnpm-workspace.yaml).
+    exclude: ["oxc-parser", "@oxc-parser/binding-wasm32-wasip1"],
+  },
+  // The analyzer worker's parser module uses top-level await; the default iife worker
+  // format rejects it with [INVALID_TLA_FORMAT].
   worker: { format: "es" },
 });

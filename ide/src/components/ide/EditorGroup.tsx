@@ -6,9 +6,10 @@ import { VV_PATH_MIME, entriesFromDataTransfer, type WorkspaceFolder } from "@/v
 import {
   commitGraphRootOf,
   diffTargetOf,
-  isApiFlowTabId,
   isCommitGraphTabId,
+  isDataQueryTabId,
   isDiffTabId,
+  isProjectGraphTabId,
 } from "@/vv/synthetic-tabs";
 import {
   ContextMenu,
@@ -30,8 +31,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileIcon } from "./fileIcon";
 import { NotebookView } from "./NotebookView";
-import { ApiFlowPanel } from "./ApiFlowPanel";
 import { CommitGraphPanel } from "./CommitGraphPanel";
+import { DataQueryPanel } from "./DataQueryPanel";
+import { ProjectGraphPanel } from "./ProjectGraphPanel";
 import { DiffView, DirectoryView, ImageView } from "./EditorPanes";
 import { EditorTabLabel } from "./EditorTabLabel";
 import { t } from "@/i18n";
@@ -162,8 +164,9 @@ export function EditorGroup() {
                 : "shadow-[inset_2px_0_0_0_var(--primary)]"
               : "";
           const isDiff = isDiffTabId(rel);
-          const isApiFlow = isApiFlowTabId(rel);
           const isCommitGraph = isCommitGraphTabId(rel);
+          const isProjectGraph = isProjectGraphTabId(rel);
+          const isDataQuery = isDataQueryTabId(rel);
           return (
             <ContextMenu key={rel}>
               <ContextMenuTrigger className="contents">
@@ -172,11 +175,13 @@ export function EditorGroup() {
                   title={
                     isDiff
                       ? diffTargetOf(rel)
-                      : isApiFlow
-                        ? t("apiFlow.tabTitle")
-                        : isCommitGraph
-                          ? commitGraphRootOf(rel)
-                          : rel
+                      : isCommitGraph
+                        ? commitGraphRootOf(rel)
+                        : isProjectGraph
+                          ? t("projectGraph.tabTitle")
+                          : isDataQuery
+                            ? t("dataQuery.tabTitle")
+                            : rel
                   }
                   draggable
                   onClick={() => c.openFile(rel, { preview: isPreview })}
@@ -282,14 +287,17 @@ export function EditorGroup() {
         })}
       </div>
 
-      {/* breadcrumb: Workspace-relative path of the active file (or diff target); the
-          API Flow tab has no file, so it has no breadcrumb. */}
-      {snap.activeTab && !isApiFlowTabId(snap.activeTab) && !isCommitGraphTabId(snap.activeTab) && (
-        <Breadcrumb
-          abs={isDiffTabId(snap.activeTab) ? diffTargetOf(snap.activeTab) : snap.activeTab}
-          folders={snap.workspaceFolders}
-        />
-      )}
+      {/* breadcrumb: Workspace-relative path of the active file (or diff target); a
+          synthetic tab has no file, so it has no breadcrumb. */}
+      {snap.activeTab &&
+        !isCommitGraphTabId(snap.activeTab) &&
+        !isProjectGraphTabId(snap.activeTab) &&
+        !isDataQueryTabId(snap.activeTab) && (
+          <Breadcrumb
+            abs={isDiffTabId(snap.activeTab) ? diffTargetOf(snap.activeTab) : snap.activeTab}
+            folders={snap.workspaceFolders}
+          />
+        )}
 
       {/* editor host (Monaco mounts here once) */}
       <div ref={dropZoneRef} className="relative flex-1">
@@ -309,10 +317,11 @@ export function EditorGroup() {
         {activeKind === "notebook" && snap.activeTab && (
           <NotebookView key={snap.activeTab} abs={snap.activeTab} />
         )}
-        {activeKind === "api-flow" && <ApiFlowPanel placement="center" />}
         {activeKind === "commit-graph" && snap.activeTab && (
           <CommitGraphPanel key={snap.activeTab} root={commitGraphRootOf(snap.activeTab)} />
         )}
+        {activeKind === "project-graph" && <ProjectGraphPanel />}
+        {activeKind === "data-query" && <DataQueryPanel />}
         {!snap.activeTab && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
             {snap.projectTitle ? "Open a file from the Workspace" : "Press Run to start a project"}

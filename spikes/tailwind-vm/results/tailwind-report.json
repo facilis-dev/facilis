@@ -1,0 +1,1032 @@
+{
+  "ok": false,
+  "startedAt": "2026-11-03T06:57:25.412Z",
+  "timings": {
+    "kernelOnlineMs": 1319,
+    "installToPreviewPaintMs": 116809,
+    "installPackagesAtMs": 108733
+  },
+  "checks": [
+    {
+      "ok": true,
+      "label": "kernel online",
+      "detail": "1319ms"
+    },
+    {
+      "ok": true,
+      "label": "new-project dialog opens",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project name filled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "Create button enabled",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "project created, install started",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "preview painted (install + dev in VM)",
+      "detail": "116809ms"
+    },
+    {
+      "ok": true,
+      "label": "project root resolved",
+      "detail": "/home/user/projects/spike-tailwind-mw0c595u"
+    },
+    {
+      "ok": true,
+      "label": "TwProbe rendered in preview",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "Tailwind bg-red-500 applied",
+      "detail": "oklch(0.637 0.237 25.331) (v4 emits oklch)"
+    },
+    {
+      "ok": true,
+      "label": "Tailwind text-white applied",
+      "detail": "rgb(255, 255, 255)"
+    },
+    {
+      "ok": true,
+      "label": "Tailwind font-bold applied",
+      "detail": "700"
+    },
+    {
+      "ok": true,
+      "label": "Base UI primitive rendered",
+      "detail": "BUTTON base-ui-button"
+    },
+    {
+      "ok": true,
+      "label": "Tailwind generated the utility rule",
+      "detail": "cssLength=70466 styleTags=81344"
+    },
+    {
+      "ok": true,
+      "label": "probe source read from the VFS",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "VV write landed (new class in source)",
+      "detail": ""
+    },
+    {
+      "ok": false,
+      "label": "HMR: new utility class applied without a CSS touch",
+      "detail": "known WASI incremental-scan bug (tailwindlabs/tailwindcss#20605)"
+    },
+    {
+      "ok": true,
+      "label": "HMR: new class appears after touching the stylesheet (bug workaround)",
+      "detail": ""
+    }
+  ],
+  "probe": {
+    "found": true,
+    "bg": "oklch(0.637 0.237 25.331)",
+    "color": "rgb(255, 255, 255)",
+    "classes": "p-3 bg-red-500 text-white",
+    "labelWeight": "700",
+    "baseUi": {
+      "tag": "BUTTON",
+      "text": "base-ui-button"
+    },
+    "cssHasRed": true,
+    "cssHasEmerald": false,
+    "cssLength": 70466,
+    "styleTags": 81344
+  },
+  "hmr": {
+    "firstTry": false,
+    "probe": {
+      "found": true,
+      "bg": "rgba(0, 0, 0, 0)",
+      "color": "rgb(255, 255, 255)",
+      "classes": "p-3 bg-emerald-500 text-white",
+      "labelWeight": "700",
+      "baseUi": {
+        "tag": "BUTTON",
+        "text": "base-ui-button"
+      },
+      "cssHasRed": true,
+      "cssHasEmerald": false,
+      "cssLength": 70466,
+      "styleTags": 81344
+    },
+    "afterCssTouch": {
+      "ok": true,
+      "probe": {
+        "found": true,
+        "bg": "oklch(0.696 0.17 162.48)",
+        "color": "rgb(255, 255, 255)",
+        "classes": "p-3 bg-emerald-500 text-white",
+        "labelWeight": "700",
+        "baseUi": {
+          "tag": "BUTTON",
+          "text": "base-ui-button"
+        },
+        "cssHasRed": true,
+        "cssHasEmerald": true,
+        "cssLength": 70579,
+        "styleTags": 81467
+      }
+    }
+  },
+  "files": {
+    "packageJson": "{\n  \"name\": \"facilis-app\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"packageManager\": \"npm@12.2.1\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\",\n    \"preinstall\": \"node scripts/check-pm.mjs\"\n  },\n  \"dependencies\": {\n    \"@electric-sql/pglite\": \"0.5.11\",\n    \"@facilis/auth\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-auth-0.0.0.tgz\",\n    \"@facilis/core\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-core-0.0.0.tgz\",\n    \"@facilis/db\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-db-0.0.0.tgz\",\n    \"@facilis/nitro\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-nitro-0.0.0.tgz\",\n    \"@facilis/time\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-time-0.0.0.tgz\",\n    \"@facilis/ui\": \"file:/home/user/projects/spike-tailwind-mw0c595u/vendor/facilis-ui-0.0.0.tgz\",\n    \"drizzle-orm\": \"0.45.4\",\n    \"nitro\": \"3.0.260903-beta\",\n    \"react\": \"19.3.1\",\n    \"react-router-dom\": \"7.18.5\",\n    \"react-dom\": \"19.3.1\",\n    \"zod\": \"4.6.7\",\n    \"@base-ui/react\": \"1.9.0\",\n    \"@tailwindcss/oxide-wasm32-wasi\": \"4.3.3\",\n    \"@tailwindcss/vite\": \"4.3.3\",\n    \"clsx\": \"^2.1.1\",\n    \"tailwindcss\": \"4.3.3\",\n    \"picomatch\": \"^4.0.3\",\n    \"@vercel/queue\": \"^0.5.1\",\n    \"rolldown\": \"1.2.15\"\n  },\n  \"devDependencies\": {\n    \"@types/react\": \"19.3.0\",\n    \"@types/react-dom\": \"19.3.0\",\n    \"@rolldown/binding-wasm32-wasi\": \"~1.2.0\",\n    \"@vitejs/plugin-react\": \"6.1.2\",\n    \"vite\": \"8.3.5\"\n  },\n  \"overrides\": {\n    \"@emnapi/core\": \"2.0.0-beta.2\",\n    \"@emnapi/runtime\": \"2.0.0-beta.2\"\n  }\n}\n",
+    "tailwindcss": "{\n  \"name\": \"tailwindcss\",\n  \"version\": \"4.3.3\",\n  \"description\": \"A utility-first CSS framework for rapidly building custom user interfaces.\",\n  \"license\": \"MIT\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://github.com/tailwindlabs/tailwindcss.git\",\n    \"directory\": \"packages/tailwindcss\"\n  },\n  \"bugs\": \"https://github.com/tailwindlabs/tailwindcss/issues\",\n  \"homepage\": \"https://tailw",
+    "@tailwindcss/oxide": "{\n  \"name\": \"@tailwindcss/oxide\",\n  \"version\": \"4.3.3\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"git+https://github.com/tailwindlabs/tailwindcss.git\",\n    \"directory\": \"crates/node\"\n  },\n  \"main\": \"index.js\",\n  \"types\": \"index.d.ts\",\n  \"napi\": {\n    \"binaryName\": \"tailwindcss-oxide\",\n    \"packageName\": \"@tailwindcss/oxide\",\n    \"targets\": [\n      \"armv7-linux-androideabi\",\n      \"aarch64-l",
+    "@tailwindcss/oxide-wasm32-wasi": "{\n  \"name\": \"@tailwindcss/oxide-wasm32-wasi\",\n  \"version\": \"4.3.3\",\n  \"cpu\": [\n    \"wasm32\"\n  ],\n  \"main\": \"tailwindcss-oxide.wasi.cjs\",\n  \"files\": [\n    \"tailwindcss-oxide.wasm32-wasi.wasm\",\n    \"tailwindcss-oxide.wasi.cjs\",\n    \"tailwindcss-oxide.wasi-browser.js\",\n    \"wasi-worker.mjs\",\n    \"wasi-worker-browser.mjs\"\n  ],\n  \"license\": \"MIT\",\n  \"engines\": {\n    \"node\": \">=14.0.0\"\n  },\n  \"publishCo",
+    "@base-ui/react": "{\n  \"name\": \"@base-ui/react\",\n  \"version\": \"1.9.0\",\n  \"author\": \"MUI Team\",\n  \"description\": \"Base UI is a library of headless ('unstyled') React components and low-level hooks. You gain complete control over your app's CSS and accessibility features.\",\n  \"license\": \"MIT\",\n  \"keywords\": [\n    \"react\",\n    \"react-component\",\n    \"mui\",\n    \"unstyled\",\n    \"base-ui\",\n    \"a11y\"\n  ],\n  \"repository\": ",
+    "shadcn": "<missing>"
+  },
+  "terminalTail": "  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (12146 files, 144.9 MB).\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n \nVivari shell — type commands, Enter to run.\n/$  \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nrc/styles.css, /src/\ncomponents/tw-probe.\ntsx\n6:59:49 AM [vite] (c\nlient) hmr update /s\nrc/styles.css\n ",
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template)."
+    },
+    {
+      "type": "warning",
+      "text": "[vivari]  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!doctype \"... is not valid JSON). This build was assembled without it, so nothing is prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`."
+    },
+    {
+      "type": "warning",
+      "text": "[vivari]  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<', \"<!doctype \"... is not valid JSON). This build was assembled without it, so nothing is prebuilt and every project installs from scratch. Fix: `npm run vendor:depcache`."
+    }
+  ],
+  "pageErrors": [],
+  "failedRequests": [
+    "404 http://127.0.0.1:5199/favicon.ico"
+  ],
+  "downloads": {
+    "count": 69,
+    "totalBytes": 85351067,
+    "relevantCount": 0,
+    "relevantBytes": 0,
+    "relevant": []
+  },
+  "screenshots": [
+    "01-home.png",
+    "02-preview.png"
+  ],
+  "runSamples": [
+    {
+      "at": 334,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n\n\n\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\n"
+        }
+      ]
+    },
+    {
+      "at": 4348,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n"
+        }
+      ]
+    },
+    {
+      "at": 8360,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n"
+        }
+      ]
+    },
+    {
+      "at": 12365,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n"
+        }
+      ]
+    },
+    {
+      "at": 16371,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n"
+        }
+      ]
+    },
+    {
+      "at": 20398,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "22 requests · 43.5 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\nests · 43.5 MB"
+        }
+      ]
+    },
+    {
+      "at": 24414,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 28426,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 32443,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 36455,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 40471,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 44476,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 48492,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 52507,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 56522,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 60530,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 64546,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 68553,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 72568,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n"
+        }
+      ]
+    },
+    {
+      "at": 76581,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 80594,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 84612,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 88631,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "65 requests · 81.0 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n"
+        }
+      ]
+    },
+    {
+      "at": 92634,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "20 requests · 25.1 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\nests · 25.1 MB"
+        }
+      ]
+    },
+    {
+      "at": 96650,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "63 requests · 43.4 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\nests · 43.4 MB"
+        }
+      ]
+    },
+    {
+      "at": 100652,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "98 requests · 15.9 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 14 requ\n⠋ fetching · 19 requ\n⠙ fetching · 27 requ\n⠹ fetching · 45 requ\n⠸ fetching · 53 requ\n⠼ fetching · 61 requ\n⠴ fetching · 63 requ\n⠦ fetching · 73 requ\n⠧ fetching · 79 requ\n⠇ fetching · 81 requ\n⠏ fetching · 85 requ\n⠋ fetching · 92 requ\n⠙ fetching · 93 requ\n⠹ fetching · 95 requ\n⠸ fetching · 97 requ\n⠼ fetching · 98 requ\nests · 15.9 MB"
+        }
+      ]
+    },
+    {
+      "at": 104660,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "installing",
+        "detail": "102 requests · 25.8 MB",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 14 requ\n⠋ fetching · 19 requ\n⠙ fetching · 27 requ\n⠹ fetching · 45 requ\n⠸ fetching · 53 requ\n⠼ fetching · 61 requ\n⠴ fetching · 63 requ\n⠦ fetching · 73 requ\n⠧ fetching · 79 requ\n⠇ fetching · 81 requ\n⠏ fetching · 85 requ\n⠋ fetching · 92 requ\n⠙ fetching · 93 requ\n⠹ fetching · 95 requ\n⠸ fetching · 97 requ\n⠼ fetching · 98 requ\n⠴ fetching · 100 req\n⠦ fetching · 101 req\n⠧ fetching · 102 req\nuests · 25.8 MB"
+        }
+      ]
+    },
+    {
+      "at": 108733,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "starting",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (12146 files, 144.9 MB).\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 14 requ\n⠋ fetching · 19 requ\n⠙ fetching · 27 requ\n⠹ fetching · 45 requ\n⠸ fetching · 53 requ\n⠼ fetching · 61 requ\n⠴ fetching · 63 requ\n⠦ fetching · 73 requ\n⠧ fetching · 79 requ\n⠇ fetching · 81 requ\n⠏ fetching · 85 requ\n⠋ fetching · 92 requ\n⠙ fetching · 93 requ\n⠹ fetching · 95 requ\n⠸ fetching · 97 requ\n⠼ fetching · 98 requ\n⠴ fetching · 100 req\n⠦ fetching · 101 req\n⠧ fetching · 102 req\n\nadded 112 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\nℹ Using index.html a\ns renderer template.\n                    \n       6:59:19 AM\n"
+        }
+      ]
+    },
+    {
+      "at": 112804,
+      "phase": {
+        "rootPath": "/home/user/projects/spike-tailwind-mw0c595u",
+        "name": "spike-tailwind-mw0c595u",
+        "phase": "starting",
+        "detail": "",
+        "startedAt": 1793689050884
+      },
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (12146 files, 144.9 MB).\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 14 requ\n⠋ fetching · 19 requ\n⠙ fetching · 27 requ\n⠹ fetching · 45 requ\n⠸ fetching · 53 requ\n⠼ fetching · 61 requ\n⠴ fetching · 63 requ\n⠦ fetching · 73 requ\n⠧ fetching · 79 requ\n⠇ fetching · 81 requ\n⠏ fetching · 85 requ\n⠋ fetching · 92 requ\n⠙ fetching · 93 requ\n⠹ fetching · 95 requ\n⠸ fetching · 97 requ\n⠼ fetching · 98 requ\n⠴ fetching · 100 req\n⠦ fetching · 101 req\n⠧ fetching · 102 req\n\nadded 112 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\nℹ Using index.html a\ns renderer template.\n                    \n       6:59:19 AM\n\n  VITE v8.3.5  ready\n in 1768 ms\n\n  ➜  Local:   http:/\n/localhost:3000/\n  ➜  Network: use --\nhost to expose\n  ➜  press h + enter\n to show help\n"
+        }
+      ]
+    },
+    {
+      "at": 116809,
+      "phase": null,
+      "terminals": [
+        {
+          "id": "console",
+          "label": "Console",
+          "tail": "Booting Vivari…\n  [boot] starting file-system + fetcher workers…\n  [boot] initializing virtual file system…\n  [depcache] ready\n  [boot] file system ready (+41ms).\n  [boot] codecs compiled (+41ms).\nKernel ready.\n  [boot] kernel ready in 60ms.\nKernel ready — pick a project and press Run.\nService Worker registered (preview proxy ready).\n[boot] shell (Process Worker) booted in 106ms\n  [locks] vendor/locks/index.json could not be read (Unexpected token '<', \"<!do\nctype \"... is not valid JSON). This build was assembled without it, so nothing i\ns prebuilt and every project installs from scratch. Fix: `npm run vendor:locks`.\n  [depcache] vendor/depcache/index.json could not be read (Unexpected token '<',\n \"<!doctype \"... is not valid JSON). This build was assembled without it, so not\nhing is prebuilt and every project installs from scratch. Fix: `npm run vendor:d\nepcache`.\n  [depcache] no snapshot for npm — installing…\n[boot] shell (Process Worker) booted in 149ms\n[kernel] pid 3 exited with code 0\n  [npm] loaded on first use (1942 files, +310ms).\n[kernel] pid 6 exited with code 0\n[kernel] pid 5 exited with code 0\n[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` \nfor dependency types\n[kernel] pid 4 exited with code 0\n  [depcache] cached node_modules for npm (12146 files, 144.9 MB).\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[kernel] pid 9 listening on :3000\n[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)\n"
+        },
+        {
+          "id": "sh1",
+          "label": "sh 1",
+          "tail": "Vivari shell — type commands, Enter to run.\n/$ \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        },
+        {
+          "id": "sh2",
+          "label": "npm run dev -- --configLoader native",
+          "tail": "Vivari shell — type \ncommands, Enter to r\nun.\nspike-tailwind-mw0c5\n95u$ node scripts/ve\nndor-paths.cjs && np\nm install && npm run\n dev -- --configLoad\ner native\n[facilis] resolved 6\n @facilis/* dependen\ncies to absolute tar\nball paths\nDownloading npm on f\nirst use…\nnpm notice run facil\nis-app@0.0.0 preinst\nall\nnpm notice run node \nscripts/check-pm.mjs\n⠙ fetching · 3 reque\n⠹ fetching · 4 reque\n⠸ fetching · 5 reque\n⠼ fetching · 6 reque\n⠴ fetching · 7 reque\n⠦ fetching · 8 reque\n⠧ fetching · 9 reque\n⠇ fetching · 10 requ\n⠏ fetching · 11 requ\n⠋ fetching · 12 requ\n⠙ fetching · 13 requ\n⠹ fetching · 14 requ\n⠸ fetching · 15 requ\n⠼ fetching · 16 requ\n⠴ fetching · 21 requ\n⠦ fetching · 22 requ\n⠧ fetching · 24 requ\n⠇ fetching · 30 requ\n⠏ fetching · 33 requ\n⠋ fetching · 34 requ\n⠙ fetching · 42 requ\n⠹ fetching · 43 requ\n⠸ fetching · 45 requ\n⠼ fetching · 50 requ\n⠴ fetching · 51 requ\n⠦ fetching · 57 requ\n⠧ fetching · 60 requ\n⠇ fetching · 64 requ\n⠏ fetching · 65 requ\n\n  [runtime] PID 4 (n\npm install) has prin\nted nothing for 72s.\n This is the first c\nheck on it, so there\n is nothing to compa\nre against yet (2,19\n9 files in the VFS).\n The next check will\n say whether it is m\naking progress or st\nanding still. Run `a\nwait __vv.diag()` in\n the DevTools consol\ne for live detail.\n⠋ fetching · 13 requ\n⠙ fetching · 15 requ\n⠹ fetching · 17 requ\n⠸ fetching · 20 requ\n⠼ fetching · 24 requ\n⠴ fetching · 29 requ\n⠦ fetching · 30 requ\n⠧ fetching · 33 requ\n⠇ fetching · 34 requ\n⠏ fetching · 36 requ\n⠋ fetching · 38 requ\n⠙ fetching · 47 requ\n⠹ fetching · 52 requ\n⠸ fetching · 55 requ\n⠼ fetching · 58 requ\n⠴ fetching · 60 requ\n⠦ fetching · 62 requ\n⠧ fetching · 63 requ\n⠇ fetching · 3 reque\n⠏ fetching · 14 requ\n⠋ fetching · 19 requ\n⠙ fetching · 27 requ\n⠹ fetching · 45 requ\n⠸ fetching · 53 requ\n⠼ fetching · 61 requ\n⠴ fetching · 63 requ\n⠦ fetching · 73 requ\n⠧ fetching · 79 requ\n⠇ fetching · 81 requ\n⠏ fetching · 85 requ\n⠋ fetching · 92 requ\n⠙ fetching · 93 requ\n⠹ fetching · 95 requ\n⠸ fetching · 97 requ\n⠼ fetching · 98 requ\n⠴ fetching · 100 req\n⠦ fetching · 101 req\n⠧ fetching · 102 req\n\nadded 112 packages i\nn 2m\nnpm notice run facil\nis-app@0.0.0 dev\nnpm notice run vite \n--configLoader nativ\ne\nℹ Using index.html a\ns renderer template.\n                    \n       6:59:19 AM\n\n  VITE v8.3.5  ready\n in 1768 ms\n\n  ➜  Local:   http:/\n/localhost:3000/\n  ➜  Network: use --\nhost to expose\n  ➜  press h + enter\n to show help\n"
+        }
+      ]
+    }
+  ],
+  "bootMarks": [
+    {
+      "name": "js-executed",
+      "t": 228.57500000298023
+    },
+    {
+      "name": "kernel-online",
+      "t": 431.125
+    },
+    {
+      "name": "kernel-ready",
+      "t": 441.8649999946356
+    },
+    {
+      "name": "install-start",
+      "t": 1079.9449999928474
+    },
+    {
+      "name": "preview-open",
+      "t": 113588.90500000119
+    },
+    {
+      "name": "preview-paint",
+      "t": 114086.81000000238
+    }
+  ],
+  "projectRoot": "/home/user/projects/spike-tailwind-mw0c595u",
+  "terminals": [],
+  "runPhase": null,
+  "statusText": "spike-tailwind-mw0c595u\nHome\nWORKSPACE\nSPIKE-TAILWIND-MW0C595U\n.facilis\ndb\nlocales\nnode_modules\nscripts\nserver\nsrc\ncomponents\nlayouts\nlib\npages\nstyles\napp.tsx\nmain.tsx\nstyles.css\nvendor\n.npmrc\nfacilis.app.json\nfacilis.config.ts\nindex.html\npackage-lock.json\npackage.json\nREADME.md\ntsconfig.json\nvite.config.ts\napp.tsx\nWorkspace\nspike-tailwind-mw0c595u\nsrc\napp.tsx\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\nimport { Navigate, Route, Routes } from \"react-router-dom\";\nimport { Toaster } from \"@facilis/ui\";\nimport { TwProbe } from \"./components/tw-probe.tsx\";\nimport { AppLayout } from \"./layouts/app-layout.tsx\";\nimport { AuthLayout } from \"./layouts/auth-layout.tsx\";\nimport { useLocale } from \"./lib/i18n.tsx\";\nimport { PublicOnly, RequireAuth, SessionProvider } from \"./lib/session.tsx\";\nimport { LoginPage } from \"./pages/login.tsx\";\nimport { NotFoundPage } from \"./pages/not-found.tsx\";\nimport { RegisterPage } from \"./pages/register.tsx\";\nimport { TodosPage } from \"./pages/todos.tsx\";\n/**\nCONSOLE\nTERMINAL\nPORTS\n1\nrc/styles.css, /src/\ncomponents/tw-probe.\ntsx\n6:59:49 AM [vite] (c\nlient) hmr update /s\nrc/styles.css\n \nsh 1\nnpm run dev -- --configLoader native\nFacilis — Todos\n10\n0\nLn 1, Col 1\nSpaces: 2\nTypeScript\nGo to Line\n\nSearch for a command to run...\n\nIndentation\n\nSearch for a command to run...\n\nSelect Language Mode\n\nSearch for a command to run...\n\nCommand Palette\n\nSearch for a command to run...",
+  "previewFrame": {
+    "src": "http://127.0.0.1:5199/preview/3000/?__vv_kernel=0j6h3i",
+    "timeOrigin": 1793689163431.98
+  },
+  "terminalHighlights": [
+    "[intellisense] spike-tailwind-mw0c595u: no node_modules yet — run `npm install` ",
+    "[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)",
+    "[intellisense] spike-tailwind-mw0c595u: loaded 2266 dependency type file(s)",
+    "6:59:49 AM [vite] (c"
+  ],
+  "finishedAt": "2026-11-03T06:59:49.536Z"
+}

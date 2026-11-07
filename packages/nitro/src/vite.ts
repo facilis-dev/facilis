@@ -1,16 +1,30 @@
-import { existsSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 import type { NitroModule } from "nitro/types";
 import { nitro } from "nitro/vite";
 
-import { scanRouteMetadata } from "./ast/scanner.ts";
+import type { Analysis } from "@facilis/analyze";
+
 import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
-import type { FacilisOptions, RouteMetadataMap } from "./types.ts";
+import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
+import type { RouteMetadataMap } from "./types.ts";
 import { RESOLVED_OPENAPI_META_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
 
 type WarningSink = (message: string) => void;
+
+/** Extensions the analyzer reads; a change to any of them can change the route facts. */
+const PROJECT_FILE_PATTERN = /\.(?:[cm]?[jt]sx?|json)$/;
+/** Directories the analyzer skips (its ALWAYS_SKIPPED set plus node_modules). */
+const IGNORED_SEGMENTS: ReadonlySet<string> = new Set([
+  ".facilis",
+  ".git",
+  ".output",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+]);
 
 export interface FacilisVitePlugin extends Plugin {
   /** The Nitro module Vite exposes on the plugin object (SPEC §5.6). */
@@ -29,32 +43,35 @@ export type FacilisPlugins = [FacilisVitePlugin, ...Plugin[]];
  * The Facilis Vite plugin (SPEC §5.6, Appendix E), plus the Nitro plugins it mounts.
  *
  * Three jobs: carry the Nitro module, deliver the project's Nitro options to Nitro, and own
- * the framework AST pass. The AST pass is a virtual module so route-file edits can be
+ * the framework route-metadata pass. The pass is a virtual module so project edits can be
  * invalidated through Vite's module graph and HMR keeps /_openapi.json and
  * /__facilis/manifest fresh (SPEC §6.9, contracts §8).
  */
-export function facilis(options: FacilisOptions = {}): FacilisPlugins {
+export function facilis(): FacilisPlugins {
   let root = process.cwd();
-  let routesDir: string | undefined;
-  let cachedMetadata: RouteMetadataMap | undefined;
+  // One analysis per revision of the project: the mapping is cheap, the analyzer is not.
+  let analysis: Analysis | undefined;
+  let metadata: RouteMetadataMap | undefined;
 
-  const loadMetadata = async (warn?: WarningSink): Promise<RouteMetadataMap> => {
-    if (cachedMetadata !== undefined) return cachedMetadata;
-    if (routesDir === undefined) return {};
-    cachedMetadata = await scanRouteMetadata({
-      routesDir,
-      rootDir: root,
-      onWarning: (warning) => warn?.(warning.message),
-    });
-    return cachedMetadata;
+  const loadMetadata = (warn?: WarningSink): RouteMetadataMap => {
+    if (metadata !== undefined) return metadata;
+    analysis ??= analyzeProjectRoutes(root);
+    metadata =
+      analysis === undefined
+        ? {}
+        : routeMetadataFromAnalysis(analysis, (warning) => warn?.(warning.message));
+    return metadata;
   };
 
   const invalidate = (): void => {
-    cachedMetadata = undefined;
+    analysis = undefined;
+    metadata = undefined;
   };
 
-  const onRouteFileChanged = (file: string): boolean => {
-    if (!isRouteFile(file, routesDir)) return false;
+  // The analyzer reads facilis.config.ts and any project module a route config imports
+  // (D-092), so every project source file can change the route facts, not just routes.
+  const onProjectSourceChanged = (file: string): boolean => {
+    if (!isProjectSourceFile(file, root)) return false;
     invalidate();
     return true;
   };
@@ -76,32 +93,26 @@ export function facilis(options: FacilisOptions = {}): FacilisPlugins {
 
     configResolved(config) {
       root = config.root;
-      routesDir =
-        options.routesDir === undefined
-          ? resolve(config.root, "server", "routes")
-          : resolve(config.root, options.routesDir);
     },
 
-    // Warm the scan before the first request so a broken route file surfaces as a
+    // Warm the analysis before the first request so a broken route file surfaces as a
     // warning during startup, not as a surprising slow first spec fetch.
     async buildStart() {
-      const warn = (message: string): void => this.warn(message);
-      await loadMetadata(warn);
+      loadMetadata((message) => this.warn(message));
     },
 
     configureServer(server) {
-      if (routesDir === undefined || !existsSync(routesDir)) return;
-      server.watcher.add(routesDir);
-      // handleHotUpdate covers existing modules; add/unlink also need an invalidation
-      // because a brand-new route file has no module-graph entry yet.
+      // handleHotUpdate covers changed modules; add/unlink also need an invalidation
+      // because a brand-new or deleted project file may have no module-graph entry yet.
       server.watcher.on("all", (event, file) => {
         if (event !== "add" && event !== "unlink" && event !== "addDir") return;
-        if (onRouteFileChanged(file)) invalidateOpenApiMetaModule(server);
+        if (!onProjectSourceChanged(file)) return;
+        invalidateOpenApiMetaModule(server);
       });
     },
 
     handleHotUpdate(context) {
-      if (!onRouteFileChanged(context.file)) return;
+      if (!onProjectSourceChanged(context.file)) return;
       invalidateOpenApiMetaModule(context.server);
       // Returning void leaves the rest of the update pipeline (Nitro's own server
       // reload for route handlers) untouched.
@@ -114,19 +125,21 @@ export function facilis(options: FacilisOptions = {}): FacilisPlugins {
 
     async load(id) {
       if (id !== RESOLVED_OPENAPI_META_ID) return null;
-      const metadata = await loadMetadata((message) => this.warn(message));
-      return `export default ${JSON.stringify(metadata)};`;
+      return `export default ${JSON.stringify(loadMetadata((message) => this.warn(message)))};`;
     },
   };
 
   return [plugin, ...nitro()];
 }
 
-function isRouteFile(file: string, routesDir: string | undefined): boolean {
-  if (routesDir === undefined) return false;
-  const absolute = resolve(file);
-  if (!absolute.startsWith(`${routesDir}${sep}`)) return false;
-  return /\.(?:[cm]?[jt]sx?)$/.test(absolute);
+/** True for a file the analyzer reads, excluding generated and dependency directories. */
+function isProjectSourceFile(file: string, root: string): boolean {
+  const projectRelative = relative(root, resolve(file));
+  if (projectRelative.length === 0 || isAbsolute(projectRelative)) return false;
+  const segments = projectRelative.split(sep);
+  if (segments[0] === "..") return false;
+  if (segments.some((segment) => IGNORED_SEGMENTS.has(segment))) return false;
+  return PROJECT_FILE_PATTERN.test(projectRelative);
 }
 
 /**

@@ -1,10 +1,37 @@
 /**
  * Shared contracts of the SPEC §9.3 patch validator.
  *
- * The main entry must stay browser-safe, so nothing here imports TypeScript or a Node
- * builtin: rule 1 parses through an injected {@link SyntaxChecker} and everything the
- * context-dependent rules need is pre-parsed into the fact types below.
+ * Project facts now come from @facilis/analyze's AST interpreter (D-092), not from local
+ * text scanners. This module only imports analyzer *types* (erased at build), so the main
+ * entry keeps its browser-safety guarantee: no analyzer runtime value is loaded.
+ *
+ * The caller supplies the effective post-patch {@link Analysis} plus, optionally, the
+ * pre-patch one. `null` means unknown and `[]` means explicitly empty, exactly as in the
+ * analyzer's fact model.
  */
+
+import type {
+  Analysis,
+  ConfigFacts as AnalyzerConfigFacts,
+  RouteFact as AnalyzerRouteFact,
+  TableFact as AnalyzerTableFact,
+} from "@facilis/analyze";
+
+export type { Analysis, AnalyzerConfigFacts, AnalyzerRouteFact, AnalyzerTableFact };
+export type {
+  ColumnFact,
+  Diagnostic,
+  FileFacts,
+  ImportFact,
+  LocaleCatalogs,
+  SourceRef,
+  TranslationCallFact,
+} from "@facilis/analyze";
+
+/** Readable aliases for the analyzer facts the rules consume. */
+export type ConfigFacts = AnalyzerConfigFacts;
+export type RouteFact = AnalyzerRouteFact;
+export type TableFact = AnalyzerTableFact;
 
 /** One proposed file write (SPEC §9.2 response contract). */
 export interface FilePatch {
@@ -47,7 +74,7 @@ export interface SyntaxFinding extends SyntaxIssue {
 
 /**
  * The rule-1 seam. The IDE injects Monaco's TypeScript worker; Node tooling injects
- * `@facilis/ai/node` (the subpath is the only place that imports a parser, rolldown).
+ * `@facilis/ai/node` (the subpath is the only place that imports a parser).
  */
 export interface SyntaxChecker {
   check(path: string, content: string): Promise<readonly SyntaxIssue[]>;
@@ -58,53 +85,9 @@ export type SyntaxCheck =
   | { status: "checked"; findings: readonly SyntaxFinding[] }
   | { status: "unavailable"; reason: string };
 
-/** Roles and permissions declared by `facilis.config.ts` (SPEC §8.4.1). */
-export interface ConfigFacts {
-  /** The source parsed as a defineConfig object (false means manifest fallback only). */
-  parsed: boolean;
-  hasAuth: boolean;
-  permissions: readonly string[];
-  roles: Readonly<Record<string, readonly string[]>>;
-  defaultRole: string | null;
-  defaultLocale: string | null;
-  locales: readonly string[];
-  blocksPackages: readonly string[];
-  migrationsDir: string;
-  tenantColumns: readonly string[];
-  ownerColumns: readonly string[];
-}
-
-/** One table of the code schema (db/schema.ts) or of the live manifest. */
-export interface TableFacts {
-  /** SQL table name (drizzle's first `pgTable` argument). */
-  name: string;
-  /** The `export const` binding name, when it differs from the SQL name. */
-  variable?: string;
-  columns: readonly string[];
-  rlsEnabled: boolean;
-  policies: readonly string[];
-  /** A scoped column (tenant/owner) is present, so the table needs an RLS policy. */
-  scoped: boolean;
-  source: "schema" | "manifest" | "re-export";
-}
-
-export interface SchemaFacts {
-  parsed: boolean;
-  tables: readonly TableFacts[];
-}
-
+/** One registered block component (from the live manifest only; not a source fact). */
 export interface BlockFacts {
   name: string;
-}
-
-/** One route the framework currently serves (SPEC §7.3 RouteMeta). */
-export interface RouteFacts {
-  method: string | null;
-  path: string | null;
-  permissions: readonly string[];
-  dbTables: readonly string[];
-  dbColumns: readonly string[];
-  sourceFile: string | null;
 }
 
 /** A tsconfig `paths` alias such as `"~/": ""` (project-relative target). */
@@ -115,26 +98,39 @@ export interface ImportAlias {
 
 /** Raw material a caller assembles before the validator runs. */
 export interface ProjectContextInput {
-  /** Project-relative paths that exist before the patch. */
+  /** Project-relative paths that exist before the patch (the pre-patch file set). */
   files: readonly string[];
-  /** Raw project sources the rules inspect (config, schema, locales, package.json, tsconfig). */
-  sources?: Readonly<Record<string, string>>;
-  /** The `/__facilis/manifest` envelope's manifest, when the project is running. */
+  /** The effective (post-patch) analysis: the facts the rules must validate. */
+  analysis: Analysis;
+  /** The pre-patch analysis, for inverse edits. Defaults to `analysis`. */
+  before?: Analysis;
+  /** The `/__facilis/manifest` envelope's manifest: blocks and catalog fallback only. */
   manifest?: unknown;
   /** Installed bare specifiers; derived from package.json when omitted. */
   packages?: readonly string[];
   aliases?: readonly ImportAlias[];
+  /** Only `package.json` and `tsconfig.json` are read from here; everything else is facts. */
+  sources?: Readonly<Record<string, string>>;
+}
+
+export interface SchemaSummary {
+  readonly parsed: boolean;
+  readonly tables: readonly TableFact[];
 }
 
 /** The typed project context every context-dependent rule reads. */
 export interface ProjectContext {
   files: readonly string[];
-  sources: Readonly<Record<string, string>>;
+  /** Effective (post-patch) facts. */
+  analysis: Analysis;
+  /** Pre-patch facts; equal to `analysis` when the caller has none. */
+  before: Analysis;
   config: ConfigFacts;
-  schema: SchemaFacts;
+  schema: SchemaSummary;
+  /** Flattened default-locale catalogue (analyzer first, manifest fallback). */
   locales: Readonly<Record<string, string>>;
   blocks: readonly BlockFacts[];
-  routes: readonly RouteFacts[];
+  routes: readonly RouteFact[];
   packages: readonly string[];
   aliases: readonly ImportAlias[];
 }
