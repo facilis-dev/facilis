@@ -33,13 +33,19 @@ export interface PromptContext {
   tools?: readonly PtcToolSpec[];
 }
 
-/** Teaches the script/answer protocol when the PTC runtime is available (D-101). */
+/** Teaches the script/answer protocol when the PTC runtime is available (D-101/D-102). */
 const PTC_PROMPT = [
   "## Project exploration (PTC)",
   'You can explore the project before answering. To do that, return ONE JSON object with a "script" string instead of "patches":',
-  '{"message": string, "script": string, "notes": string[], "requires_confirmation": false}',
-  'The program is an async function body: top-level await and return are allowed, and "tools" is its only global. The return value must be JSON (no class instances). You then receive one user turn with the result (or a typed failure) and may run another program (at most 6 per request) or answer with the normal AIResponse.',
-  "Do not assume file contents you were not given: use the tools to read the smallest slice you need, locate code with search, and call validate on your candidate patch set before the final answer. The framework validates the final answer again; the validate tool is your self-check, not a replacement.",
+  '{"message": "Reading the schema.", "script": "return await tools.read_file({ path: \'db/schema.ts\' });", "notes": [], "requires_confirmation": false}',
+  "Program rules:",
+  "- The program is an async function body; the only global is tools, and top-level await is allowed.",
+  "- Call every tool with exactly ONE object argument: tools.read_file({ path: 'db/schema.ts' }), never tools.read_file('db/schema.ts').",
+  "- The return value is the only data you receive: end with return <JSON value>;. A program that falls through returns nothing.",
+  "- The script is raw JavaScript inside the JSON string: no prose and no markdown fences.",
+  "- Start with get_project_summary (cheap); read only the smallest slice you need with read_file; locate code with search and the get_* facts tools.",
+  "- Before re-emitting a file, read_file it. Before the final answer, call validate on the exact patch set you are about to return and fix what it reports.",
+  "You then receive one user turn with the result (or a typed failure that names the tool and its signature) and may run another program (at most 6 per request) or answer with the normal AIResponse. The framework validates the final answer again; validate is your self-check, not a replacement.",
   "Tools:",
 ].join("\n");
 
@@ -59,6 +65,47 @@ export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change 
 10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis/db, @facilis/auth, @facilis/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
 11. server/ runs in Nitro (Node): process.env is allowed there, but never import server code from src/ or components/. A change that needs secrets belongs in a server route, not in the browser bundle.
 
+## Canonical shapes
+Copy these instead of inventing an API. A route (server/routes/api/<name>/index.get.ts):
+~~~ts
+import { z } from "zod";
+import { defineAuthorizedHandler } from "@facilis/core";
+import { todos } from "~/db/schema";
+
+export default defineAuthorizedHandler(
+  {
+    permission: ["todos:read"],
+    query: z.object({ includeDone: z.enum(["true", "false"]).optional() }),
+    dbTables: ["todos"],
+    dbColumns: ["todos.title", "todos.done"],
+    description: "List todos visible to the current user.",
+  },
+  async (_event, { query, db }) => {
+    const rows = await db.select().from(todos);
+    return query.includeDone === "false" ? rows.filter((row) => !row.done) : rows;
+  },
+);
+~~~
+A scoped table (db/schema.ts):
+~~~ts
+import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+
+export const todos = pgTable(
+  "todos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: tenantColumn(),
+    ownerId: uuid("owner_id").notNull(),
+    title: text("title").notNull(),
+    done: boolean("done").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [tenantIsolationPolicy(), ownerIsolationPolicy()],
+).enableRLS();
+~~~
+A new permission must be added to auth.permissions in facilis.config.ts in the same patch. Re-emit a complete file and keep every existing declaration.
+
 ## Response contract
 Return exactly one JSON object and nothing else — no prose, no markdown, no code fence. Shape:
 {
@@ -71,6 +118,7 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 }
 - path is relative to the project root and must stay under server/, src/, db/, lib/, components/ or locales/.
 - "create" and "update" carry the complete file content; "delete" omits content.
+- When a "Project exploration (PTC)" section is present, a turn may instead carry "script": a raw JavaScript program with no patches (see that section).
 - Never put secrets, tokens, API keys or credentials in any file.
 
 ## Validation repair

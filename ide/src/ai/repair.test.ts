@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ValidationError } from "@facilis/ai";
 import type { AiParseFailure } from "./response";
-import { buildRepairMessages, formatFailure, formatFindings, MAX_REPAIR_ATTEMPTS } from "./repair";
+import {
+  buildRepairMessages,
+  formatFailure,
+  formatFindings,
+  formatFixPlan,
+  MAX_REPAIR_ATTEMPTS,
+  prioritizeFindings,
+} from "./repair";
 
 const FINDING: ValidationError = {
   rule: "permission-valid",
@@ -72,7 +79,7 @@ describe("buildRepairMessages", () => {
     expect(turns[0]).toEqual({ role: "assistant", content: '{"message":"x","patches":[]}' });
     const request = turns[1]?.content ?? "";
     expect(turns[1]?.role).toBe("user");
-    expect(request).toContain("correction 1 of 2");
+    expect(request).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
     expect(request).toContain("## Validation findings");
     expect(request).toContain("Fix: Declare it in auth.permissions");
     expect(request).toContain("## Response contract");
@@ -93,8 +100,8 @@ describe("buildRepairMessages", () => {
     });
     const request = turns.at(-1)?.content ?? "";
     expect(request).toContain("## Tools");
-    expect(request).toContain("read_file/search");
-    expect(request).toContain("validate");
+    expect(request).toContain("read_file it before re-emitting it");
+    expect(request).toContain("validate on the exact patch set");
     expect(request).not.toContain("## Current content of the files");
     expect(request).not.toContain(SCHEMA);
   });
@@ -168,5 +175,54 @@ describe("buildRepairMessages", () => {
       read,
     });
     expect(turns.at(-1)?.content).not.toContain("Current content");
+  });
+});
+
+describe("root-cause ordering", () => {
+  const schemaFinding: ValidationError = {
+    rule: "destructive-confirmed",
+    severity: "error",
+    file: "db/schema.ts",
+    message: "Destructive schema change without confirmation.",
+    fix_hint: "Re-emit the schema keeping the table.",
+  };
+  const routeFinding: ValidationError = {
+    rule: "db-tables-valid",
+    severity: "error",
+    file: "server/routes/api/todos/index.get.ts",
+    message: "The patch removes table todos.",
+    fix_hint: "Keep the table.",
+  };
+
+  it("puts schema and config findings before route consequences", () => {
+    const ordered = prioritizeFindings([routeFinding, schemaFinding, { ...routeFinding, file: "src/a.ts" }]);
+    expect(ordered[0]?.file).toBe("db/schema.ts");
+    expect(ordered.at(-1)?.file).toBe("src/a.ts");
+  });
+
+  it("writes a per-file fix plan and names the files the answer touched", () => {
+    const text = formatFixPlan([routeFinding, schemaFinding], [
+      { path: "db/schema.ts", action: "update", content: "x" },
+      { path: "server/routes/api/todos/index.get.ts", action: "create", content: "x" },
+    ]);
+    expect(text).toContain("## Fix plan (root cause first)");
+    expect(text).toContain("- db/schema.ts — 1 finding(s): destructive-confirmed");
+    expect(text).toContain("Fix db/schema.ts first");
+    expect(text).toContain("## Your rejected answer touched");
+    expect(text).toContain("- db/schema.ts (update)");
+  });
+
+  it("includes the plan in the correction turn", async () => {
+    const turns = await buildRepairMessages({
+      failure: failure({ findings: [routeFinding, schemaFinding] }),
+      attempt: 1,
+      max: MAX_REPAIR_ATTEMPTS,
+      read,
+      toolsAvailable: true,
+    });
+    const request = turns.at(-1)?.content ?? "";
+    expect(request).toContain("## Fix plan (root cause first)");
+    expect(request).toContain("## Validation findings");
+    expect(request.indexOf("## Fix plan")).toBeLessThan(request.indexOf("## Validation findings"));
   });
 });

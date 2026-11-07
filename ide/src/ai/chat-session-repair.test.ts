@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
+import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import type { CallModelInput } from "./client";
 import type { AiSettings } from "./types";
 
@@ -93,7 +94,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.messages.map((turn) => turn.role)).toEqual(["user", "assistant", "user"]);
     expect(calls[1]?.messages[1]?.content).toBe("not json at all");
-    expect(calls[1]?.messages[2]?.content).toContain("correction 1 of 2");
+    expect(calls[1]?.messages[2]?.content).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
     expect(calls[1]?.messages[2]?.content).toContain("## Response contract");
     expect(state.error).toBeNull();
     expect(state.repair).toBeNull();
@@ -131,7 +132,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
 
     await chat.send("add");
     expect(seen[0]).toBeNull();
-    expect(seen[1]).toEqual({ attempt: 1, max: 2 });
+    expect(seen[1]).toEqual({ attempt: 1, max: MAX_REPAIR_ATTEMPTS });
     expect(chat.getSnapshot().repair).toBeNull();
   });
 
@@ -146,7 +147,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
 
     await chat.send("add");
     const state = chat.getSnapshot();
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(MAX_REPAIR_ATTEMPTS + 1);
     expect(state.error?.kind).toBe("parse");
     expect(state.error?.message.length).toBeGreaterThan(0);
     expect(state.proposal).toBeNull();
@@ -164,7 +165,13 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
 
     await chat.send("add a route");
     const state = chat.getSnapshot();
-    expect(repairs).toEqual([null, { attempt: 1, max: 2 }, { attempt: 2, max: 2 }]);
+    expect(repairs).toEqual([
+      null,
+      ...Array.from({ length: MAX_REPAIR_ATTEMPTS }, (_, index) => ({
+        attempt: index + 1,
+        max: MAX_REPAIR_ATTEMPTS,
+      })),
+    ]);
     expect(state.error?.kind).toBe("parse");
     expect(state.error?.message).toContain("permission-valid");
     expect(state.error?.message).toContain("Fix:");

@@ -99,7 +99,11 @@ describe("SYSTEM_PROMPT", () => {
 
 const TOOLS: PtcToolSpec[] = [
   { name: "read_file", signature: "read_file({ path, startLine?, endLine? })", description: "Read a slice." },
-  { name: "validate", signature: "validate({ patches })", description: "Run the patch validator." },
+  {
+    name: "validate",
+    signature: "validate({ patches, requiresConfirmation? })",
+    description: "Run the patch validator.",
+  },
 ];
 
 describe("buildSystemPrompt with the PTC runtime", () => {
@@ -109,13 +113,46 @@ describe("buildSystemPrompt with the PTC runtime", () => {
     expect(prompt).toContain('"script" string instead of "patches"');
     expect(prompt).toContain("at most 6 per request");
     expect(prompt).toContain("read_file({ path, startLine?, endLine? })");
-    expect(prompt).toContain("validate({ patches })");
+    expect(prompt).toContain("validate({ patches, requiresConfirmation? })");
     expect(prompt).toContain("self-check");
   });
 
   it("leaves the protocol out when the runtime is off", () => {
     const prompt = buildSystemPrompt(context());
     expect(prompt).not.toContain("## Project exploration (PTC)");
+  });
+});
+
+describe("canonical shapes and the tool protocol", () => {
+  it("shows the canonical route and scoped-table shapes", () => {
+    for (const token of [
+      "## Canonical shapes",
+      "export default defineAuthorizedHandler(",
+      "dbTables",
+      "tenantIsolationPolicy",
+      "enableRLS",
+      "auth.permissions",
+    ]) {
+      expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
+  it("offers the script alternative in the response contract", () => {
+    expect(SYSTEM_PROMPT).toContain('a turn may instead carry "script"');
+  });
+
+  it("requires a return value, object tool arguments and read-before-write", () => {
+    const prompt = buildSystemPrompt(context({ tools: TOOLS }));
+    for (const token of [
+      "ONE object argument",
+      "returns nothing",
+      "no markdown fences",
+      "Before re-emitting a file, read_file it",
+      "call validate on the exact patch set",
+      "Reading the schema.",
+    ]) {
+      expect(prompt).toContain(token);
+    }
   });
 });
 

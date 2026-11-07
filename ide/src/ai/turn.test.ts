@@ -161,6 +161,13 @@ describe("runTurn with PTC exploration", () => {
     expect(finished).toEqual(["return 1:true"]);
   });
 
+  it("tells the model when a program returned nothing", async () => {
+    const calls: CallModelInput[] = [];
+    const outcome = await run([script("await tools.list_files({})"), answer([NEW_FILE])], runner(okRun(null, 1)), calls);
+    expect(outcome.ok).toBe(true);
+    expect(calls[1]?.messages.at(-1)?.content).toContain("returned no value");
+  });
+
   it("rejects a program when the runtime is off", async () => {
     const calls: CallModelInput[] = [];
     const outcome = await run([script("return 1")], null, calls);

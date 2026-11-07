@@ -18,12 +18,13 @@ import {
 } from "./policy";
 import {
   findingsJson,
+  isPtcToolError,
   PtcToolError,
   type PtcJson,
   type PtcToolCall,
   type PtcToolExecutor,
-  type PtcToolSpec,
 } from "./protocol";
+import { SPEC_BY_NAME, TOOL_NAMES, TOOL_SPECS } from "./tool-specs";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -56,7 +57,7 @@ function refuse(message: string): never {
 
 function argsOf(value: unknown): Args {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    refuse("tool arguments must be a JSON object");
+    refuse("arguments must be one JSON object, e.g. tools.read_file({ path: 'db/schema.ts' })");
   }
   return value as Args;
 }
@@ -115,24 +116,6 @@ function readableFiles(host: PatchValidationHost, glob: PathMatcher | null): str
     .filter((path) => glob === null || glob(path))
     .toSorted((left, right) => left.localeCompare(right));
 }
-
-function spec(name: string, signature: string, description: string): PtcToolSpec {
-  return { name, signature, description };
-}
-
-const TOOL_SPECS: readonly PtcToolSpec[] = [
-  spec("list_files", "list_files({ dir?, glob? })", "List readable project files (≤ 500)."),
-  spec("read_file", "read_file({ path, startLine?, endLine? })", "Read a file; secrets redacted."),
-  spec("search", "search({ query, glob?, maxResults? })", "Case-insensitive text search."),
-  spec("get_schema", "get_schema({ table? })", "Drizzle table facts: columns, RLS, scope, source."),
-  spec("get_routes", "get_routes({ prefix? })", "Route facts: method, path, permission, dbTables."),
-  spec("get_config", "get_config()", "Parsed facilis.config.ts facts."),
-  spec("get_manifest", "get_manifest()", "Live /__facilis/manifest envelope."),
-  spec("get_project_summary", "get_project_summary()", "Project counts and top-level names."),
-  spec("validate", "validate({ patches, requiresConfirmation? })", "Run the §9.3 validator."),
-];
-
-const TOOL_NAMES = TOOL_SPECS.map((entry) => entry.name).join(", ");
 
 const HANDLERS: Readonly<Record<string, Handler>> = {
   async list_files(args, context) {
@@ -289,11 +272,24 @@ export function createToolRouter(host: PatchValidationHost): PtcToolExecutor {
   return {
     specs: () => TOOL_SPECS,
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {
-      const handler: Handler | undefined = HANDLERS[call.name];
-      if (handler === undefined)
-        refuse("unknown tool: " + call.name + "; available: " + TOOL_NAMES);
+      const spec = SPEC_BY_NAME.get(call.name);
+      if (spec === undefined) refuse("unknown tool: " + call.name + "; available: " + TOOL_NAMES);
       throwIfAborted(options.signal);
-      return handler(argsOf(call.args), { host, signal: options.signal, analysis });
+      const handler: Handler | undefined = HANDLERS[call.name];
+      if (handler === undefined) refuse("tool is not implemented: " + call.name);
+      try {
+        return await handler(argsOf(call.args), { host, signal: options.signal, analysis });
+      } catch (error) {
+        if (isPtcToolError(error)) {
+          // The model reads this text: name the tool and its signature so a wrong call is
+          // self-correcting instead of a bare "path must be a non-empty string".
+          throw new PtcToolError(
+            error.kind,
+            spec.name + " " + spec.signature + ": " + error.message,
+          );
+        }
+        throw error;
+      }
     },
   };
 }

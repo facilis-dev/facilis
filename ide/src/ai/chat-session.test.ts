@@ -196,9 +196,13 @@ describe("ChatSession", () => {
     const calls: { messages: readonly { role: string; content: string }[] }[] = [];
     const chat = sessionWith(async (input) => {
       calls.push(input);
-      return calls.length <= 3
-        ? { ok: true, text: "not json" }
-        : { ok: true, text: answer(createNewFile()) };
+      // Keep failing until the second user request (the repair turns still name the first).
+      const second = input.messages.some(
+        (turn) => turn.role === "user" && turn.content.includes("second request"),
+      );
+      return second
+        ? { ok: true, text: answer(createNewFile()) }
+        : { ok: true, text: "not json" };
     });
 
     await chat.send("first request");
