@@ -1694,6 +1694,12 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 **Status (2026-11-02): not implemented as a tool, but its engine exists** — `buildReleasePreview`
 in `@facilis/core` (D-086) is exactly the function the tool would call.
 
+**Status (2026-11-07): a PTC design supersedes the per-call tool list above.** The model writes
+one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
+read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
+capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
+path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) (O-016); not implemented.
+
 ---
 
 ## 10. IDE (fork of Vivari Studio)
