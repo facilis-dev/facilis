@@ -4075,6 +4075,46 @@ cleanup, no-preview), `preview-tools.test.ts` (specs gated on the host, argument
 unavailable data), `prompt.test.ts` (the running-app section only with a preview tool), plus the
 existing tool router suite; gates green.
 
+### D-112 — Screenshots of the running app, and images for vision models
+**Status:** accepted (2026-11-07)
+
+Some failures are visual or layout-level, and the preview tools (D-111) only returned text. The
+owner asked for screenshots as part of the running-app inspection.
+
+**Decision.**
+
+- chobitsu already implements `Page.startScreencast`: it renders the page with html2canvas and
+  emits `Page.screencastFrame` (base64 JPEG + metadata). `PreviewCdp.captureScreenshot()` starts
+  the screencast, waits for one frame (2.5 s cap, `null` on timeout) and stops it; the frame
+  becomes a `data:image/jpeg;base64,…` URL.
+- `preview_screenshot()` captures one screenshot per call (at most 2 per program). The image is
+  attached to the program's activity row (the user sees it, clickable) and to the tool-result
+  user turn.
+- Images travel only for a preset that declares `vision` (Anthropic and OpenAI today; DeepSeek,
+  OpenRouter auto and Custom do not). `providers.ts` builds the protocol's content parts —
+  `image_url` for OpenAI-compatible, `image` + base64 source for Anthropic — and otherwise keeps
+  the plain string content, so a text-only model never receives a content array it cannot parse.
+- `AiChatTurn.images?: string[]` carries data URLs into the wire; `ChatTraceRun.images` carries
+  them into the transcript. The turn loop drains `host.preview.takeImages()` after each program
+  and attaches them to that program's result turn.
+- Nothing is persisted or replayed: images live for the turn (and in the visible row) only; a new
+  user message starts from the text transcript.
+
+**Rejected alternatives.** *A new screenshot dependency*: chobitsu's html2canvas path already
+ships in the injected backend. *Sending images to every preset*: DeepSeek rejects content arrays;
+the preset decides. *Persisting screenshots in the conversation*: they would bloat the replay and
+the provider context; the row keeps them visible, the model only needs the current turn.
+
+**Consequences.** The model can see a rendered page (through a vision model) and the user always
+sees the screenshot in the activity row; a text-only provider still records the capture but not
+the pixels. The capture is html2canvas-quality: no canvas/video/iframe content, CSS shadows may
+render approximately, and it takes up to ~2.5 s (inside the 5 s program budget).
+
+**Verification.** `preview-cdp.test.ts` (screencast frame, timeout, stop), `provider.test.ts`
+(OpenAI/Anthropic image parts, a text-only preset drops them), `turn.test.ts` (images on the
+result turn and the onScript callback), `chat-trace.test.ts` (images on the run row),
+`preview-tools.test.ts` (screenshot handler); gates green.
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)

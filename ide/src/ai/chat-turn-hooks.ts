@@ -36,10 +36,10 @@ export function turnHooks(surface: TurnSurface): TurnHooks {
     onRepair: (attempt) => status({ repair: { attempt }, patchParts: null }),
     onScriptStart: (program, programNumber) =>
       surface.emit({ exploring: programNumber, trace: beginTraceRun(surface.trace(), program) }),
-    onScript: (result, program) =>
+    onScript: (result, program, images) =>
       surface.emit({
         exploring: null,
-        trace: completeTraceRun(surface.trace(), result, program),
+        trace: completeTraceRun(surface.trace(), result, program, images),
       }),
     onPatches: (part) => status({ patchParts: { part } }),
     // The running call row is inserted where the call starts, so the reasoning that streams

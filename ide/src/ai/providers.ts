@@ -6,6 +6,7 @@
 
 import { deployment } from "@/deploy/current";
 import type { ResolvedDeployment } from "@/deploy/types";
+import { toWireMessages } from "./provider-wire";
 import type { AiChatTurn, AiProviderPreset, AiProtocol, AiSettings } from "./types";
 
 export const PRESETS: readonly AiProviderPreset[] = [
@@ -17,6 +18,7 @@ export const PRESETS: readonly AiProviderPreset[] = [
     defaultModel: "claude-sonnet-4-5",
     keyHintKey: "chat.keyHint.anthropic",
     requiresKey: true,
+    vision: true,
   },
   {
     id: "openai",
@@ -26,6 +28,7 @@ export const PRESETS: readonly AiProviderPreset[] = [
     defaultModel: "gpt-5",
     keyHintKey: "chat.keyHint.openai",
     requiresKey: true,
+    vision: true,
   },
   {
     id: "openrouter",
@@ -170,12 +173,6 @@ export interface ProviderEvent {
 
 const ANTHROPIC_VERSION = "2023-06-01";
 
-function toWireMessages(
-  messages: readonly AiChatTurn[],
-): Array<{ role: "user" | "assistant"; content: string }> {
-  return messages.map((turn) => ({ role: turn.role, content: turn.content }));
-}
-
 export function buildRequest(
   preset: AiProviderPreset,
   settings: AiSettings,
@@ -198,7 +195,7 @@ export function buildRequest(
         max_tokens: 8192,
         stream: true,
         ...(system.length > 0 ? { system } : {}),
-        messages: toWireMessages(messages),
+        messages: toWireMessages(messages, preset.protocol, preset.vision === true),
       },
     };
   }
@@ -213,7 +210,7 @@ export function buildRequest(
       stream: true,
       messages: [
         ...(system.length > 0 ? [{ role: "system", content: system }] : []),
-        ...toWireMessages(messages),
+        ...toWireMessages(messages, preset.protocol, preset.vision === true),
       ],
     },
   };

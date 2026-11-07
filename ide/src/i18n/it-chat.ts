@@ -103,6 +103,7 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.trace.outcome.failed": "errore del provider",
   "chat.trace.ok": "ok",
   "chat.trace.running": "in corso…",
+  "chat.trace.screenshot": "Screenshot dell'app {n}",
   "chat.trace.failed": "fallita ({kind})",
   "chat.trace.tools": "{n} chiamata/e tool",
   "chat.trace.program": "Programma",

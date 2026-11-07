@@ -25,6 +25,11 @@ export interface AiProviderPreset {
   keyHintKey: MessageKey;
   /** Local providers (and the dev mock) need no key. */
   requiresKey: boolean;
+  /**
+   * The preset's default models accept images (D-112). Per preset, not per model: a user who
+   * overrides the model with a text-only one simply gets the images ignored by the provider.
+   */
+  vision?: boolean;
 }
 
 /** What the user configured. Persisted per origin, never sent anywhere but the provider. */
@@ -39,6 +44,8 @@ export interface AiSettings {
 export interface AiChatTurn {
   role: "user" | "assistant";
   content: string;
+  /** Data URLs attached to this turn; only a vision preset serializes them (D-112). */
+  images?: readonly string[];
 }
 
 /** SPEC §9.2 + D-101: one object per turn, either an exploration program or a patch set. */
@@ -169,6 +176,8 @@ export interface ChatTraceRun {
   toolCalls: number;
   elapsedMs: number;
   entries: PtcTraceEntry[];
+  /** App screenshots captured by the program (data URLs, D-112). */
+  images?: readonly string[];
 }
 
 /** The turn's activity, in order: a model call, then the program it asked for, then the next. */

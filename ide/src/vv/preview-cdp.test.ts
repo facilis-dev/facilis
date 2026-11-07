@@ -141,6 +141,37 @@ describe("PreviewCdp", () => {
     expect(cdp.consoleEntries()).toEqual([]);
   });
 
+  it("captures one screencast frame as a JPEG screenshot", async () => {
+    const { cdp, posted, target } = harness();
+    const pending = cdp.captureScreenshot();
+    await tick();
+    target({ id: parse(posted).id, result: { result: { type: "number", value: 1 } } });
+    await tick();
+    // The capture asks chobitsu to start the screencast, then waits for a frame.
+    expect(
+      frontend(posted).some(
+        (message) => JSON.parse(message.data).method === "Page.startScreencast",
+      ),
+    ).toBe(true);
+    target({
+      method: "Page.screencastFrame",
+      params: { data: "QUJD", metadata: { deviceWidth: 800, deviceHeight: 600 } },
+    });
+    await expect(pending).resolves.toEqual({ data: "QUJD", width: 800, height: 600 });
+    await tick();
+    expect(
+      frontend(posted).some((message) => JSON.parse(message.data).method === "Page.stopScreencast"),
+    ).toBe(true);
+  });
+
+  it("returns null when the page produces no frame in time", async () => {
+    const { cdp, posted, target } = harness();
+    const pending = cdp.captureScreenshot(30);
+    await tick();
+    target({ id: parse(posted).id, result: { result: { type: "number", value: 1 } } });
+    await expect(pending).resolves.toBeNull();
+  });
+
   it("reports no preview when no tab is running", async () => {
     const cdp = new PreviewCdp({ active: () => null, frame: () => undefined });
     expect(cdp.mounted()).toBe(false);

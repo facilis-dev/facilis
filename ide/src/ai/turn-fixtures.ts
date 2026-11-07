@@ -9,6 +9,7 @@ import type { CallModelInput } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
 import type { PtcRunner, PtcRunResult, PtcToolSpec } from "./ptc/protocol";
 import { runTurn } from "./turn";
+import type { PreviewAccess } from "./preview-access";
 import type { AiSettings, ChatTraceCall } from "./types";
 
 export const settings: AiSettings = {
@@ -149,25 +150,49 @@ export const SIGNAL = new AbortController().signal;
 
 export interface Hooks {
   onScriptStart?: (program: string, turn: number) => void;
-  onScript?: (result: PtcRunResult, program: string) => void;
+  onScript?: (result: PtcRunResult, program: string, images: readonly string[]) => void;
   onPatches?: (part: number) => void;
   onReasoning?: (chunk: string) => void;
   onCallStart?: (call: number) => void;
   onCall?: (call: ChatTraceCall) => void;
 }
 
+/** A preview host for the turn-loop tests: available, empty answers, no screenshots. */
+export function previewAccess(overrides: Partial<PreviewAccess> = {}): PreviewAccess {
+  return {
+    available: () => true,
+    state: async () => ({}),
+    console: () => ({}),
+    network: () => ({}),
+    dom: async () => ({}),
+    click: async () => ({}),
+    fill: async () => ({}),
+    open: async () => ({}),
+    wait: async () => ({}),
+    screenshot: async () => ({}),
+    takeImages: () => [],
+    ...overrides,
+  };
+}
+
+export interface RunOptions extends Hooks {
+  /** Replaces the plain validation host, e.g. to add a preview (D-112). */
+  preview?: PreviewAccess;
+}
+
 export async function run(
   texts: string[],
   ptc: PtcRunner,
   calls: CallModelInput[],
-  hooks: Hooks = {},
+  options: RunOptions = {},
 ) {
+  const { preview, ...hooks } = options;
   return runTurn({
     call: capture(texts, calls),
     settings,
     system: "system",
     messages: [{ role: "user", content: "add a file" }],
-    host: host(),
+    host: preview === undefined ? host() : { ...host(), preview },
     signal: SIGNAL,
     onText: () => {},
     onRepair: () => {},

@@ -40,9 +40,9 @@ bordered cards.
   the **paths**, not the content: the model reads them with the PTC tools (`read_file`, `search`),
   consistent with the "no file stuffing" direction (D-101/D-102).
 - Files dragged from the OS: later; text files would be read client-side with a size cap, and
-  images only when the provider model supports vision (the current multimodal message format does
-  not exist yet — it is the second half of the preview-tools work, where the model may also see
-  screenshots).
+  images only when the provider model supports vision — the multimodal message format exists now
+  (D-112: `preview_screenshot` and `AiChatTurn.images`), so the remaining work is the composer
+  entry point and the file reading.
 - Attachments must stay display-only for the model unless a tool reads them: nothing here writes
   to the project.
 

@@ -9,12 +9,13 @@
 // tests drive it with a scripted fake.
 
 import {
-  consoleText,
+  applyPreviewEvent,
   evaluated,
-  exceptionText,
   isRecord,
+  type PreviewBuffers,
   type PreviewConsoleEntry,
   type PreviewNetworkEntry,
+  type PreviewScreenshot,
 } from "./preview-cdp-events";
 import type { PreviewTab } from "./preview-session";
 
@@ -33,17 +34,20 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
-interface TabState {
+interface FrameWaiter {
+  resolve(frame: PreviewScreenshot | null): void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+interface TabState extends PreviewBuffers {
   ready: boolean;
   initAt: number;
   nextId: number;
   pending: Map<number, Pending>;
-  console: PreviewConsoleEntry[];
-  network: Map<string, PreviewNetworkEntry>;
+  /** A screenshot capture waiting for the next screencast frame (D-112). */
+  frameWaiter: FrameWaiter | null;
 }
 
-const CONSOLE_BUFFER = 80;
-const NETWORK_BUFFER = 120;
 const SEND_TIMEOUT_MS = 2_000;
 const PROBE_TIMEOUT_MS = 250;
 const PROBE_ATTEMPTS = 12;
@@ -133,6 +137,30 @@ export class PreviewCdp {
     return evaluated(result);
   }
 
+  /**
+   * One JPEG screenshot of the page (chobitsu renders it with html2canvas), or null when the
+   * page produced no frame in time (D-112).
+   */
+  async captureScreenshot(timeoutMs = 2_500): Promise<PreviewScreenshot | null> {
+    const tab = this.activeTab();
+    if (tab === null) throw new Error("no preview is running");
+    const state = await this.ensure(tab.id);
+    if (state.frameWaiter !== null) return null;
+    const frame = new Promise<PreviewScreenshot | null>((resolve) => {
+      const timer = setTimeout(() => {
+        state.frameWaiter = null;
+        resolve(null);
+      }, timeoutMs);
+      state.frameWaiter = { resolve, timer };
+    });
+    await this.send(tab.id, "Page.startScreencast", { format: "jpeg", quality: 60 }, 1_000).catch(
+      () => undefined,
+    );
+    const captured = await frame;
+    await this.send(tab.id, "Page.stopScreencast", {}, 500).catch(() => undefined);
+    return captured;
+  }
+
   private stateOf(tabId: string): TabState {
     const existing = this.tabs.get(tabId);
     if (existing !== undefined) return existing;
@@ -143,6 +171,7 @@ export class PreviewCdp {
       pending: new Map(),
       console: [],
       network: new Map(),
+      frameWaiter: null,
     };
     this.tabs.set(tabId, created);
     return created;
@@ -160,6 +189,11 @@ export class PreviewCdp {
     state.initAt = 0;
     state.console = [];
     state.network.clear();
+    if (state.frameWaiter !== null) {
+      clearTimeout(state.frameWaiter.timer);
+      state.frameWaiter.resolve(null);
+      state.frameWaiter = null;
+    }
   }
 
   /** Attach the bootstrap's CDP domains, then probe until the agent answers. */
@@ -228,52 +262,13 @@ export class PreviewCdp {
   }
 
   private handleEvent(tabId: string, method: string, params: unknown): void {
-    if (!isRecord(params)) return;
     const state = this.stateOf(tabId);
-    if (method === "Runtime.consoleAPICalled") {
-      const kind = typeof params.type === "string" ? params.type : "log";
-      state.console.push({
-        kind: (kind === "warning" ? "warn" : kind) as PreviewConsoleEntry["kind"],
-        text: consoleText(params),
-      });
-      if (state.console.length > CONSOLE_BUFFER) state.console.shift();
-      return;
-    }
-    if (method === "Runtime.exceptionThrown") {
-      state.console.push({ kind: "exception", text: exceptionText(params) });
-      if (state.console.length > CONSOLE_BUFFER) state.console.shift();
-      return;
-    }
-    if (method === "Network.requestWillBeSent") {
-      const request = params.request;
-      if (!isRecord(request)) return;
-      const requestId = typeof params.requestId === "string" ? params.requestId : "";
-      if (requestId === "") return;
-      const url = typeof request.url === "string" ? request.url : "";
-      const requestMethod = typeof request.method === "string" ? request.method : "GET";
-      state.network.set(requestId, { method: requestMethod, url });
-      const oldest = state.network.keys().next().value;
-      if (state.network.size > NETWORK_BUFFER && oldest !== undefined) {
-        state.network.delete(oldest);
-      }
-      return;
-    }
-    if (method === "Network.responseReceived") {
-      const requestId = typeof params.requestId === "string" ? params.requestId : "";
-      const entry = state.network.get(requestId);
-      const response = params.response;
-      if (entry === undefined || !isRecord(response)) return;
-      if (typeof response.status === "number") entry.status = response.status;
-      return;
-    }
-    if (method === "Network.loadingFailed") {
-      const requestId = typeof params.requestId === "string" ? params.requestId : "";
-      const entry = state.network.get(requestId);
-      if (entry === undefined) return;
-      entry.error =
-        typeof params.errorText === "string" && params.errorText.length > 0
-          ? params.errorText
-          : "request failed";
-    }
+    const frame = applyPreviewEvent(state, method, params);
+    if (frame === null) return;
+    const waiter = state.frameWaiter;
+    if (waiter === null) return;
+    state.frameWaiter = null;
+    clearTimeout(waiter.timer);
+    waiter.resolve(frame);
   }
 }

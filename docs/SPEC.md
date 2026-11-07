@@ -1939,8 +1939,9 @@ path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted a
 phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
 landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
 remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`network`/`dom`/
-`click`/`fill`/`open`/`wait`): the page's chobitsu CDP backend is the transport; they observe or
-reproduce runtime failures but never write the project.
+`click`/`fill`/`open`/`wait`/`screenshot`): the page's chobitsu CDP backend is the transport;
+they observe or reproduce runtime failures but never write the project. A screenshot is shown in
+the activity row and sent to the model only for a `vision` preset (D-112).
 
 ---
 

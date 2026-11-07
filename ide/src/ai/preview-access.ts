@@ -22,12 +22,18 @@ export interface PreviewAccess {
   open(path: string): Promise<PtcJson>;
   /** Wait until a selector matches (or for `ms` when the selector is null). */
   wait(selector: string | null, ms: number): Promise<PtcJson>;
+  /** One JPEG screenshot of the app (data URL kept for the caller, D-112). */
+  screenshot(): Promise<PtcJson>;
+  /** Drain the screenshots taken since the last call; the turn loop attaches them. */
+  takeImages(): string[];
 }
 
 const STATE_TEXT_CHARS = 600;
 const CONSOLE_LIMIT = 20;
 const NETWORK_LIMIT = 20;
 const WAIT_STEP_MS = 120;
+/** At most this many screenshots travel with one program's result (D-112). */
+const MAX_SCREENSHOTS = 2;
 
 function stateExpression(): string {
   return `(() => ({
@@ -86,6 +92,7 @@ function fillExpression(selector: string, text: string): string {
 export function createPreviewAccess(session: PreviewSession): PreviewAccess {
   const tab = (): PreviewTab | null => session.activePreviewTab();
   const evaluate = (expression: string): Promise<unknown> => session.cdp.evaluate(expression);
+  const images: string[] = [];
   return {
     available() {
       const current = tab();
@@ -140,6 +147,29 @@ export function createPreviewAccess(session: PreviewSession): PreviewAccess {
       if (current === null) throw new Error("no preview is running");
       session.navigatePreviewPath(current.id, path);
       return { ok: true, path, note: "the preview reloads on the new route" };
+    },
+    async screenshot(): Promise<PtcJson> {
+      const frame = await session.cdp.captureScreenshot();
+      if (frame === null) {
+        return { captured: false, reason: "the page produced no frame in time: is it loaded?" };
+      }
+      if (images.length >= MAX_SCREENSHOTS) {
+        return {
+          captured: false,
+          reason: "at most " + MAX_SCREENSHOTS + " screenshots per program",
+        };
+      }
+      images.push("data:image/jpeg;base64," + frame.data);
+      return {
+        captured: true,
+        width: frame.width,
+        height: frame.height,
+        bytes: frame.data.length,
+        note: "the user sees the screenshot; a vision model also receives it",
+      };
+    },
+    takeImages() {
+      return images.splice(0, images.length);
     },
     async wait(selector, ms) {
       const started = Date.now();

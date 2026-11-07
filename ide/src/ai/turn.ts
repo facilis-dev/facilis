@@ -57,8 +57,8 @@ export interface TurnInput {
   runner: PtcRunner;
   /** Called just before an exploration program starts (1-based program number). */
   onScriptStart?: (program: string, programNumber: number) => void;
-  /** Called after each exploration program with its outcome. */
-  onScript?: (result: PtcRunResult, program: string) => void;
+  /** Called after each exploration program with its outcome and captured screenshots. */
+  onScript?: (result: PtcRunResult, program: string, images: readonly string[]) => void;
   /** Called when another part of the same patch set is requested (1-based part). */
   onPatches?: (part: number) => void;
   /** Streams the provider's visible reasoning for the current call (D-110). */
@@ -227,9 +227,16 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       }
       scripts = turnNumber;
       trace.push(...run.trace);
-      input.onScript?.(run, program);
+      // D-112: screenshots the program took travel with its result turn (the activity row
+      // shows them to the user; a vision preset also sends them to the model).
+      const images = input.host.preview?.takeImages() ?? [];
+      input.onScript?.(run, program, images);
       appendTurn(turns, { role: "assistant", content: result.text });
-      appendTurn(turns, { role: "user", content: formatScriptResult(run) });
+      appendTurn(turns, {
+        role: "user",
+        content: formatScriptResult(run),
+        ...(images.length > 0 ? { images } : {}),
+      });
       continue;
     }
 

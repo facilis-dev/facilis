@@ -21,6 +21,7 @@ export function completeTraceRun(
   trace: readonly ChatActivity[],
   result: PtcRunResult,
   program: string,
+  images: readonly string[] = [],
 ): ChatActivity[] {
   const run: ChatTraceRun = {
     kind: "run",
@@ -30,6 +31,7 @@ export function completeTraceRun(
     toolCalls: result.toolCalls,
     elapsedMs: result.elapsedMs,
     entries: [...result.trace],
+    ...(images.length === 0 ? {} : { images: [...images] }),
   };
   if (trace.length === 0) return [run];
   return [...trace.slice(0, -1), run];

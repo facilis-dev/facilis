@@ -55,6 +55,7 @@ const PREVIEW_PROMPT = [
   "When a project is running, the preview_* tools inspect and drive the app itself: a runtime failure, a broken request or a click that does nothing shows up there, not in the source.",
   "- Start with preview_state; when the failure is an error or a failed request, call preview_console and preview_network before proposing a fix.",
   "- preview_click and preview_fill reproduce a user flow; preview_open navigates the preview (the page reloads); preview_wait waits for an element.",
+  "- preview_screenshot captures the page (html2canvas): the user sees the screenshot and a vision model also receives the image; use it for a layout or visual problem the text tools cannot show.",
   "- The tools act on the running app's own state (they can create or delete its data). They never write to the project: the only write path stays the patch set plus the user's Apply.",
   '- { "available": false } means the app is not running: ask the user to Run it and retry; never guess the runtime state.',
 ].join("\n");

@@ -16,6 +16,8 @@ function access(overrides: Partial<PreviewAccess> = {}): PreviewAccess {
     fill: async (selector, text) => ({ ok: true, selector, text }),
     open: async (path) => ({ ok: true, path }),
     wait: async (selector, ms) => ({ ok: true, selector, ms }),
+    screenshot: async () => ({ captured: true, width: 800, height: 600 }),
+    takeImages: () => [],
     ...overrides,
   };
 }
@@ -100,6 +102,13 @@ describe("preview tools", () => {
     }
     const noWait = await refusal(call("preview_wait", {}));
     expect(noWait.message).toContain("selector or ms");
+  });
+
+  it("takes a screenshot and reports it", async () => {
+    await expect(call("preview_screenshot", {})).resolves.toMatchObject({
+      captured: true,
+      width: 800,
+    });
   });
 
   it("waits for a selector or a delay", async () => {

@@ -102,6 +102,7 @@ export const chatEn = {
   "chat.trace.outcome.failed": "provider failure",
   "chat.trace.ok": "ok",
   "chat.trace.running": "in progress…",
+  "chat.trace.screenshot": "App screenshot {n}",
   "chat.trace.failed": "failed ({kind})",
   "chat.trace.tools": "{n} tool call(s)",
   "chat.trace.program": "Program",

@@ -74,6 +74,12 @@ describe("activity trace helpers", () => {
     expect(done).toHaveLength(1);
   });
 
+  it("carries the screenshots the program captured on its row (D-112)", () => {
+    const image = "data:image/jpeg;base64,QUJD";
+    const done = completeTraceRun([], run(), "return 1", [image]);
+    expect(done[0]).toMatchObject({ images: [image] });
+  });
+
   it("inserts the call row in place and completes it without moving it", () => {
     const started = beginTraceCall([], 1);
     expect(started).toEqual([

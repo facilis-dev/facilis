@@ -105,6 +105,19 @@ function RunCard({
           {run.error.message}
         </p>
       )}
+      {run.images !== undefined && run.images.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {run.images.map((src, imageIndex) => (
+            <a key={imageIndex} href={src} target="_blank" rel="noreferrer">
+              <img
+                src={src}
+                alt={t("chat.trace.screenshot", { n: imageIndex + 1 })}
+                className="max-h-36 rounded border border-border/60"
+              />
+            </a>
+          ))}
+        </div>
+      )}
       <p className="mt-1 text-[10px] text-muted-foreground">{t("chat.trace.program")}</p>
       <pre className="mt-0.5 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-editor p-1 font-mono text-[10px] leading-4 text-editor-foreground">
         {run.program}

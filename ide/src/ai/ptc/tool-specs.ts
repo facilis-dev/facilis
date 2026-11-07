@@ -46,6 +46,11 @@ export const PREVIEW_TOOL_SPECS: readonly PtcToolSpec[] = [
   spec("preview_fill", "preview_fill({ selector, text })", "Type into an input (input/change)."),
   spec("preview_open", "preview_open({ path })", "Navigate the preview to a project route."),
   spec("preview_wait", "preview_wait({ selector?, ms? })", "Wait for an element or a delay."),
+  spec(
+    "preview_screenshot",
+    "preview_screenshot()",
+    "Screenshot of the running app: the user sees it, vision models receive it.",
+  ),
 ];
 
 export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = [...TOOL_SPECS, ...PREVIEW_TOOL_SPECS];

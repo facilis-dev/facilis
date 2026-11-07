@@ -191,6 +191,7 @@ confined to the project root, and go through one policy function.
 | `preview_fill` | `{ selector, text }` | types into an input/textarea (input/change) |
 | `preview_open` | `{ path }` | navigates the preview to a route (reloads) |
 | `preview_wait` | `{ selector?, ms? }` | waits for an element or a delay |
+| `preview_screenshot` | `{}` | JPEG of the page (html2canvas): shown to the user, sent to vision models (D-112) |
 
 **The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
 validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
@@ -202,10 +203,11 @@ never a second implementation of the rules.
 **The preview tools (D-111) inspect the app, not the source.** Every preview page already carries
 chobitsu — the CDP backend the preview Service Worker injects (`ide/public/sw.js`) — and the
 DevTools panel relays it to chii; the same channel now has a programmatic client
-(`ide/src/vv/preview-cdp.ts`) so the model can see runtime console/network failures and reproduce
-a click flow before proposing a fix. They act on the *running app's own state* (they can create
-or delete data in it) and never write the project; with no project running they answer
-`{ available: false }` as data.
+(`ide/src/vv/preview-cdp.ts`) so the model can see runtime console/network failures, reproduce
+a click flow and take a screenshot (D-112) before proposing a fix. They act on the *running app's
+own state* (they can create or delete data in it) and never write the project; with no project
+running they answer `{ available: false }` as data. A screenshot is shown in the activity row and
+sent to the model only when the configured preset accepts images.
 
 Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is

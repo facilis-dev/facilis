@@ -97,6 +97,9 @@ export function createPreviewHandlers(access: PreviewAccess): Record<string, Pre
       const path = onRoute(requiredString(args, "path", MAX_PATH));
       return access.open(path);
     },
+    async preview_screenshot() {
+      return access.available() ? access.screenshot() : unavailable();
+    },
     async preview_wait(args) {
       if (!access.available()) return unavailable();
       const selector = optionalString(args, "selector", MAX_SELECTOR) ?? null;

@@ -9,6 +9,7 @@ import {
   host,
   NEW_FILE,
   okRun,
+  previewAccess,
   ROUTE,
   ROUTE_FIXED,
   run,
@@ -143,6 +144,21 @@ describe("runTurn with PTC exploration", () => {
     if (!outcome.ok) return;
     expect(calls).toHaveLength(11);
     expect(outcome.parsed.response.patches).toEqual([NEW_FILE]);
+  });
+
+  it("attaches screenshots to the tool result and to the activity callback (D-112)", async () => {
+    const calls: CallModelInput[] = [];
+    const images = ["data:image/jpeg;base64,QUJD"];
+    const seen: (readonly string[])[] = [];
+    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+      preview: previewAccess({ takeImages: () => images }),
+      onScript: (_result, _program, captured) => seen.push(captured),
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual([images]);
+    const resultTurn = calls[1]?.messages.at(-1);
+    expect(resultTurn?.role).toBe("user");
+    expect(resultTurn?.images).toEqual(images);
   });
 
   it("does not inline file content in a repair when the tools are available", async () => {
