@@ -1,0 +1,59 @@
+# Chat UX direction (planned)
+
+**Status:** **planned** — owner direction 2026-11-07, not implemented. Tracked as O-018 in
+[DECISIONS.md](./DECISIONS.md); this file is the sketch to act on later.
+
+The owner's reference is the harness's own session view (DeepSeek Harness): the same chat content
+we already have, but **much lighter** — a dense, chronological transcript instead of a stack of
+bordered cards.
+
+## What "lighter" means here
+
+- One collapsed line per step, icon left, one-line meta right:
+  `Think · <first words of the reasoning>`, `Code · <what the call was for>`,
+  `Edit file.ts 2 KB`, `Read file.md`, `Bash <command>`.
+- A click expands that line into the existing detail (reasoning text, program, tool arguments,
+  diff), exactly like our `<details>` rows but without the card chrome: no rounded boxes, no
+  hairline borders per row, 11–12 px type, muted meta, generous line-height.
+- Assistant prose stays a plain block, not a bubble; the transcript reads top-to-bottom in
+  strict time order (D-110 already does this for model calls and programs).
+- The composer keeps the current behaviour; the transcript is where the density work is.
+
+## Requested functions
+
+### "Compact"
+
+Two readings were raised and are **open** until the owner picks one:
+
+1. **Density (recommended first):** a persisted "compact / normal" toggle in the chat header;
+   compact is the style above (single-line rows, no chrome), normal keeps today's cards. No
+   model call, no context change.
+2. **Context compaction:** a `/compact`-style action that asks the model to summarize the
+   conversation so far into one replayable summary message and then drops the raw history.
+   Today only the last `HISTORY_LIMIT = 20` messages are replayed (`chat-session.ts`), and the
+   visible transcript already survives longer than that; context compaction would mostly help
+   very long sessions and costs one model call. It needs a new `ChatState` summary message, a
+   settings/command surface, and tests; it is a separate decision.
+
+### Attachments
+
+- Composer "+" opens a project-file picker (the same list the explorer shows). The message carries
+  the **paths**, not the content: the model reads them with the PTC tools (`read_file`, `search`),
+  consistent with the "no file stuffing" direction (D-101/D-102).
+- Files dragged from the OS: later; text files would be read client-side with a size cap, and
+  images only when the provider model supports vision (the current multimodal message format does
+  not exist yet — it is the second half of the preview-tools work, where the model may also see
+  screenshots).
+- Attachments must stay display-only for the model unless a tool reads them: nothing here writes
+  to the project.
+
+## What it touches when we do it
+
+- `ChatMessageView` / `ChatTraceView` (density), `ChatPanel` (composer "+", header toggle),
+  `AiSettings` (persisted density), `chat-session.ts` (attachments preamble, optional compact
+  summary), i18n keys (en/it), tests and a screenshot acceptance pass on the real IDE.
+
+## Not started
+
+No code yet: the preview tools (phase 1/2 of the chat tools) come first; this slice is recorded
+here so the direction is not lost.
