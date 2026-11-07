@@ -1698,8 +1698,11 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
   2–3 files per answer, marks every part but the last with `"continue": true`, and the turn loop
   merges the parts by path (a later part may correct a file), ORs the destructive flag, keeps the
   notes and validates the merged set once (the rules are cross-file). The chat shows
-  "sending the patch set in parts (n/5)"; the budget is 5 parts per user turn and exhausting it
-  fails constructively without writing. If the provider cut the answer anyway, the client marks
+  "sending the patch set in parts (n/6)"; the budget is 6 parts per answer set and exhausting it
+  fails constructively without writing. A correction keeps the rejected set and re-emits only the
+  files it changes (`delete` drops one), so fixing two files of a three-part set is one answer. The
+  model-call backstop is 22 per user message; its failure reports how many calls the exploration,
+  the parts and the corrections consumed. If the provider cut the answer anyway, the client marks
   it `truncated` and the IDE salvages the complete patch objects before the cut
   (`ide/src/ai/salvage.ts`), then asks for the rest instead of reporting a raw JSON error. Only
   an answer with no recoverable patch goes through the ordinary repair, whose report now carries

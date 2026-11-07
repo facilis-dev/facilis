@@ -3791,8 +3791,18 @@ just too large for one answer.
 - The model may split a set: every part is a complete `AIResponse`, and `"continue": true` marks
   every part but the last. `ide/src/ai/turn.ts` merges the parts by path (a later part may correct
   a file), ORs `requires_confirmation`, keeps the notes and validates the merged set once
-  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n/5)". The budget is
-  5 parts per user turn, and a part without patches still needs a message.
+  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n/6)". The part
+  budget is 6 per answer set — the initial set and each correction start over — and a part without
+  patches still needs a message.
+- A correction **keeps the rejected set** (`beginCorrection` in `patch-set.ts`): the model re-emits
+  only the files the findings name, files it omits keep their rejected patch, and `"delete"` drops
+  one. This is what keeps a correction cheap: a fix to two files of a three-part set is one answer,
+  not another three parts.
+- The model-call backstop is 22 per user message (6 exploration programs + 6 parts + the final
+  answer + up to 3 corrections × 3 calls). When it runs out the failure reports what consumed the
+  calls ("N model calls: X exploration program(s), Y patch part(s), Z correction(s)"), so the
+  budgets can be tuned from a real turn instead of a guess. A part that only repeats files already
+  received gets an explicit continuation line instead of silently spending calls.
 - A cut answer is not thrown away: `ide/src/ai/salvage.ts` scans the `patches` array with a
   string-aware brace scan and keeps the complete patch objects before the cut; the turn asks for
   the rest with the list of files already received (their content is not re-sent). If no complete
@@ -3811,13 +3821,15 @@ the merged set is validated once, exactly like a one-answer set.
 and asks for the remainder; a genuinely malformed answer still gets the ordinary repair (now with
 the part advice), with the raw JSON error as detail only. The conversation stays bounded: each
 part is recorded as a synthetic assistant turn listing its paths, not the raw part content, which
-would push the next request over the context window. Five parts of ~8k tokens are the worst case
-for one user turn.
+would push the next request over the context window. A correction is usually a single call
+because it merges, so the common large-feature turn costs one exploration pass, two or three parts
+and one correction; six parts of ~8k tokens remain the worst case for one answer.
 
 **Verification.** `salvage.test.ts` (cut tail, brace inside content, missing separator, malformed
 element), `response.test.ts` (continue contract, truncation detection), `turn.test.ts` (merge,
-salvage continuation, part budget), `chat-session-repair.test.ts` (part progress in the chat
-state), `client.test.ts`/`provider.test.ts` (stop reasons); full gates green.
+merge of a correction that re-emits one file, salvage continuation, part and model-call budgets,
+the reported counter breakdown), `chat-session-repair.test.ts` (part progress in the chat state),
+`client.test.ts`/`provider.test.ts` (stop reasons); full gates green.
 
 ---
 
