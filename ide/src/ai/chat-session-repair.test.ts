@@ -79,6 +79,14 @@ const ROUTE_PATCH: FilePatch = {
     'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n',
 };
 
+/** The same route with the fix the findings ask for (the correction re-emits that file only). */
+const ROUTE_FIXED: FilePatch = {
+  ...ROUTE_PATCH,
+  content:
+    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'export default defineAuthorizedHandler({ dbTables: [], permission: [] }, async () => null);\n',
+};
+
 function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSession {
   return new ChatSession(host, {
     call,
@@ -117,7 +125,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
       calls.push(input);
       return calls.length === 1
         ? { ok: true, text: answer(ROUTE_PATCH) }
-        : { ok: true, text: answer(NEW_FILE) };
+        : { ok: true, text: answer(ROUTE_FIXED) };
     });
 
     await chat.send("add a route");

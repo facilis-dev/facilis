@@ -264,7 +264,7 @@ describe("ChatSession repair of a destructive schema rewrite", () => {
     expect(repair).toContain("## Fix plan (root cause first)");
     expect(repair).toContain("- db/schema.ts — 1 finding(s): destructive-confirmed");
     expect(repair).toContain("## Your rejected answer touched");
-    expect(repair).toContain("read_file it before re-emitting it");
+    expect(repair).toContain("read_file it first");
     expect(repair).not.toContain("## Current content of the files");
 
     expect(state.error).toBeNull();

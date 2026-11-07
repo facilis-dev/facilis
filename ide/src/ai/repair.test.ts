@@ -140,8 +140,8 @@ describe("buildRepairMessages", () => {
     expect(request).toContain("## Fix plan (root cause first)");
     expect(request).toContain("## Validation findings");
     expect(request).toContain("## Tools");
-    expect(request).toContain("read_file it before re-emitting it");
-    expect(request).toContain("validate on the exact patch set");
+    expect(request).toContain("read_file it first");
+    expect(request).toContain("validate on the files you are about to return");
     expect(request).toContain("## Response contract");
     expect(request.indexOf("## Fix plan")).toBeLessThan(request.indexOf("## Validation findings"));
   });

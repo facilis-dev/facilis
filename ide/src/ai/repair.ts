@@ -141,7 +141,7 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
       " of " +
       max +
       ".",
-    "Fix every finding below and reply with the complete corrected AIResponse: it replaces the rejected set, so include every file the set needs (send it in parts if it is large).",
+    "Fix every finding below and reply with the corrected AIResponse. The corrected files are merged into the rejected set: re-emit only the files you change (with their complete content), emit action \"delete\" to drop a file, and the files you omit keep their current patch. Send it in parts with \"continue\": true if it is large.",
   ];
   if (failure.kind === "validation") {
     lines.push("", formatFixPlan(failure.findings, failure.patchedFiles));
@@ -160,7 +160,7 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
   lines.push(
     "",
     "## Tools",
-    "Read-only tools are available in a script turn. For every file named above: read_file it before re-emitting it, then call validate on the exact patch set you are about to return.",
+    "Read-only tools are available in a script turn. For every file you re-emit: read_file it first, then call validate on the files you are about to return. The framework validates the merged set.",
     "Fix root causes first: a schema or config fix can clear several route findings.",
     "",
     "## Response contract",

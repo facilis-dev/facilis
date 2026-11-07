@@ -8,8 +8,8 @@
 import type { FilePatch } from "@facilis/ai";
 import type { AiResponse } from "./types";
 
-/** Model calls allowed for one user turn's patch set: a large change is sent in parts. */
-export const MAX_PATCH_TURNS = 5;
+/** Parts allowed for one answer (the initial set or one correction): a large change is split. */
+export const MAX_PATCH_TURNS = 6;
 
 export interface PatchSetState {
   /** Last patch per path: a later part may correct a file an earlier part sent. */
@@ -43,6 +43,33 @@ export function addPatches(set: PatchSetState, response: AiResponse): PatchSetSt
   };
 }
 
+/** How many patches introduce a new file or change the stored one: a part of repeats makes no progress. */
+export function changedPatches(
+  set: PatchSetState,
+  patches: readonly FilePatch[],
+): number {
+  let changed = 0;
+  for (const patch of patches) {
+    const current = set.patches.get(patch.path);
+    if (
+      current === undefined ||
+      current.action !== patch.action ||
+      current.content !== patch.content
+    ) {
+      changed += 1;
+    }
+  }
+  return changed;
+}
+
+/**
+ * Start a correction: the rejected set is kept, so a correction may re-emit only the files
+ * it changes (D-106). The part budget starts over for the corrected set.
+ */
+export function beginCorrection(set: PatchSetState): PatchSetState {
+  return { ...set, parts: 0 };
+}
+
 /** The complete answer the SPEC §9.3 validator sees: every part's files, one chat message. */
 export function completeResponse(set: PatchSetState): AiResponse {
   return {
@@ -74,6 +101,8 @@ export interface ContinuationInput {
   cutOff?: boolean;
   /** Characters the provider had streamed when it was cut off. */
   cutAt?: number;
+  /** Patches that were new or changed in that part; 0 means it only repeated files. */
+  changed: number;
 }
 
 /** The user turn that asks for the rest of a patch set (D-106). */
@@ -92,6 +121,12 @@ export function formatContinuation(input: ContinuationInput): string {
     "",
     formatReceived(input.set),
     "",
+    ...(input.changed === 0
+      ? [
+          "None of the files in that part was new or changed: every one had already been received. Send the files that are still missing.",
+          "",
+        ]
+      : []),
     "## Continue the patch set",
     "- Send the files that are still missing. Keep this answer within the output limit: at most 2-3 files.",
     '- Set "continue": true while more files remain. The last part omits it; it may carry no patches if every file was already sent, and its message must describe the finished change.',

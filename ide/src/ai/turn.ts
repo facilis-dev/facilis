@@ -13,6 +13,8 @@ import type { CallModelInput, CallModelResult } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
 import {
   addPatches,
+  beginCorrection,
+  changedPatches,
   completeResponse,
   emptyPatchSet,
   formatContinuation,
@@ -37,8 +39,13 @@ import {
 import { salvagePatches } from "./salvage";
 import type { AiChatTurn, AiSettings, ChatFailure } from "./types";
 
-/** Model calls per user message: the first answer, corrections, explorations and parts. */
-const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_REPAIR_ATTEMPTS + MAX_PATCH_TURNS + 1;
+/**
+ * Model calls per user message: the exploration (6), the initial set in parts (at most
+ * MAX_PATCH_TURNS + the final answer) and up to three corrections that may each need a few
+ * parts. The individual budgets stay the real limits; this is the backstop, and the failure
+ * says what consumed the calls (D-106).
+ */
+export const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_PATCH_TURNS + 1 + MAX_REPAIR_ATTEMPTS * 3;
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -91,6 +98,31 @@ function parsingFailure(failure: AiParseFailure): TurnOutcome {
   return { ok: false, failure: { kind: "parse", message: formatFailure(failure) } };
 }
 
+/** The turn spent every model call without a final answer: say what consumed them. */
+function budgetFailure(counts: {
+  calls: number;
+  scripts: number;
+  parts: number;
+  repairs: number;
+}): TurnOutcome {
+  return {
+    ok: false,
+    failure: {
+      kind: "parse",
+      message:
+        "The assistant used its whole budget (" +
+        counts.calls +
+        " model calls: " +
+        counts.scripts +
+        " exploration program(s), " +
+        counts.parts +
+        " patch part(s), " +
+        counts.repairs +
+        " correction(s)) without a final answer. Nothing was written: try again, or split the request into smaller changes.",
+    },
+  };
+}
+
 /** The patch set spent its whole part budget without ever finishing. */
 function patchBudgetFailure(): TurnOutcome {
   return {
@@ -134,6 +166,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   let patchSet = emptyPatchSet();
   let repairs = 0;
   let scripts = 0;
+  let patchAnswers = 0;
   let toolCalls = 0;
   let modelCalls = 0;
 
@@ -142,14 +175,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
     }
     if (modelCalls >= MAX_MODEL_CALLS) {
-      return {
-        ok: false,
-        failure: {
-          kind: "parse",
-          message:
-            "The assistant used its whole exploration, part and correction budget without a final answer.",
-        },
-      };
+      return budgetFailure({ calls: modelCalls, scripts, parts: patchAnswers, repairs });
     }
     const first = modelCalls === 0;
     modelCalls += 1;
@@ -171,17 +197,24 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       const salvaged = parsed.kind === "json" ? salvagePatches(result.text) : [];
       if (salvaged.length > 0) {
         if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
+        const changed = changedPatches(patchSet, salvaged);
         patchSet = addPatches(patchSet, {
           message: "",
           patches: salvaged,
           notes: [],
           requiresConfirmation: false,
         });
+        patchAnswers += 1;
         input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
         appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
         appendTurn(turns, {
           role: "user",
-          content: formatContinuation({ set: patchSet, cutOff: true, cutAt: result.text.length }),
+          content: formatContinuation({
+            set: patchSet,
+            cutOff: true,
+            cutAt: result.text.length,
+            changed,
+          }),
         });
         continue;
       }
@@ -221,12 +254,14 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       continue;
     }
 
+    const changed = changedPatches(patchSet, parsed.response.patches);
     patchSet = addPatches(patchSet, parsed.response);
+    patchAnswers += 1;
     if (parsed.response.continue === true) {
       if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
       input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
       appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
-      appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet }) });
+      appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet, changed }) });
       continue;
     }
 
@@ -235,8 +270,9 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       raw: result.text,
     });
     if (!checked.ok) {
-      // A correction re-emits the whole set, so the next answer starts a fresh sequence.
-      patchSet = emptyPatchSet();
+      // The rejected set is kept: a correction may re-emit only the files it changes, and
+      // the untouched files stay part of the answer (D-106).
+      patchSet = beginCorrection(patchSet);
       const stop = await requestRepair(input, checked, repairs, turns);
       if (stop !== null) return stop;
       repairs += 1;
