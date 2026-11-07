@@ -299,8 +299,10 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Browser proof: `node scripts/dev/check-ptc-runner.mjs` (9/9: result + trace, tool RPC,
   CSP-blocked worker fetch, opaque origin, the iframe relays while the worker is stuck, a >5 s
   loop is killed, a fresh sandbox works after termination).
-- Trace UI: `ChatTraceView` renders the runs (program, tool calls, args/duration/bytes, typed
-  errors) and an "exploring" status; `chat-trace.ts` keeps the rows pure and tested.
+- Activity UI: `ChatTraceView` renders the model calls (duration, characters, outcome, and the
+  reasoning when the provider exposes it) next to the runs (program, tool calls,
+  args/duration/bytes, typed errors) plus the live reasoning (D-110); the rows are pure helpers in
+  `chat-trace.ts` and the session wiring is `chat-turn-hooks.ts`.
 - Remaining for phase 1: the eval corpus (needs a real provider/key; the first manual run is its
   seed) and the browser matrix.
 

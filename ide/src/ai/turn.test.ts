@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CallModelInput } from "./client";
 import type { PtcRunResult } from "./ptc/protocol";
 import { runTurn } from "./turn";
+import type { ChatTraceCall } from "./types";
 import {
   answer,
   capture,
@@ -157,5 +158,47 @@ describe("runTurn with PTC exploration", () => {
     expect(repair).toContain("## Validation findings");
     expect(repair).toContain("## Tools");
     expect(repair).not.toContain("## Current content of the files");
+  });
+
+  it("records one activity row per model call with its outcome (D-110)", async () => {
+    const calls: CallModelInput[] = [];
+    const activity: ChatTraceCall[] = [];
+    const started: number[] = [];
+    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+      onCallStart: (call) => started.push(call),
+      onCall: (entry) => activity.push(entry),
+    });
+    expect(outcome.ok).toBe(true);
+    expect(started).toEqual([1, 2]);
+    expect(activity.map((entry) => entry.outcome)).toEqual(["script", "answer"]);
+    expect(activity[0]).toMatchObject({ kind: "call", n: 1, truncated: false });
+    expect(activity[1]?.n).toBe(2);
+  });
+
+  it("streams the reasoning to the UI and stores it on the call row (D-110)", async () => {
+    const chunks: string[] = [];
+    const activity: ChatTraceCall[] = [];
+    const outcome = await runTurn({
+      call: async (input) => {
+        input.onReasoning?.("thinking ");
+        input.onReasoning?.("hard");
+        return { ok: true, text: answer([NEW_FILE]), reasoning: "thinking hard" };
+      },
+      settings,
+      system: "system",
+      messages: [{ role: "user", content: "add a file" }],
+      host: host(),
+      signal: SIGNAL,
+      onText: () => {},
+      onRepair: () => {},
+      runner: runner(okRun(null, 0)),
+      onReasoning: (chunk) => chunks.push(chunk),
+      onCall: (entry) => activity.push(entry),
+    });
+    expect(outcome.ok).toBe(true);
+    expect(chunks).toEqual(["thinking ", "hard"]);
+    expect(activity).toHaveLength(1);
+    expect(activity[0]).toMatchObject({ n: 1, reasoningChars: 13, outcome: "answer" });
+    expect(activity[0]?.reasoning).toBe("thinking hard");
   });
 });

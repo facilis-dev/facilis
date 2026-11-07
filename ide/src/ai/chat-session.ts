@@ -8,7 +8,7 @@
 
 import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
-import { beginTraceRun, completeTraceRun } from "./chat-trace";
+import { turnHooks } from "./chat-turn-hooks";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
 import { TURN_IDLE, TURN_RESET, errorText, initialState, replayTurns } from "./chat-session-types";
@@ -62,11 +62,6 @@ export class ChatSession {
     this.state = { ...this.state, ...patch };
     // Set iteration tolerates a listener unsubscribing mid-notify; React never subscribes here.
     for (const listener of this.listeners) listener();
-  }
-
-  private status(patch: Partial<ChatState>): void {
-    this.dropStream();
-    this.emit(patch);
   }
 
   private nextMessage(role: ChatMessage["role"], content: string): ChatMessage {
@@ -164,15 +159,14 @@ export class ChatSession {
         signal: abort.signal,
         runner: this.runner,
         onText: (chunk) => this.streamChunk(chunk),
-        onRepair: (attempt) => this.status({ repair: { attempt }, patchParts: null }),
-        onScriptStart: (program, programNumber) =>
-          this.emit({ exploring: programNumber, trace: beginTraceRun(this.state.trace, program) }),
-        onScript: (result, program) =>
-          this.emit({
-            exploring: null,
-            trace: completeTraceRun(this.state.trace, result, program),
-          }),
-        onPatches: (part) => this.status({ patchParts: { part } }),
+        // D-110: the status lines, the program rows and the model-call rows are wired in
+        // chat-turn-hooks.ts, which reads this session's current state.
+        ...turnHooks({
+          trace: () => this.state.trace,
+          reasoning: () => this.state.reasoning,
+          emit: (patch) => this.emit(patch),
+          dropStream: () => this.dropStream(),
+        }),
       });
       if (this.cancelled) return;
       if (!outcome.ok) {

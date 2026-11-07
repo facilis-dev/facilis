@@ -9,7 +9,7 @@ import type { CallModelInput } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
 import type { PtcRunner, PtcRunResult, PtcToolSpec } from "./ptc/protocol";
 import { runTurn } from "./turn";
-import type { AiSettings } from "./types";
+import type { AiSettings, ChatTraceCall } from "./types";
 
 export const settings: AiSettings = {
   providerId: "custom",
@@ -151,6 +151,9 @@ export interface Hooks {
   onScriptStart?: (program: string, turn: number) => void;
   onScript?: (result: PtcRunResult, program: string) => void;
   onPatches?: (part: number) => void;
+  onReasoning?: (chunk: string) => void;
+  onCallStart?: (call: number) => void;
+  onCall?: (call: ChatTraceCall) => void;
 }
 
 export async function run(

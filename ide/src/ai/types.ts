@@ -142,8 +142,27 @@ export interface ChatMessage {
   detail?: string;
 }
 
+/** One model call in the chat's activity timeline (D-110): what it cost and what followed. */
+export interface ChatTraceCall {
+  kind: "call";
+  /** 1-based model call within the turn. */
+  n: number;
+  elapsedMs: number;
+  /** Characters of answer the model produced (0 for a failed call). */
+  chars: number;
+  /** Characters of reasoning the provider streamed (0 when it exposes none). */
+  reasoningChars: number;
+  /** What the turn loop did with the answer; "running" while the call streams. */
+  outcome: "running" | "script" | "part" | "answer" | "rejected" | "cut" | "failed";
+  /** The provider cut the answer at its output limit. */
+  truncated: boolean;
+  /** The visible reasoning, capped for the transcript (absent when none arrived). */
+  reasoning?: string;
+}
+
 /** One PTC exploration program as the chat transcript records it (D-101). */
 export interface ChatTraceRun {
+  kind: "run";
   program: string;
   ok: boolean;
   error?: { kind: PtcFailureKind; message: string };
@@ -151,6 +170,9 @@ export interface ChatTraceRun {
   elapsedMs: number;
   entries: PtcTraceEntry[];
 }
+
+/** The turn's activity, in order: a model call, then the program it asked for, then the next. */
+export type ChatActivity = ChatTraceCall | ChatTraceRun;
 
 export type ChatPhase = "idle" | "sending" | "applying";
 
@@ -177,8 +199,10 @@ export interface ChatState {
    * `attempt` is 1-based; null while no repair is running (D-108: no attempt cap).
    */
   repair: { attempt: number } | null;
-  /** The PTC exploration of the current turn (D-101); empty before the first program. */
-  trace: ChatTraceRun[];
+  /** The model calls and PTC programs of the turn, in order (D-101/D-110). */
+  trace: ChatActivity[];
+  /** Live reasoning of the current model call, or null when none is streaming (D-110). */
+  reasoning: string | null;
   /** The 1-based exploration program currently running, or null. */
   exploring: number | null;
   /** A patch set arriving in parts (D-106): the 1-based part requested, or null. */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ChatTraceCall } from "./types";
 import { ChatSession } from "./chat-session";
 import {
   answer,
@@ -238,5 +239,23 @@ describe("ChatSession", () => {
     await chat.openInstructions();
     expect(harness.writes).toEqual([]);
     expect(opened).toEqual(["AGENTS.md"]);
+  });
+
+  it("streams the reasoning into the state and keeps it on the activity row (D-110)", async () => {
+    const live: (string | null)[] = [];
+    const chat = sessionWith(async (input) => {
+      input.onReasoning?.("first ");
+      input.onReasoning?.("thought");
+      live.push(chat.getSnapshot().reasoning);
+      return { ok: true, text: answer(createNewFile()), reasoning: "first thought" };
+    });
+    await chat.send("add");
+    const state = chat.getSnapshot();
+    expect(live).toEqual(["first thought"]);
+    expect(state.reasoning).toBeNull();
+    const calls = state.trace.filter((entry): entry is ChatTraceCall => entry.kind === "call");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ n: 1, outcome: "answer" });
+    expect(calls[0]?.reasoning).toBe("first thought");
   });
 });

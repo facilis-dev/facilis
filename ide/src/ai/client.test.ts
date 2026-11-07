@@ -124,6 +124,27 @@ describe("callModel", () => {
     expect(anthropicResult).toEqual({ ok: true, text: "Bon", truncated: true });
   });
 
+  it("streams reasoning separately from the answer text (D-110)", async () => {
+    stubFetch(async () =>
+      responseFrom([
+        'data: {"choices":[{"delta":{"reasoning_content":"Think"}}]}\n\n',
+        'data: {"choices":[{"delta":{"reasoning_content":"ing"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        "data: [DONE]\n\n",
+      ]),
+    );
+    const reasoning: string[] = [];
+    const result = await callModel({
+      settings: openAi,
+      system: "",
+      messages: [],
+      onReasoning: (chunk) => reasoning.push(chunk),
+    });
+    expect(reasoning).toEqual(["Think", "ing"]);
+    expect(result).toEqual({ ok: true, text: "Hi", reasoning: "Thinking" });
+  });
+
   it("streams and concatenates an Anthropic answer", async () => {
     const fetchMock = stubFetch(async () => responseFrom(anthropicFrames(["Bon", "jour"])));
     const result = await callModel({

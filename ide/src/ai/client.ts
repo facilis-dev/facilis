@@ -16,6 +16,8 @@ export interface CallModelInput {
   messages: readonly AiChatTurn[];
   signal?: AbortSignal;
   onText?: (chunk: string) => void;
+  /** Visible reasoning chunks, when the model exposes them (never part of `text`). */
+  onReasoning?: (chunk: string) => void;
 }
 
 export type CallModelResult =
@@ -24,6 +26,8 @@ export type CallModelResult =
       text: string;
       /** The provider stopped at its output limit, so the answer is incomplete. */
       truncated?: boolean;
+      /** The visible reasoning, when the provider streamed any (D-110). */
+      reasoning?: string;
     }
   | { ok: false; failure: ChatFailure };
 
@@ -133,6 +137,7 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
   if (response.body === null) return failed("stream", "The provider response had no body.");
 
   let text = "";
+  let reasoning = "";
   let stopReason: string | undefined;
   try {
     await readSse(response.body, (data) => {
@@ -146,6 +151,10 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
       const event = parseProviderEvent(preset.protocol, payload);
       if (event.error !== undefined) throw new Error(event.error);
       if (event.stopReason !== undefined) stopReason = event.stopReason;
+      if (event.reasoning !== undefined) {
+        reasoning += event.reasoning;
+        input.onReasoning?.(event.reasoning);
+      }
       if (event.text !== undefined) {
         text += event.text;
         input.onText?.(event.text);
@@ -161,8 +170,9 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
   if (text.length === 0) return failed("empty", "The provider returned no text.");
   // "length"/"max_tokens" means the provider cut the answer at its output limit, so the
   // patch-set JSON cannot be complete: the turn loop requests the rest in parts (D-106).
+  const withReasoning = reasoning.length > 0 ? { reasoning } : {};
   if (stopReason === "length" || stopReason === "max_tokens") {
-    return { ok: true, text, truncated: true };
+    return { ok: true, text, truncated: true, ...withReasoning };
   }
-  return { ok: true, text };
+  return { ok: true, text, ...withReasoning };
 }

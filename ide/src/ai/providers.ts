@@ -160,6 +160,8 @@ export interface ProviderRequest {
 
 export interface ProviderEvent {
   text?: string;
+  /** Visible reasoning (DeepSeek `reasoning_content`, OpenRouter `reasoning`, Anthropic thinking). */
+  reasoning?: string;
   done?: boolean;
   error?: string;
   /** Why the provider ended the answer: "stop", "length" / "max_tokens", "end_turn"… */
@@ -237,8 +239,19 @@ function openAiEvent(value: unknown): ProviderEvent {
   if (!isRecord(choice)) return {};
   const event: ProviderEvent = {};
   const delta = choice.delta;
-  if (isRecord(delta) && typeof delta.content === "string" && delta.content.length > 0) {
-    event.text = delta.content;
+  if (isRecord(delta)) {
+    if (typeof delta.content === "string" && delta.content.length > 0) {
+      event.text = delta.content;
+    }
+    // Reasoning models stream their thinking in their own field (DeepSeek uses
+    // reasoning_content; the OpenAI-compatible gateways mostly reasoning).
+    const reasoning =
+      typeof delta.reasoning_content === "string"
+        ? delta.reasoning_content
+        : typeof delta.reasoning === "string"
+          ? delta.reasoning
+          : "";
+    if (reasoning.length > 0) event.reasoning = reasoning;
   }
   if (typeof choice.finish_reason === "string") {
     event.done = true;
@@ -252,9 +265,12 @@ function anthropicEvent(value: unknown): ProviderEvent {
   switch (value.type) {
     case "content_block_delta": {
       const delta = value.delta;
-      if (!isRecord(delta) || delta.type !== "text_delta" || typeof delta.text !== "string") {
-        return {};
+      if (!isRecord(delta)) return {};
+      // Extended thinking streams as thinking_delta before (and beside) the answer text.
+      if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
+        return { reasoning: delta.thinking };
       }
+      if (delta.type !== "text_delta" || typeof delta.text !== "string") return {};
       return { text: delta.text };
     }
     case "message_stop":

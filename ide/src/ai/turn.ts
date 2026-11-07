@@ -39,7 +39,8 @@ import {
   type AiParseResult,
 } from "./response";
 import { salvagePatches } from "./salvage";
-import type { AiChatTurn, AiSettings, ChatFailure } from "./types";
+import { capReasoning } from "./chat-trace";
+import type { AiChatTurn, AiSettings, ChatFailure, ChatTraceCall } from "./types";
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -60,6 +61,12 @@ export interface TurnInput {
   onScript?: (result: PtcRunResult, program: string) => void;
   /** Called when another part of the same patch set is requested (1-based part). */
   onPatches?: (part: number) => void;
+  /** Streams the provider's visible reasoning for the current call (D-110). */
+  onReasoning?: (chunk: string) => void;
+  /** A model call starts: the chat clears the live reasoning. */
+  onCallStart?: (call: number) => void;
+  /** A model call finished: what it cost and what the loop does with the answer (D-110). */
+  onCall?: (call: ChatTraceCall) => void;
 }
 
 export type TurnOutcome =
@@ -114,6 +121,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   let patchSet: PatchSetState = emptyPatchSet();
   let repairs = 0;
   let scripts = 0;
+  let calls = 0;
   let firstCall = true;
 
   // No budget: the loop ends when the answer validates. See D-108 for why the counters that
@@ -124,16 +132,55 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
     }
     const streaming = firstCall;
     firstCall = false;
-    const result = await input.call({
-      settings: input.settings,
-      system: input.system,
-      messages: turns,
-      signal: input.signal,
-      // Only the first answer streams: a rejected attempt's bubble is dropped anyway, and
-      // the repair/exploration status line already tells the user what is happening.
-      ...(streaming ? { onText: input.onText } : {}),
-    });
-    if (!result.ok) return { ok: false, failure: result.failure };
+    calls += 1;
+    const callNumber = calls;
+    input.onCallStart?.(callNumber);
+    const startedAt = Date.now();
+    let result: CallModelResult;
+    try {
+      result = await input.call({
+        settings: input.settings,
+        system: input.system,
+        messages: turns,
+        signal: input.signal,
+        // Only the first answer streams: a rejected attempt's bubble is dropped anyway, and
+        // the repair/exploration status line already tells the user what is happening.
+        ...(streaming ? { onText: input.onText } : {}),
+        ...(input.onReasoning === undefined ? {} : { onReasoning: input.onReasoning }),
+      });
+    } catch (error) {
+      // A host that throws (not just returns a failure) must not leave a "running" row behind.
+      input.onCall?.({
+        kind: "call",
+        n: callNumber,
+        elapsedMs: Date.now() - startedAt,
+        chars: 0,
+        reasoningChars: 0,
+        outcome: "failed",
+        truncated: false,
+      });
+      throw error;
+    }
+    // D-110: every call leaves one activity row: how long it took, how much it wrote, and
+    // what the loop did with the answer. The chat shows it next to the programs.
+    const finishCall = (outcome: ChatTraceCall["outcome"]): void => {
+      input.onCall?.({
+        kind: "call",
+        n: callNumber,
+        elapsedMs: Date.now() - startedAt,
+        chars: result.ok ? result.text.length : 0,
+        reasoningChars: result.ok ? (result.reasoning?.length ?? 0) : 0,
+        outcome,
+        truncated: result.ok && result.truncated === true,
+        ...(result.ok && result.reasoning !== undefined && result.reasoning.length > 0
+          ? { reasoning: capReasoning(result.reasoning) }
+          : {}),
+      });
+    };
+    if (!result.ok) {
+      finishCall("failed");
+      return { ok: false, failure: result.failure };
+    }
 
     const parsed = parseAiResponse(result.text, { truncated: result.truncated === true });
     if (!parsed.ok) {
@@ -148,6 +195,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
           notes: [],
           requiresConfirmation: false,
         });
+        finishCall("cut");
         input.onPatches?.(patchSet.parts);
         appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
         appendTurn(turns, {
@@ -161,6 +209,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
         });
         continue;
       }
+      finishCall("rejected");
       const stop = await requestRepair(input, parsed, repairs + 1, turns);
       if (stop !== null) return stop;
       repairs += 1;
@@ -169,6 +218,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
 
     if (parsed.response.script !== undefined) {
       const program = parsed.response.script;
+      finishCall("script");
       const turnNumber = scripts + 1;
       input.onScriptStart?.(program, turnNumber);
       const run = await input.runner.run(program, { signal: input.signal });
@@ -186,6 +236,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
     const changed = changedPatches(patchSet, parsed.response.patches);
     patchSet = addPatches(patchSet, parsed.response);
     if (parsed.response.continue === true) {
+      finishCall("part");
       input.onPatches?.(patchSet.parts);
       appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
       appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet, changed }) });
@@ -200,11 +251,13 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       // The rejected set is kept: a correction may re-emit only the files it changes, and
       // the untouched files stay part of the answer (D-106).
       patchSet = beginCorrection(patchSet);
+      finishCall("rejected");
       const stop = await requestRepair(input, checked, repairs + 1, turns);
       if (stop !== null) return stop;
       repairs += 1;
       continue;
     }
+    finishCall("answer");
     return {
       ok: true,
       parsed: { ok: true, response: completeResponse(patchSet), validation: checked.validation },

@@ -79,6 +79,7 @@ export function ChatPanel() {
     state.error,
     state.repair,
     state.trace.length,
+    state.reasoning,
     state.exploring,
     state.patchParts,
   ]);
@@ -183,7 +184,11 @@ export function ChatPanel() {
                 streaming={state.streaming && index === state.messages.length - 1}
               />
             ))}
-            <ChatTraceView trace={state.trace} exploring={state.exploring} />
+            <ChatTraceView
+              trace={state.trace}
+              exploring={state.exploring}
+              reasoning={state.reasoning}
+            />
             <ChatProposalView chat={chat} state={state} />
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">

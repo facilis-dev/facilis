@@ -1905,6 +1905,12 @@ Turn 1 → AI responds → validate → (errors) → correct → validate → �
   the rest instead of reporting a raw JSON error. Only an answer with no recoverable patch goes
   through the ordinary repair, whose report now carries the cut-off explanation and the part
   protocol.
+- **The chat shows what the model is doing (D-110).** Every model call has one activity row,
+  inserted when the call starts (its visible reasoning streams inside it) and completed in place
+  with duration, characters and outcome (program request, patch part, final answer, rejection,
+  cut), next to the exploration programs in strict chronological order. Reasoning comes from the
+  provider's own field (DeepSeek `reasoning_content`, Anthropic thinking) and is display-only:
+  it is never replayed to the model.
 - **On failure** (provider/transport error, the user's Stop, or a validator outage): the failure is
   shown in the chat and **nothing is written** to OPFS. A rejected answer is not a failure: it is
   corrected until it validates (D-108).

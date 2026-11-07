@@ -29,7 +29,11 @@ function fakeHost(): ChatHost {
     path === "src/App.tsx" ? "export const App = () => null;\n" : "";
   return {
     root: () => root,
-    bridge: { async request() { return { ok: true }; } },
+    bridge: {
+      async request() {
+        return { ok: true };
+      },
+    },
     files,
     read,
     analyze: (patches) => analyzeHostFiles(files(), read, patches),
@@ -43,7 +47,11 @@ function fakeHost(): ChatHost {
 describe("ChatSession with the PTC runtime", () => {
   it("passes the tool specs into the system prompt and accepts an exploration turn", async () => {
     const calls: CallModelInput[] = [];
-    const spec = { name: "read_file", signature: "read_file({ path })", description: "Read one file." };
+    const spec = {
+      name: "read_file",
+      signature: "read_file({ path })",
+      description: "Read one file.",
+    };
     const runner: PtcRunner = {
       specs: () => [spec],
       run: async () => ({
@@ -82,13 +90,16 @@ describe("ChatSession with the PTC runtime", () => {
     const state = chat.getSnapshot();
     expect(state.error).toBeNull();
     expect(state.exploring).toBeNull();
-    expect(state.trace).toHaveLength(1);
-    expect(state.trace[0]).toMatchObject({
+    // D-110: the timeline holds the two model calls around the program.
+    const runs = state.trace.filter((entry) => entry.kind === "run");
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
       program: "return await tools.read_file({ path: 'src/App.tsx' });",
       ok: true,
       toolCalls: 1,
     });
-    expect(state.trace[0]?.entries[0]?.name).toBe("read_file");
+    expect(runs[0]?.entries[0]?.name).toBe("read_file");
+    expect(state.trace.filter((entry) => entry.kind === "call")).toHaveLength(2);
     expect(state.proposal?.files[0]?.patch).toEqual({
       path: "src/new.ts",
       action: "create",

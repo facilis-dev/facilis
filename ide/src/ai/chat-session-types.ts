@@ -70,18 +70,23 @@ export function errorText(error: unknown): string {
 }
 
 /** State a new turn clears: the transcript keeps its trace after a finished turn. */
-export const TURN_RESET: Pick<ChatState, "repair" | "trace" | "exploring" | "patchParts"> = {
+export const TURN_RESET: Pick<
+  ChatState,
+  "repair" | "trace" | "exploring" | "patchParts" | "reasoning"
+> = {
   repair: null,
   trace: [],
   exploring: null,
   patchParts: null,
+  reasoning: null,
 };
 
 /** State a finished turn clears without dropping the visible trace. */
-export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts"> = {
+export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts" | "reasoning"> = {
   repair: null,
   exploring: null,
   patchParts: null,
+  reasoning: null,
 };
 
 export function initialState(settings: AiSettings | null): ChatState {
