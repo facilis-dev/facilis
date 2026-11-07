@@ -1647,10 +1647,12 @@ edits. The caller supplies them — the IDE analyzes the VFS snapshot and the pa
 its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
 `@facilis/ai/node` helper. Sources are read only for `package.json` (installed packages) and
 `tsconfig.json` (path aliases); blocks still come from the live manifest because registration is
-runtime state. Rule 1 parses through an injected `SyntaxChecker` — Monaco's TypeScript worker in
-the IDE, the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails closed when no
-checker answers. If the analyzer itself is unavailable the IDE fails the round closed with a
-`project-analysis` error and never applies the patch. Rules 5, 13 and 14 are warnings; the rest
+runtime state. Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
+parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails
+closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
+closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
+an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
+round asking the model to fix it (D-105). Rules 5, 13 and 14 are warnings; the rest
 block the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
 time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
@@ -1687,6 +1689,10 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
   the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
   progress to the UI.
+- **Validator outages are not repairs.** A finding marked `infrastructure` — rule 1's parser or
+  the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
+  temporarily unavailable and nothing is written; no correction round is spent asking the model
+  to fix a worker (D-105).
 - **On final failure:** the findings are shown in the chat and **nothing is written** to OPFS.
 
 ### 9.5 Model B Tool Surface (Phase 4.5)
@@ -1757,12 +1763,14 @@ pinned by the file-length ratchet (D-019); the activity view is `chat`.
 **Status (2026-11-02): the full 16-rule validator is implemented** (D-084): `parseTurn()`
 validates a proposal against the live project before it is shown, the accepted files are
 re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
-VFS write. Rule 1 uses Monaco's TypeScript worker; the remaining rules read the config, schema,
-catalogs, blocks and routes. Validator warnings are carried in the proposal state but not yet
-rendered in the card (follow-up). The §9.4 repair loop is implemented (D-100): a rejected
-answer is re-asked up to twice with its findings and the current content of the files the
-patch tried to rewrite, and the final failure shows the findings without writing. Still
-Phase 4: the Model B tool surface (§9.5).
+VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
+config, schema, catalogs, blocks and routes. Validator warnings are carried in the proposal
+state but not yet rendered in the card (follow-up). The §9.4 repair loop is implemented
+(D-100/D-102): a rejected answer is re-asked up to three times with a root-cause-first fix plan
+and the findings (the model reads files with the PTC tools; nothing is inlined), and the final
+failure shows the findings without writing. A parser/analyzer outage is reported as a validator
+outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
+(D-103); the eval corpus and browser matrix remain.
 
 **Status (2026-11-06): the project graph replaced the API Flow.** D-092's `project-graph` editor
 tab is the single pages → routes → tables visualizer (plus FK/relations edges), built from
