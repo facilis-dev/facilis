@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMessageView } from "./ChatMessageView";
 import { ChatProposalView } from "./ChatProposalView";
+import { ChatTraceView } from "./ChatTraceView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
 import { chatFor } from "@/ai/chat-host";
@@ -40,6 +41,8 @@ function errorText(failure: ChatFailure): string {
       return t("chat.error.unsupported");
     case "parse":
       return t("chat.parse.error");
+    case "validator":
+      return t("chat.error.validator");
   }
 }
 
@@ -60,6 +63,7 @@ export function ChatPanel() {
   const state = useSyncExternalStore(chat.subscribe, chat.getSnapshot);
   const [draft, setDraft] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [busySeconds, setBusySeconds] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const hasProject = snap.workspaceFolders.length > 0;
   const busy = state.phase !== "idle";
@@ -69,7 +73,44 @@ export function ChatPanel() {
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [state.messages.length, state.phase, state.proposal, state.applied, state.error]);
+  }, [
+    state.messages.length,
+    state.phase,
+    state.proposal,
+    state.applied,
+    state.error,
+    state.repair,
+    state.trace.length,
+    state.exploring,
+    state.patchParts,
+  ]);
+
+  // A quiet spinner is not enough: show how long the current step has been running.
+  useEffect(() => {
+    if (!busy) {
+      setBusySeconds(0);
+      return;
+    }
+    const started = Date.now();
+    setBusySeconds(0);
+    const timer = setInterval(() => {
+      setBusySeconds(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
+
+  const busyLabel =
+    state.exploring !== null
+      ? t("chat.exploring", { n: state.exploring })
+      : state.repair !== null
+        ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
+        : state.patchParts !== null
+          ? t("chat.patchParts", { part: state.patchParts.part, max: state.patchParts.max })
+          : state.phase === "applying"
+          ? t("chat.applying")
+          : state.streaming
+            ? t("chat.streaming")
+            : t("chat.thinking");
 
   const submit = () => {
     const text = draft.trim();
@@ -144,10 +185,14 @@ export function ChatPanel() {
                 streaming={state.streaming && index === state.messages.length - 1}
               />
             ))}
+            <ChatTraceView trace={state.trace} exploring={state.exploring} />
             <ChatProposalView chat={chat} state={state} />
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                 <p className="font-medium text-destructive">{errorText(state.error)}</p>
+                {(state.error.kind === "parse" || state.error.kind === "validator") && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{t("chat.parse.hint")}</p>
+                )}
                 {state.error.message.length > 0 && (
                   <details className="mt-1 text-[10px] text-muted-foreground">
                     <summary className="cursor-pointer select-none">{t("chat.detail")}</summary>
@@ -160,13 +205,23 @@ export function ChatPanel() {
             )}
           </>
         )}
-        {busy && !state.streaming && (
-          <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
-            <LoaderCircle className="size-3.5 animate-spin" />
-            {t("chat.thinking")}
-          </div>
-        )}
       </div>
+
+      {busy && (
+        // Outside the scrolling transcript on purpose: during PTC exploration the list
+        // auto-scrolls on each run, so an in-list spinner could end up out of view.
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-1.5 border-t px-2 py-1.5 text-[11px] text-muted-foreground"
+        >
+          <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
+          <span className="min-w-0 flex-1 truncate">{busyLabel}</span>
+          <span className="shrink-0 font-mono tabular-nums">
+            {t("chat.busy.elapsed", { seconds: busySeconds })}
+          </span>
+        </div>
+      )}
 
       {hasProject && state.configured && (
         <div className="border-t p-2">

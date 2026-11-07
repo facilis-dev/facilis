@@ -208,7 +208,10 @@ describe("parseProviderEvent", () => {
     });
     expect(
       parseProviderEvent("openai", { choices: [{ delta: {}, finish_reason: "stop" }] }),
-    ).toEqual({ done: true });
+    ).toEqual({ done: true, stopReason: "stop" });
+    expect(
+      parseProviderEvent("openai", { choices: [{ delta: {}, finish_reason: "length" }] }),
+    ).toEqual({ done: true, stopReason: "length" });
     expect(parseProviderEvent("openai", { choices: [{ delta: {} }] })).toEqual({});
     expect(parseProviderEvent("openai", { error: { message: "overloaded" } })).toEqual({
       error: "overloaded",
@@ -223,6 +226,12 @@ describe("parseProviderEvent", () => {
         delta: { type: "text_delta", text: "Salut" },
       }),
     ).toEqual({ text: "Salut" });
+    expect(
+      parseProviderEvent("anthropic", {
+        type: "message_delta",
+        delta: { stop_reason: "max_tokens" },
+      }),
+    ).toEqual({ stopReason: "max_tokens" });
     expect(parseProviderEvent("anthropic", { type: "message_stop" })).toEqual({ done: true });
     expect(parseProviderEvent("anthropic", { type: "error", error: { message: "boom" } })).toEqual({
       error: "boom",

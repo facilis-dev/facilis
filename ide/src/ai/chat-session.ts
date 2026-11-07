@@ -1,22 +1,22 @@
 // The AI chat session: conversation state, streaming, proposal review and apply
 // (D-045/D-046/D-047).
-//
 // One instance per controller (chat-host.ts keeps it in a WeakMap), so switching sidebar
 // views keeps the conversation. Editor access is ChatHost, model access the injected call,
 // and the VFS is reached only through chat-actions.ts — the validated applyPatch() path.
-//
 // Safety rule (invariant 9): the model never touches disk. A turn produces a reviewable
 // proposal; only the user's Apply reaches applyPatch(), and a clean Apply can be undone.
 
 import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
+import { beginTraceRun, completeTraceRun } from "./chat-trace";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
-import { errorText, initialState, replayTurns } from "./chat-session-types";
+import { TURN_IDLE, TURN_RESET, errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
-import { parseTurn } from "./response";
+import type { PtcRunner } from "./ptc/protocol";
+import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
@@ -30,21 +30,22 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
+  private readonly runner: PtcRunner;
   private readonly stream: StreamAccumulator;
   private listeners = new Set<() => void>();
   private state: ChatState;
   private controller: AbortController | null = null;
   private seq = 0;
   private cancelled = false;
-  /** The assistant bubble the stream is filling, when it has started. */
   private streamId: string | null = null;
 
-  constructor(host: ChatHost, options: ChatSessionOptions = {}) {
+  constructor(host: ChatHost, options: ChatSessionOptions) {
     this.host = host;
     this.call = options.call ?? callModel;
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
+    this.runner = options.runner;
     this.stream = new StreamAccumulator(this.now);
     this.state = initialState(this.load());
   }
@@ -60,8 +61,7 @@ export class ChatSession {
 
   private emit(patch: Partial<ChatState>): void {
     this.state = { ...this.state, ...patch };
-    // Set iteration tolerates a listener that unsubscribes while it runs; React
-    // never subscribes synchronously from inside a store notification.
+    // Set iteration tolerates a listener unsubscribing mid-notify; React never subscribes here.
     for (const listener of this.listeners) listener();
   }
 
@@ -84,16 +84,7 @@ export class ChatSession {
     this.controller = null;
     this.cancelled = false;
     this.resetStream();
-    this.emit({
-      phase: "idle",
-      messages: [],
-      proposal: null,
-      applied: null,
-      undo: null,
-      streaming: false,
-      error: null,
-      context: null,
-    });
+    this.emit(initialState(this.state.settings));
   }
 
   cancel(): void {
@@ -101,9 +92,7 @@ export class ChatSession {
     this.controller?.abort();
   }
 
-  openFile(path: string): void {
-    this.host.openFile(path);
-  }
+  openFile = (path: string): void => this.host.openFile(path);
 
   async openInstructions(): Promise<void> {
     const error = await openProjectInstructions(this.host);
@@ -143,35 +132,68 @@ export class ChatSession {
 
     this.cancelled = false;
     this.resetStream();
+    const messages = [...this.state.messages, this.nextMessage("user", content)];
     this.emit({
       phase: "sending",
-      messages: [...this.state.messages, this.nextMessage("user", content)],
+      messages,
       proposal: null,
       applied: null,
       undo: null,
       streaming: false,
+      ...TURN_RESET,
       error: null,
     });
     const abort = new AbortController();
     this.controller = abort;
     try {
-      const built = await buildChatContext(this.host, abort.signal);
+      const built = await buildChatContext(this.host, abort.signal, {
+        tools: this.runner.specs(),
+      });
       if (abort.signal.aborted) return;
       this.emit({ context: built.context });
-      const result = await this.call({
+      const outcome = await runTurn({
+        call: this.call,
         settings,
         system: built.system,
-        messages: replayTurns(this.state.messages, HISTORY_LIMIT),
+        messages: replayTurns(messages, HISTORY_LIMIT),
+        host: this.host,
         signal: abort.signal,
+        runner: this.runner,
         onText: (chunk) => this.streamChunk(chunk),
+        onRepair: (attempt, max) => {
+          this.dropStream();
+          this.emit({ repair: { attempt, max }, patchParts: null });
+        },
+        onScriptStart: (program, turn) =>
+          this.emit({ exploring: turn, trace: beginTraceRun(this.state.trace, program) }),
+        onScript: (result, program) =>
+          this.emit({ exploring: null, trace: completeTraceRun(this.state.trace, result, program) }),
+        onPatches: (part, max) => {
+          this.dropStream();
+          this.emit({ patchParts: { part, max } });
+        },
       });
       if (this.cancelled) return;
-      if (!result.ok) {
+      if (!outcome.ok) {
         this.dropStream();
-        this.fail(result.failure);
+        this.emit({ repair: null });
+        this.fail(outcome.failure);
         return;
       }
-      await this.finishAnswer(result.text);
+      this.emit({ repair: null });
+      const response = outcome.parsed.response;
+      this.finishStream(response.message || "Done.");
+      if (response.patches.length > 0) {
+        this.emit({
+          proposal: await buildProposal(
+            response.patches,
+            response.notes,
+            response.requiresConfirmation,
+            (path) => this.host.read(path),
+            outcome.parsed.validation,
+          ),
+        });
+      }
     } catch (error) {
       if (!this.cancelled) {
         this.dropStream();
@@ -185,6 +207,7 @@ export class ChatSession {
       this.emit({
         phase: "idle",
         streaming: false,
+        ...TURN_IDLE,
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }
@@ -236,29 +259,6 @@ export class ChatSession {
   private resetStream(): void {
     this.stream.reset();
     this.streamId = null;
-  }
-
-  /** Turn a complete answer into the final bubble plus an optional proposal. */
-  private async finishAnswer(text: string): Promise<void> {
-    const parsed = await parseTurn(text, this.host);
-    if (!parsed.ok) {
-      this.dropStream();
-      const detail = [parsed.error, ...parsed.issues].filter(Boolean).join("\n");
-      this.emit({ error: { kind: "parse", message: detail } });
-      return;
-    }
-    const response = parsed.response;
-    this.finishStream(response.message || "Done.");
-    if (response.patches.length === 0) return;
-    this.emit({
-      proposal: await buildProposal(
-        response.patches,
-        response.notes,
-        response.requiresConfirmation,
-        (path) => this.host.read(path),
-        parsed.validation,
-      ),
-    });
   }
 
   /** Write the accepted files through the validated path. */

@@ -7,6 +7,7 @@
 
 import type { FilePatch, ValidationResult } from "@facilis/ai";
 import type { MessageKey } from "@/i18n";
+import type { PtcFailureKind, PtcTraceEntry } from "./ptc/protocol";
 
 /** A wire protocol, not a provider: presets differ only in defaults. */
 export type AiProtocol = "openai" | "anthropic";
@@ -40,10 +41,14 @@ export interface AiChatTurn {
   content: string;
 }
 
-/** SPEC §9.2: the only thing the model may return. */
+/** SPEC §9.2 + D-101: one object per turn, either an exploration program or a patch set. */
 export interface AiResponse {
   message: string;
   patches: FilePatch[];
+  /** A PTC program to run before answering (SPEC §9.5); absent on a final answer. */
+  script?: string;
+  /** Another part of the same patch set follows (the answer hit the output limit, D-106). */
+  continue?: boolean;
   notes: string[];
   requiresConfirmation: boolean;
 }
@@ -118,7 +123,9 @@ export type ChatFailureKind =
   | "empty"
   | "unsupported"
   /** The answer arrived but was not a usable AIResponse (parse/validation). */
-  | "parse";
+  | "parse"
+  /** The validator's own parser/analyzer was unavailable: not the model's mistake. */
+  | "validator";
 
 /** A provider failure. The message is technical and shown as detail, never translated. */
 export interface ChatFailure {
@@ -135,6 +142,16 @@ export interface ChatMessage {
   at: number;
   /** Parser/validator output for an unusable answer, shown under the bubble. */
   detail?: string;
+}
+
+/** One PTC exploration program as the chat transcript records it (D-101). */
+export interface ChatTraceRun {
+  program: string;
+  ok: boolean;
+  error?: { kind: PtcFailureKind; message: string };
+  toolCalls: number;
+  elapsedMs: number;
+  entries: PtcTraceEntry[];
 }
 
 export type ChatPhase = "idle" | "sending" | "applying";
@@ -157,6 +174,17 @@ export interface ChatState {
   undo: ChatUndo | null;
   /** The provider is streaming the answer's `message` field into the last bubble. */
   streaming: boolean;
+  /**
+   * The rejected answer is being re-asked with the validator findings (SPEC §9.4).
+   * `attempt` is 1-based; null while no repair is running.
+   */
+  repair: { attempt: number; max: number } | null;
+  /** The PTC exploration of the current turn (D-101); empty when the runtime is off. */
+  trace: ChatTraceRun[];
+  /** The 1-based exploration program currently running, or null. */
+  exploring: number | null;
+  /** A patch set arriving in parts (D-106): the 1-based part requested, or null. */
+  patchParts: { part: number; max: number } | null;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;

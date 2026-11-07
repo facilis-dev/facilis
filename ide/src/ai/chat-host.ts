@@ -11,7 +11,10 @@ import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
-import { createMonacoSyntaxChecker } from "./monaco-syntax";
+import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
+import { createPtcRunner } from "./ptc/runner";
+import { createRunnerFrameChild } from "./ptc/runner-frame";
+import { createToolRouter } from "./ptc/tools";
 
 const sessions = new WeakMap<IdeController, ChatSession>();
 
@@ -19,7 +22,15 @@ const sessions = new WeakMap<IdeController, ChatSession>();
 export function chatFor(controller: IdeController): ChatSession {
   const existing = sessions.get(controller);
   if (existing) return existing;
-  const session = new ChatSession(chatHost(controller));
+  const host = chatHost(controller);
+  // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
+  // its sandbox frame is created and removed per program.
+  const session = new ChatSession(host, {
+    runner: createPtcRunner({
+      childFactory: createRunnerFrameChild(),
+      executorFactory: () => createToolRouter(host),
+    }),
+  });
   sessions.set(controller, session);
   return session;
 }
@@ -72,8 +83,9 @@ function chatHost(controller: IdeController): ChatHost {
     openFile: (path) => {
       void controller.openEntry(absolute(path));
     },
-    // Rule 1's parser: the same TypeScript worker the editor's IntelliSense uses.
-    syntaxChecker: () => createMonacoSyntaxChecker(controller),
+    // Rule 1's parser: the framework analyzer (oxc), the same parser that produces the
+    // facts the other rules read. Monaco is the editor's viewer, not the validator's parser.
+    syntaxChecker: () => createAnalyzerSyntaxChecker(),
     // The 16-rule validator reads analyzer facts: the worker analyzes the project before and
     // after the proposal; a thrown error blocks validation.
     analyze: (patches, signal) => analyzePatches(controller, patches, signal),

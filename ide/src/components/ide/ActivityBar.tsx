@@ -21,16 +21,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { t, type MessageKey } from "@/i18n";
+import { chatFor } from "@/ai/chat-host";
 import { useIde } from "./useIde";
 
 function ActBtn({
   label,
   active,
+  busy,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
+  busy?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -41,6 +44,7 @@ function ActBtn({
         // A tooltip is not an accessible name: without this the activity bar is four
         // buttons that announce as "button".
         aria-label={label}
+        aria-busy={busy}
         className={cn(
           "flex h-12 w-12 items-center justify-center border-l-2 border-transparent text-muted-foreground transition-colors hover:text-foreground",
           active && "border-l-primary text-foreground",
@@ -60,6 +64,10 @@ export function ActivityBar() {
   // The Source Control changed-file count badge, driven by the SCM session store.
   const scm = useSyncExternalStore(c.scm.subscribe, c.scm.getSnapshot);
   const scmCount = scm.repos.reduce((n, r) => n + r.staged.length + r.changes.length, 0);
+  // A turn can run while the user is looking at another view: keep a quiet activity mark
+  // on the chat icon so it never looks frozen (D-101 PTC runs can take a few seconds).
+  const chat = chatFor(c);
+  const chatBusy = useSyncExternalStore(chat.subscribe, chat.getSnapshot).phase !== "idle";
   // Clicking the active view toggles the sidebar (VS Code behaviour); otherwise
   // switch to it.
   const select = (view: View) => {
@@ -114,8 +122,21 @@ export function ActivityBar() {
       <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
         <Bug className="size-5" />
       </ActBtn>
-      <ActBtn label={t("activity.chat")} active={shown("chat")} onClick={() => select("chat")}>
-        <MessageSquare className="size-5" />
+      <ActBtn
+        label={t("activity.chat")}
+        active={shown("chat")}
+        busy={chatBusy}
+        onClick={() => select("chat")}
+      >
+        <span className="relative">
+          <MessageSquare className="size-5" />
+          {chatBusy && (
+            <span
+              aria-hidden="true"
+              className="absolute -right-1.5 -top-1 size-2.5 animate-pulse rounded-full bg-brand ring-2 ring-sidebar"
+            />
+          )}
+        </span>
       </ActBtn>
       <ThemeToggle />
     </div>

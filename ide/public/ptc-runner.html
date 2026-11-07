@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PTC runner</title>
+  </head>
+  <body>
+    <!--
+      The sandboxed runner page (docs/PTC.md §5, D-101). It is loaded in an opaque-origin
+      iframe and served with:
+        Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; worker-src blob:
+      Nothing here may fetch, import or store: the page only relays messages between the
+      host and one blob Worker per program.
+    -->
+    <!--
+      The worker source is kept in a non-executed script block (CSP allows inline script;
+      a text/plain block keeps it readable without string escaping). One Blob is created
+      per run. The program is inserted into the async function body *textually*: the CSP
+      above does not allow 'unsafe-eval', which Chromium enforces for new Function() as
+      well as eval(), so an evaluator-based worker would need a weaker header. The program
+      is untrusted either way — it runs in this opaque origin with no network, storage or
+      DOM, and a breakout from the wrapper can only reach the same worker scope and the
+      same tools proxy it already has.
+    -->
+    <script id="ptc-worker-template" type="text/plain">
+            "use strict";
+
+            var pending = new Map();
+            var seq = 0;
+
+            function describe(error) {
+              if (error && typeof error.message === "string") {
+                return error.name ? error.name + ": " + error.message : error.message;
+              }
+              return String(error);
+            }
+
+            // postMessage is the only way out; a non-cloneable value must become an error, not
+            // an uncaught worker exception that hangs the host until its timeout.
+            function post(message) {
+              try {
+                self.postMessage(message);
+              } catch (error) {
+                self.postMessage({
+                  type: "error",
+                  kind: "protocol",
+                  message: "the program produced a value that cannot cross the sandbox boundary: " + describe(error),
+                });
+              }
+            }
+
+            function call(name, args) {
+              return new Promise(function (resolve, reject) {
+                var id = ++seq;
+                pending.set(id, { resolve: resolve, reject: reject });
+                // A tool argument that cannot be cloned rejects just this call, so the
+                // program can catch it instead of hanging until the run timeout.
+                try {
+                  self.postMessage({ type: "tool", id: id, name: name, args: args });
+                } catch (error) {
+                  pending.delete(id);
+                  reject(new Error("tool arguments are not cloneable: " + describe(error)));
+                }
+              });
+            }
+
+            function finish(value) {
+              // "return;" is a successful empty result, not a non-JSON undefined.
+              if (value === undefined) value = null;
+              var json;
+              try {
+                json = JSON.stringify(value);
+              } catch (error) {
+                post({ type: "error", kind: "protocol", message: "the program result is not JSON: " + describe(error) });
+                return;
+              }
+              if (json === undefined) {
+                post({ type: "error", kind: "protocol", message: "the program result is not JSON" });
+                return;
+              }
+              post({ type: "result", value: value });
+            }
+
+            function fail(error) {
+              post({ type: "error", kind: "exception", message: describe(error) });
+            }
+
+            // Tool results arrive from the page only after the program has yielded, so the
+            // handler is installed before the program's first await can be resolved.
+            self.onmessage = function (event) {
+              var data = event.data;
+              if (!data || typeof data !== "object" || data.type !== "tool-result") return;
+              var entry = pending.get(data.id);
+              if (!entry) return;
+              pending.delete(data.id);
+              if (data.ok) entry.resolve(data.value);
+              else entry.reject(new Error(data.error && data.error.message ? data.error.message : "tool call refused"));
+            };
+
+            var tools = new Proxy(
+              {},
+              {
+                get: function (_target, name) {
+                  if (typeof name !== "string") return undefined;
+                  return function (args) {
+                    return call(name, args);
+                  };
+                },
+              },
+            );
+
+            (async function (tools) {
+      /*__PTC_PROGRAM__*/
+            })(tools).then(finish, fail);
+    </script>
+    <script>
+      "use strict";
+
+      // Mirrors MAX_PROGRAM_CHARS in ide/src/ai/ptc/protocol.ts: the page repeats the cap
+      // so a host bug can never hand an unbounded string to the worker builder.
+      var MAX_PROGRAM_CHARS = 16000;
+      var PROGRAM_MARKER = "/*__PTC_PROGRAM__*/";
+
+      var worker = null;
+      var workerUrl = null;
+
+      function describe(error) {
+        if (error && typeof error.message === "string") return error.message;
+        return String(error);
+      }
+
+      function toHost(message) {
+        try {
+          parent.postMessage(message, "*");
+        } catch (error) {
+          parent.postMessage(
+            {
+              type: "error",
+              kind: "protocol",
+              message: "the runner could not relay a message: " + describe(error),
+            },
+            "*",
+          );
+        }
+      }
+
+      function stopWorker() {
+        if (worker) worker.terminate();
+        if (workerUrl) URL.revokeObjectURL(workerUrl);
+        worker = null;
+        workerUrl = null;
+      }
+
+      function onWorkerMessage(event) {
+        var data = event.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "tool") {
+          toHost({ type: "tool", id: data.id, name: data.name, args: data.args });
+          return;
+        }
+        if (data.type === "result") {
+          toHost({ type: "result", value: data.value });
+          stopWorker();
+          return;
+        }
+        if (data.type === "error") {
+          var kind = data.kind === "protocol" ? "protocol" : "exception";
+          toHost({
+            type: "error",
+            kind: kind,
+            message: String(data.message || "the program failed"),
+          });
+          stopWorker();
+        }
+      }
+
+      function startRun(data) {
+        // One worker per run: a previous program must not keep running or keep its tools.
+        stopWorker();
+        if (typeof data.program !== "string") {
+          toHost({ type: "error", kind: "protocol", message: "the run program must be a string" });
+          return;
+        }
+        if (data.program.length > MAX_PROGRAM_CHARS) {
+          toHost({
+            type: "error",
+            kind: "protocol",
+            message:
+              "the program is " + data.program.length + " chars; the limit is " + MAX_PROGRAM_CHARS,
+          });
+          return;
+        }
+        var template = document.getElementById("ptc-worker-template").textContent;
+        // A function replacement keeps "$&"-style sequences in the program literal.
+        var source = template.replace(PROGRAM_MARKER, function () {
+          return data.program;
+        });
+        var url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+        var instance = new Worker(url);
+        worker = instance;
+        workerUrl = url;
+        instance.onmessage = onWorkerMessage;
+        instance.onerror = function (event) {
+          // A program that does not parse kills the worker script itself.
+          toHost({
+            type: "error",
+            kind: "exception",
+            message: "the sandbox worker failed: " + (event.message || "unknown error"),
+          });
+          stopWorker();
+        };
+      }
+
+      addEventListener("message", function (event) {
+        // Only the host window may drive this page; the opaque origin is the boundary.
+        if (event.source !== parent) return;
+        var data = event.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "run") {
+          startRun(data);
+          return;
+        }
+        if (data.type === "tool-result") {
+          // Tool results are host data; forward them to the program's worker unchanged.
+          if (worker) worker.postMessage(data);
+          return;
+        }
+        if (data.type === "stop") {
+          stopWorker();
+          return;
+        }
+        // Liveness probe: proves the iframe main thread keeps relaying while the worker is
+        // stuck in a busy loop (scripts/dev/check-ptc-runner.mjs asserts this).
+        if (data.type === "ping") toHost({ type: "pong" });
+      });
+    </script>
+  </body>
+</html>

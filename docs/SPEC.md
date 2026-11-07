@@ -1,7 +1,7 @@
 # 📘 Facilis — Full Specification
 
 **Version:** 1.12 (permission views + audited sudo, D-098/D-099)
-**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator and the apply path; the retry loop and the Model B tool surface remain. The live per-phase state is in [`README.md`](../README.md#status).
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
@@ -13,7 +13,7 @@
 - v1.8 — Source Control becomes a place where history is visible: clicking any change opens a side-by-side HEAD ↔ working-tree diff with the first hunk revealed (D-089), and a repository can open a commit graph as an editor-area tab — React Flow cards laid out by lane, with merge edges, branch and HEAD badges and a details inspector (D-088). No contract change; §10.2 follows.
 - v1.7 — The API Flow becomes an editor-area tab instead of a sidebar view, laid out as pages → routes → tables with an inspector and a list view; it now scans `src/**` for the client files that call each route and shows them as page nodes (direct references and one import hop, D-087). No contract change; §10.2/§12 follow.
 - v1.6 — Phase 3 complete. The API Flow renders the AST-augmented `/_openapi.json` with React Flow and jumps to the route source (D-085); the Release Preview engine `buildReleasePreview` lands in `@facilis/core` with the SDK contract amendment for `ApiDiff.changed`/`ApiRouteRef.dbTables` (§7.7), and the Studio diffs git refs read from the VFS instead of booting them, resolving O-008 (D-086, §11.3).
-- v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. Retry loop and Model B remain.
+- v1.5 — Phase 3.1 and the Phase 4 validator: the dev-only `GET /__facilis/dev/schema` (D-083) answers `{ code, live, drift, warnings }` for the Entity Explorer, and `@facilis/db` gains `liveSchemaSnapshot`/`diffSchemaSnapshots` (§6.3, §11.1, §11.4). `@facilis/ai` implements the 16-rule validator with an injected `SyntaxChecker` and a typed `PatchContext` (§9.3, D-084); the IDE validates at proposal, Apply and VFS-write time. The retry loop and Model B were then future; the retry loop is now implemented (§9.4, D-100), Model B remains future.
 - v1.4 — One project config: Nitro options (and the framework defaults `serverDir: "./server"` / `experimental.openAPI: true`) move into `facilis.config.ts`'s optional `nitro` section, and `facilis()` mounts Nitro and returns `Plugin[]` (D-034). Generated projects have no `nitro.config.ts` and no `nitro()` import.
 - v1.3 — Phase 0 headless results: `defineRouteMeta` inside `defineAuthorizedHandler` is **not** detected by Nitro's scanner (A16), so `@facilis/nitro` must ship a framework-owned AST pass + OpenAPI facade (§6.9, §13 risk 3). Fixed §8.4.5 RLS example: tenant isolation must be `AS RESTRICTIVE` and GUC role reads must use `nullif(..., '')` before casting to jsonb. Both findings came from the Phase 0 spike, retired after they landed in `@facilis/nitro` and `@facilis/db` (commit `de17169`).
 - v1.2 — Renamed framework to **Facilis** (`@facilis/*`, `facilis.config.ts`, `/__facilis/*`, `Facilis*` types, `FACILIS_INITIAL_ADMIN`). Corrected runtime model: **Nitro v3 runs as a Vite plugin**, `vite dev` is the single dev server for frontend and backend. Added §10.6 "Runtime model inside Vivari". Updated Phase 0 tickets.
@@ -1599,6 +1599,11 @@ names the tenant and cannot name a different one (D-040).
 | Wall time | 10–20s | 30–60s |
 | Accuracy | Good for small tasks | Good for any task |
 
+**Status (2026-11-07): the chat always uses the tool-backed mode** (D-101/D-103); the table is
+the design history. Model A's context assembly (file list, config, manifest, AGENTS.md) remains
+as context, not as a separate chat mode, and Model B's per-call tool list was superseded by PTC
+(§9.5).
+
 ### 9.2 System Prompt (Shared Core)
 
 Rules the AI must obey:
@@ -1610,7 +1615,7 @@ Rules the AI must obey:
 5. Use existing blocks; do not create new ones unprompted
 6. All strings via `t("key")`
 7. Minimal patches; match existing style
-8. Output is a single `AIResponse` JSON object; no prose outside
+8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 
 ### 9.3 Patch Validator (16 Rules)
@@ -1642,30 +1647,67 @@ edits. The caller supplies them — the IDE analyzes the VFS snapshot and the pa
 its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
 `@facilis/ai/node` helper. Sources are read only for `package.json` (installed packages) and
 `tsconfig.json` (path aliases); blocks still come from the live manifest because registration is
-runtime state. Rule 1 parses through an injected `SyntaxChecker` — Monaco's TypeScript worker in
-the IDE, the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails closed when no
-checker answers. If the analyzer itself is unavailable the IDE fails the round closed with a
-`project-analysis` error and never applies the patch. Rules 5, 13 and 14 are warnings; the rest
+runtime state. Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
+parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails
+closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
+closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
+an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
+round asking the model to fix it (D-105). Rules 5, 13 and 14 are warnings; the rest
 block the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
 time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
 property names, imports cover static/re-export/dynamic/`require` and rules 10/14/15 ignore
 framework re-exported tables. Declared limits: i18n covers static `t()` keys and the effective
 default catalogue, migration detection is the presence of a `.sql` file, destructive detection
-covers tables/columns.
+covers tables/columns. A rejected round does not surface as a one-shot error: its
+findings feed the §9.4 repair loop.
 
 ### 9.4 Retry Loop
 
 ```
-Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → fail
+Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → (errors) → retry 3 → fail
 ```
 
-- **Max 2 retries.** Worst case 3× initial token cost.
-- Failures feed back with `fix_hint` + `excerpt` per error, not full files.
-- On final failure: show errors in chat; do not write to OPFS.
+**Status (2026-11-07): implemented** in the IDE chat (D-100, hardened by D-102).
 
-**Status (2026-11-02): not implemented.** `parseTurn()` and the `fix_hint`/`excerpt` fields in
-`ValidationError` are the seam it will be built on (D-084).
+- **Max 3 retries** (4 attempts total). Worst case 4× initial token cost.
+- **Any rejected answer starts a repair**, not only a validator error: unparseable JSON, an
+  `AIResponse` contract violation or a rule violation all re-ask the model.
+- **The repair request is one user-role turn** carrying a **fix plan grouped by file, root cause
+  first** (schema/config before the route findings they usually cause), the files the rejected
+  answer touched, a numbered findings list with `rule`, `file`, `message`, `fix_hint` and
+  `line`/`excerpt`, and a reminder of the `AIResponse` contract. Validation stays **set-level**
+  on purpose: the rules are cross-patch (a route may reference a table added in the same set, a
+  permission may be added in the same set), so per-file validation would report false errors;
+  the feedback is per-file instead, and the `validate` tool lets the model check candidate
+  subsets while iterating (D-102).
+- **The repair request never inlines file content.** The chat has one mode (D-103): the
+  correction tells the model to `read_file` every file it will re-emit and to `validate` the
+  exact set it will return, so a `create`/`update` whole-file rewrite is repaired from the
+  tools, not from prompt-stuffed content (D-101/D-102).
+- **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
+  synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
+  the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
+  progress to the UI.
+- **Validator outages are not repairs.** A finding marked `infrastructure` — rule 1's parser or
+  the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
+  temporarily unavailable and nothing is written; no correction round is spent asking the model
+  to fix a worker (D-105).
+- **Large patch sets arrive in parts (D-106).** A provider cuts an answer at its output limit
+  (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends
+  2–3 files per answer, marks every part but the last with `"continue": true`, and the turn loop
+  merges the parts by path (a later part may correct a file), ORs the destructive flag, keeps the
+  notes and validates the merged set once (the rules are cross-file). The chat shows
+  "sending the patch set in parts (n/6)"; the budget is 6 parts per answer set and exhausting it
+  fails constructively without writing. A correction keeps the rejected set and re-emits only the
+  files it changes (`delete` drops one), so fixing two files of a three-part set is one answer. The
+  model-call backstop is 22 per user message; its failure reports how many calls the exploration,
+  the parts and the corrections consumed. If the provider cut the answer anyway, the client marks
+  it `truncated` and the IDE salvages the complete patch objects before the cut
+  (`ide/src/ai/salvage.ts`), then asks for the rest instead of reporting a raw JSON error. Only
+  an answer with no recoverable patch goes through the ordinary repair, whose report now carries
+  the cut-off explanation and the part protocol.
+- **On final failure:** the findings are shown in the chat and **nothing is written** to OPFS.
 
 ### 9.5 Model B Tool Surface (Phase 4.5)
 
@@ -1682,6 +1724,15 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
 
 **Status (2026-11-02): not implemented as a tool, but its engine exists** — `buildReleasePreview`
 in `@facilis/core` (D-086) is exactly the function the tool would call.
+
+**Status (2026-11-07): a PTC design supersedes the per-call tool list above.** The model writes
+one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
+read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
+capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
+path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
+phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
+landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
+remain.
 
 ---
 
@@ -1726,10 +1777,14 @@ pinned by the file-length ratchet (D-019); the activity view is `chat`.
 **Status (2026-11-02): the full 16-rule validator is implemented** (D-084): `parseTurn()`
 validates a proposal against the live project before it is shown, the accepted files are
 re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
-VFS write. Rule 1 uses Monaco's TypeScript worker; the remaining rules read the config, schema,
-catalogs, blocks and routes. Validator warnings are carried in the proposal state but not yet
-rendered in the card (follow-up). Still Phase 4: the retry loop (§9.4) and the Model B tool
-surface (§9.5).
+VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
+config, schema, catalogs, blocks and routes. Validator warnings are carried in the proposal
+state but not yet rendered in the card (follow-up). The §9.4 repair loop is implemented
+(D-100/D-102): a rejected answer is re-asked up to three times with a root-cause-first fix plan
+and the findings (the model reads files with the PTC tools; nothing is inlined), and the final
+failure shows the findings without writing. A parser/analyzer outage is reported as a validator
+outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
+(D-103); the eval corpus and browser matrix remain.
 
 **Status (2026-11-06): the project graph replaced the API Flow.** D-092's `project-graph` editor
 tab is the single pages → routes → tables visualizer (plus FK/relations edges), built from
@@ -2022,7 +2077,8 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 - Prompt builder + context assembly (Model A)
 - AIResponse parser
 - Patch validator (16 rules)
-- Retry loop
+- Retry loop — implemented (D-100): up to 2 retries, findings fed back with the current
+  content of the files being rewritten
 - `requires_confirmation` modal
 - Diff view + per-file accept/reject
 - Apply → OPFS → HMR → refresh manifest
@@ -2030,8 +2086,10 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 **Exit criteria:** "Make a todo app" from blank starter produces a working, secure, authenticated app.
 
 **Status (2026-11-02):** Model A (prompt + context), the response parser, the 16-rule validator
-(D-084), the proposal/diff review and the apply path are implemented; the retry loop and the
-Model B tool surface remain. The validator's warnings still need a UI surface.
+(D-084), the proposal/diff review and the apply path are implemented; the §9.4 repair loop
+(D-100) is implemented too and the PTC tool runtime is the chat's only mode (D-103); the eval
+corpus and browser matrix remain. The validator's warnings still
+need a UI surface.
 
 ### Phase 5 — Headless Blocks + i18n (2 weeks)
 

@@ -2,7 +2,10 @@
 
 **Status:** accepted and partially implemented (2026-11-01): the provider/gateway policy
 and the "AI off by default in managed" behaviour landed. Still pending: blocking validator
-rules, Model B tools and the skills runtime.
+rules, Model B tools and the skills runtime. Model B is a PTC tool runtime and the chat's only
+mode (D-101/D-103): the model writes JavaScript programs the IDE executes against a read-only tool
+registry, with MCP servers and skill capabilities on the same seam (design:
+[`PTC.md`](./PTC.md), O-016).
 Decisions: D-066 (AI security boundary), D-067 (skills as a reviewed supply chain).
 Related: [MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md), [APP-UPDATES.md](./APP-UPDATES.md),
 SPEC §8 and §9, D-045, D-046, D-047, D-048.

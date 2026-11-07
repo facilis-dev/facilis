@@ -261,6 +261,11 @@ and instructions path without an LLM. The last step opens Home and deletes the p
 the typed-confirmation dialog, asserting both the files and the recent-list entry are gone
 (D-050).
 
+To exercise the PTC trace without a key, keep the **Mock (dev)** provider and send a message
+containing "ptc" (or "esplora"): the mock answers with one exploration program, the runner
+executes it, the trace card renders it, and the second call returns the usual demo proposal
+(D-101).
+
 One page error is expected and filtered: the first edit in a project whose imports do not all
 resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback
 (`DataCloneError … could not be cloned`). It is recorded as `knownPageErrors` in the report
@@ -296,6 +301,17 @@ install dominates; ~103 s on a cold throwaway profile). The Facilis run is green
 manifest zero warnings, editor IntelliSense clean, the **database roundtrip** green
 (session survives, insert and read-back ok), A8-A12 green, and the Home delete flow green
 (files + registry entry removed). Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
+
+The PTC sandbox runner (D-101) has its own targeted browser check, without booting the IDE:
+
+```bash
+node scripts/dev/check-ptc-runner.mjs
+```
+
+It serves the real `ide/public/ptc-runner.html` with the production CSP/COOP/COEP headers and
+asserts the result comes back, the tool RPC round-trips, the worker's `fetch` is blocked, the
+iframe origin is opaque and still relays while a program is stuck, a >5 s loop is terminated,
+and a fresh sandbox works afterwards. Script: `scripts/dev/check-ptc-runner.mjs`.
 
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
 

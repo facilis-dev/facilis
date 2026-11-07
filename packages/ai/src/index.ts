@@ -3,8 +3,8 @@
  * chat (patches, findings, project context).
  *
  * This entry must stay browser-safe: no TypeScript/oxc parser, no Node builtin, no
- * filesystem. Rule 1's parser is injected as a {@link SyntaxChecker} (the IDE passes
- * Monaco's TypeScript worker; Node tooling imports the `@facilis/ai/node` subpath, the
+ * filesystem. Rule 1's parser is injected as a {@link SyntaxChecker} (the IDE passes the
+ * analyzer worker's oxc parser; Node tooling imports the `@facilis/ai/node` subpath, the
  * only module that imports a parser). Project facts come from @facilis/analyze's Analysis,
  * which the caller builds from the VFS file map; every analyzer import here is type-only,
  * so no analyzer runtime value is bundled into the IDE.

@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
+import type { PtcRunner } from "./ptc/protocol";
 import type { AiSettings } from "./types";
+
+/** The chat has no non-PTC mode (D-103); these sessions never explore, so specs are empty. */
+const EMPTY_RUNNER: PtcRunner = {
+  specs: () => [],
+  run: async () => ({ ok: true, value: null, toolCalls: 0, elapsedMs: 0, trace: [] }),
+  dispose: () => {},
+};
 
 const root = "/home/user/project";
 
@@ -64,6 +72,7 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
     loadSettings: () => settings,
     saveSettings: () => {},
     now: () => 1,
+      runner: EMPTY_RUNNER,
   });
 }
 
@@ -85,6 +94,7 @@ describe("ChatSession", () => {
       loadSettings: () => settings,
       saveSettings: () => {},
       now: () => 1,
+      runner: EMPTY_RUNNER,
     });
 
     await chat.send("  add a file  ");
@@ -160,6 +170,7 @@ describe("ChatSession", () => {
       loadSettings: () => settings,
       saveSettings: () => {},
       now: () => (clock += 1000),
+      runner: EMPTY_RUNNER,
     });
 
     await chat.send("hi");
@@ -192,6 +203,31 @@ describe("ChatSession", () => {
     expect(state.proposal).toBeNull();
   });
 
+  it("folds consecutive user turns after a failed answer so roles alternate", async () => {
+    const calls: { messages: readonly { role: string; content: string }[] }[] = [];
+    const chat = sessionWith(async (input) => {
+      calls.push(input);
+      // Keep failing until the second user request (the repair turns still name the first).
+      const second = input.messages.some(
+        (turn) => turn.role === "user" && turn.content.includes("second request"),
+      );
+      return second
+        ? { ok: true, text: answer(createNewFile()) }
+        : { ok: true, text: "not json" };
+    });
+
+    await chat.send("first request");
+    expect(chat.getSnapshot().error?.kind).toBe("parse");
+    await chat.send("second request");
+
+    // The failed turn never became an assistant bubble; Anthropic requires alternating roles.
+    const replayed = calls.at(-1)?.messages ?? [];
+    expect(replayed.map((turn) => turn.role)).toEqual(["user"]);
+    expect(replayed[0]?.content).toContain("first request");
+    expect(replayed[0]?.content).toContain("second request");
+    expect(chat.getSnapshot().error).toBeNull();
+  });
+
   it("surfaces a provider failure with its kind and status", async () => {
     const chat = sessionWith(async () => ({
       ok: false,
@@ -215,6 +251,7 @@ describe("ChatSession", () => {
       loadSettings: () => null,
       saveSettings: () => {},
       now: () => 1,
+      runner: EMPTY_RUNNER,
     });
     await chat.send("add");
     expect(called).toBe(false);
@@ -231,6 +268,7 @@ describe("ChatSession", () => {
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
+      runner: EMPTY_RUNNER,
       },
     );
     await chat.openInstructions();
@@ -252,6 +290,7 @@ describe("ChatSession", () => {
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
+      runner: EMPTY_RUNNER,
       },
     );
     await chat.openInstructions();

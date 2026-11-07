@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PtcToolSpec } from "./ptc/protocol";
 import { buildSystemPrompt, SYSTEM_PROMPT, type PromptContext } from "./prompt";
 
 function context(overrides: Partial<PromptContext> = {}): PromptContext {
@@ -63,6 +64,96 @@ describe("SYSTEM_PROMPT", () => {
       "Never put secrets",
     ]) {
       expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
+  it("states the validation repair protocol", () => {
+    for (const token of [
+      "## Validation repair",
+      "validation repair report",
+      "your previous answer was rejected",
+      "fix every finding",
+      "return the corrected AIResponse JSON object",
+      "merged into the rejected set",
+      "re-emit only the files",
+      "fix_hint",
+      "line/excerpt",
+      "current content",
+      "keep every existing declaration",
+      "tables, columns, routes, config, keys",
+      "never drop code you were not asked to remove",
+      "destructive",
+      "requires_confirmation",
+      "notes",
+    ]) {
+      expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
+  it("places the validation repair section after the response contract", () => {
+    const contractAt = SYSTEM_PROMPT.indexOf("## Response contract");
+    const repairAt = SYSTEM_PROMPT.indexOf("## Validation repair");
+    expect(contractAt).toBeGreaterThan(-1);
+    expect(repairAt).toBeGreaterThan(contractAt);
+    expect(repairAt).toBeGreaterThan(SYSTEM_PROMPT.indexOf("Never put secrets"));
+  });
+});
+
+const TOOLS: PtcToolSpec[] = [
+  { name: "read_file", signature: "read_file({ path, startLine?, endLine? })", description: "Read a slice." },
+  {
+    name: "validate",
+    signature: "validate({ patches, requiresConfirmation? })",
+    description: "Run the patch validator.",
+  },
+];
+
+describe("buildSystemPrompt with the PTC runtime", () => {
+  it("teaches the script/answer protocol and lists the registered tools", () => {
+    const prompt = buildSystemPrompt(context({ tools: TOOLS }));
+    expect(prompt).toContain("## Project exploration (PTC)");
+    expect(prompt).toContain('"script" string instead of "patches"');
+    expect(prompt).toContain("at most 6 per request");
+    expect(prompt).toContain("read_file({ path, startLine?, endLine? })");
+    expect(prompt).toContain("validate({ patches, requiresConfirmation? })");
+    expect(prompt).toContain("self-check");
+  });
+
+  it("leaves the protocol out when the runtime is off", () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).not.toContain("## Project exploration (PTC)");
+  });
+});
+
+describe("canonical shapes and the tool protocol", () => {
+  it("shows the canonical route and scoped-table shapes", () => {
+    for (const token of [
+      "## Canonical shapes",
+      "export default defineAuthorizedHandler(",
+      "dbTables",
+      "tenantIsolationPolicy",
+      "enableRLS",
+      "auth.permissions",
+    ]) {
+      expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
+  it("offers the script alternative in the response contract", () => {
+    expect(SYSTEM_PROMPT).toContain('a turn may instead carry "script"');
+  });
+
+  it("requires a return value, object tool arguments and read-before-write", () => {
+    const prompt = buildSystemPrompt(context({ tools: TOOLS }));
+    for (const token of [
+      "ONE object argument",
+      "returns nothing",
+      "no markdown fences",
+      "Before re-emitting a file, read_file it",
+      "call validate on the exact patch set",
+      "Reading the schema.",
+    ]) {
+      expect(prompt).toContain(token);
     }
   });
 });

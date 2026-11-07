@@ -7,6 +7,7 @@
 
 import { fetchManifest } from "@/facilis/manifest-client";
 import { INSTRUCTIONS_PATH } from "./instructions";
+import type { PtcToolSpec } from "./ptc/protocol";
 import { buildSystemPrompt } from "./prompt";
 import type { ChatContextInfo } from "./types";
 
@@ -23,9 +24,15 @@ export interface ChatContext {
   context: ChatContextInfo;
 }
 
+export interface ChatContextOptions {
+  /** PTC tool specs; empty when the tool runtime is off (D-101). */
+  tools?: readonly PtcToolSpec[];
+}
+
 export async function buildChatContext(
   host: ContextHost,
   signal: AbortSignal,
+  options: ChatContextOptions = {},
 ): Promise<ChatContext> {
   const files = host.files();
   const activeFile = await host.activeFile();
@@ -54,6 +61,7 @@ export async function buildChatContext(
       configFile: config.length > 0 ? { path: "facilis.config.ts", content: config } : null,
       instructions:
         instructions.length > 0 ? { path: INSTRUCTIONS_PATH, content: instructions } : null,
+      tools: options.tools ?? [],
     }),
     context: {
       manifestRevision,

@@ -1,6 +1,7 @@
 // Browser parser adapter for @facilis/analyze (docs/findings/ast-dsl-contract.md §4).
 //
-// Only the analyzer worker imports this module: `oxc-parser`'s browser condition resolves to
+// The analyzer worker is the only runtime importer of this module: `oxc-parser`'s browser
+// condition resolves to
 // the wasm32-wasip1 binding, which loads its 1.5 MB `parser.wasm32-wasip1.wasm` with a
 // top-level await. Keeping it here (and this module out of the editor's import graph) keeps
 // both the parser and the wasm asset out of the initial bundle.

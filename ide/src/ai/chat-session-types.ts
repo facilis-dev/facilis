@@ -6,6 +6,7 @@
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { CallModelInput, CallModelResult } from "./client";
+import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
 import type { AiChatTurn, AiSettings, ChatMessage, ChatState } from "./types";
 
@@ -22,7 +23,7 @@ export interface ChatHost {
   activeFile(): Promise<{ path: string; content: string } | null>;
   /** Preview base URL used for /__facilis/manifest, or null when nothing runs. */
   manifestBase(): string | null;
-  /** Rule 1's parser: Monaco's TypeScript worker; absent when the editor is not ready. */
+  /** Rule 1's parser: the analyzer worker (oxc); null when it cannot answer (fails closed). */
   syntaxChecker?(): SyntaxChecker | null;
   /**
    * Analyze the project before and after a patch set (the browser analyzer worker). The
@@ -44,19 +45,44 @@ export interface ChatSessionOptions {
   loadSettings?: () => AiSettings | null;
   saveSettings?: (settings: AiSettings) => void;
   now?: () => number;
+  /** The PTC tool runtime (D-101). The chat has no non-PTC mode (D-103). */
+  runner: PtcRunner;
 }
 
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */
 export function replayTurns(messages: readonly ChatMessage[], limit: number): AiChatTurn[] {
-  return messages
-    .filter((message) => message.content.length > 0)
-    .slice(-limit)
-    .map((message) => ({ role: message.role, content: message.content }));
+  const turns: AiChatTurn[] = [];
+  for (const message of messages.filter((entry) => entry.content.length > 0).slice(-limit)) {
+    // A failed turn leaves consecutive user messages (its answer never became a bubble);
+    // Anthropic rejects non-alternating roles, so fold them into one turn.
+    const last = turns.at(-1);
+    if (last === undefined || last.role !== message.role) {
+      turns.push({ role: message.role, content: message.content });
+      continue;
+    }
+    last.content = last.content + "\n\n" + message.content;
+  }
+  return turns;
 }
 
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/** State a new turn clears: the transcript keeps its trace after a finished turn. */
+export const TURN_RESET: Pick<ChatState, "repair" | "trace" | "exploring" | "patchParts"> = {
+  repair: null,
+  trace: [],
+  exploring: null,
+  patchParts: null,
+};
+
+/** State a finished turn clears without dropping the visible trace. */
+export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts"> = {
+  repair: null,
+  exploring: null,
+  patchParts: null,
+};
 
 export function initialState(settings: AiSettings | null): ChatState {
   return {
@@ -66,6 +92,7 @@ export function initialState(settings: AiSettings | null): ChatState {
     applied: null,
     undo: null,
     streaming: false,
+    ...TURN_RESET,
     error: null,
     settings,
     configured: isConfigured(settings),
