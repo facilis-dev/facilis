@@ -40,8 +40,10 @@ export interface TurnInput {
   onRepair: (attempt: number, max: number) => void;
   /** Present when the PTC tool runtime is available (D-101). */
   runner?: PtcRunner | null;
-  /** Called after each exploration program (the trace UI lands in the next phase). */
-  onScript?: (result: PtcRunResult, turn: number) => void;
+  /** Called just before an exploration program starts (1-based program number). */
+  onScriptStart?: (program: string, turn: number) => void;
+  /** Called after each exploration program with its outcome. */
+  onScript?: (result: PtcRunResult, program: string) => void;
 }
 
 export type TurnOutcome =
@@ -157,17 +159,20 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
           },
         };
       }
-      const run = await runner.run(parsed.response.script, {
+      const program = parsed.response.script;
+      const turnNumber = scripts + 1;
+      input.onScriptStart?.(program, turnNumber);
+      const run = await runner.run(program, {
         signal: input.signal,
         toolCallBudget: MAX_TOOL_CALLS_PER_TURN - toolCalls,
       });
       if (input.signal.aborted) {
         return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
       }
-      scripts += 1;
+      scripts = turnNumber;
       toolCalls += run.toolCalls;
       trace.push(...run.trace);
-      input.onScript?.(run, scripts);
+      input.onScript?.(run, program);
       appendTurn(turns, { role: "assistant", content: result.text });
       appendTurn(turns, { role: "user", content: formatScriptResult(run) });
       continue;

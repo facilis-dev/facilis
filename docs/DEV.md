@@ -261,6 +261,11 @@ and instructions path without an LLM. The last step opens Home and deletes the p
 the typed-confirmation dialog, asserting both the files and the recent-list entry are gone
 (D-050).
 
+To exercise the PTC trace without a key, keep the **Mock (dev)** provider and send a message
+containing "ptc" (or "esplora"): the mock answers with one exploration program, the runner
+executes it, the trace card renders it, and the second call returns the usual demo proposal
+(D-101).
+
 One page error is expected and filtered: the first edit in a project whose imports do not all
 resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback
 (`DataCloneError … could not be cloned`). It is recorded as `knownPageErrors` in the report

@@ -7,6 +7,7 @@
 
 import type { FilePatch, ValidationResult } from "@facilis/ai";
 import type { MessageKey } from "@/i18n";
+import type { PtcFailureKind, PtcTraceEntry } from "./ptc/protocol";
 
 /** A wire protocol, not a provider: presets differ only in defaults. */
 export type AiProtocol = "openai" | "anthropic";
@@ -139,6 +140,16 @@ export interface ChatMessage {
   detail?: string;
 }
 
+/** One PTC exploration program as the chat transcript records it (D-101). */
+export interface ChatTraceRun {
+  program: string;
+  ok: boolean;
+  error?: { kind: PtcFailureKind; message: string };
+  toolCalls: number;
+  elapsedMs: number;
+  entries: PtcTraceEntry[];
+}
+
 export type ChatPhase = "idle" | "sending" | "applying";
 
 /** What the conversation was assembled from, for the footer. */
@@ -164,6 +175,10 @@ export interface ChatState {
    * `attempt` is 1-based; null while no repair is running.
    */
   repair: { attempt: number; max: number } | null;
+  /** The PTC exploration of the current turn (D-101); empty when the runtime is off. */
+  trace: ChatTraceRun[];
+  /** The 1-based exploration program currently running, or null. */
+  exploring: number | null;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;

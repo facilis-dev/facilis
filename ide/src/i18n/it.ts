@@ -10,6 +10,7 @@ import { gitRemoteIt } from "./it-git-remote";
 import { sourceControlIt } from "./it-source-control";
 import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
+import { chatIt } from "./it-chat";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -204,90 +205,5 @@ export const it: Partial<Record<MessageKey, string>> = {
     "Ripristinare tutto? Elimina definitivamente tutti i file salvati e le dipendenze in cache, poi ricarica.",
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
-  "chat.title": "Chat AI",
-  "chat.newChat": "Nuova chat",
-  "chat.settings": "Impostazioni chat",
-  "chat.instructions": "Istruzioni del progetto (AGENTS.md)",
-  "chat.placeholder": "Descrivi una modifica…",
-  "chat.send": "Invia",
-  "chat.stop": "Interrompi",
-  "chat.thinking": "Sto pensando…",
-  "chat.repairing": "Correggo le patch ({attempt}/{max})…",
-  "chat.applying": "Applicazione…",
-  "chat.footer": "L'AI può sbagliare — rivedi ogni patch prima di applicarla.",
-  "chat.configured": "{provider} · {model}",
-  "chat.empty.title": "Costruisci con l'assistente",
-  "chat.empty.body":
-    "Descrivi una modifica in linguaggio naturale. L'assistente propone una patch; nulla viene scritto finché non la rivedi e la applichi.",
-  "chat.empty.configure": "Configura un provider",
-  "chat.empty.noProject": "Apri un progetto per usare l'assistente",
-  "chat.empty.noProjectBody":
-    "L'assistente legge manifest, elenco dei file e file aperto del progetto prima di rispondere.",
-  "chat.empty.privacy":
-    "La tua chiave resta in questo browser e viene inviata solo al provider che scegli.",
-  "chat.error.title": "L'assistente non ha potuto rispondere",
-  "chat.error.aborted": "Interrotto.",
-  "chat.error.network":
-    "Errore di rete — il provider potrebbe rifiutare le richieste dirette dal browser (CORS). Controlla la chiave e l'endpoint.",
-  "chat.error.http": "Il provider ha rifiutato la richiesta: {status}",
-  "chat.error.stream": "Il flusso della risposta si è interrotto.",
-  "chat.error.empty": "Il provider ha restituito una risposta vuota.",
-  "chat.error.unsupported": "Questo provider non è disponibile in questa build.",
-  "chat.parse.error": "L'assistente non è riuscito a produrre patch valide.",
-  "chat.parse.hint": "Reinvia la richiesta o chiedi all'assistente di correggerla.",
-  "chat.detail": "Dettagli",
-  "chat.proposal.title": "Modifiche proposte",
-  "chat.proposal.apply": "Applica {n}",
-  "chat.proposal.applyAll": "Applica tutto",
-  "chat.proposal.discard": "Scarta",
-  "chat.proposal.showDiff": "Mostra diff",
-  "chat.proposal.hideDiff": "Nascondi diff",
-  "chat.proposal.notes": "Note",
-  "chat.proposal.confirm": "Questa patch modifica lo schema del database e richiede conferma.",
-  "chat.proposal.applied": "Applicati {n} file",
-  "chat.proposal.failed": "Applicato con errori",
-  "chat.proposal.undo": "Annulla le modifiche applicate",
-  "chat.proposal.undoing": "Ripristino…",
-  "chat.proposal.reverted": "Ripristinati {n} file",
-  "chat.proposal.revertedFailed": "Ripristino non riuscito",
-  "chat.proposal.warnings": "Avvisi da rivedere",
-  "chat.warning.nodeGlobal":
-    "{symbol} non esiste nel browser — usa import.meta.env o una route server.",
-  "chat.warning.serverImport": "Modulo solo server importato nel codice browser: {symbol}.",
-  "chat.proposal.openFile": "Apri {path}",
-  "chat.proposal.noChanges": "Nessuna modifica proposta.",
-  "chat.settings.title": "Provider AI",
-  "chat.settings.description":
-    "Porta la tua chiave. Resta in questo browser e viene inviata solo al provider.",
-  "chat.settings.provider": "Provider",
-  "chat.settings.apiKey": "Chiave API",
-  "chat.settings.apiKeyPlaceholder": "sk-…",
-  "chat.settings.model": "Modello",
-  "chat.settings.baseUrl": "URL di base",
-  "chat.settings.baseUrlPlaceholder": "https://host/v1",
-  "chat.settings.save": "Salva",
-  "chat.settings.clear": "Rimuovi chiave",
-  "chat.settings.mockNote":
-    "Solo in dev: risponde con una patch finta per provare il flusso senza chiave.",
-  "chat.settings.errorProvider": "Scegli un provider.",
-  "chat.settings.errorModel": "Inserisci un modello.",
-  "chat.settings.errorKey": "Inserisci una chiave API.",
-  "chat.settings.errorBaseUrl": "Inserisci l'URL di base dell'endpoint.",
-  "chat.context": "{manifest} · {files} file",
-  "chat.context.manifest": "manifest {revision}",
-  "chat.context.noManifest": "manifest non raggiungibile",
-  "chat.context.agents": "AGENTS.md",
-  "chat.provider.anthropic": "Anthropic",
-  "chat.provider.openai": "OpenAI",
-  "chat.provider.openrouter": "OpenRouter",
-  "chat.provider.deepseek": "DeepSeek",
-  "chat.provider.custom": "Personalizzato (compatibile OpenAI)",
-  "chat.provider.mock": "Mock (dev)",
-  "chat.keyHint.anthropic": "Crea una chiave su console.anthropic.com → API keys.",
-  "chat.keyHint.openai": "Crea una chiave su platform.openai.com → API keys.",
-  "chat.keyHint.openrouter": "Crea una chiave su openrouter.ai/keys.",
-  "chat.keyHint.deepseek": "Crea una chiave su platform.deepseek.com → API keys.",
-  "chat.keyHint.custom":
-    "Qualsiasi endpoint compatibile OpenAI. Un server locale non richiede chiave.",
-  "chat.keyHint.mock": "Incluso nelle build di sviluppo; non chiama mai un provider.",
+  ...chatIt,
 };

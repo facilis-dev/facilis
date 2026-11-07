@@ -81,6 +81,14 @@ describe("ChatSession with the PTC runtime", () => {
     expect(calls).toHaveLength(2);
     const state = chat.getSnapshot();
     expect(state.error).toBeNull();
+    expect(state.exploring).toBeNull();
+    expect(state.trace).toHaveLength(1);
+    expect(state.trace[0]).toMatchObject({
+      program: "return await tools.read_file({ path: 'src/App.tsx' });",
+      ok: true,
+      toolCalls: 1,
+    });
+    expect(state.trace[0]?.entries[0]?.name).toBe("read_file");
     expect(state.proposal?.files[0]?.patch).toEqual({
       path: "src/new.ts",
       action: "create",

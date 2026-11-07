@@ -246,9 +246,11 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 
 ## 10. UX and audit
 
-- Each turn renders an explorable **"Esplorazione"** card: the programs (collapsed), each tool
-  call with path/size/duration/outcome, and the errors. The user can see exactly what left the
-  browser and what the model learned.
+- Each turn renders an explorable **"Esplorazione"** card (`ChatTraceView`, landed 2026-11-07):
+  the programs (collapsed), each tool call with args/size/duration/outcome, and the typed error
+  of a failed program; `ChatSession` keeps the rows in `ChatState.trace` / `exploring`. The
+  dev mock provider emits one exploration program when the message says "ptc"/"esplora", so the
+  card is testable without a provider key.
 - Before the first exploration of a large turn, a "what will be sent" report (AI-SKILLS §6).
 - Cancel stops both the provider call and the sandbox.
 - Audit log: provider/model, skill/server ids, tool calls (path, bytes, duration), proposals and
@@ -270,7 +272,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Phase | Scope | Exit gate |
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
-| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; dev flag; repair loop switches to tools — **chain landed 2026-11-07, trace UI + eval remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
+| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; dev flag; repair loop switches to tools; **chain + trace UI landed 2026-11-07 — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
@@ -294,7 +296,10 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Browser proof: `node scripts/dev/check-ptc-runner.mjs` (9/9: result + trace, tool RPC,
   CSP-blocked worker fetch, opaque origin, the iframe relays while the worker is stuck, a >5 s
   loop is killed, a fresh sandbox works after termination).
-- Remaining for phase 1: the "Esplorazione" trace card, the eval corpus, and the browser matrix.
+- Trace UI: `ChatTraceView` renders the runs (program, tool calls, args/duration/bytes, typed
+  errors) and an "exploring" status; `chat-trace.ts` keeps the rows pure and tested.
+- Remaining for phase 1: the eval corpus (needs a real provider/key; the first manual run is its
+  seed) and the browser matrix.
 
 ## 13. Open questions (O-016)
 

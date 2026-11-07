@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMessageView } from "./ChatMessageView";
 import { ChatProposalView } from "./ChatProposalView";
+import { ChatTraceView } from "./ChatTraceView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
 import { chatFor } from "@/ai/chat-host";
@@ -69,7 +70,16 @@ export function ChatPanel() {
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [state.messages.length, state.phase, state.proposal, state.applied, state.error, state.repair]);
+  }, [
+    state.messages.length,
+    state.phase,
+    state.proposal,
+    state.applied,
+    state.error,
+    state.repair,
+    state.trace.length,
+    state.exploring,
+  ]);
 
   const submit = () => {
     const text = draft.trim();
@@ -144,6 +154,7 @@ export function ChatPanel() {
                 streaming={state.streaming && index === state.messages.length - 1}
               />
             ))}
+            <ChatTraceView trace={state.trace} exploring={state.exploring} />
             <ChatProposalView chat={chat} state={state} />
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
@@ -166,9 +177,11 @@ export function ChatPanel() {
         {busy && !state.streaming && (
           <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
-            {state.repair !== null
-              ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
-              : t("chat.thinking")}
+            {state.exploring !== null
+              ? t("chat.exploring", { n: state.exploring })
+              : state.repair !== null
+                ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
+                : t("chat.thinking")}
           </div>
         )}
       </div>

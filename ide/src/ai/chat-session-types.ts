@@ -78,6 +78,8 @@ export function initialState(settings: AiSettings | null): ChatState {
     undo: null,
     streaming: false,
     repair: null,
+    trace: [],
+    exploring: null,
     error: null,
     settings,
     configured: isConfigured(settings),

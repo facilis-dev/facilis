@@ -15,7 +15,31 @@ const DEMO_PATH = "src/chat-demo.ts";
 // No comments and no imports: a one-line module the patch validator can accept.
 const DEMO_CONTENT = 'export const chatDemo = "hello from the Facilis dev mock";\n';
 
+/** Asking the mock for "ptc"/"esplora" exercises the PTC trace without a provider key. */
+const PTC_TRIGGER = /\b(ptc|esplora)\b/i;
+const PTC_SCRIPT = "return await tools.get_project_summary();";
+
+function wantsExploration(messages: readonly AiChatTurn[]): boolean {
+  return messages.some((message) => message.role === "user" && PTC_TRIGGER.test(message.content));
+}
+
+/** The follow-up call carries the assistant's script turn, so do not loop forever. */
+function alreadyExplored(messages: readonly AiChatTurn[]): boolean {
+  return messages.some(
+    (message) => message.role === "assistant" && message.content.includes('"script"'),
+  );
+}
+
 export function mockAnswer(messages: readonly AiChatTurn[]): string {
+  if (wantsExploration(messages) && !alreadyExplored(messages)) {
+    return JSON.stringify({
+      message:
+        "Mock PTC run: I read the project summary first, then I will propose the demo file. (No model was called.)",
+      script: PTC_SCRIPT,
+      notes: ["The dev mock never calls a provider."],
+      requires_confirmation: false,
+    });
+  }
   const turnCount = messages.length;
   return JSON.stringify({
     message:

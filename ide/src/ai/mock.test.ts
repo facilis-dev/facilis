@@ -27,6 +27,24 @@ describe("mockAnswer", () => {
     expect(parsed.requires_confirmation).toBe(false);
   });
 
+  it("answers a PTC trigger with one exploration program, then with the demo patch", () => {
+    const trigger = [{ role: "user" as const, content: "esplora il progetto con ptc" }];
+    const first = mockAnswer(trigger);
+    const parsed = payload(first) as MockPayload & { script?: string };
+    expect(parsed.script).toContain("tools.get_project_summary");
+    // A script turn carries no patches (the parser accepts an omitted field too).
+    expect(parsed.patches ?? []).toEqual([]);
+
+    const followUp = mockAnswer([
+      ...trigger,
+      { role: "assistant", content: first },
+      { role: "user", content: "The program finished. Its return value (JSON): {}" },
+    ]);
+    const final = payload(followUp) as MockPayload & { script?: string };
+    expect(final.script).toBeUndefined();
+    expect(final.patches).toHaveLength(1);
+  });
+
   it("is deterministic for the same transcript", () => {
     const messages = [{ role: "user" as const, content: "hi" }];
     expect(mockAnswer(messages)).toBe(mockAnswer(messages));

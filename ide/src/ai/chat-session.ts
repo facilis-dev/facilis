@@ -8,6 +8,7 @@
 
 import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
+import { beginTraceRun, completeTraceRun } from "./chat-trace";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
 import { errorText, initialState, replayTurns } from "./chat-session-types";
@@ -83,17 +84,7 @@ export class ChatSession {
     this.controller = null;
     this.cancelled = false;
     this.resetStream();
-    this.emit({
-      phase: "idle",
-      messages: [],
-      proposal: null,
-      applied: null,
-      undo: null,
-      streaming: false,
-      repair: null,
-      error: null,
-      context: null,
-    });
+    this.emit(initialState(this.state.settings));
   }
 
   cancel(): void {
@@ -150,6 +141,8 @@ export class ChatSession {
       undo: null,
       streaming: false,
       repair: null,
+      trace: [],
+      exploring: null,
       error: null,
     });
     const abort = new AbortController();
@@ -173,6 +166,10 @@ export class ChatSession {
           this.dropStream();
           this.emit({ repair: { attempt, max } });
         },
+        onScriptStart: (program, turn) =>
+          this.emit({ exploring: turn, trace: beginTraceRun(this.state.trace, program) }),
+        onScript: (result, program) =>
+          this.emit({ exploring: null, trace: completeTraceRun(this.state.trace, result, program) }),
       });
       if (this.cancelled) return;
       if (!outcome.ok) {
@@ -209,6 +206,7 @@ export class ChatSession {
         phase: "idle",
         streaming: false,
         repair: null,
+        exploring: null,
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }

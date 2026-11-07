@@ -105,7 +105,17 @@ function capture(texts: string[], calls: CallModelInput[], onTurn?: (call: numbe
 
 const SIGNAL = new AbortController().signal;
 
-async function run(texts: string[], ptc: PtcRunner | null, calls: CallModelInput[]) {
+interface Hooks {
+  onScriptStart?: (program: string, turn: number) => void;
+  onScript?: (result: PtcRunResult, program: string) => void;
+}
+
+async function run(
+  texts: string[],
+  ptc: PtcRunner | null,
+  calls: CallModelInput[],
+  hooks: Hooks = {},
+) {
   return runTurn({
     call: capture(texts, calls),
     settings,
@@ -116,6 +126,7 @@ async function run(texts: string[], ptc: PtcRunner | null, calls: CallModelInput
     onText: () => {},
     onRepair: () => {},
     runner: ptc,
+    ...hooks,
   });
 }
 
@@ -134,6 +145,20 @@ describe("runTurn with PTC exploration", () => {
     expect(resultTurn).toContain("list_files");
     expect(outcome.parsed.response.patches).toEqual([NEW_FILE]);
     expect(outcome.trace).toHaveLength(1);
+  });
+
+  it("reports each program through the start and finish callbacks", async () => {
+    const calls: CallModelInput[] = [];
+    const started: string[] = [];
+    const finished: string[] = [];
+    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+      onScriptStart: (program, turn) => started.push(turn + ":" + program),
+      onScript: (result, program) => finished.push(program + ":" + String(result.ok)),
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(started).toEqual(["1:return 1"]);
+    expect(finished).toEqual(["return 1:true"]);
   });
 
   it("rejects a program when the runtime is off", async () => {
