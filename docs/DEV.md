@@ -201,7 +201,9 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   from the IDE page rather than from code inside the project. The tree is inlined at IDE
   build time, so restart `pnpm ide:dev` after changing the example; run
   `pnpm ide:facilis-deps` after changing packages packaged as tarballs
-  (`auth core db nitro time ui`) so the vendored versions match.
+  (`analyze auth core db nitro time`) so the vendored versions match — and recreate any
+  project created before that run: its `vendor/*.tgz` are inlined at creation time, so a
+  project keeps the tarballs it was born with.
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 
@@ -385,6 +387,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `Blocked request. This host ("…") is not allowed.` | Vite 8 Host check | `FACILIS_DEV_HOST=<host> pnpm --filter @facilis/ide dev …` |
 | UI renders but every text label is missing/blank | no system fonts for Chromium | `pnpm ide:browser`, or point `FACILIS_FONTCONFIG` at a `fonts.conf` |
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
+| `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the vendored `@facilis/*` tarballs predate a framework change, so the in-VM config is validated by an older schema: a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Regenerate the tarballs (`pnpm ide:facilis-deps`), restart `pnpm ide:dev`, then **recreate the project** — a project's `vendor/*.tgz` are inlined at creation time |
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
 | `ERR_PNPM_IGNORED_BUILDS` on a fresh install | pnpm 12 requires an explicit decision for every package with an install script | already configured in the root `pnpm-workspace.yaml` (`allowBuilds`); decide new ones there, never with an interactive `pnpm approve-builds` |
