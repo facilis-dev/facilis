@@ -18,6 +18,10 @@
 //
 // Usage: node scripts/dev/smoke-multitab.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
 //
+// Retention matches scripts/dev/smoke-ide.mjs: the newest SMOKE_KEEP_RUNS (default 5)
+// dirs are kept and older ones are pruned at the end of a run unless --keep-artifacts or
+// a pinned SMOKE_ARTIFACTS skips pruning (scripts/dev/run-artifacts.mjs).
+//
 // Prerequisites are the same as scripts/dev/smoke-ide.mjs (docs/DEV.md): the wasm kernel,
 // the vendored assets and a fetched browser. Exit code 0 = all checks passed.
 
@@ -27,6 +31,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, openPage } from "./cdp.mjs";
+import { pruneSmokeArtifacts } from "./run-artifacts.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -38,8 +43,9 @@ const URL_ = argValue("url", process.env.STUDIO_URL || "");
 const PORT = Number(process.env.SMOKE_PORT || 5201);
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 240000);
-const ARTIFACTS =
-  process.env.SMOKE_ARTIFACTS || path.join(TOOLING, "smoke-multitab", String(Date.now()));
+const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-multitab");
+const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
+const KEEP_ARTIFACTS = process.argv.includes("--keep-artifacts");
 const CHROME = process.env.FACILIS_CHROME || path.join(TOOLING, "browser/chrome/chrome");
 const SYSROOT = process.env.FACILIS_BROWSER_SYSROOT || path.join(TOOLING, "browser/sysroot");
 const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser/fonts.conf");
@@ -571,6 +577,11 @@ async function main() {
     chrome.child.kill("SIGKILL");
     stopDevServer(dev.child);
   }
+  pruneSmokeArtifacts({
+    root: ARTIFACTS_ROOT,
+    artifacts: ARTIFACTS,
+    keepArtifacts: KEEP_ARTIFACTS,
+  });
   if (failures.length > 0) {
     console.error("\nMULTI-TAB SMOKE FAILED (" + failures.length + "): " + failures.join(", "));
     process.exit(1);
