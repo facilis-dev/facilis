@@ -5,6 +5,10 @@
 // unit-testable and the session stays under the 300-line limit. The loop never writes to
 // the project: it returns either a parsed answer or the failure the chat shows.
 //
+// D-108: the loop has no counters. It ends when the merged set passes the validator, a
+// provider call fails, the user cancels, or a validator outage makes a correction useless.
+// The only way an answer reaches the project is a passing validation plus the user's Apply.
+//
 // D-106: when an answer is cut at the provider's output limit (or the model sends a large
 // set in parts with "continue": true), the loop keeps the complete patches it received and
 // asks for the rest; the merged set is what the validator sees.
@@ -19,17 +23,15 @@ import {
   emptyPatchSet,
   formatContinuation,
   formatReceived,
-  MAX_PATCH_TURNS,
+  type PatchSetState,
 } from "./patch-set";
 import {
   formatScriptResult,
-  MAX_SCRIPT_TURNS,
-  MAX_TOOL_CALLS_PER_TURN,
   type PtcRunner,
   type PtcRunResult,
   type PtcTraceEntry,
 } from "./ptc/protocol";
-import { buildRepairMessages, formatFailure, MAX_REPAIR_ATTEMPTS } from "./repair";
+import { buildRepairMessages, formatFailure } from "./repair";
 import {
   parseAiResponse,
   validateResponse,
@@ -38,14 +40,6 @@ import {
 } from "./response";
 import { salvagePatches } from "./salvage";
 import type { AiChatTurn, AiSettings, ChatFailure } from "./types";
-
-/**
- * Model calls per user message: the exploration (6), the initial set in parts (at most
- * MAX_PATCH_TURNS + the final answer) and up to three corrections that may each need a few
- * parts. The individual budgets stay the real limits; this is the backstop, and the failure
- * says what consumed the calls (D-106).
- */
-export const MAX_MODEL_CALLS = MAX_SCRIPT_TURNS + MAX_PATCH_TURNS + 1 + MAX_REPAIR_ATTEMPTS * 3;
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -56,16 +50,16 @@ export interface TurnInput {
   host: PatchValidationHost;
   signal: AbortSignal;
   onText: (chunk: string) => void;
-  /** Called before each correction request with the 1-based attempt and the cap. */
-  onRepair: (attempt: number, max: number) => void;
+  /** Called before each correction request with the 1-based attempt number. */
+  onRepair: (attempt: number) => void;
   /** The PTC tool runtime; the chat has no other mode (D-103). */
   runner: PtcRunner;
   /** Called just before an exploration program starts (1-based program number). */
-  onScriptStart?: (program: string, turn: number) => void;
+  onScriptStart?: (program: string, programNumber: number) => void;
   /** Called after each exploration program with its outcome. */
   onScript?: (result: PtcRunResult, program: string) => void;
   /** Called when another part of the same patch set is requested (1-based part). */
-  onPatches?: (part: number, max: number) => void;
+  onPatches?: (part: number) => void;
 }
 
 export type TurnOutcome =
@@ -82,10 +76,13 @@ function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
   turns.push(turn);
 }
 
-/** A validator outage (parser/analyzer) cannot be fixed by the model: no repair round. */
+/**
+ * A validator outage (parser/analyzer) cannot be fixed by the model: no repair round. One
+ * infrastructure finding is enough: the other findings cannot be trusted while the project was
+ * not fully analyzed, and a correction would retry against the same broken worker (D-105/D-108).
+ */
 function isInternalFailure(failure: AiParseFailure): boolean {
-  if (failure.findings.length === 0) return false;
-  return failure.findings.every(
+  return failure.findings.some(
     (finding) => finding.infrastructure === true || finding.rule === "project-analysis",
   );
 }
@@ -94,68 +91,19 @@ function validatorFailure(failure: AiParseFailure): TurnOutcome {
   return { ok: false, failure: { kind: "validator", message: formatFailure(failure) } };
 }
 
-function parsingFailure(failure: AiParseFailure): TurnOutcome {
-  return { ok: false, failure: { kind: "parse", message: formatFailure(failure) } };
-}
-
-/** The turn spent every model call without a final answer: say what consumed them. */
-function budgetFailure(counts: {
-  calls: number;
-  scripts: number;
-  parts: number;
-  repairs: number;
-}): TurnOutcome {
-  return {
-    ok: false,
-    failure: {
-      kind: "parse",
-      message:
-        "The assistant used its whole budget (" +
-        counts.calls +
-        " model calls: " +
-        counts.scripts +
-        " exploration program(s), " +
-        counts.parts +
-        " patch part(s), " +
-        counts.repairs +
-        " correction(s)) without a final answer. Nothing was written: try again, or split the request into smaller changes.",
-    },
-  };
-}
-
-/** The patch set spent its whole part budget without ever finishing. */
-function patchBudgetFailure(): TurnOutcome {
-  return {
-    ok: false,
-    failure: {
-      kind: "parse",
-      message:
-        "The patch set needed more than " +
-        MAX_PATCH_TURNS +
-        " parts, so it was not completed. Nothing was written: split the request into smaller changes or ask for fewer files at once.",
-    },
-  };
-}
-
 /**
- * Ask the model to fix a rejected answer. Returns a failure when the correction budget is
- * gone or the rejection is internal; otherwise appends the repair turns and returns null.
+ * Ask the model to fix a rejected answer. Returns a failure when the rejection is internal;
+ * otherwise appends the repair turns and returns null. There is no attempt cap (D-108).
  */
 async function requestRepair(
   input: TurnInput,
   failure: AiParseFailure,
-  repairs: number,
+  attempt: number,
   turns: AiChatTurn[],
 ): Promise<TurnOutcome | null> {
   if (isInternalFailure(failure)) return validatorFailure(failure);
-  if (repairs >= MAX_REPAIR_ATTEMPTS) return parsingFailure(failure);
-  const next = repairs + 1;
-  input.onRepair(next, MAX_REPAIR_ATTEMPTS);
-  const messages = await buildRepairMessages({
-    failure,
-    attempt: next,
-    max: MAX_REPAIR_ATTEMPTS,
-  });
+  input.onRepair(attempt);
+  const messages = await buildRepairMessages({ failure, attempt });
   for (const turn of messages) appendTurn(turns, turn);
   return null;
 }
@@ -163,22 +111,19 @@ async function requestRepair(
 export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   const turns: AiChatTurn[] = [...input.messages];
   const trace: PtcTraceEntry[] = [];
-  let patchSet = emptyPatchSet();
+  let patchSet: PatchSetState = emptyPatchSet();
   let repairs = 0;
   let scripts = 0;
-  let patchAnswers = 0;
-  let toolCalls = 0;
-  let modelCalls = 0;
+  let firstCall = true;
 
+  // No budget: the loop ends when the answer validates. See D-108 for why the counters that
+  // used to stop it are gone, and for the terminators that remain.
   for (;;) {
     if (input.signal.aborted) {
       return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
     }
-    if (modelCalls >= MAX_MODEL_CALLS) {
-      return budgetFailure({ calls: modelCalls, scripts, parts: patchAnswers, repairs });
-    }
-    const first = modelCalls === 0;
-    modelCalls += 1;
+    const streaming = firstCall;
+    firstCall = false;
     const result = await input.call({
       settings: input.settings,
       system: input.system,
@@ -186,7 +131,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       signal: input.signal,
       // Only the first answer streams: a rejected attempt's bubble is dropped anyway, and
       // the repair/exploration status line already tells the user what is happening.
-      ...(first ? { onText: input.onText } : {}),
+      ...(streaming ? { onText: input.onText } : {}),
     });
     if (!result.ok) return { ok: false, failure: result.failure };
 
@@ -196,7 +141,6 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       // instead of asking for everything again (the same limit would cut it again).
       const salvaged = parsed.kind === "json" ? salvagePatches(result.text) : [];
       if (salvaged.length > 0) {
-        if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
         const changed = changedPatches(patchSet, salvaged);
         patchSet = addPatches(patchSet, {
           message: "",
@@ -204,8 +148,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
           notes: [],
           requiresConfirmation: false,
         });
-        patchAnswers += 1;
-        input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
+        input.onPatches?.(patchSet.parts);
         appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
         appendTurn(turns, {
           role: "user",
@@ -218,35 +161,21 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
         });
         continue;
       }
-      const stop = await requestRepair(input, parsed, repairs, turns);
+      const stop = await requestRepair(input, parsed, repairs + 1, turns);
       if (stop !== null) return stop;
       repairs += 1;
       continue;
     }
 
     if (parsed.response.script !== undefined) {
-      if (scripts >= MAX_SCRIPT_TURNS) {
-        return {
-          ok: false,
-          failure: {
-            kind: "parse",
-            message:
-              "The assistant exceeded the exploration budget (" + MAX_SCRIPT_TURNS + " programs).",
-          },
-        };
-      }
       const program = parsed.response.script;
       const turnNumber = scripts + 1;
       input.onScriptStart?.(program, turnNumber);
-      const run = await input.runner.run(program, {
-        signal: input.signal,
-        toolCallBudget: MAX_TOOL_CALLS_PER_TURN - toolCalls,
-      });
+      const run = await input.runner.run(program, { signal: input.signal });
       if (input.signal.aborted) {
         return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
       }
       scripts = turnNumber;
-      toolCalls += run.toolCalls;
       trace.push(...run.trace);
       input.onScript?.(run, program);
       appendTurn(turns, { role: "assistant", content: result.text });
@@ -256,10 +185,8 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
 
     const changed = changedPatches(patchSet, parsed.response.patches);
     patchSet = addPatches(patchSet, parsed.response);
-    patchAnswers += 1;
     if (parsed.response.continue === true) {
-      if (patchSet.parts >= MAX_PATCH_TURNS) return patchBudgetFailure();
-      input.onPatches?.(patchSet.parts, MAX_PATCH_TURNS);
+      input.onPatches?.(patchSet.parts);
       appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
       appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet, changed }) });
       continue;
@@ -273,7 +200,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       // The rejected set is kept: a correction may re-emit only the files it changes, and
       // the untouched files stay part of the answer (D-106).
       patchSet = beginCorrection(patchSet);
-      const stop = await requestRepair(input, checked, repairs, turns);
+      const stop = await requestRepair(input, checked, repairs + 1, turns);
       if (stop !== null) return stop;
       repairs += 1;
       continue;

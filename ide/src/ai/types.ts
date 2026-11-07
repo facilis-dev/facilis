@@ -122,8 +122,6 @@ export type ChatFailureKind =
   | "stream"
   | "empty"
   | "unsupported"
-  /** The answer arrived but was not a usable AIResponse (parse/validation). */
-  | "parse"
   /** The validator's own parser/analyzer was unavailable: not the model's mistake. */
   | "validator";
 
@@ -176,15 +174,15 @@ export interface ChatState {
   streaming: boolean;
   /**
    * The rejected answer is being re-asked with the validator findings (SPEC §9.4).
-   * `attempt` is 1-based; null while no repair is running.
+   * `attempt` is 1-based; null while no repair is running (D-108: no attempt cap).
    */
-  repair: { attempt: number; max: number } | null;
-  /** The PTC exploration of the current turn (D-101); empty when the runtime is off. */
+  repair: { attempt: number } | null;
+  /** The PTC exploration of the current turn (D-101); empty before the first program. */
   trace: ChatTraceRun[];
   /** The 1-based exploration program currently running, or null. */
   exploring: number | null;
   /** A patch set arriving in parts (D-106): the 1-based part requested, or null. */
-  patchParts: { part: number; max: number } | null;
+  patchParts: { part: number } | null;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;

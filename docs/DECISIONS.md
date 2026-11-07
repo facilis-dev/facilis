@@ -3558,7 +3558,8 @@ learned what to fix — the user could only retype the request and hope for a di
 **Decision.** The retry loop is implemented in the IDE chat, not in `@facilis/ai`.
 
 - `runTurn()` in `ide/src/ai/turn.ts` re-asks the model on a rejected answer up to
-  `MAX_REPAIR_ATTEMPTS = 2` (§9.4's worst case is 3 attempts total). The validator package
+  `MAX_REPAIR_ATTEMPTS = 2` (§9.4's worst case is 3 attempts total; D-108 later removed the
+  counter). The validator package
   stays a pure, synchronous function: it knows nothing about provider calls, messages or the VFS.
 - A rejected answer is any failure, not only a validator error: unparseable JSON, an
   `AIResponse` contract violation or a rule violation. `AiParseFailure` carries the structured
@@ -3610,7 +3611,8 @@ lossless JSON; the final answer is still the existing `AIResponse`, its patches 
 - **Protocol (PTC pure):** one JSON object per turn, `script` XOR `patches`; the program is an
   async function body with `tools` as the only injected global; the run outcome (value or typed
   error) goes back as one user turn. Bounds: 6 script turns per message, 32 tool calls per
-  program, 5 s wall, per-result and per-turn caps. No native function-calling mode in phase 1.
+  program, 5 s wall, per-result and per-turn caps (D-108 later removed the counters; the 5 s wall
+  and the size caps remain). No native function-calling mode in phase 1.
 - **Sandbox:** sandboxed iframe (opaque origin) + one blob Worker per program; the iframe relays
   `{ id, tool, args }` to the IDE, which enforces path/secret/capability policy, caps and
   logging, and can drop the frame when the worker is unresponsive. The runner page is served
@@ -3658,6 +3660,7 @@ validation that works per file and repeats more often.
 
 - **Three corrections** after the first answer (`MAX_REPAIR_ATTEMPTS = 3`; `MAX_MODEL_CALLS`
   becomes 6 programs + 3 corrections + the answer = 10). The script budget is unchanged.
+  (Superseded by D-108: the correction, part, program and call counters are all gone.)
 - **Validation stays set-level; the feedback becomes per-file.** Per-file *validation* is not
   sound: the 16 rules include cross-patch rules (a route may reference a table added in the same
   set, a permission may be added to the config in the same set, a schema rewrite interacts with
@@ -3678,16 +3681,19 @@ validation that works per file and repeats more often.
 
 **Rejected alternatives.** *Validate each patch in isolation*: false positives on the cross-patch
 rules; the validator's contract is the resulting project. *Unbounded retries*: token cost; three
-rounds plus a grouped plan cover the observed failures. *Native tool calling instead of PTC*: out
-of scope (D-101).
+rounds plus a grouped plan cover the observed failures — **superseded by D-108**: the gate is
+validity, so retries are unbounded and the counters are gone. *Native tool calling instead of PTC*:
+out of scope (D-101).
 
-**Consequences.** Worst case ten model calls per user message; the repair prompt gains a plan and
-a touched-file list, bounded by the existing caps. The final validator remains the only boundary
+**Consequences.** Worst case ten model calls per user message (superseded by D-108: no call cap,
+no correction cap); the repair prompt gains a plan and a touched-file list, bounded by the
+existing size caps. The final validator remains the only boundary
 by design: the goal is that the model validates its own set first and the user rarely sees a
 rejection.
 
-**Verification.** `repair.test.ts` (root-cause ordering, plan, touched files, cap),
-`chat-session-repair.test.ts` (four-call exhaustion, three correction attempts),
+**Verification.** `repair.test.ts` (root-cause ordering, plan, touched files, report cap),
+`chat-session-repair.test.ts` (multi-correction until valid, role folding; D-108 removed the
+attempt-count expectations),
 `prompt.test.ts` (canonical shapes, object args, return rule, script contract),
 `turn.test.ts` (no-value hint); full gates green.
 
@@ -3791,25 +3797,23 @@ just too large for one answer.
 - The model may split a set: every part is a complete `AIResponse`, and `"continue": true` marks
   every part but the last. `ide/src/ai/turn.ts` merges the parts by path (a later part may correct
   a file), ORs `requires_confirmation`, keeps the notes and validates the merged set once
-  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n/6)". The part
-  budget is 6 per answer set — the initial set and each correction start over — and a part without
-  patches still needs a message.
+  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n)". The part
+  count is informational only: D-108 removed the per-answer part quota, so the loop keeps asking
+  until a last part arrives; a part without patches still needs a message.
 - A correction **keeps the rejected set** (`beginCorrection` in `patch-set.ts`): the model re-emits
   only the files the findings name, files it omits keep their rejected patch, and `"delete"` drops
   one. This is what keeps a correction cheap: a fix to two files of a three-part set is one answer,
   not another three parts.
-- The model-call backstop is 22 per user message (6 exploration programs + 6 parts + the final
-  answer + up to 3 corrections × 3 calls). When it runs out the failure reports what consumed the
-  calls ("N model calls: X exploration program(s), Y patch part(s), Z correction(s)"), so the
-  budgets can be tuned from a real turn instead of a guess. A part that only repeats files already
-  received gets an explicit continuation line instead of silently spending calls.
+- A part that only repeats files already received gets an explicit continuation line instead of
+  silently spending calls. (D-106 originally also capped the turn at 22 model calls and 6 parts;
+  D-108 deleted every counter.)
 - A cut answer is not thrown away: `ide/src/ai/salvage.ts` scans the `patches` array with a
   string-aware brace scan and keeps the complete patch objects before the cut; the turn asks for
   the rest with the list of files already received (their content is not re-sent). If no complete
   patch survives, the repair report gains a "## The answer was cut off" section with the part
   protocol instead of only the raw JSON error.
 - The system prompt, the repair contract and the new large-set guidance tell the model to keep an
-  answer under the output limit and send at most 2–3 files per part.
+  answer under the output limit and send as many complete files as fit (usually 2–4).
 
 **Rejected alternatives.** *Raise `max_tokens`*: provider- and model-dependent (Anthropic
 rejects values above the model's limit) and the set already exceeds a conservative cap. *Retry
@@ -3823,12 +3827,12 @@ the part advice), with the raw JSON error as detail only. The conversation stays
 part is recorded as a synthetic assistant turn listing its paths, not the raw part content, which
 would push the next request over the context window. A correction is usually a single call
 because it merges, so the common large-feature turn costs one exploration pass, two or three parts
-and one correction; six parts of ~8k tokens remain the worst case for one answer.
+and one correction; with the part quota gone (D-108) the number of parts is whatever the set needs.
 
 **Verification.** `salvage.test.ts` (cut tail, brace inside content, missing separator, malformed
-element), `response.test.ts` (continue contract, truncation detection), `turn.test.ts` (merge,
-merge of a correction that re-emits one file, salvage continuation, part and model-call budgets,
-the reported counter breakdown), `chat-session-repair.test.ts` (part progress in the chat state),
+element), `response.test.ts` (continue contract, truncation detection), `turn-parts.test.ts`
+(merge, a correction that re-emits one file, salvage continuation, a nine-part set),
+`chat-session-repair.test.ts` (part progress in the chat state),
 `client.test.ts`/`provider.test.ts` (stop reasons); full gates green.
 
 ### D-107 — Background jobs: a durable queue on framework primitives, not Nitro's tasks
@@ -3925,6 +3929,60 @@ still rejects an empty string. The example app exercises it end-to-end in
 `examples/todo-app/scripts/verify-headless.sh`: enqueue with a future `runAt`, read it back
 `queued`, cancel it, read it back `cancelled`. The Lead's final root gates
 (`lint`/`typecheck`/`test`/`build`) are the release check.
+
+---
+
+### D-108 — The turn loop has no call, part or correction budgets
+**Status:** accepted (2026-11-07)
+
+The chat kept dead-ending on its own counters: a large request exhausted the 6-part budget
+("The patch set needed more than 6 parts, so it was not completed"), exploration exhausted the
+6-program budget, and a set that kept failing exhausted the 3-correction budget ("the assistant
+could not produce a valid patch set"). Each was a hard stop before the model could finish. The
+user's verdict: the counters are meaningless at this point — the only thing that matters is the
+validity check.
+
+**Decision.** Delete every conversation counter from the turn loop (`ide/src/ai/turn.ts`):
+
+- no part quota: `MAX_PATCH_TURNS` is gone; a set may take as many parts as it needs (D-106's
+  merge, salvage and continuation stay);
+- no model-call backstop: `MAX_MODEL_CALLS` is gone;
+- no exploration quota: `MAX_SCRIPT_TURNS` is gone; the model may run as many programs as it
+  needs;
+- no tool-call quotas: `MAX_TOOL_CALLS_PER_RUN`, `MAX_TOOL_CALLS_PER_TURN` and
+  `PtcRunOptions.toolCallBudget` are gone;
+- no correction quota: `MAX_REPAIR_ATTEMPTS` is gone (`repair.ts` still caps one report at 40
+  findings and echoes at most 20 000 chars of the rejected answer — size caps, not counts).
+
+The loop ends only on: the merged set passing the §9.3 validator, a provider/transport failure,
+the user's Stop (abort), or a validator outage (an internal failure the model cannot fix, D-105).
+The chat keeps numbering what it shows — `part N`, `attempt N`, program N — because numbering is
+progress, not a budget: `ChatState.patchParts = { part }` and `ChatState.repair = { attempt }`,
+and the i18n labels lost their `/{max}` placeholders.
+
+**Kept, deliberately, because they bound resources rather than the conversation:** the sandbox's
+per-program wall clock (`RUN_TIMEOUT_MS`, 5 s), the program source cap (`MAX_PROGRAM_CHARS`,
+16 KB), the run-result cap (`MAX_TOOL_RESULT_CHARS`, 64 KB), the trace-argument cap, and the
+finding/echo caps above. The user's Stop button aborts the provider request and the sandbox.
+`HISTORY_LIMIT = 20` in `chat-session.ts` stays too: it bounds how much conversation is
+*replayed* on the next message, not how long the current turn may run.
+
+**Rejected alternatives.** *A very high counter* (say 100 calls) produces the same dead end later;
+the user asked for validity to be the gate, not a bigger number. *Applying a partial set when the
+parts run out*: an incomplete set is not a project state (cross-file rules), and Apply is the only
+write path. *A no-progress detector*: it is another count that can stop legitimate work; the model
+already gets an explicit "none of these files is new" continuation line.
+
+**Consequences.** A big feature — the attachment request that started this — completes without a
+part quota, and a model that keeps producing invalid JSON keeps being corrected until the provider
+context window or the user stops it: that error is the natural outer bound. The old failure
+messages are gone with the counters. The prompt, the repair report and the continuation turn no
+longer advertise a quota; they ask for as many complete files as fit in one answer.
+
+**Verification.** `turn.test.ts` (ten exploration programs before the answer), `turn-parts.test.ts`
+(nine parts in one set), `chat-session*.test.ts` (four corrections, parts progress, no dead end on
+a rejected set), `repair.test.ts` (no attempt count in the report), `ptc/runner.test.ts` (every
+tool call served), `prompt.test.ts` (no quotas advertised); i18n parity; full gates green.
 
 ---
 

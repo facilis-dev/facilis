@@ -39,8 +39,6 @@ function errorText(failure: ChatFailure): string {
       return t("chat.error.empty");
     case "unsupported":
       return t("chat.error.unsupported");
-    case "parse":
-      return t("chat.parse.error");
     case "validator":
       return t("chat.error.validator");
   }
@@ -103,14 +101,14 @@ export function ChatPanel() {
     state.exploring !== null
       ? t("chat.exploring", { n: state.exploring })
       : state.repair !== null
-        ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
+        ? t("chat.repairing", { attempt: state.repair.attempt })
         : state.patchParts !== null
-          ? t("chat.patchParts", { part: state.patchParts.part, max: state.patchParts.max })
+          ? t("chat.patchParts", { part: state.patchParts.part })
           : state.phase === "applying"
-          ? t("chat.applying")
-          : state.streaming
-            ? t("chat.streaming")
-            : t("chat.thinking");
+            ? t("chat.applying")
+            : state.streaming
+              ? t("chat.streaming")
+              : t("chat.thinking");
 
   const submit = () => {
     const text = draft.trim();
@@ -190,8 +188,10 @@ export function ChatPanel() {
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                 <p className="font-medium text-destructive">{errorText(state.error)}</p>
-                {(state.error.kind === "parse" || state.error.kind === "validator") && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">{t("chat.parse.hint")}</p>
+                {state.error.kind === "validator" && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {t("chat.validator.hint")}
+                  </p>
                 )}
                 {state.error.message.length > 0 && (
                   <details className="mt-1 text-[10px] text-muted-foreground">

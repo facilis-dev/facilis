@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { CallModelInput } from "./client";
-import { MAX_PATCH_TURNS } from "./patch-set";
-import { MAX_SCRIPT_TURNS } from "./ptc/protocol";
-import { MAX_MODEL_CALLS } from "./turn";
 import {
   answer,
   NEW_FILE,
@@ -12,7 +9,6 @@ import {
   ROUTE_FIXED,
   run,
   runner,
-  script,
   SECOND_FILE,
 } from "./turn-fixtures";
 
@@ -31,41 +27,32 @@ describe("runTurn with a patch set sent in parts (D-106)", () => {
     expect(outcome.parsed.response.patches).toEqual([NEW_FILE, ROUTE_FIXED]);
   });
 
-  it("reports what consumed the model-call budget", async () => {
+  it("keeps going past the old six-part limit (D-108)", async () => {
     const calls: CallModelInput[] = [];
-    const texts: string[] = [];
-    for (let index = 0; index < MAX_SCRIPT_TURNS; index += 1) texts.push(script("return 1"));
-    // Answers in parts, each ending in an invalid set: the third correction runs out of calls.
-    for (let round = 0; round < 4; round += 1) {
-      for (let index = 0; index < MAX_PATCH_TURNS - 1; index += 1) {
-        texts.push(part([NEW_FILE], { continue: true }));
-      }
-      texts.push(answer([ROUTE]));
-    }
-    const outcome = await run(texts, runner(okRun(1)), calls);
+    const texts = Array.from({ length: 9 }, () => part([NEW_FILE], { continue: true }));
+    texts.push(answer([SECOND_FILE]));
+    const outcome = await run(texts, runner(okRun(null, 0)), calls);
 
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.message).toContain("whole budget");
-    expect(outcome.failure.message).toContain("exploration program");
-    expect(outcome.failure.message).toContain("patch part");
-    expect(calls).toHaveLength(MAX_MODEL_CALLS);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(calls).toHaveLength(10);
+    expect(outcome.parsed.response.patches).toEqual([NEW_FILE, SECOND_FILE]);
   });
 
   it("merges the parts and validates the complete set", async () => {
     const calls: CallModelInput[] = [];
-    const seen: { part: number; max: number }[] = [];
+    const seen: { part: number }[] = [];
     const outcome = await run(
       [part([NEW_FILE], { continue: true }), answer([SECOND_FILE])],
       runner(okRun(null, 0)),
       calls,
-      { onPatches: (partNumber, max) => seen.push({ part: partNumber, max }) },
+      { onPatches: (partNumber) => seen.push({ part: partNumber }) },
     );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(calls).toHaveLength(2);
-    expect(seen).toEqual([{ part: 1, max: MAX_PATCH_TURNS }]);
+    expect(seen).toEqual([{ part: 1 }]);
     expect(outcome.parsed.response.patches).toEqual([NEW_FILE, SECOND_FILE]);
     const continuation = calls[1]?.messages.at(-1)?.content ?? "";
     expect(continuation).toContain("Continue the patch set");
@@ -88,16 +75,5 @@ describe("runTurn with a patch set sent in parts (D-106)", () => {
     expect(outcome.parsed.response.patches).toEqual([NEW_FILE, SECOND_FILE]);
     expect(calls[1]?.messages.at(-1)?.content).toContain("cut off");
     expect(calls[1]?.messages.at(-1)?.content).toContain("src/second.ts (create)");
-  });
-
-  it("stops when the patch set needs more parts than the budget allows", async () => {
-    const calls: CallModelInput[] = [];
-    const outcome = await run([part([NEW_FILE], { continue: true })], runner(okRun(null, 0)), calls);
-
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.kind).toBe("parse");
-    expect(outcome.failure.message).toContain("more than " + MAX_PATCH_TURNS);
-    expect(calls).toHaveLength(MAX_PATCH_TURNS);
   });
 });

@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { FilePatch } from "@facilis/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
-import { MAX_PATCH_TURNS } from "./patch-set";
-import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import type { CallModelInput } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
 import type { AiSettings } from "./types";
@@ -33,7 +31,11 @@ function answer(patch?: FilePatch): string {
   });
 }
 
-const NEW_FILE: FilePatch = { path: "src/new.ts", action: "create", content: "export const x = 1;\n" };
+const NEW_FILE: FilePatch = {
+  path: "src/new.ts",
+  action: "create",
+  content: "export const x = 1;\n",
+};
 
 interface Harness {
   host: ChatHost;
@@ -84,7 +86,7 @@ const ROUTE_FIXED: FilePatch = {
   ...ROUTE_PATCH,
   content:
     'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
-    'export default defineAuthorizedHandler({ dbTables: [], permission: [] }, async () => null);\n',
+    "export default defineAuthorizedHandler({ dbTables: [], permission: [] }, async () => null);\n",
 };
 
 function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSession {
@@ -93,7 +95,7 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
     loadSettings: () => settings,
     saveSettings: () => {},
     now: () => 1,
-      runner: EMPTY_RUNNER,
+    runner: EMPTY_RUNNER,
   });
 }
 
@@ -112,7 +114,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.messages.map((turn) => turn.role)).toEqual(["user", "assistant", "user"]);
     expect(calls[1]?.messages[1]?.content).toBe("not json at all");
-    expect(calls[1]?.messages[2]?.content).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
+    expect(calls[1]?.messages[2]?.content).toContain("correction attempt 1");
     expect(calls[1]?.messages[2]?.content).toContain("## Response contract");
     expect(state.error).toBeNull();
     expect(state.repair).toBeNull();
@@ -140,7 +142,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
   });
 
   it("reports the repair in progress while it runs", async () => {
-    const seen: ({ attempt: number; max: number } | null)[] = [];
+    const seen: ({ attempt: number } | null)[] = [];
     const chat = sessionWith(async (input) => {
       seen.push(chat.getSnapshot().repair);
       return input.messages.length === 1
@@ -150,59 +152,52 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
 
     await chat.send("add");
     expect(seen[0]).toBeNull();
-    expect(seen[1]).toEqual({ attempt: 1, max: MAX_REPAIR_ATTEMPTS });
+    expect(seen[1]).toEqual({ attempt: 1 });
     expect(chat.getSnapshot().repair).toBeNull();
   });
 
-  it("gives up after the configured attempts and writes nothing", async () => {
+  it("keeps correcting until the answer validates, writing nothing before that", async () => {
     const harness = fakeHost();
     const calls: CallModelInput[] = [];
     const chat = sessionWith(async (input) => {
       calls.push(input);
-      input.onText?.('{"message":"partial');
-      return { ok: true, text: "still not json" };
+      if (calls.length < 4) return { ok: true, text: "still not json" };
+      return { ok: true, text: answer(NEW_FILE) };
     }, harness.host);
 
     await chat.send("add");
     const state = chat.getSnapshot();
-    expect(calls).toHaveLength(MAX_REPAIR_ATTEMPTS + 1);
-    expect(state.error?.kind).toBe("parse");
-    expect(state.error?.message.length).toBeGreaterThan(0);
-    expect(state.proposal).toBeNull();
-    expect(state.messages).toHaveLength(1);
+    // D-108: no attempt cap, so three rejected answers get three corrections.
+    expect(calls).toHaveLength(4);
+    expect(state.error).toBeNull();
+    expect(state.proposal?.files[0]?.patch).toEqual(NEW_FILE);
     expect(state.repair).toBeNull();
     expect(harness.writes).toEqual([]);
   });
 
-  it("shows the findings when even the repairs keep failing", async () => {
-    const repairs: ({ attempt: number; max: number } | null)[] = [];
-    const chat = sessionWith(async () => {
+  it("keeps feeding findings back across many corrections (D-108)", async () => {
+    const repairs: ({ attempt: number } | null)[] = [];
+    const calls: CallModelInput[] = [];
+    const chat = sessionWith(async (input) => {
+      calls.push(input);
       repairs.push(chat.getSnapshot().repair);
-      return { ok: true, text: answer(ROUTE_PATCH) };
+      return calls.length < 5
+        ? { ok: true, text: answer(ROUTE_PATCH) }
+        : { ok: true, text: answer(ROUTE_FIXED) };
     });
 
     await chat.send("add a route");
     const state = chat.getSnapshot();
-    expect(repairs).toEqual([
-      null,
-      ...Array.from({ length: MAX_REPAIR_ATTEMPTS }, (_, index) => ({
-        attempt: index + 1,
-        max: MAX_REPAIR_ATTEMPTS,
-      })),
-    ]);
-    expect(state.error?.kind).toBe("parse");
-    expect(state.error?.message).toContain("permission-valid");
-    expect(state.error?.message).toContain("Fix:");
-    expect(state.proposal).toBeNull();
+    expect(repairs).toEqual([null, { attempt: 1 }, { attempt: 2 }, { attempt: 3 }, { attempt: 4 }]);
+    expect(state.error).toBeNull();
+    expect(state.proposal?.files[0]?.patch).toEqual(ROUTE_FIXED);
   });
 
   it("keeps alternating roles when the rejected answer was empty", async () => {
     const calls: CallModelInput[] = [];
     const chat = sessionWith(async (input) => {
       calls.push(input);
-      return calls.length === 1
-        ? { ok: true, text: "   " }
-        : { ok: true, text: answer(NEW_FILE) };
+      return calls.length === 1 ? { ok: true, text: "   " } : { ok: true, text: answer(NEW_FILE) };
     });
 
     await chat.send("add a file");
@@ -214,9 +209,13 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
   });
 
   it("keeps a patch set sent in parts and reports each part", async () => {
-    const second: FilePatch = { path: "src/two.ts", action: "create", content: "export const y = 2;\n" };
+    const second: FilePatch = {
+      path: "src/two.ts",
+      action: "create",
+      content: "export const y = 2;\n",
+    };
     const calls: CallModelInput[] = [];
-    const parts: ({ part: number; max: number } | null)[] = [];
+    const parts: ({ part: number } | null)[] = [];
     const chat = sessionWith(async (input) => {
       calls.push(input);
       parts.push(chat.getSnapshot().patchParts);
@@ -236,7 +235,7 @@ describe("ChatSession repair loop (SPEC §9.4)", () => {
 
     await chat.send("add two files");
     const state = chat.getSnapshot();
-    expect(parts).toEqual([null, { part: 1, max: MAX_PATCH_TURNS }]);
+    expect(parts).toEqual([null, { part: 1 }]);
     expect(calls).toHaveLength(2);
     expect(calls[1]?.messages.at(-1)?.content).toContain("Continue the patch set");
     expect(state.patchParts).toBeNull();

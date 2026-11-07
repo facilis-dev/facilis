@@ -29,7 +29,7 @@ export interface PromptContext {
   configFile: { path: string; content: string } | null;
   /** The user's AGENTS.md, when the project has one (D-048). */
   instructions: { path: string; content: string } | null;
-  /** PTC tool specs; empty when the runtime is off (D-101). */
+  /** PTC tool specs; empty only in tests (the chat always has the runtime, D-103). */
   tools?: readonly PtcToolSpec[];
 }
 
@@ -45,7 +45,7 @@ const PTC_PROMPT = [
   "- The script is raw JavaScript inside the JSON string: no prose and no markdown fences.",
   "- Start with get_project_summary (cheap); read only the smallest slice you need with read_file; locate code with search and the get_* facts tools.",
   "- Before re-emitting a file, read_file it. Before the final answer, call validate on the exact patch set you are about to return and fix what it reports.",
-  "You then receive one user turn with the result (or a typed failure that names the tool and its signature) and may run another program (at most 6 per request) or answer with the normal AIResponse. The framework validates the final answer again; validate is your self-check, not a replacement.",
+  "You then receive one user turn with the result (or a typed failure that names the tool and its signature) and may run another program or answer with the normal AIResponse. There is no exploration quota; the final answer is accepted only once the framework's validation passes, so validate is your self-check, not a replacement.",
   "Tools:",
 ].join("\n");
 
@@ -124,14 +124,15 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 
 ## Large patch sets
 The provider cuts an answer at its output limit (often ~8,000 tokens, roughly 25,000 characters). A patch set that would exceed it must be split:
-- Send at most 2-3 complete files per answer.
+- Send as many complete files as fit in one answer (usually 2-4); never go past the output limit.
 - Every part is a complete JSON object in the shape above; set "continue": true on every part but the last.
 - The last part omits "continue"; it may carry no patches if every file was already sent, and its message describes the whole change.
+- There is no part quota: keep sending parts until the set is complete.
 - The framework validates all parts together; when the set is split, validate is only useful for what fits in one program, so read_file every file before re-emitting it instead.
 
 ## Validation repair
 If the latest user message says your previous answer was rejected, it is a validation repair report, not a new request: fix every finding it lists and return the corrected AIResponse JSON object in the same shape as above. The corrected files are merged into the rejected set: re-emit only the files that need the fix (each with its complete content), emit action "delete" to drop a file, and the files you omit keep their current patch. Send the correction in parts with "continue": true if it is large.
-- The report gives the rule, file, message, fix_hint and line/excerpt of each finding, plus either the current content of the files your rejected patches tried to update (when the tool runtime is off) or the instruction to read them with the tools. Treat the given content as the source of truth.
+- The report gives the rule, file, message, fix_hint and line/excerpt of each finding and tells you to read the implicated files with the tools. The content the tools return is the source of truth.
 - When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
 - Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.
 - If the corrected set is too large for one answer, send it in parts with "continue": true (Large patch sets).`;

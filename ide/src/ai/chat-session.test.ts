@@ -1,84 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
-import { analyzeHostFiles } from "./analysis-fixtures";
-import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
-import type { PtcRunner } from "./ptc/protocol";
-import type { AiSettings } from "./types";
-
-/** The chat has no non-PTC mode (D-103); these sessions never explore, so specs are empty. */
-const EMPTY_RUNNER: PtcRunner = {
-  specs: () => [],
-  run: async () => ({ ok: true, value: null, toolCalls: 0, elapsedMs: 0, trace: [] }),
-  dispose: () => {},
-};
-
-const root = "/home/user/project";
-
-const settings: AiSettings = {
-  providerId: "custom",
-  apiKey: "sk-test",
-  model: "test-model",
-  baseUrl: "http://provider.test/v1",
-};
-
-function answer(patch?: FilePatch): string {
-  return JSON.stringify({
-    message: "Here is the change.",
-    patches: patch ? [patch] : [],
-    notes: ["A note"],
-    requires_confirmation: false,
-  });
-}
-
-interface Harness {
-  host: ChatHost;
-  writes: string[];
-}
-
-function fakeHost(): Harness {
-  const writes: string[] = [];
-  const files = () => ["facilis.config.ts", "src/App.tsx"];
-  const read = async (path: string) =>
-    path === "src/App.tsx"
-      ? "export const App = () => null;\n"
-      : path === "facilis.config.ts"
-        ? "export default {};\n"
-        : "";
-  return {
-    writes,
-    host: {
-      root: () => root,
-      bridge: {
-        async request(type, extra) {
-          writes.push(type + ":" + String(extra?.path ?? ""));
-          return { ok: true };
-        },
-      },
-      files,
-      read,
-      analyze: (patches) => analyzeHostFiles(files(), read, patches),
-      activeFile: async () => null,
-      manifestBase: () => null,
-      // Rule 1's parser in unit tests: no syntax findings (the fake VFS has no project).
-      syntaxChecker: () => ({ check: async () => [] }),
-      openFile: () => {},
-    },
-  };
-}
-
-function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSession {
-  return new ChatSession(host, {
-    call,
-    loadSettings: () => settings,
-    saveSettings: () => {},
-    now: () => 1,
-      runner: EMPTY_RUNNER,
-  });
-}
-
-function createNewFile(): FilePatch {
-  return { path: "src/new.ts", action: "create", content: "x\n" };
-}
+import { ChatSession } from "./chat-session";
+import {
+  answer,
+  createNewFile,
+  EMPTY_RUNNER,
+  fakeHost,
+  root,
+  sessionWith,
+  settings,
+} from "./chat-session-fixtures";
 
 describe("ChatSession", () => {
   it("turns an answer into a reviewable proposal without writing", async () => {
@@ -182,45 +112,57 @@ describe("ChatSession", () => {
     expect(state.messages.at(-1)?.role).toBe("assistant");
   });
 
-  it("drops the partial bubble when the answer cannot be parsed", async () => {
+  it("drops the partial bubble when the first answer cannot be parsed", async () => {
+    let calls = 0;
     const chat = sessionWith(async (input) => {
-      input.onText?.('{"message":"partial');
-      return { ok: true, text: "not json at all" };
+      calls += 1;
+      if (calls === 1) {
+        input.onText?.('{"message":"partial');
+        return { ok: true, text: "not json at all" };
+      }
+      return { ok: true, text: answer(createNewFile()) };
     });
     await chat.send("hi");
     const state = chat.getSnapshot();
-    expect(state.messages).toHaveLength(1);
     expect(state.streaming).toBe(false);
-    expect(state.error?.kind).toBe("parse");
+    expect(state.error).toBeNull();
+    expect(state.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
+    expect(state.messages.some((message) => message.content.includes("partial"))).toBe(false);
+    expect(state.proposal).not.toBeNull();
   });
 
-  it("reports an unusable answer as a parse failure and keeps the turn", async () => {
-    const chat = sessionWith(async () => ({ ok: true, text: "sorry, no JSON" }));
+  it("keeps asking for a usable answer instead of failing the turn (D-108)", async () => {
+    let calls = 0;
+    const chat = sessionWith(async () => {
+      calls += 1;
+      return calls < 3
+        ? { ok: true, text: "sorry, no JSON" }
+        : { ok: true, text: answer(createNewFile()) };
+    });
     await chat.send("add");
     const state = chat.getSnapshot();
-    expect(state.error?.kind).toBe("parse");
-    expect(state.messages).toHaveLength(1);
-    expect(state.proposal).toBeNull();
+    expect(calls).toBe(3);
+    expect(state.error).toBeNull();
+    expect(state.proposal).not.toBeNull();
   });
 
   it("folds consecutive user turns after a failed answer so roles alternate", async () => {
     const calls: { messages: readonly { role: string; content: string }[] }[] = [];
+    let first = true;
     const chat = sessionWith(async (input) => {
       calls.push(input);
-      // Keep failing until the second user request (the repair turns still name the first).
-      const second = input.messages.some(
-        (turn) => turn.role === "user" && turn.content.includes("second request"),
-      );
-      return second
-        ? { ok: true, text: answer(createNewFile()) }
-        : { ok: true, text: "not json" };
+      if (first) {
+        first = false;
+        return { ok: false, failure: { kind: "network", message: "offline" } };
+      }
+      return { ok: true, text: answer(createNewFile()) };
     });
 
     await chat.send("first request");
-    expect(chat.getSnapshot().error?.kind).toBe("parse");
+    expect(chat.getSnapshot().error?.kind).toBe("network");
     await chat.send("second request");
 
-    // The failed turn never became an assistant bubble; Anthropic requires alternating roles.
+    // The failed turn never became an assistant bubble; the replay keeps roles alternating.
     const replayed = calls.at(-1)?.messages ?? [];
     expect(replayed.map((turn) => turn.role)).toEqual(["user"]);
     expect(replayed[0]?.content).toContain("first request");
@@ -268,7 +210,7 @@ describe("ChatSession", () => {
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
-      runner: EMPTY_RUNNER,
+        runner: EMPTY_RUNNER,
       },
     );
     await chat.openInstructions();
@@ -290,7 +232,7 @@ describe("ChatSession", () => {
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
-      runner: EMPTY_RUNNER,
+        runner: EMPTY_RUNNER,
       },
     );
     await chat.openInstructions();

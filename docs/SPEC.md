@@ -189,7 +189,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
                                     ▼
                              Patch Validator
                                     │
-                              (ok)  │  (errors) ──→ Retry (max 2)
+                              (ok)  │  (errors) ──→ Retry (until valid)
                                     ▼
                         IdeController.applyPatch()
                                     │
@@ -1812,7 +1812,7 @@ Rules the AI must obey:
 5. Use existing blocks; do not create new ones unprompted
 6. All strings via `t("key")`
 7. Minimal patches; match existing style
-8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106)
+8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106; no part quota, D-108)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 
 ### 9.3 Patch Validator (16 Rules)
@@ -1862,12 +1862,14 @@ findings feed the §9.4 repair loop.
 ### 9.4 Retry Loop
 
 ```
-Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → (errors) → retry 3 → fail
+Turn 1 → AI responds → validate → (errors) → correct → validate → … until the validator passes
 ```
 
 **Status (2026-11-07): implemented** in the IDE chat (D-100, hardened by D-102).
 
-- **Max 3 retries** (4 attempts total). Worst case 4× initial token cost.
+- **No attempt cap (D-108).** A rejected answer is corrected until the validator passes. The loop
+  ends only on a passing set, a provider/transport failure, the user's Stop, or a validator outage
+  (D-105). There is no model-call, exploration, part or correction counter.
 - **Any rejected answer starts a repair**, not only a validator error: unparseable JSON, an
   `AIResponse` contract violation or a rule violation all re-ask the model.
 - **The repair request is one user-role turn** carrying a **fix plan grouped by file, root cause
@@ -1884,27 +1886,28 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
   tools, not from prompt-stuffed content (D-101/D-102).
 - **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
-  the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
-  progress to the UI.
+  the repair messages and the provider calls. `state.repair = { attempt }` exposes the progress
+  to the UI (a number, not a budget).
 - **Validator outages are not repairs.** A finding marked `infrastructure` — rule 1's parser or
   the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
   temporarily unavailable and nothing is written; no correction round is spent asking the model
   to fix a worker (D-105).
 - **Large patch sets arrive in parts (D-106).** A provider cuts an answer at its output limit
-  (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends
-  2–3 files per answer, marks every part but the last with `"continue": true`, and the turn loop
-  merges the parts by path (a later part may correct a file), ORs the destructive flag, keeps the
-  notes and validates the merged set once (the rules are cross-file). The chat shows
-  "sending the patch set in parts (n/6)"; the budget is 6 parts per answer set and exhausting it
-  fails constructively without writing. A correction keeps the rejected set and re-emits only the
-  files it changes (`delete` drops one), so fixing two files of a three-part set is one answer. The
-  model-call backstop is 22 per user message; its failure reports how many calls the exploration,
-  the parts and the corrections consumed. If the provider cut the answer anyway, the client marks
-  it `truncated` and the IDE salvages the complete patch objects before the cut
-  (`ide/src/ai/salvage.ts`), then asks for the rest instead of reporting a raw JSON error. Only
-  an answer with no recoverable patch goes through the ordinary repair, whose report now carries
-  the cut-off explanation and the part protocol.
-- **On final failure:** the findings are shown in the chat and **nothing is written** to OPFS.
+  (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends as
+  many complete files as fit in one answer (usually 2–4), marks every part but the last with
+  `"continue": true`, and the turn loop merges the parts by path (a later part may correct a
+  file), ORs the destructive flag, keeps the notes and validates the merged set once (the rules
+  are cross-file). There is **no part quota** (D-108): the chat shows "sending the patch set in
+  parts (n)" and keeps asking until a last part arrives. A correction keeps the rejected set and
+  re-emits only the files it changes (`delete` drops one), so fixing two files of a three-part set
+  is one answer. If the provider cut the answer anyway, the client marks it `truncated` and the
+  IDE salvages the complete patch objects before the cut (`ide/src/ai/salvage.ts`), then asks for
+  the rest instead of reporting a raw JSON error. Only an answer with no recoverable patch goes
+  through the ordinary repair, whose report now carries the cut-off explanation and the part
+  protocol.
+- **On failure** (provider/transport error, the user's Stop, or a validator outage): the failure is
+  shown in the chat and **nothing is written** to OPFS. A rejected answer is not a failure: it is
+  corrected until it validates (D-108).
 
 ### 9.5 Model B Tool Surface (Phase 4.5)
 
@@ -1977,9 +1980,10 @@ re-validated with a fresh context on Apply, and `applyPatch()` re-validates befo
 VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
 config, schema, catalogs, blocks and routes. Validator warnings are carried in the proposal
 state but not yet rendered in the card (follow-up). The §9.4 repair loop is implemented
-(D-100/D-102): a rejected answer is re-asked up to three times with a root-cause-first fix plan
-and the findings (the model reads files with the PTC tools; nothing is inlined), and the final
-failure shows the findings without writing. A parser/analyzer outage is reported as a validator
+(D-100/D-102, no attempt cap since D-108): a rejected answer is re-asked until the validator
+passes, with a root-cause-first fix plan and the findings (the model reads files with the PTC
+tools; nothing is inlined); a provider error, the user's Stop or a validator outage ends the turn
+and nothing is written. A parser/analyzer outage is reported as a validator
 outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
 (D-103); the eval corpus and browser matrix remain.
 
@@ -2274,8 +2278,8 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 - Prompt builder + context assembly (Model A)
 - AIResponse parser
 - Patch validator (16 rules)
-- Retry loop — implemented (D-100): up to 2 retries, findings fed back with the current
-  content of the files being rewritten
+- Retry loop — implemented (D-100, no attempt cap since D-108): findings fed back, the model
+  reads the files it rewrites with the PTC tools (D-103)
 - `requires_confirmation` modal
 - Diff view + per-file accept/reject
 - Apply → OPFS → HMR → refresh manifest

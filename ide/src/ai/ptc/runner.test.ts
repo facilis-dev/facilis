@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_PROGRAM_CHARS,
-  MAX_TOOL_CALLS_PER_RUN,
   MAX_TOOL_RESULT_CHARS,
   PtcToolError,
   type PtcChild,
@@ -178,44 +177,20 @@ describe("createPtcRunner", () => {
     expect(child.terminateReasons).toEqual(["completed"]);
   });
 
-  it("refuses tool calls past the turn budget but still reports the run", async () => {
-    const harnessed = harness();
-    const { result: pending, child } = await startRun(harnessed, "return 1", {
-      toolCallBudget: 1,
-    });
-
-    child.emit({ type: "tool", id: 1, name: "echo", args: { n: 1 } });
-    await tick();
-    child.emit({ type: "tool", id: 2, name: "echo", args: { n: 2 } });
-    await tick();
-    const replies = toolReplies(child);
-    expect(replies.filter((reply) => reply.ok)).toHaveLength(1);
-    // The refusal is posted synchronously, before the accepted call's async result.
-    expect(replies.find((reply) => !reply.ok)?.error).toMatchObject({ kind: "capability" });
-
-    child.emit({ type: "result", value: "done" });
-    const result = await pending;
-    // Refused calls still count: the turn budget can never be exceeded by retrying.
-    expect(result).toMatchObject({ ok: true, value: "done", toolCalls: 2 });
-    expect(result.trace.map((entry) => entry.ok)).toEqual([true, false]);
-  });
-
-  it("enforces the per-run cap even when calls arrive before any await", async () => {
+  it("serves every tool call a program makes (no call budget, D-108)", async () => {
     const harnessed = harness();
     const { result: pending, child } = await startRun(harnessed);
-    for (let id = 1; id <= MAX_TOOL_CALLS_PER_RUN + 1; id += 1) {
+    for (let id = 1; id <= 40; id += 1) {
       child.emit({ type: "tool", id, name: "echo", args: { id } });
     }
     await tick();
     const replies = toolReplies(child);
-    expect(replies).toHaveLength(MAX_TOOL_CALLS_PER_RUN + 1);
-    expect(replies.filter((reply) => !reply.ok)).toHaveLength(1);
-    expect(replies.find((reply) => !reply.ok)?.error).toMatchObject({ kind: "capability" });
+    expect(replies).toHaveLength(40);
+    expect(replies.every((reply) => reply.ok)).toBe(true);
 
     child.emit({ type: "result", value: "done" });
     const result = await pending;
-    expect(result.toolCalls).toBe(MAX_TOOL_CALLS_PER_RUN + 1);
-    expect(result.trace.at(-1)?.ok).toBe(false);
+    expect(result).toMatchObject({ ok: true, value: "done", toolCalls: 40 });
   });
 
   it("times out, terminates the child and reports a typed error", async () => {

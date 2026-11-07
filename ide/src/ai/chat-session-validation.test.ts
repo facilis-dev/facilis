@@ -67,7 +67,7 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
     loadSettings: () => settings,
     saveSettings: () => {},
     now: () => 1,
-      runner: EMPTY_RUNNER,
+    runner: EMPTY_RUNNER,
   });
 }
 
@@ -119,14 +119,28 @@ function contextualHost(allowed: () => boolean): Harness {
 }
 
 describe("ChatSession with live validation", () => {
-  it("rejects an answer whose patches fail the project context", async () => {
+  it("repairs an answer whose patches fail the project context", async () => {
     const harness = contextualHost(() => false);
-    const chat = sessionWith(async () => ({ ok: true, text: answer(ROUTE_PATCH) }), harness.host);
+    const fixed: FilePatch = {
+      ...ROUTE_PATCH,
+      content:
+        'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+        "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
+    };
+    const calls: { messages: readonly { role: string; content: string }[] }[] = [];
+    const chat = sessionWith(async (input) => {
+      calls.push(input);
+      return calls.length === 1
+        ? { ok: true, text: answer(ROUTE_PATCH) }
+        : { ok: true, text: answer(fixed) };
+    }, harness.host);
     await chat.send("add a route");
     const state = chat.getSnapshot();
-    expect(state.error?.kind).toBe("parse");
-    expect(state.error?.message).toContain("permission-valid");
-    expect(state.proposal).toBeNull();
+    // D-108: the rejected answer is corrected, not surfaced as a dead end.
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.messages.at(-1)?.content).toContain("permission-valid");
+    expect(state.error).toBeNull();
+    expect(state.proposal?.files.map((file) => file.patch.path)).toEqual([ROUTE_PATCH.path]);
     expect(harness.writes).toEqual([]);
   });
 
@@ -219,12 +233,15 @@ describe("ChatSession does not repair internal failures", () => {
       {
         call: async () => {
           calls += 1;
-          return { ok: true, text: answer({ path: "src/new.ts", action: "create", content: "x\n" }) };
+          return {
+            ok: true,
+            text: answer({ path: "src/new.ts", action: "create", content: "x\n" }),
+          };
         },
         loadSettings: () => settings,
         saveSettings: () => {},
         now: () => 1,
-      runner: EMPTY_RUNNER,
+        runner: EMPTY_RUNNER,
       },
     );
 
@@ -241,7 +258,11 @@ describe("ChatSession repair of a destructive schema rewrite", () => {
   it("feeds the findings back with a root-cause plan and accepts the correction", async () => {
     const calls: { messages: readonly { role: string; content: string }[] }[] = [];
     const bad = answer({ path: "db/schema.ts", action: "update", content: ATTACHMENTS_ONLY });
-    const good = answer({ path: "db/schema.ts", action: "update", content: SCHEMA_WITH_ATTACHMENTS });
+    const good = answer({
+      path: "db/schema.ts",
+      action: "update",
+      content: SCHEMA_WITH_ATTACHMENTS,
+    });
     const chat = new ChatSession(todosHost(), {
       call: async (input) => {
         calls.push(input);

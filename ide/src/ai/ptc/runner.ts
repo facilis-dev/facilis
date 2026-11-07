@@ -1,6 +1,6 @@
-// The PTC program runner: one sandboxed child per program, tool RPC, caps and timeout
-// (docs/PTC.md §4–§5, D-101). Browser-free on purpose: runner-frame.ts supplies the real
-// transport and the tests a scripted fake, so the lifecycle is unit-tested without a
+// The PTC program runner: one sandboxed child per program, tool RPC, size limits and
+// timeout (docs/PTC.md §4–§5, D-101). Browser-free on purpose: runner-frame.ts supplies the
+// real transport and the tests a scripted fake, so the lifecycle is unit-tested without a
 // browser. Every failure is data: the model must be able to recover inside the turn loop.
 
 import {
@@ -9,8 +9,6 @@ import {
   isRunResultMessage,
   isToolRequest,
   MAX_PROGRAM_CHARS,
-  MAX_TOOL_CALLS_PER_RUN,
-  MAX_TOOL_CALLS_PER_TURN,
   MAX_TOOL_RESULT_CHARS,
   RUN_TIMEOUT_MS,
   type PtcChild,
@@ -37,7 +35,14 @@ export interface PtcRunnerOptions {
   timeoutMs?: number;
 }
 
-import { errorMessage, fail, isFailureKind, jsonLength, resultOf, type ToolRequest } from "./runner-result";
+import {
+  errorMessage,
+  fail,
+  isFailureKind,
+  jsonLength,
+  resultOf,
+  type ToolRequest,
+} from "./runner-result";
 
 export function createPtcRunner(options: PtcRunnerOptions): PtcRunner {
   const { childFactory, timeoutMs = RUN_TIMEOUT_MS } = options;
@@ -99,7 +104,6 @@ export function createPtcRunner(options: PtcRunnerOptions): PtcRunner {
       const activeChild = child;
       live.add(activeChild);
 
-      const toolBudget = runOptions.toolCallBudget ?? MAX_TOOL_CALLS_PER_TURN;
       const result = await new Promise<PtcRunResult>((resolve) => {
         let settled = false;
         const settle = (outcome: PtcRunResult, reason: string) => {
@@ -132,23 +136,12 @@ export function createPtcRunner(options: PtcRunnerOptions): PtcRunner {
             durationMs: 0,
             bytes: 0,
           };
+          // The entry is recorded at request time, before the executor runs, so a failed
+          // or still-pending call is visible in the trace too.
           trace.push(entry);
-          // Counting happens at request time, before the executor is even called, so a
-          // program cannot exceed the budget by firing calls concurrently.
           if (jsonLength(request.args) === null) {
             entry.error = "arguments are not lossless JSON";
             replyToolError(request.id, { kind: "protocol", message: entry.error });
-            return;
-          }
-          if (trace.length > MAX_TOOL_CALLS_PER_RUN) {
-            entry.error =
-              "the per-run tool call limit (" + MAX_TOOL_CALLS_PER_RUN + ") is exhausted";
-            replyToolError(request.id, { kind: "capability", message: entry.error });
-            return;
-          }
-          if (trace.length > toolBudget) {
-            entry.error = "the turn tool budget (" + toolBudget + ") is exhausted";
-            replyToolError(request.id, { kind: "capability", message: entry.error });
             return;
           }
           const callStartedAt = Date.now();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CallModelInput } from "./client";
-import { MAX_SCRIPT_TURNS, type PtcRunResult } from "./ptc/protocol";
+import type { PtcRunResult } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import {
   answer,
@@ -20,7 +20,11 @@ import {
 describe("runTurn with PTC exploration", () => {
   it("runs a program, returns its result to the model, then accepts the final answer", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([script("return await tools.list_files({})"), answer([NEW_FILE])], runner(okRun({ files: ["src/a.ts"] })), calls);
+    const outcome = await run(
+      [script("return await tools.list_files({})"), answer([NEW_FILE])],
+      runner(okRun({ files: ["src/a.ts"] })),
+      calls,
+    );
 
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
@@ -58,6 +62,33 @@ describe("runTurn with PTC exploration", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("treats a mixed outage as a validator outage, not a repair round", async () => {
+    const calls: CallModelInput[] = [];
+    const outcome = await runTurn({
+      call: capture([answer([ROUTE])], calls),
+      settings,
+      system: "system",
+      messages: [{ role: "user", content: "add a route" }],
+      host: {
+        ...host(),
+        // Rule 1's parser is down; the permission finding cannot be trusted either.
+        syntaxChecker: () => ({
+          check: async () => {
+            throw new Error("parser unavailable");
+          },
+        }),
+      },
+      signal: SIGNAL,
+      onText: () => {},
+      onRepair: () => {},
+      runner: runner(okRun(null, 0)),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.failure.kind).toBe("validator");
+    expect(calls).toHaveLength(1);
+  });
+
   it("reports each program through the start and finish callbacks", async () => {
     const calls: CallModelInput[] = [];
     const started: string[] = [];
@@ -74,7 +105,11 @@ describe("runTurn with PTC exploration", () => {
 
   it("tells the model when a program returned nothing", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([script("await tools.list_files({})"), answer([NEW_FILE])], runner(okRun(null, 1)), calls);
+    const outcome = await run(
+      [script("await tools.list_files({})"), answer([NEW_FILE])],
+      runner(okRun(null, 1)),
+      calls,
+    );
     expect(outcome.ok).toBe(true);
     expect(calls[1]?.messages.at(-1)?.content).toContain("returned no value");
   });
@@ -88,25 +123,34 @@ describe("runTurn with PTC exploration", () => {
       elapsedMs: 5000,
       trace: [],
     };
-    const outcome = await run([script("while (true) {}"), answer([NEW_FILE])], runner(timeout), calls);
+    const outcome = await run(
+      [script("while (true) {}"), answer([NEW_FILE])],
+      runner(timeout),
+      calls,
+    );
     expect(outcome.ok).toBe(true);
     const resultTurn = calls[1]?.messages.at(-1)?.content ?? "";
     expect(resultTurn).toContain("timeout");
     expect(resultTurn).toContain("5000ms");
   });
 
-  it("stops after the program budget", async () => {
+  it("keeps exploring until the model answers (D-108)", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([script("return 1")], runner(okRun(1)), calls);
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.message).toContain("exploration budget");
-    expect(calls).toHaveLength(MAX_SCRIPT_TURNS + 1);
+    const texts = [...Array.from({ length: 10 }, () => script("return 1")), answer([NEW_FILE])];
+    const outcome = await run(texts, runner(okRun(1)), calls);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(calls).toHaveLength(11);
+    expect(outcome.parsed.response.patches).toEqual([NEW_FILE]);
   });
 
   it("does not inline file content in a repair when the tools are available", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await run([answer([ROUTE]), answer([ROUTE_FIXED])], runner(okRun(null, 0)), calls);
+    const outcome = await run(
+      [answer([ROUTE]), answer([ROUTE_FIXED])],
+      runner(okRun(null, 0)),
+      calls,
+    );
     expect(outcome.ok).toBe(true);
     expect(calls).toHaveLength(2);
     const repair = calls[1]?.messages.at(-1)?.content ?? "";

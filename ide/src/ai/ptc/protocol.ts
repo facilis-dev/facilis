@@ -15,19 +15,14 @@
 
 import type { ValidationError } from "@facilis/ai";
 
-export type PtcJson =
-  | null
-  | boolean
-  | number
-  | string
-  | PtcJson[]
-  | { [key: string]: PtcJson };
+export type PtcJson = null | boolean | number | string | PtcJson[] | { [key: string]: PtcJson };
 
-/** One script turn or one answer: the two shapes are mutually exclusive (D-101). */
-export const MAX_SCRIPT_TURNS = 6;
+/**
+ * Size and time guards, not conversation budgets: the turn loop has no call, program or part
+ * counter (D-108). A program is bounded by its wall clock and by what it returns; the only
+ * gate on the answer itself is the SPEC §9.3 validator.
+ */
 export const MAX_PROGRAM_CHARS = 16_000;
-export const MAX_TOOL_CALLS_PER_RUN = 32;
-export const MAX_TOOL_CALLS_PER_TURN = 64;
 export const MAX_TOOL_RESULT_CHARS = 64_000;
 export const RUN_TIMEOUT_MS = 5_000;
 /** Arguments are echoed into the trace; cap them so one call cannot flood the UI/log. */
@@ -53,12 +48,7 @@ export interface PtcToolExecutor {
 }
 
 export type PtcFailureKind =
-  | "exception"
-  | "timeout"
-  | "abort"
-  | "output-limit"
-  | "protocol"
-  | "capability";
+  "exception" | "timeout" | "abort" | "output-limit" | "protocol" | "capability";
 
 /** One tool call as the trace (and later the UI) records it. */
 export interface PtcTraceEntry {
@@ -82,8 +72,6 @@ export interface PtcRunResult {
 export interface PtcRunOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
-  /** Tool calls still allowed in this user turn; the runner refuses calls past it. */
-  toolCallBudget?: number;
 }
 
 /**
@@ -166,7 +154,6 @@ export function formatScriptResult(result: PtcRunResult): string {
     }
     if (result.trace.length > 20) lines.push("- … " + (result.trace.length - 20) + " more");
   }
-  lines.push("", "Budget used: " + result.toolCalls + " tool call(s).");
   return lines.join("\n");
 }
 
@@ -203,7 +190,9 @@ export function isPtcToolError(value: unknown): value is PtcToolError {
 }
 
 /** Message guards shared by the runner and the runner page tests. */
-export function isToolRequest(value: unknown): value is { type: "tool"; id: number; name: string; args: unknown } {
+export function isToolRequest(
+  value: unknown,
+): value is { type: "tool"; id: number; name: string; args: unknown } {
   return (
     isRecord(value) &&
     value.type === "tool" &&
@@ -214,7 +203,8 @@ export function isToolRequest(value: unknown): value is { type: "tool"; id: numb
 
 export function isRunResultMessage(
   value: unknown,
-): value is { type: "result"; value: PtcJson } | { type: "error"; kind: PtcFailureKind; message: string } {
+): value is
+  { type: "result"; value: PtcJson } | { type: "error"; kind: PtcFailureKind; message: string } {
   if (!isRecord(value)) return false;
   return value.type === "result" || value.type === "error";
 }

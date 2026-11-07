@@ -51,7 +51,7 @@ small project and wrong for a large one:
 
 The user's direction (2026-11-07): **PTC mode — the AI writes JavaScript, we run it.** This is the
 same execution seam DSH uses for its own `run_code` tool: one program per step, host-provided
-async bindings, lossless-JSON results, bounded budget, failure as data.
+async bindings, lossless-JSON results, size/time guards, failure as data.
 
 ## 2. Non-goals (phase 1)
 
@@ -119,10 +119,10 @@ Final turn: the current `AIResponse` with `patches` (unchanged).
       { "ok": false, "error": { "kind": "exception|timeout|abort|output-limit|protocol|sandbox-unavailable", "message": "..." } }
 
   The model can recover inside the loop; a bad program is data, not a dead end.
-- **Bounds:** at most 6 script turns per user message (configurable), 1 program each; program
-  ≤ 16 KB source; 5 s wall clock; 32 tool calls per program and 64 per user message; one tool
-  result ≤ 32 KB and ≤ 256 KB total per user message. Over-budget → typed failure + forced final
-  answer. Cancellation aborts the provider request and the sandbox.
+- **Bounds:** no conversation quotas (D-108) — there is no program, tool-call or part counter, so
+  the model explores until it has what it needs. Resource guards remain: one program ≤ 16 KB
+  source, 5 s wall clock, one run result ≤ 64 KB (and its trace args are capped). Cancellation
+  aborts the provider request and the sandbox.
 - **Why not native function calling (OpenAI/Anthropic `tools`)?** The user asked for PTC and it
   is the better fit: one program can loop, join, filter and aggregate, so N reads cost one round
   trip instead of N, and the JSON is smaller. A native-tool "Mode C" can be layered on the same
@@ -199,7 +199,8 @@ Never exposed: shell, network, `process.env`, `node_modules`, `.git` internals, 
 any path outside the project root, secrets (AI-SKILLS §3/§6 exclusions, plus the existing
 `.gitignore`-style ignored paths, D-054).
 
-Every call is logged (tool, path, bytes, duration, outcome) and counts against the turn budget.
+Every call is logged (tool, path, bytes, duration, outcome) in the trace; there is no turn budget
+that could refuse it (D-108).
 Tool output is **data**: it can be quoted, never treated as instructions.
 
 ## 7. Prompt and model contract
@@ -213,8 +214,8 @@ Tool output is **data**: it can be quoted, never treated as instructions.
   what it needs. This is the direct answer to "passing files in the input does not scale".
 - The repair loop (§9.4) feeds a fix plan grouped by file, root cause first, then the findings;
   with the runtime on it tells the model to `read_file` the implicated paths and to `validate`
-  the exact set before answering (D-102: three corrections, set-level validation, per-file
-  feedback). The runtime is always on, so the correction never inlines file content (D-103).
+  the exact set before answering (D-102: set-level validation, per-file feedback; no attempt
+  cap since D-108). The runtime is always on, so the correction never inlines file content (D-103).
 
 ## 8. MCP (phase 3)
 
@@ -284,13 +285,13 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Wire vocabulary and caps: `ide/src/ai/ptc/protocol.ts`; policy (project-root confinement,
   excluded/secret paths, redaction, glob scoping): `policy.ts`; the nine read-only tools including
   `validate`: `tools.ts`.
-- Runner: `runner.ts` (child lifecycle, tool RPC with trace, per-run/turn budgets, timeout,
+- Runner: `runner.ts` (child lifecycle, tool RPC with trace, size limits, timeout,
   abort, always terminate), `runner-frame.ts` (opaque-origin iframe transport),
   `ide/public/ptc-runner.html` (one blob Worker per program). The page CSP has no
   `'unsafe-eval'`: Chromium blocks `new Function`, so the program is inserted textually into the
   worker. One router per program (`executorFactory`) keeps analyzer facts fresh across turns.
 - Protocol/loop: `response.ts` accepts the `script` turn (script XOR patches), `turn.ts` runs
-  the exploration loop and budgets, hands validation failures to the repair loop, and
+  the exploration loop, hands validation failures to the repair loop, and
   `repair.ts` points at the tools instead of inlining files when the runtime is on; the tool
   section of the prompt is generated from the registry (`prompt.ts`, `chat-context.ts`).
 - Headers: `ide/vite.ptc.ts` for dev/preview and the `/ptc-runner.html` rule in
@@ -311,7 +312,8 @@ the final gate kept as a safety net.
 
 Still open:
 
-1. **Exploration budget:** 6 turns / 32 calls / 5 s defaults — tune on the eval corpus.
+1. **Conversation length:** with no quotas (D-108), a long turn is bounded only by the provider's
+   context window; watch real sessions on the eval corpus.
 2. **MCP transports:** remote HTTP only at first; stdio needs a desktop host.
 3. **Managed policy:** which servers/tools are allowed by default (probably none).
 4. **Browser matrix:** Firefox/Safari isolation and CSP-header behavior before a managed rollout.
@@ -322,11 +324,12 @@ Still open:
   for the real runner page: opaque origin, no storage/network, tool RPC, timeout termination and
   a fresh sandbox afterwards.
 - **Script runner:** unit tests with a fake RPC bridge (Node): return values, exception mapping,
-  abort, output caps, tool-call budget, malformed messages.
+  abort, output caps, malformed messages.
 - **Policy:** path traversal (`..`, absolute, symlink-like), secret redaction, glob scoping,
   skill capability narrowing, MCP tool namespace collisions.
-- **Turn loop:** script→result→final alternation, max turns, abort, provider failure, validator
-  rejection after exploration, repair using tools instead of inlined files.
+- **Turn loop:** script→result→final alternation, no quotas (many programs and parts), abort,
+  provider failure, validator rejection after exploration, repair using tools instead of inlined
+  files.
 - **Prompt:** registry↔prompt parity, no stale tool names, size cap.
 - **Eval:** a small corpus of realistic requests (add field, add route+UI, diagnose failing
   build) comparing pass rate, model calls, tokens and wall time against Model A.

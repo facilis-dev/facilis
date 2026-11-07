@@ -37,7 +37,7 @@ export const ROUTE_FIXED: FilePatch = {
   ...ROUTE,
   content:
     'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
-    'export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n',
+    "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
 };
 
 export const SECOND_FILE: FilePatch = {
@@ -75,7 +75,13 @@ export function part(patches: FilePatch[], extra: Record<string, unknown> = {}):
   });
 }
 
-const FILES = ["facilis.config.ts", "db/schema.ts", "package.json", "locales/en.json", "tsconfig.json"];
+const FILES = [
+  "facilis.config.ts",
+  "db/schema.ts",
+  "package.json",
+  "locales/en.json",
+  "tsconfig.json",
+];
 const CONFIG = `import { defineConfig } from "@facilis/core";
 
 export default defineConfig({
@@ -144,7 +150,7 @@ export const SIGNAL = new AbortController().signal;
 export interface Hooks {
   onScriptStart?: (program: string, turn: number) => void;
   onScript?: (result: PtcRunResult, program: string) => void;
-  onPatches?: (part: number, max: number) => void;
+  onPatches?: (part: number) => void;
 }
 
 export async function run(

@@ -4,14 +4,12 @@
 // grouped by file, root cause first, then numbered findings (rule, file, message, fix_hint,
 // line/excerpt) and the response contract. The chat has one mode (PTC, D-103): the correction
 // tells the model to read the files itself and to validate the exact set it will return, so no
-// file content is inlined. Caps keep one repair turn bounded; nothing here touches the project.
+// file content is inlined. Size caps keep one repair turn bounded, but the loop has no
+// attempt counter (D-108). Nothing here touches the project.
 
 import type { FilePatch, ValidationError } from "@facilis/ai";
 import type { AiParseFailure } from "./response";
 import type { AiChatTurn } from "./types";
-
-/** SPEC §9.4 (D-102): three corrections after the first answer (four model calls at most). */
-export const MAX_REPAIR_ATTEMPTS = 3;
 
 const MAX_FINDINGS = 40;
 const RAW_ANSWER_CHAR_CAP = 20_000;
@@ -25,7 +23,6 @@ export interface RepairInput {
   failure: AiParseFailure;
   /** 1-based number of the correction being requested. */
   attempt: number;
-  max: number;
 }
 
 function cap(text: string, limit: number): string {
@@ -59,7 +56,7 @@ export function formatFindings(findings: readonly ValidationError[]): string {
   const shown = ordered.slice(0, MAX_FINDINGS);
   const lines = shown.map((finding, index) => {
     const where = finding.line === undefined ? finding.file : finding.file + ":" + finding.line;
-    const parts = [(index + 1) + ". [" + finding.rule + "] " + where + ": " + finding.message];
+    const parts = [index + 1 + ". [" + finding.rule + "] " + where + ": " + finding.message];
     parts.push("   Fix: " + finding.fix_hint);
     if (finding.excerpt !== undefined) parts.push("   At: " + finding.excerpt);
     return parts.join("\n");
@@ -131,17 +128,15 @@ const CONTRACT = [
   "- create and update carry the complete file content; delete omits it.",
   "- Re-emit every existing declaration in a file you rewrite; only add the requested change.",
   "- Do not remove tables, columns, routes, permissions or keys the request did not ask to remove.",
-  '- If the set would exceed the output limit, split it: at most 2-3 files per answer, "continue": true on every part but the last.',
+  '- If the set would exceed the output limit, split it: send as many complete files as fit in one answer, "continue": true on every part but the last.',
 ].join("\n");
 
-function report(failure: AiParseFailure, attempt: number, max: number): string {
+function report(failure: AiParseFailure, attempt: number): string {
   const lines = [
-    "Your previous answer was rejected before anything was written to the project. This is correction " +
+    "Your previous answer was rejected before anything was written to the project. This is correction attempt " +
       attempt +
-      " of " +
-      max +
       ".",
-    "Fix every finding below and reply with the corrected AIResponse. The corrected files are merged into the rejected set: re-emit only the files you change (with their complete content), emit action \"delete\" to drop a file, and the files you omit keep their current patch. Send it in parts with \"continue\": true if it is large.",
+    'Fix every finding below and reply with the corrected AIResponse. The corrected files are merged into the rejected set: re-emit only the files you change (with their complete content), emit action "delete" to drop a file, and the files you omit keep their current patch. Send it in parts with "continue": true if it is large.',
   ];
   if (failure.kind === "validation") {
     lines.push("", formatFixPlan(failure.findings, failure.patchedFiles));
@@ -154,7 +149,7 @@ function report(failure: AiParseFailure, attempt: number, max: number): string {
     lines.push(
       "",
       "## The answer was cut off",
-      "The provider stopped your answer at its output limit, so it arrived as incomplete JSON. The complete patches before the cut were kept. Send the rest in parts: at most 2-3 files per answer, and set \"continue\": true on every part but the last (the last part may carry no patches if every file was already sent).",
+      'The provider stopped your answer at its output limit, so it arrived as incomplete JSON. The complete patches before the cut were kept. Send the rest in parts: send as many complete files as fit in one answer, and set "continue": true on every part but the last (the last part may carry no patches if every file was already sent).',
     );
   }
   lines.push(
@@ -179,7 +174,7 @@ export async function buildRepairMessages(input: RepairInput): Promise<AiChatTur
   if (raw.length > 0) turns.push({ role: "assistant", content: cap(raw, RAW_ANSWER_CHAR_CAP) });
   turns.push({
     role: "user",
-    content: report(input.failure, input.attempt, input.max),
+    content: report(input.failure, input.attempt),
   });
   return turns;
 }

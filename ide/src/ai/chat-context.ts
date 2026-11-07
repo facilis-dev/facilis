@@ -25,7 +25,7 @@ export interface ChatContext {
 }
 
 export interface ChatContextOptions {
-  /** PTC tool specs; empty when the tool runtime is off (D-101). */
+  /** PTC tool specs; empty only in tests (the chat always has the runtime, D-103). */
   tools?: readonly PtcToolSpec[];
 }
 

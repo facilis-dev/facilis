@@ -3,13 +3,11 @@
 // A provider caps an answer at its output limit, so a large change is sent as several
 // AIResponse turns: each carries complete files and, except the last, "continue": true. This
 // module merges the parts (a later part may correct a file an earlier part sent), builds the
-// final answer and writes the turns that ask for the rest. Nothing here touches the project.
+// final answer and writes the turns that ask for the rest. There is no part quota (D-108):
+// the loop keeps asking until the model sends a last part. Nothing here touches the project.
 
 import type { FilePatch } from "@facilis/ai";
 import type { AiResponse } from "./types";
-
-/** Parts allowed for one answer (the initial set or one correction): a large change is split. */
-export const MAX_PATCH_TURNS = 6;
 
 export interface PatchSetState {
   /** Last patch per path: a later part may correct a file an earlier part sent. */
@@ -44,10 +42,7 @@ export function addPatches(set: PatchSetState, response: AiResponse): PatchSetSt
 }
 
 /** How many patches introduce a new file or change the stored one: a part of repeats makes no progress. */
-export function changedPatches(
-  set: PatchSetState,
-  patches: readonly FilePatch[],
-): number {
+export function changedPatches(set: PatchSetState, patches: readonly FilePatch[]): number {
   let changed = 0;
   for (const patch of patches) {
     const current = set.patches.get(patch.path);
@@ -64,7 +59,7 @@ export function changedPatches(
 
 /**
  * Start a correction: the rejected set is kept, so a correction may re-emit only the files
- * it changes (D-106). The part budget starts over for the corrected set.
+ * it changes (D-106). The part counter starts over for the corrected set.
  */
 export function beginCorrection(set: PatchSetState): PatchSetState {
   return { ...set, parts: 0 };
@@ -82,13 +77,7 @@ export function completeResponse(set: PatchSetState): AiResponse {
 
 /** The assistant turn that records what arrived: the raw part can be huge, the list is not. */
 export function formatReceived(set: PatchSetState): string {
-  const lines = [
-    "Partial patch set received (part " +
-      set.parts +
-      " of at most " +
-      MAX_PATCH_TURNS +
-      "). Complete patches so far:",
-  ];
+  const lines = ["Partial patch set received (part " + set.parts + "). Complete patches so far:"];
   for (const patch of set.patches.values()) {
     lines.push("- " + patch.path + " (" + patch.action + ")");
   }
@@ -128,7 +117,7 @@ export function formatContinuation(input: ContinuationInput): string {
         ]
       : []),
     "## Continue the patch set",
-    "- Send the files that are still missing. Keep this answer within the output limit: at most 2-3 files.",
+    "- Send the files that are still missing. Send as many complete files as fit in one answer (usually 2-4); never exceed the output limit.",
     '- Set "continue": true while more files remain. The last part omits it; it may carry no patches if every file was already sent, and its message must describe the finished change.',
     "- Do not repeat a file you already sent unless this part corrects it. Before re-emitting a file, read_file it and send its complete content.",
     "- Reply with one JSON object only, in the usual AIResponse shape.",

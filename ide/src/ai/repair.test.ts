@@ -6,7 +6,6 @@ import {
   formatFailure,
   formatFindings,
   formatFixPlan,
-  MAX_REPAIR_ATTEMPTS,
   prioritizeFindings,
 } from "./repair";
 
@@ -17,7 +16,7 @@ const FINDING: ValidationError = {
   message: 'Permission "todos:write" is not declared in facilis.config.ts.',
   fix_hint: "Declare it in auth.permissions (and roles) in the same patch.",
   line: 4,
-  excerpt: "permission: [\"todos:write\"],",
+  excerpt: 'permission: ["todos:write"],',
 };
 
 const SCHEMA_FINDING: ValidationError = {
@@ -113,10 +112,13 @@ describe("root-cause ordering", () => {
   });
 
   it("writes a per-file fix plan and names the files the answer touched", () => {
-    const text = formatFixPlan([ROUTE_FINDING, SCHEMA_FINDING], [
-      { path: "db/schema.ts", action: "update", content: "x" },
-      { path: "server/routes/api/todos/index.get.ts", action: "create", content: "x" },
-    ]);
+    const text = formatFixPlan(
+      [ROUTE_FINDING, SCHEMA_FINDING],
+      [
+        { path: "db/schema.ts", action: "update", content: "x" },
+        { path: "server/routes/api/todos/index.get.ts", action: "create", content: "x" },
+      ],
+    );
     expect(text).toContain("## Fix plan (root cause first)");
     expect(text).toContain("- db/schema.ts — 1 finding(s): destructive-confirmed");
     expect(text).toContain("Fix db/schema.ts first");
@@ -130,13 +132,12 @@ describe("buildRepairMessages", () => {
     const turns = await buildRepairMessages({
       failure: failure({ findings: [ROUTE_FINDING, SCHEMA_FINDING] }),
       attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
     });
     expect(turns).toHaveLength(2);
     expect(turns[0]).toEqual({ role: "assistant", content: '{"message":"x","patches":[]}' });
     const request = turns[1]?.content ?? "";
     expect(turns[1]?.role).toBe("user");
-    expect(request).toContain("correction 1 of " + MAX_REPAIR_ATTEMPTS);
+    expect(request).toContain("correction attempt 1");
     expect(request).toContain("## Fix plan (root cause first)");
     expect(request).toContain("## Validation findings");
     expect(request).toContain("## Tools");
@@ -150,7 +151,6 @@ describe("buildRepairMessages", () => {
     const turns = await buildRepairMessages({
       failure: failure({ kind: "empty", findings: [], issues: [], raw: "  " }),
       attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
     });
     expect(turns).toHaveLength(1);
     expect(turns[0]?.role).toBe("user");
@@ -166,22 +166,20 @@ describe("buildRepairMessages", () => {
         raw: '{"message":"x","patches":[',
       }),
       attempt: 1,
-      max: MAX_REPAIR_ATTEMPTS,
     });
     const request = turns.at(-1)?.content ?? "";
     expect(request).toContain("## The answer was cut off");
     expect(request).toContain('"continue": true');
-    expect(request).toContain("at most 2-3 files per answer");
+    expect(request).toContain("as many complete files as fit");
   });
 
   it("caps a huge rejected answer instead of echoing it whole", async () => {
     const turns = await buildRepairMessages({
       failure: failure({ raw: "x".repeat(50_000) }),
       attempt: 2,
-      max: MAX_REPAIR_ATTEMPTS,
     });
     const request = turns.at(-1)?.content ?? "";
     expect(turns[0]?.content).toContain("[truncated]");
-    expect(request).toContain("correction 2 of " + MAX_REPAIR_ATTEMPTS);
+    expect(request).toContain("correction attempt 2");
   });
 });

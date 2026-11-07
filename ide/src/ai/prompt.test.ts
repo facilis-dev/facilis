@@ -78,7 +78,7 @@ describe("SYSTEM_PROMPT", () => {
       "re-emit only the files",
       "fix_hint",
       "line/excerpt",
-      "current content",
+      "read the implicated files with the tools",
       "keep every existing declaration",
       "tables, columns, routes, config, keys",
       "never drop code you were not asked to remove",
@@ -100,7 +100,11 @@ describe("SYSTEM_PROMPT", () => {
 });
 
 const TOOLS: PtcToolSpec[] = [
-  { name: "read_file", signature: "read_file({ path, startLine?, endLine? })", description: "Read a slice." },
+  {
+    name: "read_file",
+    signature: "read_file({ path, startLine?, endLine? })",
+    description: "Read a slice.",
+  },
   {
     name: "validate",
     signature: "validate({ patches, requiresConfirmation? })",
@@ -113,13 +117,13 @@ describe("buildSystemPrompt with the PTC runtime", () => {
     const prompt = buildSystemPrompt(context({ tools: TOOLS }));
     expect(prompt).toContain("## Project exploration (PTC)");
     expect(prompt).toContain('"script" string instead of "patches"');
-    expect(prompt).toContain("at most 6 per request");
+    expect(prompt).toContain("There is no exploration quota");
     expect(prompt).toContain("read_file({ path, startLine?, endLine? })");
     expect(prompt).toContain("validate({ patches, requiresConfirmation? })");
     expect(prompt).toContain("self-check");
   });
 
-  it("leaves the protocol out when the runtime is off", () => {
+  it("leaves the protocol out when no tools are registered", () => {
     const prompt = buildSystemPrompt(context());
     expect(prompt).not.toContain("## Project exploration (PTC)");
   });

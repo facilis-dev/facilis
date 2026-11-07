@@ -38,7 +38,6 @@ export class ChatSession {
   private seq = 0;
   private cancelled = false;
   private streamId: string | null = null;
-
   constructor(host: ChatHost, options: ChatSessionOptions) {
     this.host = host;
     this.call = options.call ?? callModel;
@@ -63,6 +62,11 @@ export class ChatSession {
     this.state = { ...this.state, ...patch };
     // Set iteration tolerates a listener unsubscribing mid-notify; React never subscribes here.
     for (const listener of this.listeners) listener();
+  }
+
+  private status(patch: Partial<ChatState>): void {
+    this.dropStream();
+    this.emit(patch);
   }
 
   private nextMessage(role: ChatMessage["role"], content: string): ChatMessage {
@@ -160,18 +164,15 @@ export class ChatSession {
         signal: abort.signal,
         runner: this.runner,
         onText: (chunk) => this.streamChunk(chunk),
-        onRepair: (attempt, max) => {
-          this.dropStream();
-          this.emit({ repair: { attempt, max }, patchParts: null });
-        },
-        onScriptStart: (program, turn) =>
-          this.emit({ exploring: turn, trace: beginTraceRun(this.state.trace, program) }),
+        onRepair: (attempt) => this.status({ repair: { attempt }, patchParts: null }),
+        onScriptStart: (program, programNumber) =>
+          this.emit({ exploring: programNumber, trace: beginTraceRun(this.state.trace, program) }),
         onScript: (result, program) =>
-          this.emit({ exploring: null, trace: completeTraceRun(this.state.trace, result, program) }),
-        onPatches: (part, max) => {
-          this.dropStream();
-          this.emit({ patchParts: { part, max } });
-        },
+          this.emit({
+            exploring: null,
+            trace: completeTraceRun(this.state.trace, result, program),
+          }),
+        onPatches: (part) => this.status({ patchParts: { part } }),
       });
       if (this.cancelled) return;
       if (!outcome.ok) {
