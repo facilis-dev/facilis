@@ -272,13 +272,17 @@ reported as `KNOWN` in `report.json` (`write.knownIssues`) instead of failing. T
 runs pass it: the flush + `Page.reload` restores the uncommitted file from OPFS.
 
 Artifacts (screenshots + `report.json`) land in `SMOKE_ARTIFACTS`, default
-`$FACILIS_TOOLING_DIR/smoke-artifacts/<epoch-ms>/`.
+`$FACILIS_TOOLING_DIR/smoke-artifacts/<epoch-ms>/`. A finished run keeps the newest
+`SMOKE_KEEP_RUNS` dirs (default 5) and prunes the older ones, so repeated runs do not fill the
+tooling dir; `--keep-artifacts` or a custom `SMOKE_ARTIFACTS` skips pruning and leaves the
+layout to the operator (`scripts/dev/run-artifacts.mjs`).
 
 | Env var | Default | Meaning |
 |---|---|---|
 | `STUDIO_URL` / `--url` | start own server on `SMOKE_PORT` | target origin |
 | `SMOKE_PORT` | `5199` | port for the self-started dev server |
-| `SMOKE_ARTIFACTS` | see above | evidence directory |
+| `SMOKE_ARTIFACTS` | see above | evidence directory (pinned: pruning is skipped) |
+| `SMOKE_KEEP_RUNS` | `5` | artifact dirs kept under the default root; older ones pruned at the end of a run |
 | `BOOT_TIMEOUT_MS` / `PREVIEW_TIMEOUT_MS` | `180000` / `300000` | budgets |
 | `FACILIS_PROBE_TIMEOUT_MS` | `120000` | budget for the preview to answer the framework endpoints |
 | `FACILIS_WRITE_TIMEOUT_MS` | `45000` | budget for each A8/A9 write-and-observe check |
@@ -316,7 +320,7 @@ VFS); one tab's write does not erase the other tab's paths from the shared OPFS 
 form name different from its directory is labelled by the directory; and the recent-projects
 registry keeps every tab's projects. Exit code is non-zero on any failure. Reference run on
 16 cores: 41 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
-under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`.
+under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the same retention as §5.
 
 ## 6. Known in-VM constraints
 

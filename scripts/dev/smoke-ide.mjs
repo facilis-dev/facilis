@@ -8,6 +8,9 @@
 //   scripts/dev/fetch-browser.sh       -> $FACILIS_TOOLING_DIR/browser/{chrome,sysroot}
 //
 // Usage: node scripts/dev/smoke-ide.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
+// Retention: the newest SMOKE_KEEP_RUNS (default 5) dirs under the artifacts root are kept
+// and older ones are pruned at the end of a run (--keep-artifacts or a pinned
+// SMOKE_ARTIFACTS skips that; see scripts/dev/run-artifacts.mjs).
 // Exit code 0 = the Studio booted and the created project served a preview.
 
 import { spawn } from "node:child_process";
@@ -16,6 +19,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, openPage } from "./cdp.mjs";
+import { pruneSmokeArtifacts } from "./run-artifacts.mjs";
 import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
@@ -32,8 +36,9 @@ const URL_ = argValue("url", process.env.STUDIO_URL || "");
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 300000);
 const PORT = Number(process.env.SMOKE_PORT || 5199);
-const ARTIFACTS =
-  process.env.SMOKE_ARTIFACTS || path.join(TOOLING, "smoke-artifacts", String(Date.now()));
+const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-artifacts");
+const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
+const KEEP_ARTIFACTS = process.argv.includes("--keep-artifacts");
 const CHROME = process.env.FACILIS_CHROME || path.join(TOOLING, "browser/chrome/chrome");
 const SYSROOT = process.env.FACILIS_BROWSER_SYSROOT || path.join(TOOLING, "browser/sysroot");
 const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser/fonts.conf");
@@ -474,6 +479,11 @@ async function main() {
     ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
+  pruneSmokeArtifacts({
+    root: ARTIFACTS_ROOT,
+    artifacts: ARTIFACTS,
+    keepArtifacts: KEEP_ARTIFACTS,
+  });
 
   chrome.client.close();
   chrome.child.kill("SIGKILL");
