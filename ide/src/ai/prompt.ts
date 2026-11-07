@@ -57,7 +57,13 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 }
 - path is relative to the project root and must stay under server/, src/, db/, lib/, components/ or locales/.
 - "create" and "update" carry the complete file content; "delete" omits content.
-- Never put secrets, tokens, API keys or credentials in any file.`;
+- Never put secrets, tokens, API keys or credentials in any file.
+
+## Validation repair
+If the latest user message says your previous answer was rejected, it is a validation repair report, not a new request: fix every finding it lists and return one complete corrected AIResponse JSON object in the same shape as above.
+- The report gives the rule, file, message, fix_hint and line/excerpt of each finding, plus the current content of the files your rejected patches tried to update or delete. Treat that content as the source of truth.
+- When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
+- Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.`;
 
 function capped(text: string, cap: number): string {
   if (text.length <= cap) return text;

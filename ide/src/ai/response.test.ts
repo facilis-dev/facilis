@@ -107,6 +107,11 @@ describe("parseAiResponse", () => {
     expect(result.issues).toEqual([
       "file-path-allowed: ../escape.ts: Patch paths must be relative to the project root.",
     ]);
+    // The repair turn needs the actionable fields, not only the one-line issue.
+    expect(result.findings[0]?.fix_hint).toContain("project-relative path");
+    expect(result.patchedFiles).toEqual([
+      { path: "../escape.ts", action: "create", content: "x" },
+    ]);
     expect(result.raw).toBe(raw);
   });
 
@@ -182,6 +187,9 @@ describe("parseTurn", () => {
     if (result.ok) return;
     expect(result.kind).toBe("validation");
     expect(result.issues[0]).toContain("route-security");
+    expect(result.findings[0]?.rule).toBe("route-security");
+    expect(result.findings[0]?.fix_hint).toContain("defineAuthorizedHandler");
+    expect(result.patchedFiles).toHaveLength(1);
   });
 
   it("returns the validation result for a valid answer", async () => {

@@ -16,7 +16,7 @@ import { errorText, initialState, replayTurns } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { StreamAccumulator } from "./chat-stream";
-import { parseTurn } from "./response";
+import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
@@ -91,6 +91,7 @@ export class ChatSession {
       applied: null,
       undo: null,
       streaming: false,
+      repair: null,
       error: null,
       context: null,
     });
@@ -143,13 +144,15 @@ export class ChatSession {
 
     this.cancelled = false;
     this.resetStream();
+    const messages = [...this.state.messages, this.nextMessage("user", content)];
     this.emit({
       phase: "sending",
-      messages: [...this.state.messages, this.nextMessage("user", content)],
+      messages,
       proposal: null,
       applied: null,
       undo: null,
       streaming: false,
+      repair: null,
       error: null,
     });
     const abort = new AbortController();
@@ -158,20 +161,40 @@ export class ChatSession {
       const built = await buildChatContext(this.host, abort.signal);
       if (abort.signal.aborted) return;
       this.emit({ context: built.context });
-      const result = await this.call({
+      const outcome = await runTurn({
+        call: this.call,
         settings,
         system: built.system,
-        messages: replayTurns(this.state.messages, HISTORY_LIMIT),
+        messages: replayTurns(messages, HISTORY_LIMIT),
+        host: this.host,
         signal: abort.signal,
         onText: (chunk) => this.streamChunk(chunk),
+        onRepair: (attempt, max) => {
+          this.dropStream();
+          this.emit({ repair: { attempt, max } });
+        },
       });
       if (this.cancelled) return;
-      if (!result.ok) {
+      if (!outcome.ok) {
         this.dropStream();
-        this.fail(result.failure);
+        this.emit({ repair: null });
+        this.fail(outcome.failure);
         return;
       }
-      await this.finishAnswer(result.text);
+      this.emit({ repair: null });
+      const response = outcome.parsed.response;
+      this.finishStream(response.message || "Done.");
+      if (response.patches.length > 0) {
+        this.emit({
+          proposal: await buildProposal(
+            response.patches,
+            response.notes,
+            response.requiresConfirmation,
+            (path) => this.host.read(path),
+            outcome.parsed.validation,
+          ),
+        });
+      }
     } catch (error) {
       if (!this.cancelled) {
         this.dropStream();
@@ -185,6 +208,7 @@ export class ChatSession {
       this.emit({
         phase: "idle",
         streaming: false,
+        repair: null,
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }
@@ -236,29 +260,6 @@ export class ChatSession {
   private resetStream(): void {
     this.stream.reset();
     this.streamId = null;
-  }
-
-  /** Turn a complete answer into the final bubble plus an optional proposal. */
-  private async finishAnswer(text: string): Promise<void> {
-    const parsed = await parseTurn(text, this.host);
-    if (!parsed.ok) {
-      this.dropStream();
-      const detail = [parsed.error, ...parsed.issues].filter(Boolean).join("\n");
-      this.emit({ error: { kind: "parse", message: detail } });
-      return;
-    }
-    const response = parsed.response;
-    this.finishStream(response.message || "Done.");
-    if (response.patches.length === 0) return;
-    this.emit({
-      proposal: await buildProposal(
-        response.patches,
-        response.notes,
-        response.requiresConfirmation,
-        (path) => this.host.read(path),
-        parsed.validation,
-      ),
-    });
   }
 
   /** Write the accepted files through the validated path. */

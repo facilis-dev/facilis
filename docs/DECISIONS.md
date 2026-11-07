@@ -1355,9 +1355,9 @@ a banner on destructive turns; it is not yet a blocking modal.
 **Scope now vs Phase 4.** Only the structural validator rules (`file-path-allowed`,
 `content-present`) are enforced today. The other 14 SPEC §9.3 rules need a TypeScript program,
 the manifest and the O-009 path allowlist; they land in `@facilis/ai` and are called from the
-same `parseAiResponse`/`applyPatch` seam. The SPEC §9.4 retry loop is not implemented yet: a
-failure is reported in the chat and the user re-asks. Neither gap weakens invariant 9 — the
-model still writes nothing on its own.
+same `parseAiResponse`/`applyPatch` seam. At the time the SPEC §9.4 retry loop was not
+implemented: a failure was reported in the chat and the user re-asked (implemented later,
+D-100). Neither gap weakens invariant 9 — the model still writes nothing on its own.
 
 **Verification.** `chat-session.test.ts` proves a turn yields a proposal with no bridge writes and
 that Apply writes only accepted files; `chat-proposal.test.ts` covers create/update/delete diffs;
@@ -1409,7 +1409,8 @@ is gone again (`scripts/dev/smoke-chat.mjs`).
 
 **Consequences:** the chat feels live without weakening the one-object contract; the boundary class
 of mistake is caught at review time instead of breaking the preview; and an Apply is reversible
-without git. The full 16-rule validator and the SPEC §9.4 retry loop remain Phase 4 (D-046).
+without git. The full 16-rule validator and the SPEC §9.4 retry loop were still Phase 4 at
+the time (later implemented: D-084 and D-100; D-046).
 
 ### D-048 — Project instructions come from AGENTS.md
 **Status:** accepted (2026-10-31)
@@ -2625,9 +2626,9 @@ that lands in that window never answers, so the checker bounds every attempt (2.
 across the restart, and a validation round bounds the manifest fetch (3 s) — a cold project can
 delay a proposal for a few seconds but can never leave the turn streaming; a service that never
 answers still fails closed. At publish time (O-006) the Node subpath will need rolldown as a
-real dependency or an injected checker. The retry loop (§9.4) is not implemented; `parseTurn`
-and `fix_hint`/`excerpt` are its seam. Cost: one context read plus one manifest fetch per
-validation round, and three rounds per Apply.
+real dependency or an injected checker. The retry loop (§9.4) was not implemented at the time
+— `parseTurn` and `fix_hint`/`excerpt` were its seam; it is implemented now (D-100). Cost: one
+context read plus one manifest fetch per validation round, and three rounds per Apply.
 
 **Verification.** 48 `@facilis/ai` tests (a suite per rule group, a realistic fixture project,
 rule 1 rejects invalid TS and accepts valid TS through rolldown) and 523 IDE tests with no
@@ -3545,6 +3546,54 @@ path is visible in the manifest and explicitly "not recommended". Verification: 
 14 files / **109 tests** (system elevation, shared nesting, handler event without `db`),
 `@facilis/analyze` 10 files / **71 tests** (direct-db warning), example 5 files / 33 tests,
 template consumers typecheck; the full root gates stay green.
+
+### D-100 — Constructive validation feedback and the §9.4 retry loop
+**Status:** accepted (2026-11-07)
+
+The user reported that the IDE chat is unusable: when the 16-rule validator rejected the model's
+patches, the turn dead-ended on a one-line error. `parseTurn()` already produced `fix_hint` and
+`line`/`excerpt` per `ValidationError` (D-084), but nothing fed them back, so the model never
+learned what to fix — the user could only retype the request and hope for a different answer.
+
+**Decision.** The retry loop is implemented in the IDE chat, not in `@facilis/ai`.
+
+- `runTurn()` in `ide/src/ai/turn.ts` re-asks the model on a rejected answer up to
+  `MAX_REPAIR_ATTEMPTS = 2` (§9.4's worst case is 3 attempts total). The validator package
+  stays a pure, synchronous function: it knows nothing about provider calls, messages or the VFS.
+- A rejected answer is any failure, not only a validator error: unparseable JSON, an
+  `AIResponse` contract violation or a rule violation. `AiParseFailure` carries the structured
+  `findings` (rule, file, message, fix_hint, line, excerpt) and the rejected `patchedFiles`.
+- `ide/src/ai/repair.ts` builds each repair request as one user-role turn: a numbered findings
+  list, a reminder of the `AIResponse` contract, and the current content of the existing files
+  the rejected patches tried to update or delete, capped like the rest of the prompt context.
+  This is a clarification of §9.4's "not full files": a `create`/`update` patch carries the
+  complete file, so re-emitting a whole-file rewrite from a `fix_hint` alone is a guess — the
+  model needs the file it is editing. The cap keeps the context bounded.
+- `SYSTEM_PROMPT` gains a "Validation repair" section: the repair report is not a new request;
+  fix every finding and return one complete corrected object; when re-emitting a file keep every
+  existing declaration (tables, columns, routes, config, keys); destructive changes only when
+  asked, with `requires_confirmation: true` and a note.
+- `state.repair = { attempt, max }` on the chat session exposes the progress to the UI.
+- Final failure writes nothing: the findings are shown in the chat and the VFS is untouched.
+
+**Rejected alternatives.** *Loop inside `@facilis/ai`*: the validator is a pure function over
+patches + context, while retrying needs the conversation, the provider stream and file reads, all
+IDE-side. *Feed back `fix_hint`/`excerpt` only* (the literal §9.4 wording): documented, but it
+dead-ends exactly on whole-file updates, the common case. *Unbounded file context*: the prompt
+already has caps for a reason. *A snapshot of every project file*: needless tokens, and it leaks
+files the rejected patch never touched.
+
+**Consequences.** Worst case 3× the token cost of one answer; the repair context is capped per
+file. Model B's `read_file` tool remains the general solution for pulling context on demand —
+Model A cannot, so the loop pre-loads the files it knows the model needs. The prompt only
+describes the protocol; the model still re-emits whole files, so the existing validator remains
+the boundary. No write path changes: a failed turn has no proposal to apply.
+
+**Verification.** Covered by `ide/src/ai/prompt.test.ts` (the new section and its position after
+the response contract) and the IDE's repair/chat-session tests landed with task-1 (`runTurn` is
+covered through ChatSession); the
+Lead's final gate run (`pnpm lint`, `typecheck`, `test`, `build`) is the verification for
+this change.
 
 ---
 ## Open (do not block Phase 0/1; resolve before the noted phase)

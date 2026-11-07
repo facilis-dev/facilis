@@ -69,7 +69,7 @@ export function ChatPanel() {
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [state.messages.length, state.phase, state.proposal, state.applied, state.error]);
+  }, [state.messages.length, state.phase, state.proposal, state.applied, state.error, state.repair]);
 
   const submit = () => {
     const text = draft.trim();
@@ -148,6 +148,9 @@ export function ChatPanel() {
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                 <p className="font-medium text-destructive">{errorText(state.error)}</p>
+                {state.error.kind === "parse" && (
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{t("chat.parse.hint")}</p>
+                )}
                 {state.error.message.length > 0 && (
                   <details className="mt-1 text-[10px] text-muted-foreground">
                     <summary className="cursor-pointer select-none">{t("chat.detail")}</summary>
@@ -163,7 +166,9 @@ export function ChatPanel() {
         {busy && !state.streaming && (
           <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
             <LoaderCircle className="size-3.5 animate-spin" />
-            {t("chat.thinking")}
+            {state.repair !== null
+              ? t("chat.repairing", { attempt: state.repair.attempt, max: state.repair.max })
+              : t("chat.thinking")}
           </div>
         )}
       </div>

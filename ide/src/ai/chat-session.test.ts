@@ -192,6 +192,27 @@ describe("ChatSession", () => {
     expect(state.proposal).toBeNull();
   });
 
+  it("folds consecutive user turns after a failed answer so roles alternate", async () => {
+    const calls: { messages: readonly { role: string; content: string }[] }[] = [];
+    const chat = sessionWith(async (input) => {
+      calls.push(input);
+      return calls.length <= 3
+        ? { ok: true, text: "not json" }
+        : { ok: true, text: answer(createNewFile()) };
+    });
+
+    await chat.send("first request");
+    expect(chat.getSnapshot().error?.kind).toBe("parse");
+    await chat.send("second request");
+
+    // The failed turn never became an assistant bubble; Anthropic requires alternating roles.
+    const replayed = calls.at(-1)?.messages ?? [];
+    expect(replayed.map((turn) => turn.role)).toEqual(["user"]);
+    expect(replayed[0]?.content).toContain("first request");
+    expect(replayed[0]?.content).toContain("second request");
+    expect(chat.getSnapshot().error).toBeNull();
+  });
+
   it("surfaces a provider failure with its kind and status", async () => {
     const chat = sessionWith(async () => ({
       ok: false,

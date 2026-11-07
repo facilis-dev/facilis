@@ -5,30 +5,46 @@
 // text into the typed shape, so the UI never has to defend against it. parseAiResponse is
 // the context-free structural gate; parseTurn then runs the full SPEC §9.3 validator
 // against the project context before a proposal can exist.
+//
+// A failure keeps the structured findings (rule, file, fix_hint, line, excerpt) and the
+// rejected patches, not just the one-line issues: the SPEC §9.4 repair turn feeds those
+// back to the model, and the chat shows them under the error.
 
-import { validatePatch, type FilePatch, type ValidationResult } from "@facilis/ai";
+import {
+  validatePatch,
+  type FilePatch,
+  type ValidationError,
+  type ValidationResult,
+} from "@facilis/ai";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import type { AiResponse } from "./types";
 
+export interface AiParseFailure {
+  ok: false;
+  kind: "empty" | "json" | "contract" | "validation";
+  error: string;
+  /** One-line structural issues, in the validator's `rule: file: message` form. */
+  issues: string[];
+  /** Validator findings with `fix_hint` (and `line`/`excerpt`) for the repair turn. */
+  findings: ValidationError[];
+  /** The patches the rejected answer proposed: the repair turn reads their current files. */
+  patchedFiles: FilePatch[];
+  raw: string;
+}
+
 export type AiParseResult =
   | { ok: true; response: AiResponse; validation: ValidationResult }
-  | {
-      ok: false;
-      kind: "empty" | "json" | "contract" | "validation";
-      error: string;
-      issues: string[];
-      raw: string;
-    };
-
-type ParseFailure = Extract<AiParseResult, { ok: false }>;
+  | AiParseFailure;
 
 function failure(
-  kind: ParseFailure["kind"],
+  kind: AiParseFailure["kind"],
   error: string,
   issues: string[],
   raw: string,
-): ParseFailure {
-  return { ok: false, kind, error, issues, raw };
+  findings: ValidationError[] = [],
+  patchedFiles: FilePatch[] = [],
+): AiParseFailure {
+  return { ok: false, kind, error, issues, findings, patchedFiles, raw };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,6 +123,10 @@ function parseNotes(value: unknown): { notes: string[]; issue: string | null } {
   };
 }
 
+function oneLine(error: ValidationError): string {
+  return `${error.rule}: ${error.file}: ${error.message}`;
+}
+
 export function parseAiResponse(raw: string): AiParseResult {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
@@ -148,7 +168,14 @@ export function parseAiResponse(raw: string): AiParseResult {
   const requiresConfirmation = rawConfirmation === true;
 
   if (issues.length > 0) {
-    return failure("contract", "The response does not match the AIResponse contract.", issues, raw);
+    return failure(
+      "contract",
+      "The response does not match the AIResponse contract.",
+      issues,
+      raw,
+      [],
+      parsedPatches.patches,
+    );
   }
 
   const validation = validatePatch(parsedPatches.patches);
@@ -156,8 +183,10 @@ export function parseAiResponse(raw: string): AiParseResult {
     return failure(
       "validation",
       "The proposed patches failed validation.",
-      validation.errors.map((error) => `${error.rule}: ${error.file}: ${error.message}`),
+      validation.errors.map(oneLine),
       raw,
+      validation.errors,
+      parsedPatches.patches,
     );
   }
 
@@ -194,10 +223,10 @@ export async function parseTurn(
     return failure(
       "validation",
       "The proposed patches failed validation.",
-      checked.validation.errors.map(
-        (entry) => entry.rule + ": " + entry.file + ": " + entry.message,
-      ),
+      checked.validation.errors.map(oneLine),
       raw,
+      checked.validation.errors,
+      parsed.response.patches,
     );
   }
   return { ...parsed, validation: checked.validation };

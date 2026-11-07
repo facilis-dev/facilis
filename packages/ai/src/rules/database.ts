@@ -127,7 +127,7 @@ export function destructiveErrors(
       "destructive-confirmed",
       SCHEMA_PATH,
       "Destructive schema change without confirmation: the patch " + shown + suffix + ".",
-      "Set requires_confirmation to true in the response (SPEC §9.2 rule 9 / §9.3 rule 15).",
+      "If the removal was not intended, re-emit the complete db/schema.ts keeping every existing table and column and add only the requested change. For a deliberate removal, set requires_confirmation to true and explain it in notes (SPEC §9.2 rule 9 / §9.3 rule 15).",
     ),
   ];
 }

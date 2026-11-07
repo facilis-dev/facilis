@@ -65,6 +65,35 @@ describe("SYSTEM_PROMPT", () => {
       expect(SYSTEM_PROMPT).toContain(token);
     }
   });
+
+  it("states the validation repair protocol", () => {
+    for (const token of [
+      "## Validation repair",
+      "validation repair report",
+      "your previous answer was rejected",
+      "fix every finding",
+      "one complete corrected AIResponse JSON object",
+      "fix_hint",
+      "line/excerpt",
+      "current content",
+      "keep every existing declaration",
+      "tables, columns, routes, config, keys",
+      "never drop code you were not asked to remove",
+      "destructive",
+      "requires_confirmation",
+      "notes",
+    ]) {
+      expect(SYSTEM_PROMPT).toContain(token);
+    }
+  });
+
+  it("places the validation repair section after the response contract", () => {
+    const contractAt = SYSTEM_PROMPT.indexOf("## Response contract");
+    const repairAt = SYSTEM_PROMPT.indexOf("## Validation repair");
+    expect(contractAt).toBeGreaterThan(-1);
+    expect(repairAt).toBeGreaterThan(contractAt);
+    expect(repairAt).toBeGreaterThan(SYSTEM_PROMPT.indexOf("Never put secrets"));
+  });
 });
 
 describe("buildSystemPrompt", () => {

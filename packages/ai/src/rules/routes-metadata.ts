@@ -97,7 +97,7 @@ export function routeDbTablesErrors(state: EffectiveState): ValidationError[] {
             '", which the existing route ' +
             routeLabel(route) +
             " still references.",
-          "Update the route (or delete it) in the same patch, or keep the table.",
+          "Update the route (or delete it) in the same patch, or keep the table. If the change was meant to be additive, re-emit db/schema.ts with every existing table plus the new one.",
         ),
       );
     }

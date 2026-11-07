@@ -48,10 +48,18 @@ export interface ChatSessionOptions {
 
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */
 export function replayTurns(messages: readonly ChatMessage[], limit: number): AiChatTurn[] {
-  return messages
-    .filter((message) => message.content.length > 0)
-    .slice(-limit)
-    .map((message) => ({ role: message.role, content: message.content }));
+  const turns: AiChatTurn[] = [];
+  for (const message of messages.filter((entry) => entry.content.length > 0).slice(-limit)) {
+    // A failed turn leaves consecutive user messages (its answer never became a bubble);
+    // Anthropic rejects non-alternating roles, so fold them into one turn.
+    const last = turns.at(-1);
+    if (last === undefined || last.role !== message.role) {
+      turns.push({ role: message.role, content: message.content });
+      continue;
+    }
+    last.content = last.content + "\n\n" + message.content;
+  }
+  return turns;
 }
 
 export function errorText(error: unknown): string {
@@ -66,6 +74,7 @@ export function initialState(settings: AiSettings | null): ChatState {
     applied: null,
     undo: null,
     streaming: false,
+    repair: null,
     error: null,
     settings,
     configured: isConfigured(settings),

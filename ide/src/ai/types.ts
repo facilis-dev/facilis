@@ -157,6 +157,11 @@ export interface ChatState {
   undo: ChatUndo | null;
   /** The provider is streaming the answer's `message` field into the last bubble. */
   streaming: boolean;
+  /**
+   * The rejected answer is being re-asked with the validator findings (SPEC §9.4).
+   * `attempt` is 1-based; null while no repair is running.
+   */
+  repair: { attempt: number; max: number } | null;
   error: ChatFailure | null;
   /** null until a provider was saved. */
   settings: AiSettings | null;
