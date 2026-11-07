@@ -1615,7 +1615,7 @@ Rules the AI must obey:
 5. Use existing blocks; do not create new ones unprompted
 6. All strings via `t("key")`
 7. Minimal patches; match existing style
-8. Output is a single `AIResponse` JSON object; no prose outside
+8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 
 ### 9.3 Patch Validator (16 Rules)
@@ -1693,6 +1693,17 @@ Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (e
   the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
   temporarily unavailable and nothing is written; no correction round is spent asking the model
   to fix a worker (D-105).
+- **Large patch sets arrive in parts (D-106).** A provider cuts an answer at its output limit
+  (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends
+  2–3 files per answer, marks every part but the last with `"continue": true`, and the turn loop
+  merges the parts by path (a later part may correct a file), ORs the destructive flag, keeps the
+  notes and validates the merged set once (the rules are cross-file). The chat shows
+  "sending the patch set in parts (n/5)"; the budget is 5 parts per user turn and exhausting it
+  fails constructively without writing. If the provider cut the answer anyway, the client marks
+  it `truncated` and the IDE salvages the complete patch objects before the cut
+  (`ide/src/ai/salvage.ts`), then asks for the rest instead of reporting a raw JSON error. Only
+  an answer with no recoverable patch goes through the ordinary repair, whose report now carries
+  the cut-off explanation and the part protocol.
 - **On final failure:** the findings are shown in the chat and **nothing is written** to OPFS.
 
 ### 9.5 Model B Tool Surface (Phase 4.5)

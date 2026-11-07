@@ -3771,6 +3771,54 @@ fail closed), `validator-context.test.ts` (infrastructure flag), `turn.test.ts` 
 infrastructure), `chat-session-validation.test.ts` (validator kind), i18n parity; full gates
 green.
 
+### D-106 — Large patch sets arrive in parts; a cut answer is not a parse error
+**Status:** accepted (2026-11-07)
+
+A real turn — "add attachments (upload, preview, download) to the todo app" — produced a ~28 KB
+answer that the provider cut at its output limit. The cut landed right after a complete patch
+object, so the JSON ended mid-array: `JSON.parse` failed with `Expected ',' or ']' after array
+element in JSON at position 28469`, the chat showed that raw error, and the repair loop asked the
+model to resend the whole set — which the same limit cut again, until the three corrections were
+gone. The user saw "the assistant could not produce a valid patch set" for a request that was
+just too large for one answer.
+
+**Decision.**
+
+- The client surfaces the provider's stop reason (`finish_reason: "length"` /
+  `stop_reason: "max_tokens"`) as `CallModelResult.truncated` (`ide/src/ai/client.ts`); when a
+  stream carries no stop reason, the parser marks a JSON error at the end of the text as
+  truncated too (`ide/src/ai/response.ts`).
+- The model may split a set: every part is a complete `AIResponse`, and `"continue": true` marks
+  every part but the last. `ide/src/ai/turn.ts` merges the parts by path (a later part may correct
+  a file), ORs `requires_confirmation`, keeps the notes and validates the merged set once
+  (`ide/src/ai/patch-set.ts`); the chat shows "sending the patch set in parts (n/5)". The budget is
+  5 parts per user turn, and a part without patches still needs a message.
+- A cut answer is not thrown away: `ide/src/ai/salvage.ts` scans the `patches` array with a
+  string-aware brace scan and keeps the complete patch objects before the cut; the turn asks for
+  the rest with the list of files already received (their content is not re-sent). If no complete
+  patch survives, the repair report gains a "## The answer was cut off" section with the part
+  protocol instead of only the raw JSON error.
+- The system prompt, the repair contract and the new large-set guidance tell the model to keep an
+  answer under the output limit and send at most 2–3 files per part.
+
+**Rejected alternatives.** *Raise `max_tokens`*: provider- and model-dependent (Anthropic
+rejects values above the model's limit) and the set already exceeds a conservative cap. *Retry
+the same answer after cutting it*: the tail is lost and the next attempt has the same budget.
+*Validate each part separately*: the §9.3 rules are cross-file, so a part would false-positive;
+the merged set is validated once, exactly like a one-answer set.
+
+**Consequences.** A feature spanning more than one answer completes; a cut answer keeps its work
+and asks for the remainder; a genuinely malformed answer still gets the ordinary repair (now with
+the part advice), with the raw JSON error as detail only. The conversation stays bounded: each
+part is recorded as a synthetic assistant turn listing its paths, not the raw part content, which
+would push the next request over the context window. Five parts of ~8k tokens are the worst case
+for one user turn.
+
+**Verification.** `salvage.test.ts` (cut tail, brace inside content, missing separator, malformed
+element), `response.test.ts` (continue contract, truncation detection), `turn.test.ts` (merge,
+salvage continuation, part budget), `chat-session-repair.test.ts` (part progress in the chat
+state), `client.test.ts`/`provider.test.ts` (stop reasons); full gates green.
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
