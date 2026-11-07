@@ -8,6 +8,7 @@
 
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
+import type { PreviewAccess } from "./preview-access";
 
 /** The slice of ChatHost the contextual validation needs. */
 export interface PatchContextHost {
@@ -18,6 +19,8 @@ export interface PatchContextHost {
   manifestBase(): string | null;
   /** Rule 1's parser (the analyzer worker's oxc parser in the IDE); null when unavailable. */
   syntaxChecker?(): SyntaxChecker | null;
+  /** The running preview, when the IDE has one (D-111): the preview tools drive the app. */
+  preview?: PreviewAccess;
   /**
    * Analyze the project before and after the patch set. Implemented by the IDE through the
    * browser analyzer worker; a failure here blocks validation (the caller fails closed).

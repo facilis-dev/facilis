@@ -25,5 +25,29 @@ export const TOOL_SPECS: readonly PtcToolSpec[] = [
   ),
 ];
 
-export const TOOL_NAMES = TOOL_SPECS.map((entry) => entry.name).join(", ");
-export const SPEC_BY_NAME = new Map(TOOL_SPECS.map((entry) => [entry.name, entry] as const));
+/**
+ * Tools that drive the running preview (D-111). They are registered only when the IDE has a
+ * preview session; the handlers return `{ available: false }` while the app is not running.
+ */
+export const PREVIEW_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec("preview_state", "preview_state()", "Running app: URL, title, viewport, visible text."),
+  spec(
+    "preview_console",
+    "preview_console()",
+    "Recent console errors/warnings and uncaught exceptions.",
+  ),
+  spec("preview_network", "preview_network()", "Recent failed or non-2xx requests."),
+  spec(
+    "preview_dom",
+    "preview_dom({ selector?, maxChars? })",
+    "HTML of an element (or body text) in the running app.",
+  ),
+  spec("preview_click", "preview_click({ selector })", "Click an element to reproduce a flow."),
+  spec("preview_fill", "preview_fill({ selector, text })", "Type into an input (input/change)."),
+  spec("preview_open", "preview_open({ path })", "Navigate the preview to a project route."),
+  spec("preview_wait", "preview_wait({ selector?, ms? })", "Wait for an element or a delay."),
+];
+
+export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = [...TOOL_SPECS, ...PREVIEW_TOOL_SPECS];
+export const TOOL_NAMES = ALL_TOOL_SPECS.map((entry) => entry.name).join(", ");
+export const SPEC_BY_NAME = new Map(ALL_TOOL_SPECS.map((entry) => [entry.name, entry] as const));

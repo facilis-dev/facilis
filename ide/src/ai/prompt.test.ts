@@ -127,6 +127,19 @@ describe("buildSystemPrompt with the PTC runtime", () => {
     const prompt = buildSystemPrompt(context());
     expect(prompt).not.toContain("## Project exploration (PTC)");
   });
+
+  it("teaches the running-app tools only when a preview tool is registered", () => {
+    const preview = {
+      name: "preview_state",
+      signature: "preview_state()",
+      description: "State of the running app.",
+    };
+    const withPreview = buildSystemPrompt(context({ tools: [...TOOLS, preview] }));
+    expect(withPreview).toContain("## The running app (preview tools)");
+    expect(withPreview).toContain("preview_state()");
+    const without = buildSystemPrompt(context({ tools: TOOLS }));
+    expect(without).not.toContain("## The running app (preview tools)");
+  });
 });
 
 describe("canonical shapes and the tool protocol", () => {

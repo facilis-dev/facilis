@@ -183,6 +183,14 @@ confined to the project root, and go through one policy function.
 | `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
 | `validate` | `{ patches }` | the same `validatePatch()` findings the final gate uses (SPEC §9.3); read-only, writes nothing |
+| `preview_state` | `{}` | running app: URL, title, viewport, visible text (D-111) |
+| `preview_console` | `{}` | recent console errors/warnings and uncaught exceptions |
+| `preview_network` | `{}` | recent failed or non-2xx requests |
+| `preview_dom` | `{ selector?, maxChars? }` | element HTML, or the body text |
+| `preview_click` | `{ selector }` | clicks an element (reproduces a user flow) |
+| `preview_fill` | `{ selector, text }` | types into an input/textarea (input/change) |
+| `preview_open` | `{ path }` | navigates the preview to a route (reloads) |
+| `preview_wait` | `{ selector?, ms? }` | waits for an element or a delay |
 
 **The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
 validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
@@ -190,6 +198,14 @@ validation and the user's Apply stay in place (invariant 9); with the pre-flight
 gate should almost never fire, so the red "invalid patch set" flow disappears from normal use
 while the safety net remains. The tool must call the same pure function as the final gate —
 never a second implementation of the rules.
+
+**The preview tools (D-111) inspect the app, not the source.** Every preview page already carries
+chobitsu — the CDP backend the preview Service Worker injects (`ide/public/sw.js`) — and the
+DevTools panel relays it to chii; the same channel now has a programmatic client
+(`ide/src/vv/preview-cdp.ts`) so the model can see runtime console/network failures and reproduce
+a click flow before proposing a fix. They act on the *running app's own state* (they can create
+or delete data in it) and never write the project; with no project running they answer
+`{ available: false }` as data.
 
 Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is

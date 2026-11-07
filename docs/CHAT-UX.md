@@ -23,17 +23,16 @@ bordered cards.
 
 ### "Compact"
 
-Two readings were raised and are **open** until the owner picks one:
+**Owner decision (2026-11-07): "compact" means context compaction**, not a density switch.
 
-1. **Density (recommended first):** a persisted "compact / normal" toggle in the chat header;
-   compact is the style above (single-line rows, no chrome), normal keeps today's cards. No
-   model call, no context change.
-2. **Context compaction:** a `/compact`-style action that asks the model to summarize the
-   conversation so far into one replayable summary message and then drops the raw history.
-   Today only the last `HISTORY_LIMIT = 20` messages are replayed (`chat-session.ts`), and the
-   visible transcript already survives longer than that; context compaction would mostly help
-   very long sessions and costs one model call. It needs a new `ChatState` summary message, a
-   settings/command surface, and tests; it is a separate decision.
+1. **Context compaction (chosen).** A `/compact`-style action that asks the model to summarize the
+   conversation so far into one replayable summary message and then drops the raw history. Today
+   only the last `HISTORY_LIMIT = 20` messages are replayed (`chat-session.ts`), and the visible
+   transcript already survives longer than that; compaction helps very long sessions and costs one
+   model call. It needs a summary message in `ChatState`, a command/settings surface, a way to
+   keep the summary while the tool trace stays visible, and tests.
+2. **Density (not "compact"):** the lighter visual style above remains the goal of this document,
+   but it is a separate visual slice — no persisted toggle is planned under the name "compact".
 
 ### Attachments
 
@@ -49,11 +48,11 @@ Two readings were raised and are **open** until the owner picks one:
 
 ## What it touches when we do it
 
-- `ChatMessageView` / `ChatTraceView` (density), `ChatPanel` (composer "+", header toggle),
-  `AiSettings` (persisted density), `chat-session.ts` (attachments preamble, optional compact
-  summary), i18n keys (en/it), tests and a screenshot acceptance pass on the real IDE.
+- `ChatPanel` (composer "+", compact command), `chat-session.ts` (compaction call and summary
+  message, attachments preamble), `ChatMessageView` / `ChatTraceView` (density), i18n keys
+  (en/it), tests and a screenshot acceptance pass on the real IDE.
 
-## Not started
+## Status
 
-No code yet: the preview tools (phase 1/2 of the chat tools) come first; this slice is recorded
-here so the direction is not lost.
+Not started. The preview tools landed first (D-111); the next chat slice is context compaction
+(chosen meaning of "compact"), then the attachments, then the visual density pass.

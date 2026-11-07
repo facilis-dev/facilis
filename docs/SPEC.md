@@ -1938,7 +1938,9 @@ capabilities are the extension seam) and returns lossless JSON. Patches are stil
 path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
 phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
 landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
-remain.
+remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`network`/`dom`/
+`click`/`fill`/`open`/`wait`): the page's chobitsu CDP backend is the transport; they observe or
+reproduce runtime failures but never write the project.
 
 ---
 

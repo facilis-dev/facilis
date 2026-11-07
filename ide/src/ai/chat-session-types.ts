@@ -5,6 +5,7 @@
 
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
+import type { PreviewAccess } from "./preview-access";
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
@@ -25,6 +26,8 @@ export interface ChatHost {
   manifestBase(): string | null;
   /** Rule 1's parser: the analyzer worker (oxc); null when it cannot answer (fails closed). */
   syntaxChecker?(): SyntaxChecker | null;
+  /** The running preview, when the IDE has one (D-111): the preview tools drive the app. */
+  preview?: PreviewAccess;
   /**
    * Analyze the project before and after a patch set (the browser analyzer worker). The
    * validator fails closed when this throws, so unanalyzed patches never reach disk.

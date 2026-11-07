@@ -49,6 +49,16 @@ const PTC_PROMPT = [
   "Tools:",
 ].join("\n");
 
+/** Teaches the running-app tools when the host registers them (D-111). */
+const PREVIEW_PROMPT = [
+  "## The running app (preview tools)",
+  "When a project is running, the preview_* tools inspect and drive the app itself: a runtime failure, a broken request or a click that does nothing shows up there, not in the source.",
+  "- Start with preview_state; when the failure is an error or a failed request, call preview_console and preview_network before proposing a fix.",
+  "- preview_click and preview_fill reproduce a user flow; preview_open navigates the preview (the page reloads); preview_wait waits for an element.",
+  "- The tools act on the running app's own state (they can create or delete its data). They never write to the project: the only write path stays the patch set plus the user's Apply.",
+  '- { "available": false } means the app is not running: ask the user to Run it and retry; never guess the runtime state.',
+].join("\n");
+
 /** The shared rules (SPEC §9.2) and the one-object response contract (SPEC §9.3 rule 15). */
 export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change a generated Facilis project by returning one JSON patch set per turn.
 
@@ -162,7 +172,12 @@ export function buildSystemPrompt(context: PromptContext): string {
   const lines: string[] = [SYSTEM_PROMPT, ""];
 
   const tools = context.tools ?? [];
-  if (tools.length > 0) lines.push(PTC_PROMPT, describeTools(tools), "");
+  if (tools.length > 0) {
+    lines.push(PTC_PROMPT, describeTools(tools), "");
+    if (tools.some((tool) => tool.name.startsWith("preview_"))) {
+      lines.push(PREVIEW_PROMPT, "");
+    }
+  }
 
   if (context.instructions !== null) {
     lines.push(

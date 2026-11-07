@@ -24,7 +24,8 @@ import {
   type PtcToolCall,
   type PtcToolExecutor,
 } from "./protocol";
-import { SPEC_BY_NAME, TOOL_NAMES, TOOL_SPECS } from "./tool-specs";
+import { createPreviewHandlers, type PreviewHandler } from "./preview-tools";
+import { ALL_TOOL_SPECS, SPEC_BY_NAME, TOOL_NAMES, TOOL_SPECS } from "./tool-specs";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -269,15 +270,19 @@ export function createToolRouter(host: PatchValidationHost): PtcToolExecutor {
   let facts: Promise<Analysis> | null = null;
   const analysis = (): Promise<Analysis> =>
     (facts ??= host.analyze([]).then((result) => result.after));
+  // D-111: the preview tools exist only when the IDE has a preview session.
+  const preview = host.preview === undefined ? undefined : createPreviewHandlers(host.preview);
   return {
-    specs: () => TOOL_SPECS,
+    specs: () => (preview === undefined ? TOOL_SPECS : ALL_TOOL_SPECS),
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {
       const spec = SPEC_BY_NAME.get(call.name);
       if (spec === undefined) refuse("unknown tool: " + call.name + "; available: " + TOOL_NAMES);
       throwIfAborted(options.signal);
-      const handler: Handler | undefined = HANDLERS[call.name];
-      if (handler === undefined) refuse("tool is not implemented: " + call.name);
       try {
+        const handler: Handler | undefined = HANDLERS[call.name];
+        const previewHandler: PreviewHandler | undefined = preview?.[call.name];
+        if (previewHandler !== undefined) return await previewHandler(argsOf(call.args));
+        if (handler === undefined) refuse("tool is not implemented: " + call.name);
         return await handler(argsOf(call.args), { host, signal: options.signal, analysis });
       } catch (error) {
         if (isPtcToolError(error)) {

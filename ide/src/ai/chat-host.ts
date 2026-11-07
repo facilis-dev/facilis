@@ -12,6 +12,7 @@ import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
+import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
 import { createRunnerFrameChild } from "./ptc/runner-frame";
 import { createToolRouter } from "./ptc/tools";
@@ -86,6 +87,8 @@ function chatHost(controller: IdeController): ChatHost {
     // Rule 1's parser: the framework analyzer (oxc), the same parser that produces the
     // facts the other rules read. Monaco is the editor's viewer, not the validator's parser.
     syntaxChecker: () => createAnalyzerSyntaxChecker(),
+    // D-111: the running preview, so a program can inspect and drive the app itself.
+    preview: createPreviewAccess(controller.preview),
     // The 16-rule validator reads analyzer facts: the worker analyzes the project before and
     // after the proposal; a thrown error blocks validation.
     analyze: (patches, signal) => analyzePatches(controller, patches, signal),

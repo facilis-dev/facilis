@@ -5,12 +5,10 @@
 import { toast } from "sonner";
 import type { KernelBridge } from "./kernel";
 import { markBoot } from "./boot-marks";
-import {
-  parsePreviewAddress,
-  popoutPreviewUrl,
-  previewPathSuffix,
-  previewSrcFor,
-} from "./preview-url";
+import { PreviewCdp } from "./preview-cdp";
+import { openPreviewWindow } from "./preview-popout";
+import { closedOtherTabs, closedTab, closedTabsToRight } from "./preview-tabs";
+import { parsePreviewAddress, previewPathSuffix, previewSrcFor } from "./preview-url";
 import { PreviewDevtools } from "./preview-devtools";
 
 // One browser tab in the Preview panel.
@@ -53,6 +51,8 @@ export interface PreviewHost {
 
 export class PreviewSession {
   readonly devtools: PreviewDevtools;
+  /** Programmatic CDP against the running preview (D-111): the AI tools drive the app. */
+  readonly cdp: PreviewCdp;
   private readonly bridge: KernelBridge;
   private readonly host: PreviewHost;
   private frames = new Map<string, HTMLIFrameElement>(); // preview tab id -> iframe
@@ -61,7 +61,30 @@ export class PreviewSession {
   constructor(bridge: KernelBridge, host: PreviewHost) {
     this.bridge = bridge;
     this.host = host;
+    this.cdp = new PreviewCdp({
+      active: () => this.activePreviewTab(),
+      frame: (tabId) => this.frames.get(tabId),
+    });
     this.devtools = new PreviewDevtools(bridge, host, this);
+  }
+
+  /** The tab the preview tools and DevTools follow: the active one, else the first with a port. */
+  activePreviewTab(): PreviewTab | null {
+    const active = this.state.tabs.find((tab) => tab.id === this.state.activeId);
+    if (active !== undefined && active.port !== null) return active;
+    return this.state.tabs.find((tab) => tab.port !== null) ?? null;
+  }
+
+  /** Navigate the preview to a project route (D-111): a full reload on the new path. */
+  navigatePreviewPath(id: string, path: string): void {
+    const tab = this.state.tabs.find((entry) => entry.id === id);
+    if (tab === undefined || tab.port === null || !path.startsWith("/")) return;
+    this.setTab(id, { path, nonce: tab.nonce + 1, title: "" });
+  }
+
+  /** The DevTools relay hands every preview CDP target message to the programmatic client. */
+  onCdpTarget(tabId: string, data: unknown): void {
+    this.cdp.dispatch(tabId, data);
   }
 
   private get state(): PreviewState {
@@ -73,8 +96,9 @@ export class PreviewSession {
     this.devtools.wireMessages();
   }
 
-  /** A preview iframe finished (re)loading: paint mark, address bar, DevTools. */
+  /** A preview iframe finished (re)loading: paint mark, address bar, DevTools, CDP session. */
   onPreviewFrameLoad(id: string) {
+    this.cdp.onFrameLoad(id);
     this.devtools.onPreviewFrameLoad(id);
   }
 
@@ -99,8 +123,12 @@ export class PreviewSession {
   }
 
   setPreviewFrame(id: string, el: HTMLIFrameElement | null) {
-    if (el) this.frames.set(id, el);
-    else this.frames.delete(id);
+    if (el) {
+      this.frames.set(id, el);
+    } else {
+      this.frames.delete(id);
+      this.cdp.forget(id);
+    }
   }
   // The iframe URL for a tab (pure, preview-url.ts).
   previewSrc(tab: PreviewTab): string {
@@ -208,32 +236,12 @@ export class PreviewSession {
     }
   }
   openPreviewExternal(id: string) {
-    const t = this.state.tabs.find((x) => x.id === id);
-    if (t?.port != null) this.openExternalPreview(t.port);
+    const tab = this.state.tabs.find((entry) => entry.id === id);
+    if (tab?.port != null) openPreviewWindow(this.bridge, tab.port);
   }
 
-  // Open a preview port in a standalone browser tab.
-  //
-  // Default (same-origin pop-out): open on the studio's OWN origin so the tab
-  // lands in the kernel's storage partition and proxies through the same-origin
-  // SW — frictionless, but not isolated from the IDE. COOP:same-origin puts the
-  // new tab in a separate browsing-context group (no window.opener), so HTTP
-  // routes via the SW and the ws/SSE tunnels do too (the opened tab's shim talks
-  // to the SW; we relay inbound frames back via relayToExternalPreviews).
-  //
-  // Isolated pop-out (previewPopout: "isolated" in mode B, always in mode C): open
-  // on the preview origin so it can't touch IDE storage/OPFS. When the preview
-  // origin is same-site with the IDE (a subdomain of the same base domain — always
-  // the case in mode C) it connects gate-free; a cross-site preview origin instead
-  // shows a one-time "connect this tab" gate (see previewConnectingHtml in sw.js).
   openExternalPreview(port: number) {
-    // Mode C: each port has its own origin (served at root, no /preview/ path).
-    if (this.bridge.mode === "wildcard") {
-      window.open(this.bridge.previewUrlFor(port, "/"), "_blank");
-      return;
-    }
-    // Same-origin pop-outs carry the kernel token too (see preview-url.ts).
-    window.open(popoutPreviewUrl(this.bridge, port, this.bridge.popoutIsolated), "_blank");
+    openPreviewWindow(this.bridge, port);
   }
 
   // Relay an inbound ws/SSE frame to any preview opened in its OWN tab. Those tabs
@@ -246,30 +254,20 @@ export class PreviewSession {
   }
 
   closePreviewTab(id: string) {
-    const i = this.state.tabs.findIndex((t) => t.id === id);
-    if (i === -1) return;
-    const previewTabs = this.state.tabs.filter((t) => t.id !== id);
-    let activePreviewId = this.state.activeId;
-    if (activePreviewId === id)
-      activePreviewId = (previewTabs[i] || previewTabs[i - 1])?.id ?? null;
+    const update = closedTab(this.state.tabs, this.state.activeId, id);
+    if (update === null) return;
     this.frames.delete(id);
-    this.host.update({ tabs: previewTabs, activeId: activePreviewId });
+    this.host.update(update);
   }
   closeOtherPreviewTabs(id: string) {
-    this.host.update({
-      tabs: this.state.tabs.filter((t) => t.id === id),
-      activeId: id,
-    });
+    this.host.update(closedOtherTabs(this.state.tabs, id));
   }
   closePreviewTabsToRight(id: string) {
-    const i = this.state.tabs.findIndex((t) => t.id === id);
-    if (i === -1) return;
-    const previewTabs = this.state.tabs.slice(0, i + 1);
-    const active = this.state.activeId;
-    const activePreviewId = previewTabs.some((t) => t.id === active) ? active : id;
-    this.host.update({ tabs: previewTabs, activeId: activePreviewId });
+    const update = closedTabsToRight(this.state.tabs, this.state.activeId, id);
+    if (update !== null) this.host.update(update);
   }
   closeAllPreviewTabs() {
+    for (const tab of this.state.tabs) this.cdp.forget(tab.id);
     this.frames.clear();
     this.devtools.reset();
     this.host.update({ tabs: [], activeId: null, devtoolsOpen: false });

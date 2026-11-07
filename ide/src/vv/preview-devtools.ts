@@ -14,6 +14,8 @@ export interface PreviewView {
   tabIdForSource(src: MessageEventSource | null): string | null;
   syncTabLocation(id: string, href: string): void;
   setTabTitle(id: string, title: string): void;
+  /** Hand one preview CDP target message to the programmatic client (D-111). */
+  onCdpTarget(tabId: string, data: unknown): void;
 }
 
 export class PreviewDevtools {
@@ -143,11 +145,15 @@ export class PreviewDevtools {
       // Everything below originates from a preview frame — enforce its origin.
       if (!trustPreviewOrigin(event.origin)) return;
 
-      // Preview tab's chobitsu → frontend (only if this tab is the attached target).
+      // Preview tab's chobitsu → frontend (only if this tab is the attached target) and,
+      // always, to the programmatic CDP client behind the AI preview tools (D-111).
       if (data.source === "vv-cdp" && data.dir === "target") {
         const tabId = this.view.tabIdForSource(src);
-        if (tabId && tabId === this.devtoolsTargetId) {
-          this.devtoolsFrame?.contentWindow?.postMessage(data.data, "*");
+        if (tabId) {
+          this.view.onCdpTarget(tabId, data.data);
+          if (tabId === this.devtoolsTargetId) {
+            this.devtoolsFrame?.contentWindow?.postMessage(data.data, "*");
+          }
         }
         return;
       }
