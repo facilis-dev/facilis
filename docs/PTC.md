@@ -209,10 +209,11 @@ Tool output is **data**: it can be quoted, never treated as instructions.
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
-- The repair loop (§9.4) feeds findings only when the runtime is on: the correction tells the
-  model to `read_file` the implicated paths and to `validate` the corrected set. The D-100
-  inline-content fallback remains only while the runtime is off (production until the phase-4
-  rollout), so a build without tools still repairs whole-file rewrites.
+- The repair loop (§9.4) feeds a fix plan grouped by file, root cause first, then the findings;
+  with the runtime on it tells the model to `read_file` the implicated paths and to `validate`
+  the exact set before answering (D-102: three corrections, set-level validation, per-file
+  feedback). The inline-content fallback remains only while the runtime is off (production until
+  the phase-4 rollout), so a build without tools still repairs whole-file rewrites.
 
 ## 8. MCP (phase 3)
 

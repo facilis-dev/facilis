@@ -1658,20 +1658,29 @@ findings feed the §9.4 repair loop.
 ### 9.4 Retry Loop
 
 ```
-Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → fail
+Turn 1 → AI responds → validate → (errors) → retry 1 → validate → (errors) → retry 2 → validate → (errors) → retry 3 → fail
 ```
 
-**Status (2026-11-07): implemented** in the IDE chat (D-100).
+**Status (2026-11-07): implemented** in the IDE chat (D-100, hardened by D-102).
 
-- **Max 2 retries** (3 attempts total). Worst case 3× initial token cost.
+- **Max 3 retries** (4 attempts total). Worst case 4× initial token cost.
 - **Any rejected answer starts a repair**, not only a validator error: unparseable JSON, an
   `AIResponse` contract violation or a rule violation all re-ask the model.
-- **The repair request is one user-role turn** carrying a numbered findings list with `rule`,
-  `file`, `message`, `fix_hint` and `line`/`excerpt`, a reminder of the `AIResponse` contract,
-  and the **current content of the existing files** the rejected patches tried to update or
-  delete. That last part is the documented clarification of "not full files": a `create` or
-  `update` patch carries the complete file, so a whole-file rewrite cannot be repaired blind.
-  The content is bounded like the rest of the prompt context.
+- **The repair request is one user-role turn** carrying a **fix plan grouped by file, root cause
+  first** (schema/config before the route findings they usually cause), the files the rejected
+  answer touched, a numbered findings list with `rule`, `file`, `message`, `fix_hint` and
+  `line`/`excerpt`, and a reminder of the `AIResponse` contract. Validation stays **set-level**
+  on purpose: the rules are cross-patch (a route may reference a table added in the same set, a
+  permission may be added in the same set), so per-file validation would report false errors;
+  the feedback is per-file instead, and the `validate` tool lets the model check candidate
+  subsets while iterating (D-102).
+- **When the PTC runtime is on** (D-101) the repair request does **not** inline file content: it
+  tells the model to `read_file` every file it will re-emit and to `validate` the exact set it
+  will return. The inline fallback below applies only to runtime-off builds.
+- **The inline fallback (runtime off)** includes the **current content of the existing files**
+  the rejected patches tried to update or delete. That is the documented clarification of "not
+  full files": a `create` or `update` patch carries the complete file, so a whole-file rewrite
+  cannot be repaired blind. The content is bounded like the rest of the prompt context.
 - **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
   the repair messages and the provider calls. `state.repair = { attempt, max }` exposes the
