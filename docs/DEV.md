@@ -297,6 +297,17 @@ manifest zero warnings, editor IntelliSense clean, the **database roundtrip** gr
 (session survives, insert and read-back ok), A8-A12 green, and the Home delete flow green
 (files + registry entry removed). Artifacts under `$FACILIS_TOOLING_DIR/smoke-artifacts/`.
 
+The PTC sandbox runner (D-101) has its own targeted browser check, without booting the IDE:
+
+```bash
+node scripts/dev/check-ptc-runner.mjs
+```
+
+It serves the real `ide/public/ptc-runner.html` with the production CSP/COOP/COEP headers and
+asserts the result comes back, the tool RPC round-trips, the worker's `fetch` is blocked, the
+iframe origin is opaque and still relays while a program is stuck, a >5 s loop is terminated,
+and a fresh sandbox works afterwards. Script: `scripts/dev/check-ptc-runner.mjs`.
+
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`
 
 ```bash

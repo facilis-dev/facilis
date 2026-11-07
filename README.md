@@ -150,7 +150,8 @@ complete: the Entity Explorer (D-083), the AST project graph (D-092; it replaced
 D-095), the Data Explorer's query console + declarative views (D-097) and the Release Preview
 (D-086). In
 Phase 4 the AI chat, the full 16-rule patch validator (D-084) and the §9.4 repair loop
-(D-100) are implemented. Generated
+(D-100) are implemented; Model B is now a PTC tool runtime (D-101, [design](docs/PTC.md)) whose
+phase-0 sandbox spike and dev-only read-only tool chain have landed. Generated
 projects install with **npm** (D-032) from IDE-served
 `file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
 read by `facilis()` — and their `vite.config.ts` is just `[facilis(), react()]` (D-034); the
@@ -206,7 +207,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
 | **3** | Visualizers (project graph, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), project graph (D-092, replaced the API Flow, D-095) and Release Preview (D-086), plus the query console + declarative views (D-097); O-011 keeps the declared-AST half and preview mode C |
-| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 16-rule validator ✅ (D-084) and the §9.4 repair loop ✅ (up to 2 retries, D-100); Model B remains |
+| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 16-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101): sandbox spike ✅ (21/21), read-only tool chain ✅ dev-only (runner/tools/validate), trace UI + eval remaining |
 | **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/i18n-db` shipped (the v1 `@facilis/ui` kit was removed, D-096); `@facilis/blocks` is still a manifest skeleton |
 | **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
 

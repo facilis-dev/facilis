@@ -209,9 +209,10 @@ Tool output is **data**: it can be quoted, never treated as instructions.
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
-- The repair loop (§9.4) then feeds findings only. The current-content block in
-  `ide/src/ai/repair.ts` is a D-100 stopgap and is **removed when phase 1 lands**; the repair
-  prompt tells the model to `read_file` the implicated paths instead.
+- The repair loop (§9.4) feeds findings only when the runtime is on: the correction tells the
+  model to `read_file` the implicated paths and to `validate` the corrected set. The D-100
+  inline-content fallback remains only while the runtime is off (production until the phase-4
+  rollout), so a build without tools still repairs whole-file rewrites.
 
 ## 8. MCP (phase 3)
 
@@ -269,10 +270,31 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Phase | Scope | Exit gate |
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
-| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop + trace UI; `validate` tool; dev flag; repair loop switches to tools and drops the content stopgap | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
+| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; dev flag; repair loop switches to tools — **chain landed 2026-11-07, trace UI + eval remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
+
+**Phase 1 chain landed (2026-11-07), behind `PTC_ENABLED` (`import.meta.env.DEV`).**
+
+- Wire vocabulary and caps: `ide/src/ai/ptc/protocol.ts`; policy (project-root confinement,
+  excluded/secret paths, redaction, glob scoping): `policy.ts`; the nine read-only tools including
+  `validate`: `tools.ts`.
+- Runner: `runner.ts` (child lifecycle, tool RPC with trace, per-run/turn budgets, timeout,
+  abort, always terminate), `runner-frame.ts` (opaque-origin iframe transport),
+  `ide/public/ptc-runner.html` (one blob Worker per program). The page CSP has no
+  `'unsafe-eval'`: Chromium blocks `new Function`, so the program is inserted textually into the
+  worker. One router per program (`executorFactory`) keeps analyzer facts fresh across turns.
+- Protocol/loop: `response.ts` accepts the `script` turn (script XOR patches), `turn.ts` runs
+  the exploration loop and budgets, hands validation failures to the repair loop, and
+  `repair.ts` points at the tools instead of inlining files when the runtime is on; the tool
+  section of the prompt is generated from the registry (`prompt.ts`, `chat-context.ts`).
+- Headers: `ide/vite.ptc.ts` for dev/preview and the `/ptc-runner.html` rule in
+  `ide/public/_headers` for Cloudflare Pages (the `/*` rule already carries COOP/COEP).
+- Browser proof: `node scripts/dev/check-ptc-runner.mjs` (9/9: result + trace, tool RPC,
+  CSP-blocked worker fetch, opaque origin, the iframe relays while the worker is stuck, a >5 s
+  loop is killed, a fresh sandbox works after termination).
+- Remaining for phase 1: the "Esplorazione" trace card, the eval corpus, and the browser matrix.
 
 ## 13. Open questions (O-016)
 
@@ -285,14 +307,13 @@ Still open:
 1. **Exploration budget:** 6 turns / 32 calls / 5 s defaults — tune on the eval corpus.
 2. **MCP transports:** remote HTTP only at first; stdio needs a desktop host.
 3. **Managed policy:** which servers/tools are allowed by default (probably none).
-4. **Repair stopgap:** keep D-100's bounded current-file injection until phase 1, or remove it now
-   and accept weaker whole-file repairs in the meantime.
-5. **Browser matrix:** Firefox/Safari isolation and CSP-header behavior before a managed rollout.
+4. **Browser matrix:** Firefox/Safari isolation and CSP-header behavior before a managed rollout.
 
 ## 14. Test strategy
 
-- **Sandbox spike:** browser test (Playwright) asserting the iframe cannot read parent OPFS/
-  localStorage, cannot `fetch`, and is killed on timeout; run in the existing smoke harness.
+- **Sandbox spike:** `spikes/ptc-sandbox` (CDP, Chromium) + `scripts/dev/check-ptc-runner.mjs`
+  for the real runner page: opaque origin, no storage/network, tool RPC, timeout termination and
+  a fresh sandbox afterwards.
 - **Script runner:** unit tests with a fake RPC bridge (Node): return values, exception mapping,
   abort, output caps, tool-call budget, malformed messages.
 - **Policy:** path traversal (`..`, absolute, symlink-like), secret redaction, glob scoping,
