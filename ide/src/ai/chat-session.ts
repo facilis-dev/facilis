@@ -147,6 +147,8 @@ export class ChatSession {
     const abort = new AbortController();
     this.controller = abort;
     try {
+      // D-118: the project's MCP servers are discovered before the tool list is assembled.
+      await this.host.prepare?.();
       const built = await buildChatContext(this.host, abort.signal, {
         tools: this.runner.specs(),
       });

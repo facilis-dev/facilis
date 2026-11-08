@@ -258,6 +258,12 @@ The registry is transport-agnostic; an MCP server is just another tool provider:
   project data into the provider context, which is already the AI trust boundary (D-066) and is
   redacted by the policy.
 
+**Landed (2026-11-08, D-118):** the Streamable-HTTP client, the namespaced registry merge
+(`withMcpTools`) and a per-project configuration (localStorage under `vv-ai-mcp`, explicit
+enable, dev-only `VITE_MCP_SERVERS` seed) are in `ide/src/ai/mcp/`; the prompt section appears
+only when an `mcp_` tool is registered, and discovery happens once per open project before the
+first turn. The settings UI and the managed allowlist remain.
+
 ## 9. Skills (D-067)
 
 A skill is instructions + declared capabilities; PTC is how the model executes within them.
@@ -298,7 +304,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
 | 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
-| 3 | MCP client + project-level enablement + managed allowlist | user-added remote server callable through a program, audited |
+| 3 | MCP client + project-level enablement + managed allowlist — **client and config landed 2026-11-08 (D-118); settings UI and allowlist remain** | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 
 **Phase 1 chain landed (2026-11-07) and always on (D-103).**

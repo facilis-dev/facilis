@@ -16,6 +16,8 @@ import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
 import { createRunnerFrameChild } from "./ptc/runner-frame";
 import { createToolRouter } from "./ptc/tools";
+import { withMcpTools } from "./mcp/mcp-executor";
+import { McpSession } from "./mcp/mcp-session";
 
 const sessions = new WeakMap<IdeController, ChatSession>();
 
@@ -23,20 +25,23 @@ const sessions = new WeakMap<IdeController, ChatSession>();
 export function chatFor(controller: IdeController): ChatSession {
   const existing = sessions.get(controller);
   if (existing) return existing;
-  const host = chatHost(controller);
+  // D-118: the project's MCP servers live with the chat session; their tools merge into the
+  // existing router, so every local tool keeps its own policy and write protection.
+  const mcp = new McpSession({ root: () => controller.activeFolder?.rootPath ?? null });
+  const host = chatHost(controller, mcp);
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
   const session = new ChatSession(host, {
     runner: createPtcRunner({
       childFactory: createRunnerFrameChild(),
-      executorFactory: () => createToolRouter(host),
+      executorFactory: () => withMcpTools(createToolRouter(host), mcp),
     }),
   });
   sessions.set(controller, session);
   return session;
 }
 
-function chatHost(controller: IdeController): ChatHost {
+function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
   const root = (): string | null => controller.activeFolder?.rootPath ?? null;
   const relative = (absolute: string): string => {
     const base = root();
@@ -89,6 +94,8 @@ function chatHost(controller: IdeController): ChatHost {
     syntaxChecker: () => createAnalyzerSyntaxChecker(),
     // D-111: the running preview, so a program can inspect and drive the app itself.
     preview: createPreviewAccess(controller.preview),
+    // D-118: the project's MCP servers are discovered once, before a turn's tool list.
+    prepare: () => mcp.ensureFresh(),
     // The 16-rule validator reads analyzer facts: the worker analyzes the project before and
     // after the proposal; a thrown error blocks validation.
     analyze: (patches, signal) => analyzePatches(controller, patches, signal),

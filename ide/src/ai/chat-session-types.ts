@@ -28,6 +28,8 @@ export interface ChatHost {
   syntaxChecker?(): SyntaxChecker | null;
   /** The running preview, when the IDE has one (D-111): the preview tools drive the app. */
   preview?: PreviewAccess;
+  /** Runs before the context is assembled (MCP discovery, D-118); must not throw. */
+  prepare?(): Promise<void>;
   /**
    * Analyze the project before and after a patch set (the browser analyzer worker). The
    * validator fails closed when this throws, so unanalyzed patches never reach disk.
