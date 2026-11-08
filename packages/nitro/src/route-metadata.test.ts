@@ -34,8 +34,9 @@ function routeFact(
     dbTables: [],
     dbColumns: [],
     description: null,
-    input: { body: false, query: false, params: false },
+    input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,
+    handlerFormRead: false,
     unknown: [],
   };
   return { ...base, ...overrides };

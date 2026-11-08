@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./module": "./src/module.ts",
     "./session": "./src/session-cookie.ts",
+    "./storage": "./src/storage.ts",
     "./vite": "./src/vite.ts",
     "./package.json": "./package.json"
   },
@@ -48,6 +49,7 @@
     "@facilis/auth": "workspace:*",
     "@facilis/core": "workspace:*",
     "@facilis/db": "workspace:*",
+    "@facilis/storage": "workspace:*",
     "drizzle-orm": "0.45.4"
   }
 }

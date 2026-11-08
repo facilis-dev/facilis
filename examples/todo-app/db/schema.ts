@@ -1,6 +1,8 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import {
+  facilisFiles,
   facilisJobs,
+  fileLinks,
   ownerIsolationPolicy,
   tenantColumn,
   tenantIsolationPolicy,
@@ -8,9 +10,10 @@ import {
 import { rolePermissions, roles, sessions, userRoles, users } from "@facilis/auth";
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
-// generates them together with the application tables. The job queue is framework state
-// the project owns the DDL for, so it is re-exported the same way (D-107, JOBS §8).
-export { facilisJobs, rolePermissions, roles, sessions, userRoles, users };
+// generates them together with the application tables. The job queue and the binary-file
+// metadata are framework state the project owns the DDL for, so they are re-exported the
+// same way (D-107, D-053).
+export { facilisFiles, facilisJobs, rolePermissions, roles, sessions, userRoles, users };
 
 export const todos = pgTable(
   "todos",
@@ -28,3 +31,8 @@ export const todos = pgTable(
   // permissive. See spec 8.4.5 and D-008.
   () => [tenantIsolationPolicy(), ownerIsolationPolicy()],
 ).enableRLS();
+
+// One todo "contains" files through a real link table (D-053): cascading FKs to the parent
+// row and to facilis_files, a restrictive tenant policy, and a parent_access policy that
+// evaluates the parent's own RLS, so a link is visible exactly when its todo is.
+export const todoFiles = fileLinks(todos, { table: "todo_files", column: "todo_id" });

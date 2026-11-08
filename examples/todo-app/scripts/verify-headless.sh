@@ -4,8 +4,9 @@
 # Boots the single Vite+Nitro dev server and asserts, over HTTP:
 #   health, manifest (+ summary budget, ETag/304, 400, 403), OpenAPI x-* metadata,
 #   registration + FACILIS_INITIAL_ADMIN, login/session, todo CRUD, RLS isolation,
-#   background jobs (enqueue/status/cancel), cross-user 404, input-validation 400s and
-#   the anonymous 401 contract.
+#   binary attachments (multipart upload, signed-URL download byte-for-byte, list, token
+#   guards, delete), background jobs (enqueue/status/cancel), cross-user 404,
+#   input-validation 400s and the anonymous 401 contract.
 #
 # Usage: ./scripts/verify-headless.sh        (from examples/todo-app)
 set -euo pipefail
@@ -39,9 +40,14 @@ status() {
 }
 
 # --- boot -------------------------------------------------------------------
+# The checks register fixed e-mails, so they need a fresh database: drop the dev snapshot
+# the runtime restores (D-052). Everything under .facilis is gitignored dev state.
+rm -f "$APP_DIR/.facilis/db/snapshot.tar.gz"
 echo "booting vite dev on $BASE (log: $LOG)"
+# setsid gives the server its own process group so the EXIT trap can kill the whole tree
+# (pnpm -> vite -> Nitro); a plain background job shares this shell's group and leaks.
 PORT="$PORT" FACILIS_INITIAL_ADMIN="admin@example.com" \
-  pnpm exec vite dev --host "$HOST" --port "$PORT" --strictPort >"$LOG" 2>&1 &
+  setsid pnpm exec vite dev --host "$HOST" --port "$PORT" --strictPort >"$LOG" 2>&1 &
 PID=$!
 cleanup() { kill -TERM -- "-$PID" 2>/dev/null || true; }
 trap cleanup EXIT
@@ -135,6 +141,52 @@ curl -sf -b "$COOKIES_B" -X DELETE "$BASE/api/todos/$TODO_ID" >/dev/null 2>&1 ||
 STATUS="$(status -b "$COOKIES_B" -X DELETE "$BASE/api/todos/$TODO_ID")"
 [ "$STATUS" = "404" ] || fail "cross-user DELETE returned $STATUS, expected 404 (RLS)"
 echo "cross-user DELETE => 404 (RLS hides the row)"
+
+# --- binary attachments (D-053) ---------------------------------------------
+# A real multipart upload through the same routes the UI calls: store, sign, fetch the
+# bytes back, then detach. The todo still exists here (it is deleted just below), so the
+# signed URL points at a row its owner may read.
+ATTACH_FILE="$TMP/facilis-todo-attachment.bin"
+ATTACH_DOWNLOAD="$TMP/facilis-todo-attachment.download"
+printf 'facilis attachment bytes %s\n' "$TODO_ID" > "$ATTACH_FILE"
+
+UPLOAD="$(curl -sf -b "$COOKIES_A" -F "file=@$ATTACH_FILE" "$BASE/api/todos/$TODO_ID/files")" \
+  || fail "multipart upload failed"
+echo "attachment uploaded: $UPLOAD"
+FILE_ID="$(echo "$UPLOAD" | json "j.id")"
+FILE_URL="$(echo "$UPLOAD" | json "j.url")"
+[ -n "$FILE_ID" ] || fail "upload returned no file id"
+[ -n "$FILE_URL" ] || fail "upload returned no download url"
+echo "$FILE_URL" | grep -q "token=" || fail "download url carries no token"
+
+curl -sf "$BASE$FILE_URL" -o "$ATTACH_DOWNLOAD" || fail "token download failed"
+cmp -s "$ATTACH_FILE" "$ATTACH_DOWNLOAD" || fail "downloaded bytes differ from the upload"
+echo "download: token URL returns the same bytes"
+
+ADMIN_LIST="$(curl -sf -b "$COOKIES_A" "$BASE/api/todos")"
+echo "admin sees: $ADMIN_LIST"
+echo "$ADMIN_LIST" | json "j[0]?.files?.length" | grep -qx 1 \
+  || fail "list does not carry the uploaded attachment"
+echo "$ADMIN_LIST" | json "j[0].files[0].name" | grep -qx "facilis-todo-attachment.bin" \
+  || fail "listed attachment has the wrong name"
+echo "list: attachment present"
+
+STATUS="$(status -b "$COOKIES_B" -F "file=@$ATTACH_FILE" "$BASE/api/todos/$TODO_ID/files")"
+[ "$STATUS" = "404" ] || fail "second-user upload returned $STATUS, expected 404"
+echo "cross-user upload => 404 (RLS hides the todo)"
+
+STATUS="$(status "$BASE/api/files/$FILE_ID")"
+[ "$STATUS" = "400" ] || fail "token-less download returned $STATUS, expected 400"
+STATUS="$(status "$BASE${FILE_URL}x")"
+[ "$STATUS" = "404" ] || fail "tampered-token download returned $STATUS, expected 404"
+echo "download guards: no token => 400 / tampered token => 404"
+
+curl -sf -b "$COOKIES_A" -X DELETE "$BASE/api/todos/$TODO_ID/files/$FILE_ID" >/dev/null \
+  || fail "attachment DELETE failed"
+ADMIN_LIST="$(curl -sf -b "$COOKIES_A" "$BASE/api/todos")"
+echo "$ADMIN_LIST" | json "j[0]?.files?.length" | grep -qx 0 \
+  || fail "attachment still listed after DELETE"
+echo "attachment deleted => list has no files"
 
 STATUS="$(status -b "$COOKIES_A" -X DELETE "$BASE/api/todos/$TODO_ID")"
 [ "$STATUS" = "200" ] || fail "owner DELETE returned $STATUS, expected 200"

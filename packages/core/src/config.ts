@@ -5,9 +5,21 @@ import {
   type FacilisJobsConfig,
   type FacilisJobsConfigInput,
 } from "./jobs-config.ts";
+import {
+  facilisStorageConfigSchema,
+  type FacilisStorageConfig,
+  type FacilisStorageConfigInput,
+} from "./storage-config.ts";
 
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+export { DEFAULT_STORAGE_CONFIG, STORAGE_DRIVERS } from "./storage-config.ts";
+export type {
+  FacilisStorageConfig,
+  FacilisStorageConfigInput,
+  FacilisStorageEncryptionConfig,
+  StorageDriverKind,
+} from "./storage-config.ts";
 
 /**
  * The configuration contract of a Facilis project (SPEC §7.1).
@@ -66,6 +78,8 @@ export interface FacilisConfig {
   readonly auth: FacilisAuthConfig;
   /** Background-job queue settings (D-107, docs/JOBS.md §4). */
   readonly jobs: FacilisJobsConfig;
+  /** Binary uploads (D-053): driver, bucket and the framework limits. */
+  readonly storage: FacilisStorageConfig;
   readonly nitro: FacilisNitroOptions;
 }
 
@@ -93,6 +107,8 @@ export interface FacilisConfigInput {
   };
   /** Background-job queue settings; every key has a default (D-107). */
   readonly jobs?: FacilisJobsConfigInput;
+  /** Binary uploads (D-053, D-117); every key has a default. */
+  readonly storage?: FacilisStorageConfigInput;
 }
 
 /**
@@ -167,6 +183,7 @@ const baseConfigSchema = z.strictObject({
   blocks: blocksSchema,
   auth: authSchema,
   jobs: facilisJobsConfigSchema,
+  storage: facilisStorageConfigSchema,
   nitro: nitroSchema,
 });
 
@@ -230,6 +247,23 @@ function crossCheck(config: FacilisConfig, ctx: z.RefinementCtx): void {
       ["auth", "defaultRole"],
       `defaultRole "${config.auth.defaultRole}" is not a key of auth.roles`,
     );
+  }
+
+  if (config.storage.driver === "s3") {
+    if (config.storage.bucket === null) {
+      addIssue(
+        ctx,
+        ["storage", "bucket"],
+        'storage.bucket is required when storage.driver is "s3"',
+      );
+    }
+    if (config.storage.region === null) {
+      addIssue(
+        ctx,
+        ["storage", "region"],
+        'storage.region is required when storage.driver is "s3"',
+      );
+    }
   }
 
   if (!config.i18n.locales.includes(config.i18n.defaultLocale)) {

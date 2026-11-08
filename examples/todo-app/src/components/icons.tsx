@@ -7,5 +7,7 @@ export {
   ListTodo as IconList,
   LogOut as IconLogOut,
   Moon as IconMoon,
+  Paperclip as IconAttach,
   Sun as IconSun,
+  X as IconRemove,
 } from "lucide-react";

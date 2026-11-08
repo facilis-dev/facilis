@@ -21,6 +21,27 @@ export function buildTableLookup(drafts: readonly TableDraft[]): TableLookup {
   return { byBinding, byName };
 }
 
+/**
+ * Add lookups for tables a DSL call expands to but the analysis does not emit: a generated
+ * `fileLinks` FK points at the framework's `facilis_files`, whose source is absent from a
+ * release-ref map. The extra tables resolve FK targets only; they never reach `tables`.
+ */
+export function withFrameworkTables(
+  lookup: TableLookup,
+  tables: readonly TableDraft[],
+): TableLookup {
+  if (tables.length === 0) return lookup;
+  const byBinding = new Map(lookup.byBinding);
+  const byName = new Map(lookup.byName);
+  for (const table of tables) {
+    if (!byName.has(table.fact.name)) byName.set(table.fact.name, table);
+    if (table.binding === null) continue;
+    const key = table.fact.source.file + "#" + table.binding;
+    if (!byBinding.has(key)) byBinding.set(key, table.fact.name);
+  }
+  return { byBinding, byName };
+}
+
 /** Resolve a table identifier used in the DSL (local const or any project/framework import). */
 export function resolveTableBinding(
   graph: ModuleGraph,

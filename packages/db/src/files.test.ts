@@ -15,6 +15,7 @@ const FILE_A = "33333333-3333-3333-3333-333333333333";
 const FILE_B = "44444444-4444-4444-4444-444444444444";
 const DOC_A = "55555555-5555-5555-5555-555555555555";
 const DOC_B = "66666666-6666-6666-6666-666666666666";
+const FILE_C = "77777777-7777-7777-7777-777777777777";
 
 // A minimal parent table: the generated link table must inherit exactly these policies.
 const documents = pgTable(
@@ -35,7 +36,10 @@ describe("file schema helpers", () => {
     const config = getTableConfig(facilisFiles);
     expect(config.name).toBe("facilis_files");
     expect(config.enableRLS).toBe(true);
-    expect(config.policies.map((policy) => policy.name)).toContain("tenant_isolation");
+    const policies = config.policies.map((policy) => policy.name);
+    expect(policies).toContain("tenant_isolation");
+    // The restrictive policy needs a permissive gate or facilis_app cannot insert a row.
+    expect(policies).toContain("facilis_files_tenant_access");
   });
 
   it("generates a link table with two cascading FKs and the inherited policy", () => {
@@ -116,6 +120,45 @@ describe("file link RLS inheritance", () => {
 
   afterAll(async () => {
     await db.close();
+  });
+
+  it("lets the scoped tenant insert and read its own file metadata", async () => {
+    const created = await runWithPolicyScope(
+      db,
+      { tenantId: TENANT_T, userId: USER_A, roles: [] },
+      async (tx) => {
+        const [row] = await tx
+          .insert(facilisFiles)
+          .values({
+            id: FILE_C,
+            hash: "hash-c",
+            name: "c.txt",
+            mime: "text/plain",
+            size: 3,
+            tenantId: TENANT_T,
+            ownerId: USER_A,
+          })
+          .returning({ id: facilisFiles.id });
+        return row;
+      },
+    );
+    expect(created?.id).toBe(FILE_C);
+
+    const visible = await runWithPolicyScope(
+      db,
+      { tenantId: TENANT_T, userId: USER_A, roles: [] },
+      async (tx) => tx.select({ id: facilisFiles.id }).from(facilisFiles).orderBy(facilisFiles.id),
+    );
+    expect(visible.map((row) => row.id)).toContain(FILE_C);
+  });
+
+  it("hides file metadata of another tenant", async () => {
+    const visible = await runWithPolicyScope(
+      db,
+      { tenantId: TENANT_U, userId: USER_A, roles: [] },
+      async (tx) => tx.select({ id: facilisFiles.id }).from(facilisFiles),
+    );
+    expect(visible).toEqual([]);
   });
 
   it("shows a link only when the caller can read its parent", async () => {

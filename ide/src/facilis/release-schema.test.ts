@@ -21,11 +21,21 @@ function table(files: Readonly<Record<string, string>>, name: string): ReleaseTa
 describe("release schema facts", () => {
   it("reads the schema the template actually ships", () => {
     const files = { "db/schema.ts": exampleProjectFiles()["db/schema.ts"] ?? "" };
-    expect(tablesOf(files).map((entry) => entry.name)).toEqual(["todos"]);
+    expect(tablesOf(files).map((entry) => entry.name)).toEqual(["todos", "todo_files"]);
     expect(table(files, "todos")).toEqual({
       name: "todos",
       columns: ["id", "tenantId", "ownerId", "title", "done", "dueDate", "createdAt"],
       policies: [{ name: "tenant_isolation" }, { name: "owner_isolation" }],
+      rlsEnabled: true,
+      scoped: true,
+    });
+    // fileLinks(todos, …) is synthesized by the analyzer (D-053/D-116): the parent FK plus
+    // the attach FK, the tenant policy and the parent_access policy that inherits the
+    // parent's RLS through EXISTS.
+    expect(table(files, "todo_files")).toEqual({
+      name: "todo_files",
+      columns: ["id", "parentId", "fileId", "tenantId", "createdAt"],
+      policies: [{ name: "tenant_isolation" }, { name: "parent_access" }],
       rlsEnabled: true,
       scoped: true,
     });

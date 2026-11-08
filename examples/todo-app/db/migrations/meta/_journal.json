@@ -22,6 +22,13 @@
       "when": 1794064555552,
       "tag": "0002_condemned_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794136884608,
+      "tag": "0003_fearless_shiver_man",
+      "breakpoints": true
     }
   ]
 }

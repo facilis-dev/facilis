@@ -61,7 +61,6 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   } else if (options.hasBody) {
     req.json = async () => options.body;
   }
-
   const context: FacilisEventContext = { params: options.params ?? {} };
   if (options.auth !== undefined) context.auth = options.auth;
   if (options.db !== null) {

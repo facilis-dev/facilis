@@ -1,9 +1,9 @@
 /**
  * Facts read from a route handler expression (docs/findings/ast-dsl-contract.md §3.1).
  *
- * The security rules need to know whether a handler reads the request body: the fact must
- * come from the AST, not from a comment or a string, so a route cannot look validated by
- * mentioning `body` in prose.
+ * The security rules need to know whether a handler reads the request input — the JSON body
+ * or the multipart form: the fact must come from the AST, not from a comment or a string, so
+ * a route cannot look validated by mentioning `body`/`form` in prose.
  *
  * The same reasoning drives the direct-DB warning: a handler that reaches the raw client
  * through `event.context.facilis.db` or imports the `createDb` factory bypasses the
@@ -53,27 +53,35 @@ function isDirectDbMember(node: AstNode): boolean {
   return object !== undefined && touchesFacilisContext(object);
 }
 
-/** True when the handler reads `.body` or destructures a `{ body }` pattern. */
-export function handlerReadsBody(call: AstNode): boolean {
+/** True when the handler reads `name` off the request: member access or destructuring. */
+function handlerReads(call: AstNode, name: string): boolean {
   const handler = callArguments(call)[1];
   if (handler === undefined) return false;
   let found = false;
   walk(handler, (node) => {
     if (found) return;
-    if (node.type === "MemberExpression" && memberName(node) === "body") {
+    if (node.type === "MemberExpression" && memberName(node) === name) {
       found = true;
       return;
     }
     if (
       node.type === "ObjectPattern" &&
-      objectEntries(node).some(
-        (entry) => entry.type === "Property" && propertyName(entry) === "body",
-      )
+      objectEntries(node).some((entry) => entry.type === "Property" && propertyName(entry) === name)
     ) {
       found = true;
     }
   });
   return found;
+}
+
+/** True when the handler reads `.body` or destructures a `{ body }` pattern. */
+export function handlerReadsBody(call: AstNode): boolean {
+  return handlerReads(call, "body");
+}
+
+/** True when the handler reads `.form` or destructures a `{ form }` pattern (D-053). */
+export function handlerReadsForm(call: AstNode): boolean {
+  return handlerReads(call, "form");
 }
 
 /**

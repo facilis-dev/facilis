@@ -1,7 +1,8 @@
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import type { ConfigFacts, Diagnostic, RelationFact, TableFact } from "../types.ts";
 import { isSchemaFile } from "./schema-dsl.ts";
-import { buildTableLookup, finalizeTables } from "./schema-foreign-keys.ts";
+import { collectFileLinkDrafts } from "./schema-file-links.ts";
+import { buildTableLookup, finalizeTables, withFrameworkTables } from "./schema-foreign-keys.ts";
 import { collectTableDrafts, type TableDraft } from "./schema-tables.ts";
 import { collectReExportedDrafts } from "./schema-re-exports.ts";
 import { buildRelationFacts } from "./schema-relations.ts";
@@ -34,11 +35,18 @@ function dedupeDrafts(drafts: readonly TableDraft[]): TableDraft[] {
 export function buildSchemaFacts(graph: ModuleGraph, config: ConfigFacts): SchemaResult {
   const files = schemaFiles(graph);
   const collected: TableDraft[] = [];
+  const externalTables: TableDraft[] = [];
   const diagnostics: Diagnostic[] = [];
   for (const file of files) {
     const scan = collectTableDrafts(graph, file, config);
     collected.push(...scan.drafts);
     diagnostics.push(...scan.diagnostics);
+    // Generated link tables follow the file's own declarations, which is their source order:
+    // `const todoFiles = fileLinks(todos, ...)` comes after the `todos` it references.
+    const links = collectFileLinkDrafts(graph, file, scan.drafts);
+    collected.push(...links.drafts);
+    externalTables.push(...links.externalTables);
+    diagnostics.push(...links.diagnostics);
   }
 
   const seenNames = new Set(collected.map((draft) => draft.fact.name));
@@ -50,7 +58,7 @@ export function buildSchemaFacts(graph: ModuleGraph, config: ConfigFacts): Schem
   }
 
   const drafts = dedupeDrafts(collected);
-  const lookup = buildTableLookup(drafts);
+  const lookup = withFrameworkTables(buildTableLookup(drafts), externalTables);
   const finalized = finalizeTables(graph, drafts, lookup);
   diagnostics.push(...finalized.diagnostics);
   const relations = buildRelationFacts(graph, files, lookup);

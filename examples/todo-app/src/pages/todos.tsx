@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { t } from "@facilis/core/i18n";
+import type { TodoFile } from "../components/todo-files.tsx";
 import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
 import { TodoTable, type Todo } from "../components/todo-table.tsx";
 import { DEFAULT_FILTER, TodoToolbar, type StatusFilter } from "../components/todo-toolbar.tsx";
@@ -17,7 +18,7 @@ import {
 import { EmptyState } from "../components/ui/empty-state.tsx";
 import { Page } from "../components/ui/page.tsx";
 import { Skeleton } from "../components/ui/skeleton.tsx";
-import { api, errorMessageKey } from "../lib/api.ts";
+import { api, errorMessageKey, uploadFile } from "../lib/api.ts";
 import { dueDateFromDate } from "../lib/dates.ts";
 import { hasPermission, useSession } from "../lib/session.tsx";
 
@@ -82,6 +83,32 @@ export function TodosPage() {
         body: JSON.stringify({ done: !todo.done }),
       });
       toast.success(t("todos.updated"));
+      await reloadList();
+    } catch (error) {
+      toast.error(t(errorMessageKey(error)));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleUpload(todo: Todo, file: File) {
+    setBusyId(todo.id);
+    try {
+      await uploadFile("/api/todos/" + todo.id + "/files", file);
+      toast.success(t("todos.files.uploaded"));
+      await reloadList();
+    } catch (error) {
+      toast.error(t(errorMessageKey(error)));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRemoveFile(todo: Todo, file: TodoFile) {
+    setBusyId(todo.id);
+    try {
+      await api("/api/todos/" + todo.id + "/files/" + file.id, { method: "DELETE" });
+      toast.success(t("todos.files.removed"));
       await reloadList();
     } catch (error) {
       toast.error(t(errorMessageKey(error)));
@@ -188,6 +215,8 @@ export function TodosPage() {
               busyId={busyId}
               onToggle={(todo) => void handleToggle(todo)}
               onRequestDelete={setPendingDelete}
+              onUpload={(todo, file) => void handleUpload(todo, file)}
+              onRemoveFile={(todo, file) => void handleRemoveFile(todo, file)}
             />
           ) : null}
         </>

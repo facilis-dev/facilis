@@ -39,8 +39,9 @@ function route(overrides: Partial<RouteFact> & Pick<RouteFact, "method" | "path"
     dbTables: ["todos"],
     dbColumns: null,
     description: null,
-    input: { body: false, query: false, params: false },
+    input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,
+    handlerFormRead: false,
     unknown: [],
     ...overrides,
   };

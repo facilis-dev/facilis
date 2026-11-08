@@ -2,9 +2,11 @@ import { hasPermission, type AuthContext } from "@facilis/auth";
 import { runWithPolicyScope, type PolicyScope, type PolicyScopedDatabase } from "@facilis/db";
 import type { z } from "zod";
 
-import { fail, invalidInput } from "./errors.ts";
+import { fail } from "./errors.ts";
 import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
+import { parseRequestInput } from "./request-input.ts";
+import { unavailableStorage, type StorageApi } from "./storage.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
 import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
@@ -18,10 +20,13 @@ import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
 export type { AuthContext };
 
-export interface AuthorizedHandlerConfig<B = void, Q = void, P = void> {
+export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void> {
   /** `[]` = public route (no session required); otherwise a session plus one matching permission. */
   permission: string | readonly string[];
+  /** JSON request body; mutually exclusive with `form` (SPEC §8.2). */
   body?: z.ZodType<B>;
+  /** multipart/form-data fields (D-053); mutually exclusive with `body`. */
+  form?: z.ZodType<F>;
   query?: z.ZodType<Q>;
   params?: z.ZodType<P>;
   /** REQUIRED (possibly empty): static metadata extracted by the Nitro AST pass (SPEC §7.4). */
@@ -36,9 +41,12 @@ export interface AuthorizedHandlerContext<
   Q = void,
   P = void,
   A extends AuthContext | null = AuthContext,
+  F = void,
 > {
   auth: A;
   body: B;
+  /** Validated multipart fields when the route declared a `form` schema. */
+  form: F;
   query: Q;
   params: P;
   /** Pre-scoped client: never the raw database (SPEC §7.4). */
@@ -61,6 +69,11 @@ export interface AuthorizedHandlerContext<
    * HTTP surface of its own.
    */
   jobs: JobsApi;
+  /**
+   * Server-only binary storage (D-053, SPEC §5.10): store bytes, build signed download URLs
+   * and verify their tokens. Access control stays in the app routes.
+   */
+  storage: StorageApi;
 }
 
 /** The outer handler the framework returns; it receives the full request context. */
@@ -79,73 +92,8 @@ export type AuthorizedHandlerAuth<Permission extends string | readonly string[]>
         ? AuthContext
         : AuthContext | null;
 
-type PartSuccess<T> = { readonly ok: true; readonly value: T };
-type PartFailure = { readonly ok: false; readonly response: Response };
-type PartOutcome<T> = PartSuccess<T> | PartFailure;
-type ParseOutcome<B, Q, P> =
-  { readonly ok: true; readonly body: B; readonly query: Q; readonly params: P } | PartFailure;
-
-const JSON_BODY_REQUIRED_DETAILS = { formErrors: ["This route requires a JSON request body"] };
-const JSON_BODY_INVALID_DETAILS = { formErrors: ["Request body must be valid JSON"] };
-
 function normalizePermissions(permission: string | readonly string[]): readonly string[] {
   return typeof permission === "string" ? [permission] : permission;
-}
-
-function readQuery(event: FacilisRequestEvent): Record<string, string> {
-  const url = event.req.url;
-  if (typeof url !== "string") return {};
-  try {
-    // Repeated keys collapse to the last value; query schemas coerce the flat record.
-    return Object.fromEntries(new URL(url).searchParams);
-  } catch {
-    return {};
-  }
-}
-
-function parsePart<T>(schema: z.ZodType<T> | undefined, value: unknown): PartOutcome<T> {
-  if (schema === undefined) {
-    // An absent schema means "part not provided": the context field is typed void.
-    return { ok: true, value: undefined as unknown as T };
-  }
-  const result = schema.safeParse(value);
-  if (!result.success) return { ok: false, response: invalidInput(result.error) };
-  return { ok: true, value: result.data };
-}
-
-async function parseBody<T>(
-  schema: z.ZodType<T> | undefined,
-  event: FacilisRequestEvent,
-): Promise<PartOutcome<T>> {
-  if (schema === undefined) return { ok: true, value: undefined as unknown as T };
-
-  const json = event.req.json;
-  if (typeof json !== "function") {
-    return { ok: false, response: fail("invalid_input", JSON_BODY_REQUIRED_DETAILS) };
-  }
-  let raw: unknown;
-  try {
-    raw = await json.call(event.req);
-  } catch {
-    return { ok: false, response: fail("invalid_input", JSON_BODY_INVALID_DETAILS) };
-  }
-  return parsePart(schema, raw);
-}
-
-async function parseRequestInput<B, Q, P>(
-  config: AuthorizedHandlerConfig<B, Q, P>,
-  event: FacilisRequestEvent,
-): Promise<ParseOutcome<B, Q, P>> {
-  const params = parsePart(config.params, event.context.params ?? {});
-  if (!params.ok) return params;
-
-  const query = parsePart(config.query, readQuery(event));
-  if (!query.ok) return query;
-
-  const body = await parseBody(config.body, event);
-  if (!body.ok) return body;
-
-  return { ok: true, body: body.value, query: query.value, params: params.value };
 }
 
 /**
@@ -198,13 +146,18 @@ export function defineAuthorizedHandler<
   Q = void,
   P = void,
   const Permission extends string | readonly string[] = string,
+  F = void,
 >(
-  config: AuthorizedHandlerConfig<B, Q, P> & { permission: Permission },
+  config: AuthorizedHandlerConfig<B, Q, P, F> & { permission: Permission },
   handler: (
     event: FacilisHandlerEvent,
-    ctx: AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>>,
+    ctx: AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
   ) => Promise<unknown> | unknown,
 ): AuthorizedHandler {
+  // One request body has exactly one representation: JSON or multipart, never both.
+  if (config.body !== undefined && config.form !== undefined) {
+    throw new Error("defineAuthorizedHandler: body and form are mutually exclusive");
+  }
   const requiredPermissions = normalizePermissions(config.permission);
 
   return async (event: FacilisRequestEvent): Promise<unknown> => {
@@ -225,6 +178,7 @@ export function defineAuthorizedHandler<
     // unexpected boot failure) must not take the whole route down: the fallback fails only
     // the job calls, with a code the route can handle.
     const jobs = facilis.jobs ?? unavailableJobs();
+    const storage = facilis.storage ?? unavailableStorage();
 
     const scope = resolveScope(auth, facilis);
     // The raw root client stays here in the wrapper: the handler event exposes only the safe
@@ -243,21 +197,23 @@ export function defineAuthorizedHandler<
           dbTables: config.dbTables,
           tenantId: scope.tenantId,
         });
-        const ctx: AuthorizedHandlerContext<B, Q, P, AuthContext | null> = {
+        const ctx: AuthorizedHandlerContext<B, Q, P, AuthContext | null, F> = {
           auth,
           body: input.body,
+          form: input.form,
           query: input.query,
           params: input.params,
           db,
           sudo: elevations.sudo,
           system: elevations.system,
           jobs: requestJobs,
+          storage,
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;
         // this single cast bridges the conditional overload type to the actual value.
         return await handler(
           handlerEvent,
-          ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>>,
+          ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
         );
       });
     } catch (error) {

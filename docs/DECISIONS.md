@@ -1617,9 +1617,11 @@ only links to parents it can read, and cannot link to someone else's row). Cloud
 still need an integration check against a real bucket; the signing vectors are structural
 until then.
 
-**Open.** Runtime wiring: the `storage` section in `facilis.config.ts`, `event.context.storage`
-and the ready-made upload/download routes for the template (and the `FileUpload` block) are
-the next slice; the package APIs above are the contract they build on.
+**Landed.** The runtime wiring — the `storage` section in `facilis.config.ts`,
+`event.context.storage`/`ctx.storage`, the multipart `form` contract and the
+`storeUpload`/`sendStoredFile` helpers — is **D-116**. The package APIs above are the
+contract it builds on; the `FileUpload` block still uses them directly rather than a
+framework wrapper.
 
 ### D-054 — The Explorer lists git-ignored paths, dimmed; index and search skip them
 **Status:** accepted (2026-11-01)
@@ -4259,6 +4261,185 @@ without one); gates green.
 
 ---
 
+### D-116 — Binary storage runtime wiring and the multipart upload contract
+
+**Status:** accepted (2026-11-08)
+
+D-053 shipped `@facilis/storage` as a package — drivers, signing, metadata and link tables —
+but left the runtime wiring open: a generated project could not upload anything without
+hand-rolling the config section, the boot, the multipart parsing and the proxy route. The
+template's file attachments are the Phase 1 proof that the whole path works inside the
+WebContainer.
+
+**Decision.**
+
+- **Config.** `FacilisConfig.storage` carries only the non-secret half, and every key has a
+  default: `driver: "local"` (default; `"s3"` in production), `bucket`/`region` (required
+  with `"s3"`, validated at config load), `endpoint`/`forcePathStyle` for S3-compatible
+  stores, `maxUploadBytes` default 10 MiB with a hard cap of 100 MiB, and
+  `tokenTtlSeconds` default 300 s with a 24 h maximum. Secrets are environment only, never
+  config: `FACILIS_S3_ACCESS_KEY_ID`, `FACILIS_S3_SECRET_ACCESS_KEY`, optional
+  `FACILIS_S3_SESSION_TOKEN`, and `FACILIS_STORAGE_SECRET` (the download-token HMAC key).
+- **Boot.** The `facilis-context` middleware resolves storage right after the config, before
+  and independently of the database, and exposes it as `event.context.facilis.storage`;
+  `defineAuthorizedHandler` passes it to the handler as `ctx.storage` and falls back to
+  `unavailableStorage()` when the boot refused. A production boot with `driver: "local"`
+  refuses storage (`storage_local_in_production`), an S3 driver without
+  `FACILIS_S3_ACCESS_KEY_ID`/`FACILIS_S3_SECRET_ACCESS_KEY` is
+  `storage_s3_credentials_missing`, production without the token secret is
+  `storage_secret_missing`, and an unexpected driver-construction failure is
+  `storage_boot_failed`. Every failure is a manifest warning (never the
+  `storage_unavailable` error code) and degrades to `available: false`: the file routes
+  answer `storage_unavailable` (503) while the rest of the app keeps working. Dev writes
+  `<project>/.facilis/binary/<hh>/<hash>` through the project filesystem, so the VFS/OPFS
+  mirror persists it; production uses S3 (or an S3-compatible endpoint) under `blobs/<hash>`.
+- **Multipart.** `body` and `form` are mutually exclusive on `defineAuthorizedHandler`; with
+  `form` the wrapper reads `req.formData()`, collapses repeated names to arrays, validates
+  them with the declared Zod schema and hands the parsed fields to the handler as `ctx.form`.
+  A missing or malformed multipart body is `invalid_input`; JSON routes are unchanged.
+- **Helpers.** `@facilis/nitro/storage` exports `storeUpload` (enforces
+  `maxUploadBytes`, stores the bytes, inserts the `facilis_files` metadata row and returns
+  `{ id, name, mime, size, url }`) and `sendStoredFile` (verifies the HMAC token, loads the
+  metadata row and streams the blob, or redirects to a driver-presigned S3 GET). The helpers
+  do not attach the file to a parent: the project route inserts the generated `fileLinks`
+  row through `ctx.db`, so attachment stays an ordinary RLS-checked write.
+- **Download.** `GET /api/files/:id?token=…` is written with `defineAuthorizedHandler` and
+  `permission: []`: the short-lived token is the credential, so `<img src>` and shared links
+  work without a cookie, while every mutation (upload, attach, delete) stays
+  session-authenticated. Responses serve the stored mime with
+  `x-content-type-options: nosniff` and an attachment `content-disposition`, so user content
+  never renders as a privileged same-origin page.
+- **Errors.** `file_too_large` (413) and `storage_unavailable` (503) join the closed core
+  registry (O-002); malformed input stays `invalid_input` (400).
+- **Metadata policies.** `facilis_files` ships **two** policies: a RESTRICTIVE
+  `tenant_isolation` (the structural boundary) and a PERMISSIVE
+  `facilis_files_tenant_access` whose predicate is just "a tenant is set"
+  (`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`). A restrictive policy
+  only narrows what a permissive one already allows, so without the permissive gate the
+  policy-scoped `facilis_app` role cannot insert the metadata row (42501), exactly like the
+  auth and job tables (D-008). The generated link table keeps its own restrictive tenant
+  policy and the permissive `parent_access` policy that inherits the parent's RLS.
+- **No GC.** D-053's rule is unchanged: bodies are immutable and deduplicated, and deleting
+  the metadata row is what a user sees as deletion.
+
+**Consequences.** A generated app gets working attachments from its first commit. A project
+that declares nothing still has working dev storage, and when the boot degrades only the file
+routes fail — the rest of the app is unaffected. Production refuses the dev driver instead of
+silently writing local files a deployment cannot serve. The template's `todo_files` link
+table makes the attachment a real, introspectable table (RLS inherited via `parent_access`),
+and the analyzer synthesizes it from `fileLinks`, so the manifest, project graph and release
+preview see it.
+
+**Verification.** The `@facilis/storage` suites from D-053; `@facilis/core` route/config/
+input/errors suites pin the form-XOR-body rule, the storage defaults/validation and the two
+new codes; `@facilis/nitro` covers the boot target and both helpers; `examples/todo-app`'s
+`verify-headless.sh` uploads and downloads a file; the IDE drift tests
+(`example-template`, `release-routes`, `release-schema`, `starter-contract`) pin the
+template wiring; `pnpm ide:smoke` proves the path inside the WebContainer.
+
+---
+
+### D-117 — Optional at-rest encryption for binary storage
+
+**Status:** accepted (2026-11-08)
+
+D-053 and D-116 store every blob in plaintext: the local driver writes plaintext into the
+project's VFS/OPFS, and production writes plaintext into an S3-compatible bucket. S3 SSE
+protects the bucket, but not a copied body, a bucket operator, or a dev mirror. Some
+deployments need the stored bytes unreadable while keeping D-053/D-116's content-addressing,
+dedupe and presign path unchanged for every project that does not ask for it, so encryption
+is an opt-in layer rather than a new default. It also has to fit the streaming rule: the
+storage, crypto and download path never buffers a whole file (the platform's multipart parser
+is the one place the upload is materialized, and it is bounded by `maxUploadBytes`).
+
+**Decision.**
+
+- **Config.** `storage.encryption = { enabled: boolean }`, default `false`, is the only
+  encryption value in `facilis.config.ts`; the schema is strict (an unknown key is a config
+  error) and the whole section still defaults, so a project that declares nothing keeps
+  D-116's plaintext behaviour. Key material is environment only.
+- **Keys.** `FACILIS_STORAGE_ENCRYPTION_KEY` is the active key-encryption key (KEK): 32 bytes
+  as base64 or as a 64-character hex string, required when encryption is enabled.
+  `FACILIS_STORAGE_ENCRYPTION_KEY_ID` labels it (default `primary`; `/^[A-Za-z0-9._-]{1,64}$/`,
+  embedded in the blob header, so it must be safe ASCII).
+  `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS` is an optional JSON object `{ keyId: key }` of
+  decrypt-only rotation keys. Dev needs an explicit key too: unlike the download-token secret
+  there is no per-boot random fallback, because blobs written with a one-boot key would become
+  undecryptable after a restart.
+- **Warnings.** Enabled without a key is the `storage_encryption_key_missing` manifest
+  warning; an unparseable key, an invalid key id or malformed retired-keys JSON is
+  `storage_encryption_key_invalid`. Like D-116's warnings they never fail the boot:
+  `ctx.storage.available` is false and the file routes answer `storage_unavailable` (503)
+  while the rest of the app keeps working.
+- **Crypto.** AES-256-GCM envelope encryption, applied as a stream. Each blob gets a random
+  256-bit data key (DEK), wrapped by the active KEK; the stored object is a self-describing
+  `FACILIS1` header (version 1, key id, 1 MiB chunk size, wrap nonce, wrapped DEK) followed by
+  the chunks, each with its own nonce and tag. There is no plaintext length and no chunk count
+  in the header: each chunk's AAD binds the full header, the chunk index and a final-chunk
+  flag, the KEK wrap authenticates the header prefix, and holding one chunk back is what marks
+  the last one. Editing the key id, reordering chunks, truncating the body or appending bytes
+  all fail authentication, and the encryptor never needs the size up front.
+  `encryptStream`/`decryptStream` and `createEncryptedStorage({ driver, keys })` in
+  `@facilis/storage` do this while streaming: the encryptor holds one 1 MiB plaintext
+  chunk, and the decryptor keeps up to two ciphertext frames (about 2 MiB) in flight to
+  establish whether the last chunk is final.
+- **Streaming.** Bytes are async iterables at every layer: `StorageDriver.put` takes a
+  `BlobSource` and hashes (and encrypts) while writing, and `get` validates the hash and
+  returns a `BlobSource`; `@facilis/core` mirrors that as `StorageStream`. The local driver
+  writes to a temp file and renames the finished blob into place. An S3 PUT must know the
+  payload hash and length for SigV4, so the driver stages the upload stream (ciphertext when
+  encryption is on) to a `0600` temp file while hashing and counting it, uploads from that file
+  and deletes it.
+  `sendStoredFile` returns the plaintext stream as the response body, with `content-length`
+  taken from `facilis_files.size` (the plaintext size). One qualification keeps that honest:
+  the platform multipart parser (`request.formData()`) materializes the uploaded form once,
+  bounded by `maxUploadBytes` (default 10 MiB, hard cap 100 MiB), before the file is streamed
+  into storage — uploading is not zero-copy for the whole request, only the framework's
+  storage/crypto path is.
+- **Content addressing.** The content hash is sha-256 of the **stored** bytes — ciphertext in
+  encrypted mode. Equal plaintexts therefore produce different blobs and different hashes,
+  which deliberately disables cross-upload dedupe (and stops the store revealing equality);
+  `facilis_files.size` and `maxUploadBytes` stay the plaintext size, because the metadata
+  describes the user's file.
+- **Downloads.** An encrypted deployment has no S3 presigned redirect: the bucket holds only
+  ciphertext, so handing a browser a bucket URL would serve ciphertext. The wrapper exposes no
+  `signedGetUrl`, so `sendStoredFile` always proxies through the app and decrypts while
+  streaming, with the response size taken from the metadata row. S3 server-side encryption
+  (SSE-S3/SSE-KMS) is orthogonal and can be layered underneath: it protects the bucket, while
+  this layer protects a copied body or a reader of the bucket.
+- **Rotation and enabling it later.** Rotation is: make a new key active and move the old key
+  into `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS`. Every blob names the key that wrapped its
+  DEK, so a retired key keeps decrypting old blobs while new uploads use the active one.
+  Enabling encryption on a project that already holds plaintext blobs refuses those blobs
+  (the decrypt stream sees no `FACILIS1` magic and the first read throws, so the download fails
+  instead of ever returning plaintext) — they must be re-uploaded. There is no online
+  re-encryption and no GC: D-053/D-116's immutable-body and no-sweeper rules are unchanged.
+
+**Consequences.** Plaintext projects are unchanged byte-for-byte (default off: same hashes,
+dedupe and presign path), so D-053 and D-116 keep their contracts. An encrypted deployment
+loses cross-upload dedupe — storage grows with uploads, not distinct content — pays per-blob
+crypto overhead and proxies every download through the app instead of redirecting to S3. Both
+modes stream: the download size header comes from the metadata row, and an S3 upload trades a
+bounded temp-file staging step (disk, up to `maxUploadBytes`) for a signed payload. The
+platform's multipart parser still materializes the upload form once before the stream starts.
+The stored hash is a ciphertext address, not a plaintext one, so tooling must not use it to
+detect equal content.
+
+**Verification.** `packages/storage/src/encryption.test.ts` pins the stream: empty, one-byte,
+chunk-boundary and multi-chunk round-trips; independence from how the source and stored blob
+are chunked; the self-describing header and key id; no plaintext and no repeated ciphertext;
+failure on an unknown/wrong/short key, a flipped ciphertext byte, an edited header, truncation
+and a plaintext legacy blob; and rotation with a retired key. `encrypted.test.ts` pins the
+wrapper: streamed ciphertext, plaintext size returned, dedupe disabled (equal plaintexts
+become distinct hashes) and no `signedGetUrl`. `s3.test.ts` pins the streamed PUT (SigV4
+payload hash, temp-file staging) and GET. `@facilis/nitro`'s `storage-encrypted.test.ts`
+uploads a multipart file through encryption and downloads it byte-for-byte with a plaintext
+`content-length`; `storage-target.test.ts` pins the two key warnings and the absent presign;
+`@facilis/core`'s config suite pins the strict `encryption` section; the D-053/D-116 plaintext
+suites stay green.
+
+---
+
 ### D-118 — MCP servers as remote PTC tools (PTC phase 3)
 
 **Status:** accepted (2026-11-08)
@@ -4326,7 +4507,7 @@ OAuth-protected servers.
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
 | O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
-| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `internal_error`), serialized as `{ code, details? }` — no prose | done |
+| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `internal_error`), serialized as `{ code, details? }` — no prose | done |
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
 | O-004 | Block discovery: `node_modules` scan vs explicit registration | scan `node_modules/*/manifest.*` (already assumed by revision hash) | Phase 5 |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |

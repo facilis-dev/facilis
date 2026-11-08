@@ -21,7 +21,7 @@ import type {
   UnknownFact,
   WrapperState,
 } from "../types.ts";
-import { directDbWarnings, handlerReadsBody } from "./route-handler.ts";
+import { directDbWarnings, handlerReadsBody, handlerReadsForm } from "./route-handler.ts";
 import { routeLocationFromFile } from "./route-location.ts";
 import {
   defaultExportExpression,
@@ -183,6 +183,7 @@ function routeConfigFacts(
 
   const input: RouteInputFact = {
     body: field("body") !== undefined,
+    form: field("form") !== undefined,
     query: field("query") !== undefined,
     params: field("params") !== undefined,
   };
@@ -243,8 +244,9 @@ function scanRoute(
         dbTables: null,
         dbColumns: null,
         description: null,
-        input: { body: false, query: false, params: false },
+        input: { body: false, form: false, query: false, params: false },
         handlerBodyRead: false,
+        handlerFormRead: false,
         unknown: [{ code: "route-wrapper", reason: wrapper.reason, source: ref }],
       },
       diagnostics: [error("route-wrapper", wrapper.reason, ref)],
@@ -264,6 +266,7 @@ function scanRoute(
       description: facts.description,
       input: facts.input,
       handlerBodyRead: handlerReadsBody(wrapper.call),
+      handlerFormRead: handlerReadsForm(wrapper.call),
       unknown: facts.unknown,
     },
     diagnostics: [...facts.diagnostics, ...directDbWarnings(file, ref)],

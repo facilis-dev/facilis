@@ -24,7 +24,15 @@ import { templateOverrides } from "./template-overrides";
  * primitives into the project (src/components/ui) instead of shipping a package, so no
  * tarball is inlined and no file: dependency is declared.
  */
-export const TEMPLATE_PACKAGES = ["analyze", "auth", "core", "db", "nitro", "time"] as const;
+export const TEMPLATE_PACKAGES = [
+  "analyze",
+  "auth",
+  "core",
+  "db",
+  "nitro",
+  "storage",
+  "time",
+] as const;
 
 /** One binary file a template ships beside its sources (see project-assets.ts). */
 export type TemplateAsset = { path: string; asset: string };

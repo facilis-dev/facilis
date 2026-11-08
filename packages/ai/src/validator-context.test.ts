@@ -238,4 +238,37 @@ export default defineAuthorizedHandler(
     const { result } = validate([create(ROUTE + "todos/index.post.ts", content)]);
     expect(rulesOf(result.errors)).not.toContain("route-input-validated");
   });
+
+  it("accepts a multipart upload route that declares the form schema", () => {
+    const content =
+      header +
+      `
+export default defineAuthorizedHandler(
+  {
+    permission: ["todos:write"],
+    dbTables: ["todos"],
+    form: z.object({ title: z.string() }),
+  },
+  async (_event, { form }) => form,
+);
+`;
+    const { result } = validate([create(ROUTE + "todos/files.post.ts", content)]);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("rejects a handler that reads the form without a form schema", () => {
+    const content =
+      header +
+      `
+export default defineAuthorizedHandler(
+  { permission: ["todos:write"], dbTables: ["todos"] },
+  async (_event, { form }) => form,
+);
+`;
+    const { result } = validate([create(ROUTE + "todos/files.post.ts", content)]);
+    const findings = result.errors.filter((entry) => entry.rule === "route-input-validated");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("multipart");
+    expect(findings[0]?.fix_hint).toContain("form: <ZodSchema>");
+  });
 });

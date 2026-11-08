@@ -14,6 +14,8 @@ export const FACILIS_ERROR_CODES = [
   "conflict",
   "db_unavailable",
   "not_found",
+  "storage_unavailable",
+  "file_too_large",
   "internal_error",
 ] as const;
 
@@ -27,6 +29,9 @@ export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = 
   conflict: 409,
   db_unavailable: 500,
   not_found: 404,
+  storage_unavailable: 503,
+  // 413: the upload is a valid form, but the file exceeds storage.maxUploadBytes.
+  file_too_large: 413,
   internal_error: 500,
 };
 

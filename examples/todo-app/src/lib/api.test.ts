@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api, appBasePath, errorMessageKey } from "./api.ts";
+import { ApiError, api, appBasePath, errorMessageKey, uploadFile } from "./api.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -58,6 +58,38 @@ describe("api", () => {
     expect(headers.get("accept")).toBe("application/json");
   });
 
+  it("leaves the multipart content type to the browser for FormData bodies", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ id: "1" }, 201),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const form = new FormData();
+    form.append("file", new File(["hi"], "hi.txt", { type: "text/plain" }));
+    await api("/api/todos/1/files", { method: "POST", body: form });
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.has("content-type")).toBe(false);
+  });
+
+  it("uploads one file as multipart FormData through uploadFile", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ id: "1" }, 201),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const file = new File(["hi"], "hi.txt", { type: "text/plain" });
+    await uploadFile("/api/todos/1/files", file);
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.method).toBe("POST");
+    const body = init?.body;
+    if (!(body instanceof FormData)) throw new Error("uploadFile must send FormData");
+    const sent = body.get("file");
+    if (!(sent instanceof File)) throw new Error("uploadFile must append the file");
+    expect(sent.name).toBe("hi.txt");
+  });
+
   it("resolves undefined for an empty 204 response", async () => {
     vi.stubGlobal(
       "fetch",
@@ -109,6 +141,10 @@ describe("errorMessageKey", () => {
   it("maps a known code to its catalogue key", () => {
     expect(errorMessageKey(new ApiError("conflict", 409))).toBe("errors.conflict");
     expect(errorMessageKey(new ApiError("network_error", 0))).toBe("errors.network_error");
+    expect(errorMessageKey(new ApiError("file_too_large", 413))).toBe("errors.file_too_large");
+    expect(errorMessageKey(new ApiError("storage_unavailable", 503))).toBe(
+      "errors.storage_unavailable",
+    );
   });
 
   it("collapses unknown codes and non-API errors to internal_error", () => {

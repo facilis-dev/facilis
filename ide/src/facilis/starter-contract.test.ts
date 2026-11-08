@@ -53,6 +53,36 @@ describe("generated starter contract", () => {
     expect(files["db/migrations/0001_tenant_default.sql"]).toContain("SET DEFAULT nullif(");
   });
 
+  it("wires binary storage into the config, package and schema", () => {
+    // D-053/D-116: the framework ships the runtime (config section + helpers); the template
+    // proves it end to end with a metadata table, its link table and the three routes below.
+    expect(config).toMatch(/storage:\s*\{/);
+    expect(config).toContain('driver: "local"');
+    const pkg = JSON.parse(files["package.json"]) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies["@facilis/storage"]).toBe("file:./vendor/facilis-storage-0.0.0.tgz");
+    expect(files["db/schema.ts"]).toContain("fileLinks(todos");
+    const migration = Object.keys(files).find((path) => path.startsWith("db/migrations/0003_"));
+    expect(migration, "missing the file-link migration").toBeDefined();
+    const sql = files[migration ?? ""];
+    expect(sql).toContain("facilis_files");
+    expect(sql).toContain("todo_files");
+    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
+  });
+
+  it("uploads through the framework helper and reads blobs token-only", () => {
+    const upload = files["server/routes/api/todos/[id]/files/index.post.ts"];
+    expect(upload).toContain("defineAuthorizedHandler");
+    expect(upload).toContain("storeUpload(");
+    // The download is public by design: the short-lived token is the credential, so the
+    // handler declares no permission and the route stays usable as an <img src>.
+    const download = files["server/routes/api/files/[id].get.ts"];
+    expect(download).toContain("defineAuthorizedHandler");
+    expect(download).toContain("permission: []");
+    expect(download).toContain("sendStoredFile(");
+  });
+
   it("gives the registration default role the write permission and seeds it", () => {
     expect(config).toMatch(/user: \["todos:read", "todos:write"\]/);
     expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'todos:write')");

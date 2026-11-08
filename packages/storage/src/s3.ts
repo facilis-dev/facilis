@@ -1,8 +1,17 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { createReadStream, createWriteStream } from "node:fs";
+import { unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 
-import { contentHash, isContentHash } from "./hash.ts";
+import { isContentHash } from "./hash.ts";
+import { createS3Signer, EMPTY_PAYLOAD_SHA256, type S3SigningOptions } from "./s3-signing.ts";
 import {
   StorageError,
+  type BlobSource,
   type PutResult,
   type SignedGetUrlOptions,
   type SigningStorageDriver,
@@ -13,148 +22,88 @@ import {
  * driver covers them (D-053). Set endpoint (+ path style for R2/MinIO); leave them out for
  * AWS virtual-hosted buckets.
  *
- * Signing and presigning are implemented on node:crypto + fetch (no AWS SDK): the surface
- * we need is tiny and the framework runtime must stay light.
+ * Bytes stream in both directions (D-117). PUT must know the payload hash and length for
+ * SigV4, so the source is staged to a temp file while it is hashed (disk, not memory, and
+ * bounded by the upload limit); GET returns the response body as a stream.
  */
-export interface S3StorageOptions {
-  readonly bucket: string;
-  readonly region: string;
-  readonly accessKeyId: string;
-  readonly secretAccessKey: string;
-  readonly sessionToken?: string;
-  /** Custom endpoint: R2 (https://<account>.r2.cloudflarestorage.com) or MinIO. */
-  readonly endpoint?: string;
-  /** Path-style URLs. Defaults to true with a custom endpoint, false on AWS. */
-  readonly forcePathStyle?: boolean;
+export interface S3StorageOptions extends S3SigningOptions {
   /** Injectable for tests. */
   readonly fetch?: FetchLike;
-  /** Injectable clock for deterministic presign tests. */
-  readonly now?: () => Date;
 }
 
 /**
- * The two calls this driver needs. Narrower than the platform `fetch` so the package does
- * not need DOM lib types; `globalThis.fetch` is adapted once below.
+ * The calls this driver needs. Narrower than the platform fetch so the package does not
+ * need DOM lib types; globalThis.fetch is adapted once below. A streamed body needs
+ * "duplex": "half" in Node's fetch and carries the content-length header.
  */
 export type FetchLike = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body?: Uint8Array },
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body?: Uint8Array | ReadableStream<Uint8Array>;
+    duplex?: "half";
+  },
 ) => Promise<Response>;
-
-const SERVICE = "s3";
-const EMPTY_SHA256 = sha256Hex("");
-const DEFAULT_TTL_SECONDS = 300;
 
 export function createS3Storage(options: S3StorageOptions): SigningStorageDriver {
   const fetchImpl = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
-  const now = options.now ?? (() => new Date());
-  const pathStyle = options.forcePathStyle ?? options.endpoint !== undefined;
-  const origin = baseOrigin(options, pathStyle);
-  const host = new URL(origin).host;
-
-  const keyOf = (hash: string) => "blobs/" + hash;
-  const pathOf = (key: string) =>
-    pathStyle ? "/" + options.bucket + "/" + encodePath(key) : "/" + encodePath(key);
-
-  function urlFor(key: string, query: Record<string, string> = {}): string {
-    const search = encodeQuery(query);
-    return origin + pathOf(key) + (search === "" ? "" : "?" + search);
-  }
-
-  function signHeaders(
-    method: "PUT" | "GET" | "HEAD" | "DELETE",
-    key: string,
-    payloadHash: string,
-  ): Record<string, string> {
-    const amzDate = amzDateString(now());
-    const dateStamp = amzDate.slice(0, 8);
-    const scope = dateStamp + "/" + options.region + "/" + SERVICE + "/aws4_request";
-    const canonicalHeaders =
-      "host:" +
-      host +
-      "\n" +
-      "x-amz-content-sha256:" +
-      payloadHash +
-      "\n" +
-      "x-amz-date:" +
-      amzDate +
-      "\n" +
-      (options.sessionToken === undefined
-        ? ""
-        : "x-amz-security-token:" + options.sessionToken + "\n");
-    const signedNames =
-      options.sessionToken === undefined
-        ? "host;x-amz-content-sha256;x-amz-date"
-        : "host;x-amz-content-sha256;x-amz-date;x-amz-security-token";
-    const canonicalRequest =
-      method +
-      "\n" +
-      pathOf(key) +
-      "\n" +
-      "" +
-      "\n" +
-      canonicalHeaders +
-      "\n" +
-      signedNames +
-      "\n" +
-      payloadHash;
-    const signature = sign(canonicalRequest, amzDate, scope, options, dateStamp);
-    const headers: Record<string, string> = {
-      "x-amz-content-sha256": payloadHash,
-      "x-amz-date": amzDate,
-      authorization:
-        "AWS4-HMAC-SHA256 Credential=" +
-        options.accessKeyId +
-        "/" +
-        scope +
-        ", SignedHeaders=" +
-        signedNames +
-        ", Signature=" +
-        signature,
-    };
-    if (options.sessionToken !== undefined) headers["x-amz-security-token"] = options.sessionToken;
-    return headers;
-  }
+  const signer = createS3Signer(options);
 
   return {
     driver: "s3",
 
-    async put(bytes: Uint8Array): Promise<PutResult> {
-      const hash = contentHash(bytes);
-      const key = keyOf(hash);
-      const response = await fetchImpl(urlFor(key), {
-        method: "PUT",
-        headers: {
-          ...signHeaders("PUT", key, sha256Hex(bytes)),
-          "content-type": "application/octet-stream",
-        },
-        body: bytes,
-      });
-      if (!response.ok) {
-        throw new StorageError("s3: PUT " + key + " failed with HTTP " + response.status);
+    async put(source: BlobSource): Promise<PutResult> {
+      const staged = await stageUpload(source);
+      const key = signer.keyOf(staged.hash);
+      try {
+        // A zero-byte object is sent as a buffer: Node's fetch does not need a stream body
+        // (or duplex) for it, and a streamed empty body is the one shape some proxies reject.
+        const body =
+          staged.size === 0
+            ? new Uint8Array(0)
+            : (Readable.toWeb(
+                createReadStream(staged.path),
+              ) as unknown as ReadableStream<Uint8Array>);
+        const response = await fetchImpl(urlFor(options, key), {
+          method: "PUT",
+          headers: {
+            ...signer.headers("PUT", key, staged.hash),
+            "content-type": "application/octet-stream",
+            "content-length": String(staged.size),
+          },
+          body,
+          ...(staged.size === 0 ? {} : { duplex: "half" as const }),
+        });
+        if (!response.ok) {
+          throw new StorageError("s3: PUT " + key + " failed with HTTP " + response.status);
+        }
+        return { hash: staged.hash, size: staged.size };
+      } finally {
+        await unlink(staged.path).catch(() => {});
       }
-      return { hash, size: bytes.length };
     },
 
-    async get(hash: string): Promise<Uint8Array> {
+    async get(hash: string): Promise<BlobSource> {
       if (!isContentHash(hash)) throw new StorageError("invalid content hash");
-      const key = keyOf(hash);
-      const response = await fetchImpl(urlFor(key), {
+      const key = signer.keyOf(hash);
+      const response = await fetchImpl(urlFor(options, key), {
         method: "GET",
-        headers: signHeaders("GET", key, EMPTY_SHA256),
+        headers: signer.headers("GET", key, EMPTY_PAYLOAD_SHA256),
       });
       if (!response.ok) {
         throw new StorageError("s3: GET " + key + " failed with HTTP " + response.status);
       }
-      return new Uint8Array(await response.arrayBuffer());
+      if (response.body === null) throw new StorageError("s3: GET " + key + " returned no body");
+      return readWebStream(response.body);
     },
 
     async exists(hash: string): Promise<boolean> {
       if (!isContentHash(hash)) return false;
-      const key = keyOf(hash);
-      const response = await fetchImpl(urlFor(key), {
+      const key = signer.keyOf(hash);
+      const response = await fetchImpl(urlFor(options, key), {
         method: "HEAD",
-        headers: signHeaders("HEAD", key, EMPTY_SHA256),
+        headers: signer.headers("HEAD", key, EMPTY_PAYLOAD_SHA256),
       });
       if (response.status === 404) return false;
       if (!response.ok) {
@@ -165,67 +114,62 @@ export function createS3Storage(options: S3StorageOptions): SigningStorageDriver
 
     async delete(hash: string): Promise<void> {
       if (!isContentHash(hash)) throw new StorageError("invalid content hash");
-      const key = keyOf(hash);
-      const response = await fetchImpl(urlFor(key), {
+      const key = signer.keyOf(hash);
+      const response = await fetchImpl(urlFor(options, key), {
         method: "DELETE",
-        headers: signHeaders("DELETE", key, EMPTY_SHA256),
+        headers: signer.headers("DELETE", key, EMPTY_PAYLOAD_SHA256),
       });
       if (!response.ok && response.status !== 404) {
         throw new StorageError("s3: DELETE " + key + " failed with HTTP " + response.status);
       }
     },
 
-    async signedGetUrl(hash: string, urlOptions: SignedGetUrlOptions = {}): Promise<string> {
-      if (!isContentHash(hash)) throw new StorageError("invalid content hash");
-      const ttl = Math.min(
-        Math.max(Math.trunc(urlOptions.expiresInSeconds ?? DEFAULT_TTL_SECONDS), 1),
-        604_800,
-      );
-      const amzDate = amzDateString(now());
-      const dateStamp = amzDate.slice(0, 8);
-      const scope = dateStamp + "/" + options.region + "/" + SERVICE + "/aws4_request";
-      const query: Record<string, string> = {
-        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
-        "X-Amz-Credential": options.accessKeyId + "/" + scope,
-        "X-Amz-Date": amzDate,
-        "X-Amz-Expires": String(ttl),
-        "X-Amz-SignedHeaders": "host",
-      };
-      if (options.sessionToken !== undefined) query["X-Amz-Security-Token"] = options.sessionToken;
-      if (urlOptions.responseName !== undefined) {
-        query["response-content-disposition"] = attachmentDisposition(urlOptions.responseName);
-      }
-      const canonicalRequest =
-        "GET\n" +
-        pathOf(keyOf(hash)) +
-        "\n" +
-        encodeQuery(query) +
-        "\n" +
-        "host:" +
-        host +
-        "\n\n" +
-        "host\n" +
-        "UNSIGNED-PAYLOAD";
-      const signature = sign(canonicalRequest, amzDate, scope, options, dateStamp);
-      return urlFor(keyOf(hash), { ...query, "X-Amz-Signature": signature });
+    signedGetUrl(hash: string, urlOptions?: SignedGetUrlOptions): Promise<string> {
+      return signer.signedGetUrl(hash, urlOptions);
     },
   };
 }
 
-function sign(
-  canonicalRequest: string,
-  amzDate: string,
-  scope: string,
-  options: S3StorageOptions,
-  dateStamp: string,
-): string {
-  const stringToSign =
-    "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + sha256Hex(canonicalRequest);
-  const kDate = hmac("AWS4" + options.secretAccessKey, dateStamp);
-  const kRegion = hmac(kDate, options.region);
-  const kService = hmac(kRegion, SERVICE);
-  const kSigning = hmac(kService, "aws4_request");
-  return createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+/** Stage a stream to a 0600 temp file while hashing and counting it (SigV4 payload facts). */
+async function stageUpload(
+  source: BlobSource,
+): Promise<{ path: string; hash: string; size: number }> {
+  const path = join(tmpdir(), "facilis-s3-" + randomBytes(12).toString("hex"));
+  const hash = createHash("sha256");
+  let size = 0;
+  // pipeline closes the fd before the catch unlinks, so an early source error cannot
+  // leave a /tmp/facilis-s3-* orphan (D-117 review fix).
+  const meter = new Transform({
+    transform(chunk, _encoding, callback) {
+      hash.update(chunk);
+      size += chunk.length;
+      callback(null, chunk);
+    },
+  });
+  try {
+    await pipeline(Readable.from(source), meter, createWriteStream(path, { mode: 0o600 }));
+  } catch (error) {
+    await unlink(path).catch(() => {});
+    throw error instanceof StorageError
+      ? error
+      : new StorageError("s3: upload staging failed", { cause: error });
+  }
+  return { path, hash: hash.digest("hex"), size };
+}
+
+function readWebStream(body: ReadableStream<Uint8Array>): BlobSource {
+  return (async function* readBody(): AsyncGenerator<Uint8Array> {
+    const readable = Readable.fromWeb(body as NodeWebReadableStream<Uint8Array>);
+    for await (const chunk of readable) yield new Uint8Array(chunk as Buffer);
+  })();
+}
+
+function urlFor(options: S3StorageOptions, key: string): string {
+  const pathStyle = options.forcePathStyle ?? options.endpoint !== undefined;
+  const origin = baseOrigin(options, pathStyle);
+  return (
+    origin + (pathStyle ? "/" + options.bucket + "/" + encodePath(key) : "/" + encodePath(key))
+  );
 }
 
 function baseOrigin(options: S3StorageOptions, pathStyle: boolean): string {
@@ -238,41 +182,14 @@ function baseOrigin(options: S3StorageOptions, pathStyle: boolean): string {
     : "https://" + options.bucket + ".s3." + options.region + ".amazonaws.com";
 }
 
-function amzDateString(date: Date): string {
-  // 2026-11-01T10:20:30.000Z -> 20261101T102030Z (AWS ISO8601 basic format).
-  return date
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}/, "");
-}
-
-function attachmentDisposition(name: string): string {
-  const safe = name.replace(/["\\\r\n]/g, "_");
-  return 'attachment; filename="' + safe + '"';
-}
-
-function sha256Hex(value: Uint8Array | string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function hmac(key: string | Buffer, data: string): Buffer {
-  return createHmac("sha256", key).update(data).digest();
-}
-
-function encode(value: string): string {
-  return encodeURIComponent(value).replace(
-    /[!'()*]/g,
-    (character) => "%" + character.charCodeAt(0).toString(16).toUpperCase(),
-  );
-}
-
 function encodePath(path: string): string {
-  return path.split("/").map(encode).join("/");
-}
-
-function encodeQuery(query: Record<string, string>): string {
-  return Object.entries(query)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => encode(key) + "=" + encode(value))
-    .join("&");
+  return path
+    .split("/")
+    .map((part) =>
+      encodeURIComponent(part).replace(
+        /[!'()*]/g,
+        (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase(),
+      ),
+    )
+    .join("/");
 }

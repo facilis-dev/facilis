@@ -25,7 +25,7 @@ DST="$REPO_ROOT/ide/public/vendor/facilis"
 
 # Pinned set: exactly the packages the Facilis template declares. Keep it in sync with the
 # template's package.json when the template's dependency set changes.
-PKGS="core db auth analyze nitro time"
+PKGS="core db auth analyze nitro storage time"
 
 log() { printf '[vendor-facilis-deps] %s\n' "$*" >&2; }
 

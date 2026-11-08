@@ -1,14 +1,18 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
-import { applyStatements, applyViews, createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
-import { seedStatements, sessionMiddleware, type SessionEvent } from "@facilis/auth";
-import { DEFAULT_JOBS_CONFIG, type FacilisConfig, type ManifestWarning } from "@facilis/core";
+import { createDb, type FacilisDb } from "@facilis/db";
+import { sessionMiddleware, type SessionEvent } from "@facilis/auth";
+import {
+  DEFAULT_JOBS_CONFIG,
+  type FacilisConfig,
+  type ManifestWarning,
+  type StorageApi,
+} from "@facilis/core";
 import config, { configError, projectRoot } from "#facilis/config";
-import dbViewModules from "#facilis/db-views";
 import dbSchema from "#facilis/db-schema";
+import dbViewModules from "#facilis/db-views";
 import jobModules from "#facilis/jobs";
 
-import { isFacilisConfig, readMigrationsDir, toAuthConfig } from "./config.ts";
+import { isFacilisConfig, toAuthConfig } from "./config.ts";
+import { bootstrapDevelopmentDatabase, describe } from "./db-bootstrap.ts";
 import { resolveDbTarget } from "./db-target.ts";
 import {
   devDbSnapshotPath,
@@ -19,9 +23,7 @@ import { isProductionEnvironment } from "./env.ts";
 import { bootJobs } from "./jobs/boot.ts";
 import type { JobsRuntime } from "./jobs/runtime.ts";
 import { readDefaultTenantId } from "./tenant.ts";
-import { readTextFile } from "./project-files.ts";
-import { splitSqlStatements } from "./sql.ts";
-import { provisionSystemRole } from "./system-role.ts";
+import { resolveStorage } from "./storage-target.ts";
 
 export interface BootstrapState {
   readonly db: FacilisDb | null;
@@ -33,6 +35,8 @@ export interface BootstrapState {
    * middleware carries `jobs.api` on `event.context.facilis`.
    */
   readonly jobs: JobsRuntime | null;
+  /** Binary-storage runtime (D-053); null when the boot refused its configuration. */
+  readonly storage: StorageApi | null;
   /** Cached session handler; rebuilt lazily because it closes over the db client. */
   sessionHandler?: (event: SessionEvent) => Promise<void>;
 }
@@ -68,8 +72,14 @@ async function bootstrap(): Promise<BootstrapState> {
   const startedAt = new Date().toISOString();
   const projectConfig = readProjectConfig(warnings);
   if (projectConfig === null) {
-    return { db: null, config: null, warnings, startedAt, jobs: null };
+    return { db: null, config: null, warnings, startedAt, jobs: null, storage: null };
   }
+
+  // Binary storage is independent of the database: a refused storage configuration is a
+  // warning and a null API, so the rest of the app keeps working (D-053).
+  const resolvedStorage = resolveStorage(projectConfig, process.env, projectRoot);
+  warnings.push(...resolvedStorage.warnings);
+  const storage = resolvedStorage.storage;
 
   // The environment, not the config alone, decides where data lives (D-068): a deployment
   // sets a Postgres URL and the same build runs there. Every refusal is a warning, so a
@@ -77,7 +87,7 @@ async function bootstrap(): Promise<BootstrapState> {
   const resolved = resolveDbTarget(projectConfig, process.env);
   warnings.push(...resolved.warnings);
   if (resolved.target === null) {
-    return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
+    return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
   }
   const target = resolved.target;
   const usesPglite = target.driver === "pglite";
@@ -111,7 +121,7 @@ async function bootstrap(): Promise<BootstrapState> {
   } catch (error) {
     if (snapshot === null) {
       warnings.push(warning("db_unavailable", `Could not open the database: ${describe(error)}`));
-      return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
+      return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
     }
     // A corrupt or incompatible snapshot must not make the project unbootable: warn and
     // start from an empty cluster instead (the old file is replaced by the next dump).
@@ -133,7 +143,7 @@ async function bootstrap(): Promise<BootstrapState> {
       warnings.push(
         warning("db_unavailable", `Could not open the database: ${describe(retryError)}`),
       );
-      return { db: null, config: projectConfig, warnings, startedAt, jobs: null };
+      return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
     }
   }
 
@@ -192,7 +202,7 @@ async function bootstrap(): Promise<BootstrapState> {
     warnings,
   });
 
-  return { db, config: projectConfig, warnings, startedAt, jobs };
+  return { db, config: projectConfig, warnings, startedAt, jobs, storage };
 }
 
 function readProjectConfig(warnings: ManifestWarning[]): FacilisConfig | null {
@@ -212,83 +222,6 @@ function readProjectConfig(warnings: ManifestWarning[]): FacilisConfig | null {
   return config;
 }
 
-async function bootstrapDevelopmentDatabase(
-  db: FacilisDb,
-  projectConfig: FacilisConfig,
-  warnings: ManifestWarning[],
-): Promise<void> {
-  // Order mandated by the Lead: migrations -> seed (roles/role_permissions) -> app role.
-  try {
-    const statements = await readMigrationStatements(projectConfig);
-    if (statements.length > 0) await applyStatements(db, statements);
-  } catch (error) {
-    warnings.push(warning("migration_failed", `Migrations failed: ${describe(error)}`));
-  }
-
-  try {
-    await applyStatements(db, seedStatements(toAuthConfig(projectConfig.auth)));
-  } catch (error) {
-    warnings.push(warning("seed_failed", `Seeding roles/permissions failed: ${describe(error)}`));
-  }
-
-  try {
-    await ensureAppRole(db);
-  } catch (error) {
-    warnings.push(
-      warning("app_role_failed", `Could not provision the app role: ${describe(error)}`),
-    );
-  }
-
-  // D-099: the system role is the sudo identity; provision it after the app role so the
-  // membership grant can reference it.
-  await provisionSystemRole(db, warnings);
-
-  // Views are code (D-097): create/replace them after the app role exists, because the
-  // security_invoker view must be granted to that role. A broken view is a warning, never a
-  // failed boot, and the endpoint returns the same failures on demand.
-  if (dbViewModules.length === 0) return;
-  try {
-    const applied = await applyViews(db, dbViewModules, {
-      permissions: projectConfig.auth.permissions,
-    });
-    for (const failure of applied.failed) {
-      warnings.push(
-        warning("view_failed", `View "${failure.name}" could not be created: ${failure.error}`),
-      );
-    }
-  } catch (error) {
-    warnings.push(warning("view_failed", `Views could not be applied: ${describe(error)}`));
-  }
-}
-
-async function readMigrationStatements(projectConfig: FacilisConfig): Promise<string[]> {
-  const dir = join(projectRoot, readMigrationsDir(projectConfig));
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch (error) {
-    // No migrations directory is a valid early-project state.
-    if (isMissingFileError(error)) return [];
-    throw error;
-  }
-
-  const names = entries.filter((name) => name.endsWith(".sql")).toSorted();
-  const contents = await Promise.all(names.map((name) => readTextFile(join(dir, name))));
-  const statements: string[] = [];
-  for (const source of contents) {
-    if (source !== null) statements.push(...splitSqlStatements(source));
-  }
-  return statements;
-}
-
 function warning(code: string, message: string): ManifestWarning {
   return { code, message };
-}
-
-function isMissingFileError(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

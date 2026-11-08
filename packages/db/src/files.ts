@@ -47,7 +47,18 @@ export const facilisFiles = pgTable(
     ownerId: uuid("owner_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  () => [tenantIsolationPolicy()],
+  () => [
+    tenantIsolationPolicy(),
+    // A RESTRICTIVE policy only narrows what a permissive policy already allows; with no
+    // permissive policy Postgres denies every row (D-008). Uploads insert a metadata row
+    // as facilis_app, so the scoped tenant needs this gate — like auth users and
+    // facilis_jobs. The RESTRICTIVE tenant policy still confines visible rows to the tenant.
+    pgPolicy("facilis_files_tenant_access", {
+      for: "all",
+      using: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
+      withCheck: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
+    }),
+  ],
 ).enableRLS();
 
 export type FacilisFile = typeof facilisFiles.$inferSelect;

@@ -42,10 +42,12 @@ import cycles or API drift.
 ## 3. Dependency graph (fixed — do not add cycles)
 
 ```
-@facilis/db     -> drizzle-orm, @electric-sql/pglite        (leaf)
-@facilis/auth   -> @facilis/db, drizzle-orm
-@facilis/core   -> @facilis/auth, @facilis/db, zod
-@facilis/nitro  -> @facilis/core, @facilis/auth, @facilis/db, nitro, vite, rolldown
+@facilis/db      -> drizzle-orm, @electric-sql/pglite        (leaf)
+@facilis/storage -> node:crypto, node:fs/promises            (leaf, D-053)
+@facilis/auth    -> @facilis/db, drizzle-orm
+@facilis/core    -> @facilis/auth, @facilis/db, zod
+@facilis/nitro   -> @facilis/core, @facilis/auth, @facilis/db, @facilis/storage,
+                    nitro, vite, rolldown
 ```
 
 `core`, `auth` and `db` must **never** import `nitro`, `vite` or `h3`. That is why they use the
@@ -64,9 +66,10 @@ export interface FacilisRequestEvent {
       db: FacilisDb;
       defaultTenantId?: string;
       jobs?: JobsApi; // started jobs runtime, D-107 (absent until/if boot succeeds)
+      storage?: StorageApi; // started binary-storage runtime, D-116 (same degrade rule)
     };
   };
-  req: { headers: Headers };
+  req: { headers: Headers; json?(): Promise<unknown>; formData?(): Promise<FormData> };
   res?: { headers: Headers; status?: number; statusText?: string };
 }
 
@@ -84,7 +87,8 @@ export interface FacilisHandlerEvent {
 
 An `H3Event` satisfies this structurally. Middleware order inside Nitro: `facilis-context`
 (boots db, sets `context.facilis` — including the started jobs runtime as `facilis.jobs` when
-D-107 boot succeeded) then `facilis-session` (sets `context.auth`, may be `null`).
+D-107 boot succeeded and the storage runtime as `facilis.storage` when D-116 boot succeeded)
+then `facilis-session` (sets `context.auth`, may be `null`).
 `defineAuthorizedHandler` takes the full `FacilisRequestEvent`, captures the root client before
 running the project handler, and passes a `FacilisHandlerEvent` whose `facilis` carries only
 `defaultTenantId` (the job API is `ctx.jobs`, D-107, never the event). A handler therefore
@@ -252,10 +256,13 @@ export function sessionMiddleware(...): SessionEvent => Promise<void>  // reads 
 ```ts
 export function defineConfig(config: FacilisConfig): FacilisConfig; // validates via Zod, throws on invalid
 export const facilisConfigSchema: z.ZodType<FacilisConfig>;          // SPEC §7.1 shape
+export type { FacilisStorageConfig, StorageDriverKind } from "./config.ts"; // D-116, SPEC §5.10
+export type { StorageApi, StoragePutResult } from "./storage.ts";           // D-116, SPEC §5.10
 
-export interface AuthorizedHandlerConfig<B = void, Q = void, P = void> {
+export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void> {
   permission: string | readonly string[];
-  body?: z.ZodType<B>; query?: z.ZodType<Q>; params?: z.ZodType<P>;
+  body?: z.ZodType<B>; form?: z.ZodType<F>; // form XOR body (D-116)
+  query?: z.ZodType<Q>; params?: z.ZodType<P>;
   dbTables: readonly string[];       // REQUIRED, may be empty
   dbColumns?: readonly string[];      // "table.column"
   description?: string;
@@ -265,15 +272,17 @@ export interface SystemOptions extends SudoOptions { actor: `system:${string}` }
 export type SudoHandler = <T>(options: SudoOptions, fn: (systemDb: PolicyScopedDatabase) => Promise<T>) => Promise<T>;
 export type SystemHandler = <T>(options: SystemOptions, fn: (systemDb: PolicyScopedDatabase) => Promise<T>) => Promise<T>;
 
-export interface AuthorizedHandlerContext<B, Q, P> {
-  auth: AuthContext; body: B; query: Q; params: P;
+export interface AuthorizedHandlerContext<B, Q, P, F = void> {
+  auth: AuthContext;          // non-null on privileged routes; nullable with permission: []
+  body: B; form: F; query: Q; params: P;
   db: PolicyScopedDatabase;       // policy-scoped, never raw
   sudo: SudoHandler;              // audited elevation, requires a session (D-099)
   system: SystemHandler;          // audited elevation for public/bootstrap routes (D-099)
+  storage: StorageApi;            // binary storage, degrades to unavailable (D-116)
 }
-export function defineAuthorizedHandler<B, Q, P>(
-  config: AuthorizedHandlerConfig<B, Q, P>,
-  handler: (event: FacilisHandlerEvent, ctx: AuthorizedHandlerContext<B, Q, P>) => Promise<unknown> | unknown,
+export function defineAuthorizedHandler<B, Q, P, F>(
+  config: AuthorizedHandlerConfig<B, Q, P, F>,
+  handler: (event: FacilisHandlerEvent, ctx: AuthorizedHandlerContext<B, Q, P, F>) => Promise<unknown> | unknown,
 ): (event: FacilisRequestEvent) => Promise<unknown>;
 
 export function buildManifest(input: BuildManifestInput): FacilisManifest;   // SPEC §7.3
@@ -288,6 +297,16 @@ export function registerCatalog(locale: string, messages: Record<string, string>
   Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
 - Config validation must cross-check roles/permissions (unknown permission in a role → error),
   and `defaultRole` must exist (SPEC §8.4.1).
+- `storage` (D-116/D-117): every key defaults (`driver: "local"`, `maxUploadBytes` 10 MiB / cap
+  100 MiB, `tokenTtlSeconds` 300 / max 24 h, `encryption.enabled` false) and `driver: "s3"`
+  requires `bucket` + `region`; secrets stay in `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET`,
+  never in the config, and opt-in at-rest encryption reads
+  `FACILIS_STORAGE_ENCRYPTION_KEY` / `_KEY_ID` / `_RETIRED_KEYS` (D-117). Byte handling
+  streams end to end — `put` takes a byte source and `get` returns one — while the platform
+  multipart parser still materializes the uploaded form once, bounded by `maxUploadBytes`.
+- `defineAuthorizedHandler` rejects `body` and `form` together; a `form` schema receives the
+  multipart fields as a record (`name` → `string | File`, repeated names as arrays) and the
+  handler sees the parsed value as `ctx.form` (D-116).
 - Manifest types: re-export `SchemaSnapshot`/`TableSnapshot`/... from `@facilis/db` so the public
   surface stays `@facilis/core` (SPEC §5.1). `RouteMeta`, `FacilisManifest`, `ManifestWarning`,
   `ManifestSection`, `ManifestSummary` are declared in core.
@@ -300,7 +319,25 @@ export function facilis(): FacilisPlugins;          // [FacilisVitePlugin, ...Pl
 export const facilisNitroModule: NitroModule;             // plain { name, setup(nitro) }, NOT defineNitroModule
 export function scanRouteMetadata(options: ScanOptions): RouteMetadataMap; // sync, { rootDir, onWarning? }
 export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataMap): OpenApiDocument;
+
+// @facilis/nitro/storage (D-116, SPEC §5.10) — separate entry point: core declares the
+// StorageApi contract without depending on the Node-only @facilis/storage package, which
+// this server runtime implements.
+export interface StoredFile { id: string; name: string; mime: string; size: number; url: string }
+export function storeUpload(input: {
+  event: FacilisHandlerEvent; db: PolicyScopedDatabase; storage: StorageApi;
+  auth: AuthContext | null; file: File;
+}): Promise<StoredFile | Response>;
+export function sendStoredFile(input: {
+  db: PolicyScopedDatabase; storage: StorageApi; fileId: string; token: string;
+  tenantId?: string; responseName?: string;
+}): Promise<Response>;
 ```
+
+Both helpers stream (D-117): `storeUpload` receives the multipart file after the platform's
+`formData()` has materialized the form once (bounded by `maxUploadBytes`) and writes it
+through the driver; `sendStoredFile` returns the plaintext as a streamed response body with
+`content-length` from the metadata row.
 
 **Verified facts — do not re-litigate, verify only:**
 - Nitro v3 has **no `nitro/kit` export and no `defineNitroModule`** (spec §5.6 is stale).
@@ -344,6 +381,16 @@ Integration wiring (confirmed with the Lead while writing the Phase 1 example ap
   `db_unavailable`. Jobs boot degrades instead of failing: an invalid definition, a missing
   `facilis_jobs` table or a failed start is a manifest warning (`job_definition_invalid`,
   `jobs_table_missing`, `jobs_boot_failed`) and `state.jobs` is `null`.
+  Storage (D-116/D-117) is resolved right after the config, independently of the database: with
+  `config.storage` + the `FACILIS_S3_*`/`FACILIS_STORAGE_SECRET` env it boots the local or S3
+  driver, carries a `StorageApi` in `BootstrapState.storage` and exposes
+  `event.context.facilis.storage`. With `storage.encryption.enabled` the driver is wrapped by
+  `createEncryptedStorage` and the `FACILIS_STORAGE_ENCRYPTION_*` keys are required
+  (`storage_encryption_key_missing` / `storage_encryption_key_invalid`, D-117). A production
+  local driver, missing S3 credentials, a missing production secret or a constructor failure
+  is `storage_local_in_production` / `storage_s3_credentials_missing` /
+  `storage_secret_missing` / `storage_boot_failed`, and `state.storage` is `null`, so only
+  the file routes fail.
 - middleware `facilis-session` runs after it and calls `@facilis/auth`'s `sessionMiddleware`.
 
 Routes served by the module (dev-only, SPEC §6.1-§6.4, §6.8): `/__facilis/manifest`,

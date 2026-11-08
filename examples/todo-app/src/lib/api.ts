@@ -16,6 +16,8 @@ const KNOWN_ERROR_CODES = new Set([
   "not_found",
   "internal_error",
   "network_error",
+  "file_too_large",
+  "storage_unavailable",
 ]);
 
 /**
@@ -72,7 +74,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("accept")) headers.set("accept", "application/json");
   const hasBody = init.body !== undefined && init.body !== null;
-  if (hasBody && !headers.has("content-type")) headers.set("content-type", "application/json");
+  // FormData carries its own multipart boundary: setting application/json here would make
+  // the server parse the upload as a JSON body and reject it as invalid_input.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (hasBody && !isFormData && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
 
   let response: Response;
   try {
@@ -99,6 +106,16 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch {
     throw new ApiError("internal_error", response.status);
   }
+}
+
+/**
+ * Uploads one file as `multipart/form-data`; the framework route reads it with a `form`
+ * schema (D-053). The browser sets the boundary, so no content type is passed here.
+ */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  return api<T>(path, { method: "POST", body: form });
 }
 
 /** Maps any thrown value to the catalogue key of its code: "errors.<code>". */

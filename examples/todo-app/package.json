@@ -21,6 +21,7 @@
     "@facilis/core": "workspace:*",
     "@facilis/db": "workspace:*",
     "@facilis/nitro": "workspace:*",
+    "@facilis/storage": "workspace:*",
     "@facilis/time": "workspace:*",
     "@fontsource-variable/geist": "5.2.9",
     "class-variance-authority": "0.7.1",

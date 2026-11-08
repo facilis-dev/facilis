@@ -84,7 +84,7 @@ here, so the script extracts the published tarball instead).
 | `npm-pack.bin` | real npm 12.2.1 (3.04 MB gz), the project installer (D-032) | `/vendor/npm-pack.bin` |
 | `pnpm-pack.bin` | real pnpm 9.15.9 (3.66 MB gz) — only for rolldown's wasm fallback, not a project manager (D-032) | `/vendor/pnpm-pack.bin` |
 | `sqlite/sqlite3.wasm` | SQLite wasm (865 KB) | `/vendor/sqlite/sqlite3.wasm` |
-| `facilis/*.tgz` | this workspace's `@facilis/{core,db,auth,nitro}` (0.0.0), packed with `pnpm pack` | `/vendor/facilis/facilis-<pkg>-0.0.0.tgz` |
+| `facilis/*.tgz` | this workspace's `@facilis/{analyze,auth,core,db,nitro,storage,time}` (0.0.0), packed with `pnpm pack` | `/vendor/facilis/facilis-<pkg>-0.0.0.tgz` |
 
 ```bash
 sh scripts/dev/vendor-assets.sh          # or: pnpm ide:assets
@@ -97,18 +97,18 @@ sh scripts/dev/vendor-facilis-deps.sh --all    # + @facilis/{ai,blocks}
 The generators write into `vendor/vivari/packages/studio/public/vendor` (gitignored, inside
 the submodule); the script copies the results into `ide/public/vendor/` (also gitignored).
 
-The second script packs `@facilis/{core,db,auth,nitro}` from this workspace into
+The second script packs the template's `@facilis/*` dependencies — `analyze auth core db
+nitro storage time` today, plus `ai` and `blocks` with `--all` — from this workspace into
 `ide/public/vendor/facilis/facilis-<pkg>-<version>.tgz` — `0.0.0` today, because those
-packages are workspace-only. Generated projects run a real **pnpm** install inside the
-WebContainer, so the Facilis template declares the four packages as
-`http://host.vivari.internal:<studio-port>/vendor/facilis/facilis-<pkg>-0.0.0.tgz` URLs.
-Three in-VM constraints shape that:
+packages are workspace-only. Generated projects install with **npm** inside the WebContainer
+(D-032) and the Facilis template declares them as `file:` dependencies under its own
+`./vendor/`, inlined from the IDE build at create time: no package manager fetches the
+framework from the studio over HTTP. Three in-VM constraints shape that:
 
-- **The host alias, not the studio origin.** Inside the WebContainer the kernel owns loopback,
-  so `127.0.0.1:<port>` resolves to the VM itself and npm fails with `ECONNREFUSED`.
-  `host.vivari.internal` is the kernel's documented host alias: the fetcher worker rewrites it
-  to the studio's own hostname (scheme and port preserved) before the browser fetch, which
-  makes it a same-origin request that survives the VM boundary.
+- **The tarballs are inlined, not fetched.** The IDE page fetches each `manifest.assets`
+  path from its own origin and writes the bytes into the project's `./vendor/` in the create
+  request (`ide/src/facilis/project-assets.ts`), so the project is self-contained once
+  created and no registry or HTTP-egress constraint can break the install.
 - **The tarballs export `dist/`, not `src/`.** The generated project's Vite config is loaded
   with `--configLoader native`, and a native ESM loader refuses to strip types from files
   under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the config imports
@@ -117,22 +117,19 @@ Three in-VM constraints shape that:
   workspace source keeps its `src` entry points). `@facilis/nitro` also derives its Nitro
   handler paths from its own module extension for the same reason.
 
-- **pnpm, not npm.** npm 10 builds its HTTP agent with `agent-base`; that custom
-  `createConnection` makes the runtime decline the fetch-backed egress for plain-http
-  requests, so npm dials the virtual network and fails with `ENOTFOUND` on these URLs while
-  `https://registry.npmjs.org` traffic is unaffected. pnpm uses the stock agent and works.
-  The template ships a `preinstall` guard that rejects other package managers, sets
-  `packageManager`, uses `node-linker=hoisted` (the Nitro bundle imports `ufo`, which it
-  lists only as a devDependency — the template pins it) and runs the dev server as
-  `pnpm run dev --configLoader native` (no extra `--`: pnpm would forward it literally and
-  Vite would ignore the flags). See D-022.
+- **The specs are made absolute before npm runs.** npm re-derives a RELATIVE `file:` target
+  when it normalizes a spec, and inside the VM that derivation was measured producing
+  `/user/projects/...` instead of `/home/user/projects/...`, so every install died with
+  ENOENT on a tarball that exists. The template's install command runs
+  `scripts/vendor-paths.cjs` first, which pins each `@facilis/*` spec to an absolute path
+  and fails loudly if a `vendor/` tarball is missing (D-032).
 
 `pnpm pack` rewrites the workspace-internal `workspace:*` specifiers to `0.0.0`, so pnpm
 resolves the inter-package dependencies from the tarballs and never asks the registry for
 `@facilis/*`. This is **interim delivery** until `@facilis/*` is published (O-006, Phase 6);
-switching then only changes the URLs in the template. The script removes stale tarballs first
-and fails if a packed manifest still contains `workspace:`, does not export `dist/`, or is
-missing `dist/index.js`. Re-run it after changing package sources; the directory is
+switching then only changes how the template delivers the packages, not the project code.
+The script removes stale tarballs first and fails if a packed manifest still contains
+`workspace:`, does not export `dist/`, or is missing `dist/index.js`. Re-run it after changing package sources; the directory is
 gitignored like the rest of `ide/public/vendor/`.
 
 `vendor/locks/index.json` and `vendor/depcache/index.json` are **not** generated: the kernel
@@ -201,7 +198,7 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   from the IDE page rather than from code inside the project. The tree is inlined at IDE
   build time, so restart `pnpm ide:dev` after changing the example; run
   `pnpm ide:facilis-deps` after changing packages packaged as tarballs
-  (`analyze auth core db nitro time`) so the vendored versions match — and recreate any
+  (`analyze auth core db nitro storage time`) so the vendored versions match — and recreate any
   project created before that run: its `vendor/*.tgz` are inlined at creation time, so a
   project keeps the tarballs it was born with.
 
@@ -348,6 +345,9 @@ under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the same retention
 | No template locks / depcache | kernel logs `vendor/locks` + `vendor/depcache` warnings, installs from scratch (~25-45 s per project) | optional: run the upstream `vendor:locks` / `vendor:depcache` generators |
 | `@rolldown/binding-wasm32-wasi` still listed in templates | ~14 MB of dead weight per install | kept so a future Vite 8 retry is a version bump, not a re-import |
 | PGlite dev database is in-memory | a worker restart would reset it (and every server-route edit restarts it) | the cluster is snapshotted to `<project>/.facilis/db/snapshot.tar.gz` and restored on boot, so data survives a dev-server restart (D-052). At most ~1 s of writes can be lost on an abrupt kill |
+| Binary uploads live on the project filesystem in dev | the local driver writes `<project>/.facilis/binary/<hh>/<hash>` through the kernel VFS, so the OPFS mirror persists blobs like the dev database (D-052); production uses S3, and a production boot with `storage.driver: "local"` refuses storage with the `storage_local_in_production` manifest warning | leave the dev default `local`; set `driver: "s3"` + `bucket`/`region` and `FACILIS_S3_ACCESS_KEY_ID`/`FACILIS_S3_SECRET_ACCESS_KEY` (+ `FACILIS_STORAGE_SECRET`) in production — SPEC §5.10 |
+| At-rest encryption is opt-in and needs a stable key even in dev | with `storage.encryption.enabled: true` the app stores AES-256-GCM ciphertext and every boot needs the same `FACILIS_STORAGE_ENCRYPTION_KEY` — there is no per-boot random fallback, because blobs written with a throwaway key would be undecryptable after a restart (D-117) | set `FACILIS_STORAGE_ENCRYPTION_KEY` (required when encryption is on; 32-byte KEK as base64 or 64-character hex) plus optionally `FACILIS_STORAGE_ENCRYPTION_KEY_ID` (active-key label, default `primary`) and `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS` (JSON `{ "keyId": "key" }`, decrypt-only rotation) in the environment before starting the dev server; enabling it on a project that already holds plaintext blobs means re-uploading them — SPEC §5.10 |
+| Storage streams end to end; the multipart parser materializes the upload once | the framework's storage/crypto/download path never buffers the whole file (D-117): the local driver writes a temp file and renames it, an S3 PUT stages the upload stream (ciphertext when encryption is on) to a `0600` temp file while hashing and counting it (SigV4 needs the payload hash and length) and deletes it after the PUT, and downloads stream with `content-length` taken from `facilis_files.size` (with encryption on there is no presigned S3 redirect — every download proxies through the app and decrypts). Uploading is not zero-copy for the whole request: `request.formData()` materializes the form once, bounded by `maxUploadBytes` (default 10 MiB, hard cap 100 MiB) | keep the upload limit within what the VM/browser can hold; nothing else to configure — SPEC §5.10 |
 | Package managers cannot install plain-http URL dependencies | npm's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND`; registry `https://` traffic is unaffected | **nothing on this path any more:** generated projects install with npm from `file:` tarballs the IDE inlines into the create request (D-032), so no install touches the studio over HTTP. Do not reintroduce URL dependencies |
 | Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
@@ -388,6 +388,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | UI renders but every text label is missing/blank | no system fonts for Chromium | `pnpm ide:browser`, or point `FACILIS_FONTCONFIG` at a `fonts.conf` |
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
 | `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the vendored `@facilis/*` tarballs predate a framework change, so the in-VM config is validated by an older schema: a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Regenerate the tarballs (`pnpm ide:facilis-deps`), restart `pnpm ide:dev`, then **recreate the project** — a project's `vendor/*.tgz` are inlined at creation time |
+| `manifest` warns `storage_*` and the file routes answer `503 storage_unavailable` | binary storage failed to boot: `storage_local_in_production` means a production build still has `storage.driver: "local"`; `storage_s3_credentials_missing` / `storage_secret_missing` mean the `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET` env vars are absent; `storage_encryption_key_missing` / `storage_encryption_key_invalid` mean `storage.encryption.enabled` is on but `FACILIS_STORAGE_ENCRYPTION_KEY` is absent or the key, key id or retired-keys JSON is malformed; `storage_boot_failed` is an unexpected driver-construction failure (the dev log carries the cause) | set the variables in the deployment environment, or fix the driver configuration, and restart; the rest of the app keeps working, only the file routes degrade (SPEC §5.10, D-116/D-117) |
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
 | `ERR_PNPM_IGNORED_BUILDS` on a fresh install | pnpm 12 requires an explicit decision for every package with an install script | already configured in the root `pnpm-workspace.yaml` (`allowBuilds`); decide new ones there, never with an interactive `pnpm approve-builds` |
@@ -397,7 +398,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | A reload still loads the previous build, or `Reset everything` is followed by the same failure | a Service Worker is not part of the browser's “cached files”: it stays registered and keeps controlling the origin, and CacheStorage/OPFS are not cleared by a cache wipe either | Home → `Reset everything` now unregisters every Service Worker, deletes every CacheStorage entry and wipes the OPFS VFS + dependency cache before reloading (`ide/src/vv/origin-reset.ts`). By hand: DevTools → Application → Service Workers → Unregister, then Application → Storage → Clear site data (all boxes) |
 | An in-project `npm install` warns about a package version the template never pins (e.g. `react-dom@19.2.8` while the todo template pins `19.3.1`), and a later identical Run succeeds | stale per-origin VM state, not the template: the OPFS VFS still carries the previous project's `node_modules` and npm cache, so npm reconciles against a tree the current `package.json` never asked for (the generated package.json comes from the example, D-062, which pins `react` and `react-dom` in lockstep) | clear the VM state before touching the code: Home → `Reset everything` (wipes the OPFS VFS + dependency cache, `ide/src/vv/origin-reset.ts`), or in the project `rm -rf node_modules package-lock.json` and press Run again. If it reproduces from a fresh profile, it is a real install bug: capture the full `npm warn` block with its `While resolving`/`Found` lines |
 | `File URL host must be "localhost" or empty on posix` at PGlite boot | **Chromium's file-URL parser is platform-dependent**: on Windows anything that is not a drive spec and does not have exactly three slashes is parsed as UNC, so `new URL("file:" + path)` = `file:/home/…` gets `home` as the URL **host** (`file://home/…`) and PGlite's self-located `pglite.data` lands outside the tree (Chrome 156 Windows vs Linux both reproduced) | fixed in the pinned kernel: `e654919` recovers the path from a hostful `file:` URL in `fileURLToPath`/`Bun.fileURLToPath` (**kele23/vivari#2**, D-041) — bump the pin if you are on an older one; `@facilis/db` carries no shim |
-| A test that globs `examples/todo-app` keeps seeing an old file list (e.g. `release-routes.test.ts` expects 11 routes, gets 8) after the example gained files | the vitest FS module cache (`--fsModuleCachePath=node_modules/.vitest-cache`, passed by the root `test` script) still holds the `import.meta.glob` transform of `example-template.ts` from before the files existed | delete the package cache (`rm -rf ide/node_modules/.vitest-cache`) and rerun; it regenerates |
+| A test that globs `examples/todo-app` keeps seeing an old file list (e.g. `release-routes.test.ts` expects 14 routes, gets 8) after the example gained files | the vitest FS module cache (`--fsModuleCachePath=node_modules/.vitest-cache`, passed by the root `test` script) still holds the `import.meta.glob` transform of `example-template.ts` from before the files existed | delete the package cache (`rm -rf ide/node_modules/.vitest-cache`) and rerun; it regenerates |
 
 ## 8. Cleaning up
 

@@ -87,7 +87,7 @@ describe("buildRouteFacts", () => {
     expect(route?.dbTables).toEqual(["todos"]);
     expect(route?.dbColumns).toEqual(["todos.title", "todos.done", "todos.ownerId"]);
     expect(route?.description).toBe("List todos");
-    expect(route?.input).toEqual({ body: false, query: true, params: false });
+    expect(route?.input).toEqual({ body: false, form: false, query: true, params: false });
     expect(route?.unknown).toEqual([]);
   });
 
@@ -98,7 +98,7 @@ describe("buildRouteFacts", () => {
     expect(route?.dbTables).toEqual(["todos"]);
     expect(route?.dbColumns).toEqual([]);
     expect(route?.description).toBe("Create a todo");
-    expect(route?.input).toEqual({ body: true, query: false, params: false });
+    expect(route?.input).toEqual({ body: true, form: false, query: false, params: false });
     expect(route?.handlerBodyRead).toBe(true);
   });
 
@@ -106,6 +106,35 @@ describe("buildRouteFacts", () => {
     const routes = fixtureRoutes().routes;
     expect(routes[0]?.handlerBodyRead).toBe(false);
     expect(routes[3]?.handlerBodyRead).toBe(false);
+  });
+
+  it("reads a multipart form schema and a handler that reads the form", () => {
+    const { routes } = routesOf({
+      "server/routes/api/todos/upload.post.ts":
+        'import { z } from "zod";\n' +
+        CORE_IMPORT +
+        "export default defineAuthorizedHandler(\n" +
+        "  { permission: [], form: z.object({ file: z.any() }), dbTables: [] },\n" +
+        "  async (_event, { form }) => form,\n" +
+        ");",
+    });
+    expect(routes[0]?.input).toEqual({ body: false, form: true, query: false, params: false });
+    expect(routes[0]?.handlerFormRead).toBe(true);
+    expect(routes[0]?.handlerBodyRead).toBe(false);
+  });
+
+  it("marks form present even when the schema is not statically readable", () => {
+    const { routes } = routesOf({
+      "server/routes/api/todos/upload.post.ts":
+        CORE_IMPORT +
+        "const formSchema = loadSchema();\n" +
+        "export default defineAuthorizedHandler(\n" +
+        "  { permission: [], form: formSchema, dbTables: [] },\n" +
+        "  async () => null,\n" +
+        ");",
+    });
+    expect(routes[0]?.input.form).toBe(true);
+    expect(routes[0]?.handlerFormRead).toBe(false);
   });
 
   it("keeps an unwrapped route with wrapper invalid", () => {

@@ -233,6 +233,9 @@ importers:
       '@facilis/nitro':
         specifier: workspace:*
         version: link:../../packages/nitro
+      '@facilis/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@facilis/time':
         specifier: workspace:*
         version: link:../../packages/time
@@ -609,6 +612,9 @@ importers:
       '@facilis/db':
         specifier: workspace:*
         version: link:../db
+      '@facilis/storage':
+        specifier: workspace:*
+        version: link:../storage
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.11)(@types/pg@8.23.1)(pg@8.23.1)

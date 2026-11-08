@@ -3,6 +3,7 @@ import { t } from "@facilis/core/i18n";
 import { formatDueDate, isOverdue, localTimeZone } from "../lib/dates.ts";
 import { useLocale } from "../lib/i18n.tsx";
 import { cn } from "../lib/utils.ts";
+import { TodoFiles, type TodoFile } from "./todo-files.tsx";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
@@ -13,6 +14,7 @@ export interface Todo {
   title: string;
   done: boolean;
   dueDate: string | null;
+  files: readonly TodoFile[];
 }
 
 export type TodoTableProps = {
@@ -21,10 +23,20 @@ export type TodoTableProps = {
   busyId: string | null;
   onToggle: (todo: Todo) => void;
   onRequestDelete: (todo: Todo) => void;
+  onUpload: (todo: Todo, file: File) => void;
+  onRemoveFile: (todo: Todo, file: TodoFile) => void;
 };
 
 /** The A data table: checkbox, title, tabular due date, status chip and a delete action. */
-export function TodoTable({ todos, canWrite, busyId, onToggle, onRequestDelete }: TodoTableProps) {
+export function TodoTable({
+  todos,
+  canWrite,
+  busyId,
+  onToggle,
+  onRequestDelete,
+  onUpload,
+  onRemoveFile,
+}: TodoTableProps) {
   const { locale } = useLocale();
   const timeZone = useMemo(() => localTimeZone(), []);
 
@@ -73,6 +85,13 @@ export function TodoTable({ todos, canWrite, busyId, onToggle, onRequestDelete }
                   >
                     {todo.title}
                   </span>
+                  <TodoFiles
+                    files={todo.files}
+                    canWrite={canWrite}
+                    busy={busyId === todo.id}
+                    onUpload={(file) => onUpload(todo, file)}
+                    onRemove={(file) => onRemoveFile(todo, file)}
+                  />
                 </TableCell>
                 <TableCell>
                   {todo.dueDate === null || due === null ? (

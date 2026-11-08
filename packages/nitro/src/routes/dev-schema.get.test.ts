@@ -16,7 +16,14 @@ function event(origin?: string): H3Event {
 }
 
 function state(db: FacilisDb | null, warnings: BootstrapState["warnings"] = []): BootstrapState {
-  return { db, config: null, warnings, startedAt: "2026-11-02T00:00:00.000Z", jobs: null };
+  return {
+    db,
+    config: null,
+    warnings,
+    startedAt: "2026-11-02T00:00:00.000Z",
+    jobs: null,
+    storage: null,
+  };
 }
 
 async function body(response: Response): Promise<Record<string, unknown>> {

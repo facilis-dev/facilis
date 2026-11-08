@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { defineConfig, facilisConfigSchema, type FacilisConfig } from "./config.ts";
+import {
+  DEFAULT_STORAGE_CONFIG,
+  defineConfig,
+  facilisConfigSchema,
+  type FacilisConfig,
+} from "./config.ts";
 
 const SPEC_AUTH = {
   permissions: ["todos:read", "todos:write", "users:read", "users:manage", "admin:*"],
@@ -32,6 +37,16 @@ const FULL_CONFIG: FacilisConfig = {
     timeoutMs: 5000,
     pollIntervalMs: 500,
     persist: false,
+  },
+  storage: {
+    driver: "s3",
+    bucket: "facilis-files",
+    region: "auto",
+    endpoint: "https://example.r2.cloudflarestorage.com",
+    forcePathStyle: true,
+    maxUploadBytes: 5 * 1024 * 1024,
+    tokenTtlSeconds: 120,
+    encryption: { enabled: true },
   },
   nitro: { serverDir: "./backend" },
 };
@@ -66,6 +81,8 @@ describe("defineConfig", () => {
       pollIntervalMs: 1000,
       persist: true,
     });
+    // Uploads are safe by default in dev: local driver, 10 MiB, five-minute tokens.
+    expect(config.storage).toEqual(DEFAULT_STORAGE_CONFIG);
     expect(config.nitro).toEqual({});
   });
 
@@ -160,6 +177,15 @@ describe("defineConfig", () => {
         auth: SPEC_AUTH,
         jobs: { concurrency: 2 } as unknown as FacilisConfig["jobs"],
       }),
+    ).toThrow(/Unrecognized key/);
+  });
+
+  it("parses the storage encryption switch and rejects unknown storage keys", () => {
+    const config = defineConfig({ auth: SPEC_AUTH, storage: { encryption: { enabled: true } } });
+
+    expect(config.storage.encryption).toEqual({ enabled: true });
+    expect(() =>
+      defineConfig({ auth: SPEC_AUTH, storage: { encryption: { algorithm: "aes" } } as never }),
     ).toThrow(/Unrecognized key/);
   });
 

@@ -129,6 +129,8 @@ export type WrapperState = "valid" | "invalid" | "unknown";
 
 export interface RouteInputFact {
   readonly body: boolean;
+  /** A multipart/form-data schema (D-053); mutually exclusive with `body`. */
+  readonly form: boolean;
   readonly query: boolean;
   readonly params: boolean;
 }
@@ -149,6 +151,8 @@ export interface RouteFact {
   readonly input: RouteInputFact;
   /** True when the handler body reads the request body (SPEC §9.3 rule 8). */
   readonly handlerBodyRead: boolean;
+  /** True when the handler body reads the multipart form (SPEC §9.3 rule 8, D-053). */
+  readonly handlerFormRead: boolean;
   readonly unknown: readonly UnknownFact[];
 }
 

@@ -32,4 +32,12 @@ export default defineConfig({
     pollIntervalMs: 500,
     persist: true,
   },
+  // Binary uploads (D-053, SPEC §5.10): every key is shown once. Dev writes to
+  // <project>/.facilis/binary; production builds an S3-compatible driver from the
+  // FACILIS_S3_* environment variables. Tokens are short-lived HMAC download URLs.
+  storage: {
+    driver: "local",
+    maxUploadBytes: 5 * 1024 * 1024,
+    tokenTtlSeconds: 300,
+  },
 });

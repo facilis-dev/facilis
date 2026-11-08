@@ -89,15 +89,15 @@ describe("generated template", () => {
 
   it("keeps the run manifest pointing at the example's entry", () => {
     expect(template.manifest.entry).toBe("src/app.tsx");
-    // analyze, auth, core, db, nitro, time — @facilis/ui is no longer shipped.
-    expect((template.manifest as FacilisManifest).assets).toHaveLength(6);
+    // analyze, auth, core, db, nitro, storage, time — @facilis/ui is no longer shipped.
+    expect((template.manifest as FacilisManifest).assets).toHaveLength(7);
   });
 
   it("declares every @facilis package as a vendored tarball", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
-    for (const name of ["analyze", "auth", "core", "db", "nitro", "time"]) {
+    for (const name of ["analyze", "auth", "core", "db", "nitro", "storage", "time"]) {
       expect(pkg.dependencies["@facilis/" + name]).toBe(
         "file:./vendor/facilis-" + name + "-0.0.0.tgz",
       );

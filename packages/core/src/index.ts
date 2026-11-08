@@ -5,7 +5,13 @@
  * consumers never reach into internal modules.
  */
 
-export { DB_MODES, defineConfig, facilisConfigSchema } from "./config.ts";
+export {
+  DB_MODES,
+  DEFAULT_STORAGE_CONFIG,
+  defineConfig,
+  facilisConfigSchema,
+  STORAGE_DRIVERS,
+} from "./config.ts";
 export type {
   DbMode,
   FacilisAuthConfig,
@@ -16,7 +22,22 @@ export type {
   FacilisI18nConfig,
   FacilisNitroOptions,
   FacilisReleaseConfig,
+  FacilisStorageConfig,
+  FacilisStorageConfigInput,
+  FacilisStorageEncryptionConfig,
+  StorageDriverKind,
 } from "./config.ts";
+
+export {
+  StorageUnavailableError,
+  unavailableStorage,
+  type StorageApi,
+  type StorageDownloadOptions,
+  type StoragePresignOptions,
+  type StoragePutResult,
+  type StorageStream,
+  type StorageTokenPayload,
+} from "./storage.ts";
 
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";

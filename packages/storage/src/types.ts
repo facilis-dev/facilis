@@ -4,6 +4,13 @@ export interface PutResult {
   readonly size: number;
 }
 
+/**
+ * A stream of blob bytes. This is the only way bytes enter or leave a driver: uploads
+ * arrive as an async iterable (the multipart file stream) and downloads leave as one, so no
+ * layer has to hold a whole file in memory (D-117).
+ */
+export type BlobSource = AsyncIterable<Uint8Array>;
+
 export interface SignedGetUrlOptions {
   /** Lifetime of the URL. Defaults to five minutes. */
   readonly expiresInSeconds?: number;
@@ -16,6 +23,7 @@ export interface SignedGetUrlOptions {
  *
  * put is idempotent: storing the same bytes twice returns the same hash and does not
  * duplicate the body. There is no rename/update: a different body is a different blob.
+ * put and get stream: the driver hashes/encrypts while it writes and yields while it reads.
  *
  * Access control is NOT the driver's job. The app's proxy route decides who may read a
  * blob and then either streams it (get) or redirects to a driver-signed URL
@@ -24,8 +32,9 @@ export interface SignedGetUrlOptions {
 export interface StorageDriver {
   /** "local" (dev, project filesystem) or "s3" (AWS S3, Cloudflare R2, MinIO). */
   readonly driver: "local" | "s3";
-  put(bytes: Uint8Array): Promise<PutResult>;
-  get(hash: string): Promise<Uint8Array>;
+  put(source: BlobSource): Promise<PutResult>;
+  /** Validate the hash now; the bytes arrive only when the returned source is consumed. */
+  get(hash: string): Promise<BlobSource>;
   exists(hash: string): Promise<boolean>;
   /** Delete the body. No-op when it is already gone (metadata may outlive it). */
   delete(hash: string): Promise<void>;

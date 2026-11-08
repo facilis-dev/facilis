@@ -39,6 +39,8 @@ describe("fail", () => {
       conflict: 409,
       db_unavailable: 500,
       not_found: 404,
+      storage_unavailable: 503,
+      file_too_large: 413,
       internal_error: 500,
     });
   });

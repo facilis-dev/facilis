@@ -21,7 +21,14 @@ function event(payload: unknown, origin?: string): H3Event {
 }
 
 function state(db: FacilisDb | null, config: FacilisConfig | null = null): BootstrapState {
-  return { db, config, warnings: [], startedAt: "2026-11-06T00:00:00.000Z", jobs: null };
+  return {
+    db,
+    config,
+    warnings: [],
+    startedAt: "2026-11-06T00:00:00.000Z",
+    jobs: null,
+    storage: null,
+  };
 }
 
 const CONFIG = defineConfig({

@@ -2,6 +2,7 @@ import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
 import type { JobsApi } from "./jobs.ts";
+import type { StorageApi } from "./storage.ts";
 
 /**
  * Structural request/response surface owned by core (contracts §4.1).
@@ -17,6 +18,8 @@ export interface FacilisRequest {
   readonly method?: string;
   /** Standard Fetch body reader; declared optional because only body-validated routes use it. */
   json?(): Promise<unknown>;
+  /** Multipart reader; routes with a `form` schema get this consumed by the wrapper. */
+  formData?(): Promise<FormData>;
 }
 
 export interface FacilisEventContext {
@@ -29,6 +32,8 @@ export interface FacilisEventContext {
     defaultTenantId?: string;
     /** Server-only background-job API, started by the same middleware (D-107). */
     jobs?: JobsApi;
+    /** Binary-storage runtime, started by the same middleware (D-053). */
+    storage?: StorageApi;
   };
   /** Router params populated by Nitro (h3 `event.context.params`). */
   params?: Record<string, string>;
