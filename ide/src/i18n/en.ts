@@ -17,6 +17,7 @@ import { sourceControlEn } from "./en-source-control";
 import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { chatEn } from "./en-chat";
+import { logsEn } from "./en-logs";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -213,4 +214,7 @@ export const en = {
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,
+
+  // ── operator logs (D-119) ────────────────────────────────────────────────
+  ...logsEn,
 } as const;

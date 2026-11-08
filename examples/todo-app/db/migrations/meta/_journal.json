@@ -29,6 +29,13 @@
       "when": 1794136884608,
       "tag": "0003_fearless_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794210000000,
+      "tag": "0004_auth_sso",
+      "breakpoints": true
     }
   ]
 }

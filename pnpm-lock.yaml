@@ -497,10 +497,19 @@ importers:
       '@facilis/db':
         specifier: workspace:*
         version: link:../db
+      '@node-saml/node-saml':
+        specifier: 5.2.0
+        version: 5.2.0
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.11)(@types/pg@8.23.1)(pg@8.23.1)
+      jose:
+        specifier: 6.2.13
+        version: 6.2.13
     devDependencies:
+      '@xmldom/xmldom':
+        specifier: 0.8.15
+        version: 0.8.15
       oxlint:
         specifier: 'catalog:'
         version: 1.89.0
@@ -510,6 +519,9 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(@types/node@22.20.5)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+      xml-crypto:
+        specifier: 6.4.0
+        version: 6.4.0
 
   packages/blocks:
     devDependencies:
@@ -1490,6 +1502,10 @@ packages:
       '@emnapi/core': 2.0.0-beta.2
       '@emnapi/runtime': 2.0.0-beta.2
 
+  '@node-saml/node-saml@5.2.0':
+    resolution: {integrity: sha512-bWjGrSZmenN+SiFcDxQ7Di2C108nK2jofJ0NT56C/NC/ELmjZS+6QOpf6YByM6f+eLTgfisrYVdwsNRV+XZsxg==}
+    engines: {node: '>= 18'}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -2387,6 +2403,9 @@ packages:
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
+  '@types/qs@6.15.1':
+    resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
+
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
     peerDependencies:
@@ -2400,6 +2419,12 @@ packages:
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
+
+  '@types/xml-encryption@1.2.4':
+    resolution: {integrity: sha512-I69K/WW1Dv7j6O3jh13z0X8sLWJRXbu5xnHDl9yHzUNDUBtUoBY058eb5s+x/WG6yZC1h8aKdI2EoyEPjyEh+Q==}
+
+  '@types/xml2js@0.4.14':
+    resolution: {integrity: sha512-4YnrRemBShWRO2QjvUin8ESA41rH+9nQGLUGZV/1IDhi3SL9OhdpNC/MrulTWuptXKwhx/aDxE7toV0f/ypIXQ==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -2550,6 +2575,14 @@ packages:
 
   '@vitest/spy@5.0.5':
     resolution: {integrity: sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw==}
+
+  '@xmldom/is-dom-node@1.0.1':
+    resolution: {integrity: sha512-CJDxIgE5I0FH+ttq/Fxy6nRpxP70+e2O048EPe85J2use3XKdatVM7dDVvFNjQudd9B49NPoZ+8PG49zj4Er8Q==}
+    engines: {node: '>= 16'}
+
+  '@xmldom/xmldom@0.8.15':
+    resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
+    engines: {node: '>=10.0.0'}
 
   '@xterm/addon-fit@0.11.0':
     resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
@@ -4503,6 +4536,10 @@ packages:
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
+  sax@1.6.1:
+    resolution: {integrity: sha512-42tBVwLWnaQvW5zc4HbZrTuWccECCZfBi92FDuwtqxasH+JbPB3/FOKb1m222K42R4WxuxzzMsTswfzgtSu64Q==}
+    engines: {node: '>=11.0.0'}
+
   scheduler@0.28.0:
     resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
@@ -5039,6 +5076,37 @@ packages:
   wsl-utils@1.0.1:
     resolution: {integrity: sha512-c16PKLIRxBYpR3jSWsdS7SFp0COm5SOQdiFjY818dYFHJbMGuLBszpF07LBWmOS1uzrHa9VGdynsEgoeKy0oOQ==}
     engines: {node: '>=20'}
+
+  xml-crypto@6.4.0:
+    resolution: {integrity: sha512-d21ModhBO/+QWWAmOjyDeQJuHNmsR/HtOxyBchiTbKfGNKuHYwQNd+SlLhwyyrwoAGLp4Qc6BQ7nAtnM47dHSQ==}
+    engines: {node: '>=16'}
+
+  xml-encryption@3.1.0:
+    resolution: {integrity: sha512-PV7qnYpoAMXbf1kvQkqMScLeQpjCMixddAKq9PtqVrho8HnYbBOWNfG0kA4R7zxQDo7w9kiYAyzS/ullAyO55Q==}
+
+  xml2js@0.6.2:
+    resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
+    engines: {node: '>=4.0.0'}
+
+  xmlbuilder@11.0.1:
+    resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
+    engines: {node: '>=4.0'}
+
+  xmlbuilder@15.1.1:
+    resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
+    engines: {node: '>=8.0'}
+
+  xpath@0.0.32:
+    resolution: {integrity: sha512-rxMJhSIoiO8vXcWvSifKqhvV96GjiD5wYb8/QHdoRyQvraTpp4IEv944nhGausZZ3u7dhQXteZuZbaqfpB7uYw==}
+    engines: {node: '>=0.6.0'}
+
+  xpath@0.0.33:
+    resolution: {integrity: sha512-NNXnzrkDrAzalLhIUc01jO2mOzXGXh1JwPgkihcLLzw98c0WgYDmmjSh1Kl3wzaxSVWMuA+fe0WTWOBDWCBmNA==}
+    engines: {node: '>=0.6.0'}
+
+  xpath@0.0.35:
+    resolution: {integrity: sha512-8O+m2N04SwLpGw/1Grz2HD8ejnWDV7M1dMPgKKuOjhYh5W9H4pel/+06kInohIdpS2FeSbL4i8ID8c4tpxwq9Q==}
+    engines: {node: '>=0.6.0'}
 
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -5809,6 +5877,19 @@ snapshots:
       '@emnapi/runtime': 2.0.0-beta.2
       '@tybys/wasm-util': 0.10.4
 
+  '@node-saml/node-saml@5.2.0':
+    dependencies:
+      '@types/qs': 6.15.1
+      '@types/xml-encryption': 1.2.4
+      '@types/xml2js': 0.4.14
+      '@xmldom/is-dom-node': 1.0.1
+      '@xmldom/xmldom': 0.8.15
+      xml-crypto: 6.4.0
+      xml-encryption: 3.1.0
+      xml2js: 0.6.2
+      xmlbuilder: 15.1.1
+      xpath: 0.0.35
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -6470,6 +6551,8 @@ snapshots:
       pg-protocol: 1.16.1
       pg-types: 2.2.0
 
+  '@types/qs@6.15.1': {}
+
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:
       '@types/react': 19.3.0
@@ -6482,6 +6565,14 @@ snapshots:
     optional: true
 
   '@types/validate-npm-package-name@4.0.2': {}
+
+  '@types/xml-encryption@1.2.4':
+    dependencies:
+      '@types/node': 22.20.5
+
+  '@types/xml2js@0.4.14':
+    dependencies:
+      '@types/node': 22.20.5
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -6561,6 +6652,10 @@ snapshots:
       vite: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
 
   '@vitest/spy@5.0.5': {}
+
+  '@xmldom/is-dom-node@1.0.1': {}
+
+  '@xmldom/xmldom@0.8.15': {}
 
   '@xterm/addon-fit@0.11.0': {}
 
@@ -8405,6 +8500,8 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
+  sax@1.6.1: {}
+
   scheduler@0.28.0: {}
 
   semver@6.3.1: {}
@@ -8910,6 +9007,33 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
       powershell-utils: 0.2.1
+
+  xml-crypto@6.4.0:
+    dependencies:
+      '@xmldom/is-dom-node': 1.0.1
+      '@xmldom/xmldom': 0.8.15
+      xpath: 0.0.33
+
+  xml-encryption@3.1.0:
+    dependencies:
+      '@xmldom/xmldom': 0.8.15
+      escape-html: 1.0.3
+      xpath: 0.0.32
+
+  xml2js@0.6.2:
+    dependencies:
+      sax: 1.6.1
+      xmlbuilder: 11.0.1
+
+  xmlbuilder@11.0.1: {}
+
+  xmlbuilder@15.1.1: {}
+
+  xpath@0.0.32: {}
+
+  xpath@0.0.33: {}
+
+  xpath@0.0.35: {}
 
   xtend@4.0.2: {}
 

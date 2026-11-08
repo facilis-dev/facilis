@@ -13,7 +13,7 @@ export default defineAuthorizedHandler(
     dbColumns: ["users.email", "sessions.userId"],
     description: "Log in and start a session.",
   },
-  async (event, { body, db }) => {
+  async (event, { body, db, log }) => {
     const [user] = await db
       .select({ id: users.id, passwordHash: users.passwordHash })
       .from(users)
@@ -21,13 +21,21 @@ export default defineAuthorizedHandler(
       .limit(1);
 
     // Same response for unknown email and wrong password: no account enumeration.
-    if (user === undefined || user.passwordHash === null) return fail("unauthorized");
-    if (!(await verifyPassword(user.passwordHash, body.password))) return fail("unauthorized");
+    if (user === undefined || user.passwordHash === null) {
+      log.audit({ operation: "auth:login", outcome: "failed", errorCode: "unauthorized" });
+      return fail("unauthorized");
+    }
+    if (!(await verifyPassword(user.passwordHash, body.password))) {
+      log.audit({ operation: "auth:login", outcome: "failed", errorCode: "unauthorized" });
+      return fail("unauthorized");
+    }
 
     const session = await createSession(db, user.id, { ttlMs: config.auth.sessionDurationMs });
     // h3's setCookie under the hood: it stages the cookie on the event's response headers,
     // the only surface that survives this response path (D-038).
     setSessionCookie(event, session.id, { ttlMs: config.auth.sessionDurationMs });
+    // Audit the successful password sign-in by method only: never the email or password.
+    log.audit({ operation: "auth:login", outcome: "succeeded", details: { method: "password" } });
 
     return { userId: user.id };
   },

@@ -4500,6 +4500,203 @@ only with an MCP tool); live probe against `https://mcp.deepwiki.com/mcp` (initi
 tools/call over 2025-06-18). Remaining: settings UI, managed allowlist, per-tool enablement,
 OAuth-protected servers.
 
+### D-119 — Logs are JSONL files: access, error and audit share one pipeline
+
+**Status:** accepted (2026-11-08)
+
+The owner asked for the last two platform features, the first being operator logging (audit /
+access / error). Until now the only trail was the sudo audit (D-099): one stdout JSON line per
+escalation, with the pipeline deliberately left open (O-014), and no access or error log at all.
+The operational requirement is concrete: **in development the logs must be plain files that the
+IDE's editor can open**; in production the deploy ships stdout (or the files) to its own log
+platform.
+
+**Decision.**
+
+- **One pipeline, four kinds.** `@facilis/core` owns the shapes: an `AccessLogEntry` (one per
+  authorized request), an `ErrorLogEntry` (a server-side failure), an `AuditLogEntry`
+  (security-relevant events, including the existing sudo trail) and an `AppLogEntry` (a line a
+  route writes through `ctx.log`). Every entry carries a `ts`, a `level` and, when request-scoped,
+  the correlation `requestId`, the user id, the session hash and the tenant — never the email,
+  the cookie or a bearer token.
+- **Access is structural.** `defineAuthorizedHandler` records exactly one access entry on
+  **every** exit path: 401/403, `400 invalid_input`, `503 db_unavailable`, a handler result and an
+  unexpected throw. The fields are method, pathname only (query strings can carry tokens),
+  status, duration, request id, user id, session hash and tenant, plus the User-Agent only when
+  `logging.includeUserAgent` is on. No route has to remember to log itself.
+- **Errors stay server-side.** An unexpected handler failure is recorded with the canonical code
+  (`internal_error`), the error name, message and stack; the client still receives only
+  `{ code }` (SPEC §6.4). A missing logging runtime falls back to the previous `console.error`
+  trace, so the wrapper stays usable in a bare Fetch runtime.
+- **The audit stream is never filtered and stays fail-closed.** Audits ignore
+  `logging.level`/`logging.access`/`logging.errors`; the db package's
+  `setSudoAuditSink` is bridged into the same sink, so a sudo entry becomes
+  `event: "sudo:started|succeeded|failed"` with its actor, roles, operation, reason, tables,
+  request id, method/path, tenant, session hash, outcome, error code and duration. If the audit
+  sink is not writable the write throws and sudo refuses to escalate (D-099 unchanged). Only the
+  access/error/app streams are best-effort: a broken file must never fail a request.
+- **Files, not an endpoint (owner decision, 2026-11-08).** Entries are JSON Lines in
+  `<projectRoot>/.facilis/logs/{access,audit,error,app}.jsonl` (one object per line, no pretty
+  printing), which is the project's existing internal-state directory. `FACILIS_LOG_SINK` =
+  `auto|stdout|file|both` selects the sink: `auto` (the default) writes files when
+  `NODE_ENV !== "production"` and stdout in production, so the IDE workflow needs no setup and a
+  deploy needs no disk. `FACILIS_LOG_DIR`, `FACILIS_LOG_MAX_BYTES` (default 10 MiB),
+  `FACILIS_LOG_KEEP` (default 5) and `FACILIS_LOG_LEVEL` complete the environment surface.
+  Sinks are env-owned like the database target and storage credentials: a project must not be
+  able to redirect an operator's trail.
+- **No HTTP surface, not even dev-only.** A log endpoint would expose request paths, user ids,
+  session hashes, client IPs and stack traces to anyone who can reach the dev server, and the
+  dev origin allowlist is not a boundary inside the browser VM. The IDE viewer reads the files
+  through the kernel VFS and opens them in the editor instead.
+- **Redaction and caps.** Keys matching token/secret/password/cookie/authorization/set-cookie/
+  api-key/credential/SAML payload/assertion/email/session-id (case-insensitive) are redacted in
+  `data`/`details`; object depth 6, arrays 50, strings 1000 characters, cycles marked. Headers
+  and request/response bodies are never logged.
+- **Rotation and retention.** Before an append would pass the byte cap the active file shifts to
+  `.1`, `.2` … keeping `FACILIS_LOG_KEEP` files; the writes are serialized synchronous appends
+  (the runtime is single-process). Retention/WORM is the deploy's responsibility (O-019), not the
+  framework's.
+- **Tamper evidence.** File-written audit entries carry `seq`, `prevHash` and `hash` =
+  SHA-256 over a stable canonical JSON of the entry without the hash fields, and
+  `verifyAuditChain` verifies a readback. The chain is tamper-evident within a file, not
+  tamper-proof (it has no secret key); a deploy that needs WORM ships the stdout/file stream to
+  storage it cannot rewrite.
+- **Request id.** The logging middleware accepts an inbound `x-request-id` only when it matches
+  `^[A-Za-z0-9._-]{8,128}$` (otherwise it generates one), returns it in the response and puts it
+  on the event context; the route wrapper reuses it, so access, error and audit entries for one
+  request correlate without ever logging a header wholesale.
+- **Config is small and defaulted.** `logging: { level, access, errors, includeUserAgent,
+  trustProxy }` in `facilis.config.ts`; the environment overrides the level and owns the
+  destination. `trustProxy` is off by default, so `x-forwarded-for` is ignored unless a deploy
+  says it terminates a trusted proxy.
+
+**Rejected alternatives.** *A database log table*: a rolled-back transaction would erase the
+record of what it touched, it would write-amplify every request, and the audit trail must not be
+subject to the RLS/write policy it describes. *A dev-only `GET /__facilis/dev/logs`* (the
+original sketch): rejected by the owner — a log endpoint is a security liability, and files are
+the artifact the IDE already knows how to open. *Per-route logging calls*: a route that forgets
+one removes the security record; the wrapper is the only place that cannot forget. *Sampling
+audit entries*: an audit trail with holes is not an audit trail. *A separate `FACILIS_AUDIT_SINK`
+protocol*: the sudo audit is one of the four streams, not a parallel mechanism. *Logging the raw
+`Drizzle` client's SQL*: query text can contain user data; pgaudit/log-statement is the
+database-level tool for that (O-015).
+
+**Consequences.** Development accumulates bounded log files inside `.facilis/` (already
+gitignored), which operators and the IDE can inspect with any text tool; production defaults to
+stdout so a platform can collect it; a project that wants files in production sets
+`FACILIS_LOG_SINK=file`. Access volume is one line per API request, not per static asset. The
+audit file doubles as the sudo trail with a verifiable chain, while WORM/HMAC and external sinks
+remain open (O-019). The IDE viewer is read-only and cannot mutate or delete the files.
+
+**Verification.** `@facilis/core`: the config section defaults/cross-checks, access entry on
+401/403/400/503/success/throw, error entry never reaches the client, audit actor for a session vs
+anonymous, request-id fallback. `@facilis/nitro`: env resolution and defaults, stream routing,
+redaction/caps, level filtering, rotation and keep, audit chain verify (good and tampered),
+fail-closed audit, best-effort access writes, middleware request-id/attach, bootstrap wiring and
+the sudo bridge (the existing db sudo tests stay green). `@facilis/ide`: the logs panel model
+(parse, filters, rotation ordering) and its VFS read path. `docs/LOGS.md` is the operator
+contract; the no-HTTP rule is also asserted by the absence of a route in the module registry.
+
+---
+
+### D-120 — Single sign-on: OIDC, generic OAuth2 and SAML as framework auth
+
+**Status:** accepted (2026-11-08)
+
+The owner asked for single sign-on (OIDC / SAML / OAuth2) as the second and final missing
+feature. Facilis already owns the session, RBAC, users and roles (SPEC §5.3): a password login is
+an app route blueprint, sessions are opaque rows and every request is tenant-scoped. SSO belongs
+in that same subsystem — not in each generated app — so the flows cannot drift or be implemented
+insecurely per project.
+
+**Decision.**
+
+- **Configuration is code, secrets are environment.** `auth.sso.providers` is a discriminated
+  union on `kind` (`oidc`, `oauth2`, `saml`): id, label, discovery/manual endpoints, client
+  id, scopes, mapping, `autoProvision` and an optional `defaultRole`. A secret is named by the
+  ENV VAR ( `clientSecretEnv` / `certificateEnv`), never stored in the config. `defineConfig`
+  validates ids (URL-safe and unique), URLs, `defaultRole` against `auth.roles`, token auth mode
+  and redirect paths eagerly, so a broken provider fails at boot, not at first login.
+  `auth.sso` adds `failureRedirect` (same-origin path, default `/login`) and `stateTtlMs`
+  (default ten minutes).
+- **Framework-owned routes, one handler.** `/api/auth/sso/**` is registered by `@facilis/nitro`
+  in dev and production alike and handled by one `defineAuthorizedHandler` with
+  `permission: []`: `GET /api/auth/sso/providers` (`{ providers: [{ id, label, kind,
+  startUrl }] }`, no secrets), `GET /api/auth/sso/:provider/start` (302 to the IdP) and
+  `GET|POST /api/auth/sso/:provider/callback` (302 back to `redirectTo` or to the failure
+  redirect with `?sso_error=<code>`). A provider whose secret/certificate env var is missing is
+  hidden from the list and answered with `sso_provider_unavailable`. App-owned login/register
+  routes are unchanged; the namespace is reserved by the framework and documented in SPEC §5.3.
+- **OIDC** is authorization code + PKCE (S256) + nonce + single-use state; discovery is fetched
+  from `<issuer>/.well-known/openid-configuration` and cached per provider; the ID token is
+  verified with `jose` (JWKS, issuer, audience = client id, nonce, expiry), with a userinfo
+  fallback only when the email claim is missing. `client_secret_post`, `client_secret_basic` and
+  public-client `none` are supported.
+- **Generic OAuth2** uses explicit authorization/token/userinfo endpoints and a dotted-path
+  mapping (`subject`/`email`/`emailVerified`) for the userinfo JSON, with the same
+  authorization-code + PKCE S256 flow (sent unconditionally; a provider that does not implement
+  PKCE ignores the unknown parameters per RFC 6749, while a public `tokenAuth: "none"` client is
+  protected). Email verification is claim-driven; a provider that never reports it must opt in
+  with `assumeEmailVerified`.
+- **SAML** is SP-initiated Web Browser SSO: an `AuthnRequest` built by the framework
+  (HTTP-Redirect binding, deflate+base64, unique request id, ACS URL, audience/issuer) and an
+  HTTP-POST ACS. Assertions are validated by `@node-saml/node-saml`, imported **lazily** inside the
+  SAML path so a project that does not use SAML never loads it at runtime; a production server
+  build may still emit it as a separate on-demand chunk, and the WebContainer dev path only
+  reads it from node_modules if SAML is actually configured.
+  `wantAssertionsSigned` defaults to true (response signing is opt-in), clock skew is 5 seconds,
+  and InResponseTo is checked when present in addition to the single-use RelayState. IdP-initiated
+  SSO is not accepted (no unsolicited assertion surface).
+- **Account linking is conservative.** The identity key is `(provider, subject)`, so a changed
+  email never breaks the link. Without an identity, an email must be **verified** and is matched
+  against `users`: an existing user gets the identity linked; otherwise `autoProvision` (default
+  true) creates the user with a null password hash and the provider's `defaultRole` or
+  `auth.defaultRole`. Unverified email never links or provisions (`sso_email_unverified`), and
+  `autoProvision: false` refuses unknown users (`sso_account_not_found`). Writes to
+  `users`/`user_roles`/`auth_identities`/`auth_sso_states` run only inside the audited
+  `ctx.system` elevation, never on a raw client; the session is created with the framework's
+  `createSession` and the cookie helper, exactly like a password login.
+- **Tables.** `auth_identities` (`(provider, subject)` PK, user id, email, tenant, timestamps) and
+  `auth_sso_states` (single-use state, provider, nonce, PKCE verifier, SAML request id, redirect,
+  expiry, tenant) live in `@facilis/auth` with the standard restrictive tenant RLS plus a
+  permissive tenant-scope policy; the project ships the generated migration.
+- **Audit and privacy.** `ctx.log.audit` records `auth:sso:start`, `auth:sso:login`,
+  `auth:sso:link` and `auth:sso:provision` with the provider id and outcome only. Tokens,
+  authorization codes, SAML payloads and email addresses are never logged (D-119's redaction is
+  the second line of defence).
+- **Public origin.** The callback/ACS URL is derived from `FACILIS_PUBLIC_ORIGIN` when set,
+  otherwise from the request origin; a deploy behind a proxy must set the variable and register
+  `https://<origin>/api/auth/sso/<provider>/callback` at the IdP. `redirectTo` is restricted to
+  same-origin paths (no `//`, no backslash), which closes the open-redirect hole.
+
+**Rejected alternatives.** *Per-app SSO route blueprints*: every generated project would
+reimplement state/PKCE/signature checks, and a bug would be a vulnerability. *Secrets in
+`facilis.config.ts`*: the config is committed. *Hand-rolled XML signature verification*: XML
+canonicalization is precisely where SAML implementations get broken; node-saml is maintained and
+only loaded when needed. *IdP-initiated SAML*: it removes the request binding and turns the ACS
+into an unsolicited-assertion endpoint. *Auto-linking unverified emails*: an account-takeover
+primitive. *Leaving SSO to the app's own OAuth client for Git*: D-082's device flow is scoped to
+Git operations and never creates a Facilis session. *A static `@node-saml` import*: it would
+pull a CJS crypto tree into every project's in-VM bundle, including projects with no SAML.
+
+**Consequences.** Projects without `auth.sso.providers` are byte-for-byte unaffected (empty
+`providers` is the default). A project enabling SSO needs its DB, the secret/cert env vars and
+the callback URL registered at the IdP. SAML adds `@node-saml/node-saml` (and its tree) to
+the generated project's install; the import is lazy, so boots and non-SAML logins do not touch
+it. Passkeys, TOTP/2FA, SCIM provisioning and token refresh are explicitly out of scope (O-020).
+
+**Verification.** `@facilis/auth` SSO tests: config/provider resolution (hidden when a secret is
+missing, public list shape), state single-use/expiry and redirect guard, PKCE/challenge and
+authorize URLs, OIDC ID-token verification against a local JWKS (valid, wrong nonce, wrong
+audience, expired), OAuth2 mapping and emailVerified policy, identity rules (existing identity,
+link by email, provision, autoProvision off, unverified email, role assignment), SAML request
+generation and ACS rejection (tampered/unsigned), audit entries without secrets. `@facilis/nitro`:
+the route dispatch (providers, start 302, callback 302 + cookie, unknown path 404, SAML POST body
+validation) with an injected fetch. The example app migration/schema and the login page are
+covered by the starter contract; a real-IdP checklist is in `docs/SSO.md`.
+
+---
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
@@ -4519,11 +4716,12 @@ OAuth-protected servers.
 | O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
 | O-013 | Views are not in the analyzer facts, project graph or reverse lookup; a route using one declares its base tables in `dbTables` | parse `defineView` (`db/views/**`) into `ViewFact`s and expand a route's `dbTables` through the views it selects; add their edges to the graph and the AI validator's table namespace. With D-098 carry `permission`/`access` and check that a route using a permission view declares that permission | Phase 4 |
-| O-014 | Sudo audit pipeline: the default is one stdout JSON line; retention/WORM, tamper-evidence, and the enclosing transaction's fate are undesigned | add a sink selected by env (`FACILIS_AUDIT_SINK`: stdout/file), a hash-chained file record (optional HMAC key) with `verifyAuditLog`, and `committed`/`rolled_back` entries appended after the request transaction resolves; document the retention responsibility of the deploy | Phase 4 |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) | Phase 7+ |
 | O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. Remaining: context compaction and the project-file picker | IDE chat polish, after the preview tools (D-111 landed) |
+| O-019 | Log retention and tamper evidence beyond a local file: WORM storage, an HMAC-keyed chain, and external sinks (S3/Syslog/OTLP) | D-119 gives the file/stdout pipeline with a SHA-256 `seq`/`prevHash` chain and delegates WORM/retention to the deploy's log platform. Add an optional HMAC key per deployment (`FACILIS_LOG_HMAC_KEY`) and a `committed`/`rolled_back` entry for the request transaction before this is called tamper-proof | Phase 7+ |
+| O-020 | SSO depth: IdP-initiated SAML, SCIM provisioning, refresh tokens/session sync, TOTP/WebAuthn as a second factor | keep SP-initiated SAML, JIT linking/provisioning and password+SSO only; each of the four is a separate contract (and 2FA needs a second credential table, not a provider flag) | Phase 7+ |
 
 When an item is decided, move it to **Accepted** with a `D-0NN` entry and update
 `docs/SPEC.md` if a contract changes.

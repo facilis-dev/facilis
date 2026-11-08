@@ -13,6 +13,7 @@ import {
   MANIFEST_ROUTE,
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
+  SSO_ROUTE,
 } from "./constants.ts";
 import {
   VIRTUAL_CONFIG_ID,
@@ -229,6 +230,11 @@ function registerRuntimeHandlers(nitro: Nitro): void {
   if (dev) add(OPENAPI_FACADE_ROUTE, routeFile("openapi.get.ts"), DEV_ENV);
   else if (nitro.options.openAPI?.production)
     add(OPENAPI_FACADE_ROUTE, routeFile("openapi.get.ts"));
+
+  // The SSO namespace is framework auth in every environment (D-120): with no providers
+  // configured every path answers not_found, so the handler exists unconditionally and the
+  // app never ships its own copy. It is reserved to the framework (SPEC §5.3).
+  add(SSO_ROUTE, routeFile("sso.ts"));
 
   // Middleware order is significant: context (db) before session (auth) (contracts §4.1).
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("context.ts") });

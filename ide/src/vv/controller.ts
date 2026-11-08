@@ -292,7 +292,7 @@ export interface IdeSnapshot {
   devtoolsOpen: boolean; // the chii DevTools panel (bottom split of the preview)
   devtoolsNonce: number; // bump to reload the DevTools frontend (re-attach to a new target)
   selectedDemo: string;
-  activeView: "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release";
+  activeView: "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release" | "logs";
   sidebarCollapsed: boolean;
   panelCollapsed: boolean;
   previewCollapsed: boolean;

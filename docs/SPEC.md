@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.13 (background jobs + permission views + audited sudo, D-098/D-099/D-107)
+**Version:** 1.14 (logging pipeline + single sign-on, D-119/D-120)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.14 — Operator logging and single sign-on (D-119/D-120). Logging is one pipeline with four streams (access, error, audit, app): `defineAuthorizedHandler` records exactly one access entry on every exit path, unexpected failures stay server-side, the sudo trail joins the same sink, and a route can append app lines/audit events through `ctx.log`. Entries are JSON Lines files in `<project>/.facilis/logs/` (dev default, opened from the IDE editor) or stdout (production default), selected by `FACILIS_LOG_SINK`; there is **no HTTP endpoint that serves logs**. Sinks are env-owned, redaction/caps are structural, audit entries carry a SHA-256 `seq`/`prevHash`/`hash` chain and audit writes fail closed, rotation keeps `FACILIS_LOG_KEEP` files, and the deploy owns WORM/retention (O-019). SSO is framework auth: `auth.sso.providers` (OIDC, generic OAuth2, SAML) with secrets only as env-var names, framework-owned `/api/auth/sso/{providers,start,callback}` routes, OIDC discovery + PKCE + nonce + ID-token verification (`jose`), generic OAuth2 userinfo mapping, SP-initiated SAML validated by `@node-saml/node-saml` (lazily imported), single-use DB-backed state, `auth_identities`/`auth_sso_states` with RLS, conservative linking (verified email only), JIT provisioning with the provider/default role, and audit events without tokens or emails. §4.2/§5.3/§5.6/§7.1/§7.4/§8.6/§8.7/§11.4/§12 follow.
 - v1.13 — Background jobs (D-107): a durable `facilis_jobs` queue with config-driven concurrency, retry, timeout and cancellation; named definitions in `server/jobs/**/*.ts`; the server-only `ctx.jobs` API (enqueue returns an id, schedule at an instant, read the queue/running jobs, cancel); every attempt in a system context through `runAsSystem` with the sudo audit; persisted queue state with at-least-once recovery. There is no workflow construct yet (O-017). §5.1/§5.2/§5.6/§7.1/§7.4/§7.9/§8.4.5/§14.2 follow.
 - v1.12 — Views gain an optional own permission (D-098): without it they keep the D-097 invoker behaviour (base tables' RLS); with it they are definer views (`security_invoker = false`) gated by that permission in `app.permissions`, and the base tables are not consulted — the view is a table-like resource, full read-only SQL, developer-owned. The Create-view dialog offers the permissions declared in `facilis.config.ts`. Sudo (D-099) adds an audited server-side system context: `ctx.sudo({ operation, reason, tables }, fn)` runs inside a SAVEPOINT as `facilis_system` (NOLOGIN, NOSUPERUSER, BYPASSRLS, DML only), records `started`/`succeeded`/`failed` entries on a dedicated append-only log (stdout JSON lines for now; not a DB table) with the user + session hash, and fails closed if the log is unavailable. `ctx.system` is the session-less system actor for public/bootstrap routes (registration), the handler event no longer carries the raw client (`ctx.db` is the only default DB surface; escalation is only sudo/system), `runAsSystem` is the job/CLI counterpart, and the analyzer warns `route-direct-db` for raw client access. §5.2/§5.3/§7.4/§8.4.5/§8.5/§8.6/§11.2/§11.4/§12 follow.
 - v1.11 — The Data Explorer gains a query console and declarative SQL views (D-097): `POST /__facilis/dev/query` runs one read-only statement (read-only transaction, 5 s timeout, capped rows) and its Create-view action stores `db/views/<name>.ts` with `defineView(...)`, while the framework creates the view with `security_invoker = true` so a route selecting it inherits the base tables' RLS. The live transport is now kernel-mediated (same-origin preview URL through the Studio's Service Worker), which fixes the panel when the app preview is popped out (O-011 narrowed to the declared AST half and preview mode C). §4.2/§5.2/§6.3/§10.2/§11.1/§11.2/§11.4/§12 follow.
@@ -339,7 +340,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 <project>/
 ├── server/                       Nitro server root (serverDir)
 │   └── routes/api/
-│       ├── auth/                 register, login, logout, session
+│       ├── auth/                 register, login, logout, session; /api/auth/sso/** is framework-owned (D-120)
 │       ├── files/                [id].get — token-only download proxy (D-116)
 │       ├── jobs/                 index.post, [id].get/delete (D-107)
 │       └── todos/                index.get/post, [id].patch/delete,
@@ -358,7 +359,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── views/                    SQL views declared with defineView (D-097), one file per view
 │   └── migrations/               drizzle-kit output (incl. auth seed)
 ├── locales/en.json, it.json
-├── .facilis/                     dev-only state, never source: db/snapshot.tar.gz, binary/
+├── .facilis/                     dev-only state, never source: db/snapshot.tar.gz, binary/, logs/*.jsonl (D-119)
 ├── index.html
 ├── vite.config.ts                plugins: [tailwindcss(), facilis(), react()]
 ├── facilis.config.ts             the one config: roles, permissions, storage, nitro options
@@ -474,6 +475,27 @@ export type {
 } from "./jobs"
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config"
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config"
+
+// Logging (D-119): entry shapes + ctx.log contract; sinks live in @facilis/nitro
+export {
+  LOG_KINDS, LOG_LEVELS, NOOP_LOGGER, NOOP_LOGGING_API,
+  createAccessEntry, createErrorEntry,
+} from "./logging"
+export type {
+  AccessLogEntry, AppLogEntry, AuditLogEntry, ErrorLogEntry,
+  FacilisAuditInput, FacilisLogger, FacilisLoggingApi, FacilisLogRequestMeta,
+  LogEntry, LogEntryMeta, LogKind, LogLevel,
+} from "./logging"
+export { DEFAULT_LOGGING_CONFIG, facilisLoggingConfigSchema } from "./logging-config"
+export type { FacilisLoggingConfig, FacilisLoggingConfigInput } from "./logging-config"
+
+// SSO config (D-120); the protocol lives in @facilis/auth
+export {
+  DEFAULT_SSO_CONFIG, SSO_PROVIDER_KINDS, ssoConfigSchema, ssoProviderSchema,
+} from "./sso-config"
+export type {
+  FacilisSsoConfig, FacilisSsoConfigInput, FacilisSsoProvider, SsoProviderKind,
+} from "./sso-config"
 ```
 
 ### 5.2 `@facilis/db`
@@ -534,6 +556,7 @@ Exports:
 - `registerInitialAdmin()` — reads `FACILIS_INITIAL_ADMIN` env var and grants admin role on registration
 - Login/logout/register route blueprints (optional to install)
 - Role-assignment API blueprint (`POST /api/users/:id/roles`)
+- Single sign-on (D-120): `ssoProviderList()` (the public provider list), the start/callback orchestration for OIDC/OAuth2/SAML, the `auth_identities` and `auth_sso_states` tables, and the framework-owned routes `GET /api/auth/sso/providers`, `GET /api/auth/sso/:provider/start` and `GET|POST /api/auth/sso/:provider/callback` (implemented by `@facilis/nitro`)
 
 **Auth tables (from `@facilis/auth/db`):**
 
@@ -567,9 +590,34 @@ export const userRoles = pgTable("user_roles", {
   assignedBy: uuid("assigned_by"),
   assignedAt: timestamp("assigned_at").defaultNow(),
 })
+
+// Single sign-on (D-120). Written only inside the audited ctx.system elevation.
+export const authIdentities = pgTable("auth_identities", {
+  provider: text("provider").notNull(),       // auth.sso provider id
+  subject: text("subject").notNull(),         // IdP subject / NameID
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  email: text("email"),
+  tenantId: tenantColumn(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+}, (t) => [primaryKey({ columns: [t.provider, t.subject] }), ...rlsForTable({ tenantColumn: "tenant_id" }).policies])
+
+export const authSsoStates = pgTable("auth_sso_states", {
+  state: text("state").primaryKey(),          // 32 random bytes, base64url, single use
+  provider: text("provider").notNull(),
+  codeVerifier: text("code_verifier"),        // PKCE S256 verifier
+  nonce: text("nonce"),
+  requestId: text("request_id"),              // SAML AuthnRequest id (InResponseTo)
+  redirectTo: text("redirect_to"),            // same-origin path only
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  tenantId: tenantColumn(),
+}, () => [...rlsForTable({ tenantColumn: "tenant_id" }).policies])
 ```
 
 **Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded at migration time and never written at runtime.
+
+**Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
 
 ### 5.4 `@facilis/blocks`
 
@@ -690,6 +738,10 @@ export const facilisNitroModule: NitroModule = {
 > `nitro` key and pass Nitro options through the `nitro` user-config key, which is how
 > `facilis()` works. Virtual-module factories in `nitro.options.virtual` return module source
 > strings, evaluated on load.
+
+**Framework middleware, logging and SSO routes.** The module registers the `context` (db) and `session` (auth) middleware on `/**`, in that order. Its runtime also owns the logging pipeline (D-119): the `runtime/logging/` module resolves the sink from the environment, appends JSON Lines to `<project>/.facilis/logs/` or stdout, and is attached to every request by the context middleware, which also resolves/returns `x-request-id`. Access/error entries are produced by `defineAuthorizedHandler` in `@facilis/core`; the sudo trail is bridged in from `@facilis/db`. No route exposes the log files.
+
+When `auth.sso.providers` is non-empty, the module also registers one handler for `/api/auth/sso/**` (D-120) in dev and production alike. The handler is a normal `defineAuthorizedHandler` with `permission: []`: it lists the public providers, starts a login (302 to the IdP) and completes the callback (302 back to `redirectTo`). SAML's ACS POST body is parsed and Zod-validated inside the handler, and `@node-saml/node-saml` is imported lazily so projects without SAML never load it.
 
 **Registration in the starter's `vite.config.ts`:**
 
@@ -1112,6 +1164,11 @@ interface FacilisConfig {
     roles: Record<string, string[]>      // role name → permission list; "*" is wildcard
     defaultRole: string                  // assigned on registration
     sessionDurationMs: number
+    sso: {                               // D-120; every key has a default
+      providers: SsoProvider[]           // oidc | oauth2 | saml; secrets only as ENV VAR names
+      failureRedirect: string            // same-origin path, default "/login"
+      stateTtlMs: number                 // login-attempt lifetime, default 10 min
+    }
   }
   jobs: {
     maxConcurrent: number      // attempts executing at the same time (default 2)
@@ -1130,6 +1187,13 @@ interface FacilisConfig {
     maxUploadBytes: number     // default 10 MiB; hard cap 100 MiB
     tokenTtlSeconds: number    // download-token lifetime, default 300 s; max 24 h
     encryption: { enabled: boolean }  // at-rest encryption, default false; keys stay in env (D-117)
+  }
+  logging: {                   // D-119; every key has a default, the sink stays in env
+    level: "debug" | "info" | "warn" | "error"   // default "info"; FACILIS_LOG_LEVEL overrides
+    access: boolean            // one access entry per authorized request, default true
+    errors: boolean            // server-side error entries, default true
+    includeUserAgent: boolean  // default false
+    trustProxy: boolean        // trust x-forwarded-for, default false
   }
 }
 ```
@@ -1250,6 +1314,8 @@ interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   system: SystemHandler                       // audited elevation for public/bootstrap routes
   jobs: JobsApi                               // server-only job queue (D-107), no HTTP surface
   storage: StorageApi                         // binary storage, §5.10; degrades when unavailable
+  log: FacilisLogger                          // request logger (D-119)
+  requestId: string                           // correlation id, set by the logging middleware
 }
 
 interface SudoHandler {
@@ -1279,6 +1345,22 @@ interface AuthContext {
   // enforced by RLS (D-040), so neither the session nor the request can widen it.
 }
 
+interface FacilisLogger {
+  debug(message: string, data?: Record<string, unknown>): void
+  info(message: string, data?: Record<string, unknown>): void
+  warn(message: string, data?: Record<string, unknown>): void
+  error(message: string, data?: Record<string, unknown>): void
+  /** Appends an audit entry now; never filtered by the diagnostic level (D-119). */
+  audit(event: {
+    operation: string                         // stable label, never user input
+    outcome?: "succeeded" | "failed"
+    errorCode?: string
+    reason?: string
+    tables?: string[]
+    details?: Record<string, unknown>         // redacted/capped by the runtime
+  }): void
+}
+
 interface FacilisHandlerEvent {
   context: { auth?: AuthContext | null; params?: Record<string, string>;
     facilis?: { defaultTenantId?: string } }   // no db: the raw client is not on the handler surface
@@ -1299,6 +1381,16 @@ policy-scoped `ctx.db` (session/tenant GUCs and RLS) and the audited `ctx.sudo`/
 elevation; it cannot reach a policy-free client. Using the raw client (or importing `createDb`)
 is reported by the analyzer as `route-direct-db` — "not recommended" made visible in the
 manifest.
+
+**Logging on the context (D-119).** The wrapper records exactly one access entry for every
+request exit path (401/403, 400, 503, a handler result or a throw) with method, pathname, status,
+duration, request id and the session hash — never a header, a cookie or a body. An unexpected
+failure is recorded server-side (name/message/stack) while the client still gets only
+`{ code: "internal_error" }`. Routes add their own lines and audit events through
+`ctx.log`; audit entries are never level-filtered and the sudo trail is bridged into the same
+sink from `@facilis/db` (D-099). The output is JSON Lines files
+(`<project>/.facilis/logs/`) or stdout — **there is no HTTP endpoint that serves logs**
+(D-119).
 
 **Multipart uploads (D-116).** `body` and `form` are mutually exclusive: a route declares one
 schema and the wrapper parses exactly that representation (a multipart request is consumed
@@ -1917,6 +2009,64 @@ names the tenant and cannot name a different one (D-040).
   permission are the whole surface, and the permission gate is defense-in-depth (a custom GUC is
   settable by any role), not a boundary against deliberately hostile code (D-098)
 - `role_permissions` is written **only** at migration time
+- Logging is structural, not a per-route courtesy (D-119): `defineAuthorizedHandler` writes
+  exactly one access entry per request, unexpected failures are recorded server-side and never
+  returned to the client, and the sudo trail joins the same append-only sink. Logs are JSON
+  Lines files in `<project>/.facilis/logs/` (dev) or stdout (production); **no HTTP endpoint
+  serves them**, not even a dev-only one
+- An audit entry is never filtered by the diagnostic level and audit writes fail closed: if the
+  sink is not writable, sudo refuses to escalate (D-099). Access/error/app writes are
+  best-effort and cannot fail a response
+- Single sign-on is framework auth (D-120): providers are declared in `facilis.config.ts` with
+  secrets named by env var only; an unverified email never links to or provisions an account;
+  `auth_identities` and `auth_sso_states` are written only inside the audited `ctx.system`
+  elevation; the routes live under the framework-owned `/api/auth/sso/**` namespace
+
+### 8.7 Logging & Audit Trail
+
+**Four streams, one pipeline (D-119).**
+
+| Kind | Produced by | Fields (non-exhaustive) |
+|---|---|---|
+| `access` | `defineAuthorizedHandler`, every exit path | `requestId`, `method`, `path` (pathname only), `status`, `durationMs`, `userId`, `sessionHash`, `tenantId`, optional `ip`/`userAgent` |
+| `error` | the wrapper on an unexpected failure | `requestId`, `code`, `name`, `message`, `stack`, `method`, `path` |
+| `audit` | sudo/system (D-099), SSO (D-120) and `ctx.log.audit` | `event`, `actor`, `operation`, `outcome`, `errorCode`, `durationMs`, `reason`, `tables`, `roles`, `details` |
+| `app` | `ctx.log.debug/info/warn/error` | `message`, `data` (redacted), `requestId` |
+
+**Destination is a deployment concern.** `FACILIS_LOG_SINK` = `auto|stdout|file|both`;
+`auto` (default) writes `.facilis/logs/{access,audit,error,app}.jsonl` when
+`NODE_ENV !== "production"` and stdout in production. `FACILIS_LOG_DIR` overrides the
+directory, `FACILIS_LOG_MAX_BYTES` (10 MiB) / `FACILIS_LOG_KEEP` (5) bound rotation, and
+`FACILIS_LOG_LEVEL` overrides `logging.level` from the config. A project cannot redirect the
+operator's trail: sinks are env-owned like the database target.
+
+**No HTTP surface.** There is deliberately no log endpoint (not even `/__facilis/dev/logs`):
+the files carry request paths, user ids, session hashes, client IPs and stack traces, and the dev
+origin allowlist is not a boundary inside the browser VM. The IDE's Logs view reads the files
+through the kernel VFS and opens them in the editor (D-119); operators use any text tool.
+
+**Redaction and caps.** Keys matching token/secret/password/cookie/authorization/set-cookie/
+api-key/credential/SAML payload/assertion/email/session-id (case-insensitive) are redacted in
+`data`/`details`; depth 6, arrays 50, strings 1000 characters, cycles marked. Headers and
+request/response bodies are never logged.
+
+**Rotation and tamper evidence.** Before an append would pass the byte cap the active file is
+shifted to `.1`, `.2` … and the oldest is dropped after `FACILIS_LOG_KEEP` files. File-written
+audit entries carry `seq`, `prevHash` and `hash` (SHA-256 over a stable canonical JSON of
+the entry without the hash fields); `verifyAuditChain` verifies a readback. The chain is
+tamper-evident within a file, not tamper-proof (no secret key); WORM, HMAC and external sinks
+belong to the deploy (O-019). Development log files live under `.facilis/`, which is already
+gitignored.
+
+**Audit is fail-closed; the rest is best-effort.** A broken audit destination throws and the
+elevation is refused (D-099). A broken access/error/app destination is contained (a one-time
+`console.error` fallback) and never fails a request.
+
+**Verification.** The core suite pins the access entry on 401/403/400/503/success/throw and the
+server-only error entry; `@facilis/nitro`'s logging suite pins env resolution, stream routing,
+redaction/caps, level filtering, rotation, chain verification (good/tampered), fail-closed audit,
+the request-id middleware and the bootstrap/sudo bridge; the IDE suite pins the log parser and
+filters. `docs/LOGS.md` is the operator contract.
 
 ---
 
@@ -2349,6 +2499,11 @@ route derived at an old ref knows method+path only.
 | `POST /__facilis/dev/view` | Create/replace a view, optional declared permission (§11.2, D-097/D-098) | 404 in prod, origin allowlist, view-definition validation, `invalid_permission` for a permission not in `facilis.config.ts` |
 | `GET /__facilis/*` | Manifest sections | 404 in prod, origin allowlist |
 
+**No log endpoint (D-119).** Logs are not a dev endpoint and have no route: the framework writes
+JSON Lines files under `<project>/.facilis/logs/` (or stdout in production), and the IDE's Logs
+view reads them through the kernel VFS. Adding a server route that serves log files would turn an
+operator artifact into a remotely readable one; it is explicitly out of contract.
+
 ---
 
 ## 12. Development Phases
@@ -2476,6 +2631,8 @@ as are the add-block/add-route/security-checklist pages.
 - i18n catalog editor
 - Collaborative editing (Yjs)
 - OpenAPI contract diff (parallel Vivari boot)
+- Log pipeline WORM/HMAC/external sinks and transaction-outcome entries (O-019)
+- SSO depth: IdP-initiated SAML, SCIM, refresh/session sync, TOTP/WebAuthn (O-020)
 
 ---
 
@@ -2652,6 +2809,13 @@ export default defineConfig({
     },
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
+    // Single sign-on (D-120): every key has a default; an empty list = passwords only.
+    // The secret VALUES stay in the environment, named here by variable name.
+    sso: {
+      providers: [],                 // oidc | oauth2 | saml (discriminated union)
+      failureRedirect: "/login",     // same-origin path; ?sso_error=<code> is appended
+      stateTtlMs: 10 * 60 * 1000,    // login-attempt lifetime
+    },
   },
   // Background-job queue (D-107): every key has a default, so the block is optional.
   jobs: {
@@ -2671,6 +2835,15 @@ export default defineConfig({
     tokenTtlSeconds: 300,  // download-token lifetime, max 24 h
     encryption: { enabled: false }, // opt-in AES-256-GCM at rest; false = plaintext (D-117)
     // With driver "s3": bucket + region are required; endpoint/forcePathStyle for R2/MinIO.
+  },
+  // Operator logging (D-119, optional): every key has a default; the sink is env-owned
+  // (FACILIS_LOG_SINK/DIR/MAX_BYTES/KEEP/LEVEL) so a project cannot redirect the trail.
+  logging: {
+    level: "info",              // debug | info | warn | error
+    access: true,               // one access entry per authorized request
+    errors: true,               // server-side error entries
+    includeUserAgent: false,    // less PII by default
+    trustProxy: false,          // only a trusted deploy may set this
   },
   // Optional: Nitro options, passed through unchanged. Facilis supplies the framework
   // defaults (`serverDir: "./server"`, `experimental.openAPI: true`) underneath, so

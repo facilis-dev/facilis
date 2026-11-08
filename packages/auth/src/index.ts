@@ -31,3 +31,4 @@ export {
   type ValidatedSession,
 } from "./session.ts";
 export { registerInitialAdmin, seedFromConfig, seedStatements, type SeedEntry } from "./seed.ts";
+export * from "./sso/index.ts";

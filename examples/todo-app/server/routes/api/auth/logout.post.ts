@@ -8,13 +8,16 @@ export default defineAuthorizedHandler(
     dbTables: ["sessions"],
     description: "Destroy the current session and clear the cookie.",
   },
-  async (event, { db }) => {
+  async (event, { db, log }) => {
     // The cookie is cleared on EVERY exit, including a broken session: h3 stages it on the
     // event's response headers, the only surface that survives this response path (D-038).
     clearSessionCookie(event);
 
     const sessionId = sessionIdFromRequest(event);
-    if (sessionId === null) return { ok: true };
+    if (sessionId === null) {
+      log.audit({ operation: "auth:logout", outcome: "succeeded" });
+      return { ok: true };
+    }
 
     try {
       await destroySession(db, sessionId);
@@ -22,6 +25,7 @@ export default defineAuthorizedHandler(
       // A broken/expired session is already logged out; the cookie clearing above stands.
     }
 
+    log.audit({ operation: "auth:logout", outcome: "succeeded" });
     return { ok: true };
   },
 );

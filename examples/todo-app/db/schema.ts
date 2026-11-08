@@ -7,13 +7,31 @@ import {
   tenantColumn,
   tenantIsolationPolicy,
 } from "@facilis/db";
-import { rolePermissions, roles, sessions, userRoles, users } from "@facilis/auth";
+import {
+  authIdentities,
+  authSsoStates,
+  rolePermissions,
+  roles,
+  sessions,
+  userRoles,
+  users,
+} from "@facilis/auth";
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
 // generates them together with the application tables. The job queue and the binary-file
 // metadata are framework state the project owns the DDL for, so they are re-exported the
 // same way (D-107, D-053).
-export { facilisFiles, facilisJobs, rolePermissions, roles, sessions, userRoles, users };
+export {
+  authIdentities,
+  authSsoStates,
+  facilisFiles,
+  facilisJobs,
+  rolePermissions,
+  roles,
+  sessions,
+  userRoles,
+  users,
+};
 
 export const todos = pgTable(
   "todos",

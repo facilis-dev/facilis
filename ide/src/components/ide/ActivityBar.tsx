@@ -10,6 +10,7 @@ import MessageSquare from "~icons/lucide/message-square";
 import Database from "~icons/lucide/database";
 import Network from "~icons/lucide/network";
 import GitCompare from "~icons/lucide/git-compare";
+import ScrollText from "~icons/lucide/scroll-text";
 import Check from "~icons/lucide/check";
 import { useTheme } from "next-themes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -57,7 +58,7 @@ function ActBtn({
   );
 }
 
-type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release";
+type View = "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release" | "logs";
 
 export function ActivityBar() {
   const { c, snap } = useIde();
@@ -118,6 +119,9 @@ export function ActivityBar() {
         onClick={() => select("release")}
       >
         <GitCompare className="size-5" />
+      </ActBtn>
+      <ActBtn label={t("activity.logs")} active={shown("logs")} onClick={() => select("logs")}>
+        <ScrollText className="size-5" />
       </ActBtn>
       <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
         <Bug className="size-5" />

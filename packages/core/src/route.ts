@@ -4,6 +4,8 @@ import type { z } from "zod";
 
 import { fail } from "./errors.ts";
 import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
+import type { FacilisLogger } from "./logging.ts";
+import { startRequestLogging } from "./route-logging.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
 import { parseRequestInput } from "./request-input.ts";
 import { unavailableStorage, type StorageApi } from "./storage.ts";
@@ -74,6 +76,10 @@ export interface AuthorizedHandlerContext<
    * and verify their tokens. Access control stays in the app routes.
    */
   storage: StorageApi;
+  /** Request logger (D-119): debug/info/warn/error lines plus app audit events. */
+  log: FacilisLogger;
+  /** Correlation id of this request, the same one its access/error entries carry. */
+  requestId: string;
 }
 
 /** The outer handler the framework returns; it receives the full request context. */
@@ -162,30 +168,38 @@ export function defineAuthorizedHandler<
 
   return async (event: FacilisRequestEvent): Promise<unknown> => {
     const auth = event.context.auth ?? null;
-
-    if (requiredPermissions.length > 0) {
-      if (auth === null) return fail("unauthorized");
-      if (!hasPermission(auth, requiredPermissions)) return fail("forbidden");
-    }
-
-    const input = await parseRequestInput(config, event);
-    if (!input.ok) return input.response;
-
     const facilis = event.context.facilis;
-    // A route that touches the DB without a booted db cannot be served: fail loudly, not 200.
-    if (facilis === undefined) return fail("db_unavailable");
-    // The context middleware attaches the queue once the db booted. A missing runtime (an
-    // unexpected boot failure) must not take the whole route down: the fallback fails only
-    // the job calls, with a code the route can handle.
-    const jobs = facilis.jobs ?? unavailableJobs();
-    const storage = facilis.storage ?? unavailableStorage();
-
     const scope = resolveScope(auth, facilis);
-    // The raw root client stays here in the wrapper: the handler event exposes only the safe
-    // context fields, so the audited elevation wrappers are the sole escalation path.
-    const handlerEvent = toHandlerEvent(event, facilis);
+    // D-119: one correlation id and one bound logger per request. Every exit path records
+    // exactly one access entry in the finally block below.
+    const requestLog = startRequestLogging(event, auth, scope.tenantId);
+    let status = 500;
+    const respond = (response: Response): Response => {
+      status = response.status;
+      return response;
+    };
+
     try {
-      return await runWithPolicyScope(facilis.db, scope, async (db) => {
+      if (requiredPermissions.length > 0) {
+        if (auth === null) return respond(fail("unauthorized"));
+        if (!hasPermission(auth, requiredPermissions)) return respond(fail("forbidden"));
+      }
+
+      const input = await parseRequestInput(config, event);
+      if (!input.ok) return respond(input.response);
+
+      // A route that touches the DB without a booted db cannot be served: fail loudly, not 200.
+      if (facilis === undefined) return respond(fail("db_unavailable"));
+      // The context middleware attaches the queue once the db booted. A missing runtime (an
+      // unexpected boot failure) must not take the whole route down: the fallback fails only
+      // the job calls, with a code the route can handle.
+      const jobs = facilis.jobs ?? unavailableJobs();
+      const storage = facilis.storage ?? unavailableStorage();
+
+      // The raw root client stays here in the wrapper: the handler event exposes only the safe
+      // context fields, so the audited elevation wrappers are the sole escalation path.
+      const handlerEvent = toHandlerEvent(event, facilis);
+      const result = await runWithPolicyScope(facilis.db, scope, async (db) => {
         // Queue calls made by the handler must run in this transaction: opening a second one
         // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
@@ -208,6 +222,8 @@ export function defineAuthorizedHandler<
           system: elevations.system,
           jobs: requestJobs,
           storage,
+          log: requestLog.log,
+          requestId: requestLog.requestId,
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;
         // this single cast bridges the conditional overload type to the actual value.
@@ -216,11 +232,19 @@ export function defineAuthorizedHandler<
           ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
         );
       });
+      status = result instanceof Response ? result.status : 200;
+      return result;
     } catch (error) {
-      if (error instanceof Response) return error;
-      // Never leak internals to clients: codes only, details stay in the server log.
-      console.error("facilis: authorized handler failed", error);
-      return fail("internal_error");
+      if (error instanceof Response) return respond(error);
+      // Without a logging runtime (standalone wrapper) keep the server-side trace here.
+      if (facilis?.logging === undefined) {
+        console.error("facilis: authorized handler failed", error);
+      }
+      // Never leak internals to clients: codes only, details stay in the server log (D-119).
+      requestLog.recordError(error, "internal_error");
+      return respond(fail("internal_error"));
+    } finally {
+      requestLog.finish(status);
     }
   };
 }

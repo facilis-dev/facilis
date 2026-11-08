@@ -2,6 +2,7 @@ import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
 import type { JobsApi } from "./jobs.ts";
+import type { FacilisLoggingApi } from "./logging.ts";
 import type { StorageApi } from "./storage.ts";
 
 /**
@@ -34,6 +35,15 @@ export interface FacilisEventContext {
     jobs?: JobsApi;
     /** Binary-storage runtime, started by the same middleware (D-053). */
     storage?: StorageApi;
+    /** Request logging runtime (D-119): sink, buffer and per-request logger factory. */
+    logging?: FacilisLoggingApi;
+    /** Correlation id for this request; the logging middleware sets it before routes run. */
+    requestId?: string;
+    /** Client metadata the middleware resolved (proxy trust is its decision, not core's). */
+    client?: {
+      readonly ip?: string;
+      readonly userAgent?: string;
+    };
   };
   /** Router params populated by Nitro (h3 `event.context.params`). */
   params?: Record<string, string>;

@@ -35,6 +35,8 @@ Facilis redefines it:
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
 | ⏱️ **Background jobs** | A persisted `facilis_jobs` queue with config-driven concurrency, retry and timeout. Definitions live in `server/jobs/**`; `ctx.jobs` enqueues (returning an id), schedules at a future instant, lists the queue and cancels; every run is audited in a system context. Jobs are independent — workflows are a later construct (D-107). |
+| 🔐 **Single sign-on** | OIDC, generic OAuth2 and SAML providers declared in `facilis.config.ts`; framework-owned `/api/auth/sso/*` routes with PKCE, nonce/state and verified-email-only account linking (D-120). |
+| 📜 **Audit & access logs** | One append-only JSONL pipeline for access, error, audit and app entries. In development they are files under `.facilis/logs/` (opened from the IDE editor); in production they go to stdout or files. Redaction, rotation, hash-chained audit entries, and no HTTP log endpoint by design (D-119). |
 | 🔍 **API visualizer** | Your OpenAPI spec, rendered as an interactive graph. Click a route → jump to its source. Auto-updates on save. |
 | 🗃️ **Entity explorer** | Schema introspection from both code and live DB. See drift immediately. Jump from table to the routes that use it. |
 | 🚢 **Release preview** | Before you push: see the exact migration SQL, risk-classified (`safe` / `careful` / `destructive` / `breaking`), cross-checked against your API. No more surprise column drops in prod. |
@@ -158,7 +160,8 @@ projects install with **npm** (D-032) from IDE-served
 `file:` tarballs, ship **one config** — `facilis.config.ts`, whose optional `nitro` section is
 read by `facilis()` — and their `vite.config.ts` is just `[facilis(), react()]` (D-034); the
 template pins `@types/react`/`@types/react-dom` so the IDE's TypeScript service resolves
-React. See [`docs/DECISIONS.md`](docs/DECISIONS.md), D-022…D-034 and D-063…D-084.
+React. See [`docs/DECISIONS.md`](docs/DECISIONS.md), D-022…D-034, D-063…D-084 and
+D-119/D-120 (operator logging + single sign-on landed 2026-11-08).
 
 What exists today, runnable in this repo:
 
@@ -178,6 +181,8 @@ What exists today, runnable in this repo:
 | AI patch validator (16 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 575 IDE tests |
 | Git round-trip and publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push over HTTPS through a stateless proxy (D-079), publish to GitHub/GitLab/Gitea (D-078), GitHub OAuth device flow (D-082) |
 | Deployment profiles and app updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | `open`/`managed` builds with a compiled policy and CSP (D-063/D-064/D-071/D-072), offline update recipes (D-065/D-070) |
+| Operator logging (access/error/audit/app) | `packages/core/src/logging*.ts`, `packages/nitro/src/runtime/logging/`, `ide/src/components/ide/LogsPanel.tsx` | one JSONL pipeline with env-owned sinks: files under `<project>/.facilis/logs` in dev (read through the kernel VFS by the IDE Logs panel/editor) and stdout in production; structural access entries on every request, server-side error entries, redaction/caps, rotation, SHA-256 audit chain; **no HTTP endpoint serves logs** (D-119, [docs/LOGS.md](docs/LOGS.md)) |
+| Single sign-on (OIDC/OAuth2/SAML) | `packages/auth/src/sso/`, `packages/nitro/src/routes/sso.ts` | framework-owned `/api/auth/sso/{providers,start,callback}`: OIDC discovery + PKCE + nonce + ID-token verification, generic OAuth2 mapping, SP-initiated SAML (node-saml, lazy); DB-backed single-use state, verified-email-only linking, JIT provisioning in `ctx.system`; secrets only via env var names (D-120, [docs/SSO.md](docs/SSO.md)) |
 
 Security and delivery choices from the last pass (details in
 [`docs/DECISIONS.md`](docs/DECISIONS.md), design in [MANAGED-DEPLOYMENT.md](docs/MANAGED-DEPLOYMENT.md)

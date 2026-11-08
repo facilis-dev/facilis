@@ -7,9 +7,14 @@
 
 export {
   DB_MODES,
+  DEFAULT_LOGGING_CONFIG,
+  DEFAULT_SSO_CONFIG,
   DEFAULT_STORAGE_CONFIG,
+  SSO_PROVIDER_KINDS,
   defineConfig,
   facilisConfigSchema,
+  ssoConfigSchema,
+  ssoProviderSchema,
   STORAGE_DRIVERS,
 } from "./config.ts";
 export type {
@@ -22,9 +27,15 @@ export type {
   FacilisI18nConfig,
   FacilisNitroOptions,
   FacilisReleaseConfig,
+  FacilisLoggingConfig,
+  FacilisLoggingConfigInput,
   FacilisStorageConfig,
   FacilisStorageConfigInput,
   FacilisStorageEncryptionConfig,
+  FacilisSsoConfig,
+  FacilisSsoConfigInput,
+  FacilisSsoProvider,
+  SsoProviderKind,
   StorageDriverKind,
 } from "./config.ts";
 
@@ -38,6 +49,34 @@ export {
   type StorageStream,
   type StorageTokenPayload,
 } from "./storage.ts";
+
+export {
+  LOG_KINDS,
+  LOG_LEVELS,
+  NOOP_LOGGER,
+  NOOP_LOGGING_API,
+  acceptRequestId,
+  createAccessEntry,
+  createErrorEntry,
+  isLogLevel,
+  logLevelEnabled,
+  newLogRequestId,
+  requestPath,
+} from "./logging.ts";
+export type {
+  AccessLogEntry,
+  AppLogEntry,
+  AuditLogEntry,
+  ErrorLogEntry,
+  FacilisAuditInput,
+  FacilisLogger,
+  FacilisLoggingApi,
+  FacilisLogRequestMeta,
+  LogEntry,
+  LogEntryMeta,
+  LogKind,
+  LogLevel,
+} from "./logging.ts";
 
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";

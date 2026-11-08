@@ -32,6 +32,16 @@ export default defineConfig({
     pollIntervalMs: 500,
     persist: true,
   },
+  // Operator logging (D-119): every key is shown once. Entries are JSON Lines files under
+  // <project>/.facilis/logs in development (open them in the IDE editor) and stdout in
+  // production; the sink itself is environment-owned (FACILIS_LOG_SINK/DIR/MAX_BYTES/KEEP).
+  logging: {
+    level: "info",
+    access: true,
+    errors: true,
+    includeUserAgent: false,
+    trustProxy: false,
+  },
   // Binary uploads (D-053, SPEC §5.10): every key is shown once. Dev writes to
   // <project>/.facilis/binary; production builds an S3-compatible driver from the
   // FACILIS_S3_* environment variables. Tokens are short-lived HMAC download URLs.

@@ -11,6 +11,7 @@ import { sourceControlIt } from "./it-source-control";
 import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
 import { chatIt } from "./it-chat";
+import { logsIt } from "./it-logs";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -206,4 +207,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatIt,
+
+  // ── operator logs (D-119) ────────────────────────────────────────────────
+  ...logsIt,
 };

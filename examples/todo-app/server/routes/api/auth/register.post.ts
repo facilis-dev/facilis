@@ -12,7 +12,7 @@ export default defineAuthorizedHandler(
     dbColumns: ["users.email", "users.tenantId", "user_roles.role"],
     description: "Register a user with the default role.",
   },
-  async (_event, { body, db, system }) => {
+  async (_event, { body, db, system, log }) => {
     // The duplicate check is a read: keep it on the anonymous, policy-scoped client so RLS
     // still decides what this caller may see.
     const existing = await db
@@ -21,7 +21,10 @@ export default defineAuthorizedHandler(
       .where(eq(users.email, body.email))
       .limit(1);
 
-    if (existing.length > 0) return fail("conflict", { email: "already_registered" });
+    if (existing.length > 0) {
+      log.audit({ operation: "auth:register", outcome: "failed", errorCode: "conflict" });
+      return fail("conflict", { email: "already_registered" });
+    }
 
     // Hashing is CPU work: do it outside the elevated block (never hold the system role
     // across an operation that does not need it).
@@ -60,7 +63,17 @@ export default defineAuthorizedHandler(
       },
     );
 
-    if (registration === null) return fail("internal_error");
+    if (registration === null) {
+      log.audit({ operation: "auth:register", outcome: "failed", errorCode: "internal_error" });
+      return fail("internal_error");
+    }
+
+    // The initial-admin promotion is recorded as the resulting role, never the email.
+    log.audit({
+      operation: "auth:register",
+      outcome: "succeeded",
+      details: { role: registration.promoted ? "admin" : config.auth.defaultRole },
+    });
 
     return {
       id: registration.user.id,

@@ -6,11 +6,36 @@ import {
   type FacilisJobsConfigInput,
 } from "./jobs-config.ts";
 import {
+  facilisLoggingConfigSchema,
+  type FacilisLoggingConfig,
+  type FacilisLoggingConfigInput,
+} from "./logging-config.ts";
+import {
+  ssoConfigSchema,
+  type FacilisSsoConfig,
+  type FacilisSsoConfigInput,
+} from "./sso-config.ts";
+import { crossCheckConfig } from "./config-validation.ts";
+import {
   facilisStorageConfigSchema,
   type FacilisStorageConfig,
   type FacilisStorageConfigInput,
 } from "./storage-config.ts";
 
+export { DEFAULT_LOGGING_CONFIG, facilisLoggingConfigSchema } from "./logging-config.ts";
+export type { FacilisLoggingConfig, FacilisLoggingConfigInput } from "./logging-config.ts";
+export {
+  DEFAULT_SSO_CONFIG,
+  SSO_PROVIDER_KINDS,
+  ssoConfigSchema,
+  ssoProviderSchema,
+} from "./sso-config.ts";
+export type {
+  FacilisSsoConfig,
+  FacilisSsoConfigInput,
+  FacilisSsoProvider,
+  SsoProviderKind,
+} from "./sso-config.ts";
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
 export { DEFAULT_STORAGE_CONFIG, STORAGE_DRIVERS } from "./storage-config.ts";
@@ -58,6 +83,8 @@ export interface FacilisAuthConfig {
   readonly roles: Readonly<Record<string, readonly string[]>>;
   readonly defaultRole: string;
   readonly sessionDurationMs: number;
+  /** External identity providers (D-120); `providers: []` when the app uses passwords only. */
+  readonly sso: FacilisSsoConfig;
 }
 
 /**
@@ -80,6 +107,8 @@ export interface FacilisConfig {
   readonly jobs: FacilisJobsConfig;
   /** Binary uploads (D-053): driver, bucket and the framework limits. */
   readonly storage: FacilisStorageConfig;
+  /** Operator logging defaults (D-119): level and what is collected; sinks are env-owned. */
+  readonly logging: FacilisLoggingConfig;
   readonly nitro: FacilisNitroOptions;
 }
 
@@ -104,18 +133,17 @@ export interface FacilisConfigInput {
     readonly roles?: Readonly<Record<string, readonly string[]>>;
     readonly defaultRole: string;
     readonly sessionDurationMs?: number;
+    /** External identity providers (D-120); every key has a default. */
+    readonly sso?: FacilisSsoConfigInput;
   };
   /** Background-job queue settings; every key has a default (D-107). */
   readonly jobs?: FacilisJobsConfigInput;
   /** Binary uploads (D-053, D-117); every key has a default. */
   readonly storage?: FacilisStorageConfigInput;
+  /** Logging defaults (D-119); every key has a default and the environment overrides them. */
+  readonly logging?: FacilisLoggingConfigInput;
 }
 
-/**
- * Permissions are stable identifiers: a role may only reference permissions declared in
- * `auth.permissions`, and the wildcard is a role-only shorthand (SPEC §8.4.1).
- */
-const WILDCARD_PERMISSION = "*";
 const DEFAULT_RELEASE_REF = "main";
 const DEFAULT_MIGRATIONS_DIR = "./drizzle";
 const DEFAULT_TENANT_COLUMN = "tenantId";
@@ -174,6 +202,7 @@ const authSchema = z.strictObject({
   roles: z.record(z.string().min(1), z.array(z.string().min(1))).default({}),
   defaultRole: z.string().min(1),
   sessionDurationMs: z.number().int().positive().default(DEFAULT_SESSION_DURATION_MS),
+  sso: ssoConfigSchema,
 });
 
 const baseConfigSchema = z.strictObject({
@@ -184,96 +213,9 @@ const baseConfigSchema = z.strictObject({
   auth: authSchema,
   jobs: facilisJobsConfigSchema,
   storage: facilisStorageConfigSchema,
+  logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
 });
-
-type ConfigPath = readonly (string | number)[];
-
-function addIssue(ctx: z.RefinementCtx, path: ConfigPath, message: string): void {
-  ctx.addIssue({ code: "custom", message, path: [...path] });
-}
-
-function reportDuplicates(
-  values: readonly string[],
-  path: ConfigPath,
-  ctx: z.RefinementCtx,
-  label: string,
-): void {
-  const seen = new Set<string>();
-  for (const [index, value] of values.entries()) {
-    if (seen.has(value)) addIssue(ctx, [...path, index], `duplicate ${label} "${value}"`);
-    seen.add(value);
-  }
-}
-
-function ownRole(config: FacilisConfig, role: string): readonly string[] | undefined {
-  // A record from JSON can inherit Object.prototype keys, so membership must be own-only.
-  return Object.hasOwn(config.auth.roles, role) ? config.auth.roles[role] : undefined;
-}
-
-function crossCheck(config: FacilisConfig, ctx: z.RefinementCtx): void {
-  const declared = new Set(config.auth.permissions);
-
-  if (declared.has(WILDCARD_PERMISSION)) {
-    addIssue(
-      ctx,
-      ["auth", "permissions"],
-      `"${WILDCARD_PERMISSION}" is only valid inside auth.roles; declare permissions explicitly`,
-    );
-  }
-  reportDuplicates(config.auth.permissions, ["auth", "permissions"], ctx, "permission");
-
-  for (const [role, permissions] of Object.entries(config.auth.roles)) {
-    const seen = new Set<string>();
-    for (const [index, permission] of permissions.entries()) {
-      if (permission === WILDCARD_PERMISSION) continue;
-      if (!declared.has(permission)) {
-        addIssue(
-          ctx,
-          ["auth", "roles", role, index],
-          `role "${role}" references unknown permission "${permission}"; declare it in auth.permissions`,
-        );
-      }
-      if (seen.has(permission)) {
-        addIssue(ctx, ["auth", "roles", role, index], `role "${role}" repeats "${permission}"`);
-      }
-      seen.add(permission);
-    }
-  }
-
-  if (ownRole(config, config.auth.defaultRole) === undefined) {
-    addIssue(
-      ctx,
-      ["auth", "defaultRole"],
-      `defaultRole "${config.auth.defaultRole}" is not a key of auth.roles`,
-    );
-  }
-
-  if (config.storage.driver === "s3") {
-    if (config.storage.bucket === null) {
-      addIssue(
-        ctx,
-        ["storage", "bucket"],
-        'storage.bucket is required when storage.driver is "s3"',
-      );
-    }
-    if (config.storage.region === null) {
-      addIssue(
-        ctx,
-        ["storage", "region"],
-        'storage.region is required when storage.driver is "s3"',
-      );
-    }
-  }
-
-  if (!config.i18n.locales.includes(config.i18n.defaultLocale)) {
-    addIssue(
-      ctx,
-      ["i18n", "defaultLocale"],
-      `defaultLocale "${config.i18n.defaultLocale}" must be listed in i18n.locales`,
-    );
-  }
-}
 
 /**
  * Zod schema for the complete `FacilisConfig` shape.
@@ -281,7 +223,7 @@ function crossCheck(config: FacilisConfig, ctx: z.RefinementCtx): void {
  * Sections other than `auth` have documented defaults so a generated project can grow into
  * them; the auth block is always explicit and cross-checked (SPEC §8.4.1).
  */
-export const facilisConfigSchema = baseConfigSchema.superRefine(crossCheck);
+export const facilisConfigSchema = baseConfigSchema.superRefine(crossCheckConfig);
 
 /**
  * Validates `facilis.config.ts` and returns the resolved, full config.

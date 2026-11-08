@@ -12,6 +12,7 @@ import {
   DEV_VIEW_ROUTE,
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
+  SSO_ROUTE,
 } from "./constants.ts";
 import {
   VIRTUAL_CONFIG_ID,
@@ -84,7 +85,8 @@ describe("createFacilisNitroModule", () => {
     setup(mock);
 
     const routes = mock.options.handlers.filter((handler) => handler["middleware"] !== true);
-    expect(routes.map((handler) => handler["route"])).toEqual([
+    const devRoutes = routes.filter((handler) => handler["env"] === "dev");
+    expect(devRoutes.map((handler) => handler["route"])).toEqual([
       "/__facilis/manifest",
       "/__facilis/manifest/revision",
       "/__facilis/health",
@@ -93,7 +95,10 @@ describe("createFacilisNitroModule", () => {
       DEV_VIEW_ROUTE,
       OPENAPI_FACADE_ROUTE,
     ]);
-    expect(routes.every((handler) => handler["env"] === "dev")).toBe(true);
+    // The SSO namespace is framework auth in every environment (D-120), so it has no env gate.
+    const sso = routes.filter((handler) => handler["route"] === SSO_ROUTE);
+    expect(sso).toHaveLength(1);
+    expect(sso[0]?.["env"]).toBeUndefined();
 
     const middleware = mock.options.handlers.filter((handler) => handler["middleware"] === true);
     expect(middleware.map((handler) => handler["route"])).toEqual(["/**", "/**"]);
@@ -232,7 +237,8 @@ describe("createFacilisNitroModule", () => {
     setup(mock);
 
     const routes = mock.options.handlers.filter((handler) => handler["middleware"] !== true);
-    expect(routes).toEqual([]);
+    // The SSO namespace is framework auth in production too (D-120); nothing dev-only ships.
+    expect(routes.map((handler) => handler["route"])).toEqual([SSO_ROUTE]);
     // Auth still works in production: middleware is environment-agnostic.
     expect(mock.options.handlers.filter((handler) => handler["middleware"] === true)).toHaveLength(
       2,

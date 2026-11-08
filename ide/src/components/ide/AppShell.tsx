@@ -12,6 +12,7 @@ import { SourceControlPanel } from "./SourceControlPanel";
 import { ChatPanel } from "./ChatPanel";
 import { DataExplorerPanel } from "./DataExplorerPanel";
 import { ReleasePreviewPanel } from "./ReleasePreviewPanel";
+import { LogsPanel } from "./LogsPanel";
 import { EditorGroup } from "./EditorGroup";
 import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
@@ -199,6 +200,8 @@ export function AppShell() {
                   <DataExplorerPanel />
                 ) : snap.activeView === "release" ? (
                   <ReleasePreviewPanel />
+                ) : snap.activeView === "logs" ? (
+                  <LogsPanel />
                 ) : snap.activeView === "chat" && chatEnabled ? (
                   <ChatPanel />
                 ) : (

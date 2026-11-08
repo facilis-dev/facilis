@@ -3,6 +3,8 @@ import { sessionMiddleware, type SessionEvent } from "@facilis/auth";
 import {
   DEFAULT_JOBS_CONFIG,
   type FacilisConfig,
+  type FacilisLoggingApi,
+  type FacilisLoggingConfig,
   type ManifestWarning,
   type StorageApi,
 } from "@facilis/core";
@@ -22,6 +24,8 @@ import {
 import { isProductionEnvironment } from "./env.ts";
 import { bootJobs } from "./jobs/boot.ts";
 import type { JobsRuntime } from "./jobs/runtime.ts";
+import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
+import { installSudoAuditBridge } from "./logging/sudo-bridge.ts";
 import { readDefaultTenantId } from "./tenant.ts";
 import { resolveStorage } from "./storage-target.ts";
 
@@ -37,6 +41,13 @@ export interface BootstrapState {
   readonly jobs: JobsRuntime | null;
   /** Binary-storage runtime (D-053); null when the boot refused its configuration. */
   readonly storage: StorageApi | null;
+  /**
+   * Operator logging runtime (D-119). Always present: built from the documented defaults when
+   * the project config failed, so the request context never lacks a logger.
+   */
+  readonly logging: FacilisLoggingApi;
+  /** Effective logging config (project defaults + env level override) for the middleware. */
+  readonly loggingConfig: FacilisLoggingConfig;
   /** Cached session handler; rebuilt lazily because it closes over the db client. */
   sessionHandler?: (event: SessionEvent) => Promise<void>;
 }
@@ -71,8 +82,33 @@ async function bootstrap(): Promise<BootstrapState> {
   const warnings: ManifestWarning[] = [];
   const startedAt = new Date().toISOString();
   const projectConfig = readProjectConfig(warnings);
+
+  // Operator logging is built BEFORE the database (D-119): a database boot failure must not
+  // take the access/error streams down with it, and logging never prevents a boot.
+  const loggingState = createBootstrapLogging({
+    loggingConfig: projectConfig?.logging ?? null,
+    env: process.env,
+    projectRoot,
+  });
+  warnings.push(...loggingState.warnings);
+  const loggingFields = {
+    logging: loggingState.logging,
+    loggingConfig: loggingState.config,
+  } satisfies Pick<BootstrapState, "logging" | "loggingConfig">;
+  // The sudo trail is one of the audit stream's events, not a parallel protocol (D-099):
+  // install the bridge once per process, before the db can run an elevation.
+  installSudoAuditBridge(loggingState.logging);
+
   if (projectConfig === null) {
-    return { db: null, config: null, warnings, startedAt, jobs: null, storage: null };
+    return {
+      db: null,
+      config: null,
+      warnings,
+      startedAt,
+      jobs: null,
+      storage: null,
+      ...loggingFields,
+    };
   }
 
   // Binary storage is independent of the database: a refused storage configuration is a
@@ -87,7 +123,15 @@ async function bootstrap(): Promise<BootstrapState> {
   const resolved = resolveDbTarget(projectConfig, process.env);
   warnings.push(...resolved.warnings);
   if (resolved.target === null) {
-    return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
+    return {
+      db: null,
+      config: projectConfig,
+      warnings,
+      startedAt,
+      jobs: null,
+      storage,
+      ...loggingFields,
+    };
   }
   const target = resolved.target;
   const usesPglite = target.driver === "pglite";
@@ -121,7 +165,15 @@ async function bootstrap(): Promise<BootstrapState> {
   } catch (error) {
     if (snapshot === null) {
       warnings.push(warning("db_unavailable", `Could not open the database: ${describe(error)}`));
-      return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
+      return {
+        db: null,
+        config: projectConfig,
+        warnings,
+        startedAt,
+        jobs: null,
+        storage,
+        ...loggingFields,
+      };
     }
     // A corrupt or incompatible snapshot must not make the project unbootable: warn and
     // start from an empty cluster instead (the old file is replaced by the next dump).
@@ -143,7 +195,15 @@ async function bootstrap(): Promise<BootstrapState> {
       warnings.push(
         warning("db_unavailable", `Could not open the database: ${describe(retryError)}`),
       );
-      return { db: null, config: projectConfig, warnings, startedAt, jobs: null, storage };
+      return {
+        db: null,
+        config: projectConfig,
+        warnings,
+        startedAt,
+        jobs: null,
+        storage,
+        ...loggingFields,
+      };
     }
   }
 
@@ -202,7 +262,15 @@ async function bootstrap(): Promise<BootstrapState> {
     warnings,
   });
 
-  return { db, config: projectConfig, warnings, startedAt, jobs, storage };
+  return {
+    db,
+    config: projectConfig,
+    warnings,
+    startedAt,
+    jobs,
+    storage,
+    ...loggingFields,
+  };
 }
 
 function readProjectConfig(warnings: ManifestWarning[]): FacilisConfig | null {

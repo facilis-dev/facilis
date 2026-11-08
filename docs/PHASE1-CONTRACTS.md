@@ -279,6 +279,8 @@ export interface AuthorizedHandlerContext<B, Q, P, F = void> {
   sudo: SudoHandler;              // audited elevation, requires a session (D-099)
   system: SystemHandler;          // audited elevation for public/bootstrap routes (D-099)
   storage: StorageApi;            // binary storage, degrades to unavailable (D-116)
+  log: FacilisLogger;             // request logger: app lines + audit events (D-119)
+  requestId: string;              // correlation id, also on the access/error entries (D-119)
 }
 export function defineAuthorizedHandler<B, Q, P, F>(
   config: AuthorizedHandlerConfig<B, Q, P, F>,
@@ -297,6 +299,12 @@ export function registerCatalog(locale: string, messages: Record<string, string>
   Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
 - Config validation must cross-check roles/permissions (unknown permission in a role → error),
   and `defaultRole` must exist (SPEC §8.4.1).
+- Logging (D-119): the wrapper records one access entry per request exit path and an error entry
+  server-side; `ctx.log` adds app lines and audit events. The sink is environment-owned
+  (`FACILIS_LOG_SINK`/DIR/MAX_BYTES/KEEP/LEVEL), never an HTTP endpoint; audit is fail-closed
+  and the sudo trail is bridged in. `sso` (D-120): `auth.sso.providers` (oidc | oauth2 | saml,
+  secrets by env var name only) plus `failureRedirect` and `stateTtlMs`, cross-checked by
+  `defineConfig`; the framework owns `/api/auth/sso/**`.
 - `storage` (D-116/D-117): every key defaults (`driver: "local"`, `maxUploadBytes` 10 MiB / cap
   100 MiB, `tokenTtlSeconds` 300 / max 24 h, `encryption.enabled` false) and `driver: "s3"`
   requires `bucket` + `region`; secrets stay in `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET`,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_LOGGING_CONFIG,
   DEFAULT_STORAGE_CONFIG,
   defineConfig,
   facilisConfigSchema,
@@ -17,6 +18,7 @@ const SPEC_AUTH = {
   },
   defaultRole: "user",
   sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
+  sso: { providers: [], failureRedirect: "/login", stateTtlMs: 10 * 60 * 1000 },
 } as const;
 
 const FULL_CONFIG: FacilisConfig = {
@@ -48,6 +50,7 @@ const FULL_CONFIG: FacilisConfig = {
     tokenTtlSeconds: 120,
     encryption: { enabled: true },
   },
+  logging: DEFAULT_LOGGING_CONFIG,
   nitro: { serverDir: "./backend" },
 };
 

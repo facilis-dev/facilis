@@ -1,5 +1,6 @@
 import type { H3Event } from "nitro";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { DEFAULT_LOGGING_CONFIG, NOOP_LOGGING_API } from "@facilis/core";
 import { applyStatements, createDb, type FacilisDb } from "@facilis/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
@@ -23,6 +24,8 @@ function state(db: FacilisDb | null, warnings: BootstrapState["warnings"] = []):
     startedAt: "2026-11-02T00:00:00.000Z",
     jobs: null,
     storage: null,
+    logging: NOOP_LOGGING_API,
+    loggingConfig: DEFAULT_LOGGING_CONFIG,
   };
 }
 

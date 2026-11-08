@@ -8,6 +8,7 @@ import {
   type FacilisDb,
 } from "@facilis/db";
 
+import { authIdentities, authSsoStates } from "./sso/tables.ts";
 import { users } from "./tables.ts";
 
 /**
@@ -18,7 +19,7 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text NOT NULL UNIQUE,
-    tenant_id uuid NOT NULL,
+    tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid,
     password_hash text,
     created_at timestamp DEFAULT now()
   )`,
@@ -40,6 +41,27 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
     assigned_at timestamp DEFAULT now(),
     PRIMARY KEY (user_id, role)
   )`,
+  `CREATE TABLE IF NOT EXISTS auth_identities (
+    provider text NOT NULL,
+    subject text NOT NULL,
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email text NOT NULL,
+    tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid,
+    created_at timestamp DEFAULT now() NOT NULL,
+    last_login_at timestamp DEFAULT now() NOT NULL,
+    PRIMARY KEY (provider, subject)
+  )`,
+  `CREATE TABLE IF NOT EXISTS auth_sso_states (
+    state text PRIMARY KEY,
+    provider text NOT NULL,
+    nonce text,
+    code_verifier text,
+    request_id text,
+    redirect_to text,
+    created_at timestamp DEFAULT now() NOT NULL,
+    expires_at timestamp NOT NULL,
+    tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid
+  )`,
 ];
 
 const USERS_POLICY_STATEMENTS: readonly string[] = [
@@ -47,10 +69,29 @@ const USERS_POLICY_STATEMENTS: readonly string[] = [
   ...getTableConfig(users).policies.map((policy) => policyCreateSql("users", policy)),
 ];
 
+const AUTH_IDENTITIES_POLICY_STATEMENTS: readonly string[] = [
+  "ALTER TABLE auth_identities ENABLE ROW LEVEL SECURITY",
+  ...getTableConfig(authIdentities).policies.map((policy) =>
+    policyCreateSql("auth_identities", policy),
+  ),
+];
+
+const AUTH_SSO_STATES_POLICY_STATEMENTS: readonly string[] = [
+  "ALTER TABLE auth_sso_states ENABLE ROW LEVEL SECURITY",
+  ...getTableConfig(authSsoStates).policies.map((policy) =>
+    policyCreateSql("auth_sso_states", policy),
+  ),
+];
+
 let cachedStatements: readonly string[] | undefined;
 
 function authSchemaStatements(): readonly string[] {
-  cachedStatements ??= [...AUTH_TABLE_STATEMENTS, ...USERS_POLICY_STATEMENTS];
+  cachedStatements ??= [
+    ...AUTH_TABLE_STATEMENTS,
+    ...USERS_POLICY_STATEMENTS,
+    ...AUTH_IDENTITIES_POLICY_STATEMENTS,
+    ...AUTH_SSO_STATES_POLICY_STATEMENTS,
+  ];
   return cachedStatements;
 }
 
