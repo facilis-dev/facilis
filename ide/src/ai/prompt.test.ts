@@ -140,6 +140,26 @@ describe("buildSystemPrompt with the PTC runtime", () => {
     const without = buildSystemPrompt(context({ tools: TOOLS }));
     expect(without).not.toContain("## The running app (preview tools)");
   });
+
+  it("teaches how to get past the app's own login", () => {
+    const preview = {
+      name: "preview_state",
+      signature: "preview_state()",
+      description: "State of the running app.",
+    };
+    const prompt = buildSystemPrompt(context({ tools: [...TOOLS, preview] }));
+    for (const token of [
+      "throwaway account",
+      "never guess a real password",
+      "no name attribute",
+      "OAuth/SSO",
+      "two-factor",
+      "log in again",
+    ]) {
+      expect(prompt).toContain(token);
+    }
+    expect(buildSystemPrompt(context({ tools: TOOLS }))).not.toContain("throwaway account");
+  });
 });
 
 describe("canonical shapes and the tool protocol", () => {

@@ -26,8 +26,9 @@ export interface AiProviderPreset {
   /** Local providers (and the dev mock) need no key. */
   requiresKey: boolean;
   /**
-   * The preset's default models accept images (D-112). Per preset, not per model: a user who
-   * overrides the model with a text-only one simply gets the images ignored by the provider.
+   * The preset's models accept images (D-112). Decided per preset, not per model: an override
+   * with a text-only model falls back to the provider's own behaviour (DeepSeek V4-Pro swaps in
+   * a placeholder; some OpenAI-compatible endpoints reject the request).
    */
   vision?: boolean;
 }
@@ -145,6 +146,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   at: number;
+  /** Images the user attached (data URLs, D-113); replayed with the conversation. */
+  images?: readonly string[];
   /** Parser/validator output for an unusable answer, shown under the bubble. */
   detail?: string;
 }

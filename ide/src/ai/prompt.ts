@@ -57,6 +57,10 @@ const PREVIEW_PROMPT = [
   "- preview_click and preview_fill reproduce a user flow; preview_open navigates the preview (the page reloads); preview_wait waits for an element.",
   "- preview_screenshot captures the page (html2canvas): the user sees the screenshot and a vision model also receives the image; use it for a layout or visual problem the text tools cannot show.",
   "- The tools act on the running app's own state (they can create or delete its data). They never write to the project: the only write path stays the patch set plus the user's Apply.",
+  "- A login screen is not a dead end: the preview runs inside the user's own session, so a login the user did is already there. When the app is not logged in, register a throwaway account through the form (the development database is per project) or ask the user for credentials — never guess a real password.",
+  "- The form's fields are in the page's own source (usually src/pages/login.tsx or register.tsx); generated inputs often have no name attribute, so select them by type or label.",
+  "- An OAuth/SSO or two-factor step lives outside the preview frame: ask the user to complete it, then continue.",
+  "- A redirect to the login route means the session ended: log in again before reporting the page as broken.",
   '- { "available": false } means the app is not running: ask the user to Run it and retry; never guess the runtime state.',
 ].join("\n");
 

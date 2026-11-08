@@ -4090,8 +4090,9 @@ owner asked for screenshots as part of the running-app inspection.
 - `preview_screenshot()` captures one screenshot per call (at most 2 per program). The image is
   attached to the program's activity row (the user sees it, clickable) and to the tool-result
   user turn.
-- Images travel only for a preset that declares `vision` (Anthropic and OpenAI today; DeepSeek,
-  OpenRouter auto and Custom do not). `providers.ts` builds the protocol's content parts —
+- Images travel only for a preset that declares `vision` (Anthropic, OpenAI and DeepSeek — see
+  the update below; OpenRouter auto and Custom do not). `providers.ts` builds the protocol's
+  content parts —
   `image_url` for OpenAI-compatible, `image` + base64 source for Anthropic — and otherwise keeps
   the plain string content, so a text-only model never receives a content array it cannot parse.
 - `AiChatTurn.images?: string[]` carries data URLs into the wire; `ChatTraceRun.images` carries
@@ -4101,19 +4102,160 @@ owner asked for screenshots as part of the running-app inspection.
   user message starts from the text transcript.
 
 **Rejected alternatives.** *A new screenshot dependency*: chobitsu's html2canvas path already
-ships in the injected backend. *Sending images to every preset*: DeepSeek rejects content arrays;
-the preset decides. *Persisting screenshots in the conversation*: they would bloat the replay and
-the provider context; the row keeps them visible, the model only needs the current turn.
+ships in the injected backend. *Sending images to every preset*: a text-only endpoint rejects the
+request or swaps in a placeholder; the preset decides. *Persisting screenshots in the
+conversation*: they would bloat the replay and the provider context; the row keeps them visible,
+the model only needs the current turn.
 
 **Consequences.** The model can see a rendered page (through a vision model) and the user always
 sees the screenshot in the activity row; a text-only provider still records the capture but not
 the pixels. The capture is html2canvas-quality: no canvas/video/iframe content, CSS shadows may
 render approximately, and it takes up to ~2.5 s (inside the 5 s program budget).
 
+**Update (2026-11-08) — DeepSeek reads images, and the DevTools backend cannot take a better
+photo.** DeepSeek V4.1 Flash accepts image parts on both aliases (`deepseek-chat` resolves to
+`deepseek-flash`); verified live against `/v1/chat/completions` (a red PNG answered "Red", 197
+prompt tokens) and against `/v1/models`, which lists `input_modalities: ["text","image"]` for
+`deepseek-flash` and text-only for `deepseek-v4-pro` (which replaces the image with a
+`[Unsupported Image]` placeholder). The `deepseek` preset therefore declares `vision: true`;
+screenshots now reach the model there too.
+
+The preview's "DevTools" are chobitsu, an in-page reimplementation of CDP, not the browser's
+own protocol: its `Page` domain implements `startScreencast` (html2canvas, SVG
+`foreignObject`, scale 1) and has no `Page.captureScreenshot`; and a web page has no native
+capture API at all (only `getDisplayMedia`, which needs a user permission prompt). So CDP cannot
+yield a sharper or more faithful photo than the screencast frame the pipeline already uses — a
+higher-resolution capture would mean a second renderer in the page, not a DevTools call.
+
 **Verification.** `preview-cdp.test.ts` (screencast frame, timeout, stop), `provider.test.ts`
-(OpenAI/Anthropic image parts, a text-only preset drops them), `turn.test.ts` (images on the
-result turn and the onScript callback), `chat-trace.test.ts` (images on the run row),
-`preview-tools.test.ts` (screenshot handler); gates green.
+(OpenAI/Anthropic image parts), `provider-vision.test.ts` (DeepSeek image part, a preset without
+`vision` drops them), `turn.test.ts` (images on the result turn and the onScript callback),
+`chat-trace.test.ts` (images on the run row), `preview-tools.test.ts` (screenshot handler);
+gates green.
+
+---
+
+### D-113 — Images pasted into the chat (Ctrl+V)
+
+**Status:** accepted (2026-11-08)
+
+D-112 carried images only for the AI's own preview screenshots. The owner wants the user's own
+screenshot in the conversation: "l'utente in caso se la scatta da solo… importante che sia
+possibile inserirla tramite ctrl+v dentro la chat". CHAT-UX (O-018) had listed OS images as a
+later items of the attachments slice.
+
+**Decision.**
+
+- Ctrl+V in the composer reads the clipboard's image files (only `image/png`, `image/jpeg`,
+  `image/webp`, `image/gif`; 12 MiB per file, at most 4 images per message). `ide/src/ai/chat-image.ts`
+  owns the reading and the caps; `ChatComposer.tsx` owns the pending thumbnails, the remove
+  button and the skipped-files notice.
+- Every image is downscaled and re-encoded before it joins the conversation
+  (`ide/src/ai/chat-image-resize.ts`): longest edge 1536 px, JPEG q0.85, transparent pixels drawn
+  on white; the smaller of the JPEG and the original wins, so an already-small image is never
+  inflated. The generous source cap exists only because the copy that travels is the compressed
+  one — a Retina screenshot lands around 100–300 KB instead of several megabytes, which matters
+  because replay resends it with every later message.
+- The data URLs ride on `ChatMessage.images` and `AiChatTurn.images`; D-112's wire path
+  already turns them into the protocol's content parts, and only a preset that declares
+  `vision` serializes them — the composer warns (`chat.image.noVision`) when the current
+  provider does not.
+- `replayTurns` keeps image-only messages (a paste with no text is a valid message) and merges
+  the images of folded consecutive user turns, so the screenshot stays with the conversation.
+  Nothing is written to the project and nothing leaves the in-memory session.
+- A message with neither text nor images is still ignored, and a new chat remounts the composer,
+  dropping any pending attachment.
+
+**Rejected alternatives.** *A file picker or drag-and-drop now*: paste is the owner's explicit
+path (the picker belongs to the project-file attachment slice). *Sending the raw paste*: a 4 MB
+PNG replayed on every later message is waste the provider does not pay back — the canvas
+downscale is a few lines and an order of magnitude. *A server-side/transform pipeline*: the IDE
+is browser-only and the canvas is already there. *Persisting the images*: the conversation is
+memory-only as before; localStorage would carry multi-megabyte data URLs into the origin's
+quota.
+
+**Consequences.** A pasted screenshot costs image tokens on the turn that carries it (and again on
+later messages, because replay keeps it) and reaches the model only for a `vision` preset. The
+16-rule validator is untouched: images never reach disk.
+
+**Verification.** `chat-image.test.ts` (data URL, type/size caps, clipboard order, per-message
+cap, undecodable file skipped), `chat-image-resize.test.ts` (the scale that fits the longest
+edge), `chat-session-images.test.ts` (image-only message, replay, folding merge, empty message
+ignored), `provider-vision.test.ts` (wire parts), i18n parity; gates green.
+
+---
+
+### D-114 — Lighter chat transcript (CHAT-UX density pass)
+
+**Status:** accepted (2026-11-08)
+
+With the composer changing anyway, the owner asked for the chat's graphic direction from
+[CHAT-UX.md](./CHAT-UX.md): "sistema anche la grafica della chat come da istruzioni".
+
+**Decision.**
+
+- `ChatTraceView` drops the card chrome: one `<details>` line per step — icon left, title and
+  status, right-aligned monospace meta — 11–12 px type, `hover:bg-muted/40`, expanding into the
+  existing reasoning / program / tool rows. Model calls carry the brain icon, programs the
+  terminal icon, and the running step spins. D-110's behaviour is unchanged: the running call
+  and the latest call stay open, and the timeline stays strictly chronological (call → program →
+  call).
+- `ChatMessageView` makes the assistant's prose a plain full-width block (no bubble) and the
+  user's message a quiet `bg-muted/70` bubble on the right; pasted images (D-113) render above
+  the text.
+- `ChatPanel` keeps its layout: the single scrolling transcript, the out-of-list busy status line
+  and the error box are unchanged.
+
+**Rejected alternatives.** *Collapsing the detail away*: the expanded row is the only place the
+reasoning, the program and the tool results stay visible. *A density toggle*: the owner chose one
+lighter style, not a switch (same reasoning as the "compact" definition in CHAT-UX).
+
+**Consequences.** The transcript reads top-to-bottom like the harness's session view and fits more
+steps per screen. Presentation only: no state, wire or contract changes.
+
+**Verification.** Typecheck, lint, format and build; the transcript is covered indirectly through
+`ChatSession` state (no component test harness exists in the repo) and a visual pass in the IDE.
+
+---
+
+### D-115 — Getting past the app's own login (preview tools)
+
+**Status:** accepted (2026-11-08)
+
+The owner asked how the AI copes with a generated app that requires a login before it can be
+inspected. The preview tools (D-111) can click and type, but nothing told the model what a login
+screen means.
+
+**Decision.**
+
+- The prompt (`PREVIEW_PROMPT` in `ide/src/ai/prompt.ts`, appended only when a preview tool is
+  registered) teaches the flow: the preview runs inside the user's own session, so a login the
+  user already did is usable; when the app is not logged in, the model registers a throwaway
+  account through the app's own form (the development database is per project) or asks the user —
+  it never guesses a real password. The guidance also says where the fields live (the app's page
+  source, e.g. `src/pages/login.tsx`), that generated inputs commonly carry no `name` attribute
+  (select by type or label), and that a redirect to the login route is an ended session, not a
+  broken page.
+- An OAuth/SSO or two-factor step lives outside the preview frame: the model asks the user to
+  complete it and continues afterwards. The IDE stores no credentials, and a throwaway account
+  exists only in the project's development database.
+- The session is the kernel's cookie jar, one per listening port and therefore per project
+  (`vendor/vivari/AGENTS.md`, "The kernel keeps the cookie jar…"): the preview frame the tools
+  drive is the same one the user sees, so the user's login is shared and two projects never share
+  a session.
+
+**Rejected alternatives.** *A credential store in the IDE*: the app's dev database is ephemeral and
+per project, and storing passwords would add a secret surface for no function. *A dev auth bypass
+the model can use*: it would skip the real flow — the very thing being investigated — and would
+have to ship in generated apps. *Seeding a demo user in every template*: the user row is app data,
+not framework data, and the templates do not own their tables' contents.
+
+**Consequences.** The model stops treating a login page as a failure and exercises the flow the way
+a user would. Anything the frame cannot reach (external IdP, 2FA, CAPTCHA) is handed back to the
+user.
+
+**Verification.** `prompt.test.ts` (the login guidance appears with a preview tool and not
+without one); gates green.
 
 ---
 
@@ -4138,7 +4280,7 @@ result turn and the onScript callback), `chat-trace.test.ts` (images on the run 
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) | Phase 7+ |
-| O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists | IDE chat polish, after the preview tools (D-111 landed) |
+| O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. Remaining: context compaction and the project-file picker | IDE chat polish, after the preview tools (D-111 landed) |
 
 When an item is decided, move it to **Accepted** with a `D-0NN` entry and update
 `docs/SPEC.md` if a contract changes.

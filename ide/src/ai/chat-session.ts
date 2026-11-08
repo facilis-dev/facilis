@@ -116,9 +116,9 @@ export class ChatSession {
     this.emit({ proposal: null, applied: null });
   }
 
-  async send(text: string): Promise<void> {
+  async send(text: string, images: readonly string[] = []): Promise<void> {
     const content = text.trim();
-    if (!content || this.state.phase !== "idle") return;
+    if ((content.length === 0 && images.length === 0) || this.state.phase !== "idle") return;
     const settings = this.state.settings;
     if (!settings || !this.state.configured) {
       this.fail({ kind: "unsupported", message: "No AI provider configured." });
@@ -131,7 +131,9 @@ export class ChatSession {
 
     this.cancelled = false;
     this.resetStream();
-    const messages = [...this.state.messages, this.nextMessage("user", content)];
+    const user = this.nextMessage("user", content);
+    // A pasted screenshot (D-113) rides on the user's bubble; an image-only message has no text.
+    const messages = [...this.state.messages, images.length > 0 ? { ...user, images } : user];
     this.emit({
       phase: "sending",
       messages,

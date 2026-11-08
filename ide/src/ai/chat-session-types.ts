@@ -55,15 +55,26 @@ export interface ChatSessionOptions {
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */
 export function replayTurns(messages: readonly ChatMessage[], limit: number): AiChatTurn[] {
   const turns: AiChatTurn[] = [];
-  for (const message of messages.filter((entry) => entry.content.length > 0).slice(-limit)) {
+  const kept = messages.filter(
+    (entry) => entry.content.length > 0 || (entry.images?.length ?? 0) > 0,
+  );
+  for (const message of kept.slice(-limit)) {
+    const images = message.images ?? [];
     // A failed turn leaves consecutive user messages (its answer never became a bubble);
     // Anthropic rejects non-alternating roles, so fold them into one turn.
     const last = turns.at(-1);
     if (last === undefined || last.role !== message.role) {
-      turns.push({ role: message.role, content: message.content });
+      turns.push({
+        role: message.role,
+        content: message.content,
+        ...(images.length > 0 ? { images } : {}),
+      });
       continue;
     }
-    last.content = last.content + "\n\n" + message.content;
+    const joiner = last.content.length > 0 && message.content.length > 0 ? "\n\n" : "";
+    last.content = last.content + joiner + message.content;
+    // A folded turn keeps every pasted image, so the model still sees them (D-113).
+    if (images.length > 0) last.images = [...(last.images ?? []), ...images];
   }
   return turns;
 }

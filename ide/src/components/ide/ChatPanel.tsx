@@ -1,6 +1,6 @@
 // The AI Chat sidebar (D-045). A thin view over ChatSession: the session owns the
-// conversation, the provider call and the proposal; this file owns layout, the
-// composer and the two empty states (no project / no provider configured).
+// conversation, the provider call and the proposal; this file owns the layout and the two
+// empty states (no project / no provider configured). The composer is ChatComposer.tsx.
 //
 // All strings go through t() and every colour is a role, so the panel lands
 // compliant with D-043/D-044 from its first commit (ide/I18N.md).
@@ -9,19 +9,16 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import Sparkles from "~icons/lucide/sparkles";
 import Settings from "~icons/lucide/settings";
 import Plus from "~icons/lucide/plus";
-import SendHorizontal from "~icons/lucide/send-horizontal";
-import Square from "~icons/lucide/square";
 import LoaderCircle from "~icons/lucide/loader-circle";
 import FileText from "~icons/lucide/file-text";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ChatComposer } from "./ChatComposer";
 import { ChatMessageView } from "./ChatMessageView";
 import { ChatProposalView } from "./ChatProposalView";
 import { ChatTraceView } from "./ChatTraceView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
 import { chatFor } from "@/ai/chat-host";
-import { providerById } from "@/ai/providers";
 import type { ChatFailure } from "@/ai/types";
 import { t } from "@/i18n";
 
@@ -59,13 +56,13 @@ export function ChatPanel() {
   const { c, snap } = useIde();
   const chat = useMemo(() => chatFor(c), [c]);
   const state = useSyncExternalStore(chat.subscribe, chat.getSnapshot);
-  const [draft, setDraft] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busySeconds, setBusySeconds] = useState(0);
+  // Remounts the composer (draft, pasted images) when the user starts a new chat.
+  const [composerKey, setComposerKey] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const hasProject = snap.workspaceFolders.length > 0;
   const busy = state.phase !== "idle";
-  const preset = state.settings ? providerById(state.settings.providerId) : undefined;
 
   // Follow the newest message / card; the transcript is the panel's only scroll.
   useEffect(() => {
@@ -111,13 +108,6 @@ export function ChatPanel() {
               ? t("chat.streaming")
               : t("chat.thinking");
 
-  const submit = () => {
-    const text = draft.trim();
-    if (!text || busy) return;
-    setDraft("");
-    void chat.send(text);
-  };
-
   return (
     <aside
       className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground"
@@ -147,7 +137,10 @@ export function ChatPanel() {
             aria-label={t("chat.newChat")}
             title={t("chat.newChat")}
             disabled={state.messages.length === 0}
-            onClick={() => chat.newChat()}
+            onClick={() => {
+              chat.newChat();
+              setComposerKey((key) => key + 1);
+            }}
           >
             <Plus />
           </Button>
@@ -163,7 +156,7 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 py-2">
         {!hasProject ? (
           <Welcome title={t("chat.empty.noProject")} body={t("chat.empty.noProjectBody")} />
         ) : !state.configured ? (
@@ -229,63 +222,7 @@ export function ChatPanel() {
       )}
 
       {hasProject && state.configured && (
-        <div className="border-t p-2">
-          <Textarea
-            rows={3}
-            className="max-h-40 min-h-16 resize-none text-xs"
-            placeholder={t("chat.placeholder")}
-            aria-label={t("chat.placeholder")}
-            value={draft}
-            disabled={busy}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
-              event.preventDefault();
-              submit();
-            }}
-          />
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
-              {t("chat.footer")}
-            </p>
-            {busy ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("chat.stop")}
-                title={t("chat.stop")}
-                onClick={() => chat.cancel()}
-              >
-                <Square />
-              </Button>
-            ) : (
-              <Button
-                size="icon-sm"
-                aria-label={t("chat.send")}
-                title={t("chat.send")}
-                disabled={draft.trim().length === 0}
-                onClick={submit}
-              >
-                <SendHorizontal />
-              </Button>
-            )}
-          </div>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-            {state.context
-              ? t("chat.context", {
-                  manifest: state.context.manifestRevision
-                    ? t("chat.context.manifest", { revision: state.context.manifestRevision })
-                    : t("chat.context.noManifest"),
-                  files: state.context.files,
-                }) + (state.context.instructions ? " · " + t("chat.context.agents") : "")
-              : preset
-                ? t("chat.configured", {
-                    provider: t(preset.labelKey),
-                    model: state.settings?.model ?? "",
-                  })
-                : ""}
-          </p>
-        </div>
+        <ChatComposer key={composerKey} chat={chat} state={state} />
       )}
 
       <ChatSettingsDialog

@@ -47,6 +47,9 @@ export const PRESETS: readonly AiProviderPreset[] = [
     defaultModel: "deepseek-chat",
     keyHintKey: "chat.keyHint.deepseek",
     requiresKey: true,
+    // DeepSeek V4.1 Flash (what both `deepseek-chat` and `deepseek-flash` resolve to) reads
+    // images; V4-Pro is text-only and replaces them with a placeholder (D-112).
+    vision: true,
   },
   {
     id: "custom",

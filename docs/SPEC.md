@@ -1941,7 +1941,8 @@ landed, and the runtime is the chat's only mode (D-103); the eval corpus and the
 remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`network`/`dom`/
 `click`/`fill`/`open`/`wait`/`screenshot`): the page's chobitsu CDP backend is the transport;
 they observe or reproduce runtime failures but never write the project. A screenshot is shown in
-the activity row and sent to the model only for a `vision` preset (D-112).
+the activity row and sent to the model only for a `vision` preset (D-112); the user's own
+screenshot pasted into the composer with Ctrl+V follows the same wire path (D-113).
 
 ---
 

@@ -1,11 +1,16 @@
-// The chat activity timeline (D-101/D-110): one row per model call, inserted where the call
-// starts so its reasoning streams inside that row, and one row per exploration program — in
-// strict chronological order. Pure presentation: ChatSession owns the state.
+// The chat activity timeline (D-101/D-110, lighter in D-114/CHAT-UX): one line per model call,
+// inserted where the call starts so its reasoning streams inside that line, and one line per
+// exploration program — strict chronological order, no card chrome. Pure presentation:
+// ChatSession owns the state.
 //
 // Every string is a t() key and every colour a semantic role (D-043/D-044).
 
+import type { ReactNode } from "react";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import Brain from "~icons/lucide/brain";
+import Terminal from "~icons/lucide/terminal";
+import LoaderCircle from "~icons/lucide/loader-circle";
 import type { ChatActivity, ChatTraceCall, ChatTraceRun } from "@/ai/types";
 
 const OUTCOMES = {
@@ -17,7 +22,45 @@ const OUTCOMES = {
   failed: "chat.trace.outcome.failed",
 } as const;
 
-function CallCard({
+/** The shared row line: icon, title, status, and a right-aligned meta column. */
+function Row({
+  icon,
+  title,
+  status,
+  statusClass,
+  meta,
+  busy,
+  open,
+  children,
+}: {
+  icon: "call" | "run";
+  title: string;
+  status: string;
+  statusClass: string;
+  meta: string;
+  busy: boolean;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  const Icon = icon === "call" ? Brain : Terminal;
+  return (
+    <details aria-busy={busy} open={open}>
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded px-1 py-0.5 text-[11px] hover:bg-muted/40">
+        {busy ? (
+          <LoaderCircle className="size-3 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <Icon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+        )}
+        <span className="shrink-0 font-medium">{title}</span>
+        <span className={cn("truncate", statusClass)}>{status}</span>
+        <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">{meta}</span>
+      </summary>
+      <div className="mt-0.5 pl-5">{children}</div>
+    </details>
+  );
+}
+
+function CallRow({
   call,
   liveReasoning,
   latest,
@@ -30,83 +73,56 @@ function CallCard({
 }) {
   const running = call.outcome === "running";
   const reasoning = running ? liveReasoning : (call.reasoning ?? null);
-  const status = call.outcome === "running" ? t("chat.trace.running") : t(OUTCOMES[call.outcome]);
   return (
-    <details
-      className="rounded-md border border-border/60 bg-muted/30 p-1.5"
-      aria-busy={running}
+    <Row
+      icon="call"
+      title={t("chat.trace.call", { n: call.n })}
+      status={call.outcome === "running" ? t("chat.trace.running") : t(OUTCOMES[call.outcome])}
+      statusClass={call.outcome === "failed" ? "text-destructive" : "text-muted-foreground"}
+      meta={
+        running
+          ? ""
+          : t("chat.trace.callMeta", { chars: call.chars, ms: call.elapsedMs }) +
+            (call.truncated ? " · " + t("chat.trace.truncated") : "")
+      }
+      busy={running}
       open={running || latest}
     >
-      <summary className="cursor-pointer select-none text-[11px]">
-        <span className="font-medium">{t("chat.trace.call", { n: call.n })}</span>
-        <span
-          className={cn(
-            "ml-1.5",
-            running
-              ? "text-muted-foreground"
-              : call.outcome === "failed"
-                ? "text-destructive"
-                : "text-muted-foreground",
-          )}
-        >
-          {status}
-        </span>
-        {!running && (
-          <span className="ml-1.5 text-muted-foreground">
-            {t("chat.trace.callMeta", { chars: call.chars, ms: call.elapsedMs })}
-            {call.truncated ? " · " + t("chat.trace.truncated") : ""}
-          </span>
-        )}
-      </summary>
       {reasoning !== null && reasoning.length > 0 && (
         <>
-          <p className="mt-1 text-[10px] text-muted-foreground">{t("chat.trace.reasoning")}</p>
-          <pre className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-editor p-1 font-mono text-[10px] leading-4 text-editor-foreground">
+          <p className="text-[10px] text-muted-foreground">{t("chat.trace.reasoning")}</p>
+          <p className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-muted-foreground">
             {reasoning}
-          </pre>
+          </p>
         </>
       )}
-    </details>
+    </Row>
   );
 }
 
-function RunCard({
-  run,
-  number,
-  running,
-}: {
-  run: ChatTraceRun;
-  number: number;
-  running: boolean;
-}) {
-  const status = running
-    ? "…"
-    : run.ok
-      ? t("chat.trace.ok")
-      : t("chat.trace.failed", { kind: run.error?.kind ?? "exception" });
+function RunRow({ run, number, running }: { run: ChatTraceRun; number: number; running: boolean }) {
   return (
-    <details className="rounded-md border border-border/60 bg-muted/30 p-1.5" aria-busy={running}>
-      <summary className="cursor-pointer select-none text-[11px]">
-        <span className="font-medium">{t("chat.trace.run", { n: number })}</span>
-        <span
-          className={cn(
-            "ml-1.5",
-            running ? "text-muted-foreground" : run.ok ? "text-success" : "text-destructive",
-          )}
-        >
-          {status}
-        </span>
-        <span className="ml-1.5 text-muted-foreground">
-          {t("chat.trace.tools", { n: run.toolCalls })} · {run.elapsedMs} ms
-        </span>
-      </summary>
+    <Row
+      icon="run"
+      title={t("chat.trace.run", { n: number })}
+      status={
+        running
+          ? "…"
+          : run.ok
+            ? t("chat.trace.ok")
+            : t("chat.trace.failed", { kind: run.error?.kind ?? "exception" })
+      }
+      statusClass={running ? "text-muted-foreground" : run.ok ? "text-success" : "text-destructive"}
+      meta={t("chat.trace.tools", { n: run.toolCalls }) + " · " + run.elapsedMs + " ms"}
+      busy={running}
+    >
       {run.error && (
-        <p className="mt-1 whitespace-pre-wrap break-words text-[10px] text-destructive">
+        <p className="whitespace-pre-wrap break-words text-[10px] text-destructive">
           {run.error.message}
         </p>
       )}
       {run.images !== undefined && run.images.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1">
+        <div className="mb-1 flex flex-wrap gap-1">
           {run.images.map((src, imageIndex) => (
             <a key={imageIndex} href={src} target="_blank" rel="noreferrer">
               <img
@@ -118,7 +134,7 @@ function RunCard({
           ))}
         </div>
       )}
-      <p className="mt-1 text-[10px] text-muted-foreground">{t("chat.trace.program")}</p>
+      <p className="text-[10px] text-muted-foreground">{t("chat.trace.program")}</p>
       <pre className="mt-0.5 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-editor p-1 font-mono text-[10px] leading-4 text-editor-foreground">
         {run.program}
       </pre>
@@ -138,7 +154,7 @@ function RunCard({
           ))}
         </ul>
       )}
-    </details>
+    </Row>
   );
 }
 
@@ -167,30 +183,24 @@ export function ChatTraceView({
     }
   });
   return (
-    <section
-      aria-label={t("chat.trace.title")}
-      className="rounded-md border border-border/60 bg-card/40 p-2 text-xs"
-    >
-      <p className="font-medium">{t("chat.trace.title")}</p>
-      <div className="mt-1 space-y-1">
-        {trace.map((entry, index) =>
-          entry.kind === "call" ? (
-            <CallCard
-              key={"call-" + String(index)}
-              call={entry}
-              liveReasoning={entry.outcome === "running" ? reasoning : null}
-              latest={index === lastCallIndex}
-            />
-          ) : (
-            <RunCard
-              key={"run-" + String(index)}
-              run={entry}
-              number={numbers.get(index) ?? 0}
-              running={exploring === numbers.get(index)}
-            />
-          ),
-        )}
-      </div>
+    <section aria-label={t("chat.trace.title")} className="space-y-0.5 text-xs">
+      {trace.map((entry, index) =>
+        entry.kind === "call" ? (
+          <CallRow
+            key={"call-" + String(index)}
+            call={entry}
+            liveReasoning={entry.outcome === "running" ? reasoning : null}
+            latest={index === lastCallIndex}
+          />
+        ) : (
+          <RunRow
+            key={"run-" + String(index)}
+            run={entry}
+            number={numbers.get(index) ?? 0}
+            running={exploring === numbers.get(index)}
+          />
+        ),
+      )}
     </section>
   );
 }

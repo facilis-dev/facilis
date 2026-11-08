@@ -57,7 +57,7 @@ describe("vision message parts", () => {
     });
   });
 
-  it("drops images for a text-only preset", () => {
+  it("sends an OpenAI image_url part for the deepseek preset (V4.1 Flash reads images)", () => {
     const settings: AiSettings = {
       providerId: "deepseek",
       apiKey: "sk-test",
@@ -65,6 +65,26 @@ describe("vision message parts", () => {
       baseUrl: "",
     };
     expect(buildRequest(preset("deepseek"), settings, "", TURNS).body).toMatchObject({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "look" },
+            { type: "image_url", image_url: { url: IMAGE } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("keeps plain string content for a preset without vision", () => {
+    const settings: AiSettings = {
+      providerId: "custom",
+      apiKey: "",
+      model: "local-model",
+      baseUrl: "http://127.0.0.1:1234/v1",
+    };
+    expect(buildRequest(preset("custom"), settings, "", TURNS).body).toMatchObject({
       messages: [{ role: "user", content: "look" }],
     });
   });

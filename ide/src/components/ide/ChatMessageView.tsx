@@ -1,6 +1,7 @@
-// One chat bubble. The model's prose is rendered as text with fenced code blocks
-// promoted to a monospace panel; the bubble colours are theme roles, so both themes
-// flip without a component change (D-044).
+// One transcript entry (D-114/CHAT-UX): the assistant's prose is a plain block, the user's
+// message a quiet bubble on the right; pasted images sit above the text (D-113) and fenced code
+// blocks become a monospace panel. Theme roles only, so both themes flip without a component
+// change (D-044).
 
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,7 @@ function MessageContent({ text }: { text: string }) {
         index % 2 === 1 ? (
           <pre
             key={index}
-            className="mt-1 max-h-64 overflow-auto rounded-md bg-editor p-1.5 font-mono text-[11px] leading-4 text-editor-foreground"
+            className="mt-1 max-h-64 overflow-auto rounded bg-editor p-1.5 font-mono text-[11px] leading-4 text-editor-foreground"
           >
             {part.replace(/^[a-zA-Z0-9_+-]+\n/, "")}
           </pre>
@@ -42,10 +43,23 @@ export function ChatMessageView({
     <div className={cn("flex", user ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[95%] rounded-lg px-2.5 py-2 text-xs",
-          user ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+          "text-xs text-foreground",
+          user ? "max-w-[95%] rounded-lg bg-muted/70 px-2.5 py-1.5" : "w-full leading-relaxed",
         )}
       >
+        {message.images !== undefined && message.images.length > 0 && (
+          <div className="mb-1 flex flex-wrap gap-1">
+            {message.images.map((src, index) => (
+              <a key={index} href={src} target="_blank" rel="noreferrer">
+                <img
+                  src={src}
+                  alt={t("chat.image.pending", { n: index + 1 })}
+                  className="max-h-40 rounded border border-border/60"
+                />
+              </a>
+            ))}
+          </div>
+        )}
         <MessageContent text={message.content} />
         {streaming && (
           <span

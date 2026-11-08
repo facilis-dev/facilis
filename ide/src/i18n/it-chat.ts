@@ -6,7 +6,7 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.newChat": "Nuova chat",
   "chat.settings": "Impostazioni chat",
   "chat.instructions": "Istruzioni del progetto (AGENTS.md)",
-  "chat.placeholder": "Descrivi una modifica…",
+  "chat.placeholder": "Descrivi una modifica… (Ctrl+V incolla uno screenshot)",
   "chat.send": "Invia",
   "chat.stop": "Interrompi",
   "chat.thinking": "Sto pensando…",
@@ -14,6 +14,11 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.patchParts": "Invio il set di patch a parti… (parte {part})",
   "chat.applying": "Applicazione…",
   "chat.footer": "L'AI può sbagliare — rivedi ogni patch prima di applicarla.",
+  "chat.image.pending": "Immagine allegata {n}",
+  "chat.image.remove": "Rimuovi immagine allegata",
+  "chat.image.skipped":
+    "{n} immagine/i ignorata/e: solo PNG, JPEG, WebP o GIF fino a 12 MB, al massimo 4 per messaggio.",
+  "chat.image.noVision": "Questo provider non legge le immagini: il modello non le vedrà.",
   "chat.configured": "{provider} · {model}",
   "chat.empty.title": "Costruisci con l'assistente",
   "chat.empty.body":

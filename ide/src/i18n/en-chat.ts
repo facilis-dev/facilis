@@ -6,7 +6,7 @@ export const chatEn = {
   "chat.newChat": "New chat",
   "chat.settings": "Chat settings",
   "chat.instructions": "Project instructions (AGENTS.md)",
-  "chat.placeholder": "Describe a change…",
+  "chat.placeholder": "Describe a change… (Ctrl+V pastes a screenshot)",
   "chat.send": "Send",
   "chat.stop": "Stop",
   "chat.thinking": "Thinking…",
@@ -14,6 +14,11 @@ export const chatEn = {
   "chat.patchParts": "Sending the patch set in parts… (part {part})",
   "chat.applying": "Applying…",
   "chat.footer": "AI can make mistakes — review every patch before applying.",
+  "chat.image.pending": "Attached image {n}",
+  "chat.image.remove": "Remove attached image",
+  "chat.image.skipped":
+    "{n} image(s) skipped: only PNG, JPEG, WebP or GIF up to 12 MB, at most 4 per message.",
+  "chat.image.noVision": "This provider does not read images: the model will not see them.",
   "chat.configured": "{provider} · {model}",
   "chat.empty.title": "Build with the assistant",
   "chat.empty.body":

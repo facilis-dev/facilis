@@ -207,7 +207,10 @@ DevTools panel relays it to chii; the same channel now has a programmatic client
 a click flow and take a screenshot (D-112) before proposing a fix. They act on the *running app's
 own state* (they can create or delete data in it) and never write the project; with no project
 running they answer `{ available: false }` as data. A screenshot is shown in the activity row and
-sent to the model only when the configured preset accepts images.
+sent to the model only when the configured preset accepts images. A login screen is part of the
+flow, not a failure: the preview shares the user's session (the kernel keeps the app's cookie jar
+per project), so the prompt (D-115) tells the model to use it, or to register a throwaway account
+in the dev database, and to hand anything outside the frame (OAuth/SSO, 2FA) back to the user.
 
 Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is
