@@ -12,6 +12,7 @@ import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
 import { chatIt } from "./it-chat";
 import { logsIt } from "./it-logs";
+import { tourIt } from "./it-tour";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -192,6 +193,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "palette.importRemote": "Importa un repository",
   "palette.pushRemote": "Pubblica su un host git",
   "palette.openChat": "Apri chat AI",
+  "palette.tour": "Mostra il tour dell'IDE",
   "palette.exportZip": "Esporta progetto come Zip",
   "palette.shareProject": "Condividi progetto (copia link)",
   "palette.toggleTerminal": "Mostra/nascondi pannello terminale",
@@ -210,4 +212,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsIt,
+
+  // ── guided tour (D-128) ─────────────────────────────────────────────────
+  ...tourIt,
 };

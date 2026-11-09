@@ -18,6 +18,7 @@ import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
+import { tourEn } from "./en-tour";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -199,6 +200,7 @@ export const en = {
   "palette.importRemote": "Import a repository",
   "palette.pushRemote": "Publish to a git host",
   "palette.openChat": "Open AI Chat",
+  "palette.tour": "Show the IDE Tour",
   "palette.exportZip": "Export Project as Zip",
   "palette.shareProject": "Share Project (copy link)",
   "palette.toggleTerminal": "Toggle Terminal Panel",
@@ -217,4 +219,7 @@ export const en = {
 
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsEn,
+
+  // ── guided tour (D-128) ─────────────────────────────────────────────────
+  ...tourEn,
 } as const;

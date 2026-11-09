@@ -77,7 +77,10 @@ export function ActivityBar() {
   };
   const shown = (view: View) => snap.activeView === view && !snap.sidebarCollapsed;
   return (
-    <div className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-1">
+    <div
+      data-tour="activity"
+      className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-1"
+    >
       <ActBtn
         label={t("activity.workspace")}
         active={shown("explorer")}

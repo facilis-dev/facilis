@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
+import CircleHelp from "~icons/lucide/circle-help";
 import Sun from "~icons/lucide/sun";
 import Moon from "~icons/lucide/moon";
 import Monitor from "~icons/lucide/monitor";
@@ -29,6 +30,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { tourStore } from "@/components/tour/tour-store-instance";
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import { deployment, pushAllowed } from "@/deploy/current";
@@ -63,6 +65,7 @@ export function CommandPalette() {
   >(
     () => [
       { label: t("palette.home"), icon: Home, run: () => c.goHome() },
+      { label: t("palette.tour"), icon: CircleHelp, run: () => tourStore.start() },
       {
         label: t("palette.newTerminal"),
         icon: Plus,
