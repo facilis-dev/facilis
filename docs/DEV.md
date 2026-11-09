@@ -527,7 +527,7 @@ so the dev proxy's allowlist must contain `github.com` (the default does).
 
 A live probe for the IDE chat: it sends realistic feature requests to a real provider,
 measures token consumption and latency, then runs the generated patches through the same
-16-rule validator the chat uses and (optionally) typechecks them. It is **not part of the
+17-rule validator the chat uses and (optionally) typechecks them. It is **not part of the
 gate** — it needs the network and a real key.
 
 **Setup.** The key lives in the gitignored `ide/.env`, the same file Vite reads:

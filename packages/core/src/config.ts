@@ -73,10 +73,6 @@ export interface FacilisI18nConfig {
   readonly locales: readonly string[];
 }
 
-export interface FacilisBlocksConfig {
-  readonly packages: readonly string[];
-}
-
 export interface FacilisAuthConfig {
   readonly permissions: readonly string[];
   /** Role name → permission names. `"*"` is only valid here, as "every declared permission". */
@@ -101,7 +97,6 @@ export interface FacilisConfig {
   readonly release: FacilisReleaseConfig;
   readonly db: FacilisDbConfig;
   readonly i18n: FacilisI18nConfig;
-  readonly blocks: FacilisBlocksConfig;
   readonly auth: FacilisAuthConfig;
   /** Background-job queue settings (D-107, docs/JOBS.md §4). */
   readonly jobs: FacilisJobsConfig;
@@ -125,7 +120,6 @@ export interface FacilisConfigInput {
     readonly ownerColumns?: readonly string[];
   };
   readonly i18n?: { readonly defaultLocale?: string; readonly locales?: readonly string[] };
-  readonly blocks?: { readonly packages?: readonly string[] };
   /** Passed to Nitro unchanged; `@facilis/nitro` merges the framework defaults underneath. */
   readonly nitro?: FacilisNitroOptions;
   readonly auth: {
@@ -160,8 +154,6 @@ const DEFAULT_DB_CONFIG = {
 
 const DEFAULT_I18N_CONFIG = { defaultLocale: DEFAULT_LOCALE, locales: [DEFAULT_LOCALE] };
 
-const DEFAULT_BLOCKS_CONFIG = { packages: [] as string[] };
-
 const releaseSchema = z
   .strictObject({
     ref: z.string().min(1, "release.ref must be a non-empty git ref"),
@@ -185,12 +177,6 @@ const i18nSchema = z
   })
   .default(() => DEFAULT_I18N_CONFIG);
 
-const blocksSchema = z
-  .strictObject({
-    packages: z.array(z.string().min(1)).default([]),
-  })
-  .default(() => DEFAULT_BLOCKS_CONFIG);
-
 // Nitro's own options are not Facilis's contract, so the section is a pass-through: keep
 // the object as authored and let @facilis/nitro apply the framework defaults underneath.
 const nitroSchema = z.record(z.string(), z.unknown()).default({});
@@ -209,7 +195,6 @@ const baseConfigSchema = z.strictObject({
   release: releaseSchema,
   db: dbSchema,
   i18n: i18nSchema,
-  blocks: blocksSchema,
   auth: authSchema,
   jobs: facilisJobsConfigSchema,
   storage: facilisStorageConfigSchema,

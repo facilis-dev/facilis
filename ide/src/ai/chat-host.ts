@@ -12,6 +12,7 @@ import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
+import { createGraphAccess } from "./graph-access";
 import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
 import { createRunnerFrameChild } from "./ptc/runner-frame";
@@ -29,12 +30,15 @@ export function chatFor(controller: IdeController): ChatSession {
   // existing router, so every local tool keeps its own policy and write protection.
   const mcp = new McpSession({ root: () => controller.activeFolder?.rootPath ?? null });
   const host = chatHost(controller, mcp);
+  // D-126: the graph's committed team state. Only the PTC router reads it, so it joins the
+  // PatchValidationHost view here and the ChatHost contract (chat-session-types.ts) stays put.
+  const toolHost = { ...host, graph: createGraphAccess(controller) };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
   const session = new ChatSession(host, {
     runner: createPtcRunner({
       childFactory: createRunnerFrameChild(),
-      executorFactory: () => withMcpTools(createToolRouter(host), mcp),
+      executorFactory: () => withMcpTools(createToolRouter(toolHost), mcp),
     }),
   });
   sessions.set(controller, session);
@@ -96,7 +100,7 @@ function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
     preview: createPreviewAccess(controller.preview),
     // D-118: the project's MCP servers are discovered once, before a turn's tool list.
     prepare: () => mcp.ensureFresh(),
-    // The 16-rule validator reads analyzer facts: the worker analyzes the project before and
+    // The 17-rule validator reads analyzer facts: the worker analyzes the project before and
     // after the proposal; a thrown error blocks validation.
     analyze: (patches, signal) => analyzePatches(controller, patches, signal),
   };

@@ -21,6 +21,7 @@ import type {
   UnknownFact,
   WrapperState,
 } from "../types.ts";
+import { descriptionDiagnostics } from "./route-description.ts";
 import { directDbWarnings, handlerReadsBody, handlerReadsForm } from "./route-handler.ts";
 import { routeLocationFromFile } from "./route-location.ts";
 import {
@@ -188,9 +189,10 @@ function routeConfigFacts(
     params: field("params") !== undefined,
   };
 
-  const diagnostics: Diagnostic[] = unknown.map((item) =>
-    error(item.code, item.reason, item.source),
-  );
+  const diagnostics: Diagnostic[] = [
+    ...unknown.map((item) => error(item.code, item.reason, item.source)),
+    ...descriptionDiagnostics(description, ref),
+  ];
   if (permission !== null) {
     for (const name of permission) {
       if (!config.permissions.includes(name)) {

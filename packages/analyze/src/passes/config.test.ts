@@ -36,7 +36,6 @@ describe("buildConfigFacts", () => {
     expect(facts.migrationsDir).toBe("db/migrations");
     expect(facts.tenantColumns).toEqual(["tenantId"]);
     expect(facts.ownerColumns).toEqual(["ownerId"]);
-    expect(facts.blocksPackages).toEqual([]);
     expect(facts.unknown).toEqual([]);
   });
 
@@ -54,7 +53,6 @@ describe("buildConfigFacts", () => {
     expect(facts.ownerColumns).toEqual(["ownerId"]);
     expect(facts.defaultLocale).toBe("en");
     expect(facts.locales).toEqual(["en"]);
-    expect(facts.blocksPackages).toEqual([]);
     expect(facts.permissions).toEqual([]);
   });
 

@@ -518,7 +518,7 @@ export function Explorer() {
             ) : (
               <ChevronRight className="size-3.5 shrink-0" />
             )}
-            <FolderIcon open={open} className="size-4 shrink-0" />
+            <FolderIcon name={name} open={open} className="size-4 shrink-0" />
             {isRenaming ? (
               nameInput(renameValue, setRenameValue, commitRename, () => setRenaming(null), depth)
             ) : (

@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import Loader from "~icons/lucide/loader-circle";
 import ArrowLeft from "~icons/lucide/arrow-left";
 import ArrowRight from "~icons/lucide/arrow-right";
 import RotateCw from "~icons/lucide/rotate-cw";
@@ -20,11 +19,12 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { t as translate } from "@/i18n";
 import { useIde } from "./useIde";
 import { navigatePreviewFrame } from "./preview-frame-nav";
-import { phaseLabel, type RunPhase } from "@/vv/run-phase";
 import { hasSeparatePreviewOrigin, previewSandbox } from "@/vv/preview-sandbox";
 import type { PreviewTab } from "@/vv/controller";
+import { PreviewEmptyState, PreviewEmptyTab } from "./PreviewEmptyState";
 
 function ToolButton({
   label,
@@ -52,11 +52,13 @@ function ToolButton({
   );
 }
 
-function tabTitle(t: PreviewTab) {
+function tabTitle(tab: PreviewTab) {
   // Prefer the running app's real document.title (reported by the preview shim);
   // fall back to the port while it boots, or "New Tab" for an empty tab.
-  if (t.title) return t.title;
-  return t.port != null ? `Preview (${t.port})` : "New Tab";
+  if (tab.title) return tab.title;
+  return tab.port != null
+    ? translate("preview.tabTitle", { port: tab.port })
+    : translate("preview.untitledTab");
 }
 
 // A single preview iframe. It deliberately starts at `about:blank` and only
@@ -142,7 +144,7 @@ export function PreviewPanel() {
                     <Globe className="size-3.5 shrink-0 opacity-70" />
                     <span className="max-w-32 truncate">{tabTitle(t)}</span>
                     <button
-                      title="Close"
+                      title={translate("preview.close")}
                       className="flex size-4 items-center justify-center rounded hover:bg-accent"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -157,23 +159,23 @@ export function PreviewPanel() {
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
                   <ContextMenuItem onClick={() => c.preview.closePreviewTab(t.id)}>
-                    Close
+                    {translate("preview.close")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     disabled={tabs.length <= 1}
                     onClick={() => c.preview.closeOtherPreviewTabs(t.id)}
                   >
-                    Close Others
+                    {translate("preview.closeOthers")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     disabled={tabs.findIndex((x) => x.id === t.id) >= tabs.length - 1}
                     onClick={() => c.preview.closePreviewTabsToRight(t.id)}
                   >
-                    Close to the Right
+                    {translate("preview.closeRight")}
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem onClick={() => c.preview.closeAllPreviewTabs()}>
-                    Close All
+                    {translate("preview.closeAll")}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -183,25 +185,34 @@ export function PreviewPanel() {
         <Tooltip>
           <TooltipTrigger
             onClick={() => c.preview.addPreviewTab()}
-            aria-label="New browser tab"
+            aria-label={translate("preview.newTab")}
             className="flex w-8 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Plus className="size-4" />
           </TooltipTrigger>
-          <TooltipContent>New browser tab</TooltipContent>
+          <TooltipContent>{translate("preview.newTab")}</TooltipContent>
         </Tooltip>
       </div>
 
       {/* address / nav toolbar (only with an active tab) */}
       {active && (
         <div className="flex h-9 shrink-0 items-center gap-0.5 border-b px-1.5">
-          <ToolButton label="Back" onClick={() => c.preview.previewBack(active.id)}>
+          <ToolButton
+            label={translate("preview.back")}
+            onClick={() => c.preview.previewBack(active.id)}
+          >
             <ArrowLeft className="size-4" />
           </ToolButton>
-          <ToolButton label="Forward" onClick={() => c.preview.previewForward(active.id)}>
+          <ToolButton
+            label={translate("preview.forward")}
+            onClick={() => c.preview.previewForward(active.id)}
+          >
             <ArrowRight className="size-4" />
           </ToolButton>
-          <ToolButton label="Reload" onClick={() => c.preview.reloadPreviewTab(active.id)}>
+          <ToolButton
+            label={translate("preview.reload")}
+            onClick={() => c.preview.reloadPreviewTab(active.id)}
+          >
             <RotateCw className="size-4" />
           </ToolButton>
           {/* Address bar — local-only: localhost / 127.0.0.1 / a bare path loads the
@@ -216,18 +227,23 @@ export function PreviewPanel() {
                   c.preview.navigatePreview(active.id, (e.target as HTMLInputElement).value);
               }}
               placeholder="localhost:3000"
+              aria-label={translate("preview.address")}
               spellCheck={false}
               className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
           <ToolButton
-            label={snap.devtoolsOpen ? "Close devtools" : "Open devtools"}
+            label={
+              snap.devtoolsOpen
+                ? translate("preview.closeDevtools")
+                : translate("preview.openDevtools")
+            }
             onClick={() => c.preview.devtools.toggleDevtools()}
           >
             <SquareTerminal className={cn("size-4", snap.devtoolsOpen && "text-foreground")} />
           </ToolButton>
           <ToolButton
-            label="Open in new tab"
+            label={translate("preview.openExternal")}
             disabled={active.port == null}
             onClick={() => c.preview.openPreviewExternal(active.id)}
           >
@@ -252,25 +268,8 @@ export function PreviewPanel() {
               onLoad={(id) => c.preview.onPreviewFrameLoad(id)}
             />
           ))}
-          {active && active.port == null && (
-            <div className="absolute inset-0 flex items-center justify-center bg-sidebar text-sm text-muted-foreground">
-              Empty tab — type a local address like localhost:3000 and press Enter.
-            </div>
-          )}
-          {tabs.length === 0 &&
-            (snap.runPhase ? (
-              <RunProgress phase={snap.runPhase} />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-sidebar text-sm text-muted-foreground">
-                <span>No preview open.</span>
-                <button
-                  onClick={() => c.preview.addPreviewTab()}
-                  className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-accent hover:text-foreground"
-                >
-                  <Plus className="size-3.5" /> New browser tab
-                </button>
-              </div>
-            ))}
+          {active && active.port == null && <PreviewEmptyTab />}
+          {tabs.length === 0 && <PreviewEmptyState />}
         </ResizablePanel>
         {snap.devtoolsOpen && (
           <>
@@ -285,7 +284,7 @@ export function PreviewPanel() {
                 key={snap.devtoolsNonce}
                 ref={(el) => c.preview.devtools.setDevtoolsFrame(el)}
                 onLoad={() => c.preview.devtools.onDevtoolsReady()}
-                title="DevTools"
+                title={translate("preview.devtoolsTitle")}
                 src={c.preview.devtools.devtoolsSrc()}
                 className="h-full w-full border-0"
               />
@@ -293,42 +292,6 @@ export function PreviewPanel() {
           </>
         )}
       </ResizablePanelGroup>
-    </div>
-  );
-}
-
-// What the panel says between "Create" and the first frame — up to half a minute
-// on a cold install, during which it used to say "No preview open.", i.e. read
-// as *nothing is happening*.
-//
-// Deliberately not a bare spinner. The phase says which of two very differently
-// priced things is running (a snapshot restore or a real install), the counts
-// let the user judge whether it is moving, and the elapsed clock lets them
-// decide it is not. None of it is a forecast: nothing here knows a total, and a
-// fake progress bar that stalls at 90% is worse than an honest counter.
-function RunProgress({ phase }: { phase: RunPhase }) {
-  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - phase.startedAt) / 1000));
-  useEffect(() => {
-    const t = setInterval(
-      () => setElapsed(Math.floor((Date.now() - phase.startedAt) / 1000)),
-      1000,
-    );
-    return () => clearInterval(t);
-  }, [phase.startedAt]);
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-sidebar px-6 text-center">
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <Loader className="size-4 animate-spin text-primary" />
-        {phaseLabel(phase.phase)}
-      </div>
-      <div className="text-xs text-muted-foreground">
-        {phase.name}
-        {phase.detail ? ` · ${phase.detail}` : ""}
-        {elapsed >= 3 ? ` · ${elapsed}s` : ""}
-      </div>
-      <div className="max-w-xs text-xs text-muted-foreground">
-        The preview appears as soon as the dev server binds a port. Watch the terminal for detail.
-      </div>
     </div>
   );
 }

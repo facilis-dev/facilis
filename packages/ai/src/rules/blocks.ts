@@ -37,8 +37,8 @@ function blockNameFromPath(specifier: string, packages: ReadonlySet<string>): st
 }
 
 export function blockImportErrors(state: EffectiveState, context: PatchContext): ValidationError[] {
-  const packages = new Set(state.config.blocksPackages);
-  packages.add(DEFAULT_BLOCKS_PACKAGE);
+  // Blocks are no longer configurable: the framework ships one reviewed package (D-067).
+  const packages = new Set([DEFAULT_BLOCKS_PACKAGE]);
   const known = new Set(context.blocks.map((block) => block.name));
   const errors: ValidationError[] = [];
   const seen = new Set<string>();

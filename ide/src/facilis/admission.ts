@@ -1,4 +1,4 @@
-// The VFS side of the admission gate: read facilis.app.json for a project and decide
+// The VFS side of the admission gate: read .facilis/facilis.app.json for a project and decide
 // whether this deployment may run it (MANAGED-DEPLOYMENT.md §8).
 //
 // Kept out of the controller (whose size the file-length ratchet pins) and out of

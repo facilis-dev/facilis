@@ -29,7 +29,11 @@ export const todos = pgTable("todos", {
 const ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
 
 export default defineAuthorizedHandler(
-  { permission: ["todos:read"], dbTables: ["todos"] },
+  {
+    permission: ["todos:read"],
+    dbTables: ["todos"],
+    description: "List todos visible to the current user.",
+  },
   async () => null,
 );
 `;

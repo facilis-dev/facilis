@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { GRAPH_COLUMNS, buildProjectGraphView } from "./graph-model";
-import { GET, PAGE, PROJECTS, TODOS, graphOf, tableNode } from "./graph-model.test-fixtures";
+import {
+  GET,
+  PAGE,
+  PROJECTS,
+  TODOS,
+  graphOf,
+  routeNode,
+  tableNode,
+} from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView layout", () => {
   it("puts pages left, routes in the middle and tables right", () => {
@@ -10,6 +18,14 @@ describe("buildProjectGraphView layout", () => {
     expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
     expect(byId.get(TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
     expect(byId.get(PROJECTS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
+  });
+
+  it("leaves room for the taller route card in the route column", () => {
+    const post = routeNode("POST", "/api/todos");
+    const view = buildProjectGraphView({ graph: graphOf([GET, post]) });
+    const byId = new Map(view.nodes.map((node) => [node.id, node]));
+    expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
+    expect(byId.get(post.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 112 });
   });
 
   it("orders the table column by FK dependency, deterministically", () => {

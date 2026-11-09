@@ -53,6 +53,37 @@ export const PREVIEW_TOOL_SPECS: readonly PtcToolSpec[] = [
   ),
 ];
 
-export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = [...TOOL_SPECS, ...PREVIEW_TOOL_SPECS];
+/**
+ * Tools that read and rearrange the project graph (D-126). The graph is committed team state
+ * under `.facilis/graph`, not source code, so an arrangement needs no patch proposal; the tools
+ * are registered only when the IDE can reach that state.
+ */
+export const GRAPH_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec(
+    "graph_state",
+    "graph_state()",
+    "Project graph: nodes with positions, edges, notes, hidden edge kinds and collapsed tables.",
+  ),
+  spec(
+    "graph_arrange",
+    "graph_arrange({ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? })",
+    "Arrange the project graph and write .facilis/graph immediately: move nodes, bend or reset edges (0,0), create/edit/delete notes (id absent = create), replace the hidden edge-kind set, collapse tables.",
+  ),
+];
+
+/**
+ * The specs to advertise: the base tools plus the families whose runtime seam exists. Kept here
+ * so the router stays under the 300-line limit and the prompt receives exactly the tools the
+ * handlers can dispatch.
+ */
+export function advertisedSpecs(hasPreview: boolean, hasGraph: boolean): readonly PtcToolSpec[] {
+  return [
+    ...TOOL_SPECS,
+    ...(hasPreview ? PREVIEW_TOOL_SPECS : []),
+    ...(hasGraph ? GRAPH_TOOL_SPECS : []),
+  ];
+}
+
+export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true);
 export const TOOL_NAMES = ALL_TOOL_SPECS.map((entry) => entry.name).join(", ");
 export const SPEC_BY_NAME = new Map(ALL_TOOL_SPECS.map((entry) => [entry.name, entry] as const));

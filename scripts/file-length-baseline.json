@@ -8,6 +8,5 @@
   "ide/src/components/ide/EditorGroup.tsx": 457,
   "ide/src/components/ide/SearchPane.tsx": 426,
   "ide/src/components/ide/DebugPanel.tsx": 375,
-  "ide/src/components/ide/PreviewPanel.tsx": 336,
   "ide/vite.config.ts": 315
 }

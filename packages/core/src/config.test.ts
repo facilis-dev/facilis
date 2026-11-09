@@ -30,7 +30,6 @@ const FULL_CONFIG: FacilisConfig = {
     ownerColumns: ["ownerId"],
   },
   i18n: { defaultLocale: "en", locales: ["en", "fr"] },
-  blocks: { packages: ["@facilis/blocks"] },
   auth: SPEC_AUTH,
   jobs: {
     maxConcurrent: 3,
@@ -73,7 +72,6 @@ describe("defineConfig", () => {
       ownerColumns: ["ownerId"],
     });
     expect(config.i18n).toEqual({ defaultLocale: "en", locales: ["en"] });
-    expect(config.blocks).toEqual({ packages: [] });
     expect(config.auth.sessionDurationMs).toBe(1000 * 60 * 60 * 24 * 7);
     // The queue is safe by default: two slots, no retry, persisted (D-107).
     expect(config.jobs).toEqual({

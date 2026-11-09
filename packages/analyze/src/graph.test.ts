@@ -21,7 +21,6 @@ function fixtureConfig(): ConfigFacts {
     migrationsDir: "db/migrations",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
-    blocksPackages: [],
     unknown: [],
   };
 }
@@ -77,8 +76,17 @@ function fixtureInput(): GraphInput {
     },
   ];
   const routes: RouteFact[] = [
-    route({ method: "GET", path: "/api/todos", dbColumns: ["todos.title"] }),
-    route({ method: "POST", path: "/api/todos" }),
+    route({
+      method: "GET",
+      path: "/api/todos",
+      dbColumns: ["todos.title"],
+      description: "List the current user's todos.",
+    }),
+    route({
+      method: "POST",
+      path: "/api/todos",
+      input: { body: true, form: false, query: true, params: false },
+    }),
     route({
       method: "PATCH",
       path: "/api/todos/{id}",
@@ -175,9 +183,16 @@ describe("buildProjectGraph", () => {
       path: "/api/todos",
       permission: ["todos:read"],
       wrapper: "valid",
+      input: { body: false, form: false, query: false, params: false },
       dbTables: ["todos"],
       dbColumns: ["todos.title"],
+      description: "List the current user's todos.",
       unknown: false,
+    });
+    const postRoute = graph.nodes.find((node) => node.id === "route:POST /api/todos");
+    expect(postRoute?.data).toMatchObject({
+      kind: "route",
+      input: { body: true, form: false, query: true, params: false },
     });
     const invalidRoute = graph.nodes.find((node) => node.id === "route:PATCH /api/todos/{id}");
     expect(invalidRoute?.data).toMatchObject({

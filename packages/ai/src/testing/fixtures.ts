@@ -26,7 +26,6 @@ export default defineConfig({
   release: { ref: "origin/main" },
   db: { mode: "pglite", migrationsDir: "db/migrations" },
   i18n: { defaultLocale: "en", locales: ["en"] },
-  blocks: { packages: ["@facilis/blocks"] },
   auth: {
     permissions: ["todos:read", "todos:write"],
     roles: { admin: ["*"], user: ["todos:read", "todos:write"] },

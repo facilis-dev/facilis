@@ -33,7 +33,17 @@ export const projectGraphEn = {
   "projectGraph.noMatches": "No node matches the search.",
   "projectGraph.legend": "Legend",
   "projectGraph.hint":
-    "Drag a node to move it, double-click to open its source. Scroll to zoom, drag the pane to pan.",
+    "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
+  "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
+  "projectGraph.addNote": "Add note",
+  "projectGraph.noteEmpty": "Empty note — double-click to edit",
+  "projectGraph.noteDelete": "Delete note",
+  "projectGraph.noteHint": "Double-click to edit. Ctrl+Enter saves, Esc cancels.",
+  "projectGraph.input.body": "body",
+  "projectGraph.input.form": "form",
+  "projectGraph.input.query": "query",
+  "projectGraph.input.params": "params",
+  "projectGraph.pathParam": "Path parameter {name}",
   "projectGraph.layoutInvalid":
     "The saved layout could not be read, so the automatic layout is shown.",
   "projectGraph.diagnostics": "Diagnostics",

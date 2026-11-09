@@ -259,7 +259,8 @@ describe("parseTurn", () => {
   it("returns the validation result for a valid answer", async () => {
     const content =
       'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
-      'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n';
+      'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [], ' +
+      'description: "List todos visible to the current user." }, async () => null);\n';
     const raw = json({
       message: "x",
       patches: [{ path: "server/routes/api/todos/index.get.ts", action: "create", content }],

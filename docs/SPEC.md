@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.14 (logging pipeline + single sign-on, D-119/D-120)
-**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 16-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
+**Version:** 1.15 (route descriptions, D-129)
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.15 — Route descriptions are source documentation (D-129): `description` in the `defineAuthorizedHandler` config is the route's one-sentence, English summary (≤120 characters ≈ two lines) and flows through `@facilis/analyze`'s `RouteNodeData` to the project-graph route card, as a quoted source line clamped to two lines. The analyzer warns `route-description-length` above the cap; patch validator rule 17 `route-description` warns (never blocks) when a patched route's sentence is missing, too long, or unchanged while the route's contract changed, and the assistant writes/refreshes it in the same patch turn. Consumers are OpenAPI, the analyzer, the graph and the AI context — none negotiates a locale, so the field is never a `t()` key and the app's user-facing language stays in `locales/*.json`. §7.3/§7.4/§9.3/§10.2 follow.
 - v1.14 — Operator logging and single sign-on (D-119/D-120). Logging is one pipeline with four streams (access, error, audit, app): `defineAuthorizedHandler` records exactly one access entry on every exit path, unexpected failures stay server-side, the sudo trail joins the same sink, and a route can append app lines/audit events through `ctx.log`. Entries are JSON Lines files in `<project>/.facilis/logs/` (dev default, opened from the IDE editor) or stdout (production default), selected by `FACILIS_LOG_SINK`; there is **no HTTP endpoint that serves logs**. Sinks are env-owned, redaction/caps are structural, audit entries carry a SHA-256 `seq`/`prevHash`/`hash` chain and audit writes fail closed, rotation keeps `FACILIS_LOG_KEEP` files, and the deploy owns WORM/retention (O-019). SSO is framework auth: `auth.sso.providers` (OIDC, generic OAuth2, SAML) with secrets only as env-var names, framework-owned `/api/auth/sso/{providers,start,callback}` routes, OIDC discovery + PKCE + nonce + ID-token verification (`jose`), generic OAuth2 userinfo mapping, SP-initiated SAML validated by `@node-saml/node-saml` (lazily imported), single-use DB-backed state, `auth_identities`/`auth_sso_states` with RLS, conservative linking (verified email only), JIT provisioning with the provider/default role, and audit events without tokens or emails. §4.2/§5.3/§5.6/§7.1/§7.4/§8.6/§8.7/§11.4/§12 follow.
 - v1.13 — Background jobs (D-107): a durable `facilis_jobs` queue with config-driven concurrency, retry, timeout and cancellation; named definitions in `server/jobs/**/*.ts`; the server-only `ctx.jobs` API (enqueue returns an id, schedule at an instant, read the queue/running jobs, cancel); every attempt in a system context through `runAsSystem` with the sudo audit; persisted queue state with at-least-once recovery. There is no workflow construct yet (O-017). §5.1/§5.2/§5.6/§7.1/§7.4/§7.9/§8.4.5/§14.2 follow.
 - v1.12 — Views gain an optional own permission (D-098): without it they keep the D-097 invoker behaviour (base tables' RLS); with it they are definer views (`security_invoker = false`) gated by that permission in `app.permissions`, and the base tables are not consulted — the view is a table-like resource, full read-only SQL, developer-owned. The Create-view dialog offers the permissions declared in `facilis.config.ts`. Sudo (D-099) adds an audited server-side system context: `ctx.sudo({ operation, reason, tables }, fn)` runs inside a SAVEPOINT as `facilis_system` (NOLOGIN, NOSUPERUSER, BYPASSRLS, DML only), records `started`/`succeeded`/`failed` entries on a dedicated append-only log (stdout JSON lines for now; not a DB table) with the user + session hash, and fails closed if the log is unavailable. `ctx.system` is the session-less system actor for public/bootstrap routes (registration), the handler event no longer carries the raw client (`ctx.db` is the only default DB surface; escalation is only sudo/system), `runAsSystem` is the job/CLI counterpart, and the analyzer warns `route-direct-db` for raw client access. §5.2/§5.3/§7.4/§8.4.5/§8.5/§8.6/§11.2/§11.4/§12 follow.
@@ -279,7 +280,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   ├── prompt.ts             system prompt builder
 │   │   │   ├── context.ts            context assembly (A vs B)
 │   │   │   ├── parser.ts             AIResponse parser
-│   │   │   ├── validator/            patch validator (16 rules)
+│   │   │   ├── validator/            patch validator (17 rules)
 │   │   │   ├── tools/                Model B tool definitions (Phase 4.5)
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -656,7 +657,7 @@ Exports:
 - `parseResponse(raw)` — AIResponse parser
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
-- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 16-rule
+- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 17-rule
   validator over analyzer facts (D-092); the main entry stays browser-safe and the only
   parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -1157,7 +1158,6 @@ interface FacilisConfig {
     ownerColumns: string[]
   }
   i18n: { defaultLocale: string; locales: string[] }
-  blocks: { packages: string[] }
   nitro: Record<string, unknown>     // pass-through Nitro options; framework defaults underneath (D-034)
   auth: {
     permissions: string[]
@@ -1240,7 +1240,7 @@ interface RouteMeta {
   path: string
   operationId?: string
   summary?: string
-  description?: string                        // from the wrapper config (AST pass)
+  description?: string                        // one English sentence, ≤120 chars, from the wrapper config (AST pass; D-129)
   permission?: string | string[]              // string[] mirrors the handler config
   dbTables: string[]                          // empty = explicit "no DB"
   dbColumns: string[]                         // format: "table.column"
@@ -1300,7 +1300,7 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   params?: ZodSchema<Params>
   dbTables: string[]                          // REQUIRED
   dbColumns?: string[]
-  description?: string
+  description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
 }
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
@@ -1994,7 +1994,7 @@ names the tenant and cannot name a different one (D-040).
 
 ### 8.6 Application-Level Security Rules
 
-- AI patches are **validated** before write (16 rules, §9.3)
+- AI patches are **validated** before write (17 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2100,8 +2100,9 @@ Rules the AI must obey:
 7. Minimal patches; match existing style
 8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106; no part quota, D-108)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
+10. **Every route carries a description:** one English sentence, max 120 characters (about two lines), saying what the route does and what it touches; keep it current when the route's contract (permission, inputs, `dbTables`/`dbColumns`) changes. It is source documentation shown in the graph and OpenAPI, never a `t()` key (D-129).
 
-### 9.3 Patch Validator (16 Rules)
+### 9.3 Patch Validator (17 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2121,6 +2122,7 @@ Rules the AI must obey:
 | 14 | `migration-generated` | warning | Schema changes ship with a migration file |
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, a new migration file must update seeds |
+| 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
 
 **Status (2026-11-04): implemented over AST facts** in `@facilis/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
@@ -2135,7 +2137,7 @@ parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside
 closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
 closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
 an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
-round asking the model to fix it (D-105). Rules 5, 13 and 14 are warnings; the rest
+round asking the model to fix it (D-105). Rules 5, 13, 14 and 17 are warnings; the rest
 block the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
 time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
@@ -2253,7 +2255,7 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis/analyze` (D-092): pages → routes → tables plus FK/`relations()` edges; fullscreen, edge filters, drag; layout in `.facilis/graph.json` |
+| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis/analyze` (D-092): pages → routes → tables plus FK/`relations()` edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126) |
 | Commit graph | `CommitGraphPanel.tsx` + `commit-graph` editor tab | React Flow over the local git log: lanes, merge edges, branch/HEAD cards, details inspector (D-088) |
 | Diff tab | `EditorPanes.tsx` + `diff-session.ts` | Every SCM change opens a side-by-side HEAD ↔ working-tree diff, first hunk revealed (D-089) |
 | Entity Explorer | `DataExplorerPanel.tsx` + activity view + `data-query` tab | Live code ↔ DB diff and a read-only SQL console with Create-view (optional declared view permission, D-098), through a kernel-mediated same-origin dev proxy (D-097); declared tables from `@facilis/analyze` still planned (O-011) |
@@ -2270,7 +2272,7 @@ from a root `AGENTS.md`, and `applyPatch()` as the only write path (D-045…D-04
 `ide/src/facilis/apply-patch.ts` rather than on `IdeController`, because the controller is
 pinned by the file-length ratchet (D-019); the activity view is `chat`.
 
-**Status (2026-11-02): the full 16-rule validator is implemented** (D-084): `parseTurn()`
+**Status (2026-11-02): the full 17-rule validator is implemented** (D-084): `parseTurn()`
 validates a proposal against the live project before it is shown, the accepted files are
 re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
 VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
@@ -2294,6 +2296,28 @@ project, and O-011 tracks the declared-from-AST half and preview mode C. The que
 (`data-query` tab) runs one read-only statement and creates a `security_invoker` view in
 `db/views/`. Browser smoke covers the project graph, the Release Preview and the query
 console.
+
+**Status (2026-11-08): the project graph is interaction-first (D-125).** Nodes follow the pointer
+while dragging and commit on drop; edges are floating (an endpoint is the node-border/centre-line
+intersection recomputed from measured bounds, so an edge attaches at any side and self-references
+loop) and their cubic curve is editable per edge through a midpoint handle, persisted as
+one bend file per edge under `.facilis/graph/bends/` (schema v3 since D-126; v1/v2 files migrate). Route cards show the
+analyzer's request-input presence flags (body/form/query/params) and the path parameters, so the
+graph is the API-contract view too. Layout and curves became committed team state in D-126.
+
+**Status (2026-11-08): graph state is committable and merge-friendly (D-126).** The layout,
+manual bends, collapse/filter settings and markdown notes are stored as small files under
+`.facilis/graph/` — a settings file, one small JSON file per position or bend and one
+markdown file per note — and `.facilis/.gitignore` carries a narrow allowlist so git sees them
+while the rest of `.facilis` stays local; pan/zoom stays local in `viewport.json`. Because an
+element is one file, independent edits merge automatically even when the elements are adjacent,
+and only the same element conflicts. A pre-D-126 `.facilis/graph.json` is read once and
+rewritten. Notes are
+markdown annotations on the canvas (add/edit/delete, markdown rendered, double-click to edit).
+The chat's PTC runtime gained `graph_state` and `graph_arrange`, so the assistant can read the
+graph and arrange it on request (validated, capped, same files, no source patch), and the open
+panel reloads through a graph-change event. Dragging or box-selecting no longer selects card
+text.
 
 **Status (2026-11-04): the project graph runs on static AST facts (D-092).** The `project-graph`
 editor tab reads `@facilis/analyze` from a lazy wasm worker over the VFS: pages → routes →
@@ -2578,7 +2602,7 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 - Prompt builder + context assembly (Model A)
 - AIResponse parser
-- Patch validator (16 rules)
+- Patch validator (17 rules)
 - Retry loop — implemented (D-100, no attempt cap since D-108): findings fed back, the model
   reads the files it rewrites with the PTC tools (D-103)
 - `requires_confirmation` modal
@@ -2587,7 +2611,7 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 **Exit criteria:** "Make a todo app" from blank starter produces a working, secure, authenticated app.
 
-**Status (2026-11-02):** Model A (prompt + context), the response parser, the 16-rule validator
+**Status (2026-11-02):** Model A (prompt + context), the response parser, the 17-rule validator
 (D-084), the proposal/diff review and the apply path are implemented; the §9.4 repair loop
 (D-100) is implemented too and the PTC tool runtime is the chat's only mode (D-103); the eval
 corpus and browser matrix remain. The validator's warnings still
@@ -2789,9 +2813,6 @@ export default defineConfig({
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
-  },
-  blocks: {
-    packages: ["@facilis/blocks"],
   },
   auth: {
     permissions: [

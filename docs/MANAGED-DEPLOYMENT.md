@@ -29,7 +29,7 @@ Two profiles, selected at build time:
 | Project publish (git write-back) | available; token per publish, never stored | opt-in: `projects.exports.git` plus the host in `network.connect` (D-078) |
 | Real git over HTTPS (clone / fetch / pull / push) | yes, through the same-origin proxy (D-079) | opt-in: `projects.gitProxy` (+ `exports.git` for push-only); a cross-origin proxy must be in `network.connect` |
 | GitHub OAuth sign-in (device flow) | available when an OAuth app is configured; token per tab, never stored (D-082) | opt-in: `projects.gitOAuth.github.clientId`, which requires `gitProxy` and a direction |
-| Project admission | none | `facilis.app.json` required (§8) |
+| Project admission | none | `.facilis/facilis.app.json` required (§8) |
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
 | Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
 | AI provider | presets plus a custom base URL | allowlisted providers or an internal gateway; default `off` ([AI-SKILLS.md](./AI-SKILLS.md)) |
@@ -60,7 +60,7 @@ Three enforcement levels are in scope. A fourth (server-side approval) is delibe
 - it only reaches configured hosts (`connect-src`): the registry mirror and the preview origin;
 - `npm install` inside the VM can only fetch packages the mirror serves - the mirror is the
   only reachable package host, and the project's `.npmrc` points at it;
-- a project without a valid `facilis.app.json` does not run (configurable, §8);
+- a project without a valid `.facilis/facilis.app.json` does not run (configurable, §8);
 - the generated app's own code runs on a different origin from the IDE, so it cannot read the
   IDE's `localStorage` (AI keys, git identity), its OPFS or the kernel bridge;
 - when AI is enabled, its requests can only reach the providers the deployment allows (or its
@@ -325,8 +325,10 @@ route to the public internet:
 
 A managed deployment defaults to `admission: "facilis-only"`:
 
-- `facilis.app.json` is written by the template loader at creation (schema in
-  [APP-UPDATES.md](./APP-UPDATES.md) §1) and records template and environment version;
+- `.facilis/facilis.app.json` is written by the template loader at creation (schema in
+  [APP-UPDATES.md](./APP-UPDATES.md) §1) and records template and environment version. It
+  lives in the project's `.facilis/` local state, which the template's `.gitignore`
+  excludes: a generated marker, not source;
 - open/Run/install verify it: a missing or mismatched marker refuses to run the project (and
   in `managed`, refuses to create the workspace from an import);
 - the import paths are compiled out, so there is no UI to bring one in;
@@ -346,7 +348,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |
 | Generated `.npmrc` | fixed: audit/fund/progress/update-notifier off (`ide/src/facilis/project-files.ts`) | generated from `packages` (registry, scripts, no fallback) | L0 |
 | Registry fetch | hardcoded public registry through the fetcher worker | `REGISTRY_PROXY` seam (`vendor/vivari/packages/core/src/workers/fetcher-worker.ts`) -> mirror | L2 |
-| Admission | none (a registry flag only chooses the run manifest) | `facilis.app.json` check before open/Run | L1 |
+| Admission | none (a registry flag only chooses the run manifest) | `.facilis/facilis.app.json` check before open/Run | L1 |
 | Dependency allowlist | none | `preinstall` check in the template + AI validator rule on `package.json` | L1 |
 | AI egress | presets plus a custom base URL (`ide/src/ai/providers.ts`, `ide/src/ai/settings.ts`) | allowlisted providers/gateway only, custom base URL rejected; their hosts join `connect-src` | L2 |
 | AI key vs preview | the same-origin preview can read `vv-ai-settings` | preview isolation is a prerequisite for enabling AI | L0 |

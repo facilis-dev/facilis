@@ -10,6 +10,7 @@ export { analyzeProject, DEFAULT_TRANSPORT } from "./analyze.ts";
 export type { AnalyzeInput } from "./analyze.ts";
 export { buildProjectGraph } from "./graph.ts";
 export type { GraphInput } from "./graph.ts";
+export { ROUTE_DESCRIPTION_MAX_CHARS } from "./passes/route-description.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";

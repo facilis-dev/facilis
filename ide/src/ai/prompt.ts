@@ -87,6 +87,7 @@ export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change 
 9. A destructive schema change (dropping or renaming a table or column) must set requires_confirmation to true.
 10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis/db, @facilis/auth, @facilis/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
 11. server/ runs in Nitro (Node): process.env is allowed there, but never import server code from src/ or components/. A change that needs secrets belongs in a server route, not in the browser bundle.
+12. Every route carries a description: one English sentence, max ~120 characters (about two lines), saying what the route does and what it touches. Keep it up to date when the route's contract (permission, inputs, dbTables/dbColumns) changes. It is developer documentation, never a user-facing string — never t().
 
 ## Canonical shapes
 Copy these instead of inventing an API. A route (server/routes/api/<name>/index.get.ts):

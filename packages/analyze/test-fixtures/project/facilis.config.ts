@@ -9,7 +9,6 @@ export default defineConfig({
     ownerColumns: ["ownerId"],
   },
   i18n: { defaultLocale: "en", locales: ["en", "it"] },
-  blocks: { packages: [] },
   auth: {
     permissions: ["todos:read", "todos:write"],
     roles: {

@@ -1,4 +1,4 @@
-// File-type + folder icons from the Iconify "vscode-icons" set (the same family
+// File-type icons from the Iconify "vscode-icons" set (the same family
 // StackBlitz uses), compiled to inline SVGs at build time via unplugin-icons.
 //
 // unplugin-icons needs *static* imports, so we enumerate the file types we care
@@ -12,8 +12,6 @@
 import type { SVGProps, ComponentType } from "react";
 
 import DefaultFile from "~icons/vscode-icons/default-file";
-import DefaultFolder from "~icons/vscode-icons/default-folder";
-import DefaultFolderOpen from "~icons/vscode-icons/default-folder-opened";
 import TypeScript from "~icons/vscode-icons/file-type-typescript";
 import ReactTs from "~icons/vscode-icons/file-type-reactts";
 import JavaScript from "~icons/vscode-icons/file-type-js";
@@ -133,7 +131,6 @@ export function FileIcon({ name, className }: { name: string; className?: string
   return <Cmp className={className} />;
 }
 
-export function FolderIcon({ open, className }: { open?: boolean; className?: string }) {
-  const Cmp = open ? DefaultFolderOpen : DefaultFolder;
-  return <Cmp className={className} />;
-}
+// Folder icons depend on the folder NAME (not just its open state), so they live in
+// their own module; re-exported here to keep existing import sites unchanged.
+export { FolderIcon } from "./folderIcon";

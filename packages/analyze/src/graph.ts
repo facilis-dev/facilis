@@ -60,8 +60,10 @@ function routeNode(route: RouteFact, id: string): GraphNode {
     path: route.path,
     permission: route.permission ?? [],
     wrapper: route.wrapper,
+    input: route.input,
     dbTables: route.dbTables ?? [],
     dbColumns: route.dbColumns ?? [],
+    description: route.description,
     unknown:
       route.unknown.length > 0 ||
       route.wrapper === "unknown" ||

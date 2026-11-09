@@ -4697,6 +4697,185 @@ covered by the starter contract; a real-IdP checklist is in `docs/SSO.md`.
 
 ---
 
+### D-121 — `blocks` is not part of the project config
+**Status:** accepted (2026-11-08)
+
+`facilis.config.ts` carried a `blocks: { packages: string[] }` section whose only consumer was
+the AI validator's block-import rule: it named extra packages that ship `BlockManifest`s. The
+generated project no longer composes external UI packages — the v2 frontend copies Base UI
+primitives into `src/components/ui` (D-090, D-096) — so the section described a supply chain
+nothing ships.
+
+**Decision.** Remove `blocks` from `FacilisConfig`/`FacilisConfigInput` and its Zod schema (a
+config that still declares it fails the strict object check instead of being silently ignored),
+from the analyzer's `ConfigFacts.blocksPackages`, and from the example. AI rule 7
+(`block-import-valid`) keeps validating imports of the one shipped `@facilis/blocks` package
+through its `DEFAULT_BLOCKS_PACKAGE` constant; the manifest's `BlockManifest` contract is
+unchanged.
+
+**Consequences:** SPEC §7.1 and Appendix B no longer list the section; the example config shrinks
+by one entry. Block discovery (O-004) remains a Phase 5 concern for the shipped package, not a
+project knob.
+
+---
+
+### D-122 — The generated project marker lives in `.facilis/`
+**Status:** accepted (2026-11-08)
+
+`facilis.app.json` is written by the template loader and by the upgrade engine, never by the
+user (D-065); it sat at the project root next to authored files, where it read like source the
+user should maintain.
+
+**Decision.** The marker moves to `.facilis/facilis.app.json`. `APP_MANIFEST_FILE` is the single
+constant the template writer, the admission gate, the update checker and the upgrade engine use;
+no code hard-codes the path. `.facilis/` is already the generated-state directory (logs, binary
+store, graph layout) and the project's `.gitignore` keeps it out of git.
+
+**Consequences:** the marker is now local environment state: an exported or freshly cloned
+project reports "unknown environment" for the update indicator and, under a managed
+`facilis-only` admission, is not admitted until an upgrade or the adoption step writes one
+(adoption remains the follow-up APP-UPDATES.md records). Projects created before this decision
+keep an unread root marker and take the same path. That is the accepted trade-off of putting
+generated state under `.facilis/`; a tracked root file is what this decision rejects.
+
+---
+
+### D-123 — A new project starts as a git repository
+**Status:** accepted (2026-11-08)
+
+The generated project ships a `.gitignore` and D-065 relies on the project's git history as the
+undo for updates, but "New project" left the folder uninitialized: the ignore rules did nothing
+until the user ran Source Control → Initialize, and a user who initialized later could stage
+`node_modules/` before noticing.
+
+**Decision.** `createProject` calls the existing `ScmSession.init` after the template is written
+and the folder is open. Init is idempotent (`git init` on an existing repo is a no-op), seeds the
+default `.gitignore` only when the project lacks one, and uses `main` as the default branch. It
+creates no commit: the user reviews and commits from Source Control. The GitHub clone/scaffold
+paths are untouched — they already have `.git`.
+
+**Consequences:** the new project appears in Source Control immediately as an untracked repo; the
+isomorphic-git chunk loads lazily on creation; no network is involved.
+
+### D-124 — The bottom panel is closed by default; the status bar is its only door
+**Status:** accepted (2026-11-08)
+
+The IDE inherited VS Code's chrome, where the bottom panel (Console / Terminal / Ports) is
+opened from a layout toggle in the title bar and every run force-opened it to narrate
+`npm install`. That fits a developer's editor and misfits this product's main user, who is
+building an app in the browser: the console is kernel narration nobody needs, the terminal is
+only how the app gets started, and "ports" are in-VM listeners reached through the preview, not
+host ports. The panel was also the only way to start a project (command palette, or the create
+dialog's "Install and run" checkbox) and there was no Stop.
+
+**Decision.** The bottom panel starts closed and nothing opens it implicitly — not a run, not
+opening a project. Its three surfaces are opened from chips at the right of the status bar
+(Console icon-only, Terminal, Ports with a live count); clicking the active chip closes the
+panel, and the panel no longer carries its own tab strip. The same status bar row carries
+`Run`/`Stop` for the active folder: idle → `Run`; during install → a spinner with the phase,
+which opens the terminal; once the preview paints → `Running` (opens the preview) with `Stop`;
+a run that dies before binding a port leaves `Start failed`, which opens the terminal. The title
+bar keeps a Run/Stop twin and loses its panel toggle; the empty preview gains a `Run project`
+CTA and the same failure state. `runProject` no longer opens the panel or focuses a terminal,
+and `stopRun` closes only the terminal a run created (a hand-typed `npm run dev` is not ours to
+stop).
+
+**Consequences:** the first run is watched in the preview and the status bar, not the terminal;
+a failed install is visible without opening anything; the run readouts (`runTerminalId`,
+`runFailed`) live in the snapshot and `controller.ts` stays under its ratchet without growing
+(the dead upstream demo-run path it replaced is gone); the touched chrome files were migrated to
+`t()` (D-043) and are ticked in `ide/I18N.md`.
+
+### D-125 — The project graph is a primary development surface: live drag, free attachment, editable curves
+**Status:** accepted (2026-11-08)
+
+The graph was a schematic: edges only left/right with smoothstep corners, a controlled React
+Flow node list that snapped into place on drop, and route cards that did not show the request
+shape. Using the graph alongside chat as the main development surface needs it to feel direct.
+
+**Decision.** The graph canvas is interaction-first:
+- **Live drag.** Nodes are local React Flow state (`applyNodeChanges`): the card follows the
+  pointer and the committed position is written to `.facilis/graph.json` on drag stop only.
+- **Free attachment.** Edges are floating: an endpoint is the intersection of the node rectangle
+  with the centre-to-centre line, recomputed from measured bounds while dragging, so an edge can
+  leave and enter any side (a self-reference loops) as the layout grows in every direction.
+- **Editable curves.** The edge path is a cubic bezier; selecting an edge reveals a midpoint
+  handle that drags a per-edge offset, persisted as `edgeCurves` in the layout file (schema v2;
+  version 1 files still load). Double-click straightens an edge; "Reset layout" clears positions
+  and curves. The layout stays local editor state (D-052/D-092), never project source.
+- **Route input in the graph.** `RouteNodeData` gains the analyzer's `input` presence facts
+  (body/form/query/params) and the IDE derives path parameters from the route template; route
+  cards show them as chips, so the graph is also the API-contract view.
+
+**Consequences:** no new project file and no new write path (the existing layout writer gains one
+schema version); the analyzer graph contract change is additive (`RouteNodeData.input`); graph
+geometry, layout parsing and curve round-trips are pure and unit-tested, so the canvas needs only
+the browser smoke.
+
+**Superseded in part by D-126:** the layout is no longer a single gitignored `.facilis/graph.json`;
+it is a per-element, committable file set under `.facilis/graph/` with markdown notes and AI graph
+tools. The interaction rules above (live drag, floating endpoints, editable curves) stand.
+
+---
+
+### D-126 — The project graph is committable, merge-friendly team state (notes + AI graph tools)
+**Status:** accepted (2026-11-08)
+
+D-125 made the graph interaction-first, but the layout was local editor state: a single
+gitignored `.facilis/graph.json`, no way to annotate the diagram, no way for the assistant to
+work on it, and text selection fought node dragging. The graph is meant to be the primary
+development surface beside chat, so the arrangement plus the team's annotations have to travel
+with the repository — without turning every concurrent edit into a merge conflict.
+
+**Decision.**
+- **One element, one file.** The state moves to `.facilis/graph/`: `layout.json` holds the
+  settings (`hiddenEdges`, `collapsed`), `positions/<key>.json` one small position per node or
+  note, `bends/<key>.json` one manual bend per edge, and `notes/<uuid>.md` one markdown file per
+  annotation. Pan/zoom is per machine and stays in `viewport.json`, git-ignored. A normal git
+  3-way merge is therefore automatic for independent edits — moving two different nodes, or
+  adding notes on two branches, does not conflict; only the same element conflicts, and then on
+  one readable file. (Measured: a single JSONL file conflicted as soon as the two changed lines
+  were adjacent, even for different nodes.)
+- **The format is the merge strategy.** `.facilis/.gitignore` keeps `*` and gets a narrow,
+  idempotently appended allowlist (`!graph/`, `!graph/**`, `graph/viewport.json`): the graph
+  is committable, everything else in `.facilis` (database snapshot, binary blobs, logs — D-052)
+  stays local. The file is never rewritten, only extended.
+- **Migration.** A pre-D-126 `.facilis/graph.json` (schema v1/v2) is read once, written as the
+  v3 files on the next save, and removed; `.facilis` is still excluded from export, publish and
+  the search index.
+- **Markdown notes.** A note is a React Flow node (`note:<uuid>`) with a markdown body in its
+  own file; its geometry is a separate `positions/<key>.json`, so moving and editing a note are
+  independent edits. The card renders the markdown (escaped before rendering, the notebook's
+  renderer), double-click edits it, and an empty note opens ready to type.
+- **AI graph tools.** The chat's PTC runtime gains `graph_state` (read the nodes/edges/notes
+  with positions) and `graph_arrange` (moves, bends, notes, visibility) — validated, capped and
+  written through the same `graph-layout` IO. They are not source patches: the §9.3 patch flow
+  and its allowlist stay untouched, because the graph is diagram state, not project source. A
+  successful write announces itself on `graph-live`, so the open panel reloads.
+- **Selection.** The canvas and the cards are `select-none`; only the note editor allows text
+  selection, so dragging or box-selecting no longer selects card text.
+
+**Consequences:** the graph becomes team state that is committed from the IDE's git panel; git
+is the sync mechanism (no server-side merge needed). Two branches that move the same node keep a
+one-file conflict a human can resolve in seconds. No new dependency, no new write path outside
+`.facilis`; the codec, migration and merge behaviour are pure and unit-tested.
+
+---
+
+### D-129 — Route descriptions are source documentation: one English sentence, kept in step with the route's contract
+**Status:** accepted (2026-11-09)
+
+D-125/D-126 made the project graph the primary development surface, but the route node still showed only the request shape: the first thing a reader needs — what the route is for — lived in `description?` in the wrapper config (D-092), reached the OpenAPI document, and then disappeared from the graph. The field was optional, unmeasured and unchecked, so the assistant wrote it on new routes (the prompt's canonical example) and silently dropped it whenever it re-emitted a file.
+
+**Decision.**
+- **One field, one home.** The description stays in the `defineAuthorizedHandler` config and nowhere else: it is source, committed and diffed with the route. The graph's `.facilis/graph/` state (D-126) is diagram state, never source. The analyzer already reads it statically; it now also carries it on `RouteNodeData`, so the route card shows it without a new analysis pass.
+- **One language: English.** The consumers are the OpenAPI document, the static analyzer, the AI's own context and git — none negotiates a locale, and the field sits next to English identifiers (`dbTables`, `permission`). It is source documentation, not UI copy: never a `t()` key, never in `locales/*.json`. The user-facing language of a generated app stays in its own catalogues, so "can this be Italian?" is answered by the layer, not by preference. No language validation is added: detection is unreliable (URLs, names, acronyms) and a false-positive gate is worse than a convention.
+- **Two lines, measured in characters.** 120 characters (about two lines at the graph card's width and in the route file). The fact keeps the full string; the card clamps to two lines and keeps the whole sentence in its tooltip. The analyzer warns `route-description-length` above the limit, so the number is enforced where the fact is born.
+- **The patch keeps it in step.** Validator rule 17 `route-description` is a **warning**, never a block (the 5/13/14 precedent): missing or blank on a patched, valid route; over the limit; or stale — the route's contract changed in the patch (wrapper, permission, inputs, `dbTables`/`dbColumns`) and the sentence is byte-identical. The assistant writes or refreshes the sentence in the *same* patch turn, so there is no second model call, no extra latency and no offline failure; the prompt states the rule and the validator is the safety net for what the model forgets.
+- **The graph shows the sentence, the edges show the rest.** The route card renders it as a quoted source line (muted, clamped to two lines), not as localized interface copy. "What is under the node" is otherwise already the graph: `dbTables`, `dbColumns` and page→route calls are edges, so no expansion panel duplicates them.
+
+**Consequences:** one string now serves the OpenAPI document, the route node and the assistant's context, so they cannot disagree; the analyzer's graph contract and §9.3 gain additive fields (the validator becomes 17 rules, still a warning-only addition); a project without descriptions keeps working — the analyzer flags length only, never absence, so existing projects are not flooded with diagnostics and the nudge arrives when a route is actually touched. Pages stay deliberately out of scope until they have an equivalent contract.
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)

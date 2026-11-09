@@ -67,7 +67,6 @@ function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
       migrationsDir: "./drizzle",
       tenantColumns: ["tenantId"],
       ownerColumns: ["ownerId"],
-      blocksPackages: [],
       unknown: [],
     },
     routes: [],

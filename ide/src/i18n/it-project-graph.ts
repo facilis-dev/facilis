@@ -34,7 +34,17 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.noMatches": "Nessun nodo corrisponde alla ricerca.",
   "projectGraph.legend": "Legenda",
   "projectGraph.hint":
-    "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente. Scorri per lo zoom, trascina lo sfondo per spostarti.",
+    "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente. Clicca un arco per curvarlo, poi trascina il punto centrale. Scorri per lo zoom, trascina lo sfondo per spostarti.",
+  "projectGraph.curveHint": "Trascina per curvare il collegamento; doppio clic per raddrizzarlo",
+  "projectGraph.addNote": "Aggiungi nota",
+  "projectGraph.noteEmpty": "Nota vuota — doppio clic per modificare",
+  "projectGraph.noteDelete": "Elimina nota",
+  "projectGraph.noteHint": "Doppio clic per modificare. Ctrl+Invio salva, Esc annulla.",
+  "projectGraph.input.body": "corpo",
+  "projectGraph.input.form": "form",
+  "projectGraph.input.query": "query",
+  "projectGraph.input.params": "parametri",
+  "projectGraph.pathParam": "Parametro di percorso {name}",
   "projectGraph.layoutInvalid":
     "Impossibile leggere il layout salvato: viene mostrato il layout automatico.",
   "projectGraph.diagnostics": "Diagnostica",

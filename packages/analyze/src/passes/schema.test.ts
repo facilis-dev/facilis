@@ -21,7 +21,6 @@ function fixtureConfig(): ConfigFacts {
     migrationsDir: "db/migrations",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
-    blocksPackages: [],
     unknown: [],
   };
 }

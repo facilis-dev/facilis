@@ -7,7 +7,7 @@ const ROOT = "/home/user/projects/app";
 describe("project status", () => {
   it("reads the marker through the injected reader", async () => {
     const read = async (path: string) => {
-      expect(path).toBe(ROOT + "/facilis.app.json");
+      expect(path).toBe(ROOT + "/.facilis/facilis.app.json");
       return renderAppManifest("2026.10");
     };
     const manifest = await readAppManifest(read, ROOT + "/");

@@ -1,34 +1,33 @@
 import { describe, expect, it } from "vitest";
-import type { IdeController } from "@/vv/controller";
 import {
-  GRAPH_EDGE_KINDS,
-  GRAPH_LAYOUT_VERSION,
+  addGraphNote,
   emptyGraphLayout,
-  graphLayoutPath,
-  loadGraphLayout,
   mergeGraphLayout,
   parseGraphLayout,
   resetGraphLayoutPositions,
-  saveGraphLayout,
-  serializeGraphLayout,
   withCollapsed,
+  withEdgeCurve,
   withHiddenEdgeKind,
   withNodePosition,
+  withNotePosition,
+  withNoteText,
   withViewport,
+  withoutGraphNote,
   type GraphLayoutFile,
 } from "./graph-layout";
+import { GRAPH_LAYOUT_VERSION } from "./graph-layout-file";
+
+const NOTE = "note:11111111-1111-4111-8111-111111111111";
+
+const note = (text = "hello") => ({ id: NOTE, x: 10, y: 20, text });
 
 const layout = (overrides: Partial<GraphLayoutFile> = {}): GraphLayoutFile => ({
   ...emptyGraphLayout(),
   ...overrides,
 });
 
-function serialized(value: GraphLayoutFile): unknown {
-  return JSON.parse(serializeGraphLayout(value));
-}
-
-describe("parseGraphLayout", () => {
-  it("reads every field of a version-1 file", () => {
+describe("parseGraphLayout (v1/v2 migration)", () => {
+  it("reads every field of a version-1 file and upgrades it to the current schema", () => {
     const parsed = parseGraphLayout(
       JSON.stringify({
         version: 1,
@@ -40,12 +39,22 @@ describe("parseGraphLayout", () => {
     );
     expect(parsed.source).toBe("ok");
     expect(parsed.layout).toEqual({
-      version: 1,
+      version: GRAPH_LAYOUT_VERSION,
       nodes: { "table:todos": { x: 10, y: 20 } },
       hiddenEdges: ["fk", "relation"],
       collapsed: { "table:todos": true },
+      edgeCurves: {},
+      notes: {},
       viewport: { x: 1, y: 2, zoom: 0.8 },
     });
+  });
+
+  it("reads the edge curves of a version-2 file", () => {
+    const parsed = parseGraphLayout(
+      JSON.stringify({ version: 2, nodes: {}, edgeCurves: { "fk:1": { x: 12, y: -4 } } }),
+    );
+    expect(parsed.source).toBe("ok");
+    expect(parsed.layout.edgeCurves).toEqual({ "fk:1": { x: 12, y: -4 } });
   });
 
   it("treats a missing or blank file as no saved layout", () => {
@@ -57,25 +66,25 @@ describe("parseGraphLayout", () => {
   });
 
   it("reports corrupt JSON and an unknown version as invalid", () => {
-    expect(parseGraphLayout("{").source).toBe("invalid");
-    expect(parseGraphLayout("[]").source).toBe("invalid");
-    expect(parseGraphLayout(JSON.stringify({ version: 2, nodes: {} })).source).toBe("invalid");
-    expect(parseGraphLayout(JSON.stringify({ nodes: {} })).source).toBe("invalid");
-    const invalid = parseGraphLayout("{");
-    expect(invalid.layout).toEqual(emptyGraphLayout());
+    for (const text of [
+      "{",
+      "[]",
+      JSON.stringify({ version: 3, nodes: {} }),
+      JSON.stringify({ nodes: {} }),
+    ]) {
+      expect(parseGraphLayout(text).source).toBe("invalid");
+    }
+    expect(parseGraphLayout("{").layout).toEqual(emptyGraphLayout());
   });
 
   it("ignores malformed entries instead of throwing", () => {
     const parsed = parseGraphLayout(
       JSON.stringify({
         version: 1,
-        nodes: {
-          good: { x: 1, y: 2 },
-          bad: { x: "1", y: 2 },
-          missing: { x: 1 },
-        },
+        nodes: { good: { x: 1, y: 2 }, bad: { x: "1", y: 2 }, missing: { x: 1 } },
         hiddenEdges: ["fk", "not-a-kind", 3],
         collapsed: { good: true, bad: "yes" },
+        edgeCurves: { "edge:good": { x: 3, y: 4 }, "edge:bad": { x: "3", y: 4 } },
         viewport: { x: 0, y: 0, zoom: 0 },
       }),
     );
@@ -83,170 +92,105 @@ describe("parseGraphLayout", () => {
     expect(parsed.layout.nodes).toEqual({ good: { x: 1, y: 2 } });
     expect(parsed.layout.hiddenEdges).toEqual(["fk"]);
     expect(parsed.layout.collapsed).toEqual({ good: true });
+    expect(parsed.layout.edgeCurves).toEqual({ "edge:good": { x: 3, y: 4 } });
     expect(parsed.layout.viewport).toBeUndefined();
   });
 });
 
-describe("serializeGraphLayout", () => {
-  it("writes stable, sorted bytes and drops unknown ids on round-trip", () => {
-    const value = layout({
-      nodes: {
-        "table:z": { x: 2, y: 1 },
-        "table:a": { x: 1, y: 2 },
-      },
-      hiddenEdges: ["page-route", "fk"],
-      collapsed: { "table:z": true },
-      viewport: { x: 0, y: 0, zoom: 1 },
-    });
-    const text = serializeGraphLayout(value);
-    expect(text.endsWith("\n")).toBe(true);
-    expect(serialized(value)).toEqual({
-      version: GRAPH_LAYOUT_VERSION,
-      nodes: {
-        "table:a": { x: 1, y: 2 },
-        "table:z": { x: 2, y: 1 },
-      },
-      hiddenEdges: ["fk", "page-route"],
-      collapsed: { "table:z": true },
-      viewport: { x: 0, y: 0, zoom: 1 },
-    });
-    expect(serializeGraphLayout(parseGraphLayout(text).layout)).toBe(text);
-  });
-
-  it("omits the viewport when the user has never moved the canvas", () => {
-    expect(serialized(emptyGraphLayout())).toEqual({
-      version: 1,
-      nodes: {},
-      hiddenEdges: [],
-      collapsed: {},
-    });
-  });
-});
-
-describe("mergeGraphLayout", () => {
-  it("keeps only ids the current analysis reports", () => {
-    const value = layout({
-      nodes: { "table:todos": { x: 1, y: 2 }, "table:gone": { x: 3, y: 4 } },
-      collapsed: { "table:todos": true, "table:gone": false },
-      hiddenEdges: ["fk", "relation"],
-      viewport: { x: 1, y: 1, zoom: 1 },
-    });
-    const merged = mergeGraphLayout(value, {
-      nodeIds: new Set(["table:todos"]),
-      edgeKinds: ["fk"],
-    });
-    expect(merged.nodes).toEqual({ "table:todos": { x: 1, y: 2 } });
-    expect(merged.collapsed).toEqual({ "table:todos": true });
-    expect(merged.hiddenEdges).toEqual(["fk"]);
-    expect(merged.viewport).toEqual({ x: 1, y: 1, zoom: 1 });
-  });
-});
-
-describe("layout mutations", () => {
-  it("moves one node without mutating the previous layout", () => {
+describe("mutations", () => {
+  it("moves a node and preserves identity for a no-op", () => {
     const before = layout();
-    const after = withNodePosition(before, "table:todos", { x: 12, y: 34 });
-    expect(after.nodes).toEqual({ "table:todos": { x: 12, y: 34 } });
+    const moved = withNodePosition(before, "table:todos", { x: 7, y: 8 });
+    expect(moved.nodes).toEqual({ "table:todos": { x: 7, y: 8 } });
     expect(before.nodes).toEqual({});
-    expect(after).not.toBe(before);
+    expect(withNodePosition(moved, "table:todos", { x: 7, y: 8 })).toBe(moved);
   });
 
-  it("ignores a non-finite drag position", () => {
-    const before = layout();
-    expect(withNodePosition(before, "table:todos", { x: Number.NaN, y: 1 })).toBe(before);
-  });
-
-  it("toggles hidden edge kinds in canonical order", () => {
-    let value = layout();
-    value = withHiddenEdgeKind(value, "page-route", true);
-    value = withHiddenEdgeKind(value, "fk", true);
-    expect(value.hiddenEdges).toEqual(["fk", "page-route"]);
-    value = withHiddenEdgeKind(value, "fk", false);
-    expect(value.hiddenEdges).toEqual(["page-route"]);
-    expect(value.hiddenEdges.every((kind) => GRAPH_EDGE_KINDS.includes(kind))).toBe(true);
-  });
-
-  it("collapses and expands a table and stores the viewport", () => {
-    let value = withCollapsed(layout(), "table:todos", true);
+  it("collapses a node and keeps a no-op identity", () => {
+    const value = withCollapsed(layout(), "table:todos", true);
     expect(value.collapsed).toEqual({ "table:todos": true });
-    value = withCollapsed(value, "table:todos", false);
-    expect(value.collapsed).toEqual({ "table:todos": false });
-    value = withViewport(value, { x: 4, y: 5, zoom: 0.5 });
+    expect(withCollapsed(value, "table:todos", true)).toBe(value);
+  });
+
+  it("hides and shows an edge kind in canonical order", () => {
+    let value = withHiddenEdgeKind(layout(), "relation", true);
+    value = withHiddenEdgeKind(value, "fk", true);
+    expect(value.hiddenEdges).toEqual(["fk", "relation"]);
+    expect(withHiddenEdgeKind(value, "fk", false).hiddenEdges).toEqual(["relation"]);
+  });
+
+  it("stores the viewport but ignores an invalid zoom", () => {
+    const value = withViewport(layout(), { x: 4, y: 5, zoom: 0.5 });
     expect(value.viewport).toEqual({ x: 4, y: 5, zoom: 0.5 });
     expect(withViewport(value, { x: 0, y: 0, zoom: 0 })).toBe(value);
   });
 
-  it("resets positions and collapsed state but keeps the edge filters", () => {
+  it("adds, edits, moves and deletes notes immutably", () => {
+    const before = layout();
+    const added = addGraphNote(before, note());
+    expect(before.notes).toEqual({});
+    expect(added.notes[NOTE]).toEqual(note());
+    const edited = withNoteText(added, NOTE, "hello!");
+    expect(edited.notes[NOTE]?.text).toBe("hello!");
+    expect(withNoteText(edited, NOTE, "hello!")).toBe(edited);
+    const moved = withNotePosition(edited, NOTE, { x: 1, y: 2 });
+    expect(moved.notes[NOTE]).toMatchObject({ x: 1, y: 2 });
+    expect(withNotePosition(moved, NOTE, { x: 1, y: 2 })).toBe(moved);
+    expect(withNotePosition(moved, "note:missing", { x: 1, y: 2 })).toBe(moved);
+    const without = withoutGraphNote(moved, NOTE);
+    expect(without.notes).toEqual({});
+    expect(withoutGraphNote(without, NOTE)).toBe(without);
+  });
+
+  it("resets positions, curves and collapse but keeps filters and notes", () => {
     const value = layout({
       nodes: { "table:todos": { x: 1, y: 2 } },
       collapsed: { "table:todos": true },
       hiddenEdges: ["relation"],
+      edgeCurves: { "fk:1": { x: 2, y: 3 } },
+      notes: { [NOTE]: note() },
       viewport: { x: 0, y: 0, zoom: 1 },
     });
     expect(resetGraphLayoutPositions(value)).toEqual({
-      version: 1,
+      version: GRAPH_LAYOUT_VERSION,
       nodes: {},
       hiddenEdges: ["relation"],
       collapsed: {},
+      edgeCurves: {},
+      notes: { [NOTE]: note() },
     });
+  });
+
+  it("keeps an edge curve exactly at the reset distance", () => {
+    const value = withEdgeCurve(layout(), "fk:1", { x: 0.5, y: 0 });
+    expect(value.edgeCurves["fk:1"]).toEqual({ x: 0.5, y: 0 });
   });
 });
 
-function fakeController(files: Record<string, string>) {
-  const writes: { type: string; path: string; contents?: string }[] = [];
-  const controller = {
-    readFileText: async (path: string) => files[path] ?? "",
-    pathInfo: async (path: string) => ({ exists: path in files, isDir: false }),
-    bridge: {
-      request: async (type: string, extra?: Record<string, unknown>) => {
-        const path = String(extra?.path ?? "");
-        writes.push({
-          type,
-          path,
-          contents: typeof extra?.contents === "string" ? extra.contents : undefined,
-        });
-        if (type === "vv-write") files[path] = String(extra?.contents ?? "");
-        return { type: "vv-reply", ok: true };
-      },
-    },
-  };
-  return { controller: controller as unknown as IdeController, writes, files };
-}
-
-describe("layout file IO", () => {
-  const ROOT = "/w/app";
-
-  it("reads the saved layout through the VFS", async () => {
-    const { controller } = fakeController({
-      [graphLayoutPath(ROOT)]: JSON.stringify({ version: 1, nodes: { a: { x: 1, y: 2 } } }),
+describe("mergeGraphLayout", () => {
+  it("drops stale node ids, collapse flags and edge kinds but keeps notes", () => {
+    const value = layout({
+      nodes: { "table:known": { x: 1, y: 2 }, "table:stale": { x: 9, y: 9 } },
+      collapsed: { "table:known": true, "table:stale": true },
+      hiddenEdges: ["fk", "relation"],
+      edgeCurves: { "fk:1": { x: 3, y: 4 } },
+      notes: { [NOTE]: note() },
     });
-    const loaded = await loadGraphLayout(controller, ROOT);
-    expect(loaded.source).toBe("ok");
-    expect(loaded.layout.nodes).toEqual({ a: { x: 1, y: 2 } });
+    const merged = mergeGraphLayout(value, {
+      nodeIds: new Set(["table:known"]),
+      edgeKinds: ["fk"],
+    });
+    expect(merged.nodes).toEqual({ "table:known": { x: 1, y: 2 } });
+    expect(merged.collapsed).toEqual({ "table:known": true });
+    expect(merged.hiddenEdges).toEqual(["fk"]);
+    expect(merged.edgeCurves).toEqual({ "fk:1": { x: 3, y: 4 } });
+    expect(merged.notes).toEqual({ [NOTE]: note() });
   });
 
-  it("treats a missing file as a missing layout", async () => {
-    const { controller } = fakeController({});
-    const loaded = await loadGraphLayout(controller, ROOT);
-    expect(loaded.source).toBe("missing");
-    expect(loaded.layout).toEqual(emptyGraphLayout());
-  });
-
-  it("creates .facilis, its .gitignore and the layout file on save", async () => {
-    const { controller, writes, files } = fakeController({});
-    const value = withNodePosition(emptyGraphLayout(), "table:todos", { x: 7, y: 8 });
-    await saveGraphLayout(controller, ROOT, value);
-    expect(writes.map((write) => write.type)).toEqual(["vv-mkdirp", "vv-write", "vv-write"]);
-    expect(writes[1]?.path).toBe(ROOT + "/.facilis/.gitignore");
-    expect(writes[2]?.path).toBe(graphLayoutPath(ROOT));
-    expect(files[graphLayoutPath(ROOT)]).toBe(serializeGraphLayout(value));
-    expect(files[ROOT + "/.facilis/.gitignore"]).toBe("*\n");
-  });
-
-  it("does not overwrite an existing .facilis/.gitignore", async () => {
-    const ignorePath = ROOT + "/.facilis/.gitignore";
-    const { controller, writes } = fakeController({ [ignorePath]: "custom\n" });
-    await saveGraphLayout(controller, ROOT, emptyGraphLayout());
-    expect(writes.some((write) => write.path === ignorePath)).toBe(false);
+  it("drops stale curves only when the panel sees the current graph", () => {
+    const value = layout({ edgeCurves: { "fk:gone": { x: 1, y: 1 } } });
+    expect(mergeGraphLayout(value, { nodeIds: new Set() }).edgeCurves).toEqual({
+      "fk:gone": { x: 1, y: 1 },
+    });
   });
 });

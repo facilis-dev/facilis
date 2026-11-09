@@ -9,6 +9,7 @@ import RefreshCw from "~icons/lucide/refresh-cw";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import Save from "~icons/lucide/save";
 import Scan from "~icons/lucide/scan";
+import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
@@ -28,6 +29,7 @@ export function ProjectGraphToolbar({
   onToggleFullscreen,
   onFit,
   onResetLayout,
+  onAddNote,
   onSave,
   onRefresh,
   refreshing,
@@ -45,6 +47,7 @@ export function ProjectGraphToolbar({
   onToggleFullscreen: () => void;
   onFit: () => void;
   onResetLayout: () => void;
+  onAddNote: () => void;
   onSave: () => void;
   onRefresh: () => void;
   refreshing: boolean;
@@ -93,6 +96,16 @@ export function ProjectGraphToolbar({
                 ? t("projectGraph.saveFailed", { error: saveError ?? "" })
                 : ""}
         </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("projectGraph.addNote")}
+          title={t("projectGraph.addNote")}
+          disabled={stats === null}
+          onClick={onAddNote}
+        >
+          <StickyNote />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

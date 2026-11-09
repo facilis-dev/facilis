@@ -18,7 +18,7 @@ export const ALLOWED_ROOTS = ["server/", "src/", "db/", "lib/", "components/", "
 /**
  * The one root file a patch may touch: rule 16 exists because a new permission/role is
  * declared in facilis.config.ts in the same patch, so a blanket root-file rejection would
- * make the 16-rule contract self-contradictory (D-084).
+ * make the 17-rule contract self-contradictory (D-084).
  */
 export const ALLOWED_ROOT_FILES = new Set(["facilis.config.ts"]);
 

@@ -1,7 +1,13 @@
 // Fixtures shared by graph-model.test.ts and graph-model-layout.test.ts: the analyzer's
 // GraphNode/ProjectGraph shapes, small enough to spell out. Not a test module (the name does
 // not match Vitest's test glob), and not imported by the app.
-import type { ColumnFact, GraphNode, ProjectGraph, SourceRef } from "@facilis/analyze";
+import type {
+  ColumnFact,
+  GraphNode,
+  ProjectGraph,
+  RouteInputFact,
+  SourceRef,
+} from "@facilis/analyze";
 
 export const ref = (file: string): SourceRef => ({ file, line: 1 });
 
@@ -37,6 +43,8 @@ export function routeNode(
   overrides: Partial<{
     permission: readonly string[] | null;
     wrapper: "valid" | "invalid" | "unknown";
+    input: RouteInputFact;
+    description: string | null;
     unknown: boolean;
   }> = {},
 ): GraphNode {
@@ -51,8 +59,10 @@ export function routeNode(
       path,
       permission: overrides.permission ?? ["todos:read"],
       wrapper: overrides.wrapper ?? "valid",
+      input: overrides.input ?? { body: false, form: false, query: false, params: false },
       dbTables: ["todos"],
       dbColumns: [],
+      description: overrides.description ?? null,
       unknown: overrides.unknown ?? false,
     },
   };

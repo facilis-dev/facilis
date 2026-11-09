@@ -66,8 +66,8 @@ formatted once when the fork started), vitest tests, and the 300-line limit with
 exception described below. Gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
 `pnpm format:check` from the repo root; per-package `pnpm --filter @facilis/ide <script>`.
 
-**300-line ratchet:** twelve files inherited from upstream are above the limit
-(`controller.ts` 2.5k and falling, ten components, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
+**300-line ratchet:** ten files inherited from upstream are above the limit
+(`controller.ts` 2.5k and falling, eight components, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
 at their import size; the check is a ratchet — a listed file may shrink but not grow, entries
 must be deleted once a file drops under 300 lines, and no new file may be added. Splitting them
 (staring with `controller.ts`) is the Phase 2 refactor, in progress: each subsystem moves
@@ -88,7 +88,7 @@ immediately.
    `../../../vendor/vivari/packages/{kernel-host,runtime}`.
 5. Formatting: the tree is formatted with the repo Prettier config (mechanical, no behaviour
    change). Keep it formatted; do not re-run upstream's formatter.
-6. Twelve files above 300 lines, recorded in the file-length baseline (see above).
+6. Ten files above 300 lines, recorded in the file-length baseline (see above).
 7. **The upstream template catalog is gone** (D-051): `src/vv/templates.ts`,
    `src/vv/templates-lazy.ts`, `templateIcons.tsx` and the brand SVGs they bundled are
    deleted. The IDE creates Facilis projects only, through
@@ -121,6 +121,14 @@ immediately.
    `src/vv/project-registry.ts` read-merge-writes Home's recent list (a tab must not drop
    another tab's project) and `src/vv/project-name.ts` derives the label from the folder name
    (D-035); `IdeProvider` installs the tab modules and `TitleBar` gains a "New tab" button.
+11. **The status bar owns the bottom panel** (D-124): the Console / Terminal / Ports panel
+    starts closed and never opens itself — not on a run, not when a project opens. Its three
+    surfaces are opened from chips at the right of the status bar
+    (`src/components/ide/StatusBarRuntime.tsx`), which also carries the project's Run/Stop
+    control; the panel's own tab strip is gone (`TerminalPanel.tsx`) and the title bar keeps
+    only the sidebar/preview toggles plus a Run/Stop twin. `runProject` no longer opens the
+    panel or focuses a terminal; a failed start is reported in the status bar and in the empty
+    preview (`PreviewEmptyState.tsx`), and `stopRun` closes only the terminal a run created.
 
 Everything else is byte-identical to upstream at the pinned commit (`diff -r` with
 `vendor/vivari/packages/studio` shows exactly the files above).

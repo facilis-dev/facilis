@@ -13,8 +13,10 @@ import type {
   GraphNode,
   GraphNodeKind,
   ProjectGraph,
+  RouteInputFact,
 } from "@facilis/analyze";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
+import { pathParamsOf } from "./graph-path-params";
 import {
   GRAPH_COLUMNS,
   type ColumnMarker,
@@ -44,8 +46,11 @@ export type {
 } from "./graph-types";
 export { GRAPH_COLUMNS } from "./graph-types";
 
-/** Vertical pitch per kind; a node never overlaps the next one of its column. */
-const ROW_PITCH = { page: 88, route: 96, table: 190 } as const;
+/**
+ * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
+ * the tallest of the fixed rows because they carry the input flags and path-parameter row.
+ */
+const ROW_PITCH = { page: 88, route: 112, table: 190 } as const;
 
 function columnView(column: ColumnFact): GraphColumn {
   const markers: ColumnMarker[] = [];
@@ -75,6 +80,9 @@ function pageData(node: GraphNode): PageGraphData | null {
   };
 }
 
+/** An analyzer bundled before the input facts (or a still-running old worker) omits the field. */
+const NO_ROUTE_INPUT: RouteInputFact = { body: false, form: false, query: false, params: false };
+
 function routeData(node: GraphNode): RouteGraphData | null {
   if (node.data.kind !== "route") return null;
   return {
@@ -83,6 +91,9 @@ function routeData(node: GraphNode): RouteGraphData | null {
     path: node.data.path,
     permission: node.data.permission,
     wrapper: node.data.wrapper,
+    description: node.data.description ?? null,
+    input: node.data.input ?? NO_ROUTE_INPUT,
+    pathParams: pathParamsOf(node.data.path),
     unknown: node.data.unknown,
   };
 }

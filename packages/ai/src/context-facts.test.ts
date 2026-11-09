@@ -11,7 +11,6 @@ describe("buildProjectContext", () => {
     expect(context.config.roles.user).toEqual(["todos:read", "todos:write"]);
     expect(context.config.defaultRole).toBe("user");
     expect(context.config.migrationsDir).toBe("db/migrations");
-    expect(context.config.blocksPackages).toEqual(["@facilis/blocks"]);
   });
 
   it("maps the analyzer schema facts with Drizzle property names", () => {

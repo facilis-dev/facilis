@@ -3,7 +3,7 @@
 //
 // Order: re-check the plan against the project (a plan is made from a read, and another
 // tab or the user may have written since), write the recipe files, run the caller's
-// postflight (install, typecheck, DB migration), and only then rewrite facilis.app.json.
+// postflight (install, typecheck, DB migration), and only then rewrite .facilis/facilis.app.json.
 // Any failure restores every path already touched, in reverse, and leaves the marker
 // alone - so a retry starts from the same version.
 

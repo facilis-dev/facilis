@@ -4,15 +4,10 @@ import Trash2 from "~icons/lucide/trash-2";
 import ChevronDown from "~icons/lucide/chevron-down";
 import ExternalLink from "~icons/lucide/external-link";
 import SquareTerminal from "~icons/lucide/square-terminal";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useIde } from "./useIde";
-
-const PANEL_TABS = [
-  { id: "console", label: "Console" },
-  { id: "terminal", label: "Terminal" },
-  { id: "ports", label: "Ports" },
-] as const;
 
 export function TerminalPanel() {
   const { c, snap } = useIde();
@@ -39,38 +34,26 @@ export function TerminalPanel() {
   }, [c, visibleTermId]);
 
   const shells = snap.terminals.filter((t) => t.kind === "shell");
+  // The panel has no tab strip any more: the status bar's chips pick the surface
+  // (D-124), so this bar only names it and carries the panel's own actions.
+  const title =
+    snap.panelTab === "console"
+      ? t("panel.console")
+      : snap.panelTab === "terminal"
+        ? t("panel.terminal")
+        : t("panel.ports");
 
   return (
     <div className="flex h-full flex-col bg-panel">
-      {/* panel tab strip */}
-      <div className="flex h-8 shrink-0 items-center border-b pr-2">
-        <div className="flex flex-1 items-stretch">
-          {PANEL_TABS.map((tab) => {
-            const active = tab.id === snap.panelTab;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => c.terminals.setPanelTab(tab.id)}
-                className={cn(
-                  "flex items-center border-b-2 px-3 text-xs font-medium uppercase tracking-wide transition-colors",
-                  active
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.label}
-                {tab.id === "ports" && snap.ports.length > 0 && (
-                  <span className="ml-1.5 rounded bg-muted px-1 text-[10px] leading-4 text-muted-foreground">
-                    {snap.ports.length}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex h-8 shrink-0 items-center gap-1 border-b px-2 pr-1">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {title}
+        </span>
+        <span className="flex-1" />
         {snap.panelTab === "terminal" && (
           <button
-            title="New Terminal"
+            title={t("panel.newTerminal")}
+            aria-label={t("panel.newTerminal")}
             className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={() => c.terminals.newShellTerminal()}
           >
@@ -78,7 +61,8 @@ export function TerminalPanel() {
           </button>
         )}
         <button
-          title="Hide panel"
+          title={t("panel.hide")}
+          aria-label={t("panel.hide")}
           className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={() => c.togglePanel(false)}
         >
@@ -86,7 +70,7 @@ export function TerminalPanel() {
         </button>
       </div>
 
-      {/* body — all xterm hosts stay mounted so scrollback survives tab switches */}
+      {/* body — all xterm hosts stay mounted so scrollback survives surface switches */}
       <div ref={bodyRef} className="relative flex-1 overflow-hidden">
         {/* Console */}
         <div className={cn("absolute inset-0", snap.panelTab === "console" ? "block" : "hidden")}>
@@ -109,20 +93,19 @@ export function TerminalPanel() {
               <div className="relative h-full min-w-0">
                 {shells.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
-                    No terminals. Press <span className="mx-1 text-foreground">+</span> to create
-                    one.
+                    {t("panel.noTerminals")}
                   </div>
                 )}
-                {shells.map((t) => (
+                {shells.map((term) => (
                   <div
-                    key={t.id}
+                    key={term.id}
                     className={cn(
                       "vv-term-host absolute inset-0",
-                      snap.panelTab === "terminal" && t.id === snap.activeTermId
+                      snap.panelTab === "terminal" && term.id === snap.activeTermId
                         ? "block"
                         : "hidden",
                     )}
-                    ref={(el) => c.mountTerminal(t.id, el)}
+                    ref={(el) => c.mountTerminal(term.id, el)}
                   />
                 ))}
               </div>
@@ -130,28 +113,29 @@ export function TerminalPanel() {
             <ResizableHandle />
             <ResizablePanel id="term-list" defaultSize="20%" minSize="10%" maxSize="45%">
               <ul className="h-full overflow-y-auto border-l bg-sidebar py-1 text-xs">
-                {shells.map((t) => {
-                  const active = t.id === snap.activeTermId;
+                {shells.map((term) => {
+                  const active = term.id === snap.activeTermId;
                   return (
-                    <li key={t.id}>
+                    <li key={term.id}>
                       <div
-                        onClick={() => c.terminals.switchTerminal(t.id)}
+                        onClick={() => c.terminals.switchTerminal(term.id)}
                         className={cn(
                           "group flex cursor-pointer items-center gap-1.5 px-2 py-1",
                           active
                             ? "bg-accent text-foreground"
                             : "text-muted-foreground hover:text-foreground",
-                          !t.alive && "italic opacity-60",
+                          !term.alive && "italic opacity-60",
                         )}
                       >
                         <SquareTerminal className="size-3.5 shrink-0 opacity-70" />
-                        <span className="truncate">{t.label}</span>
+                        <span className="truncate">{term.label}</span>
                         <button
-                          title="Kill terminal"
+                          title={t("panel.killTerminal")}
+                          aria-label={t("panel.killTerminal")}
                           className="ml-auto hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground group-hover:flex"
                           onClick={(e) => {
                             e.stopPropagation();
-                            c.terminals.closeTerminal(t.id);
+                            c.terminals.closeTerminal(term.id);
                           }}
                         >
                           <Trash2 className="size-3" />
@@ -173,16 +157,16 @@ export function TerminalPanel() {
           )}
         >
           {snap.ports.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              No ports are being forwarded. Run a project to start a server.
+            <div className="flex h-full items-center justify-center px-6 text-center text-xs text-muted-foreground">
+              {t("panel.noPorts")}
             </div>
           ) : (
             <table className="w-full text-xs">
               <thead className="text-muted-foreground">
                 <tr className="border-b">
-                  <th className="px-3 py-1.5 text-left font-medium">Port</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Process ID</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Address</th>
+                  <th className="px-3 py-1.5 text-left font-medium">{t("panel.port")}</th>
+                  <th className="px-3 py-1.5 text-left font-medium">{t("panel.process")}</th>
+                  <th className="px-3 py-1.5 text-left font-medium">{t("panel.address")}</th>
                   <th className="px-3 py-1.5 text-right font-medium" />
                 </tr>
               </thead>
@@ -196,7 +180,8 @@ export function TerminalPanel() {
                     </td>
                     <td className="px-3 py-1.5 text-right">
                       <button
-                        title="Open in new tab"
+                        title={t("panel.openPreview")}
+                        aria-label={t("panel.openPreview")}
                         className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                         onClick={() => c.preview.openExternalPreview(p.port)}
                       >

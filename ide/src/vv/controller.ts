@@ -259,6 +259,10 @@ export interface IdeSnapshot {
   // and the status bar narrate while there is nothing to preview yet. Null once
   // the preview paints (or the run tab exits).
   runPhase: RunPhase | null;
+  // The run's terminal; Stop closes it. Outlives the phase so the chip can still stop.
+  runTerminalId: string | null;
+  // The last run died before its dev server bound a port; sticky until the next run.
+  runFailed: boolean;
   view: "home" | "workspace";
   // The project a reloaded tab is booting into (?project=): non-null until the
   // project-opening pass landed it (or gave up and went Home). Drives the blocking
@@ -291,7 +295,6 @@ export interface IdeSnapshot {
   activePreviewId: string | null;
   devtoolsOpen: boolean; // the chii DevTools panel (bottom split of the preview)
   devtoolsNonce: number; // bump to reload the DevTools frontend (re-attach to a new target)
-  selectedDemo: string;
   activeView: "explorer" | "search" | "debug" | "scm" | "chat" | "data" | "release" | "logs";
   sidebarCollapsed: boolean;
   panelCollapsed: boolean;
@@ -353,6 +356,8 @@ export class IdeController {
     bootTotal: 0,
     bootError: null,
     runPhase: null,
+    runTerminalId: null,
+    runFailed: false,
     // A shared link and a reload of a tab that has a project land straight on the
     // (loading) workspace, never Home — so the user can't accidentally start a new
     // project while it bootstraps, and a reload does not flash the picker.
@@ -381,7 +386,6 @@ export class IdeController {
     activePreviewId: null,
     devtoolsOpen: false,
     devtoolsNonce: 0,
-    selectedDemo: DEMOS[0].id,
     activeView: "explorer",
     sidebarCollapsed: false,
     panelCollapsed: true,
@@ -1454,6 +1458,8 @@ export class IdeController {
       view: "workspace",
       projectTitle: folder.name,
       treeVersion: this.snap.treeVersion + 1,
+      // A failure belongs to the project that failed, not to the next one opened.
+      runFailed: false,
     });
     void this.indexFolder(root);
     this.syncScmRoots();
@@ -1605,6 +1611,7 @@ export class IdeController {
     this.folderManifests.set(root, template.manifest);
     this.upsertProjectMeta({ rootPath: root, template: template.manifest.id });
     this.openFolder(root);
+    void this.scm.init(root);
     void this.openFile(root + "/" + template.manifest.entry);
     if (runInit) {
       this.runProject(root);
@@ -1641,7 +1648,7 @@ export class IdeController {
       return;
     }
     // Only a Facilis project gets the Facilis manifest - and, in a managed build, only one
-    // that carries a valid facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
+    // that carries a valid .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
     // opens, but Run drops into a shell rather than executing an unvetted project.
     if (meta.template === FACILIS_TEMPLATE_ID && (await projectAdmitted(this.bridge, root))) {
       const template = await loadFacilisTemplate();
@@ -1672,10 +1679,8 @@ export class IdeController {
   runProject(rootPath: string) {
     const root = normDir(rootPath);
     const manifest = this.folderManifests.get(root);
-    this.set({ panelCollapsed: false });
     const running = this.runningProjects.get(root);
     if (running && running.terminalId && this.terminals.has(running.terminalId)) {
-      this.terminals.switchTerminal(running.terminalId);
       if (running.port) this.preview.pointPreview(running.port);
       return;
     }
@@ -1690,21 +1695,18 @@ export class IdeController {
       cwd: root,
       run: manifest.dev,
       label: manifest.dev,
+      activate: false,
     });
     this.runningProjects.set(root, { terminalId: tid, port: null });
     this.beginRunPhase(root);
   }
 
   // ── run narration ──────────────────────────────────────────────────────────
-  // A run's phase, kept in the snapshot so the preview panel and the status bar
-  // say the same thing. `runTerminalId` is what ties terminal output back to the
-  // run: the fetch counters arrive as bytes on a terminal, and every other
-  // terminal's bytes must be ignored.
-  private runTerminalId: string | null = null;
-
+  // A run's phase, kept in the snapshot so the preview panel and the status bar say
+  // the same thing. `runTerminalId` ties terminal output back to the run: the fetch
+  // counters arrive as bytes on a terminal, and other terminals' bytes are ignored.
   private beginRunPhase(root: string) {
     const running = this.runningProjects.get(root);
-    this.runTerminalId = running?.terminalId ?? null;
     this.editorLanguage.setIntelligence(false);
     const phase: RunPhase = {
       rootPath: root,
@@ -1713,7 +1715,7 @@ export class IdeController {
       detail: "",
       startedAt: Date.now(),
     };
-    this.set({ runPhase: phase });
+    this.set({ runPhase: phase, runFailed: false, runTerminalId: running?.terminalId ?? null });
     this.status(`${phase.name}: installing dependencies…`);
   }
 
@@ -1728,7 +1730,6 @@ export class IdeController {
   private endRunPhase(root?: string) {
     if (!this.snap.runPhase) return;
     if (root && this.snap.runPhase.rootPath !== root) return;
-    this.runTerminalId = null;
     this.set({ runPhase: null });
     this.editorLanguage.enableIntelligence();
     // node_modules exists now (or never will), so the types harvest is finally
@@ -1740,7 +1741,18 @@ export class IdeController {
   runActiveFolder() {
     const f = this.activeFolder;
     if (f) this.runProject(f.rootPath);
-    else toast.error("Open a project first");
+    else toast.error(t("run.noProject"));
+  }
+
+  // Stop the dev server the Run control started: kill its terminal and drop the phase
+  // and the run marker here, so the chip falls back to Run at once and a deliberate
+  // stop is not the failure state. `term-exit` then drops the port and the server entry.
+  stopRun() {
+    const id = this.snap.runTerminalId;
+    if (!id) return;
+    this.endRunPhase();
+    this.set({ runTerminalId: null });
+    this.bridge.post("term-close", { terminalId: id });
   }
 
   // Open a new terminal rooted at `absDir` (Explorer "Open in Integrated Terminal").
@@ -2131,25 +2143,6 @@ export class IdeController {
     }
   }
 
-  // ── demo run (legacy built-in examples) ────────────────────────────────────
-  setSelectedDemo(id: string) {
-    this.set({ selectedDemo: id });
-  }
-  runDemo() {
-    const demo = this.snap.selectedDemo;
-    this.set({ panelCollapsed: false, view: "workspace" });
-    const running = this.runningDemos.get(demo);
-    if (running && running.terminalId && this.terminals.has(running.terminalId)) {
-      this.terminals.switchTerminal(running.terminalId);
-      if (running.port) this.preview.pointPreview(running.port);
-      return;
-    }
-    const opt = DEMOS.find((d) => d.id === demo);
-    const tid = this.terminals.newShellTerminal({ demo, label: opt?.runLabel ?? "run" });
-    this.runningDemos.set(demo, { terminalId: tid, port: null });
-    this.status("installing from npm + booting in-VM…");
-  }
-
   // ── UI toggles ──
   togglePanel(force?: boolean) {
     const collapsed = force === undefined ? !this.snap.panelCollapsed : !force;
@@ -2348,6 +2341,7 @@ export class IdeController {
       this.consoleLine(`[kernel] pid ${m.pid} listening on :${m.port}`, "90");
       this.portMap.set(m.port as number, m.pid as number);
       this.syncPorts();
+      if (this.snap.runFailed) this.set({ runFailed: false });
       this.updateRunPhase((cur) => advance(cur, "starting"));
     });
 
@@ -2376,7 +2370,7 @@ export class IdeController {
       if (bootMs) {
         this.consoleLine(`[boot] shell (Process Worker) booted in ${Math.round(bootMs)}ms`, "90");
       }
-      if (m.terminalId === this.runTerminalId) {
+      if (m.terminalId === this.snap.runTerminalId) {
         const p = readFetchProgress(chunk);
         if (p) this.updateRunPhase((cur) => ({ ...cur, detail: formatProgress(p) }));
       }
@@ -2389,11 +2383,13 @@ export class IdeController {
         return;
       }
       const exited = this.terminals.markExited(id, Number(m.code));
-      if (!exited) return;
+      // Closed from the list: gone from the session, but its run still needs the cleanup.
+      if (!exited && this.snap.runTerminalId !== id) return;
       // A demo's dev-server tab ended → server gone.
-      if (exited.demo && this.runningDemos.get(exited.demo)?.terminalId === id) {
-        const gone = this.runningDemos.get(exited.demo);
-        this.runningDemos.delete(exited.demo);
+      const demo = exited?.demo ?? null;
+      if (demo && this.runningDemos.get(demo)?.terminalId === id) {
+        const gone = this.runningDemos.get(demo);
+        this.runningDemos.delete(demo);
         if (gone?.port != null && this.portMap.delete(gone.port)) this.syncPorts();
         if (gone?.port != null && this.snap.previewTabs.some((t) => t.port === gone.port))
           this.status("dev server stopped — preview will 502 until you Run again");
@@ -2401,6 +2397,9 @@ export class IdeController {
       // A created/opened project's run tab ended → server gone.
       for (const [dir, r] of this.runningProjects) {
         if (r.terminalId === id) {
+          // Died before binding a port: the terminal that would explain it is closed by
+          // default now (D-124). A close from the terminal list is not a failure.
+          const failed = exited !== null && r.port == null && this.snap.runPhase != null;
           this.runningProjects.delete(dir);
           if (r.port != null && this.portMap.delete(r.port)) this.syncPorts();
           this.preview.syncKeepPrefixPorts();
@@ -2408,6 +2407,8 @@ export class IdeController {
           // claiming to be installing — the preview shell would otherwise sit
           // there indefinitely while the answer is already in the terminal.
           this.endRunPhase(dir);
+          if (failed) this.set({ runFailed: true });
+          if (this.snap.runTerminalId === id) this.set({ runTerminalId: null });
           if (r.port != null && this.snap.previewTabs.some((t) => t.port === r.port))
             this.status("dev server stopped — preview will 502 until you Run again");
         }

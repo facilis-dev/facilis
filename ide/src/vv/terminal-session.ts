@@ -158,9 +158,10 @@ export class TerminalSession {
       }
       this.bridge.post("term-input", { terminalId: id, chunk: data });
     });
-    // Adopt as the active shell if none is selected yet (keeps the Terminal tab
-    // pointing at a real shell even for the background boot terminal).
-    if (this.host.activeTermId() === null) this.host.patch({ activeTermId: id });
+    // The run's shell becomes the active one even though a run no longer opens the
+    // panel (D-124). The deferred background boot shell only fills an empty slot: it
+    // is created at "ready", after a ?project= boot may already have the run shell.
+    if (!defer || this.host.activeTermId() === null) this.host.patch({ activeTermId: id });
     this.sync();
     if (activate) this.switchTerminal(id);
     if (defer) {

@@ -33,7 +33,7 @@ neither, delete it.
 | **Who it convinces** | CTO, tech lead, security reviewer, agency principal | The developer doing the work |
 | **Their fear** | "Someone — or something — shipped an endpoint with no auth." | "Another two days before I can run anything." |
 | **The promise** | Control lives in the framework, not in review | Day one is a link |
-| **The mechanism** | `defineAuthorizedHandler`, generated RLS, roles-as-code, 16-rule AI validator | Static SPA + WebContainer, one process / one port, PGlite, 80% pre-written |
+| **The mechanism** | `defineAuthorizedHandler`, generated RLS, roles-as-code, 17-rule AI validator | Static SPA + WebContainer, one process / one port, PGlite, 80% pre-written |
 | **The proof** | An unauthorized route doesn't compile | Clone → running, authenticated app in under 3 min |
 | **The CTA** | Read the five layers → `/security` | Watch the stopwatch → `/demo` |
 
@@ -168,7 +168,7 @@ Proof bullets:
   the type check, not the review. **[shipped — Phase 1]**
 - A scoped table without a policy fails the migration.
 - Roles and permissions are code: diffable, reviewable, committed.
-- AI output passes 16 rules before it touches disk — so an agent can be given write access
+- AI output passes 17 rules before it touches disk — so an agent can be given write access
   without being given the ability to create an open endpoint.
 - Review moves from *"is this safe?"* to *"is this right?"*
 

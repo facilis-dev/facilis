@@ -33,9 +33,12 @@ describe("SYSTEM_PROMPT", () => {
       "minimal patches",
       "Do not invent roles or permissions",
       "config.auth.permissions",
+      "Every route carries a description",
+      "never t()",
     ]) {
       expect(SYSTEM_PROMPT).toContain(rule);
     }
+    expect(SYSTEM_PROMPT).toContain('description: "List todos visible to the current user."');
   });
 
   it("states the browser/server boundary rules", () => {

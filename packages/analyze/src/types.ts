@@ -43,7 +43,6 @@ export interface ConfigFacts {
   readonly migrationsDir: string;
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
-  readonly blocksPackages: readonly string[];
   readonly unknown: readonly UnknownFact[];
 }
 
@@ -232,8 +231,12 @@ export interface RouteNodeData {
   readonly path: string;
   readonly permission: readonly string[];
   readonly wrapper: WrapperState;
+  /** Presence of the handler's input schemas (body/form/query/params), from the AST. */
+  readonly input: RouteInputFact;
   readonly dbTables: readonly string[];
   readonly dbColumns: readonly string[];
+  /** The wrapper config's one-sentence description, or null when absent (D-129). */
+  readonly description: string | null;
   readonly unknown: boolean;
 }
 

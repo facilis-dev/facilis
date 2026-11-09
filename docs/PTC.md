@@ -17,7 +17,7 @@ D-100 (repair loop), D-102 (repair hardening).
   Chrome-only `csp=""` attribute.
 - **Spike first.** Phase 0 proved isolation, RPC, worker termination and parent responsiveness
   before any tool work (results in §5).
-- **`validate` tool.** The model can run the 16-rule validator on candidate patches before its
+- **`validate` tool.** The model can run the 17-rule validator on candidate patches before its
   final answer. The final §9.3 gate **stays mandatory** (invariant 9): the goal is that the
   model self-checks and the user almost never sees a final validation failure, not removing the
   safety net.
@@ -26,7 +26,7 @@ D-100 (repair loop), D-102 (repair hardening).
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
 read-only tool registry (files, analyzer facts, manifest, later MCP servers), returns lossless
 JSON to the model, and only the final answer of the conversation becomes an `AIResponse` whose
-patches still go through the 16-rule validator and the user's Apply.
+patches still go through the 17-rule validator and the user's Apply.
 
 ---
 
@@ -192,6 +192,8 @@ confined to the project root, and go through one policy function.
 | `preview_open` | `{ path }` | navigates the preview to a route (reloads) |
 | `preview_wait` | `{ selector?, ms? }` | waits for an element or a delay |
 | `preview_screenshot` | `{}` | JPEG of the page (html2canvas): shown to the user, sent to vision models (D-112) |
+| `graph_state` | `{}` | project graph: nodes (kind, label, position), edges (with manual bend), markdown notes, visibility (D-126) |
+| `graph_arrange` | `{ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? }` | applies a validated, capped arrangement to the committed graph state; the open panel reloads (D-126) |
 
 **The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
 validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
@@ -211,6 +213,14 @@ sent to the model only when the configured preset accepts images. A login screen
 flow, not a failure: the preview shares the user's session (the kernel keeps the app's cookie jar
 per project), so the prompt (D-115) tells the model to use it, or to register a throwaway account
 in the dev database, and to hand anything outside the frame (OAuth/SSO, 2FA) back to the user.
+
+**The graph tools (D-126) work on the project graph, not the source.** `graph_state` reads the
+nodes (kind, label, position), the edges (with their manual bends) and the markdown notes;
+`graph_arrange` applies a validated, capped arrangement — positions, bends, notes, visibility —
+to the committed `.facilis/graph/` state and refreshes the open panel. This is the one
+write-intent tool family that lands with phase 1: the graph is diagram state, not source, so it is
+not the §9.3 patch path and never validated as a code patch, and the source allowlist is
+unchanged. With no project open they answer `{ available: false }`.
 
 Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is
@@ -303,7 +313,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
 | 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
-| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 16-rule validator; token/cost report |
+| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 17-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist — **client and config landed 2026-11-08 (D-118); settings UI and allowlist remain** | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 

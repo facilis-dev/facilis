@@ -1,8 +1,8 @@
 /**
- * The SPEC §9.3 patch validator: 16 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 17 rules, grouped by the part of the project they read.
  *
  * Without a context only the two context-free structural checks run (the parser gate);
- * with a context the full rule set runs. Rules 5, 13 and 14 are warnings (they never
+ * with a context the full rule set runs. Rules 5, 13, 14 and 17 are warnings (they never
  * block); the others are errors and make `ok` false, which is what stops the IDE's apply
  * path before it writes anything (invariant 9).
  *
@@ -16,6 +16,7 @@ import { roleConfigSyncErrors } from "./rules/config-sync.ts";
 import { destructiveErrors, migrationWarnings, rlsErrors } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
+import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
   permissionErrors,
   routeDbColumnsWarnings,
@@ -54,6 +55,7 @@ export function validatePatch(
     warnings.push(...migrationWarnings(patches, state));
     errors.push(...destructiveErrors(state, options.requiresConfirmation === true));
     errors.push(...roleConfigSyncErrors(patches, state));
+    warnings.push(...routeDescriptionWarnings(state));
   }
   return { ok: errors.length === 0, errors, warnings };
 }

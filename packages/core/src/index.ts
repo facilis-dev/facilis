@@ -20,7 +20,6 @@ export {
 export type {
   DbMode,
   FacilisAuthConfig,
-  FacilisBlocksConfig,
   FacilisConfig,
   FacilisConfigInput,
   FacilisDbConfig,

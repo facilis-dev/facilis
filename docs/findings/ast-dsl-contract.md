@@ -20,7 +20,10 @@ with **zero build-time execution**. Runtime endpoints remain only for genuinely 
   `src/lib/api.ts` is the transport (the preview base path makes bare relative `fetch` unsafe);
   the gate blocks every other network call in `src/**`. The contract keeps the transport
   configurable by module + export, so a native-`fetch` variant is a config change later.
-- Layout persistence: `.facilis/graph.json`, **gitignored** by default (local editor state).
+- Layout persistence: `.facilis/graph/` — **committed team state** (D-126): `layout.json`
+  (settings), `positions/<key>.json` (one position per node or note), `bends/<key>.json` (one
+  bend per edge), `notes/<uuid>.md` (markdown annotations); `viewport.json` stays local
+  (git-ignored).
 
 ## 1. Goal and non-goals
 
@@ -80,7 +83,7 @@ The analyzer is only as strong as this surface. Everything else is `unknown`.
 | `permission` | required; string or string[]; declared in `config.auth.permissions` | literal/const |
 | `dbTables` | required; `string[]` (`[]` = explicit "no DB") | literal/const/import |
 | `dbColumns` | optional; `"table.column"` — **Drizzle property keys** (decided); SQL name derived from the column builder | literal/const/import |
-| `description` | optional string | literal/const |
+| `description` | optional, one English sentence ≤120 chars (D-129); shown under the route node and in OpenAPI | literal/const |
 | `body`/`query`/`params` | presence required if the handler reads that input | property presence; Zod shape is v1 |
 | raw handler | **error**: the route is still listed (from filename) with `wrapper: invalid` | — |
 
@@ -242,13 +245,13 @@ Package tests: 66, green; `typecheck`, `lint`, build and the 300-line check are 
 `examples/todo-app`: 443 files, 8 routes, 6 tables (including the re-exported `@facilis/auth`
 tables), 4 pages with calls, 18 graph nodes / 31 edges, 0 diagnostics. The IDE worker and the
 `project-graph` tab are implemented on the same facts (lazy wasm worker + fullscreen graph +
-`.facilis/graph.json`); IDE tests/typecheck/lint/build and the browser smoke graph checks pass.
+`.facilis/graph/` state set); IDE tests/typecheck/lint/build and the browser smoke graph checks pass.
 
 **Cutover (D-093).** The old scanners `packages/nitro/src/ast/**`,
 `packages/ai/src/{scan,config-facts,schema-facts}.ts` are deleted. `@facilis/nitro` maps
 `RouteFact[]` to the manifest/OpenAPI contract (`route-metadata.ts`) with a parser injected from
 `rolldown/utils` (`rolldown-parser.ts`), because the generated project's Vite config runs in the
-WebContainer; `@facilis/analyze/fs` is the parser-free Node loader. `@facilis/ai`'s 16-rule
+WebContainer; `@facilis/analyze/fs` is the parser-free Node loader. `@facilis/ai`'s 17-rule
 validator consumes the effective post-patch `Analysis` plus the pre-patch one; the IDE builds
 both on its warm worker (`patch-analysis.ts`), caches the pre-patch analysis per VFS snapshot,
 and fails closed with `project-analysis` if the analyzer is unavailable. `@facilis/analyze` is
@@ -264,7 +267,9 @@ panels.
 
 - **table**: header (name, RLS badge, scope), column list (SQL name, type, PK/FK/unique/not-null
   markers), collapsible, unknown badge;
-- **route**: method + path, permission, wrapper state (`valid | invalid | unknown`), source;
+- **route**: method + path, the wrapper config's one-sentence description (clamped to two
+  lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
+  input flags (`body | form | query | params`), path parameters from the route template, source;
 - **page**: file path, kind (`page | component | lib`), call count.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.
@@ -285,34 +290,61 @@ panels.
   exits), with the toolbar (filters, save, reset, fit, search) kept on top.
 - **Filters**: show/hide each edge kind (and optionally each node kind); hidden state is
   persisted.
-- **Drag**: nodes are draggable; initial positions come from a deterministic layered layout
-  (pages → routes → tables; FK/relations among tables). "Reset layout" returns to it.
+- **Drag**: nodes are draggable and follow the pointer live; the position is committed on drop.
+  Initial positions come from a deterministic layered layout (pages → routes → tables;
+  FK/relations among tables). "Reset layout" returns to it.
+- **Free attachment**: edges are floating — an endpoint is the intersection of the node
+  rectangle with the centre-to-centre line, recomputed from measured bounds while dragging, so an
+  edge can leave/enter any side; a self-reference loops.
+- **Curves**: selecting an edge reveals a midpoint handle; dragging it stores a per-edge
+  `edgeCurves` offset. Double-click straightens the edge, "Reset layout" clears the curves too.
+- **Notes**: markdown annotations are free-floating nodes (`note:<uuid>`); the body is one
+  markdown file, double-click edits it, the card renders the markdown.
+- **AI**: `graph_state` reads nodes/edges/notes with positions; `graph_arrange` applies moves,
+  bends, notes and visibility, validated and capped, then the open panel reloads.
 - **Navigation**: pan/zoom/fit/minimap, node search, click node/edge → inspector + source jump,
   reverse lookups ("used by").
 - **Performance**: React Flow with memoised nodes, `onlyRenderVisibleElements`, collapsed
   column lists when zoomed out; a few hundred nodes must stay usable.
 
-**Persistence to a file**
+**Persistence to a committed file set**
 
-Layout is UI state, saved through the kernel (`kernel.writeFiles`, invariant 7), debounced,
-to a project file — proposed `.facilis/graph.json`:
+Diagram state (layout, bends, filters and team annotations) is saved through the kernel
+(`kernel.writeFiles`, invariant 7), debounced, into `.facilis/graph/` (D-126). It is split so
+that git merges per element: one settings file, one small JSON file per position or bend, one
+markdown file per note, and pan/zoom kept local.
 
-```json
-{
-  "version": 1,
-  "nodes": { "table:todos": { "x": 10, "y": 20 } },
-  "hiddenEdges": ["relation", "dbColumns"],
-  "collapsed": { "table:todos": false },
-  "viewport": { "x": 0, "y": 0, "zoom": 0.8 }
-}
+```text
+.facilis/graph/layout.json             { "version": 3, "hiddenEdges": [...], "collapsed": {...} }
+.facilis/graph/positions/<key>.json    {"id":"table:todos","x":10,"y":20}     one per node/note
+.facilis/graph/bends/<key>.json        {"id":"fk:table:todos:…","x":24,"y":-40}   one per edge
+.facilis/graph/notes/<uuid>.md         # Annotazione   (one markdown file per note)
+.facilis/graph/viewport.json           { "x": 0, "y": 0, "zoom": 0.8 }   (git-ignored)
 ```
 
+- `.facilis/.gitignore` keeps `*` and gets an idempotently appended allowlist (`!graph/`,
+  `!graph/**`, `graph/viewport.json`): the graph is committable while the rest of `.facilis`
+  (database snapshot, binary blobs, logs — D-052) stays local. The file is extended, never
+  rewritten.
+- One element per file **is** the merge strategy: independent edits (two different nodes, two
+  notes) merge automatically — a single JSONL file conflicted as soon as the changed lines were
+  adjacent, which is why this is per element. Only the same element leaves a conflict, on one
+  small file, and the conflict is readable.
+- `positions/<key>.json` doubles as a note's geometry: the note body is `notes/<uuid>.md`, so
+  moving and editing it are independent edits. A note without a saved position is parked at a
+  deterministic fallback instead of being dropped.
+- `bends/<key>.json` are keyed by the stable edge id; a missing file is the automatic path.
+  Schema version 1/2 files (the single `.facilis/graph.json`, no notes) are read once through
+  migration and rewritten as v3; stale edge ids are ignored.
 - IDs are the stable fact IDs (`page:<path>`, `route:<METHOD> <path>`, `table:<name>`); ids
   that no longer exist are ignored on load, new nodes get auto positions.
-- Missing/corrupt file → auto layout + warning; the file is never an input to validation.
-- The AI patch allowlist does not include it, so models cannot rewrite the layout.
-- `.facilis/` is **gitignored** by default (decided): the layout is local editor state. If a
-  team wants a shared layout later, only the template's `.gitignore` changes.
+- Missing/corrupt state → auto layout + warning; the state is never an input to validation.
+- The AI source-patch allowlist does not include it: models cannot rewrite project source
+  through the graph. The chat's `graph_state`/`graph_arrange` tools write this diagram state
+  only (validated, capped) and are not the §9.3 patch flow; a successful write refreshes the
+  open panel through the `graph-live` event.
+- `.facilis/` remains excluded from export, publish and the search index: the graph files are
+  team state for the repository, not shipped app content.
 
 Graph building is a pure function over the facts; layout persistence is UI state. Both are
 testable without a dev server.
@@ -368,7 +400,8 @@ dependency).
 
 Decided (2026-11-04): `dbColumns` = Drizzle property names; both FK and `relations()` edges;
 parse `@facilis/*` source; one full-screen graph with filters/drag/persistence; one sanctioned
-client transport (`api()`) with everything else blocked; `.facilis/graph.json` gitignored.
+client transport (`api()`) with everything else blocked; the graph state is committed team
+state under `.facilis/graph/` (D-126), with pan/zoom local.
 
 Still open:
 

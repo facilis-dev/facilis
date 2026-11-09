@@ -40,7 +40,7 @@ export function EditorTabLabel({
   return (
     <>
       {kind === "directory" ? (
-        <FolderIcon className="size-3.5 shrink-0" />
+        <FolderIcon name={label} className="size-3.5 shrink-0" />
       ) : isProjectGraph ? (
         <Network className="size-3.5 shrink-0" />
       ) : isDataQuery ? (

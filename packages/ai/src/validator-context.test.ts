@@ -118,7 +118,12 @@ describe("rule 5 db-columns-valid", () => {
     const content = `import { defineAuthorizedHandler } from "@facilis/core";
 
 export default defineAuthorizedHandler(
-  { permission: ["todos:read"], dbTables: ["todos"], dbColumns: ["todos", "todos.nope"] },
+  {
+    permission: ["todos:read"],
+    dbTables: ["todos"],
+    dbColumns: ["todos", "todos.nope"],
+    description: "List todos visible to the current user.",
+  },
   async () => null,
 );
 `;

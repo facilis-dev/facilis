@@ -164,7 +164,7 @@ function validatorContext(patches: readonly FilePatch[]): PatchContext {
 }
 
 describe("applyPatch with project context", () => {
-  it("blocks a route that fails the 16-rule validator before touching the VFS", async () => {
+  it("blocks a route that fails the 17-rule validator before touching the VFS", async () => {
     const { bridge, calls } = fakeBridge();
     const patches: FilePatch[] = [
       { path: "server/routes/api/x.get.ts", action: "create", content: "export default 1;\n" },

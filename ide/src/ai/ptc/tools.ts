@@ -9,6 +9,7 @@ import type { Analysis, FilePatch } from "@facilis/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
 
 import { validatePatchesWithHost, type PatchValidationHost } from "../patch-validation";
+import { createRuntimeToolHandlers, type RuntimeToolHandler } from "./graph-tools";
 import {
   assertReadablePath,
   assertSafeGlob,
@@ -24,8 +25,7 @@ import {
   type PtcToolCall,
   type PtcToolExecutor,
 } from "./protocol";
-import { createPreviewHandlers, type PreviewHandler } from "./preview-tools";
-import { ALL_TOOL_SPECS, SPEC_BY_NAME, TOOL_NAMES, TOOL_SPECS } from "./tool-specs";
+import { SPEC_BY_NAME, TOOL_NAMES, advertisedSpecs } from "./tool-specs";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -270,18 +270,18 @@ export function createToolRouter(host: PatchValidationHost): PtcToolExecutor {
   let facts: Promise<Analysis> | null = null;
   const analysis = (): Promise<Analysis> =>
     (facts ??= host.analyze([]).then((result) => result.after));
-  // D-111: the preview tools exist only when the IDE has a preview session.
-  const preview = host.preview === undefined ? undefined : createPreviewHandlers(host.preview);
+  // D-111/D-126: the preview and graph tools exist only when the IDE provides them.
+  const extras = createRuntimeToolHandlers(host);
   return {
-    specs: () => (preview === undefined ? TOOL_SPECS : ALL_TOOL_SPECS),
+    specs: () => advertisedSpecs(host.preview !== undefined, host.graph !== undefined),
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {
       const spec = SPEC_BY_NAME.get(call.name);
       if (spec === undefined) refuse("unknown tool: " + call.name + "; available: " + TOOL_NAMES);
       throwIfAborted(options.signal);
       try {
+        const extra: RuntimeToolHandler | undefined = extras[call.name];
+        if (extra !== undefined) return await extra(argsOf(call.args));
         const handler: Handler | undefined = HANDLERS[call.name];
-        const previewHandler: PreviewHandler | undefined = preview?.[call.name];
-        if (previewHandler !== undefined) return await previewHandler(argsOf(call.args));
         if (handler === undefined) refuse("tool is not implemented: " + call.name);
         return await handler(argsOf(call.args), { host, signal: options.signal, analysis });
       } catch (error) {

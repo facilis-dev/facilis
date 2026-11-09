@@ -1,12 +1,14 @@
-// facilis.app.json: the project's identity for its deployment (APP-UPDATES.md §1).
+// .facilis/facilis.app.json: the project's identity for its deployment (APP-UPDATES.md §1).
 //
-// Written by the template loader at creation and updated only by an upgrade. A managed
-// deployment with admission "facilis-only" refuses to run a project without a valid
-// marker (D-063; MANAGED-DEPLOYMENT.md §8). Pure: the VFS read lives in admission.ts.
+// Written by the template loader at creation and updated only by an upgrade. It lives in
+// the generated project's .facilis state directory (gitignored by the template): generated
+// metadata, not source the user edits, so an upgrade's rewrite never enters a git diff. A
+// managed deployment with admission "facilis-only" refuses to run a project without a
+// valid marker (D-063; MANAGED-DEPLOYMENT.md §8). Pure: the VFS read lives in admission.ts.
 
 import type { AdmissionPolicy, DeploymentProfile } from "@/deploy/types";
 
-export const APP_MANIFEST_FILE = "facilis.app.json";
+export const APP_MANIFEST_FILE = ".facilis/facilis.app.json";
 export const APP_MANIFEST_SCHEMA_VERSION = 1;
 export const FACILIS_TEMPLATE = "facilis";
 

@@ -8,6 +8,7 @@
 
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
+import type { GraphAccess } from "./graph-access";
 import type { PreviewAccess } from "./preview-access";
 
 /** The slice of ChatHost the contextual validation needs. */
@@ -21,6 +22,11 @@ export interface PatchContextHost {
   syntaxChecker?(): SyntaxChecker | null;
   /** The running preview, when the IDE has one (D-111): the preview tools drive the app. */
   preview?: PreviewAccess;
+  /**
+   * The project graph's committed state (D-126), when the project is analyzable. The graph tools
+   * write `.facilis/graph` directly: it is team state, not source code, so it needs no proposal.
+   */
+  graph?: GraphAccess;
   /**
    * Analyze the project before and after the patch set. Implemented by the IDE through the
    * browser analyzer worker; a failure here blocks validation (the caller fails closed).

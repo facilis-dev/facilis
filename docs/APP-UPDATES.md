@@ -21,8 +21,11 @@ upgrade.
 
 ## 1. The project marker
 
-Every generated project carries `facilis.app.json`, written by the template loader at
-creation and updated only by an upgrade:
+Every generated project carries `.facilis/facilis.app.json`, written by the template
+loader at creation and updated only by an upgrade. It lives in the project's `.facilis/`
+local-state directory, which the template's `.gitignore` excludes: the marker is generated
+metadata, not source the user edits, so an upgrade rewriting it never shows up in the
+project's git diff.
 
 ```json
 {
@@ -93,7 +96,7 @@ Recipes ship with the IDE build (needed for air-gapped deployments too):
   run `tsc --noEmit`, then the DB migration if any;
 - failure: restore the snapshot/branch, report the step that failed, leave the marker
   unchanged; the project is never left half-upgraded;
-- success: rewrite `facilis.app.json`, commit on a branch (the project is already a repo),
+- success: rewrite `.facilis/facilis.app.json`, commit on a branch (the project is already a repo),
   and report a one-line summary.
 
 The recipe list is bounded by the versions in the build: an environment does not need recipes
@@ -117,7 +120,7 @@ performs them:
 - `apply.ts` - the write. It first re-checks the plan against the VFS (a plan is made from a
   read; another tab, an AI patch or the user may have written since - a mismatch refuses
   instead of overwriting), writes or deletes the files, runs the caller's **postflight**
-  (install, `tsc --noEmit`, DB migration), and only then rewrites `facilis.app.json`. Any
+  (install, `tsc --noEmit`, DB migration), and only then rewrites `.facilis/facilis.app.json`. Any
   failure restores every path already touched, in reverse, and leaves the marker on the old
   version, so a retry starts where it was; `UpgradeError.rolledBack` says whether the
   rollback itself completed. The VFS sits behind an injected `UpgradeIo`, keeping the
@@ -178,7 +181,7 @@ Two data stores can be affected, and both need care:
 
 New modules in `ide/src/facilis/`:
 
-- `app-manifest.ts` - read, validate and write `facilis.app.json`;
+- `app-manifest.ts` - read, validate and write `.facilis/facilis.app.json`;
 - `updates.ts` - version parsing/comparison and which recipe steps apply;
 - `upgrade/recipe.ts` - the recipe contract (declarative files, i18n title, path guard);
 - `upgrade/plan.ts` - the recipes turned into explicit before/after file operations;

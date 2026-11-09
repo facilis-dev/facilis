@@ -52,7 +52,6 @@ function configDefaults(): ConfigFacts {
     migrationsDir: DEFAULT_MIGRATIONS_DIR,
     tenantColumns: [...DEFAULT_TENANT_COLUMNS],
     ownerColumns: [...DEFAULT_OWNER_COLUMNS],
-    blocksPackages: [],
     unknown: [],
   };
 }
@@ -238,7 +237,6 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
   const auth = readSection(root, "auth", context, unknown);
   const i18n = readSection(root, "i18n", context, unknown);
   const db = readSection(root, "db", context, unknown);
-  const blocks = readSection(root, "blocks", context, unknown);
   const authRef = refOf(context, root.fields.get("auth")?.node);
   const i18nRef = refOf(context, root.fields.get("i18n")?.node);
   const base = configDefaults();
@@ -268,10 +266,6 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
       db === null
         ? base.ownerColumns
         : stringArrayField(db, "ownerColumns", base.ownerColumns, unknown, at),
-    blocksPackages:
-      blocks === null
-        ? base.blocksPackages
-        : stringArrayField(blocks, "packages", base.blocksPackages, unknown, at),
     unknown,
   };
   const issues = validationIssues(facts, auth === null);

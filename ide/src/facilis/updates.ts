@@ -1,7 +1,7 @@
 // Project-vs-build version comparison for the update indicator (D-065, APP-UPDATES.md).
 //
 // Pure: no VFS, no React. The build's version is compiled in (environmentVersion); the
-// project's version comes from facilis.app.json. The check therefore needs no network,
+// project's version comes from .facilis/facilis.app.json. The check therefore needs no network,
 // which is what makes it work air-gapped.
 
 export type UpdateStatus = "unknown" | "current" | "outdated" | "ahead";

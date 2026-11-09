@@ -8,10 +8,10 @@ import {
 
 const VERSION = "2026.11";
 
-describe("facilis.app.json", () => {
+describe(".facilis/facilis.app.json", () => {
   it("names the project and the environment that created it", () => {
     const parsed = parseAppManifest(renderAppManifest(VERSION, new Date("2026-11-01T10:00:00Z")));
-    expect(APP_MANIFEST_FILE).toBe("facilis.app.json");
+    expect(APP_MANIFEST_FILE).toBe(".facilis/facilis.app.json");
     expect(parsed).toEqual({
       schemaVersion: 1,
       template: "facilis",

@@ -32,6 +32,9 @@ describe("buildProjectGraphView data", () => {
       path: "/api/todos",
       permission: ["todos:read"],
       wrapper: "valid",
+      description: null,
+      input: { body: false, form: false, query: false, params: false },
+      pathParams: [],
       unknown: false,
     });
   });
@@ -73,6 +76,55 @@ describe("buildProjectGraphView data", () => {
       unknown: true,
     });
     expect(view.stats.unknownNodes).toBe(1);
+  });
+
+  it("maps the input flags and template path parameters onto the route card", () => {
+    const templated = routeNode("POST", "/api/todos/{id}", {
+      input: { body: true, form: false, query: false, params: true },
+    });
+    const view = buildProjectGraphView({ graph: graphOf([templated]) });
+    expect(view.nodes[0]?.data).toMatchObject({
+      kind: "route",
+      path: "/api/todos/{id}",
+      input: { body: true, form: false, query: false, params: true },
+      pathParams: ["id"],
+    });
+  });
+
+  it("maps the route description and tolerates a payload from before it existed", () => {
+    const described = routeNode("GET", "/api/todos", {
+      description: "List todos visible to the current user.",
+    });
+    const view = buildProjectGraphView({ graph: graphOf([described]) });
+    expect(view.nodes[0]?.data).toMatchObject({
+      kind: "route",
+      description: "List todos visible to the current user.",
+    });
+
+    // An analyzer worker started before the description existed (or a Fast-Refresh-preserved
+    // view) delivers the old RouteNodeData shape: the card must render without a quote.
+    const legacy = routeNode("GET", "/api/todos");
+    const data = { ...legacy.data } as Record<string, unknown>;
+    delete data.description;
+    const legacyView = buildProjectGraphView({
+      graph: graphOf([{ ...legacy, data } as unknown as typeof legacy]),
+    });
+    expect(legacyView.nodes[0]?.data).toMatchObject({ kind: "route", description: null });
+  });
+
+  it("tolerates a route payload from an analyzer that predates the input facts", () => {
+    const legacy = routeNode("GET", "/api/todos");
+    // An analyzer worker started before the field existed (or a Fast-Refresh-preserved view)
+    // delivers the old RouteNodeData shape without causing a crash.
+    const data = { ...legacy.data } as Record<string, unknown>;
+    delete data.input;
+    const graph = graphOf([{ ...legacy, data } as unknown as typeof legacy]);
+    const view = buildProjectGraphView({ graph });
+    expect(view.nodes[0]?.data).toMatchObject({
+      kind: "route",
+      input: { body: false, form: false, query: false, params: false },
+      pathParams: [],
+    });
   });
 });
 

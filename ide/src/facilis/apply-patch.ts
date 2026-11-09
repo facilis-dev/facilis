@@ -39,7 +39,7 @@ export interface ApplyPatchInput {
    * is refreshed after a clean write so the caller learns the manifest may have changed. */
   manifestBase?: string;
   signal?: AbortSignal;
-  /** Full project context; when present the 16-rule validator runs before any write. */
+  /** Full project context; when present the 17-rule validator runs before any write. */
   context?: PatchContext;
   /** The AIResponse `requires_confirmation` flag, for rule 15. */
   requiresConfirmation?: boolean;

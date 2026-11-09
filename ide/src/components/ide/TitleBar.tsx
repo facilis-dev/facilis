@@ -2,10 +2,10 @@ import ExternalLink from "~icons/lucide/external-link";
 import Home from "~icons/lucide/house";
 import PanelLeft from "~icons/lucide/panel-left";
 import PanelLeftOff from "~icons/lucide/panel-left-dashed";
-import PanelBottom from "~icons/lucide/panel-bottom";
-import PanelBottomOff from "~icons/lucide/panel-bottom-dashed";
 import PanelRight from "~icons/lucide/panel-right";
 import PanelRightOff from "~icons/lucide/panel-right-dashed";
+import Play from "~icons/lucide/play";
+import Square from "~icons/lucide/square";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "@/i18n";
@@ -14,11 +14,14 @@ import { openStudioInNewTab } from "@/vv/project-tabs";
 import { useIde } from "./useIde";
 
 /** One layout toggle, in the cluster at the far right. lucide ships a solid-divider
- * and a dashed-divider glyph per edge (the dashed one is aliased `-inactive` in the
+ * and a dashed-divider glyph per edge (the dashed one is aliased -inactive in the
  * pack), so the icon itself says whether that panel is showing — VS Code reads its
  * layout the same way, by drawing the sub-panel region differently. The dimmed
  * foreground when hidden is the second, coarser channel: at 16px a dashed rule is
- * easy to miss on its own. */
+ * easy to miss on its own.
+ *
+ * The bottom panel is not here any more (D-124): it is closed by default and its
+ * surfaces open from the status bar, next to the Run control. */
 function LayoutToggle({
   label,
   keys,
@@ -58,40 +61,62 @@ function LayoutToggle({
 
 export function TitleBar() {
   const { c, snap } = useIde();
+  // The title-bar twin of the status bar's Run chip: same control, same state, so
+  // the primary action is reachable from either corner (D-124).
+  const running = snap.runTerminalId != null;
   return (
     <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-sidebar pr-2 pl-3 text-sm">
       <button
         className="flex shrink-0 items-center"
         onClick={() => c.goHome()}
-        title="Home"
+        title={t("title.home")}
         aria-label={t("app.name")}
       >
         <span aria-hidden className="brand-lockup h-6 w-[120px]" />
       </button>
 
       <div className="flex-1 truncate text-center text-xs text-muted-foreground">
-        {snap.projectTitle ? snap.projectTitle : "a real dev server, in your browser"}
+        {snap.projectTitle ? snap.projectTitle : t("title.tagline")}
       </div>
 
       {/* App actions, then the layout cluster hugging the corner — VS Code keeps its
           layout controls at the far edge, apart from whatever sits beside them. */}
       <div className="flex shrink-0 items-center gap-1">
+        {running ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => c.stopRun()}
+            aria-label={t("run.stopHint")}
+          >
+            <Square className="size-3.5" /> {t("run.stop")}
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => c.runActiveFolder()}
+            aria-label={t("run.startHint")}
+          >
+            <Play className="size-4" /> {t("run.start")}
+          </Button>
+        )}
         <Tooltip>
           <TooltipTrigger
             onClick={openStudioInNewTab}
-            aria-label="Open Studio in a new tab"
+            aria-label={t("title.openNewTab")}
             className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <ExternalLink className="size-4" />
           </TooltipTrigger>
-          <TooltipContent side="bottom">New tab</TooltipContent>
+          <TooltipContent side="bottom">{t("title.newTab")}</TooltipContent>
         </Tooltip>
         <Button variant="ghost" size="sm" onClick={() => c.goHome()}>
-          <Home className="size-4" /> Home
+          <Home className="size-4" /> {t("title.home")}
         </Button>
         <div aria-hidden className="mx-1 h-5 w-px bg-border" />
         <LayoutToggle
-          label="Toggle Sidebar"
+          label={t("title.toggleSidebar")}
           keys="⌘B"
           shown={!snap.sidebarCollapsed}
           onClick={() => c.toggleSidebar()}
@@ -99,15 +124,7 @@ export function TitleBar() {
           Off={PanelLeftOff}
         />
         <LayoutToggle
-          label="Toggle Panel"
-          keys="⌘J"
-          shown={!snap.panelCollapsed}
-          onClick={() => c.togglePanel()}
-          On={PanelBottom}
-          Off={PanelBottomOff}
-        />
-        <LayoutToggle
-          label="Toggle Preview"
+          label={t("title.togglePreview")}
           keys="⌥⌘B"
           shown={!snap.previewCollapsed}
           onClick={() => c.togglePreview()}

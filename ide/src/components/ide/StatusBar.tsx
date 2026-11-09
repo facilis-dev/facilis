@@ -1,24 +1,26 @@
 // VS Code-style status bar.
 //
 // Left:  the active folder's git branch (when it is a repo), live TS/JS
-//        diagnostics from the language-service worker, and the transient
-//        message slot ("saved page.tsx — hot-updating…").
-// Right: the active editor's cursor position, indentation and language mode.
-//        Each opens a quick pick (see StatusBarPickers).
+//        diagnostics from the language-service worker, the Run/Stop control and a
+//        transient message slot ("saved page.tsx — hot-updating…").
+// Right: the active editor's cursor position, indentation and language mode, each
+//        opening a quick pick (see StatusBarPickers), then the bottom panel's only
+//        controls — Console / Terminal / Ports (D-124).
 //
-// The readouts come from `c.editorStatus` / `c.statusMessage`, stores of their
-// own, so a cursor move or a line of dev-server output doesn't re-render every
-// useIde() consumer in the IDE.
+// The readouts come from c.editorStatus / c.statusMessage, stores of their own, so
+// a cursor move or a line of dev-server output doesn't re-render every useIde()
+// consumer in the IDE.
 
 import { useState, useSyncExternalStore } from "react";
 import CircleX from "~icons/lucide/circle-x";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { languageLabel } from "@/vv/editor-languages";
-import { phaseLabel } from "@/vv/run-phase";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
+import { StatusBarPanels, StatusBarRun } from "./StatusBarRuntime";
 import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
 import { useIde } from "./useIde";
 
@@ -43,12 +45,22 @@ export function StatusBar() {
   const branch = repo ? (repo.currentBranch ?? "(detached)") : null;
 
   const { cursor, indent, language, pythonService } = editor;
+  // Composed here rather than in one key: the catalogue has no plural machinery, and
+  // "1 errors" reads wrong in a surface this exposed.
+  const problemsLabel =
+    errors +
+    " " +
+    t(errors === 1 ? "status.error" : "status.errors") +
+    ", " +
+    warnings +
+    " " +
+    t(warnings === 1 ? "status.warning" : "status.warnings");
 
   return (
     <>
       <div className="flex h-6 shrink-0 items-center bg-brand px-1 text-xs text-brand-foreground">
         {branch && (
-          <StatusItem label="Current branch" onClick={() => c.setActiveView("scm")}>
+          <StatusItem label={t("status.branch")} onClick={() => c.setActiveView("scm")}>
             <GitBranch className="size-3.5" />
             <span className="max-w-40 truncate">{branch}</span>
           </StatusItem>
@@ -56,60 +68,54 @@ export function StatusBar() {
         <ProjectUpdateBadge root={activeRoot ?? null} />
         {/* Live TS/JS diagnostics from the language-service worker. Not clickable:
             there's no Problems panel to open (markers surface in the editor). */}
-        <StatusItem
-          label={`${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}`}
-        >
+        <StatusItem label={problemsLabel}>
           <CircleX className="size-3.5" />
           {errors}
           <TriangleAlert className="ml-1 size-3.5" />
           {warnings}
         </StatusItem>
-        {/* A run in progress outranks the transient message: `status()` auto-
-            hides after a few seconds, and an install that runs for half a minute
-            behind a status bar that has gone quiet reads as a hang. */}
-        {snap.runPhase ? (
-          <span className="min-w-0 truncate px-2">
-            {phaseLabel(snap.runPhase.phase)} · {snap.runPhase.name}
-            {snap.runPhase.detail ? ` · ${snap.runPhase.detail}` : ""}
-          </span>
-        ) : (
-          /* Transient feedback for routine operations (save, run, import). Auto-
-             hides; `min-w-0` keeps a long path from shoving the right side off. */
-          message && <span className="min-w-0 truncate px-2">{message}</span>
-        )}
+        {/* Run/Stop, and the panel's door: both are always visible, so a run never
+            needs the terminal and the terminal never needs the title bar (D-124). */}
+        <StatusBarRun />
+        {/* Transient feedback for routine operations (save, run, import). Auto-hides;
+            min-w-0 keeps a long path from shoving the right side off. A run in
+            progress outranks it — its chip is in StatusBarRun — and a stale status
+            line must not sit next to it. */}
+        {!snap.runPhase && message && <span className="min-w-0 truncate px-2">{message}</span>}
 
         <span className="flex-1" />
 
         {cursor && (
-          <StatusItem label="Go to Line/Column" onClick={() => setPicker("goto")}>
-            Ln {cursor.line}, Col {cursor.column}
+          <StatusItem label={t("status.goToLine")} onClick={() => setPicker("goto")}>
+            {t("status.position", { line: cursor.line, column: cursor.column })}
             {cursor.selections > 1
-              ? ` (${cursor.selections} selections)`
-              : cursor.selected > 0 && ` (${cursor.selected} selected)`}
+              ? " " + t("status.selections", { count: cursor.selections })
+              : cursor.selected > 0
+                ? " " + t("status.selected", { count: cursor.selected })
+                : null}
           </StatusItem>
         )}
         {indent && (
-          <StatusItem label="Select Indentation" onClick={() => setPicker("indent")}>
+          <StatusItem label={t("status.indent")} onClick={() => setPicker("indent")}>
             {indent.insertSpaces ? "Spaces" : "Tab Size"}: {indent.tabSize}
           </StatusItem>
         )}
         {language && (
-          <StatusItem label="Select Language Mode" onClick={() => setPicker("language")}>
+          <StatusItem label={t("status.language")} onClick={() => setPicker("language")}>
             {languageLabel(language)}
           </StatusItem>
         )}
         {/* Python's language service, once one has been asked for. A boot is
             seconds of nothing on the first .py file; this is what says so. */}
-        {pythonService && (
-          <StatusItem label="Python language service (jedi, black)">{pythonService}</StatusItem>
-        )}
+        {pythonService && <StatusItem label={t("status.python")}>{pythonService}</StatusItem>}
+        <StatusBarPanels />
       </div>
       <StatusBarPickers open={picker} onClose={() => setPicker(null)} />
     </>
   );
 }
 
-/** One status-bar cell. With `onClick` it's a button carrying VS Code's hover
+/** One status-bar cell. With onClick it's a button carrying VS Code's hover
  * highlight; without one it's a plain readout. */
 function StatusItem({
   label,

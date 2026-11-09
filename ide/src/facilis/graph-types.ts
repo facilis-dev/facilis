@@ -7,9 +7,24 @@ import type {
   HttpMethod,
   PageKind,
   ProjectGraph,
+  RouteInputFact,
   WrapperState,
 } from "@facilis/analyze";
 import type { GraphPosition } from "./graph-layout";
+
+/** A per-edge curve offset from the automatic path, in flow coordinates. */
+export interface GraphCurve {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A free-floating markdown annotation on the canvas (D-126). */
+export interface GraphNote {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly text: string;
+}
 
 export type ColumnMarker = "primaryKey" | "notNull" | "unique" | "default" | "unknown";
 
@@ -40,6 +55,12 @@ export interface RouteGraphData {
   readonly path: string;
   readonly permission: readonly string[];
   readonly wrapper: WrapperState;
+  /** The wrapper config's one-sentence description, or null when absent (D-129). */
+  readonly description: string | null;
+  /** Presence of the handler's input schemas (body/form/query/params). */
+  readonly input: RouteInputFact;
+  /** Path parameters declared by the route template (`{id}` → `id`). */
+  readonly pathParams: readonly string[];
   readonly unknown: boolean;
 }
 

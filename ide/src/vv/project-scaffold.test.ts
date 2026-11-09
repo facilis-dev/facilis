@@ -17,7 +17,7 @@ const template: ProjectTemplate = {
   },
   files: {
     "package.json": "{}",
-    "facilis.app.json": "{}",
+    ".facilis/facilis.app.json": "{}",
     "src/App.tsx": "app",
     "README.md": "# template",
   },
@@ -60,7 +60,7 @@ describe("scaffoldFacilisProject", () => {
     const payload = (importCall?.payload as { dir: string; files: { path: string }[] } | undefined)
       ?.files;
     expect(payload?.map((file) => file.path).sort()).toEqual([
-      "facilis.app.json",
+      ".facilis/facilis.app.json",
       "package.json",
       "src/App.tsx",
     ]);

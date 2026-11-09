@@ -103,7 +103,7 @@ describe("generated project config", () => {
   });
 
   it("writes the admission marker with the build's environment version", () => {
-    const marker = JSON.parse(projectFiles(undefined, "2026.11")["facilis.app.json"]) as {
+    const marker = JSON.parse(projectFiles(undefined, "2026.11")[".facilis/facilis.app.json"]) as {
       schemaVersion: number;
       template: string;
       environmentVersion: string;
