@@ -4695,6 +4695,74 @@ the route dispatch (providers, start 302, callback 302 + cookie, unknown path 40
 validation) with an injected fetch. The example app migration/schema and the login page are
 covered by the starter contract; a real-IdP checklist is in `docs/SSO.md`.
 
+### D-127 — A workspace opens on its project graph, with the Explorer on the left
+**Status:** accepted (2026-11-09)
+
+The project graph became a primary development surface (D-125): it is the one place that
+answers "what is this project made of". Opening or creating a project, however, still
+opened `src/app.tsx` in the editor — so the first thing a developer saw was one file out of
+context, and the graph was a tab they had to discover.
+
+**Decision.** `createProject` and `openProject` open (and focus) the project-graph tab
+instead of the template entry file. The entry file is not opened implicitly any more: it is
+one click away from the graph (double-click a node) and from the Explorer. The left sidebar
+stays the **Explorer** by default. A fresh project has no saved viewport, so the graph fits
+and centres itself; a project that already has a saved layout keeps that viewport, because
+the arrangement is the user's (D-126) and silently re-fitting it on every open would throw
+it away.
+
+**Why Explorer and not the AI chat on the left.** The graph answers "what is this project",
+the Explorer answers "where is this thing": they are complementary, and the left column is
+the orientation slot. The chat is a working mode — it auto-widens the sidebar (AppShell) and
+wants the conversation to be the focus; defaulting to it would force every first visit into
+a chat before the user has a mental model of the project. The chat is one click away in the
+activity bar (and `⌘K`), and the first-run tour (D-128) opens it at the moment it explains
+what it is for.
+
+**Rejected alternatives.** *Entry file by default*: it was the behaviour and it buries the
+project overview. *Chat on the left by default*: it is a valid AI-first layout, but it is a
+per-user preference, not a safe default — the activity bar already makes it a single click.
+*Fit the graph on every open*: it would discard a saved layout. *A blank welcome tab*: one
+more screen between the user and the project.
+
+**Consequences.** The editor area is the graph on landing; tests and the smoke flow that
+assumed an active file tab after opening a project are adjusted or made explicit. The tab
+keeps its own id/title (D-087) and never becomes a file tab.
+
+### D-128 — The guided tour is a first-run overlay over the real IDE
+**Status:** accepted (2026-11-09)
+
+Classic IDEs and editors teach their layout with a short guided tour. Facilis has many
+surfaces (graph, Explorer, chat, preview, bottom panel, status bar, command palette) and no
+in-product explanation of them; a screenshot tour would go stale on the first UI change.
+
+**Decision.** A small, custom, in-app tour: `ide/src/tour/` holds the step list, the state
+machine and the card/spotlight geometry (pure, unit-tested); `components/tour/` renders an
+overlay that, for each step, **runs an action** (opens the Explorer, the chat, the preview,
+the bottom panel) and then spotlights the real element — located by a `data-tour` attribute
+— with an animated scrim and a card. Eight steps, the chat step omitted when the deployment
+disables AI. It auto-starts once per origin after the first workspace open (`vv.ide-tour`,
+versioned), is replayable from the `?` button in the title bar and from the command palette,
+skips on `Esc`, ends if the user leaves the workspace, and respects
+`prefers-reduced-motion`. Automated/headless runs never auto-start it (`navigator.webdriver`
+or a `HeadlessChrome` user agent, plus an explicit `?tour=off`): the smoke suite must drive
+the real UI, not an overlay.
+
+**Why custom instead of a library.** The anchors are our own attributes, the positioning is
+`getBoundingClientRect` + a few pure functions, the look must use the semantic theme roles
+(D-043/D-044), and the tour is small enough that a dependency (driver.js, react-joyride,
+shepherd) would add packaging, styling and accessibility decisions we would only fight. The
+parts that can break are pure and covered by Vitest.
+
+**Rejected alternatives.** *A static welcome modal*: it explains nothing about the actual
+UI. *A library*: see above. *Auto-start on every project open*: noisy; once per origin, then
+opt-in. *Starting it on the Home screen*: there is no workspace chrome to explain yet.
+
+**Consequences.** One more `data-tour` attribute on the surfaces the tour points at
+(activity bar, status bar, panel wrappers, help button); the strings are under `tour.*` in
+`ide/src/i18n/en-tour.ts` / `it-tour.ts`; the overlay is `z-50`, above the app but in the
+same layer as dialogs, and it owns a real `role="dialog"`.
+
 ---
 
 ---
