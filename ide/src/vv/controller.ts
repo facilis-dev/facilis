@@ -662,12 +662,12 @@ export class IdeController {
     // afterwards.
     //
     // Nothing needs the SW before the kernel is up: it exists to proxy previews,
-    // and there are no previews until a project runs. Preview routing is
-    // re-announced on every `listen` (the bridge handler calls
-    // `announceKernelHost()`), so a server that binds a port before the SW has
-    // claimed still gets routed once it has. Both orderings are equally good for
-    // everything the SW actually does, and only one of them has the race — so
-    // take the one that does not, rather than trying to survive the transition.
+    // and there are no previews until a project runs. The host announces itself
+    // when the SW registers/claims and on `controllerchange` (the bridge's
+    // `announceKernelHost()`), so a server that binds before the claim is routed
+    // once it takes control — and a revived SW restores routing from its cache
+    // (D-132), no re-announcement needed. Both orderings are equally good for what
+    // the SW does, and only one has the race, so take the one that does not.
     //
     // `?net=<ws url>` opts into the optional network relay (BootOptions.netRelay):
     // a local agent (`node scripts/net-relay.mjs`) that gives the VM real outbound

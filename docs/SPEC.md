@@ -2419,9 +2419,10 @@ is the dev-only transport (404 in production, origin-allowlisted) and the Studio
 the `data` activity view, next to the query console (§11.2). The panel builds every request from
 a same-origin `/preview/<port>/…` URL carrying the kernel token, which the Studio's Service
 Worker routes to the in-VM dev server; a popped-out preview therefore works, and no embedded
-iframe is required. Remaining: the declared half can come from `@facilis/analyze` immediately
-(a project that is not running), and preview mode C (wildcard origins, no same-origin SW) needs
-its own transport. O-011 tracks both.
+iframe is required. The SW persists its per-frame routing in the `vv-config` cache (D-132), so a
+preview reload after an idle worker eviction still reaches the tab that served it. Remaining: the
+declared half can come from `@facilis/analyze` immediately (a project that is not running), and
+preview mode C (wildcard origins, no same-origin SW) needs its own transport. O-011 tracks both.
 
 ### 11.2 Query Console + Declarative Views (implemented, D-097/D-098)
 

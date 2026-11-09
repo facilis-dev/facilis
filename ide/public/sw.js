@@ -13,6 +13,11 @@
 // fork's preview UI, so the strings intentionally differ from the upstream
 // `vendor/vivari/packages/studio/public/sw.js`; keep the routing logic in sync with
 // upstream and treat the brand strings as the only divergence.
+//
+// The one deliberate routing divergence is the persisted preview-routing state
+// (D-132 / issue #4): an evicted SW used to forget which tab served a preview and
+// answered with the other project. Re-apply that patch whenever this file is synced
+// with upstream (the canonical fix belongs in packages/studio there).
 
 const PREVIEW_MARKER = "/preview/";
 
@@ -34,9 +39,9 @@ const WILDCARD_MODE = WILDCARD_PORT > 0;
 // request to one of these — NOT simply the top-level window — because Vivari can
 // run inside an iframe (e.g. the docs /embed/ playground). There the top-level
 // window is the host doc, which has no kernel; posting the request to it would
-// hang. In-memory only: if the SW is revived and this is empty, handlePreview
-// falls back to the top-level heuristic (and the host re-announces on each
-// server `listen`, i.e. right before a preview loads).
+// hang. Persisted with the rest of the routing state (see ROUTING_KEY): nothing
+// re-announces a page that is already open, so a revived SW restores this from Cache
+// Storage instead of falling back to the top-level heuristic.
 const kernelHostIds = new Set();
 
 // Which kernel a preview FRAME belongs to, by the frame's client id. More than one
@@ -45,8 +50,9 @@ const kernelHostIds = new Set();
 // the port in a preview URL no longer identifies anything. A frame does: the navigation
 // that creates it was started by a specific window (event.clientId, the Studio tab) and
 // every later subresource of the frame names the frame, whose id that navigation
-// reported as its resultingClientId (see servePreview). In-memory: a revived SW loses
-// it and falls back to the single-kernel heuristic until each tab re-announces.
+// reported as its resultingClientId (see servePreview). Persisted keyed by client id,
+// which is stable across an SW restart, so a revived SW can still answer "which tab
+// served this frame?" — see ROUTING_KEY.
 //
 // The FIRST navigation of a frame cannot be attributed that way: measured in Chrome
 // 156, an iframe whose parent sets `src` (how the studio's PreviewFrame loads every
@@ -57,9 +63,74 @@ const kernelHostIds = new Set();
 // keeps the same resultingClientId, so the app never sees the token.
 const frameKernel = new Map();
 const frameSeenAt = new Map(); // frame client id -> ms, for pruning (see pruneRouting)
-function rememberFrame(frameId, kernelId) {
+function rememberFrame(frameId, kernelId, seenAt = Date.now(), persist = true) {
   frameKernel.set(frameId, kernelId);
-  frameSeenAt.set(frameId, Date.now());
+  frameSeenAt.set(frameId, seenAt);
+  if (persist) persistRouting();
+}
+
+// Restore the persisted maps (see ROUTING_KEY). Awaited on the preview request path —
+// by resolveKernelSink, and by the tokened-navigation branch, which runs before there
+// is a sink to get them from — because that is the first moment a revived SW knows it
+// needs them. Entries whose kernel client is gone are dropped by pruneRouting, which
+// runs right after on that same path.
+function loadRouting() {
+  if (routingLoaded) return routingLoaded;
+  routingLoaded = (async () => {
+    // Every preview request awaits this, so it must never reject: a corrupt or foreign
+    // entry has to cost a fallback route, not every preview until the cache is cleared.
+    // readConfig hides an unparseable entry; this covers a well-formed wrong shape.
+    try {
+      const blob = await readConfig(ROUTING_KEY, null);
+      if (!blob || typeof blob !== "object") return;
+      // Memory wins: an entry recorded by THIS instance is newer than anything on disk.
+      if (Array.isArray(blob.frames))
+        for (const entry of blob.frames) {
+          if (!Array.isArray(entry)) continue;
+          const [frame, kernel, seenAt] = entry;
+          if (typeof frame !== "string" || typeof kernel !== "string" || frameKernel.has(frame))
+            continue;
+          rememberFrame(frame, kernel, (typeof seenAt === "number" && seenAt) || Date.now(), false);
+        }
+      if (Array.isArray(blob.tokens))
+        for (const entry of blob.tokens) {
+          if (!Array.isArray(entry)) continue;
+          const [token, kernel] = entry;
+          if (typeof token !== "string" || typeof kernel !== "string" || kernelByToken.has(token))
+            continue;
+          kernelByToken.set(token, kernel);
+        }
+      if (Array.isArray(blob.hosts))
+        for (const id of blob.hosts) if (typeof id === "string") kernelHostIds.add(id);
+      if (Array.isArray(blob.keepPrefix))
+        for (const entry of blob.keepPrefix) {
+          if (!Array.isArray(entry)) continue;
+          const [id, ports] = entry;
+          if (typeof id !== "string" || !Array.isArray(ports) || keepPrefixByClient.has(id))
+            continue;
+          keepPrefixByClient.set(id, new Set(ports.filter((p) => Number.isInteger(p))));
+        }
+    } catch {
+      /* unreadable: fall back to the heuristic, as before the maps were persisted */
+    }
+  })();
+  return routingLoaded;
+}
+
+// Snapshot synchronously, write in order: a prune that follows a record must not be
+// overtaken by the write it interrupted. Best-effort — a failed write costs a fallback
+// route after the next eviction, never a failed preview.
+function persistRouting() {
+  const blob = {
+    frames: [...frameKernel].map(([frame, kernel]) => [frame, kernel, frameSeenAt.get(frame) || 0]),
+    tokens: [...kernelByToken],
+    hosts: [...kernelHostIds],
+    keepPrefix: [...keepPrefixByClient].map(([id, ports]) => [id, [...ports]]),
+  };
+  if (blob.frames.length > ROUTING_MAX_FRAMES)
+    blob.frames = blob.frames.sort((a, b) => a[2] - b[2]).slice(-ROUTING_MAX_FRAMES);
+  routingWrites = routingWrites.then(() => writeConfig(ROUTING_KEY, blob)).catch(() => {});
+  return routingWrites;
 }
 
 // The query parameter a kernel host adds to its preview URLs (PREVIEW_KERNEL_PARAM in
@@ -68,9 +139,31 @@ function rememberFrame(frameId, kernelId) {
 const KERNEL_PARAM = "__vv_kernel";
 const kernelByToken = new Map();
 
+// The routing maps above are the only thing that tells two tabs' previews apart, and
+// they live in memory — where Chrome's eviction of an idle Service Worker (about 30s
+// without events) takes them away. Nothing re-announces a page that is already open
+// (`vv-kernel-host` is sent on load and on controllerchange), so a revived SW routed
+// every preview, a reload included, by `pickKernelClient`'s "first kernel window"
+// guess. Two tabs on one origin both serving 5173 then means the wrong one answers
+// 200 and the user is looking at the other project, with nothing to say so.
+//
+// Client ids survive an SW restart, so the maps are persisted in the same Cache
+// Storage as keep-prefix and re-loaded on the first preview request after a revival.
+// One `cache.put` per preview navigation (rare) and one per prune that removed
+// something; a request never waits for a write.
+const ROUTING_KEY = "https://vv.config/preview-routing";
+// Bounded like a browser's tab strip: one entry per preview document, and the oldest go
+// first. A prune already drops everything belonging to a closed kernel, so this only
+// guards a pathological session.
+const ROUTING_MAX_FRAMES = 200;
+let routingLoaded = null; // Promise<void> — one cache read per SW instance
+let routingWrites = Promise.resolve(); // serialises writes, so a prune is never overtaken
+
 // keep-prefix ports per kernel host, because two tabs may disagree about the same port
 // (one template keeps the /preview/<port>/ prefix, the other strips it). The persisted
-// `keepPrefixPorts` set stays as the last-writer-wins fallback for a revived SW.
+// `keepPrefixPorts` set is the last-writer-wins fallback; the per-tab sets are persisted
+// with the rest of the routing state (see ROUTING_KEY) so a revived SW does not have to
+// guess which tab the surviving set describes.
 const keepPrefixByClient = new Map();
 
 // Mode B (separate preview origin): a persistent MessagePort to the IDE, handed
@@ -137,7 +230,12 @@ async function loadDevtoolsEnabled() {
 // MessagePort-sourced calls (mode B) fire-and-forget the persistence promise.
 function applyKeepPrefix(ports, waitUntil, clientId) {
   keepPrefixPorts = new Set(ports.map((p) => p | 0));
-  if (clientId) keepPrefixByClient.set(clientId, keepPrefixPorts);
+  if (clientId) {
+    keepPrefixByClient.set(clientId, keepPrefixPorts);
+    // Per tab, so a revived SW keeps deciding it per tab instead of falling back to the
+    // last writer's set (see keepPrefixFor and ROUTING_KEY).
+    persistRouting();
+  }
   const persist = (async () => {
     try {
       const cache = await caches.open(KEEP_PREFIX_CACHE);
@@ -324,6 +422,8 @@ self.addEventListener("message", (event) => {
     if (event.source && event.source.id) {
       kernelHostIds.add(event.source.id);
       if (typeof d.token === "string" && d.token) kernelByToken.set(d.token, event.source.id);
+      // So the token still names this tab after the next eviction (see loadRouting).
+      persistRouting();
     }
     learnIsolationPolicy(event.source && event.source.url, d.documentIsolationPolicy, (p) =>
       event.waitUntil(p),
@@ -381,6 +481,9 @@ const isKernelWindow = (c) => !isPreviewClient(c) && !isDevtoolsClient(c) && !is
 async function resolveKernelSink(event, hintKernelId) {
   if (kernelPort)
     return { post: (m, t) => kernelPort.postMessage(m, t || []), cross: true, clientId: null };
+  // A revived SW starts with empty maps: restore them before anything is looked up, so
+  // a preview reload still reaches the tab that served it (see loadRouting).
+  await loadRouting();
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   // Match both `/__vv-bridge.html` and the Cloudflare clean-URL form `/__vv-bridge`.
   const bridge = clients.find((c) => c.url.includes("/__vv-bridge"));
@@ -418,16 +521,32 @@ function pruneRouting(clients, now = Date.now()) {
   if (now - lastPrune < PRUNE_EVERY_MS) return;
   lastPrune = now;
   const live = new Set(clients.map((c) => c.id));
+  let routingChanged = false; // the persisted half (frames/tokens/hosts/keep-prefix)
   for (const [frame, kernel] of frameKernel) {
     const fresh = now - (frameSeenAt.get(frame) || 0) < FRAME_GRACE_MS;
     if (!live.has(kernel) || (!live.has(frame) && !fresh)) {
       frameKernel.delete(frame);
       frameSeenAt.delete(frame);
+      routingChanged = true;
     }
   }
-  for (const [token, kernel] of kernelByToken) if (!live.has(kernel)) kernelByToken.delete(token);
-  for (const id of keepPrefixByClient.keys()) if (!live.has(id)) keepPrefixByClient.delete(id);
-  for (const id of kernelHostIds) if (!live.has(id)) kernelHostIds.delete(id);
+  for (const [token, kernel] of kernelByToken)
+    if (!live.has(kernel)) {
+      kernelByToken.delete(token);
+      routingChanged = true;
+    }
+  for (const id of keepPrefixByClient.keys())
+    if (!live.has(id)) {
+      keepPrefixByClient.delete(id);
+      routingChanged = true;
+    }
+  for (const id of kernelHostIds)
+    if (!live.has(id)) {
+      kernelHostIds.delete(id);
+      routingChanged = true;
+    }
+  // Do not leave a dead tab's route on disk to be restored after the next eviction.
+  if (routingChanged) persistRouting();
 }
 
 // The window that hosts the kernel — a non-preview, non-DevTools, non-bridge
@@ -1205,15 +1324,23 @@ self.addEventListener("fetch", (event) => {
     // and any *relative* subresource resolve here.
     // A kernel host's own preview URL names its kernel (see frameKernel). The token is
     // ours, never the app's: record it and take it off before anything else sees it.
-    let kernel = null;
+    let kernelToken = null;
     if (url.searchParams.has(KERNEL_PARAM)) {
-      kernel = kernelByToken.get(url.searchParams.get(KERNEL_PARAM)) || null;
+      kernelToken = url.searchParams.get(KERNEL_PARAM);
       url.searchParams.delete(KERNEL_PARAM);
       if (event.request.mode === "navigate") {
-        // Unknown token (a revived SW lost the map): still redirect, and let the
-        // clean navigation fall back to the single-kernel heuristic.
-        if (kernel && event.resultingClientId) rememberFrame(event.resultingClientId, kernel);
-        event.respondWith(Response.redirect(url.href, 302));
+        // The token is the ONLY identifier a frame's first navigation has (Chrome
+        // reports an empty clientId — see frameKernel), so it has to resolve in a
+        // revived SW too, whose map is empty until loadRouting restores it. An unknown
+        // token still redirects, and the clean navigation then takes the fallback.
+        event.respondWith(
+          (async () => {
+            await loadRouting();
+            const kernel = kernelByToken.get(kernelToken);
+            if (kernel && event.resultingClientId) rememberFrame(event.resultingClientId, kernel);
+            return Response.redirect(url.href, 302);
+          })(),
+        );
         return;
       }
     }
@@ -1225,7 +1352,7 @@ self.addEventListener("fetch", (event) => {
     // Whether the prefix is kept is a per-KERNEL decision (see loadKeepPrefixPorts),
     // and the kernel is only known once the request is routed — so hand both forms
     // down and let servePreview pick after resolving the sink.
-    event.respondWith(handlePreview(event, port, { full, stripped, kernel }));
+    event.respondWith(handlePreview(event, port, { full, stripped, kernelToken }));
     return;
   }
 
@@ -1528,10 +1655,16 @@ async function servePreview(event, port, route, explicitKeepPrefix, served = {})
   // Reach the kernel. Mode A: the same-origin kernel-host window client this request
   // belongs to. Mode B: the persistent port to the (cross-origin) IDE, reviving it if
   // the SW was evicted. `cross` tells us which CORP/COEP headers the response needs.
-  const sink = await resolveKernelSink(
-    event,
-    route && typeof route === "object" ? route.kernel : null,
-  );
+  //
+  // A request that carries a kernel token but has no frame to attribute (a fetch of a
+  // preview URL from the IDE) still names its kernel — after restoring the map, which a
+  // revived SW has not read yet.
+  let hintKernel = null;
+  if (route && typeof route === "object" && route.kernelToken) {
+    await loadRouting();
+    hintKernel = kernelByToken.get(route.kernelToken) || null;
+  }
+  const sink = await resolveKernelSink(event, hintKernel);
   if (sink) served.cross = !!sink.cross;
   if (!sink) {
     // A top-level preview tab (mode B "Open in new tab") whose kernel we can't

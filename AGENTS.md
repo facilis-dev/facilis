@@ -173,7 +173,8 @@ tab opened from another one carries `?project=<rootPath>`; `ide/src/vv/project-t
 and keeps the claim. Per-origin state must be **merged, never rewritten whole**: the preview
 Service Worker routes per **preview frame**, by the per-boot **kernel token** a same-origin
 preview URL carries (upstream #23 + its follow-up, released in v1.1.5), so `ide/public/sw.js`
-must stay in sync with `vendor/vivari/packages/studio/public/sw.js`; the OPFS
+must stay in sync with `vendor/vivari/packages/studio/public/sw.js` except for the IDE-side
+persisted preview-routing patch (D-132, issue #4), which has to be re-applied on every sync; the OPFS
 VFS index is merged per tab under a Web Lock (upstream #22 + follow-up); and Home's
 recent-projects registry is a read-merge-write in `ide/src/vv/project-registry.ts`, because a tab
 writing its stale list dropped another tab's project from Home. Acceptance:
