@@ -218,6 +218,26 @@ async function main() {
   }
   check(created, "project created");
 
+  // D-127: opening/creating a project lands on the project graph tab, with the Explorer
+  // still the left sidebar, and the tour must NOT auto-start under automation (D-128:
+  // HeadlessChrome UA is treated as automation). Checked on the controller snapshot, not
+  // on tab text, so an inactive graph tab cannot pass it.
+  const landedOnGraph = await waitFor(
+    "(() => { const s = window.__ide.getSnapshot();" +
+      " return s.activeTab !== null && s.tabKinds[s.activeTab] === 'project-graph'; })()",
+    30000,
+  );
+  check(landedOnGraph, "D-127 lands on the project graph");
+  check(
+    (await page.evaluate("window.__ide.getSnapshot().activeView")) === "explorer",
+    "D-127 Explorer stays the default sidebar",
+  );
+  check(
+    !(await page.evaluate("Boolean(document.querySelector('[data-tour-overlay]'))")),
+    "D-128 tour does not auto-start under automation",
+  );
+  await page.screenshot(path.join(ARTIFACTS, "03b-landing-graph.png"));
+
   const painted = await waitForMark("preview-paint", PREVIEW_TIMEOUT_MS);
   check(painted, "preview painted", Date.now() - startedAt + "ms");
   await sleep(1500);
@@ -322,6 +342,33 @@ async function main() {
   } catch (error) {
     check(false, "panel checks ran", String(error));
   }
+
+  // D-128: the guided tour is replayed over the real UI (auto-start is suppressed under
+  // automation, so the smoke drives it through the dev-only store handle). Each step's
+  // action opens the surface it explains; the screenshots are the visual evidence.
+  await page.evaluate("window.__ide.openProjectGraph()");
+  const tourStarted = await page.evaluate(
+    "(() => { const tour = window.__ideTour; if (!tour) return false; tour.start(); return true; })()",
+  );
+  check(tourStarted, "D-128 tour store is exposed in dev");
+  const tourOverlay = await waitFor("Boolean(document.querySelector('[data-tour-overlay]'))", 5000);
+  check(tourOverlay, "D-128 tour overlay renders");
+  await sleep(900);
+  await page.screenshot(path.join(ARTIFACTS, "10-tour-graph.png"));
+  // graph -> activity bar -> files -> AI chat: the chat step must open the chat view.
+  await page.evaluate("window.__ideTour.next()");
+  await sleep(700);
+  await page.screenshot(path.join(ARTIFACTS, "11-tour-activity.png"));
+  await page.evaluate("window.__ideTour.next()");
+  await sleep(700);
+  await page.evaluate("window.__ideTour.next()");
+  const chatOpenedByTour = await waitFor("window.__ide.getSnapshot().activeView === 'chat'", 5000);
+  check(chatOpenedByTour, "D-128 tour opens the chat it points at");
+  await sleep(500);
+  await page.screenshot(path.join(ARTIFACTS, "12-tour-chat.png"));
+  await page.evaluate("window.__ideTour.skip()");
+  const tourClosed = await waitFor("!document.querySelector('[data-tour-overlay]')", 5000);
+  check(tourClosed, "D-128 tour closes on skip");
 
   // Known upstream defect (docs/DECISIONS.md D-026): the first edit in a project with an
   // unresolved import makes monaco 0.55.1's TS worker spread a TS 6.0 diagnostic that

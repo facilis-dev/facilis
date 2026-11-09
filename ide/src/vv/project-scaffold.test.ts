@@ -45,6 +45,7 @@ function fakeHost(ready = true): ProjectImportHost {
     validateNewDir: async () => null,
     openFolder: vi.fn(),
     openFile: vi.fn(),
+    openProjectGraph: vi.fn(),
     registerProjectMeta: vi.fn(),
     registerManifest: vi.fn(),
     status: vi.fn(),
@@ -69,7 +70,7 @@ describe("scaffoldFacilisProject", () => {
       "vv-register-project",
       expect.objectContaining({ dir: "/w/empty" }),
     );
-    expect(host.openFile).toHaveBeenCalledWith("/w/empty/src/App.tsx");
+    expect(host.openProjectGraph).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a folder that already contains a project", async () => {

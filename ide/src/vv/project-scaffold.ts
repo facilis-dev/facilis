@@ -74,7 +74,7 @@ export async function scaffoldFacilisProject(
   bridge.post("vv-register-project", { dir, manifest: template.manifest, title: projectName(dir) });
   host.registerProjectMeta({ rootPath: dir, template: template.manifest.id });
   host.openFolder(dir);
-  void host.openFile(dir + "/" + template.manifest.entry);
+  host.openProjectGraph();
   host.status(t("scaffold.status"));
   toast.success(t("scaffold.doneTitle"), { description: t("scaffold.doneDescription") });
   return true;

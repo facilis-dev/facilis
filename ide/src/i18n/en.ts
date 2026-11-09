@@ -18,6 +18,9 @@ import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
+import { tourEn } from "./en-tour";
+import { runEn } from "./en-run";
+import { previewEn } from "./en-preview";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -184,36 +187,8 @@ export const en = {
   ...releasePreviewEn,
   ...updatesEn,
 
-  // ── bottom panel + status bar (D-124) ────────────────────────────────────
-  // The panel is closed by default and its three surfaces are opened from the
-  // status bar, so these labels are the panel's only tab strip.
-  "panel.console": "Console",
-  "panel.terminal": "Terminal",
-  "panel.ports": "Ports",
-  "panel.openConsole": "Show console",
-  "panel.openTerminal": "Show terminal",
-  "panel.openPorts": "Show ports",
-  "panel.hide": "Hide panel",
-  "panel.newTerminal": "New terminal",
-  "panel.noTerminals": "No terminals. Press + to create one.",
-  "panel.killTerminal": "Kill terminal",
-  "panel.noPorts": "No ports are forwarded. Run a project to start a server.",
-  "panel.port": "Port",
-  "panel.process": "Process",
-  "panel.address": "Address",
-  "panel.openPreview": "Open preview",
-
-  // ── run (the status bar's Play/Stop control) ────────────────────────────
-  "run.start": "Run",
-  "run.noProject": "Open a project first.",
-  "run.startHint": "Install dependencies and start this project",
-  "run.stop": "Stop",
-  "run.stopHint": "Stop the dev server",
-  "run.running": "Running",
-  "run.runningHint": "Show the running app",
-  "run.failed": "Start failed",
-  "run.failedHint": "The project did not start — open the terminal to see why",
-  "run.showTerminal": "Show terminal",
+  // ── bottom panel, status bar and run (D-124) ────────────────────────────
+  ...runEn,
 
   // ── title bar ────────────────────────────────────────────────────────────
   "title.home": "Home",
@@ -238,28 +213,7 @@ export const en = {
   "status.selected": "({count} selected)",
 
   // ── preview panel ────────────────────────────────────────────────────────
-  "preview.empty": "No preview open.",
-  "preview.emptyTab": "Empty tab — type a local address like localhost:3000 and press Enter.",
-  "preview.runProject": "Run project",
-  "preview.startFailed": "The project did not start.",
-  "preview.progressHint":
-    "The preview appears as soon as the dev server binds a port. Watch the terminal for detail.",
-  "preview.retry": "Try again",
-  "preview.newTab": "New browser tab",
-  "preview.tabTitle": "Preview ({port})",
-  "preview.untitledTab": "New tab",
-  "preview.close": "Close",
-  "preview.closeOthers": "Close others",
-  "preview.closeRight": "Close to the right",
-  "preview.closeAll": "Close all",
-  "preview.back": "Back",
-  "preview.forward": "Forward",
-  "preview.reload": "Reload",
-  "preview.openDevtools": "Open devtools",
-  "preview.closeDevtools": "Close devtools",
-  "preview.openExternal": "Open in a new tab",
-  "preview.address": "Local address",
-  "preview.devtoolsTitle": "DevTools",
+  ...previewEn,
 
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Type a command…",
@@ -277,6 +231,7 @@ export const en = {
   "palette.importRemote": "Import a repository",
   "palette.pushRemote": "Publish to a git host",
   "palette.openChat": "Open AI Chat",
+  "palette.tour": "Show the IDE Tour",
   "palette.exportZip": "Export Project as Zip",
   "palette.shareProject": "Share Project (copy link)",
   "palette.toggleTerminal": "Toggle panel",
@@ -295,4 +250,7 @@ export const en = {
 
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsEn,
+
+  // ── guided tour (D-128) ─────────────────────────────────────────────────
+  ...tourEn,
 } as const;

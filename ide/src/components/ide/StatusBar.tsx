@@ -58,7 +58,10 @@ export function StatusBar() {
 
   return (
     <>
-      <div className="flex h-6 shrink-0 items-center bg-brand px-1 text-xs text-brand-foreground">
+      <div
+        data-tour="status"
+        className="flex h-6 shrink-0 items-center bg-brand px-1 text-xs text-brand-foreground"
+      >
         {branch && (
           <StatusItem label={t("status.branch")} onClick={() => c.setActiveView("scm")}>
             <GitBranch className="size-3.5" />

@@ -12,6 +12,9 @@ import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
 import { chatIt } from "./it-chat";
 import { logsIt } from "./it-logs";
+import { tourIt } from "./it-tour";
+import { runIt } from "./it-run";
+import { previewIt } from "./it-preview";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -177,36 +180,8 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...releasePreviewIt,
   ...updatesIt,
 
-  // ── pannello inferiore + barra di stato (D-124) ─────────────────────────
-  // Il pannello è chiuso di default e le sue tre superfici si aprono dalla barra
-  // di stato: queste etichette sono l'unica "tab strip" che gli resta.
-  "panel.console": "Console",
-  "panel.terminal": "Terminale",
-  "panel.ports": "Porte",
-  "panel.openConsole": "Mostra console",
-  "panel.openTerminal": "Mostra terminale",
-  "panel.openPorts": "Mostra porte",
-  "panel.hide": "Nascondi pannello",
-  "panel.newTerminal": "Nuovo terminale",
-  "panel.noTerminals": "Nessun terminale. Premi + per crearne uno.",
-  "panel.killTerminal": "Chiudi terminale",
-  "panel.noPorts": "Nessuna porta in ascolto. Avvia un progetto per far partire un server.",
-  "panel.port": "Porta",
-  "panel.process": "Processo",
-  "panel.address": "Indirizzo",
-  "panel.openPreview": "Apri anteprima",
-
-  // ── esecuzione (il controllo Esegui/Stop della barra di stato) ───────────
-  "run.start": "Esegui",
-  "run.noProject": "Apri prima un progetto.",
-  "run.startHint": "Installa le dipendenze e avvia questo progetto",
-  "run.stop": "Ferma",
-  "run.stopHint": "Ferma il dev server",
-  "run.running": "In esecuzione",
-  "run.runningHint": "Mostra l'app in esecuzione",
-  "run.failed": "Avvio non riuscito",
-  "run.failedHint": "Il progetto non si è avviato — apri il terminale per vedere il motivo",
-  "run.showTerminal": "Mostra terminale",
+  // ── pannello inferiore, barra di stato ed esecuzione (D-124) ────────────
+  ...runIt,
 
   // ── barra del titolo ─────────────────────────────────────────────────────
   "title.home": "Home",
@@ -231,29 +206,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "status.selected": "({count} selezionati)",
 
   // ── pannello anteprima ───────────────────────────────────────────────────
-  "preview.empty": "Nessuna anteprima aperta.",
-  "preview.emptyTab":
-    "Scheda vuota — digita un indirizzo locale come localhost:3000 e premi Invio.",
-  "preview.runProject": "Esegui progetto",
-  "preview.startFailed": "Il progetto non si è avviato.",
-  "preview.progressHint":
-    "L'anteprima compare appena il dev server si mette in ascolto. Il dettaglio è nel terminale.",
-  "preview.retry": "Riprova",
-  "preview.newTab": "Nuova scheda browser",
-  "preview.tabTitle": "Anteprima ({port})",
-  "preview.untitledTab": "Nuova scheda",
-  "preview.close": "Chiudi",
-  "preview.closeOthers": "Chiudi le altre",
-  "preview.closeRight": "Chiudi a destra",
-  "preview.closeAll": "Chiudi tutte",
-  "preview.back": "Indietro",
-  "preview.forward": "Avanti",
-  "preview.reload": "Ricarica",
-  "preview.openDevtools": "Apri DevTools",
-  "preview.closeDevtools": "Chiudi DevTools",
-  "preview.openExternal": "Apri in una nuova scheda",
-  "preview.address": "Indirizzo locale",
-  "preview.devtoolsTitle": "DevTools",
+  ...previewIt,
 
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Digita un comando…",
@@ -271,6 +224,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "palette.importRemote": "Importa un repository",
   "palette.pushRemote": "Pubblica su un host git",
   "palette.openChat": "Apri chat AI",
+  "palette.tour": "Mostra il tour dell'IDE",
   "palette.exportZip": "Esporta progetto come Zip",
   "palette.shareProject": "Condividi progetto (copia link)",
   "palette.toggleTerminal": "Mostra/nascondi pannello",
@@ -289,4 +243,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsIt,
+
+  // ── guided tour (D-128) ─────────────────────────────────────────────────
+  ...tourIt,
 };

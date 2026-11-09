@@ -18,6 +18,7 @@ import { TerminalPanel } from "./TerminalPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
+import { TourHost } from "@/components/tour/TourHost";
 import { HomeView } from "./Home";
 import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
 import { ProjectBootOverlay } from "./ProjectBootOverlay";
@@ -190,23 +191,25 @@ export function AppShell() {
                 minSize="10%"
                 maxSize="45%"
               >
-                {snap.activeView === "search" ? (
-                  <SearchPane />
-                ) : snap.activeView === "debug" ? (
-                  <DebugPanel />
-                ) : snap.activeView === "scm" ? (
-                  <SourceControlPanel />
-                ) : snap.activeView === "data" ? (
-                  <DataExplorerPanel />
-                ) : snap.activeView === "release" ? (
-                  <ReleasePreviewPanel />
-                ) : snap.activeView === "logs" ? (
-                  <LogsPanel />
-                ) : snap.activeView === "chat" && chatEnabled ? (
-                  <ChatPanel />
-                ) : (
-                  <Explorer />
-                )}
+                <div data-tour="sidebar" className="h-full min-h-0">
+                  {snap.activeView === "search" ? (
+                    <SearchPane />
+                  ) : snap.activeView === "debug" ? (
+                    <DebugPanel />
+                  ) : snap.activeView === "scm" ? (
+                    <SourceControlPanel />
+                  ) : snap.activeView === "data" ? (
+                    <DataExplorerPanel />
+                  ) : snap.activeView === "release" ? (
+                    <ReleasePreviewPanel />
+                  ) : snap.activeView === "logs" ? (
+                    <LogsPanel />
+                  ) : snap.activeView === "chat" && chatEnabled ? (
+                    <ChatPanel />
+                  ) : (
+                    <Explorer />
+                  )}
+                </div>
               </ResizablePanel>
               <ResizableHandle />
             </>
@@ -214,13 +217,17 @@ export function AppShell() {
           <ResizablePanel id="center" defaultSize="52%" minSize="25%">
             <ResizablePanelGroup orientation="vertical">
               <ResizablePanel id="editor" defaultSize="65%" minSize="20%">
-                <EditorGroup />
+                <div data-tour="editor" className="h-full min-h-0">
+                  <EditorGroup />
+                </div>
               </ResizablePanel>
               {!snap.panelCollapsed && (
                 <>
                   <ResizableHandle />
                   <ResizablePanel id="terminal" defaultSize="35%" minSize="10%">
-                    <TerminalPanel />
+                    <div data-tour="console" className="h-full min-h-0">
+                      <TerminalPanel />
+                    </div>
                   </ResizablePanel>
                 </>
               )}
@@ -230,13 +237,16 @@ export function AppShell() {
             <>
               <ResizableHandle />
               <ResizablePanel id="preview" defaultSize="32%">
-                <PreviewPanel />
+                <div data-tour="preview" className="h-full min-h-0">
+                  <PreviewPanel />
+                </div>
               </ResizablePanel>
             </>
           )}
         </ResizablePanelGroup>
       </div>
       <StatusBar />
+      <TourHost />
       <CommandPalette />
       <ImportRemoteDialog />
       <PushRemoteDialog />

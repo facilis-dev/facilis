@@ -1,3 +1,4 @@
+import CircleHelp from "~icons/lucide/circle-help";
 import ExternalLink from "~icons/lucide/external-link";
 import Home from "~icons/lucide/house";
 import PanelLeft from "~icons/lucide/panel-left";
@@ -6,6 +7,7 @@ import PanelRight from "~icons/lucide/panel-right";
 import PanelRightOff from "~icons/lucide/panel-right-dashed";
 import Play from "~icons/lucide/play";
 import Square from "~icons/lucide/square";
+import { tourStore } from "@/components/tour/tour-store-instance";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "@/i18n";
@@ -115,6 +117,16 @@ export function TitleBar() {
           <Home className="size-4" /> {t("title.home")}
         </Button>
         <div aria-hidden className="mx-1 h-5 w-px bg-border" />
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => tourStore.start()}
+            aria-label={t("tour.helpAria")}
+            className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <CircleHelp className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{t("tour.helpAria")}</TooltipContent>
+        </Tooltip>
         <LayoutToggle
           label={t("title.toggleSidebar")}
           keys="⌘B"
