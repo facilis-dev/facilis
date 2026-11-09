@@ -355,7 +355,10 @@ testable without a dev server.
   `/index`.
 - Re-exports and barrel files: followed.
 - Framework packages: `@facilis/*` source is shipped in the package, so it can be parsed
-  when present; otherwise a small bundled fact provider (e.g. auth tables) is the fallback.
+  when present (the Node loader walks `node_modules/@facilis`). The browser IDE's file map
+  comes from the VFS index, which skips `node_modules`, so it inlines the table-bearing
+  packages (`auth`, `db`) at build time instead (D-130); a drift guard keeps that list in
+  step with the template.
 - Other packages (including `drizzle-orm`): not parsed; their DSL is modelled by the
   whitelist.
 - No dynamic import execution, no `require` evaluation, no `node_modules` crawl beyond what a

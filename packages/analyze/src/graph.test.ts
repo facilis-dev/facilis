@@ -5,7 +5,7 @@ import { buildProjectGraph, type GraphInput } from "./graph.ts";
 import { createModuleGraph } from "./module-graph.ts";
 import { createOxcParser } from "./node.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
-import type { ConfigFacts, PageFact, RouteFact, SourceRef } from "./types.ts";
+import type { ConfigFacts, PageFact, RouteFact, SourceRef, TableFact } from "./types.ts";
 
 const parser = createOxcParser();
 
@@ -174,6 +174,7 @@ describe("buildProjectGraph", () => {
       kind: "table",
       table: "todos",
       rlsEnabled: true,
+      framework: false,
       unknown: false,
     });
     const getRoute = graph.nodes.find((node) => node.id === "route:GET /api/todos");
@@ -208,6 +209,55 @@ describe("buildProjectGraph", () => {
       pageKind: "page",
       callCount: 2,
     });
+  });
+
+  it("marks tables declared by an installed package and re-exported by the project", () => {
+    // db/schema.ts re-exports users from "@facilis/auth"; the analyzer follows the module
+    // and collects the package's tables (users, sessions), whose source is under node_modules.
+    const frameworkOf = (id: string): boolean | undefined => {
+      const data = graph.nodes.find((node) => node.id === id)?.data;
+      return data?.kind === "table" ? data.framework : undefined;
+    };
+    expect(frameworkOf("table:users")).toBe(true);
+    expect(frameworkOf("table:sessions")).toBe(true);
+    expect(frameworkOf("table:todos")).toBe(false);
+    expect(frameworkOf("table:projects")).toBe(false);
+    expect(graph.nodes.find((node) => node.id === "table:users")?.sourceFile).toBe(
+      "node_modules/@facilis/auth/src/index.ts",
+    );
+  });
+
+  it("keeps framework tables as ordinary nodes with FK and route-table edges", () => {
+    const base = fixtureInput();
+    const tables: TableFact[] = base.tables.map((table) =>
+      table.name === "sessions"
+        ? {
+            ...table,
+            foreignKeys: [
+              {
+                columns: ["userId"],
+                targetTable: "users",
+                targetColumns: ["id"],
+                onDelete: null,
+                onUpdate: null,
+                source: table.source,
+              },
+            ],
+          }
+        : table,
+    );
+    const routes = [...base.routes, route({ method: "GET", path: "/api/me", dbTables: ["users"] })];
+    const withEdges = buildProjectGraph({ ...base, tables, routes });
+    expect(withEdges.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "fk", source: "table:sessions", target: "table:users" }),
+        expect.objectContaining({
+          kind: "route-table",
+          source: "route:GET /api/me",
+          target: "table:users",
+        }),
+      ]),
+    );
   });
 
   it("is deterministic and handles an empty project", () => {

@@ -115,6 +115,14 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
         >
           {table.rlsEnabled ? t("projectGraph.rls") : t("projectGraph.noRls")}
         </span>
+        {table.framework && (
+          <span
+            className="rounded border border-border px-1 text-muted-foreground"
+            title={t("projectGraph.framework")}
+          >
+            {t("projectGraph.framework")}
+          </span>
+        )}
         {table.scope !== null && (
           <span className="min-w-0 truncate">
             {t("projectGraph.scope", {
