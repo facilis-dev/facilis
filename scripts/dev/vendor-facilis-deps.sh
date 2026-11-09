@@ -17,7 +17,7 @@
 # left untouched: only the packed copy is rewritten.
 #
 # Usage: scripts/dev/vendor-facilis-deps.sh [--all]
-#   --all also packs @facilis/ai and @facilis/blocks (not part of the default project templates).
+#   --all also packs @facilis/ai (not part of the default project templates).
 set -eu
 
 REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -31,7 +31,7 @@ log() { printf '[vendor-facilis-deps] %s\n' "$*" >&2; }
 
 case "${1:-}" in
   "") ;;
-  --all) PKGS="$PKGS ai blocks" ;;
+  --all) PKGS="$PKGS ai" ;;
   *)
     log "unknown option: $1"
     log "usage: $0 [--all]"

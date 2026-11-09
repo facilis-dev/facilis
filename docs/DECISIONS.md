@@ -4962,6 +4962,42 @@ D-092 says framework tables reached by re-export are read from the installed `@f
 
 **Verification.** `@facilis/analyze`'s graph tests cover `framework: true` for re-exported tables and `false` for project tables; the IDE's `framework-sources.test.ts` covers the map and the drift guard, and `framework-analysis.test.ts` runs the real oxc parser over `exampleProjectFiles()` + `frameworkProjectFiles()` (11 tables, 29 nodes, 46 edges including `GET /api/files/{id} → facilis_files` and `todo_files → facilis_files`; the same project without framework source stays at 2 tables / 20 nodes / 21 edges). `pnpm lint`, `pnpm typecheck`, `pnpm test` (IDE 981, analyze 82, nitro 354) and `pnpm build` pass; file-length, theme and prettier checks are clean.
 
+### D-131 — Phase 5 (headless blocks) is retired: the project owns its UI components
+**Status:** accepted (2026-11-09)
+
+Phase 5 planned a versioned `@facilis/blocks` supply chain (DataTable, ResourceForm, AuthGuard, …),
+block discovery over `node_modules`, and a `RoleAssignment` block; the package in the repository
+was only a 29-line type skeleton, and no workspace package, template or generated project
+referenced it. The direction changed twice since: D-121 removed the `blocks` config section because
+the generated project no longer composes external UI packages, and the v2 frontend (D-090/D-096)
+copies Base UI primitives into `src/components/ui` as source the project owns, with the AI writing
+pages against that source (docs/FRONTEND.md). A registered block supply chain has no consumer left.
+
+**Decision.** Retire the phase and delete the artifact:
+- delete `packages/blocks` and its lockfile importer; `scripts/dev/vendor-facilis-deps.sh --all`
+  no longer packs it, and no source imports it;
+- SPEC §4/§5.4 drop the package; §12 replaces the Phase 5 plan with a tombstone that keeps the
+  number, so Phase 6/7 and the `Phase 5` references in this log keep their identifiers;
+- the Phase 7+ "Block marketplace" backlog item, the Phase 6 `add-block` how-to page, O-004 (block
+  discovery) and the README status row go with it; O-004 closes as *not needed*;
+- the manifest `blocks` slot, the `BlockManifest` type (§7.2/§7.3) and validator rule 7 stay as a
+  reserved, always-empty guard, following D-121: dropping them changes the manifest wire format
+  and the 17-rule numbering, so that is a manifest revision, not a plan change.
+
+**Rejected.** Keeping the skeleton "for later" (dead code and a plan that promises a supply chain
+nobody builds); renumbering Phase 6/7 to 5/6 (churn across the spec, README and this log for no
+reader benefit); building the blocks anyway (they would duplicate the copy-in primitives D-090
+chose over a component package, and the AI already writes those pages directly).
+
+**Consequences.** One workspace package fewer; the manifest `blocks` section is now permanently
+empty, and rule 7 rejects any `@facilis/blocks` import as an unknown block (rule 12 would also fail
+it, since the package is not installed). No user-facing behaviour changes.
+
+**Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (19 workspace tasks; IDE 981, analyze 82,
+nitro 354) and `pnpm build` (11 packages) pass with the package removed. No source imports it;
+`grep` finds `@facilis/blocks` only in this log, the spec's reserved notes, the validator's guard
+constant and its test fixtures.
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
@@ -4971,7 +5007,7 @@ D-092 says framework tables reached by re-export are read from the installed `@f
 | O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
 | O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `internal_error`), serialized as `{ code, details? }` — no prose | done |
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
-| O-004 | Block discovery: `node_modules` scan vs explicit registration | scan `node_modules/*/manifest.*` (already assumed by revision hash) | Phase 5 |
+| O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis/blocks` deleted; nothing to discover | done |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
 | O-006 | Publish target for `@facilis/*` (public npm vs private registry) | start workspace-only; decide before first publish | Phase 6 |
 | O-007 | Recommended default AI model | **resolved with D-045:** no enforced default; each provider preset carries an editable model default | done |

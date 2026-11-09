@@ -90,7 +90,7 @@ export type SyntaxCheck =
   | { status: "checked"; findings: readonly SyntaxFinding[] }
   | { status: "unavailable"; reason: string };
 
-/** One registered block component (from the live manifest only; not a source fact). */
+/** One registered block component (live manifest only; not a source fact; reserved, D-131). */
 export interface BlockFacts {
   name: string;
 }

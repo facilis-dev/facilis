@@ -1,8 +1,8 @@
 /**
  * Rule 7 `block-import-valid` (SPEC §9.3): every block the patch imports must match a
- * registered `BlockManifest`. Blocks are a reviewed supply chain (D-067), so an import
- * names a block the project already has; a brand-new block component is rule 5's "do not
- * create new blocks unprompted".
+ * registered `BlockManifest`. The block supply chain is retired (D-131, no `@facilis/blocks`
+ * package ships), so in practice the manifest registers none and the guard rejects every block
+ * import; it stays in the rule set as the contract's reserved slot (§7.2/§7.3).
  *
  * The imports are the analyzer's FileFacts, so re-exports and dynamic imports are covered
  * by the same AST truth the rest of validation uses.

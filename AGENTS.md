@@ -17,7 +17,7 @@ structural (compiler/framework), not optional lint rules.
 Repository layout (see spec §4):
 
 ```
-packages/    @facilis/core, db, auth, blocks, ai, nitro, analyze (AST facts, D-092)
+packages/    @facilis/core, db, auth, ai, nitro, analyze (AST facts, D-092)
 ide/         Facilis IDE app (MIT fork of Vivari Studio)    [Phase 0+]
 vendor/vivari/  Vivari via our fork (git SUBMODULE, MIT), pinned to `facilis/main`
              [never edited here, never shipped, not in the pnpm workspace; see D-030]

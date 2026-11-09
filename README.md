@@ -20,7 +20,7 @@ A static, browser-resident IDE where developers clone a git repo, chat with an A
 Facilis redefines it:
 
 - **Code is the source of truth.** The UI visualizes and proposes. It never becomes a second source of truth.
-- **Pre-constructed elements are code.** Routes, blocks, auth flows, and security policies are standard NPM packages — not UI-managed configuration.
+- **Pre-constructed elements are code.** Routes, auth flows, and security policies are standard NPM packages — not UI-managed configuration.
 - **The framework enforces the right way.** A route cannot exist without an auth check and a declared DB dependency. A table cannot exist without an RLS policy. The compiler — not a lint rule — makes insecure code impossible to write.
 - **You can always escape.** Generated code is just code. Edit it, delete it, replace it. No round-tripping. No lock-in.
 
@@ -216,8 +216,8 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
 | **3** | Visualizers (project graph, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), project graph (D-092, replaced the API Flow, D-095) and Release Preview (D-086), plus the query console + declarative views (D-097); O-011 keeps the declared-AST half and preview mode C |
 | **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 17-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101) and the chat's only mode (D-103): sandbox spike ✅ (21/21), read-only tool chain ✅ (runner/tools/validate), exploration trace UI ✅; eval corpus + browser matrix remaining |
-| **5** | Headless blocks + i18n + RoleAssignment | 2 wk — 🟡 `@facilis/i18n-db` shipped (the v1 `@facilis/ui` kit was removed, D-096); `@facilis/blocks` is still a manifest skeleton |
-| **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/add-block/security how-to pages open |
+| **5** | ~~Headless blocks + i18n + RoleAssignment~~ | retired (D-131): the v2 frontend copies Base UI primitives into the project (`src/components/ui`, D-090/D-096) and the AI writes pages against that source, so no block supply chain ships |
+| **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/security how-to pages open |
 
 **MVP target:** *"chat → working, secure, authenticated todo app"* in under 3 minutes from a fresh clone.
 
@@ -225,7 +225,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 
 ## Read the Spec
 
-The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator, the block manifests — derives from it.
+The spec is the contract. Every downstream artifact — the AI prompt, the visualizer, the validator — derives from it.
 
 → **[`docs/SPEC.md`](docs/SPEC.md)** — full specification v1.7
 
@@ -251,7 +251,7 @@ Highlights inside:
 3. **The endpoint is a projection.** `/__facilis/manifest` reflects the running project. It is never committed.
 4. **Security is structural.** `defineAuthorizedHandler` is the only way to write a route.
 5. **Roles are code.** Declared in `facilis.config.ts`, seeded by migrations, assigned at runtime.
-6. **Extend via NPM.** Blocks are packages. No plugin registry, no manifest file.
+6. **Extend in the project.** Components live in `src/components` as copy-in source (D-090). No plugin registry, no manifest file.
 7. **The Studio is a shell.** The product is the framework packages and the OpenAPI contract.
 8. **The kit is copy-in source.** Template v2 generates Tailwind CSS v4 + Base UI and ships its
    shadcn-style components as source the project owns (`src/components/ui`); the v1 plain-CSS

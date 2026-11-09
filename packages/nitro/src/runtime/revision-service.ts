@@ -17,7 +17,7 @@ export interface RevisionSnapshot {
  *
  * Inputs: raw facilis.config.ts source, db/schema.ts + its relative imports, the
  * AST-pass route metadata (the facilis-owned part of the OpenAPI document) and the
- * locale catalogues. Block manifests are a Phase 5 concern; they default to [].
+ * locale catalogues. No block package ships (D-131); block manifests default to [].
  */
 export async function getRevisionSnapshot(): Promise<RevisionSnapshot> {
   const [configSource, schemaFiles, catalogs] = await Promise.all([
