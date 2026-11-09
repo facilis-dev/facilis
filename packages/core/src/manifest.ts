@@ -22,7 +22,7 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type BlockCategory = "data" | "form" | "layout" | "auth" | "feedback" | "media" | "other";
 
-/** `@facilis/blocks` manifests are assignable to this shape and vice versa (SPEC §7.2). */
+/** A registered block's manifest (SPEC §7.2); reserved — no block package ships (D-131). */
 export interface ApiHint {
   readonly method: HttpMethod;
   readonly path: string;

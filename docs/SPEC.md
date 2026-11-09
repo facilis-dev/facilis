@@ -254,21 +254,6 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── storage/              @facilis/storage (D-053)
 │   │   └── src/              content-addressed blobs, local + S3-compatible drivers, signed tokens
 │   │
-│   ├── blocks/               @facilis/blocks
-│   │   ├── src/
-│   │   │   ├── DataTable/
-│   │   │   │   ├── index.tsx
-│   │   │   │   └── manifest.ts
-│   │   │   ├── ResourceForm/
-│   │   │   ├── AuthGuard/
-│   │   │   ├── RoleGate/
-│   │   │   ├── RoleAssignment/       (Phase 5)
-│   │   │   ├── LoginForm/
-│   │   │   ├── ConfirmDialog/
-│   │   │   ├── FileUpload/
-│   │   │   └── ...
-│   │   └── package.json
-│   │
 │   ├── time/                 @facilis/time (D-056)
 │   │   └── src/              Intl formatting, calendar days, DST-aware day bounds
 │   │
@@ -620,33 +605,14 @@ export const authSsoStates = pgTable("auth_sso_states", {
 
 **Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
 
-### 5.4 `@facilis/blocks`
+### 5.4 `@facilis/blocks` — removed (D-131)
 
-Each block is an independent module with two files:
-
-```
-src/<Block>/
-├── index.tsx         React component (Tailwind + shadcn/ui)
-└── manifest.ts       BlockManifest export
-```
-
-Shipped blocks in MVP:
-
-| Block | Category | Purpose |
-|---|---|---|
-| `DataTable` | data | TanStack Table, paginated, sortable |
-| `ResourceForm` | form | React Hook Form + Zod |
-| `AuthGuard` | auth | Redirect to login if no session |
-| `RoleGate` | auth | Render children only if role matches |
-| `LoginForm` | auth | Email/password login, uses auth API |
-| `ConfirmDialog` | feedback | shadcn Dialog wrapper |
-| `FileUpload` | media | FormData POST to a resource endpoint |
-
-Shipped in Phase 5:
-
-| Block | Category | Purpose |
-|---|---|---|
-| `RoleAssignment` | auth | Admin UI to assign roles to a user |
+The headless-blocks package never shipped and is retired: the template v2 frontend copies Base
+UI primitives into the project (`src/components/ui`, D-090/D-096) and the AI writes pages against
+that owned source, so a versioned block supply chain has no consumer. The skeleton package is
+deleted (§12 keeps the Phase 5 number as a tombstone). The `BlockManifest` type and the
+manifest `blocks` section stay as a reserved, always-empty slot (§7.2/§7.3); dropping them is a
+manifest revision, not part of this retirement.
 
 ### 5.5 `@facilis/ai`
 
@@ -1091,7 +1057,7 @@ interface FacilisMetaResponse {
 - `facilis.config.ts` content
 - Sorted list of `db/schema.ts` and its imports
 - Generated OpenAPI spec JSON
-- Sorted `node_modules/*/manifest.*` for block packages
+- Sorted `node_modules/*/manifest.*` for block packages — reserved, always empty (D-131)
 - Sorted `locales/*.json`
 
 No file watchers required. Recomputed on every request; clients use ETag.
@@ -1200,6 +1166,9 @@ interface FacilisConfig {
 
 ### 7.2 `BlockManifest`
 
+**Reserved (D-131).** No package ships a block manifest any more; the type stays in the
+manifest contract, whose `blocks` section is always empty until a manifest revision drops it.
+
 ```typescript
 interface BlockManifest {
   name: string
@@ -1226,7 +1195,7 @@ interface ApiHint {
 interface FacilisManifest {
   framework: { coreVersion: string; nitroVersion: string }
   project: { config: FacilisConfig }
-  blocks: BlockManifest[]
+  blocks: BlockManifest[]                     // reserved, always empty (D-131)
   routes: RouteMeta[]
   schema: SchemaSnapshot
   i18n: {
@@ -2131,8 +2100,8 @@ effective (post-patch) `Analysis` from `@facilis/analyze` plus the pre-patch one
 edits. The caller supplies them — the IDE analyzes the VFS snapshot and the patch overlay with
 its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
 `@facilis/ai/node` helper. Sources are read only for `package.json` (installed packages) and
-`tsconfig.json` (path aliases); blocks still come from the live manifest because registration is
-runtime state. Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
+`tsconfig.json` (path aliases); the manifest's `blocks` section is reserved and always empty now
+that no block package ships (D-131). Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
 parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails
 closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
 closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
@@ -2619,15 +2588,14 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 corpus and browser matrix remain. The validator's warnings still
 need a UI surface.
 
-### Phase 5 — Headless Blocks + i18n (2 weeks)
+### Phase 5 — Retired: headless blocks (D-131)
 
-- `@facilis/blocks` packages with `manifest.ts`
-- `en` catalog shipped
-- Block discovery via `node_modules` scan
-- Wire block manifests into AI prompt
-- `RoleAssignment` block for admin UI
-
-**Exit criteria:** AI can generate a page using only existing blocks; an admin can assign roles via UI.
+Phase 5 planned a versioned `@facilis/blocks` supply chain (DataTable, ResourceForm, AuthGuard, …)
+plus block discovery and `RoleAssignment`. The v2 frontend copies Base UI primitives into the
+project (`src/components/ui`, D-090/D-096) and the AI writes pages against that owned source, so
+there is no supply chain to register or discover; the skeleton package is deleted and
+`RoleAssignment` is a generated page, not a block. The number is kept as a tombstone so later
+phases and the decision log keep their numbers. i18n already ships (`@facilis/i18n-db`, §5.9).
 
 ### Phase 6 — Polish & MVP Demo (1–2 weeks)
 
@@ -2635,7 +2603,7 @@ need a UI surface.
 - Demo script (< 3 minutes)
 - Error surfacing in chat
 - Version pinning (`nitro@3.x.x` locked)
-- Docs: add-block, add-route, security checklist, roles quickstart
+- Docs: add-route, security checklist, roles quickstart
 
 **Exit criteria:** Demo runs reliably on fresh browser session.
 
@@ -2644,7 +2612,7 @@ need a UI surface.
 D-062). The demo script is [`DEMO.md`](./DEMO.md) (three minutes, fresh browser, Mock provider
 path included); its automated equivalent — `pnpm ide:smoke`, which drives the same flow on a real
 headless Chromium — passed on a fresh profile on 2026-11-02. A human rehearsal is still pending,
-as are the add-block/add-route/security-checklist pages.
+as are the add-route/security-checklist pages.
 
 ### Phase 7+ — Post-MVP Backlog
 
@@ -2653,7 +2621,6 @@ as are the add-block/add-route/security-checklist pages.
 - Visual "add resource" wizard
 - Flat-JSON data mode
 - Column-level `GRANT`
-- Block marketplace
 - i18n catalog editor
 - Collaborative editing (Yjs)
 - OpenAPI contract diff (parallel Vivari boot)

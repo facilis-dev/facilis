@@ -147,7 +147,8 @@ Concrete failures found in the current tree (line references are to HEAD):
    never lift a drop to "breaking". SPEC §7.3 does not pin the domain.
 10. **Blocks can never satisfy rule 7.** The only fact source is the manifest's `blocks`
     section, which the runtime never populates; every `@facilis/blocks` import therefore fails
-    in the validator (`packages/ai/src/rules/blocks.ts`).
+    in the validator (`packages/ai/src/rules/blocks.ts`). Phase 5 is now retired and the package
+    deleted (D-131), so the rule is permanently a guard against a supply chain that does not exist.
 11. **Boot timing is not retried by panels.** A first request during boot renders the error
     state; the 2 s revision poll only refreshes after a successful revision response, so the
     panel can stay empty until a manual refresh (the spec's "retry with backoff" is not
