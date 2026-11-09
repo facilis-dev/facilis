@@ -246,6 +246,11 @@ export interface TableNodeData {
   readonly columns: readonly ColumnFact[];
   readonly rlsEnabled: boolean;
   readonly scope: ScopeFact | null;
+  /**
+   * True when an installed @facilis package declares the table and the project only
+   * re-exports it: its source file lives under `node_modules/`.
+   */
+  readonly framework: boolean;
   readonly unknown: boolean;
 }
 

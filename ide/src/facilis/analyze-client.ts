@@ -22,6 +22,7 @@ import {
   toAnalyzeRequest,
   type AnalyzeRequest,
 } from "./analyze-protocol";
+import { frameworkProjectFiles } from "./framework-sources";
 import type { ProjectAnalysisResult } from "./project-analysis";
 
 /** The wasm module is ~1.5 MB; a cold load on a slow link is the slowest healthy path. */
@@ -212,7 +213,14 @@ export function loadProjectSources(controller: IdeController): Promise<ProjectSo
 export function analyzeProjectFiles(
   files: ReadonlyMap<string, string>,
 ): Promise<ProjectAnalysisResult> {
-  const run = queue.then(() => analyzeFiles(files));
+  // The VFS snapshot never lists node_modules, so the installed framework source (which
+  // db/schema.ts re-exports its tables from) is merged in here, at the one choke point
+  // every caller — graph, patch validator, release preview — goes through. Project files
+  // win on collision (there is none today); the framework set is fixed and read from the
+  // bundle, so it does not count against the VFS size caps applied above.
+  const merged = new Map(frameworkProjectFiles());
+  for (const [path, source] of files) merged.set(path, source);
+  const run = queue.then(() => analyzeFiles(merged));
   queue = run.then(
     () => undefined,
     () => undefined,

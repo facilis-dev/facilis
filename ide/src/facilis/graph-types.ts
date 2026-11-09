@@ -69,6 +69,8 @@ export interface TableGraphData {
   readonly table: string;
   readonly columns: readonly GraphColumn[];
   readonly rlsEnabled: boolean;
+  /** Declared by an installed @facilis package and only re-exported by the project. */
+  readonly framework: boolean;
   readonly scope: GraphScope | null;
   readonly unknown: boolean;
 }

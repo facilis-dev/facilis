@@ -39,6 +39,7 @@ function tableNode(table: TableFact): GraphNode {
     columns: table.columns,
     rlsEnabled: table.rlsEnabled,
     scope: table.scope,
+    framework: table.source.file.startsWith("node_modules/"),
     unknown:
       table.unknown.length > 0 ||
       table.columns.some((column) => column.unknown.length > 0) ||

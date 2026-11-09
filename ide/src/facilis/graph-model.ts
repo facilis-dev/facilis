@@ -105,6 +105,7 @@ function tableData(node: GraphNode): TableGraphData | null {
     table: node.data.table,
     columns: node.data.columns.map(columnView),
     rlsEnabled: node.data.rlsEnabled,
+    framework: node.data.framework,
     scope:
       node.data.scope === null
         ? null

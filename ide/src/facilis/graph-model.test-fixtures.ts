@@ -73,6 +73,7 @@ export function tableNode(
   options: {
     columns?: readonly ColumnFact[];
     rlsEnabled?: boolean;
+    framework?: boolean;
     scope?: { column: string; kind: "tenant" | "owner" } | null;
     unknown?: boolean;
   } = {},
@@ -87,6 +88,7 @@ export function tableNode(
       table: name,
       columns: options.columns ?? [column("id", { primaryKey: true, notNull: true })],
       rlsEnabled: options.rlsEnabled ?? true,
+      framework: options.framework ?? false,
       scope: options.scope ?? null,
       unknown: options.unknown ?? false,
     },

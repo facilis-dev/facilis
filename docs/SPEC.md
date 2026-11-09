@@ -1017,7 +1017,7 @@ config runs inside the WebContainer, where only the bundler's oxc is proven to l
 values are explicit (`null`/unknown entries, never defaults), the DSL is forced by the
 `defineAuthorizedHandler`/`defineConfig`/`pgTable`/`api()`/`t()` contract, and the runtime
 wrapper remains the security boundary. Used by the IDE project graph and patch validation, the
-AI validator, and the Nitro manifest/OpenAPI facts.
+AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the installed framework declarations it would otherwise lack by inlining `@facilis/auth` and `@facilis/db`'s source at build time (D-130), so re-exported framework tables and their edges reach the graph without a `node_modules` crawl.
 
 ## 6. The `/__facilis/manifest` Endpoint
 
@@ -2284,6 +2284,8 @@ tools; nothing is inlined); a provider error, the user's Stop or a validator out
 and nothing is written. A parser/analyzer outage is reported as a validator
 outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
 (D-103); the eval corpus and browser matrix remain.
+
+**Status (2026-11-09): the project graph shows framework tables (D-130).** The browser analyzer now receives the `@facilis/auth`/`@facilis/db` source it needs to resolve the tables `db/schema.ts` re-exports, inlined at IDE build time. The starter graph carries 11 tables and 46 edges (was 2/21), including the route→`facilis_files` and `todo_files→facilis_files` edges, and framework tables carry a `framework`/`sistema` badge.
 
 **Status (2026-11-06): the project graph replaced the API Flow.** D-092's `project-graph` editor
 tab is the single pages → routes → tables visualizer (plus FK/relations edges), built from
