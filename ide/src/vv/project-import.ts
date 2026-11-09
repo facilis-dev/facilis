@@ -27,6 +27,8 @@ export interface ProjectImportHost {
   validateNewDir(dir: string): Promise<string | null>;
   openFolder(rootPath: string): void;
   openFile(abs: string): void;
+  /** Land on the project graph, like createProject/openProject (D-127). */
+  openProjectGraph(): void;
   registerProjectMeta(meta: { rootPath: string; template: string | null }): void;
   registerManifest(rootPath: string, manifest: ProjectManifest): void;
   status(text: string): void;

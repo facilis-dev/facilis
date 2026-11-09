@@ -573,6 +573,7 @@ export class IdeController {
       openFile: (abs) => {
         void this.openFile(abs);
       },
+      openProjectGraph: () => this.openProjectGraph(),
       registerProjectMeta: (meta) => this.upsertProjectMeta(meta),
       registerManifest: (root, manifest) => {
         this.folderManifests.set(root, manifest);
@@ -1006,8 +1007,8 @@ export class IdeController {
     this.set({ openTabs, previewTab, activeTab: abs });
 
     // A `.ipynb` has to become a notebook tab HERE and not only in openEntry.
-    // openEntry is the Explorer's path, and it is far from the only one: ⌘P, a
-    // template's `entry` after create, and restoring a tab on reload all arrive
+    // openEntry is the Explorer's path, and it is far from the only one: ⌘P, an
+    // imported project's `entry`, and restoring a tab on reload all arrive
     // straight at openFile — which would have shown the notebook's raw JSON.
     // A notebook that will not parse falls back to text, the one view that can
     // repair it.
@@ -1605,7 +1606,7 @@ export class IdeController {
     this.folderManifests.set(root, template.manifest);
     this.upsertProjectMeta({ rootPath: root, template: template.manifest.id });
     this.openFolder(root);
-    void this.openFile(root + "/" + template.manifest.entry);
+    this.openProjectGraph();
     if (runInit) {
       this.runProject(root);
     } else {
@@ -1654,8 +1655,7 @@ export class IdeController {
     }
     this.touchProject(root);
     this.openFolder(root);
-    const manifest = this.folderManifests.get(root);
-    if (manifest) void this.openFile(root + "/" + manifest.entry);
+    this.openProjectGraph();
     // node_modules is no longer mirrored file-by-file — it's restored from the
     // dependency-cache snapshot on demand. Bring it back now the project is open
     // (one blob read), then refresh the Explorer + IntelliSense to reflect it.
@@ -2468,7 +2468,7 @@ export class IdeController {
       const dir = normDir(m.dir as string);
       // An EXTRA service of a multi-server project (e.g. a backend/ws server
       // alongside the frontend): just add its preview tab — the primary already
-      // opened the folder + entry file.
+      // opened the folder and landed on the project graph.
       if (m.extra) {
         this.preview.pointPreview(m.port as number);
         this.status(`${m.title as string}: service on :${m.port} ready`);
@@ -2487,7 +2487,7 @@ export class IdeController {
       this.preview.syncKeepPrefixPorts();
       this.preview.pointPreview(m.port as number);
       if (!owned) this.openFolder(dir);
-      if (m.entry) void this.openFile(dir + "/" + (m.entry as string));
+      if (this.snap.activeTab === null) this.openProjectGraph();
       this.touchProject(dir);
       this.status(
         m.reload

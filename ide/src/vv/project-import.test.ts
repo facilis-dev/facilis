@@ -28,6 +28,7 @@ function host(): ProjectImportHost {
     validateNewDir: vi.fn(async () => null),
     openFolder: vi.fn(),
     openFile: vi.fn(),
+    openProjectGraph: vi.fn(),
     registerProjectMeta: vi.fn(),
     registerManifest: vi.fn(),
     status: vi.fn(),
