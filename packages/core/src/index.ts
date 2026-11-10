@@ -228,3 +228,11 @@ export type {
   ReleaseProblem,
   ReleaseRef,
 } from "./release-artifact.ts";
+
+export { planSchema } from "./schema-plan/plan.ts";
+export type {
+  SchemaPlan,
+  SchemaPlanBatch,
+  SchemaPlanProblem,
+  SchemaPlanProblemCode,
+} from "./schema-plan/types.ts";

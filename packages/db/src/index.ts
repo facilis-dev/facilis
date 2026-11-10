@@ -47,11 +47,16 @@ export {
 } from "./files.ts";
 export {
   schemaSnapshot,
+  type CheckSnapshot,
   type ColumnSnapshot,
+  type EnumSnapshot,
   type ForeignKeySnapshot,
+  type IndexSnapshot,
   type PolicySnapshot,
   type SchemaSnapshot,
   type TableSnapshot,
+  type UniqueConstraintSnapshot,
+  type UnsupportedDeclarationSnapshot,
 } from "./snapshot.ts";
 export {
   liveSchemaSnapshot,

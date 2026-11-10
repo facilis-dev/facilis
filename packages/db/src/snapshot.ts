@@ -1,8 +1,8 @@
-import { is, SQL } from "drizzle-orm";
-import { getTableConfig, PgDialect, PgTable, type PgColumn } from "drizzle-orm/pg-core";
+import { is } from "drizzle-orm";
+import { PgTable } from "drizzle-orm/pg-core";
 
-import { DEFAULT_OWNER_COLUMNS, DEFAULT_TENANT_COLUMNS, type FacilisDb } from "./client.ts";
-import { policyCreateSql } from "./rls.ts";
+import type { FacilisDb } from "./client.ts";
+import { snapshotTable } from "./snapshot-readers.ts";
 
 /** SPEC §7.3 taxonomy. Core re-exports these types as the manifest contract. */
 export type PolicyCommand = "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "ALL";
@@ -22,6 +22,14 @@ export interface ColumnSnapshot {
   default: string | null;
   isPrimaryKey: boolean;
   isUnique: boolean;
+  /**
+   * Identity columns are readable but not renderable by the v1 generator
+   * (`GENERATED ... AS IDENTITY` sequence options are lost in this projection), so the
+   * flag is carried and the P2 planner refuses instead of writing a plain column.
+   */
+  identity?: "always" | "byDefault";
+  /** Generated/computed columns: same fail-closed treatment, no faithful v1 DDL. */
+  generated?: true;
 }
 
 export interface ForeignKeySnapshot {
@@ -30,6 +38,41 @@ export interface ForeignKeySnapshot {
   targetColumns: string[];
   onDelete?: "cascade" | "set null" | "restrict" | "no action";
   onUpdate?: "cascade" | "set null" | "restrict" | "no action";
+}
+
+export interface IndexSnapshot {
+  name: string;
+  /** Plain column names only; any other index shape lands in `unsupported`. */
+  columns: string[];
+  unique: boolean;
+}
+
+export interface CheckSnapshot {
+  name: string;
+  /** Rendered with PgDialect, like `default`; columns may stay table-qualified. */
+  expression: string;
+}
+
+/** A table-level `unique()`, distinct from a column's `isUnique`. */
+export interface UniqueConstraintSnapshot {
+  name: string;
+  columns: string[];
+}
+
+export interface EnumSnapshot {
+  name: string;
+  values: string[];
+}
+
+/**
+ * A declaration the snapshot can read but the v1 shapes above cannot represent (expression,
+ * partial or method-specific indexes; `ON DELETE SET DEFAULT`). It is carried, never
+ * dropped, so the P2 generator can fail the release closed instead of silently ignoring it
+ * (D-145: an unsupported declaration fails the release, never degrades silently).
+ */
+export interface UnsupportedDeclarationSnapshot {
+  construct: "index" | "foreign_key";
+  name: string;
 }
 
 export interface ScopeColumnSnapshot {
@@ -44,13 +87,19 @@ export interface TableSnapshot {
   foreignKeys: ForeignKeySnapshot[];
   policies: PolicySnapshot[];
   scopeColumn?: ScopeColumnSnapshot;
+  /** Ordered column names of the primary key; empty when the table has none. */
+  primaryKey?: string[];
+  indexes?: IndexSnapshot[];
+  checks?: CheckSnapshot[];
+  uniqueConstraints?: UniqueConstraintSnapshot[];
+  unsupported?: UnsupportedDeclarationSnapshot[];
 }
 
 export interface SchemaSnapshot {
   tables: TableSnapshot[];
+  /** Enum types referenced by columns, deduped by name. */
+  enums?: EnumSnapshot[];
 }
-
-const dialect = new PgDialect();
 
 /**
  * Derives the SPEC §7.3 schema snapshot from the Drizzle schema namespace passed to
@@ -58,92 +107,16 @@ const dialect = new PgDialect();
  * SPEC §11.1's code↔live comparison.
  */
 export async function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot> {
+  const enums = new Map<string, string[]>();
   const tables = Object.values(db.schema)
     .filter((value): value is PgTable => is(value, PgTable))
-    .map((table) => snapshotTable(table))
+    .map((table) => snapshotTable(table, enums))
     .toSorted((left, right) => left.name.localeCompare(right.name));
 
-  return { tables };
-}
-
-function snapshotTable(table: PgTable): TableSnapshot {
-  const config = getTableConfig(table);
-  const columns = config.columns.map((column) => snapshotColumn(column));
-  const snapshot: TableSnapshot = {
-    name: config.name,
-    rlsEnabled: config.enableRLS,
-    columns,
-    foreignKeys: config.foreignKeys.map((foreignKey) => {
-      const reference = foreignKey.reference();
-      const onDelete = toForeignKeyAction(foreignKey.onDelete);
-      const onUpdate = toForeignKeyAction(foreignKey.onUpdate);
-      return {
-        columns: reference.columns.map((column) => column.name),
-        targetTable: getTableConfig(reference.foreignTable).name,
-        targetColumns: reference.foreignColumns.map((column) => column.name),
-        ...(onDelete === undefined ? {} : { onDelete }),
-        ...(onUpdate === undefined ? {} : { onUpdate }),
-      };
-    }),
-    policies: config.policies.map((policy) => ({
-      name: policy.name,
-      command: (policy.for ?? "all").toUpperCase() as PolicyCommand,
-      using: policy.using === undefined ? null : dialect.sqlToQuery(policy.using).sql,
-      withCheck: policy.withCheck === undefined ? null : dialect.sqlToQuery(policy.withCheck).sql,
-      sql: policyCreateSql(config.name, policy),
-    })),
-  };
-
-  const scopeColumn = detectScopeColumn(columns.map((column) => column.name));
-  if (scopeColumn !== undefined) snapshot.scopeColumn = scopeColumn;
-  return snapshot;
-}
-
-function snapshotColumn(column: PgColumn): ColumnSnapshot {
   return {
-    name: column.name,
-    type: column.getSQLType(),
-    notNull: column.notNull,
-    default: renderDefault(column.default),
-    isPrimaryKey: column.primary,
-    isUnique: column.isUnique,
+    tables,
+    enums: [...enums.entries()]
+      .map(([name, values]) => ({ name, values }))
+      .toSorted((left, right) => left.name.localeCompare(right.name)),
   };
-}
-
-/**
- * SPEC §7.3 does not model SQL's SET DEFAULT, and "no action" is Postgres' default, so
- * both are omitted rather than invented or echoed as noise.
- */
-function toForeignKeyAction(
-  action: "cascade" | "restrict" | "no action" | "set null" | "set default" | undefined,
-): "cascade" | "set null" | "restrict" | undefined {
-  switch (action) {
-    case "cascade":
-    case "restrict":
-    case "set null":
-      return action;
-    default:
-      return undefined;
-  }
-}
-
-function renderDefault(value: PgColumn["default"]): string | null {
-  if (value === undefined) return null;
-  if (is(value, SQL)) return dialect.sqlToQuery(value).sql;
-  if (typeof value === "string") return quoteLiteral(value);
-  if (value instanceof Date) return quoteLiteral(value.toISOString());
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value);
-}
-
-function detectScopeColumn(columnNames: readonly string[]): ScopeColumnSnapshot | undefined {
-  const tenant = columnNames.find((name) => DEFAULT_TENANT_COLUMNS.includes(name));
-  if (tenant !== undefined) return { name: tenant, kind: "tenant" };
-  const owner = columnNames.find((name) => DEFAULT_OWNER_COLUMNS.includes(name));
-  if (owner !== undefined) return { name: owner, kind: "owner" };
-  return undefined;
-}
-
-function quoteLiteral(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
 }

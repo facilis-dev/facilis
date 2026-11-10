@@ -82,7 +82,7 @@ describe("dev-schema route", () => {
     expect(response.status).toBe(200);
 
     const payload = await body(response);
-    expect(payload["code"]).toEqual({ tables: [] });
+    expect(payload["code"]).toEqual({ tables: [], enums: [] });
     expect(payload["warnings"]).toEqual(warnings);
     const live = payload["live"] as { tables: { name: string; rlsEnabled: boolean }[] };
     expect(live.tables.map((table) => table.name)).toEqual(["items"]);
