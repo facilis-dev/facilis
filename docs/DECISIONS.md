@@ -5043,6 +5043,60 @@ tab). The pinned Vivari submodule's `spike-sw-multitab`, `spike-sw-routing` and
 `spike-sw-isolation-policy` pass against the patched file, and `pnpm lint`, `pnpm typecheck`,
 `pnpm test` and `pnpm build` are green.
 
+### D-133 — Chat context compaction replaces the replayed history with a summary
+**Status:** accepted (2026-11-09)
+
+O-018's owner decision (2026-11-07) defined "compact" as **context compaction**, not a density
+toggle (CHAT-UX "Compact"). The chat replays only the last `HISTORY_LIMIT = 20` messages
+(`chat-session.ts`), while the visible transcript survives far longer, so after twenty turns the
+model silently loses the beginning of the conversation. Compaction is the user-triggered fix: it
+changes the replay only, never the transcript.
+
+**Decision.** `ChatSession.compact()` makes one plain-text model call with a fixed
+`COMPACTION_SYSTEM` prompt (no tools, no PTC) whose answer becomes a `ChatSummary` —
+`{ content, at, through }`, where `through` counts the transcript prefix it covers. It is a
+header action (`chat.compact`, FoldVertical) enabled only when the chat is idle, a provider is
+configured and the conversation has text; while it runs the chat is in a new `ChatPhase`
+`"compacting"` so the composer is blocked and Stop aborts through the existing cancel path. A
+provider failure (including an empty answer) surfaces as an ordinary `ChatFailure` and keeps the
+previous summary.
+
+- **Replay.** `send()` calls `replayWithSummary(messages, summary, HISTORY_LIMIT)`: with a
+  summary, the model gets it as one user turn followed only by the messages after `through`,
+  still capped at 20; without one, the old `replayTurns` path is unchanged. A second compaction
+  feeds the previous summary plus the newer messages and moves the coverage.
+- **Transcript.** The covered messages stay visible; a dashed `ChatSummaryView` row after the last
+  covered message expands to the exact summary. `newChat()` clears the summary with the rest of
+  the state.
+- **Guards and cost.** The button is disabled when the current summary already covers the whole
+  transcript, and `compact()` re-checks that there is new text (one extra provider call per real
+  compaction). The compaction call reads the whole covered transcript (or summary + newer
+  messages), so a conversation larger than the provider window surfaces the provider failure
+  rather than dropping context silently.
+
+**Why a new module.** `chat-session.ts` was at the 300-line limit: the prompt, summary shape and
+replay preparation live in `ide/src/ai/chat-compaction.ts`. The streamed-bubble bookkeeping moved
+out to `ChatStreamWriter` in `chat-stream.ts` (behaviour unchanged; `StreamAccumulator` still
+throttles the paint) so the session had room for the action. The composer needed no change:
+`busy = phase !== "idle"` already disables it and swaps Send for Stop.
+
+**Rejected.** A slash-command parser in the composer (the header button is the same command with
+no extra state); automatic compaction on a threshold (silent model calls cost money and the user
+must see when the context was replaced); persisting the summary (the chat is in-memory and the
+transcript is not persisted either); removing the covered messages from the transcript (the
+visible history is the user's audit trail; only the model replay changes).
+
+**Consequences.** After compaction the model's history is one summary plus up to 20 newer turns;
+the marker's count is the covered prefix size. The transcript can grow without bound (as before),
+so compaction is repeatable: each run replaces the replay, not the visible history.
+
+**Verification.** `chat-compaction.test.ts` (10 tests: success and replay swap, second compaction,
+provider failure keeps the previous summary, empty answer, busy/cancel, no conversation, no
+provider, no re-summarizing an already-covered transcript, replay cap, and the no-summary
+delegation to `replayTurns`); the IDE suite is 122 files / 991 tests and root `pnpm lint`,
+`pnpm typecheck`, `pnpm test`, `pnpm build` are green. The button and marker row have no browser
+pass yet — theme, i18n parity and typecheck cover the static rules.
+
 ---
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
@@ -5065,7 +5119,7 @@ tab). The pinned Vivari submodule's `spike-sw-multitab`, `spike-sw-routing` and
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) | Phase 7+ |
-| O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. Remaining: context compaction and the project-file picker | IDE chat polish, after the preview tools (D-111 landed) |
+| O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. **Context compaction landed in D-133** (header action, `ChatState.summary`, replay swap, marker row). Remaining: the project-file picker | IDE chat polish, after the preview tools (D-111 landed) |
 | O-019 | Log retention and tamper evidence beyond a local file: WORM storage, an HMAC-keyed chain, and external sinks (S3/Syslog/OTLP) | D-119 gives the file/stdout pipeline with a SHA-256 `seq`/`prevHash` chain and delegates WORM/retention to the deploy's log platform. Add an optional HMAC key per deployment (`FACILIS_LOG_HMAC_KEY`) and a `committed`/`rolled_back` entry for the request transaction before this is called tamper-proof | Phase 7+ |
 | O-020 | SSO depth: IdP-initiated SAML, SCIM provisioning, refresh tokens/session sync, TOTP/WebAuthn as a second factor | keep SP-initiated SAML, JIT linking/provisioning and password+SSO only; each of the four is a separate contract (and 2FA needs a second credential table, not a provider flag) | Phase 7+ |
 

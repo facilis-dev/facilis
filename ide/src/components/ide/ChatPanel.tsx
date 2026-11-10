@@ -5,15 +5,25 @@
 // All strings go through t() and every colour is a role, so the panel lands
 // compliant with D-043/D-044 from its first commit (ide/I18N.md).
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import Sparkles from "~icons/lucide/sparkles";
 import Settings from "~icons/lucide/settings";
 import Plus from "~icons/lucide/plus";
 import LoaderCircle from "~icons/lucide/loader-circle";
 import FileText from "~icons/lucide/file-text";
+import FoldVertical from "~icons/lucide/fold-vertical";
 import { Button } from "@/components/ui/button";
 import { ChatComposer } from "./ChatComposer";
 import { ChatMessageView } from "./ChatMessageView";
+import { ChatSummaryView } from "./ChatSummaryView";
 import { ChatProposalView } from "./ChatProposalView";
 import { ChatTraceView } from "./ChatTraceView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
@@ -63,6 +73,9 @@ export function ChatPanel() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const hasProject = snap.workspaceFolders.length > 0;
   const busy = state.phase !== "idle";
+  const hasConversation = state.messages.some((message) => message.content.length > 0);
+  // Re-compacting an unchanged transcript would only spend a call: the marker already covers it.
+  const alreadyCovered = state.summary !== null && state.summary.through >= state.messages.length;
 
   // Follow the newest message / card; the transcript is the panel's only scroll.
   useEffect(() => {
@@ -104,9 +117,11 @@ export function ChatPanel() {
           ? t("chat.patchParts", { part: state.patchParts.part })
           : state.phase === "applying"
             ? t("chat.applying")
-            : state.streaming
-              ? t("chat.streaming")
-              : t("chat.thinking");
+            : state.phase === "compacting"
+              ? t("chat.compacting")
+              : state.streaming
+                ? t("chat.streaming")
+                : t("chat.thinking");
 
   return (
     <aside
@@ -129,6 +144,18 @@ export function ChatPanel() {
               onClick={() => void chat.openInstructions()}
             >
               <FileText />
+            </Button>
+          )}
+          {hasProject && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("chat.compact")}
+              title={t("chat.compact")}
+              disabled={busy || !state.configured || !hasConversation || alreadyCovered}
+              onClick={() => void chat.compact()}
+            >
+              <FoldVertical />
             </Button>
           )}
           <Button
@@ -171,11 +198,15 @@ export function ChatPanel() {
         ) : (
           <>
             {state.messages.map((message, index) => (
-              <ChatMessageView
-                key={message.id}
-                message={message}
-                streaming={state.streaming && index === state.messages.length - 1}
-              />
+              <Fragment key={message.id}>
+                <ChatMessageView
+                  message={message}
+                  streaming={state.streaming && index === state.messages.length - 1}
+                />
+                {state.summary !== null && index === state.summary.through - 1 && (
+                  <ChatSummaryView summary={state.summary} />
+                )}
+              </Fragment>
             ))}
             <ChatTraceView
               trace={state.trace}
