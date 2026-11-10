@@ -72,6 +72,10 @@ export const en = {
   "boot.openingTitle": "Opening {name}",
   "boot.openingHint": "Restoring its files and starting the runtime.",
 
+  // ── working tree (git rewrote files) ────────────────────────────────────
+  "editor.workdir.unsavedKept":
+    "Git updated the working tree: {n} open file(s) with unsaved changes kept their buffer. Save them over the pulled files deliberately.",
+
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "This tab's project is not in the recent-projects list any more.",
   "project.openElsewhere": "{name} is already open in another tab — close it there first.",

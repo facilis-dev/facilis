@@ -2399,6 +2399,11 @@ tables plus FK and `relations()` edges, fullscreen, edge filters, drag and a git
 `.facilis/graph.json` layout. No manifest/OpenAPI endpoint is needed for the graph; the browser
 smoke covers it.
 
+**Status (2026-11-10): a git worktree change reloads the editor (D-140).** Checkout, discard and
+remote pull share one refresh path: the SCM change list and Explorer update, open text buffers
+reload from disk, and a buffer with unsaved edits is kept and reported instead of being
+overwritten (the pulled branch is the repository, the unsaved bytes are the user's).
+
 **Status (2026-11-02): Source Control shows history.** The SCM panel's rows open a real diff for every change — untracked and deleted files included, side by side and scrolled to the first hunk (D-089) — and each repository can open a commit graph in the editor area: branches, merges and the current HEAD drawn with React Flow over the local git log, read on demand and never over the network (D-088). The graph is local-only, so it behaves the same in an open and a managed deployment.
 
 ### 10.3 VFS Write Rule

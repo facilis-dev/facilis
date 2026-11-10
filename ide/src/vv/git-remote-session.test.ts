@@ -192,6 +192,26 @@ describe("GitRemoteSession pull and push", () => {
     expect(session.getSnapshot().branch).toBe("feature");
   });
 
+  it("fires onWorkdirChanged only after a successful pull", async () => {
+    const ops = makeOps();
+    const session = sessionWith(ops);
+    let fired = 0;
+    session.onWorkdirChanged = () => {
+      fired += 1;
+    };
+
+    await expect(session.fetch("/p")).resolves.toBe(true);
+    await expect(session.push("/p", { token: TOKEN })).resolves.toBe(true);
+    expect(fired).toBe(0);
+
+    await expect(session.pull("/p")).resolves.toBe(true);
+    expect(fired).toBe(1);
+
+    ops.pullRepo.mockRejectedValueOnce(new Error("conflict"));
+    await expect(session.pull("/p")).resolves.toBe(false);
+    expect(fired).toBe(1);
+  });
+
   it("push passes the branch and credentials, then returns false on rejection", async () => {
     const ops = makeOps();
     const session = sessionWith(ops);

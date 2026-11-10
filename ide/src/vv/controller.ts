@@ -45,6 +45,7 @@ import {
 } from "./run-phase";
 import type { GitImportOptions } from "./git-import";
 import { GitRemoteSession } from "./git-remote-session";
+import { createWorkdirReload } from "./workdir-reload";
 import { NotebookDoc } from "./notebook/doc.js";
 import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
 import { NotebookSession } from "./notebook/session.js";
@@ -457,9 +458,6 @@ export class IdeController {
     // When execution pauses (or a frame is selected), open the file + reveal the line.
     this.debug.onReveal = (path, line) => void this.openFileAt(path, line);
     this.scm = new ScmSession(this.bridge);
-    // A checkout/discard rewrote the working tree via the silent git RPC (no
-    // vv-fs-changed), so refresh the Explorer tree and reload any open editors.
-    this.scm.onWorkdirChanged = () => this.reloadWorkdir();
     this.search = new SearchSession(this.bridge, {
       roots: () => this.snap.workspaceFolders.map((f) => f.rootPath),
       refreshFileFromDisk: (abs) => this.refreshFileFromDisk(abs),
@@ -473,6 +471,27 @@ export class IdeController {
     });
     this.projectImport = new ProjectImport(this.bridge, this.projectImportHost());
     this.gitRemote = new GitRemoteSession(this.bridge);
+    // Git rewrites the worktree through a silent RPC: refresh SCM/Explorer, reload open buffers.
+    const reloadWorkdir = createWorkdirReload({
+      tabs: () =>
+        this.snap.openTabs.filter(
+          (abs) => !isDiffTabId(abs) && (this.snap.tabKinds[abs] ?? "text") === "text",
+        ),
+      dirty: () => this.snap.dirty,
+      read: (abs) => this.readFileText(abs),
+      store: (abs, text) => {
+        this.localFiles[abs] = text;
+        const model = this.models.get(abs);
+        if (model && model.getValue() !== text) model.setValue(text);
+      },
+      refresh: () => {
+        this.bumpTree();
+        this.refreshScm();
+      },
+      unsavedKept: (n) => toast.warning(t("editor.workdir.unsavedKept", { n })),
+    });
+    this.scm.onWorkdirChanged = reloadWorkdir;
+    this.gitRemote.onWorkdirChanged = reloadWorkdir;
     this.editorPython = new EditorPython(this.editorPythonHost());
     this.editorLanguage = new EditorLanguage(this.editorLanguageHost());
     this.editorSession = new EditorSession(this.editorSessionHost());
@@ -1382,25 +1401,6 @@ export class IdeController {
       },
       { theme: monacoThemeFor(this.uiTheme), wordWrap: this.snap.wordWrap },
     );
-  }
-
-  /** After a checkout/discard rewrote files via the silent git RPC, refresh the
-   * Explorer tree and reload any open editor models whose bytes changed on disk. */
-  private async reloadWorkdir() {
-    this.bumpTree();
-    for (const abs of this.snap.openTabs) {
-      if (isDiffTabId(abs)) continue;
-      if ((this.snap.tabKinds[abs] ?? "text") !== "text") continue;
-      const model = this.models.get(abs);
-      if (!model) continue;
-      try {
-        const text = await this.readFileText(abs);
-        this.localFiles[abs] = text;
-        if (model.getValue() !== text) model.setValue(text);
-      } catch {
-        /* the checkout may have deleted this file — leave the stale buffer */
-      }
-    }
   }
 
   saveActiveFile() {

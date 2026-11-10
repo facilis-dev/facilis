@@ -62,6 +62,11 @@ export class GitRemoteSession {
   // The deployment's proxy is fixed for the life of the page, so the health
   // probe runs once; every later detect reuses this promise.
   private proxyReady: Promise<string | null> | null = null;
+  /**
+   * Fired after a pull rewrote the working tree (fetch/push leave file bytes alone), so the
+   * controller can refresh the Explorer and reload the open editor buffers.
+   */
+  onWorkdirChanged: (() => void) | null = null;
 
   constructor(bridge: KernelBridge, ops: RemoteOps = createRemoteOps()) {
     this.fs = createGitFs(bridge);
@@ -226,6 +231,7 @@ export class GitRemoteSession {
       await this.refreshRemote(root, remote);
       return true;
     });
+    if (result === true) this.onWorkdirChanged?.();
     return result === true;
   }
 

@@ -241,7 +241,9 @@ pull request with `git_pull_request`. The AI never authors source content throug
 mutates the index, `git_commit` writes a local commit, and source changes still arrive only through
 the validated proposal + the user's Apply. The operations that do move the working tree (`switch`,
 `pull`) refuse a dirty tree with `{ ok: false, reason }` as data, so they can never clobber
-uncommitted work. There is deliberately no discard/reset/clean/rebase/force-push tool.
+uncommitted work. There is deliberately no discard/reset/clean/rebase/force-push tool. A
+successful pull refreshes the SCM list, the Explorer and the open editor buffers like any other
+worktree change (D-140) — a buffer with unsaved edits is kept and reported, never clobbered.
 
 The credential rule is the same trust boundary as the SCM panel: the only accepted token is the
 tab-memory GitHub OAuth token the user obtained by signing in (D-082). No tool has a token

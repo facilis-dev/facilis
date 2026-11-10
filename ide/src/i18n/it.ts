@@ -64,6 +64,10 @@ export const it: Partial<Record<MessageKey, string>> = {
   "boot.openingTitle": "Apertura di {name}",
   "boot.openingHint": "Ripristino dei file e avvio del runtime.",
 
+  // ── working tree (file riscritti da git) ────────────────────────────────
+  "editor.workdir.unsavedKept":
+    "Git ha aggiornato la working tree: {n} file aperti con modifiche non salvate hanno mantenuto il loro buffer. Salvali sui file appena aggiornati solo di proposito.",
+
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "Il progetto di questa scheda non è più nella lista dei recenti.",
   "project.openElsewhere": "{name} è già aperto in un'altra scheda — chiudilo lì prima.",
