@@ -37,6 +37,7 @@ function routeFact(
     input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,
     handlerFormRead: false,
+    elevations: [],
     unknown: [],
   };
   return { ...base, ...overrides };

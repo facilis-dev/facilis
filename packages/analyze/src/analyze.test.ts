@@ -39,7 +39,7 @@ describe("analyzeProject (fixture)", () => {
     const nodeKinds = analysis.graph.nodes.map((node) => node.kind);
     expect(nodeKinds.filter((kind) => kind === "table")).toHaveLength(4);
     expect(nodeKinds.filter((kind) => kind === "route")).toHaveLength(4);
-    expect(nodeKinds.filter((kind) => kind === "page")).toHaveLength(3);
+    expect(nodeKinds.filter((kind) => kind === "page")).toHaveLength(2);
     expect(new Set(analysis.graph.edges.map((edge) => edge.kind))).toEqual(
       new Set(["fk", "relation", "route-table", "page-route"]),
     );

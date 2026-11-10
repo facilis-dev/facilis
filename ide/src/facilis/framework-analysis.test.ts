@@ -58,7 +58,7 @@ describe("project analysis with framework sources", () => {
       "users",
     ]);
     expect(analysis.graph.nodes).toHaveLength(29);
-    expect(analysis.graph.edges).toHaveLength(46);
+    expect(analysis.graph.edges).toHaveLength(47);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {
@@ -86,7 +86,7 @@ describe("project analysis without framework sources", () => {
   it("keeps only the locally declared tables", () => {
     expect(tableNames(analysis)).toEqual(["todo_files", "todos"]);
     expect(analysis.graph.nodes).toHaveLength(20);
-    expect(analysis.graph.edges).toHaveLength(21);
+    expect(analysis.graph.edges).toHaveLength(22);
   });
 
   it("drops the route and FK edges into framework state", () => {

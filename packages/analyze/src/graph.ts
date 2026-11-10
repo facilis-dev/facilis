@@ -7,6 +7,7 @@ import type {
   RelationFact,
   RouteFact,
   RouteNodeData,
+  ScreenFacts,
   TableFact,
   TableNodeData,
 } from "./types.ts";
@@ -16,6 +17,8 @@ export interface GraphInput {
   readonly tables: readonly TableFact[];
   readonly relations: readonly RelationFact[];
   readonly pages: readonly PageFact[];
+  /** Route paths, bounded page previews and explicit page links. */
+  readonly screens?: ScreenFacts;
 }
 
 const NODE_PREFIX = { page: "page:", route: "route:", table: "table:" } as const;
@@ -64,6 +67,7 @@ function routeNode(route: RouteFact, id: string): GraphNode {
     input: route.input,
     dbTables: route.dbTables ?? [],
     dbColumns: route.dbColumns ?? [],
+    elevations: route.elevations,
     description: route.description,
     unknown:
       route.unknown.length > 0 ||
@@ -80,12 +84,14 @@ function routeNode(route: RouteFact, id: string): GraphNode {
   };
 }
 
-function pageNode(page: PageFact, id: string): GraphNode {
+function pageNode(page: PageFact, id: string, screens: ScreenFacts): GraphNode {
+  const preview = screens.previews[page.path];
   const data: PageNodeData = {
     kind: "page",
     pagePath: page.path,
     pageKind: page.kind,
     callCount: page.calls.length,
+    ...(preview === undefined ? {} : { routePaths: preview.routePaths, preview }),
   };
   return {
     id,
@@ -135,16 +141,25 @@ function collectNodes(input: GraphInput): GraphNode[] {
     nodes.push(routeNode(route, id));
   }
   const pageIds = new Set<string>();
+  const screens = input.screens ?? { previews: {}, links: [] };
   for (const page of input.pages) {
-    // Only client files that actually call a route are graph nodes; scanning every
-    // component would bury the API flow under files with no edges.
-    if (page.calls.length === 0) continue;
+    // The graph's page nodes are real pages only (the user's "pagine e basta"): components and
+    // lib files that happen to call an API stay analyzer facts, not boxes on the canvas.
+    if (page.kind !== "page") continue;
     const id = pageId(page.path);
     if (pageIds.has(id)) continue;
     pageIds.add(id);
-    nodes.push(pageNode(page, id));
+    nodes.push(pageNode(page, id, screens));
   }
   return nodes;
+}
+
+function elevatedTables(route: RouteFact): ReadonlySet<string> {
+  const tables = new Set<string>();
+  for (const elevation of route.elevations) {
+    for (const table of elevation.tables) tables.add(table);
+  }
+  return tables;
 }
 
 function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdge[] {
@@ -196,6 +211,7 @@ function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdg
 
   for (const route of input.routes) {
     const routeNodeId = routeId(route);
+    const elevated = elevatedTables(route);
     for (const tableName of route.dbTables ?? []) {
       add({
         id: "route-table:" + routeNodeId + ":dbTables:" + tableName,
@@ -203,6 +219,7 @@ function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdg
         source: routeNodeId,
         target: tableId(tableName),
         label: "dbTables",
+        ...(elevated.has(tableName) ? { access: "elevated" as const } : {}),
       });
     }
     for (const entry of route.dbColumns ?? []) {
@@ -219,6 +236,7 @@ function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdg
         source: routeNodeId,
         target: tableId(tableName),
         label: "dbColumns",
+        ...(elevated.has(tableName) ? { access: "elevated" as const } : {}),
       });
     }
   }
@@ -236,6 +254,16 @@ function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdg
         });
       }
     }
+  }
+
+  for (const link of input.screens?.links ?? []) {
+    add({
+      id: "page-link:" + link.from + ":" + link.to + ":" + link.kind + ":" + link.toPath,
+      kind: "page-link",
+      source: pageId(link.from),
+      target: pageId(link.to),
+      label: link.toPath,
+    });
   }
 
   return [...edges.values()];

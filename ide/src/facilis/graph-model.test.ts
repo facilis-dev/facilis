@@ -7,6 +7,7 @@ import {
   TODOS,
   graphOf,
   pageNode,
+  ref,
   routeNode,
   tableNode,
 } from "./graph-model.test-fixtures";
@@ -25,6 +26,8 @@ describe("buildProjectGraphView data", () => {
       pagePath: "src/pages/todos.tsx",
       pageKind: "page",
       callCount: 2,
+      routePaths: [],
+      preview: null,
     });
     const route = view.nodes.find((node) => node.kind === "route");
     expect(route?.data).toMatchObject({
@@ -37,6 +40,35 @@ describe("buildProjectGraphView data", () => {
       pathParams: [],
       unknown: false,
     });
+  });
+
+  it("maps route paths and the static page structure onto a page card", () => {
+    const page = {
+      ...PAGE,
+      data: {
+        ...PAGE.data,
+        routePaths: ["/todos"],
+        preview: {
+          routePaths: ["/todos"],
+          nodes: [
+            {
+              id: "p0",
+              parentId: null,
+              name: "TodosPage",
+              kind: "component" as const,
+              file: "src/pages/todos.tsx",
+              source: ref("src/pages/todos.tsx"),
+              dynamic: false,
+            },
+          ],
+          truncated: false,
+        },
+      },
+    };
+    const view = buildProjectGraphView({ graph: graphOf([page, GET, TODOS]) });
+    const data = view.nodes.find((node) => node.id === PAGE.id)?.data;
+    expect(data?.kind === "page" ? data.routePaths : undefined).toEqual(["/todos"]);
+    expect(data?.kind === "page" ? data.preview?.nodes[0]?.name : undefined).toBe("TodosPage");
   });
 
   it("gives table nodes columns with name, type and markers, plus RLS/scope/unknown", () => {
@@ -188,7 +220,22 @@ describe("buildProjectGraphView edges and filters", () => {
     expect(view.nodes.map((node) => node.id)).toEqual([GET.id]);
   });
 
-  it("defensively drops a page with no calls", () => {
+  it("keeps explicit page-link edges and counts them", () => {
+    const about = pageNode("src/pages/about.tsx", 0);
+    const link = {
+      id: "page-link:about",
+      kind: "page-link" as const,
+      source: PAGE.id,
+      target: about.id,
+      label: "/about",
+    };
+    const view = buildProjectGraphView({ graph: graphOf([PAGE, about, GET], [link]) });
+    expect(view.edges).toEqual([link]);
+    expect(view.stats.pageLinks).toBe(1);
+    expect(view.stats.pages).toBe(2);
+  });
+
+  it("keeps a real page even when it calls no API", () => {
     const empty = pageNode("src/pages/empty.tsx", 0);
     const view = buildProjectGraphView({
       graph: graphOf(
@@ -204,9 +251,9 @@ describe("buildProjectGraphView edges and filters", () => {
         ],
       ),
     });
-    expect(view.nodes.map((node) => node.id)).toEqual([GET.id]);
-    expect(view.edges).toEqual([]);
-    expect(view.stats.pages).toBe(0);
+    expect(view.nodes.map((node) => node.id)).toEqual([empty.id, GET.id]);
+    expect(view.edges.map((edge) => edge.id)).toEqual(["page-route:empty"]);
+    expect(view.stats.pages).toBe(1);
   });
 });
 

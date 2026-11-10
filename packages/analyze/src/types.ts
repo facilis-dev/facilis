@@ -1,3 +1,5 @@
+import type { ProjectGraph } from "./types-graph.ts";
+
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
  *
@@ -134,6 +136,19 @@ export interface RouteInputFact {
   readonly params: boolean;
 }
 
+export type ElevationKind = "sudo" | "system";
+
+/** One audited elevation call in a route handler (D-099): `ctx.sudo` / `ctx.system`. */
+export interface ElevationFact {
+  readonly kind: ElevationKind;
+  /** Tables passed to the elevation; [] when the array cannot be read statically. */
+  readonly tables: readonly string[];
+  /** The audit operation label, when statically readable. */
+  readonly operation: string | null;
+  readonly source: SourceRef;
+  readonly unknown: readonly UnknownFact[];
+}
+
 export interface RouteFact {
   readonly method: HttpMethod;
   readonly path: string;
@@ -152,6 +167,8 @@ export interface RouteFact {
   readonly handlerBodyRead: boolean;
   /** True when the handler body reads the multipart form (SPEC §9.3 rule 8, D-053). */
   readonly handlerFormRead: boolean;
+  /** Audited elevation calls in the handler, in source order. */
+  readonly elevations: readonly ElevationFact[];
   readonly unknown: readonly UnknownFact[];
 }
 
@@ -215,69 +232,24 @@ export interface PageFact {
 }
 
 // ── graph ──────────────────────────────────────────────────────────────────────────
+// The graph-facing shapes live in types-graph.ts (the 300-line split); they are re-exported
+// here so every existing `from "./types.ts"` import keeps working.
 
-export type GraphNodeKind = "page" | "route" | "table";
-
-export interface PageNodeData {
-  readonly kind: "page";
-  readonly pagePath: string;
-  readonly pageKind: PageKind;
-  readonly callCount: number;
-}
-
-export interface RouteNodeData {
-  readonly kind: "route";
-  readonly method: HttpMethod;
-  readonly path: string;
-  readonly permission: readonly string[];
-  readonly wrapper: WrapperState;
-  /** Presence of the handler's input schemas (body/form/query/params), from the AST. */
-  readonly input: RouteInputFact;
-  readonly dbTables: readonly string[];
-  readonly dbColumns: readonly string[];
-  /** The wrapper config's one-sentence description, or null when absent (D-129). */
-  readonly description: string | null;
-  readonly unknown: boolean;
-}
-
-export interface TableNodeData {
-  readonly kind: "table";
-  readonly table: string;
-  readonly columns: readonly ColumnFact[];
-  readonly rlsEnabled: boolean;
-  readonly scope: ScopeFact | null;
-  /**
-   * True when an installed @facilis package declares the table and the project only
-   * re-exports it: its source file lives under `node_modules/`.
-   */
-  readonly framework: boolean;
-  readonly unknown: boolean;
-}
-
-export type GraphNodeData = PageNodeData | RouteNodeData | TableNodeData;
-
-export interface GraphNode {
-  readonly id: string;
-  readonly kind: GraphNodeKind;
-  readonly label: string;
-  readonly sourceFile: string | null;
-  readonly data: GraphNodeData;
-}
-
-export type GraphEdgeKind = "fk" | "relation" | "route-table" | "page-route";
-
-export interface GraphEdge {
-  readonly id: string;
-  readonly kind: GraphEdgeKind;
-  readonly source: string;
-  readonly target: string;
-  readonly label: string | null;
-}
-
-export interface ProjectGraph {
-  readonly nodes: readonly GraphNode[];
-  readonly edges: readonly GraphEdge[];
-}
+export type {
+  GraphEdge,
+  GraphEdgeKind,
+  GraphNode,
+  GraphNodeData,
+  GraphNodeKind,
+  PageLink,
+  PageNodeData,
+  PagePreview,
+  PagePreviewNode,
+  ProjectGraph,
+  RouteNodeData,
+  ScreenFacts,
+  TableNodeData,
+} from "./types-graph.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
 

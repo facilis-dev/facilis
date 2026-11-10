@@ -69,14 +69,13 @@ function columnView(column: ColumnFact): GraphColumn {
 
 function pageData(node: GraphNode): PageGraphData | null {
   if (node.data.kind !== "page") return null;
-  // Defensive: the analyzer already drops pages with no calls, but a hand-built graph
-  // must not resurrect a floating page node.
-  if (node.data.callCount <= 0) return null;
   return {
     kind: "page",
     pagePath: node.data.pagePath,
     pageKind: node.data.pageKind,
     callCount: node.data.callCount,
+    routePaths: node.data.routePaths ?? [],
+    preview: node.data.preview ?? null,
   };
 }
 
@@ -94,6 +93,7 @@ function routeData(node: GraphNode): RouteGraphData | null {
     description: node.data.description ?? null,
     input: node.data.input ?? NO_ROUTE_INPUT,
     pathParams: pathParamsOf(node.data.path),
+    elevations: node.data.elevations ?? [],
     unknown: node.data.unknown,
   };
 }
@@ -178,9 +178,12 @@ function matchesQuery(node: ProjectGraphNode, needle: string): boolean {
   const values: string[] = [node.label, node.id, node.sourceFile ?? ""];
   const data = node.data;
   if (data.kind === "page") {
-    values.push(data.pagePath, data.pageKind);
+    values.push(data.pagePath, data.pageKind, ...data.routePaths);
   } else if (data.kind === "route") {
     values.push(data.method, data.path, data.wrapper, ...data.permission);
+    for (const elevation of data.elevations) {
+      values.push(elevation.kind, ...elevation.tables);
+    }
   } else {
     for (const column of data.columns) values.push(column.property, column.name, column.type);
   }
@@ -264,6 +267,8 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       matches: positioned.filter((node) => node.matched).length,
       unknownNodes: positioned.filter((node) => node.data.kind !== "page" && node.data.unknown)
         .length,
+      pageLinks: visible.filter((edge) => edge.kind === "page-link").length,
+      elevatedEdges: visible.filter((edge) => edge.access === "elevated").length,
     },
   };
 }
@@ -275,6 +280,7 @@ function edgeView(edge: ProjectGraph["edges"][number]): ProjectGraphEdge {
     source: edge.source,
     target: edge.target,
     label: edge.label,
+    ...(edge.access === undefined ? {} : { access: edge.access }),
   };
 }
 

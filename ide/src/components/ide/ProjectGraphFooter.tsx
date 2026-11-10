@@ -6,7 +6,11 @@ import type { Diagnostic } from "@facilis/analyze";
 import { t, type MessageKey } from "@/i18n";
 import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
-import { GRAPH_EDGE_LABEL_KEYS, GRAPH_EDGE_STYLES } from "./project-graph-edges";
+import {
+  ELEVATED_EDGE_STYLE,
+  GRAPH_EDGE_LABEL_KEYS,
+  GRAPH_EDGE_STYLES,
+} from "./project-graph-edges";
 
 function severityClass(severity: Diagnostic["severity"]): string {
   return severity === "error"
@@ -40,6 +44,18 @@ export function ProjectGraphFooter({
             tables: stats.tables,
             edges: stats.edges,
           })}
+          {stats.pageLinks > 0 && (
+            <>
+              {" · "}
+              {t("projectGraph.statsPageLinks", { count: stats.pageLinks })}
+            </>
+          )}
+          {stats.elevatedEdges > 0 && (
+            <>
+              {" · "}
+              {t("projectGraph.statsElevated", { count: stats.elevatedEdges })}
+            </>
+          )}
         </p>
       )}
       {stats !== null && (
@@ -59,6 +75,13 @@ export function ProjectGraphFooter({
               {t(GRAPH_EDGE_LABEL_KEYS[kind])}
             </li>
           ))}
+          <li className="flex items-center gap-1 rounded border px-1">
+            <span
+              className="inline-block h-0.5 w-3 shrink-0 rounded"
+              style={{ background: ELEVATED_EDGE_STYLE.stroke }}
+            />
+            {t("projectGraph.edge.elevated")}
+          </li>
           {stats.unknownNodes > 0 && (
             <li className="rounded border border-warning/50 px-1 text-warning">
               {t("projectGraph.unknownNodes", { count: stats.unknownNodes })}

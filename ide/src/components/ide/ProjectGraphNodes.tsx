@@ -45,12 +45,34 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         <FileCode className="size-3 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{page.pagePath}</span>
       </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+      <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
         <span className="rounded border px-1">
           {t(("projectGraph.pageKind." + page.pageKind) as MessageKey)}
         </span>
-        <span>{t("projectGraph.calls", { count: page.callCount })}</span>
+        {page.routePaths.slice(0, 3).map((path) => (
+          <span
+            key={path}
+            title={path}
+            className="max-w-full truncate rounded border border-brand/40 bg-brand/10 px-1 font-mono text-brand"
+          >
+            {path}
+          </span>
+        ))}
+        {page.routePaths.length > 3 && <span>+{page.routePaths.length - 3}</span>}
+        {page.routePaths.length === 0 && (
+          <span className="rounded border border-warning/50 px-1 text-warning">
+            {t("projectGraph.pageUnrouted")}
+          </span>
+        )}
+        <span className="ml-auto shrink-0">
+          {t("projectGraph.calls", { count: page.callCount })}
+        </span>
       </div>
+      {page.preview !== null && page.preview.nodes.length > 0 && (
+        <p className="mt-0.5 text-[9px] text-muted-foreground">
+          {t("projectGraph.preview.sections", { count: page.preview.nodes.length })}
+        </p>
+      )}
       <LinkHandles />
     </div>
   );

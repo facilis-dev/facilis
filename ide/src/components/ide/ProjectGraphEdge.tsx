@@ -26,7 +26,7 @@ import {
   type Rect,
 } from "@/facilis/graph-edge-geometry";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { GRAPH_EDGE_STYLES } from "./project-graph-edges";
+import { edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -34,6 +34,7 @@ export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
 
 export type ProjectGraphEdgeData = {
   readonly kind: GraphEdgeKind;
+  readonly access?: "elevated";
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -139,7 +140,10 @@ export function ProjectGraphEdge({
     { sourceX, sourceY, targetX, targetY },
     curve,
   );
-  const edgeStyle = GRAPH_EDGE_STYLES[kind];
+  const edgeStyle = edgeStyleFor({
+    kind,
+    ...(data?.access === undefined ? {} : { access: data.access }),
+  });
   const highlighted = selected === true || hovered;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,

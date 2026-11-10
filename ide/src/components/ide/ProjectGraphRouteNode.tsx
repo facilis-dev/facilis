@@ -46,6 +46,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   // facts were added can still deliver the older RouteGraphData shape.
   const inputs = ROUTE_INPUTS.filter((entry) => route.input?.[entry.fact] === true);
   const pathParams = route.pathParams ?? [];
+  const elevatedTables = [...new Set(route.elevations.flatMap((elevation) => elevation.tables))];
   // A missing value (an analyzer worker started before the field, or a Fast-Refresh-preserved
   // view) and a whitespace-only config string must both leave the card without a quote.
   const description = (route.description ?? "").trim();
@@ -65,6 +66,17 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
         <span className="min-w-0 truncate">
           {route.permission.length === 0 ? t("projectGraph.public") : route.permission.join(", ")}
         </span>
+        {route.elevations.length > 0 && (
+          <span
+            title={t("projectGraph.elevatedHint", {
+              tables:
+                elevatedTables.length === 0 ? t("projectGraph.unknown") : elevatedTables.join(", "),
+            })}
+            className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 text-warning"
+          >
+            {t("projectGraph.elevated")}
+          </span>
+        )}
         {route.wrapper !== "valid" && (
           <span
             className={

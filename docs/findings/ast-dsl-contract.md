@@ -57,8 +57,10 @@ RelationFact     from table, to table, cardinality (one|many), fields?, referenc
 PolicyFact       name, command, restrictive, source, unknown[]
 RouteFact        method, path, sourceFile, wrapper (valid|invalid|unknown),
                  permission?, dbTables?, dbColumns?, description?,
-                 input {body, query, params}, diagnostics[], unknown[]
+                 elevations[], input {body, query, params}, diagnostics[], unknown[]
 PageFact         path, kind (page|component|lib), calls[], unknown[]
+PagePreview      routePaths[], JSX nodes[] (component|intrinsic|slot), truncated
+PageLink         from page, to page, toPath, kind (link|navlink|navigate), source
 RouteCall        routeId?, pathExpression, expressionKind (literal|concat|template|
                  builder|dynamic), source, unknown
 Diagnostic       code, severity (error|warning|info), file, line, message, related?
@@ -140,6 +142,20 @@ configured transport module + export, so switching later is a config change, not
 `defineApiPath` (a helper that declares the route id next to the path builder) is a possible
 later addition if path builders make the link ambiguous; v0 should first see how far the
 static-prefix contract goes.
+
+### 3.4.1 Static screens (project-graph preview)
+
+The project graph's page inspector is a **static structure view**, not a rendering. It reads the
+explicit route table (`src/app.tsx`: `<Routes>` / `<Route>` imported from `react-router-dom`),
+resolves each route element to its page file, and expands project page/layout/app components
+through `Outlet` and JSX-valued props. UI primitives (`src/components/ui/**`), guards and
+providers are leaves; the expansion has a depth/node budget, cuts cycles and marks conditional
+or `.map()` branches as dynamic. An unrouted page still gets a preview from its own component.
+
+Explicit navigation is read from `Link` / `NavLink` `to` and `useNavigate()` calls with a static
+path; it is resolved through the route table to a target page. Guards, `<Navigate>` redirects and
+the shared providers are deliberately not page links. The graph keeps page nodes only for
+`src/pages/**`; component/lib files stay analyzer facts, not graph nodes.
 
 ### 3.5 i18n
 
@@ -270,7 +286,7 @@ panels.
 - **route**: method + path, the wrapper config's one-sentence description (clamped to two
   lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
   input flags (`body | form | query | params`), path parameters from the route template, source;
-- **page**: file path, kind (`page | component | lib`), call count.
+- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections); pages with no API calls are shown too.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.
 
@@ -280,8 +296,9 @@ panels.
 |---|---|---|
 | `fk` | table → table | physical foreign key from `.references`; label columns + onDelete |
 | `relation` | table → table | logical edge from Drizzle `relations()`; one/many |
-| `route-table` | route → table | solid for `dbTables`, dashed for `dbColumns` |
+| `route-table` | route → table | solid for `dbTables`, dashed for `dbColumns`; `access: "elevated"` (one warning colour) when the table is in a `ctx.sudo`/`ctx.system` call |
 | `page-route` | page → route | direct/indirect; dynamic links dashed/unknown |
+| `page-link` | page → page | explicit `Link`/`NavLink`/`navigate` target resolved through the route table |
 | `route-permission` | route → permission | optional, later |
 
 **Interactions**

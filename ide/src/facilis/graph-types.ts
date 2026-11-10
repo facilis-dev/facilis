@@ -2,10 +2,12 @@
 // so both files stay under the 300-line source limit. No runtime behaviour lives here.
 
 import type {
+  ElevationFact,
   GraphEdgeKind,
   GraphNodeKind,
   HttpMethod,
   PageKind,
+  PagePreview,
   ProjectGraph,
   RouteInputFact,
   WrapperState,
@@ -47,6 +49,10 @@ export interface PageGraphData {
   readonly pagePath: string;
   readonly pageKind: PageKind;
   readonly callCount: number;
+  /** URL paths from the explicit route table. */
+  readonly routePaths: readonly string[];
+  /** Bounded static component structure for the inspector. */
+  readonly preview: PagePreview | null;
 }
 
 export interface RouteGraphData {
@@ -61,6 +67,8 @@ export interface RouteGraphData {
   readonly input: RouteInputFact;
   /** Path parameters declared by the route template (`{id}` → `id`). */
   readonly pathParams: readonly string[];
+  /** Audited elevation calls in the handler, for the card badge and tooltip. */
+  readonly elevations: readonly ElevationFact[];
   readonly unknown: boolean;
 }
 
@@ -96,6 +104,8 @@ export interface ProjectGraphEdge {
   readonly source: string;
   readonly target: string;
   readonly label: string | null;
+  /** A route-table edge reached through audited sudo/system elevation. */
+  readonly access?: "elevated";
 }
 
 export interface ProjectGraphStats {
@@ -106,6 +116,10 @@ export interface ProjectGraphStats {
   readonly hiddenEdges: number;
   readonly matches: number;
   readonly unknownNodes: number;
+  /** Page → page explicit navigation edges. */
+  readonly pageLinks: number;
+  /** Route → table edges reached through audited elevation. */
+  readonly elevatedEdges: number;
 }
 
 export interface ProjectGraphViewInput {
@@ -130,6 +144,7 @@ export const GRAPH_EDGE_KINDS = [
   "relation",
   "route-table",
   "page-route",
+  "page-link",
 ] as const satisfies readonly GraphEdgeKind[];
 
 /** The three layout columns, in CSS pixels. */

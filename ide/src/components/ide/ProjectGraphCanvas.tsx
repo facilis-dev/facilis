@@ -43,7 +43,7 @@ import {
   type ProjectFlowNode,
 } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
-import { GRAPH_EDGE_STYLES } from "./project-graph-edges";
+import { edgeStyleFor } from "./project-graph-edges";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export function ProjectGraphCanvas({
@@ -53,6 +53,8 @@ export function ProjectGraphCanvas({
   viewport,
   fitNonce,
   edgeCurves,
+  selectedNodeId,
+  onSelectNode,
   onMoveNode,
   onToggleCollapse,
   onOpenNode,
@@ -69,6 +71,8 @@ export function ProjectGraphCanvas({
   viewport: GraphViewport | null;
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
+  selectedNodeId: string | null;
+  onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
   onToggleCollapse: (id: string) => void;
   onOpenNode: (node: ProjectGraphNode) => void;
@@ -128,6 +132,7 @@ export function ProjectGraphCanvas({
           position: { x: node.position.x, y: node.position.y },
           data: { node, collapsed: node.collapsed, onToggleCollapse: toggleCollapse },
           draggable: true,
+          selected: node.id === selectedNodeId,
         };
         if (current === undefined || current.type === NOTE_NODE_TYPE) return base;
         // A drag in flight wins over the saved layout: only the stop commits the position.
@@ -157,7 +162,7 @@ export function ProjectGraphCanvas({
       });
       return [...analysis, ...noteNodes];
     },
-    [toggleCollapse, editNote, deleteNote],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -200,7 +205,7 @@ export function ProjectGraphCanvas({
   const edges = useMemo<ProjectFlowEdge[]>(
     () =>
       view.edges.map((edge) => {
-        const style = GRAPH_EDGE_STYLES[edge.kind];
+        const style = edgeStyleFor(edge);
         return {
           id: edge.id,
           source: edge.source,
@@ -211,6 +216,7 @@ export function ProjectGraphCanvas({
           selected: edge.id === selectedEdgeId,
           data: {
             kind: edge.kind,
+            ...(edge.access === undefined ? {} : { access: edge.access }),
             curve: edgeCurves[edge.id] ?? null,
             onCurveChange: onEdgeCurveChange,
           },
@@ -222,6 +228,11 @@ export function ProjectGraphCanvas({
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
     setSelectedEdgeId(edge.id);
+    onSelectNode(null);
+  };
+  const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
+    setSelectedEdgeId(null);
+    onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
     const position = { x: node.position.x, y: node.position.y };
@@ -262,8 +273,11 @@ export function ProjectGraphCanvas({
         onNodeDragStop={onNodeDragStop}
         onNodeDoubleClick={onNodeDoubleClick}
         onEdgeClick={onEdgeClick}
-        onNodeClick={() => setSelectedEdgeId(null)}
-        onPaneClick={() => setSelectedEdgeId(null)}
+        onNodeClick={onNodeClick}
+        onPaneClick={() => {
+          setSelectedEdgeId(null);
+          onSelectNode(null);
+        }}
         onMoveStart={onMoveStart}
         onMoveEnd={onMoveEnd}
         fitView={viewport === null}

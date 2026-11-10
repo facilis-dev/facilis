@@ -41,6 +41,7 @@ function route(overrides: Partial<RouteFact> & Pick<RouteFact, "method" | "path"
     input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,
     handlerFormRead: false,
+    elevations: [],
     unknown: [],
     ...overrides,
   };
@@ -258,6 +259,27 @@ describe("buildProjectGraph", () => {
         }),
       ]),
     );
+  });
+
+  it("marks route-table edges that touch an elevated table", () => {
+    const elevated = route({
+      method: "POST",
+      path: "/api/users",
+      dbTables: ["users", "todos"],
+      elevations: [
+        {
+          kind: "system",
+          tables: ["users"],
+          operation: null,
+          source: ref("server/routes/api/users.post.ts"),
+          unknown: [],
+        },
+      ],
+    });
+    const withElevation = buildProjectGraph({ ...fixtureInput(), routes: [elevated] });
+    const edges = withElevation.edges.filter((edge) => edge.kind === "route-table");
+    expect(edges.find((edge) => edge.target === "table:users")?.access).toBe("elevated");
+    expect(edges.find((edge) => edge.target === "table:todos")?.access).toBeUndefined();
   });
 
   it("is deterministic and handles an empty project", () => {

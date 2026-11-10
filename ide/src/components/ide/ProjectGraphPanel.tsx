@@ -14,6 +14,7 @@ import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/f
 import { errText } from "@/vv/errors";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphFooter } from "./ProjectGraphFooter";
+import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { ProjectGraphToolbar } from "./ProjectGraphToolbar";
 import { useIde } from "./useIde";
@@ -28,6 +29,7 @@ export function ProjectGraphPanel() {
   const [query, setQuery] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
   const [fitNonce, setFitNonce] = useState(0);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const graph = useProjectGraphLayout(c, root);
   const layout = graph.layout;
 
@@ -95,10 +97,14 @@ export function ProjectGraphPanel() {
     graph.resetPositions();
     setFitNonce((value) => value + 1);
   };
-  const openNode = (node: ProjectGraphNode) => {
-    const path = sourcePathFor(root, node.sourceFile);
+  const openSource = (sourceFile: string | null) => {
+    const path = sourcePathFor(root, sourceFile);
     if (path !== null) void c.openFile(path);
   };
+  const openNode = (node: ProjectGraphNode) => openSource(node.sourceFile);
+  const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedLinks =
+    view?.edges.filter((edge) => edge.kind === "page-link" && edge.source === selectedNodeId) ?? [];
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.
   // Notes are content too: a graph with only annotations is not "empty" (D-126).
@@ -120,6 +126,8 @@ export function ProjectGraphPanel() {
         edgeCurves={layout.edgeCurves}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
+        selectedNodeId={selectedNodeId}
+        onSelectNode={setSelectedNodeId}
         onMoveNode={graph.moveNode}
         onToggleCollapse={graph.toggleCollapsed}
         onOpenNode={openNode}
@@ -165,7 +173,17 @@ export function ProjectGraphPanel() {
         warnings={warnings}
         onToggleEdgeKind={graph.toggleEdgeKind}
       />
-      <div className="relative min-h-0 flex-1">{body}</div>
+      <div className="flex min-h-0 flex-1">
+        <div className="relative min-h-0 flex-1">{body}</div>
+        {selectedNode !== null && (
+          <ProjectGraphInspector
+            node={selectedNode}
+            links={selectedLinks}
+            onClose={() => setSelectedNodeId(null)}
+            onOpenFile={(file) => openSource(file)}
+          />
+        )}
+      </div>
       <ProjectGraphFooter
         stats={view?.stats ?? null}
         diagnostics={diagnostics}
