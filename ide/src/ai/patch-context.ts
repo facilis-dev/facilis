@@ -8,6 +8,7 @@
 
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
+import type { GitAccess } from "./git-access";
 import type { GraphAccess } from "./graph-access";
 import type { PreviewAccess } from "./preview-access";
 
@@ -27,6 +28,12 @@ export interface PatchContextHost {
    * write `.facilis/graph` directly: it is team state, not source code, so it needs no proposal.
    */
   graph?: GraphAccess;
+  /**
+   * The project's own repository and remotes (D-139). These tools are repository operations
+   * only — index, history, refs, remotes — so source content still changes only through the
+   * validated patch proposal and the user's Apply.
+   */
+  git?: GitAccess;
   /**
    * Analyze the project before and after the patch set. Implemented by the IDE through the
    * browser analyzer worker; a failure here blocks validation (the caller fails closed).

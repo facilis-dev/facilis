@@ -194,6 +194,16 @@ confined to the project root, and go through one policy function.
 | `preview_screenshot` | `{}` | JPEG of the page (html2canvas): shown to the user, sent to vision models (D-112) |
 | `graph_state` | `{}` | project graph: nodes (kind, label, position), edges (with manual bend), markdown notes, visibility (D-126) |
 | `graph_arrange` | `{ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? }` | applies a validated, capped arrangement to the committed graph state; the open panel reloads (D-126) |
+| `git_status` | `{}` | repo present?, current branch, staged/unstaged changes (repo-relative), ahead/behind (D-139) |
+| `git_diff` | `{ path?, staged? }` | unified diff, ≤ 24 KB / ≤ 100 files |
+| `git_log` | `{ limit? }` | recent commits: short oid, first line, author, timestamp (≤ 30) |
+| `git_branches` | `{}` | current branch + local branches |
+| `git_remote` | `{}` | origin URL, provider, owner/repo, proxy availability, ahead/behind |
+| `git_stage` / `git_unstage` | `{ paths }` / `{ paths? }` | moves paths in the index (no working-tree change) |
+| `git_commit` | `{ message }` | one **local** commit from the staged set; refuses an empty index |
+| `git_branch` | `{ action: "create"\|"switch", name }` | creates or switches; switch refuses a dirty working tree |
+| `git_sync` | `{ action: "fetch"\|"pull"\|"push" }` | network over the D-079 proxy; needs the signed-in GitHub token; pull refuses a dirty tree |
+| `git_pull_request` | `{ title, body?, base?, head?, draft? }` | opens a GitHub pull request from the current branch; returns number + url |
 
 **The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
 validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
@@ -217,16 +227,36 @@ in the dev database, and to hand anything outside the frame (OAuth/SSO, 2FA) bac
 **The graph tools (D-126) work on the project graph, not the source.** `graph_state` reads the
 nodes (kind, label, position), the edges (with their manual bends) and the markdown notes;
 `graph_arrange` applies a validated, capped arrangement — positions, bends, notes, visibility —
-to the committed `.facilis/graph/` state and refreshes the open panel. This is the one
-write-intent tool family that lands with phase 1: the graph is diagram state, not source, so it is
-not the §9.3 patch path and never validated as a code patch, and the source allowlist is
-unchanged. With no project open they answer `{ available: false }`.
+to the committed `.facilis/graph/` state and refreshes the open panel. Like the git family
+below, this is a write-intent family that lands with phase 1: the graph is diagram state, not
+source, so it is not the §9.3 patch path and never validated as a code patch, and the source
+allowlist is unchanged. With no project open they answer `{ available: false }`.
 
-Phase 2 (write-intent, still validator-gated): `run_check({ name: "typecheck" | "test" })` (fixed
+**The git tools (D-139) operate the repository, not the source.** They drive the IDE's own
+Source Control sessions — `ScmSession` for the index/history/refs and `GitRemoteSession` for the
+D-079 proxy — so the model can inspect the branch and the changes (`git_status`, `git_diff`,
+`git_log`, `git_branches`, `git_remote`), stage and commit (`git_stage`, `git_unstage`,
+`git_commit`) and move/switch a branch or sync a remote (`git_branch`, `git_sync`), plus open a
+pull request with `git_pull_request`. The AI never authors source content through them: staging
+mutates the index, `git_commit` writes a local commit, and source changes still arrive only through
+the validated proposal + the user's Apply. The operations that do move the working tree (`switch`,
+`pull`) refuse a dirty tree with `{ ok: false, reason }` as data, so they can never clobber
+uncommitted work. There is deliberately no discard/reset/clean/rebase/force-push tool.
+
+The credential rule is the same trust boundary as the SCM panel: the only accepted token is the
+tab-memory GitHub OAuth token the user obtained by signing in (D-082). No tool has a token
+argument, nothing is persisted or logged, and a missing session (or a GitLab/Gitea remote, v1)
+answers `{ available: false, reason }` so the model asks the user to sign in instead of inventing
+a credential. The family is registered only when the host provides the repository seam
+(`createGitAccess`); with no project open, every tool answers `{ available: false }`.
+
+**The graph tools (D-126) are the other non-source write family, so the §9.3 patch path is
+unchanged for both.** Phase 2 (write-intent, still validator-gated):  (fixed
 allowlist, no arguments, executed in the WebContainer) and possibly a patch-draft helper. There is
 no `apply_patch` tool: the proposal+Apply path is already the write contract.
 
-Never exposed: shell, network, `process.env`, `node_modules`, `.git` internals, IDE storage,
+Never exposed: shell, network, `process.env`, `node_modules`, `.git` internals (the git tools use
+the SCM operations, never the raw object store), IDE storage,
 any path outside the project root, secrets (AI-SKILLS §3/§6 exclusions, plus the existing
 `.gitignore`-style ignored paths, D-054).
 
@@ -288,7 +318,9 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 
 - Each turn renders an explorable **"Esplorazione"** card (`ChatTraceView`, landed 2026-11-07):
   the programs (collapsed), each tool call with args/size/duration/outcome, and the typed error
-  of a failed program; `ChatSession` keeps the rows in `ChatState.trace` / `exploring`. The
+  of a failed program. `ChatState.trace` holds the **live** turn while it runs; when the turn ends
+  its rows move onto the user message that opened it (`ChatMessage.activity`), so the transcript
+  keeps question → activity → answer in time order and the order survives later turns (D-138). The
   dev mock provider emits one exploration program when the message says "ptc"/"esplora", so the
   card is testable without a provider key.
 - Before the first exploration of a large turn, a "what will be sent" report (AI-SKILLS §6).
@@ -302,7 +334,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
 | tool calls | project-root confinement, glob/secret policy, capability narrowing, caps, redaction |
-| writes | none from tools or programs; only the validated proposal + user Apply |
+| writes | source content: none from tools or programs — only the validated proposal + user Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced |
 | egress | sandbox has no network; the only egress is the model provider (existing allowlist) |
 | prompt injection | project/MCP content is data; it cannot grant capabilities; read-only exploration limits damage |
 | secrets | excluded from tool results and context; redaction is shared with AI-SKILLS §3 |

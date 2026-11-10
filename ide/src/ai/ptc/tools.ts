@@ -25,7 +25,7 @@ import {
   type PtcToolCall,
   type PtcToolExecutor,
 } from "./protocol";
-import { SPEC_BY_NAME, TOOL_NAMES, advertisedSpecs } from "./tool-specs";
+import { SPEC_BY_NAME, TOOL_NAMES, advertisedFor } from "./tool-specs";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -270,10 +270,10 @@ export function createToolRouter(host: PatchValidationHost): PtcToolExecutor {
   let facts: Promise<Analysis> | null = null;
   const analysis = (): Promise<Analysis> =>
     (facts ??= host.analyze([]).then((result) => result.after));
-  // D-111/D-126: the preview and graph tools exist only when the IDE provides them.
+  // D-111/D-126/D-139: the preview, graph and git tools exist only when the IDE provides them.
   const extras = createRuntimeToolHandlers(host);
   return {
-    specs: () => advertisedSpecs(host.preview !== undefined, host.graph !== undefined),
+    specs: () => advertisedFor(host),
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {
       const spec = SPEC_BY_NAME.get(call.name);
       if (spec === undefined) refuse("unknown tool: " + call.name + "; available: " + TOOL_NAMES);

@@ -12,6 +12,7 @@ import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
+import { createGitAccess } from "./git-access";
 import { createGraphAccess } from "./graph-access";
 import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
@@ -30,9 +31,14 @@ export function chatFor(controller: IdeController): ChatSession {
   // existing router, so every local tool keeps its own policy and write protection.
   const mcp = new McpSession({ root: () => controller.activeFolder?.rootPath ?? null });
   const host = chatHost(controller, mcp);
-  // D-126: the graph's committed team state. Only the PTC router reads it, so it joins the
-  // PatchValidationHost view here and the ChatHost contract (chat-session-types.ts) stays put.
-  const toolHost = { ...host, graph: createGraphAccess(controller) };
+  // D-126: the graph's committed team state; D-139: the project's git repository and remotes.
+  // Only the PTC router reads them, so they join the PatchValidationHost view here and the
+  // ChatHost contract (chat-session-types.ts) stays put.
+  const toolHost = {
+    ...host,
+    graph: createGraphAccess(controller),
+    git: createGitAccess(controller),
+  };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
   const session = new ChatSession(host, {

@@ -72,18 +72,87 @@ export const GRAPH_TOOL_SPECS: readonly PtcToolSpec[] = [
 ];
 
 /**
+ * Tools that operate the project's own git repository and open pull requests (D-139). They exist
+ * only when the host has the repository seam; an absent repository, a missing sign-in or an
+ * unsupported provider is returned as data ({ available: false }).
+ */
+export const GIT_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec(
+    "git_status",
+    "git_status()",
+    "Repository state: current branch, staged and unstaged changes (repo-relative paths), ahead/behind when a remote is configured.",
+  ),
+  spec(
+    "git_diff",
+    "git_diff({ path?, staged? })",
+    "Unified diff capped at 24 KB: staged = HEAD vs index, otherwise index vs working tree.",
+  ),
+  spec(
+    "git_log",
+    "git_log({ limit? })",
+    "Recent commits: short oid, first line, author, timestamp (limit ≤ 30).",
+  ),
+  spec("git_branches", "git_branches()", "Current branch and the local branch list."),
+  spec(
+    "git_remote",
+    "git_remote()",
+    "Origin URL, provider, owner/repo when parseable, proxy availability, ahead/behind.",
+  ),
+  spec("git_stage", "git_stage({ paths })", "Stage repo-relative paths in the index."),
+  spec("git_unstage", "git_unstage({ paths? })", "Unstage paths, or the whole index when omitted."),
+  spec(
+    "git_commit",
+    "git_commit({ message })",
+    "Commit the staged changes as a LOCAL commit; refuses when nothing is staged.",
+  ),
+  spec(
+    "git_branch",
+    "git_branch({ action, name })",
+    'Create or switch a branch ("create" | "switch"); switch refuses a dirty working tree.',
+  ),
+  spec(
+    "git_sync",
+    "git_sync({ action })",
+    '"fetch" | "pull" | "push" the current branch: needs the signed-in GitHub account; pull refuses a dirty tree.',
+  ),
+  spec(
+    "git_pull_request",
+    "git_pull_request({ title, body?, base?, head?, draft? })",
+    "Open a GitHub pull request from the current branch; returns the number and url.",
+  ),
+];
+
+/**
  * The specs to advertise: the base tools plus the families whose runtime seam exists. Kept here
  * so the router stays under the 300-line limit and the prompt receives exactly the tools the
  * handlers can dispatch.
  */
-export function advertisedSpecs(hasPreview: boolean, hasGraph: boolean): readonly PtcToolSpec[] {
+export function advertisedSpecs(
+  hasPreview: boolean,
+  hasGraph: boolean,
+  hasGit: boolean,
+): readonly PtcToolSpec[] {
   return [
     ...TOOL_SPECS,
     ...(hasPreview ? PREVIEW_TOOL_SPECS : []),
     ...(hasGraph ? GRAPH_TOOL_SPECS : []),
+    ...(hasGit ? GIT_TOOL_SPECS : []),
   ];
 }
 
-export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true);
+/** The adapter the router calls: the host's seams decide which families are advertised. */
+export function advertisedFor(host: {
+  readonly preview?: unknown;
+  readonly graph?: unknown;
+  readonly git?: unknown;
+}): readonly PtcToolSpec[] {
+  return advertisedSpecs(
+    host.preview !== undefined,
+    host.graph !== undefined,
+    host.git !== undefined,
+  );
+}
+
+export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true, true);
 export const TOOL_NAMES = ALL_TOOL_SPECS.map((entry) => entry.name).join(", ");
 export const SPEC_BY_NAME = new Map(ALL_TOOL_SPECS.map((entry) => [entry.name, entry] as const));

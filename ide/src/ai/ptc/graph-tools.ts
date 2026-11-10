@@ -17,6 +17,7 @@ import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
 
 import type { GraphAccess } from "../graph-access";
 import type { PatchValidationHost } from "../patch-validation";
+import { createGitHandlers } from "./git-tools";
 import { PtcToolError, type PtcJson } from "./protocol";
 import { createPreviewHandlers } from "./preview-tools";
 
@@ -229,5 +230,6 @@ export function createRuntimeToolHandlers(
   return {
     ...(host.preview === undefined ? {} : createPreviewHandlers(host.preview)),
     ...(host.graph === undefined ? {} : createGraphHandlers(host.graph)),
+    ...(host.git === undefined ? {} : createGitHandlers(host.git)),
   };
 }

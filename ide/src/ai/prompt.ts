@@ -64,6 +64,18 @@ const PREVIEW_PROMPT = [
   '- { "available": false } means the app is not running: ask the user to Run it and retry; never guess the runtime state.',
 ].join("\n");
 
+/** Teaches the repository tools when the host registers them (D-139). */
+const GIT_PROMPT = [
+  "## The project repository (git tools)",
+  "The git_* tools operate the project's own repository through Source Control. They are repository operations only: no tool authors or edits source content, so new code still arrives only as the patch set plus the user's Apply. A branch switch or pull can move already-committed files into the working tree (both refuse a dirty tree); stage, commit, refs and remotes never change file content.",
+  "- Start with git_status for the branch and the staged/unstaged changes (repo-relative paths); read a change with git_diff and history with git_log.",
+  "- git_stage and git_unstage move files in the index; git_commit writes one LOCAL commit and refuses when nothing is staged. A commit stays on this machine until git_sync({ action: 'push' }) publishes it.",
+  "- git_sync fetch/pull/push and git_pull_request need the GitHub account the user signed in with in Source Control -> Remote git. When it is absent they return { available: false }: ask the user to sign in; never ask for or pass a token, there is no token argument.",
+  "- git_branch creates or switches a branch. Switch and pull refuse a dirty working tree as data, so commit first; there is no discard, reset, rebase or force-push tool.",
+  "- git_pull_request opens the pull request on GitHub and returns its number and url; a GitLab/Gitea remote answers { available: false } in this version.",
+  "- { available: false } or { ok: false, reason } is a state to report or act on, never something to work around: the model has no shell.",
+].join("\n");
+
 /** Teaches the remote tools when the user enabled an MCP server (D-118). */
 const MCP_PROMPT = [
   "## MCP tools",
@@ -190,6 +202,9 @@ export function buildSystemPrompt(context: PromptContext): string {
     lines.push(PTC_PROMPT, describeTools(tools), "");
     if (tools.some((tool) => tool.name.startsWith("preview_"))) {
       lines.push(PREVIEW_PROMPT, "");
+    }
+    if (tools.some((tool) => tool.name.startsWith("git_"))) {
+      lines.push(GIT_PROMPT, "");
     }
     if (tools.some((tool) => tool.name.startsWith("mcp_"))) {
       lines.push(MCP_PROMPT, "");

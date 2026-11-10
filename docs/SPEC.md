@@ -2282,9 +2282,10 @@ in `@facilis/core` (D-086) is exactly the function the tool would call.
 
 **Status (2026-11-07): a PTC design supersedes the per-call tool list above.** The model writes
 one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
-read-only tool registry (VFS reads, analyzer facts, manifest; MCP servers and skill-scoped
-capabilities are the extension seam) and returns lossless JSON. Patches are still the only write
-path, validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
+tool registry whose `source` access is read-only (VFS reads, analyzer facts, manifest; MCP
+servers and skill-scoped capabilities are the extension seam — the graph and git families write
+only non-source state) and returns lossless JSON. Patches are still the only source write path,
+validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
 phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
 landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
 remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`network`/`dom`/
@@ -2293,7 +2294,11 @@ they observe or reproduce runtime failures but never write the project. A screen
 the activity row and sent to the model only for a `vision` preset (D-112); the user's own
 screenshot pasted into the composer with Ctrl+V follows the same wire path (D-113). D-126 added
 the project-graph family (`graph_state`/`graph_arrange`): the graph is diagram state, so it is
-written directly and is not source. D-138 makes the transcript itself chronological: a turn's activity is
+written directly and is not source. D-139 adds the git family (`git_status`/`diff`/`log`/
+`branches`/`remote`/`stage`/`unstage`/`commit`/`branch`/`sync`/`pull_request`):
+repository index/history/ref/remote operations through Source Control's own sessions, never source
+edits, with the tab-memory GitHub token as the only credential, dirty-tree refusals for switch/pull
+and no destructive operation. D-138 makes the transcript itself chronological: a turn's activity is
 persisted on its user message (success, failure or cancel) and rendered between the question and
 the answer, so the executions precede the prose in every state.
 

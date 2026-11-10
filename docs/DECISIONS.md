@@ -5324,6 +5324,132 @@ turn, summary marker, live activity before the streaming bubble), `chat-session`
 persisted on the user message and cleared from `trace`; failed turn keeps it), focused IDE
 vitest, typecheck and the file-length gate.
 
+### D-139 — The AI gets a git tool family: inspect, stage, commit, branch, sync, open a pull request
+**Status:** accepted (2026-11-10)
+
+The owner asked for the whole git surface in the chat: "tutta la parte di tool per gestire i
+commitment sul repository e eventuali pull request o comunque tutta la parte di git". The AI could
+already read the project and write validated patches, but it could not see what was modified, make
+the commit, or open the pull request — the developer had to leave the chat for every step.
+
+**Decision.**
+
+- The PTC runtime gains a `git_*` family, registered like the preview (D-111) and graph (D-126)
+  families through the host seam (`PatchContextHost.git`, `createGitAccess`): `git_status`,
+  `git_diff`, `git_log`, `git_branches`, `git_remote`, `git_stage`, `git_unstage`,
+  `git_commit`, `git_branch`, `git_sync`, `git_pull_request`. Signatures and returns are in
+  [PTC.md](./PTC.md) §6.
+- **Repository operations, not source writes.** The facade drives the IDE's own sessions —
+  `ScmSession` (index/history/refs) and `GitRemoteSession` (the D-079 proxy) — and never shells
+  out. Staging mutates the index; `git_commit` writes a local commit; the AI still authors source
+  only as a validated patch set plus the user's Apply (invariant 9 unchanged). Diffs are read
+  through a narrow blob/index/workdir port (`git-repo.ts`), not by handing the model `.git`.
+- **Destructive operations do not exist.** No discard, reset, clean, rebase or force-push tool.
+  The operations that move the working tree — branch switch and pull — refuse a dirty tree with
+  `{ ok: false, reason }` as data, so uncommitted work can never be clobbered.
+- **One credential, no arguments.** The only token the tools use is the tab-memory GitHub OAuth
+  token from the existing device flow (`githubSessionToken()`, D-082). No tool accepts a token
+  argument; nothing is persisted, logged or returned, and no token ever enters a URL. Without a
+  session (or for a GitLab/Gitea remote in v1) the call answers `{ available: false, reason }`
+  and the prompt tells the model to ask the user to sign in — never to invent a credential.
+- **Pull requests.** `git_pull_request` posts to the GitHub REST API with the parsed origin repo
+  and returns the number and URL. GitLab and Gitea/Forgejo are a deliberate v1 gap: their push
+  flows take a per-operation pasted token that is not retained tab-wide, so implementing PR
+  creation there would first require a credential-store decision; the tool reports
+  `{ available: false }` and the user can open the PR from the host UI.
+- **State, not exceptions.** "No project", "no repository", "not signed in", "wrong provider" and
+  "dirty tree" are data the model can report or act on; argument errors are `PtcToolError`s naming
+  the field and signature. Caps: diff 24 KB/100 files, log 30 entries. Write operations refresh
+  the SCM panel and the remote snapshot so the UI follows the tool.
+- The prompt gains a `## The project repository` section only when `git_*` tools are advertised
+  (generated from the same registry, per D-101), telling the model that a commit is local until
+  pushed and that the user owns the sign-in.
+
+**Rejected.** A shell/exec tool or a raw `.git` reader (violates "never exposed" and the sandbox
+model); a token argument or an AI-settings credential store (a second trust boundary, and tokens
+in model context); discard/reset/force-push (irreversible, and the chat is not the place for
+them); GitLab/Gitea PR creation now (see above).
+
+**Consequences.** The owner can ask the assistant to review the changes, commit them with a
+message, push the branch and open the PR without leaving the chat; every step is a trace row. The
+source write path, the 17-rule validator and the apply/undo contract are untouched: no tool
+*authors* source content, so a working-tree edit still needs a proposal + Apply. The only tools
+that change existing working-tree bytes are branch switch and pull, and they refuse a dirty tree
+first. Known limitation (pre-existing, not introduced here): a pull rewrites the working tree but
+does not reload open editor buffers — the Remote git dialog behaves the same today; the SCM panel
+and the change list do refresh.
+
+**Verification.** `git-access.test.ts` (status/diff/stage/commit/branch/sync/PR over fake ports,
+token absent, dirty-tree refusals, provider gate), `git-sync.test.ts`, `ptc/git-tools.test.ts`
+(dispatch, argument validation, availability as data), prompt tests (the section appears only with
+`git_*`), focused IDE vitest, typecheck, file-length and lint gates.
+
+### D-140 — CSRF: origin gate di default, Content-Type strict, e `crossSite` come dichiarazione di esposizione
+**Status:** accepted (2026-11-10)
+
+L'owner ha chiesto se con i cookie SameSite un token CSRF sia ancora necessario e se un flag
+per-route possa dichiarare un'API chiamabile dall'esterno del sito. L'analisi ha mostrato che
+`SameSite=Lax` copre il caso classico (POST cross-site su route autenticate da cookie) ma non:
+le route che *scrivono* cookie (login/logout/register), il same-site cross-origin (sottodomini
+dello stesso registrable domain), le GET che mutano stato, e non e' una difesa del framework ma
+del browser. Inoltre la preview in-VM tiene la sessione nel cookie jar del kernel, dove
+`SameSite`/`Secure` sono ignorati: la protezione esiste solo in un deploy reale, e il deploy
+dell'app generata e' fuori scope (SPEC §2.2).
+
+**Decision.**
+
+- **Il choke point e' `defineAuthorizedHandler`.** Prima del controllo di permission, ogni
+  richiesta con metodo unsafe (POST/PUT/PATCH/DELETE) passa un gate dell'origine: `Sec-Fetch-Site`
+  e' autoritativo quando presente (`same-origin`/`none` ammessi; `same-site` ammesso solo verso
+  un'origine in `security.trustedOrigins`; `cross-site` rifiutato); in sua assenza si confronta
+  `Origin` con l'header `Host` (o con `trustedOrigins`); `Origin` assente = client non-browser,
+  ammesso (il CSRF e' un attacco del browser; l'autenticazione resta comunque richiesta), `null`
+  rifiutato. Il rifiuto e' `403 forbidden` e passa dal logging come ogni altra uscita.
+- **Content-Type strict.** Una route con schema `body` accetta solo `application/json`, una con
+  `form` solo `multipart/form-data`; ogni altro media type e' `415 unsupported_media_type`
+  (nuovo codice del registry chiuso O-002), letto prima del body. Chiude il trucco della simple
+  request `text/plain` con body JSON, che non fa preflight, e rende obbligatorio il preflight per
+  una fetch JSON cross-origin.
+- **`security.trustedOrigins`** (default `[]`, origini assolute http/https senza path/query) e'
+  l'escape hatch per SPA e API su origini diverse dello stesso sito. Non abilita da sola la
+  lettura cross-origin: quella resta dichiarata per route.
+- **`crossSite?: boolean`** (default `false`) in `AuthorizedHandlerConfig`: dichiara una route
+  *pubblica* chiamabile da una pagina su un'altra origine, senza credenziali. E' ammesso solo con
+  `permission: []` (altrimenti `defineAuthorizedHandler` lancia: un cookie di sessione non
+  attraversa le origini) e viene rifiutato dall'analyzer con `route-cross-site-authenticated`.
+  Propaga come gli altri campi statici (RouteFact -> RouteMetadata -> `x-cross-site` in OpenAPI,
+  `crossSite` in `RouteMeta`); un valore non statico e' `null`/unresolved, mai indovinato. Una
+  middleware Nitro registrata prima di context/session risponde al preflight (`204` + CORS) e
+  aggiunge `Access-Control-Allow-Origin` alle sole route flaggate: il flag dichiara l'esposizione,
+  non e' la difesa CSRF.
+- **Niente token CSRF per ora.** Con `SameSite=Lax` + Content-Type strict + gate dell'origine il
+  token sarebbe ridondante per le route cookie first-party. Torna necessario solo se si
+  introduce `SameSite=None`/embed di terze parti, un allowlist cross-site con credenziali, o
+  un'auth a token; login-CSRF non si risolve con un token legato alla sessione (non esiste ancora)
+  ma con il gate, che copre anche login/logout/register.
+- **Il POST cross-site dell'ACS SAML** e' una route framework-owned fuori dal wrapper: non e'
+  toccata dal gate (lo state e' server-side, §8.6) e resta l'unica eccezione legittima.
+
+**Rejected.** Solo CORS (non ferma le scritture simple/form e non protegge nulla lato server);
+token CSRF adesso (ridondante, richiede binding di sessione e un trattamento pre-login);
+`SameSite=None` (riapre il CSRF e peggiora l'isolamento); il flag come unica difesa (non e' una
+difesa); `__Host-` immediato (richiede Secure+Path=/+no Domain, inerte nel cookie jar del kernel
+in dev e un rename di contratto: rimandato a un deploy reale).
+
+**Consequences.** Le richieste unsafe cross-site verso le route applicative ora rispondono `403`
+salvo dichiarazione esplicita; login/logout/register CSRF sono chiusi; `SameSite=Lax` resta la
+difesa di default del cookie. Un deployment dietro un proxy che riscrive `Host` deve aggiungere
+la propria origine pubblica a `security.trustedOrigins`. La preview in-VM continua a funzionare:
+il browser manda `Sec-Fetch-Site: same-origin` attraverso il proxy e il cookie jar del kernel non
+e' governato da SameSite. Il registry errori resta chiuso: aggiungere un codice e' una decisione,
+non un refactor.
+
+**Verification.** `request-security.test.ts` (cross-site/same-site/trusted/Origin/Host/assenti),
+route tests (`403` cross-site, `415` media type, throw `crossSite`+permission), config tests
+(default e validazione origini), analyzer tests (`route-cross-site-authenticated`, null
+fail-closed), `cors-policy.test.ts` (match `{id}`/`{*rest}`, preflight, trusted), manifest/OpenAPI
+tests (`crossSite`, `x-cross-site`), typecheck/test/lint/build root.
+
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
