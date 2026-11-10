@@ -1,9 +1,10 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import type { Analysis, Diagnostic, RouteFact } from "@facilis/analyze";
+import type { Diagnostic } from "@facilis/analyze";
 import type { ManifestWarning } from "@facilis/core";
 
+import { emptyAnalysis, routeFact } from "./route-metadata-test-harness.ts";
 import {
   analyzeProjectRoutes,
   routeMetadataFromAnalysis,
@@ -21,64 +22,12 @@ function collectWarnings() {
   return { warnings, onWarning: (warning: ManifestWarning) => warnings.push(warning) };
 }
 
-function routeFact(
-  overrides: Partial<RouteFact> & Pick<RouteFact, "method" | "path" | "sourceFile">,
-): RouteFact {
-  const base: RouteFact = {
-    method: overrides.method,
-    path: overrides.path,
-    sourceFile: overrides.sourceFile,
-    source: { file: overrides.sourceFile, line: 1 },
-    wrapper: "valid",
-    permission: [],
-    dbTables: [],
-    dbColumns: [],
-    description: null,
-    input: { body: false, form: false, query: false, params: false },
-    handlerBodyRead: false,
-    handlerFormRead: false,
-    elevations: [],
-    unknown: [],
-  };
-  return { ...base, ...overrides };
-}
-
 function diagnostic(code: string, file: string | null): Diagnostic {
   return {
     code,
     severity: "error",
     message: code,
     source: file === null ? null : { file, line: 1 },
-  };
-}
-
-/** A hand-built analysis so adapter-only rules are testable without extra fixtures. */
-function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
-  return {
-    revision: "",
-    files: [],
-    config: {
-      parsed: false,
-      source: null,
-      permissions: [],
-      roles: {},
-      defaultRole: null,
-      defaultLocale: "en",
-      locales: ["en"],
-      migrationsDir: "./drizzle",
-      tenantColumns: ["tenantId"],
-      ownerColumns: ["ownerId"],
-      unknown: [],
-    },
-    routes: [],
-    tables: [],
-    relations: [],
-    pages: [],
-    fileFacts: [],
-    locales: {},
-    diagnostics: [],
-    graph: { nodes: [], edges: [] },
-    ...overrides,
   };
 }
 
@@ -164,7 +113,7 @@ describe("scanRouteMetadata", () => {
         method: "GET",
         dbTables: [],
         dbColumns: [],
-        unresolved: ["permission", "dbTables", "dbColumns"],
+        unresolved: ["permission", "dbTables", "dbColumns", "crossSite"],
       });
       expect(metadata[path]?.["get"]?.permission).toBeUndefined();
       expect(metadata[path]?.["get"]?.description).toBeUndefined();
@@ -178,31 +127,6 @@ describe("scanRouteMetadata", () => {
     }
     // Route-level diagnostics are attached to their route, not duplicated on the sink.
     expect(warnings.warnings).toEqual([]);
-  });
-
-  it("keeps null facts unresolved instead of guessing values", () => {
-    const metadata = routeMetadataFromAnalysis(
-      emptyAnalysis({
-        routes: [
-          routeFact({
-            method: "GET",
-            path: "/unknown",
-            sourceFile: "server/routes/api/unknown.get.ts",
-            permission: null,
-            dbTables: null,
-            dbColumns: null,
-            description: null,
-          }),
-        ],
-      }),
-    );
-
-    expect(metadata["/unknown"]?.["get"]).toMatchObject({
-      dbTables: [],
-      dbColumns: [],
-      unresolved: ["permission", "dbTables", "dbColumns"],
-    });
-    expect(metadata["/unknown"]?.["get"]?.permission).toBeUndefined();
   });
 
   it("reports parse/config diagnostics that belong to no route through onWarning", () => {

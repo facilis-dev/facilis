@@ -59,7 +59,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.unknown": "sconosciuto",
   "projectGraph.unknownNodes": "{count} sconosciuti",
   "projectGraph.rls": "RLS",
-  "projectGraph.noRls": "senza RLS",
+  "projectGraph.systemOnly": "solo sistema",
   "projectGraph.framework": "sistema",
   "projectGraph.scope": "{column} ({kind})",
   "projectGraph.scopeKind.tenant": "tenant",

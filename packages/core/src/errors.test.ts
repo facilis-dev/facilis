@@ -36,6 +36,7 @@ describe("fail", () => {
       unauthorized: 401,
       forbidden: 403,
       invalid_input: 400,
+      unsupported_media_type: 415,
       conflict: 409,
       db_unavailable: 500,
       not_found: 404,

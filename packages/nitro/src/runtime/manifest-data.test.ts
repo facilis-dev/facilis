@@ -50,6 +50,11 @@ describe("toRouteMeta", () => {
     });
   });
 
+  it("exposes crossSite only when the route declares it", () => {
+    expect(toRouteMeta(route({ crossSite: true })).crossSite).toBe(true);
+    expect(toRouteMeta(route({})).crossSite).toBeUndefined();
+  });
+
   it("classifies public, required and unknown routes", () => {
     expect(toRouteMeta(route({ permission: [] })).security).toBe("public");
     expect(toRouteMeta(route({})).security).toBe("public");

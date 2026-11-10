@@ -30,7 +30,7 @@ export const dataExplorerIt: Partial<Record<MessageKey, string>> = {
   "dataExplorer.rls.policy": "RLS + policy",
   "dataExplorer.rls.rls_without_policy": "RLS attivo, nessuna policy",
   "dataExplorer.rls.rls_off_scoped": "RLS spento su tabella scoped",
-  "dataExplorer.rls.rls_off": "RLS spento",
+  "dataExplorer.rls.rls_off": "solo sistema",
   "dataExplorer.rls.missing": "Non nel database",
 
   "dataExplorer.drift.table_missing": "La tabella {table} è nel codice ma non nel database",

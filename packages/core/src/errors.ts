@@ -11,6 +11,8 @@ export const FACILIS_ERROR_CODES = [
   "unauthorized",
   "forbidden",
   "invalid_input",
+  // 415: a body-carrying route was called with the wrong media type; the body is not read.
+  "unsupported_media_type",
   "conflict",
   "db_unavailable",
   "not_found",
@@ -26,6 +28,7 @@ export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = 
   unauthorized: 401,
   forbidden: 403,
   invalid_input: 400,
+  unsupported_media_type: 415,
   conflict: 409,
   db_unavailable: 500,
   not_found: 404,

@@ -88,6 +88,7 @@
   "errors.network_error": "Errore di rete. Controlla la connessione.",
   "errors.file_too_large": "Il file è troppo grande.",
   "errors.storage_unavailable": "L'archiviazione dei file non è temporaneamente disponibile.",
+  "errors.unsupported_media_type": "Questo formato di richiesta non è supportato.",
   "nav.workspace": "Area di lavoro",
   "nav.account": "Account",
   "nav.breadcrumb": "Percorso",

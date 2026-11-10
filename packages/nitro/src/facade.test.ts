@@ -122,6 +122,14 @@ describe("mergeOpenApiMetadata", () => {
     expect(operation?.["x-db-columns"]).toEqual([]);
   });
 
+  it("publishes x-cross-site only for a crossSite route", () => {
+    const crossSite = mergeOpenApiMetadata(nitroSpec(), metadataMap({ crossSite: true }));
+    expect(crossSite.paths?.["/api/todos"]?.get?.["x-cross-site"]).toBe(true);
+
+    const sameOrigin = mergeOpenApiMetadata(nitroSpec(), metadataMap({}));
+    expect(sameOrigin.paths?.["/api/todos"]?.get?.["x-cross-site"]).toBeUndefined();
+  });
+
   it("handles multiple permissions (array) and keeps array order", () => {
     const merged = mergeOpenApiMetadata(
       nitroSpec(),

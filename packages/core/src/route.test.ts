@@ -50,7 +50,8 @@ interface FakeEventOptions {
 
 function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   const req: FacilisRequestEvent["req"] = {
-    headers: new Headers(),
+    // A body-carrying route requires the JSON media type before the body is read.
+    headers: new Headers({ "content-type": "application/json" }),
     url: options.url ?? "http://localhost/api/test",
     method: "POST",
   };

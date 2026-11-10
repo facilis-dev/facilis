@@ -1,5 +1,5 @@
 /**
- * The wrapper config subset: permission/dbTables/dbColumns/description/input presence.
+ * The wrapper config subset: permission/crossSite/dbTables/dbColumns/description/input.
  *
  * Split from routes.ts so both modules stay under the 300-line limit; every failure is an
  * explicit unknown (never an empty value) and a diagnostic, as in the rest of the analyzer.
@@ -18,6 +18,8 @@ const MISSING_TABLES = "dbTables is missing; declare an array ([] means no DB)";
 
 export interface RouteConfigFacts {
   readonly permission: readonly string[] | null;
+  /** True when the wrapper opts the route into cross-origin calls; null when unreadable. */
+  readonly crossSite: boolean | null;
   readonly dbTables: readonly string[] | null;
   readonly dbColumns: readonly string[] | null;
   readonly description: string | null;
@@ -71,6 +73,19 @@ export function routeConfigFacts(
     permission = permissionValue(permissionField.value);
     if (permission === null) {
       addUnknown(unknown, "route-config-static", "permission must be a string or string[]", ref);
+    }
+  }
+
+  const crossSiteField = field("crossSite");
+  let crossSite: boolean | null = false;
+  if (crossSiteField !== undefined && !crossSiteField.ok) {
+    crossSite = null;
+    addUnknown(unknown, "route-config-static", unreadable("crossSite", crossSiteField), ref);
+  } else if (crossSiteField !== undefined) {
+    if (typeof crossSiteField.value === "boolean") crossSite = crossSiteField.value;
+    else {
+      crossSite = null;
+      addUnknown(unknown, "route-config-static", "crossSite must be a boolean", ref);
     }
   }
 
@@ -132,5 +147,14 @@ export function routeConfigFacts(
       }
     }
   }
-  return { permission, dbTables, dbColumns, description, input, unknown, diagnostics };
+  if (crossSite === true && permission !== null && permission.length > 0) {
+    diagnostics.push(
+      error(
+        "route-cross-site-authenticated",
+        "crossSite routes must be public: permission must be [] (a session cookie never crosses origins)",
+        ref,
+      ),
+    );
+  }
+  return { permission, crossSite, dbTables, dbColumns, description, input, unknown, diagnostics };
 }

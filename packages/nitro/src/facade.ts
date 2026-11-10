@@ -70,6 +70,7 @@ function mergeOperation(operation: OpenApiOperation, route: RouteMetadata): Open
   }
   if (!route.unresolved.includes("dbTables")) merged["x-db-tables"] = [...route.dbTables];
   if (!route.unresolved.includes("dbColumns")) merged["x-db-columns"] = [...route.dbColumns];
+  if (route.crossSite === true) merged["x-cross-site"] = true;
   if (route.sourceFile !== undefined) merged["x-facilis-source"] = route.sourceFile;
   if (route.warnings.length > 0) {
     merged["x-facilis-warning"] = route.warnings.map((warning) => ({

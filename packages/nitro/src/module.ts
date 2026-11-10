@@ -236,7 +236,9 @@ function registerRuntimeHandlers(nitro: Nitro): void {
   // app never ships its own copy. It is reserved to the framework (SPEC §5.3).
   add(SSO_ROUTE, routeFile("sso.ts"));
 
-  // Middleware order is significant: context (db) before session (auth) (contracts §4.1).
+  // Middleware order is significant: cors answers preflight before anything boots, then
+  // context (db) before session (auth) (contracts §4.1).
+  handlers.push({ route: "/**", middleware: true, handler: middlewareFile("cors.ts") });
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("context.ts") });
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("session.ts") });
 }

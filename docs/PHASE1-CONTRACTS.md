@@ -144,7 +144,14 @@ insert does not name the tenant either.
   `fail(code, details?)` from core returning a web `Response`;
   body is `{ code: string, details?: unknown }` — codes only, no prose.
 - Codes in Phase 1: `unauthorized` (401), `forbidden` (403), `invalid_input` (400, `details` =
-  flatten of Zod issues), `db_unavailable` (500), `not_found` (404), `internal_error` (500).
+  flatten of Zod issues), `conflict` (409), `db_unavailable` (500), `not_found` (404),
+  `storage_unavailable` (503), `file_too_large` (413), `unsupported_media_type` (415, D-140),
+  `internal_error` (500).
+- CSRF (D-140): on unsafe methods the wrapper rejects a cross-site request with `403 forbidden`
+  before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback, a missing
+  `Origin` means a non-browser client); `body` routes accept only `application/json` and `form`
+  routes only `multipart/form-data` (`415 unsupported_media_type`); `crossSite: true` is allowed
+  only with `permission: []`.
 - `defineAuthorizedHandler` returns a web `Response` for errors (no `h3` import); success values
   are returned as plain data.
 - `permission: []` handlers may run without a session: their `ctx.auth` must be typed
@@ -181,7 +188,8 @@ export function tenantColumn(name?: string): /* uuid NOT NULL DEFAULT app.tenant
 export function tenantDefaultSql(): SQL;                        // the same expression, for raw DDL
 
 export function applyStatements(db: FacilisDb, statements: readonly string[]): Promise<void>; // idempotent bootstrap/migration runner
-export function ensureAppRole(db: FacilisDb): Promise<void>;  // role facilis_app + grants (dev RLS enforcement)
+export interface AppRoleProvisioning { readonly systemOnlyTables: readonly string[] }
+export function ensureAppRole(db: FacilisDb): Promise<AppRoleProvisioning>; // role + RLS-derived grants (D-136)
 
 export interface SchemaSnapshot { tables: TableSnapshot[] }
 export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizzle getTableConfig
@@ -213,8 +221,11 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   (the non-superuser app role - PGlite connects as superuser and superusers bypass RLS even with
   FORCE, Phase 0 finding), then `SET LOCAL`/set_config the three GUCs, then runs the callback.
 - `ensureAppRole(db)`: dev bootstrap that creates role `facilis_app` (NOSUPERUSER NOBYPASSRLS
-  NOLOGIN) if missing and grants SELECT/INSERT/UPDATE/DELETE on all current tables in the public
-  schema. Called by the Nitro module after migrations; without it RLS is not enforced in dev.
+  NOLOGIN NOINHERIT) if missing and reconciles its table privileges with the live schema (D-136):
+  a table with RLS gets SELECT/INSERT/UPDATE/DELETE, a table without RLS is revoked (system-only)
+  and no table default privilege is installed. Returns the system-only table names. Called by the
+  Nitro module after migrations; without it RLS is not enforced in dev. The deploy step runs the
+  same function after its migrations (POSTGRES §4).
 - `schemaSnapshot` derives tables/columns/FKs/policies from Drizzle `getTableConfig` (SPEC §7.3, §11.1).
 - RLS generator output must match the Phase 0 verified SQL (regression: `packages/db/src/rls.test.ts`),
   including the superuser caveat: tests need a non-superuser role via `SET ROLE`.

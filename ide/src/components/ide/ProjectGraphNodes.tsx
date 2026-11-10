@@ -132,10 +132,12 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
         <span
           className={
             "rounded border px-1 " +
-            (table.rlsEnabled ? "border-success/50 text-success" : "border-warning/50 text-warning")
+            (table.rlsEnabled
+              ? "border-success/50 text-success"
+              : "border-border text-muted-foreground")
           }
         >
-          {table.rlsEnabled ? t("projectGraph.rls") : t("projectGraph.noRls")}
+          {table.rlsEnabled ? t("projectGraph.rls") : t("projectGraph.systemOnly")}
         </span>
         {table.framework && (
           <span

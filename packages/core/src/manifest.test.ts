@@ -126,6 +126,7 @@ const routes: readonly RouteMeta[] = [
     method: "POST",
     path: "/api/auth/session",
     permission: [],
+    crossSite: true,
     dbTables: [],
     dbColumns: [],
     security: "public",
@@ -167,6 +168,15 @@ describe("buildManifest", () => {
     expect(manifest.routes).toBe(routes);
     expect(manifest.schema).toBe(schema);
     expect(manifest.i18n).toEqual({ defaultLocale: "en", catalogs });
+  });
+
+  it("keeps the optional crossSite flag on the route", () => {
+    const manifest = buildManifest({ config, routes });
+
+    expect(manifest.routes.find((route) => route.path === "/api/auth/session")?.crossSite).toBe(
+      true,
+    );
+    expect(manifest.routes[0]?.crossSite).toBeUndefined();
   });
 });
 

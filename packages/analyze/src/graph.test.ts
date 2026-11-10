@@ -35,6 +35,7 @@ function route(overrides: Partial<RouteFact> & Pick<RouteFact, "method" | "path"
     source: ref("server/routes/api/todos/index.get.ts"),
     wrapper: "valid",
     permission: ["todos:read"],
+    crossSite: false,
     dbTables: ["todos"],
     dbColumns: null,
     description: null,

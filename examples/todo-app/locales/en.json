@@ -88,6 +88,7 @@
   "errors.network_error": "Network error. Check your connection.",
   "errors.file_too_large": "That file is too large.",
   "errors.storage_unavailable": "File storage is temporarily unavailable.",
+  "errors.unsupported_media_type": "This request format is not supported.",
   "nav.workspace": "Workspace",
   "nav.account": "Account",
   "nav.breadcrumb": "Breadcrumb",

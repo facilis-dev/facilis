@@ -54,6 +54,8 @@ export interface RouteMeta {
   readonly description?: string;
   /** Widened from SPEC §7.3's `string`: an authorized route may require several permissions. */
   readonly permission?: string | readonly string[];
+  /** Declared callable from other origins (CORS); absent when the route is same-origin only. */
+  readonly crossSite?: boolean;
   /** REQUIRED (SPEC §7.4): an empty array is an explicit "this route does not touch the DB". */
   readonly dbTables: readonly string[];
   /** `"table.column"` references used by the release diff and the entity explorer. */

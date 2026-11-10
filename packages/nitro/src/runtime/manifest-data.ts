@@ -76,6 +76,7 @@ export function toRouteMeta(route: RouteMetadata): RouteMeta {
     summary: route.description,
     description: route.description,
     permission: route.permission,
+    ...(route.crossSite === true ? { crossSite: true } : {}),
     dbTables: route.dbTables,
     dbColumns: route.dbColumns,
     security: deriveSecurity(route),

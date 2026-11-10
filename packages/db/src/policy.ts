@@ -33,25 +33,46 @@ export class AppRoleUnavailableError extends Error {
 }
 
 /**
- * Creates the non-superuser role that policy-scoped queries run as, and grants it access
- * to every current and future table and sequence in the public schema. Sequences matter
- * for serial/uuid-default apps: an insert as facilis_app also needs USAGE on the backing
- * sequence. Idempotent: safe on every boot.
+ * The classification `ensureAppRole` derives from the live schema: every table in `public`
+ * is either RLS-scoped (the app role has DML and the policies decide the rows) or
+ * system-only (no table privilege at all; reachable only through the system identity).
+ * D-136 makes this the invariant: a table without RLS is never app-reachable.
  */
-export async function ensureAppRole(db: FacilisDb): Promise<void> {
+export interface AppRoleProvisioning {
+  readonly systemOnlyTables: readonly string[];
+}
+
+/**
+ * Creates the non-superuser role that policy-scoped queries run as and reconciles its
+ * privileges with the live schema: **RLS is the grant boundary** (D-136). A table with RLS
+ * enabled gets DML for the app role (its policies then decide the rows); a table without RLS
+ * gets no table privilege at all, so only the system identity can touch it. Sequences stay
+ * granted to both classes: USAGE can neither read nor write a table, and serial/identity
+ * columns need it for inserts. Idempotent and re-asserting: safe on every boot, and the
+ * blanket grants an older cluster carries are revoked the next time this runs.
+ *
+ * The role is `NOINHERIT` on purpose. It is a member of `facilis_system` so a deployment
+ * whose connection already is `facilis_app` can `SET ROLE` for the audited elevation
+ * (D-099); membership must not hand the request identity the system role's grants, or the
+ * system-only tables would be reachable from every handler. `SET ROLE` still works with
+ * `NOINHERIT`: only implicit inheritance of the member role's privileges is disabled.
+ */
+export async function ensureAppRole(db: FacilisDb): Promise<AppRoleProvisioning> {
   const existing = await db.db.execute(sql`select 1 from pg_roles where rolname = ${APP_ROLE}`);
   if (existing.rows.length === 0) {
-    await db.db.execute(sql.raw(`CREATE ROLE ${APP_ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS`));
+    await db.db.execute(
+      sql.raw(`CREATE ROLE ${APP_ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`),
+    );
   }
   // Re-assert attributes in case an older dev dataDir created the role differently.
-  await db.db.execute(sql.raw(`ALTER ROLE ${APP_ROLE} NOSUPERUSER NOBYPASSRLS NOLOGIN`));
+  await db.db.execute(sql.raw(`ALTER ROLE ${APP_ROLE} NOSUPERUSER NOBYPASSRLS NOLOGIN NOINHERIT`));
   await db.db.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`));
-  await db.db.execute(
-    sql.raw(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`),
-  );
+  // No table default privilege: a table a migration creates stays closed to the app role
+  // until its RLS is on and this function runs again after the migration. The REVOKE also
+  // clears the default an older version of this function installed on existing clusters.
   await db.db.execute(
     sql.raw(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${APP_ROLE}`,
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM ${APP_ROLE}`,
     ),
   );
   await db.db.execute(
@@ -62,6 +83,32 @@ export async function ensureAppRole(db: FacilisDb): Promise<void> {
       `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${APP_ROLE}`,
     ),
   );
+  // Clear every table-class privilege before re-granting: it removes the blanket grant an
+  // older cluster installed on objects the classification below does not cover (partition
+  // children, materialized and foreign tables) and on system-only tables. Views lose their
+  // grant here and get it back from applyViews, the only code that grants one (D-097).
+  await db.db.execute(
+    sql.raw(`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ${APP_ROLE}`),
+  );
+
+  const systemOnlyTables: string[] = [];
+  for (const table of await publicTables(db)) {
+    const identifier = sql.identifier(table.name);
+    if (table.rowSecurityEnabled) {
+      await db.db.execute(
+        sql`grant select, insert, update, delete on table ${identifier} to ${sql.identifier(APP_ROLE)}`,
+      );
+      continue;
+    }
+    // Belt and braces: PUBLIC holds nothing by default, but a hand-written grant must not
+    // reopen a system-only table.
+    await db.db.execute(
+      sql`revoke all privileges on table ${identifier} from ${sql.identifier(APP_ROLE)}`,
+    );
+    await db.db.execute(sql`revoke all privileges on table ${identifier} from public`);
+    systemOnlyTables.push(table.name);
+  }
+  return { systemOnlyTables };
 }
 
 /**
@@ -93,4 +140,35 @@ export async function runWithPolicyScope<T>(
 
     return fn(tx);
   });
+}
+
+/** One `public` table, as the catalog reports it (the live schema is the classification). */
+interface PublicTable {
+  readonly name: string;
+  readonly rowSecurityEnabled: boolean;
+}
+
+/**
+ * The grant loop's input. The catalog, not the code schema, decides: migrations are what
+ * actually enabled RLS. Partition children are skipped — routing through a partitioned
+ * parent checks the parent's privilege, and the framework has no partitioned tables today.
+ */
+async function publicTables(db: FacilisDb): Promise<PublicTable[]> {
+  const result = await db.db.execute(sql`
+    select c.relname as name, c.relrowsecurity as row_security
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relispartition
+    order by c.relname
+  `);
+  const tables: PublicTable[] = [];
+  for (const row of result.rows) {
+    const name = row["name"];
+    const rowSecurityEnabled = row["row_security"];
+    if (typeof name !== "string" || typeof rowSecurityEnabled !== "boolean") {
+      throw new Error("ensureAppRole: unexpected pg_class row shape");
+    }
+    tables.push({ name, rowSecurityEnabled });
+  }
+  return tables;
 }

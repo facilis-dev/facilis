@@ -69,20 +69,36 @@ a privileged connection to read `users`/`user_roles`.
 ## 4. One-time provisioning (the deploy step)
 
 Migrations, the role seed and the `facilis_app` grants are applied once per deployment, by
-the **owner/admin** connection — never by the runtime, and never on every boot. From the
+the **owner/admin** connection — never by the runtime, and never on every boot. `ensureAppRole`
+**classifies every table by its live RLS state** (D-136): an RLS table gets DML for the app role,
+a table without RLS gets none and is system-only, so the runtime can never read it. From the
 project root, with the package installed:
 
 ```bash
 FACILIS_MIGRATION_DATABASE_URL='postgres://owner:...@host:5432/db?sslmode=require' \
 node --input-type=module <<'JS'
-import { createDb, applyMigrations, ensureAppRole } from "@facilis/db";
+import { createDb, applyMigrations, ensureAppRole, ensureSystemRole } from "@facilis/db";
 
 const db = await createDb({ driver: "postgres", url: process.env.FACILIS_MIGRATION_DATABASE_URL });
 await applyMigrations(db, { directory: "db/migrations" }); // idempotent: content-hashed rows
-await ensureAppRole(db);                                   // facilis_app + grants (tables, sequences)
+await ensureAppRole(db);                                   // classify tables: RLS gets DML, the rest is revoked
+await ensureSystemRole(db);                                // sudo identity + membership (needs a superuser)
 await db.close();
 JS
 ```
+
+`ensureSystemRole` creates `facilis_system` (`NOLOGIN NOSUPERUSER BYPASSRLS`) and makes
+`facilis_app` a member of it. `CREATE ROLE … BYPASSRLS` is a superuser operation, so this line
+needs the owner/superuser connection; a managed host that cannot provision such a role (§3) must
+skip it, and the runtime then has no elevation path — `ctx.sudo`/`ctx.system`/`runAsSystem` fail
+closed. The membership is what the `NOINHERIT` note below is about.
+
+Run it again after **every** migration that adds or changes tables: the grant list is derived from
+the catalog, so a new table stays closed to the runtime until its RLS is enabled and this step
+runs. The step also removes the table default privilege, so there is no window in which a table
+the migration just created is app-readable. The role is `NOINHERIT` on purpose: it is a member of
+`facilis_system` only so the runtime can `SET ROLE` for the audited sudo (D-099), and membership
+must not hand the system grants to the request identity.
 
 Then give the role a login and let the runtime use it:
 

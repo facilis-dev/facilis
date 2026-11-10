@@ -155,10 +155,29 @@ describe("policy scope over the postgres wire protocol", () => {
     ).rejects.toThrow();
   });
 
-  it("grants sequences created after ensureAppRole via default privileges", async () => {
+  it("closes a table created after ensureAppRole until it enables RLS", async () => {
     await db.db.execute(
       sql.raw("CREATE TABLE later_notes (id serial PRIMARY KEY, label text NOT NULL)"),
     );
+    // D-136: no RLS means no app-role privilege, even though the table is brand new.
+    const denial = await runWithPolicyScope(db, {}, async (tx) => {
+      await tx.execute(sql.raw("insert into later_notes (label) values ('closed')"));
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(denial).toBeInstanceOf(Error);
+    expect(describeError(denial)).toMatch(/permission denied/i);
+    const rows = await db.db.execute(sql.raw("select count(*)::int as count from later_notes"));
+    expect(rows.rows[0]).toEqual({ count: 0 });
+
+    // A migration that enables RLS plus a policy moves it to the app-scoped class; the next
+    // provisioning run grants it (and the sequence the default privilege already covers).
+    await applyStatements(db, [
+      "ALTER TABLE later_notes ENABLE ROW LEVEL SECURITY",
+      "CREATE POLICY later_notes_all ON later_notes FOR ALL USING (true) WITH CHECK (true)",
+    ]);
+    await ensureAppRole(db);
     const inserted = await runWithPolicyScope(db, {}, async (tx) => {
       const result = await tx.execute(
         sql.raw("insert into later_notes (label) values ('later') returning id"),
@@ -168,3 +187,14 @@ describe("policy scope over the postgres wire protocol", () => {
     expect(inserted).toMatchObject({ id: expect.any(Number) });
   });
 });
+
+/** Drizzle wraps the pg error, so the privilege message lives on the cause chain. */
+function describeError(error: unknown): string {
+  const messages: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    messages.push(current.message);
+    current = current.cause;
+  }
+  return messages.join(" | ");
+}

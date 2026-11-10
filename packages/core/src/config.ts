@@ -83,6 +83,12 @@ export interface FacilisAuthConfig {
   readonly sso: FacilisSsoConfig;
 }
 
+/** Request-origin policy for the CSRF gate (SPEC §8); the framework default is same-origin only. */
+export interface FacilisSecurityConfig {
+  /** Absolute http(s) origins allowed to make unsafe requests besides the request's own. */
+  readonly trustedOrigins: readonly string[];
+}
+
 /**
  * Nitro options owned by the project (D-034).
  *
@@ -102,6 +108,8 @@ export interface FacilisConfig {
   readonly jobs: FacilisJobsConfig;
   /** Binary uploads (D-053): driver, bucket and the framework limits. */
   readonly storage: FacilisStorageConfig;
+  /** Request-origin policy; always present so the wrapper never guesses (SPEC §8). */
+  readonly security: FacilisSecurityConfig;
   /** Operator logging defaults (D-119): level and what is collected; sinks are env-owned. */
   readonly logging: FacilisLoggingConfig;
   readonly nitro: FacilisNitroOptions;
@@ -136,6 +144,10 @@ export interface FacilisConfigInput {
   readonly storage?: FacilisStorageConfigInput;
   /** Logging defaults (D-119); every key has a default and the environment overrides them. */
   readonly logging?: FacilisLoggingConfigInput;
+  /** Request-origin allow-list; defaults to same-origin only. */
+  readonly security?: {
+    readonly trustedOrigins?: readonly string[];
+  };
 }
 
 const DEFAULT_RELEASE_REF = "main";
@@ -191,6 +203,31 @@ const authSchema = z.strictObject({
   sso: ssoConfigSchema,
 });
 
+/**
+ * An allow-list entry must be an exact origin: `Origin` is always `scheme://host[:port]`,
+ * so a path or a default-port spelling would silently never match.
+ */
+function isAbsoluteHttpOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.origin === value;
+  } catch {
+    return false;
+  }
+}
+
+const securitySchema = z
+  .strictObject({
+    trustedOrigins: z
+      .array(
+        z.string().refine(isAbsoluteHttpOrigin, {
+          message: "security.trustedOrigins entries must be absolute http(s) origins",
+        }),
+      )
+      .default([]),
+  })
+  .default(() => ({ trustedOrigins: [] }));
+
 const baseConfigSchema = z.strictObject({
   release: releaseSchema,
   db: dbSchema,
@@ -198,6 +235,7 @@ const baseConfigSchema = z.strictObject({
   auth: authSchema,
   jobs: facilisJobsConfigSchema,
   storage: facilisStorageConfigSchema,
+  security: securitySchema,
   logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
 });

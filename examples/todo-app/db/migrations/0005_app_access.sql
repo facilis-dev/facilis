@@ -1,0 +1,4 @@
+ALTER TABLE "sessions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "user_roles" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE POLICY "sessions_user_access" ON "sessions" AS PERMISSIVE FOR ALL TO public USING (exists (select 1 from "users" u where u.id = "sessions"."user_id")) WITH CHECK (exists (select 1 from "users" u where u.id = "sessions"."user_id"));--> statement-breakpoint
+CREATE POLICY "user_roles_user_access" ON "user_roles" AS PERMISSIVE FOR ALL TO public USING (exists (select 1 from "users" u where u.id = "user_roles"."user_id")) WITH CHECK (exists (select 1 from "users" u where u.id = "user_roles"."user_id"));

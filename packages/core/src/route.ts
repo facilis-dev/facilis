@@ -8,6 +8,7 @@ import type { FacilisLogger } from "./logging.ts";
 import { startRequestLogging } from "./route-logging.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
 import { parseRequestInput } from "./request-input.ts";
+import { isRequestOriginAllowed } from "./request-security.ts";
 import { unavailableStorage, type StorageApi } from "./storage.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
 import { DEFAULT_TENANT_ID } from "./tenancy.ts";
@@ -31,6 +32,11 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   form?: z.ZodType<F>;
   query?: z.ZodType<Q>;
   params?: z.ZodType<P>;
+  /**
+   * `true` = callable from a page on another origin, without credentials; requires
+   * `permission: []` because a session cookie never crosses origins.
+   */
+  crossSite?: boolean;
   /** REQUIRED (possibly empty): static metadata extracted by the Nitro AST pass (SPEC §7.4). */
   dbTables: readonly string[];
   /** `"table.column"` references, used by the release diff and entity explorer. */
@@ -165,6 +171,11 @@ export function defineAuthorizedHandler<
     throw new Error("defineAuthorizedHandler: body and form are mutually exclusive");
   }
   const requiredPermissions = normalizePermissions(config.permission);
+  if (config.crossSite === true && requiredPermissions.length > 0) {
+    throw new Error(
+      "defineAuthorizedHandler: crossSite requires permission: [] (a session cookie never crosses origins)",
+    );
+  }
 
   return async (event: FacilisRequestEvent): Promise<unknown> => {
     const auth = event.context.auth ?? null;
@@ -180,6 +191,16 @@ export function defineAuthorizedHandler<
     };
 
     try {
+      // CSRF gate: a credentialed request from another origin is refused before anything
+      // else runs, and it still records its access entry through the finally below.
+      const originAllowed = isRequestOriginAllowed({
+        method: event.req.method,
+        headers: event.req.headers,
+        trustedOrigins: event.context.security?.trustedOrigins ?? [],
+        crossSite: config.crossSite === true,
+      });
+      if (!originAllowed) return respond(fail("forbidden"));
+
       if (requiredPermissions.length > 0) {
         if (auth === null) return respond(fail("unauthorized"));
         if (!hasPermission(auth, requiredPermissions)) return respond(fail("forbidden"));

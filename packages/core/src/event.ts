@@ -45,6 +45,13 @@ export interface FacilisEventContext {
       readonly userAgent?: string;
     };
   };
+  /**
+   * Origin policy decided by the context middleware: the request-origin gate reads the
+   * trusted allow-list from here, and the wrapper is the only consumer.
+   */
+  security?: {
+    readonly trustedOrigins: readonly string[];
+  };
   /** Router params populated by Nitro (h3 `event.context.params`). */
   params?: Record<string, string>;
 }

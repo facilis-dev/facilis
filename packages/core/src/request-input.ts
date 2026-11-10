@@ -36,6 +36,26 @@ const FORM_BODY_INVALID_DETAILS = {
 
 type FormValue = string | File;
 
+const JSON_MEDIA_TYPE = "application/json";
+const FORM_MEDIA_TYPE = "multipart/form-data";
+
+/**
+ * The media type without its parameters, lowercased: `application/json; charset=utf-8` is JSON.
+ * Checked from the header alone so a wrong type costs no parsing and never consumes the body.
+ */
+function mediaTypeOf(headers: Headers): string | undefined {
+  const raw = headers.get("content-type");
+  if (raw === null) return undefined;
+  const [mediaType] = raw.split(";");
+  const normalized = mediaType?.trim().toLowerCase();
+  return normalized === undefined || normalized.length === 0 ? undefined : normalized;
+}
+
+function wrongMediaType(event: FacilisRequestEvent, expected: string): PartFailure | undefined {
+  if (mediaTypeOf(event.req.headers) === expected) return undefined;
+  return { ok: false, response: fail("unsupported_media_type") };
+}
+
 function readQuery(event: FacilisRequestEvent): Record<string, string> {
   const url = event.req.url;
   if (typeof url !== "string") return {};
@@ -65,6 +85,8 @@ async function parseBody<T>(
   event: FacilisRequestEvent,
 ): Promise<PartFailure | { ok: true; value: T }> {
   if (schema === undefined) return { ok: true, value: undefined as unknown as T };
+  const unsupported = wrongMediaType(event, JSON_MEDIA_TYPE);
+  if (unsupported !== undefined) return unsupported;
   const json = event.req.json;
   if (typeof json !== "function") {
     return { ok: false, response: fail("invalid_input", JSON_BODY_REQUIRED_DETAILS) };
@@ -99,6 +121,8 @@ async function parseForm<T>(
   event: FacilisRequestEvent,
 ): Promise<PartFailure | { ok: true; value: T }> {
   if (schema === undefined) return { ok: true, value: undefined as unknown as T };
+  const unsupported = wrongMediaType(event, FORM_MEDIA_TYPE);
+  if (unsupported !== undefined) return unsupported;
   const readFormData = event.req.formData;
   if (typeof readFormData !== "function") {
     return { ok: false, response: fail("invalid_input", FORM_BODY_REQUIRED_DETAILS) };

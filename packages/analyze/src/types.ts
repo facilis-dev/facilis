@@ -157,6 +157,11 @@ export interface RouteFact {
   readonly wrapper: WrapperState;
   /** null = unknown; [] = explicitly public. */
   readonly permission: readonly string[] | null;
+  /**
+   * True when the wrapper declares the route callable from another origin; false when absent;
+   * null when the declaration cannot be read statically (a cross-origin route is never assumed).
+   */
+  readonly crossSite: boolean | null;
   /** null = unknown; [] = explicitly no DB. */
   readonly dbTables: readonly string[] | null;
   /** null = unknown; [] = explicitly no columns. */

@@ -1,4 +1,4 @@
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 
 import {
   applyStatements,
@@ -9,7 +9,7 @@ import {
 } from "@facilis/db";
 
 import { authIdentities, authSsoStates } from "./sso/tables.ts";
-import { users } from "./tables.ts";
+import { rolePermissions, roles, sessions, userRoles, users } from "./tables.ts";
 
 /**
  * Hand-written DDL matching the drizzle tables exactly (no drizzle-kit in CI). Column
@@ -64,38 +64,40 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
   )`,
 ];
 
-const USERS_POLICY_STATEMENTS: readonly string[] = [
-  "ALTER TABLE users ENABLE ROW LEVEL SECURITY",
-  ...getTableConfig(users).policies.map((policy) => policyCreateSql("users", policy)),
+const RLS_TABLES: readonly (readonly [string, PgTable])[] = [
+  ["users", users],
+  ["sessions", sessions],
+  ["roles", roles],
+  ["role_permissions", rolePermissions],
+  ["user_roles", userRoles],
+  ["auth_identities", authIdentities],
+  ["auth_sso_states", authSsoStates],
 ];
 
-const AUTH_IDENTITIES_POLICY_STATEMENTS: readonly string[] = [
-  "ALTER TABLE auth_identities ENABLE ROW LEVEL SECURITY",
-  ...getTableConfig(authIdentities).policies.map((policy) =>
-    policyCreateSql("auth_identities", policy),
-  ),
-];
-
-const AUTH_SSO_STATES_POLICY_STATEMENTS: readonly string[] = [
-  "ALTER TABLE auth_sso_states ENABLE ROW LEVEL SECURITY",
-  ...getTableConfig(authSsoStates).policies.map((policy) =>
-    policyCreateSql("auth_sso_states", policy),
-  ),
-];
+/**
+ * RLS wiring derived from the same drizzle tables the DDL mirrors, so a new policy (D-136)
+ * cannot land in the schema and stay out of the test database. Tables without `enableRLS`
+ * (`roles`, `role_permissions`) are system-only and contribute no statement.
+ */
+const AUTH_RLS_STATEMENTS: readonly string[] = RLS_TABLES.flatMap(([name, table]) => {
+  const config = getTableConfig(table);
+  if (!config.enableRLS) return [];
+  const statements = [`ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY`];
+  for (const policy of config.policies) statements.push(policyCreateSql(name, policy));
+  return statements;
+});
 
 let cachedStatements: readonly string[] | undefined;
 
 function authSchemaStatements(): readonly string[] {
-  cachedStatements ??= [
-    ...AUTH_TABLE_STATEMENTS,
-    ...USERS_POLICY_STATEMENTS,
-    ...AUTH_IDENTITIES_POLICY_STATEMENTS,
-    ...AUTH_SSO_STATES_POLICY_STATEMENTS,
-  ];
+  cachedStatements ??= [...AUTH_TABLE_STATEMENTS, ...AUTH_RLS_STATEMENTS];
   return cachedStatements;
 }
 
-/** Boots an in-memory PGlite db with the auth schema, RLS policies and app role. */
+/**
+ * Boots an in-memory PGlite db with the auth schema, its RLS policies and the app role:
+ * `ensureAppRole` then grants only the RLS-enabled tables and revokes the system-only pair.
+ */
 export async function createAuthTestDb(): Promise<FacilisDb> {
   const db = await createDb();
   await applyStatements(db, authSchemaStatements());

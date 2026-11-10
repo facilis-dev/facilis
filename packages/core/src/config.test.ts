@@ -50,6 +50,7 @@ const FULL_CONFIG: FacilisConfig = {
     encryption: { enabled: true },
   },
   logging: DEFAULT_LOGGING_CONFIG,
+  security: { trustedOrigins: ["https://app.example.com"] },
   nitro: { serverDir: "./backend" },
 };
 
@@ -84,6 +85,8 @@ describe("defineConfig", () => {
     });
     // Uploads are safe by default in dev: local driver, 10 MiB, five-minute tokens.
     expect(config.storage).toEqual(DEFAULT_STORAGE_CONFIG);
+    // Same-origin only unless the project names another origin (SPEC §8).
+    expect(config.security).toEqual({ trustedOrigins: [] });
     expect(config.nitro).toEqual({});
   });
 
@@ -187,6 +190,42 @@ describe("defineConfig", () => {
     expect(config.storage.encryption).toEqual({ enabled: true });
     expect(() =>
       defineConfig({ auth: SPEC_AUTH, storage: { encryption: { algorithm: "aes" } } as never }),
+    ).toThrow(/Unrecognized key/);
+  });
+
+  it("accepts exact http(s) trusted origins", () => {
+    const config = defineConfig({
+      auth: SPEC_AUTH,
+      security: { trustedOrigins: ["https://app.example.com", "http://localhost:3000"] },
+    });
+
+    expect(config.security.trustedOrigins).toEqual([
+      "https://app.example.com",
+      "http://localhost:3000",
+    ]);
+  });
+
+  it("rejects a trusted origin that is not an absolute http(s) origin", () => {
+    for (const entry of [
+      "example.com",
+      "https://example.com/",
+      "https://example.com/path",
+      "https://example.com?q=1",
+      "https://example.com#fragment",
+      "ftp://example.com",
+    ]) {
+      expect(() =>
+        defineConfig({ auth: SPEC_AUTH, security: { trustedOrigins: [entry] } }),
+      ).toThrow(/security\.trustedOrigins/);
+    }
+  });
+
+  it("rejects an unknown security key", () => {
+    expect(() =>
+      defineConfig({
+        auth: SPEC_AUTH,
+        security: { origins: ["https://example.com"] } as never,
+      }),
     ).toThrow(/Unrecognized key/);
   });
 

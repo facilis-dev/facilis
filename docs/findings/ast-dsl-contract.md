@@ -243,6 +243,7 @@ in the browser worker and in Node/CI.
 | `no-raw-db` | error | raw Drizzle import outside `@facilis/db` |
 | `schema-static` | error | table/column/policy uses a construct outside the DSL |
 | `rls-on-scoped-table` | error | scoped table lacks `.enableRLS()` or a policy |
+| `route-system-table` | warning | a route's `dbTables`/`dbColumns` names a system-only table outside an elevation |
 | `fk-target-known` | warning | `.references` target is not a declared table/column |
 | `relation-target-known` | warning | a `relations()` target is not a declared table |
 | `client-transport` | error | a network call in `src/**` that does not use the sanctioned transport |

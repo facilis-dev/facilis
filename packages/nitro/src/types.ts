@@ -4,7 +4,7 @@ import type { ManifestWarning } from "@facilis/core";
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** Config keys the route metadata pass can extract; anything else is ignored. */
-export type MetadataField = "permission" | "dbTables" | "dbColumns" | "description";
+export type MetadataField = "permission" | "dbTables" | "dbColumns" | "description" | "crossSite";
 
 /**
  * One route's statically extracted metadata.
@@ -17,6 +17,8 @@ export interface RouteMetadata {
   /** OpenAPI-style path, e.g. `/api/todos/{id}`. */
   path: string;
   permission?: string | readonly string[];
+  /** True when the route is declared callable from another origin; omitted otherwise. */
+  crossSite?: boolean;
   /** `[]` when the config declares none or the value is not statically readable. */
   dbTables: readonly string[];
   dbColumns: readonly string[];

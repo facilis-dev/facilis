@@ -84,6 +84,7 @@ describe("buildRouteFacts", () => {
     expect(route?.wrapper).toBe("valid");
     expect(route?.sourceFile).toBe("server/routes/api/todos/index.get.ts");
     expect(route?.permission).toEqual(["todos:read"]);
+    expect(route?.crossSite).toBe(false);
     expect(route?.dbTables).toEqual(["todos"]);
     expect(route?.dbColumns).toEqual(["todos.title", "todos.done", "todos.ownerId"]);
     expect(route?.description).toBe("List todos");

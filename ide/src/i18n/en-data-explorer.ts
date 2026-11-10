@@ -30,7 +30,7 @@ export const dataExplorerEn = {
   "dataExplorer.rls.policy": "RLS + policy",
   "dataExplorer.rls.rls_without_policy": "RLS on, no policy",
   "dataExplorer.rls.rls_off_scoped": "RLS off on scoped table",
-  "dataExplorer.rls.rls_off": "RLS off",
+  "dataExplorer.rls.rls_off": "system-only",
   "dataExplorer.rls.missing": "Not in database",
 
   "dataExplorer.drift.table_missing": "Table {table} is in code but not in the database",

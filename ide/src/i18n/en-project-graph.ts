@@ -58,7 +58,7 @@ export const projectGraphEn = {
   "projectGraph.unknown": "unknown",
   "projectGraph.unknownNodes": "{count} unknown",
   "projectGraph.rls": "RLS",
-  "projectGraph.noRls": "no RLS",
+  "projectGraph.systemOnly": "system-only",
   "projectGraph.framework": "framework",
   "projectGraph.scope": "{column} ({kind})",
   "projectGraph.scopeKind.tenant": "tenant",

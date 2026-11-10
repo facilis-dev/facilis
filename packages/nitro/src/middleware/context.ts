@@ -35,6 +35,10 @@ const handler = async (event: H3Event): Promise<void> => {
     acceptRequestId(getRequestHeader(event, REQUEST_ID_HEADER)) ?? newLogRequestId();
   setResponseHeader(event, REQUEST_ID_HEADER, requestId);
 
+  // The CSRF gate is structural, so it needs a value even when the db never booted: the
+  // config default (same-origin only) applies when the project config is unavailable.
+  context.security = { trustedOrigins: state.config?.security?.trustedOrigins ?? [] };
+
   if (state.db === null) return;
 
   const client = resolveClient(event, state.loggingConfig);

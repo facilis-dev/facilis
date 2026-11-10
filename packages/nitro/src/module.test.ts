@@ -101,9 +101,11 @@ describe("createFacilisNitroModule", () => {
     expect(sso[0]?.["env"]).toBeUndefined();
 
     const middleware = mock.options.handlers.filter((handler) => handler["middleware"] === true);
-    expect(middleware.map((handler) => handler["route"])).toEqual(["/**", "/**"]);
-    expect(middleware[0]?.["handler"]).toMatch(/middleware[\\/]context\.ts$/);
-    expect(middleware[1]?.["handler"]).toMatch(/middleware[\\/]session\.ts$/);
+    expect(middleware.map((handler) => handler["route"])).toEqual(["/**", "/**", "/**"]);
+    // cors runs first so a preflight is answered without booting db/auth.
+    expect(middleware[0]?.["handler"]).toMatch(/middleware[\\/]cors\.ts$/);
+    expect(middleware[1]?.["handler"]).toMatch(/middleware[\\/]context\.ts$/);
+    expect(middleware[2]?.["handler"]).toMatch(/middleware[\\/]session\.ts$/);
   });
 
   it("relocates Nitro's own OpenAPI handler to the internal route", () => {
@@ -241,7 +243,7 @@ describe("createFacilisNitroModule", () => {
     expect(routes.map((handler) => handler["route"])).toEqual([SSO_ROUTE]);
     // Auth still works in production: middleware is environment-agnostic.
     expect(mock.options.handlers.filter((handler) => handler["middleware"] === true)).toHaveLength(
-      2,
+      3,
     );
   });
 

@@ -3,6 +3,7 @@ import { buildConfigFacts } from "./passes/config.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
+import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
 import { buildProjectGraph } from "./graph.ts";
@@ -58,6 +59,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...schema.diagnostics,
       ...locales.diagnostics,
       ...pages.diagnostics,
+      ...routeSystemTableDiagnostics(routes.routes, schema.tables),
     ].filter(
       // Framework sources are shipped code: their facts stay, but their lint-style
       // diagnostics are not the project's. Project files start outside node_modules/.

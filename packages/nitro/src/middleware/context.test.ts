@@ -4,6 +4,7 @@ import {
   DEFAULT_LOGGING_CONFIG,
   NOOP_LOGGING_API,
   createAccessEntry,
+  defineConfig,
   type FacilisEventContext,
 } from "@facilis/core";
 
@@ -78,6 +79,8 @@ describe("facilis-context middleware", () => {
     expect(harness.context.facilis?.db).toBe(DB);
     expect(harness.context.facilis?.defaultTenantId).toEqual(expect.any(String));
     expect(harness.context.facilis?.client).toBeUndefined();
+    // The CSRF gate needs an allow-list on every request, config default included.
+    expect(harness.context.security).toEqual({ trustedOrigins: [] });
   });
 
   it("echoes a valid inbound x-request-id", async () => {
@@ -179,6 +182,22 @@ describe("facilis-context middleware", () => {
     expect(entry["ip"]).toHaveLength(200);
   });
 
+  it("passes the config trusted origins to context.security", async () => {
+    bootstrapMock.getBootstrap.mockResolvedValue(
+      state({
+        config: defineConfig({
+          auth: { defaultRole: "user", roles: { user: [] } },
+          security: { trustedOrigins: ["https://app.example.com"] },
+        }),
+      }),
+    );
+    const harness = makeEvent();
+
+    await handler(harness.event);
+
+    expect(harness.context.security).toEqual({ trustedOrigins: ["https://app.example.com"] });
+  });
+
   it("keeps the response id when the db never booted but leaves the facade unset", async () => {
     bootstrapMock.getBootstrap.mockResolvedValue(state({ db: null }));
     const harness = makeEvent();
@@ -186,6 +205,8 @@ describe("facilis-context middleware", () => {
     await handler(harness.event);
 
     expect(harness.context.facilis).toBeUndefined();
+    // The origin gate is structural: it applies even when the rest of the facade is absent.
+    expect(harness.context.security).toEqual({ trustedOrigins: [] });
     expect(harness.response.headers.get("x-request-id")).toMatch(REQUEST_ID_PATTERN);
   });
 });

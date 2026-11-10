@@ -1,11 +1,14 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.16 (project-graph pages, links and elevation, D-134)
+**Version:** 1.19 (CSRF: origin gate, strict media type and the crossSite exposure flag, D-140)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.19 — CSRF is structural (D-140). `defineAuthorizedHandler` rejects an unsafe cross-site request with `403 forbidden` before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback; a missing `Origin` is a non-browser client) and a `body`/`form` route accepts only `application/json`/`multipart/form-data` (`415 unsupported_media_type`, a new code in the closed registry), so `SameSite=Lax` is defense in depth rather than the only barrier. `config.security.trustedOrigins` (default `[]`) allow-lists a same-site SPA/API split; `crossSite: true` declares a public route exposed to other origins and is propagated as `RouteMeta.crossSite`/`x-cross-site`, with a Nitro middleware answering CORS preflight — it is an exposure declaration, not a CSRF defense. §7.1/§7.3/§7.4/§8.2/§8.6 follow.
+- v1.18 — System-only is a class, not a defect (D-137). The project graph and the Data Explorer label a table without RLS **system-only** in a neutral colour (the amber "no RLS" badge is gone; the red "RLS off on scoped table" stays), and `@facilis/analyze` warns `route-system-table` when a route declares a system-only table in `dbTables`/`dbColumns` outside an audited `ctx.sudo`/`ctx.system` elevation — that elevation is the only legal access, so the declared use would fail closed at runtime. §8.4.6/§11.1 follow.
+- v1.17 — Table access is two-class (D-136): a table with RLS is app-scoped (the policies decide its rows; `facilis_app` holds DML on it) and a table without RLS is system-only (no privilege for the app role; reachable only through the privileged owner connection and the audited `facilis_system`). `ensureAppRole` reconciles the grants with the live catalog after migrations, installs no table default privilege (a new table fails closed until it enables RLS), and the app role is `NOINHERIT` so its `facilis_system` membership (needed for the audited `SET ROLE`) does not inherit the system grants. `sessions`/`user_roles` become app-scoped with an `EXISTS` policy over `users`; `roles`/`role_permissions` are system-only. §5.2/§5.3/§8.4.6 follow.
 - v1.16 — The project graph shows every real page, explicit page links and audited elevation (D-134): page nodes are `src/pages/**` only (all pages, including pages with no API calls), with URL paths from the explicit route table; `page-link` edges follow `Link`/`NavLink`/`navigate` targets; a route→table edge reached through `ctx.sudo`/`ctx.system` is marked with one warning colour and a route-card chip; selecting a page opens a bounded static structure inspector (nested components/sections, `Outlet` composition, dynamic branches marked), not a rendering. §10.2 follows.
 - v1.15 — Route descriptions are source documentation (D-129): `description` in the `defineAuthorizedHandler` config is the route's one-sentence, English summary (≤120 characters ≈ two lines) and flows through `@facilis/analyze`'s `RouteNodeData` to the project-graph route card, as a quoted source line clamped to two lines. The analyzer warns `route-description-length` above the cap; patch validator rule 17 `route-description` warns (never blocks) when a patched route's sentence is missing, too long, or unchanged while the route's contract changed, and the assistant writes/refreshes it in the same patch turn. Consumers are OpenAPI, the analyzer, the graph and the AI context — none negotiates a locale, so the field is never a `t()` key and the app's user-facing language stays in `locales/*.json`. §7.3/§7.4/§9.3/§10.2 follow.
 - v1.14 — Operator logging and single sign-on (D-119/D-120). Logging is one pipeline with four streams (access, error, audit, app): `defineAuthorizedHandler` records exactly one access entry on every exit path, unexpected failures stay server-side, the sudo trail joins the same sink, and a route can append app lines/audit events through `ctx.log`. Entries are JSON Lines files in `<project>/.facilis/logs/` (dev default, opened from the IDE editor) or stdout (production default), selected by `FACILIS_LOG_SINK`; there is **no HTTP endpoint that serves logs**. Sinks are env-owned, redaction/caps are structural, audit entries carry a SHA-256 `seq`/`prevHash`/`hash` chain and audit writes fail closed, rotation keeps `FACILIS_LOG_KEEP` files, and the deploy owns WORM/retention (O-019). SSO is framework auth: `auth.sso.providers` (OIDC, generic OAuth2, SAML) with secrets only as env-var names, framework-owned `/api/auth/sso/{providers,start,callback}` routes, OIDC discovery + PKCE + nonce + ID-token verification (`jose`), generic OAuth2 userinfo mapping, SP-initiated SAML validated by `@node-saml/node-saml` (lazily imported), single-use DB-backed state, `auth_identities`/`auth_sso_states` with RLS, conservative linking (verified email only), JIT provisioning with the provider/default role, and audit events without tokens or emails. §4.2/§5.3/§5.6/§7.1/§7.4/§8.6/§8.7/§11.4/§12 follow.
@@ -521,6 +524,9 @@ Exports:
   policy, re-exported by the project's `db/schema.ts` so a Drizzle migration owns its DDL (D-107).
   The engine's own queue reads/writes run as `facilis_app` under the deployment tenant; only a job
   *body* runs as `facilis_system` (see the audited-sudo bullet)
+- `ensureAppRole(db)` — provisions the non-superuser `facilis_app` role and reconciles its
+  privileges with the live schema (§8.4.6, D-136): a table with RLS gets DML for the app role, a
+  table without RLS gets none and is system-only. Returns the system-only table names.
 - `ensureSystemRole(db)`, `runWithSystemRole(db, { sudoId }, fn)`, `runAsSystem(db, opts, fn)`,
   `writeSudoAudit` — the audited sudo identity and append-only trail behind `ctx.sudo`
   (§7.4/§8.4.5, D-099). `facilis_system` is `NOLOGIN NOSUPERUSER BYPASSRLS` with DML grants only;
@@ -556,12 +562,17 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 })
 
+// App-scoped (D-136): no tenant column of its own, so the policy inherits the parent user's
+// visibility — exists (select 1 from users u where u.id = user_id), the D-053 pattern.
+// RLS being on is what grants facilis_app access to the table at all.
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
-})
+}, () => [parentUserAccessPolicy("sessions_user_access")]).enableRLS()
 
+// System-only (D-136): no RLS, no privilege for facilis_app. Seeded by the migration and never
+// read at runtime — permissions reach the app from facilis.config.ts via expandRoles().
 export const roles = pgTable("roles", {
   name: text("name").primaryKey(),
 })
@@ -576,7 +587,7 @@ export const userRoles = pgTable("user_roles", {
   role: text("role").references(() => roles.name),
   assignedBy: uuid("assigned_by"),
   assignedAt: timestamp("assigned_at").defaultNow(),
-})
+}, () => [parentUserAccessPolicy("user_roles_user_access")]).enableRLS()
 
 // Single sign-on (D-120). Written only inside the audited ctx.system elevation.
 export const authIdentities = pgTable("auth_identities", {
@@ -1108,6 +1119,8 @@ generator is disabled, and `404` in production unless `openAPI.production` is en
 Behavior changes vs the old scanner: same-file and one-hop imported consts are resolved;
 wrapper-less routes are listed with `security: "unknown"`; permissions are arrays; methods
 outside core's five are omitted with a warning; there is no `defineRouteMeta` fallback.
+`x-cross-site: true` (D-140) is emitted only when the wrapper declares `crossSite: true`; the
+same value appears as `RouteMeta.crossSite`.
 
 ---
 
@@ -1162,6 +1175,9 @@ interface FacilisConfig {
     includeUserAgent: boolean  // default false
     trustProxy: boolean        // trust x-forwarded-for, default false
   }
+  security: {                  // D-140; request-origin policy for unsafe methods
+    trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []
+  }
 }
 ```
 
@@ -1215,6 +1231,7 @@ interface RouteMeta {
   dbTables: string[]                          // empty = explicit "no DB"
   dbColumns: string[]                         // format: "table.column"
   security: "required" | "optional" | "public" | "unknown"
+  crossSite?: boolean                         // true = declared callable from another origin (D-140)
   sourceFile?: string                         // for editor jump-to
 }
 
@@ -1271,6 +1288,7 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   dbTables: string[]                          // REQUIRED
   dbColumns?: string[]
   description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
+  crossSite?: boolean                      // true = callable from another origin, no credentials; requires permission: [] (D-140)
 }
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
@@ -1352,6 +1370,16 @@ elevation; it cannot reach a policy-free client. Using the raw client (or import
 is reported by the analyzer as `route-direct-db` — "not recommended" made visible in the
 manifest.
 
+**Request-origin gate and media type (D-140).** Before the permission check, an unsafe method
+(POST/PUT/PATCH/DELETE) must pass the origin gate: `Sec-Fetch-Site` is authoritative when present
+(`same-origin`/`none` allowed, `same-site` only for an origin in `config.security.trustedOrigins`,
+`cross-site` rejected), otherwise `Origin` must match the request `Host` or a trusted origin; a
+missing `Origin` is a non-browser client and is allowed, `null` is rejected. A rejection is
+`403 forbidden`. A route with a `body` schema accepts only `application/json`, one with `form`
+only `multipart/form-data`; anything else is `415 unsupported_media_type`, decided before the
+body is read. `crossSite: true` skips the gate for that route (public API exposed to other
+origins) and is rejected at definition time unless `permission: []`.
+
 **Logging on the context (D-119).** The wrapper records exactly one access entry for every
 request exit path (401/403, 400, 503, a handler result or a throw) with method, pathname, status,
 duration, request id and the session hash — never a header, a cookie or a body. An unexpected
@@ -1387,8 +1415,8 @@ work. With at-rest encryption on (D-117) there is no presigned path: the handler
 and decrypts while streaming. A blob stored before encryption was enabled is refused on decrypt
 — the download fails instead of ever returning plaintext — so it must be re-uploaded. Every
 mutation — upload, delete, attach — stays session-authenticated. The
-API error registry is closed (O-002): `file_too_large` is `413` and `storage_unavailable` is
-`503`.
+API error registry is closed (O-002): `file_too_large` is `413`, `storage_unavailable` is `503`
+and `unsupported_media_type` is `415`.
 
 ### 7.5 `AIResponse`
 
@@ -1705,6 +1733,9 @@ possibly `[]` — so the job body always sees a system-scoped transaction (§8.4
 `defineAuthorizedHandler` is the **only** documented way to create a route. It enforces:
 
 - `permission` check (403 before body validation)
+- request-origin gate on unsafe methods (403 when cross-site; D-140)
+- strict media type on body/form routes (415 `unsupported_media_type`; D-140)
+- `crossSite: true` only on `permission: []` routes (throw at definition, analyzer diagnostic)
 - Input validation against Zod schemas (400 on failure)
 - `ctx.db` is the policy-wrapped client (never raw)
 - `dbTables` required (compile-time enforcement)
@@ -1785,6 +1816,18 @@ CREATE TABLE user_roles (
   assigned_at timestamptz DEFAULT now(),
   PRIMARY KEY (user_id, role)
 );
+
+-- App-scoped (D-136): sessions and user_roles have no tenant column; each policy inherits the
+-- parent user's visibility, and RLS is what grants facilis_app access to the table.
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY sessions_user_access ON sessions FOR ALL
+  USING (exists (select 1 from users u where u.id = sessions.user_id))
+  WITH CHECK (exists (select 1 from users u where u.id = sessions.user_id));
+CREATE POLICY user_roles_user_access ON user_roles FOR ALL
+  USING (exists (select 1 from users u where u.id = user_roles.user_id))
+  WITH CHECK (exists (select 1 from users u where u.id = user_roles.user_id));
+-- roles and role_permissions stay system-only: no RLS, no grant for facilis_app (D-136).
 
 -- Seed from config.auth.roles
 INSERT INTO roles (name) VALUES ('admin'), ('manager'), ('user'), ('viewer');
@@ -1952,6 +1995,45 @@ names the tenant and cannot name a different one (D-040).
 | `user` (tenant T) | `["user"]` | Same as manager — owner-only |
 | `admin` (tenant U) | `["admin"]` | Sees all documents in tenant U (not T) |
 
+#### 8.4.6 Table access classes: RLS-scoped or system-only
+
+Every table in the `public` schema is exactly one of two classes (D-136):
+
+| Class | RLS | `facilis_app` | Reachable from |
+|---|---|---|---|
+| **App-scoped** | enabled, with its policies | `SELECT/INSERT/UPDATE/DELETE` | routes through `ctx.db`, filtered by the policies |
+| **System-only** | off | no table privilege at all | the privileged owner connection and `facilis_system` (`ctx.sudo`/`ctx.system`/`runAsSystem`): boot, migrations, the dev console |
+
+RLS is the grant boundary, not optional hardening. A table without RLS is **not** open to everyone
+and **not** denied to everyone — it is unreachable for the request identity, and that is exactly
+what makes it system-only.
+
+**Enforcement.** `ensureAppRole(db)` runs after migrations (dev boot, and the deploy step in
+[POSTGRES.md](./POSTGRES.md) §4) and reconciles privileges with the live catalog: it first clears
+every table-class privilege (so an older cluster's blanket grant cannot survive on partition
+children, materialized or foreign tables), then re-grants only the RLS tables — the catalog's
+`pg_class.relrowsecurity` decides, so a table keeps DML only while RLS is enabled and every other
+table is `REVOKE`d from `facilis_app` and `PUBLIC`. No table default privilege is installed, so a
+table a migration creates stays closed until its RLS is on and the function runs again — the first
+query fails closed with `permission denied`. Sequences remain granted (USAGE cannot read or write a
+table), and the role is `NOINHERIT`: it is a member of `facilis_system` only so a deployment whose
+connection already is `facilis_app` can `SET ROLE` for the audited elevation, and inheriting that
+membership's grants would reopen every system-only table.
+
+**Framework tables.** `users`, `sessions`, `user_roles`, `auth_identities`, `auth_sso_states`,
+`facilis_files`, `facilis_jobs` and the generated link tables are app-scoped. `sessions` and
+`user_roles` have no tenant column of their own: their policy is an `EXISTS` over `users` (the
+D-053 inheritance pattern), so they are visible exactly when their user is. `roles` and
+`role_permissions` are system-only: migrations seed them, and permissions reach the runtime from
+`facilis.config.ts` through `expandRoles`, never from the table.
+
+**Graph, analyzer and drift.** The project graph labels a table without RLS **system-only**, in a
+neutral colour — it is a class, not a warning — and the Data Explorer's live badge uses the same
+label. The analyzer warns `route-system-table` when a route declares a system-only table in
+`dbTables` (or as the table side of `dbColumns`) outside the elevation whose `tables` name it
+(D-137). The drift `rls_disabled` is reported only for a scoped table (a system-only table is a
+classification, not a defect).
+
 ### 8.5 Dev-Endpoint Guards
 
 | Endpoint | Guard |
@@ -1964,6 +2046,15 @@ names the tenant and cannot name a different one (D-040).
 
 ### 8.6 Application-Level Security Rules
 
+- A GET route is side-effect free: `SameSite=Lax` sends the session cookie on a cross-site
+top-level GET navigation, so a state-changing GET is CSRF-able even with the origin gate (which
+covers unsafe methods only). The framework-owned SSO GET/ACS pair is the single, protocol-driven
+write path; an application route must not add another one (D-140).
+- CSRF is structural, not a per-route courtesy (D-140): `defineAuthorizedHandler` rejects an
+  unsafe cross-site request (403) before the permission check, and a JSON/form route answers
+  `415 unsupported_media_type` for any other media type — so `SameSite=Lax` is defense in depth,
+  not the only barrier. `crossSite: true` is an exposure declaration for public routes, never a
+  CSRF defense; login/logout/register are covered because they write cookies.
 - AI patches are **validated** before write (17 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
@@ -2412,7 +2503,7 @@ await waitForPort(vivari, 5173)
 
 - Reads from both `db/schema.ts` (via `getTableConfig`) and the live catalog (`pg_catalog`: `format_type`, `pg_get_expr`, `relrowsecurity`, `pg_policies`)
 - **Diffs them** through a pure function: typed drift like *"code says X, DB says Y — run the project's migrations"*
-- RLS status badges: 🟢 policy defined / 🟡 RLS on, no policy / 🔴 RLS off on scoped table
+- RLS status badges: 🟢 policy defined / 🟡 RLS on, no policy / 🔴 RLS off on scoped table / ⚪ system-only (RLS off, unscoped)
 - Reverse lookup: "used by these routes" (from `x-db-tables`/`x-db-columns`)
 - Click to jump to `db/schema.ts` or the route file in Monaco
 
@@ -2911,7 +3002,7 @@ export * from "./documents"
 pnpm drizzle-kit generate
 ```
 
-The plugin emits `CREATE TABLE roles`, `CREATE TABLE role_permissions`, `CREATE TABLE user_roles`, **and** the seed from your config.
+The plugin emits `CREATE TABLE roles`, `CREATE TABLE role_permissions`, `CREATE TABLE user_roles`, the RLS wiring (D-136: `sessions`/`user_roles` are app-scoped with an `EXISTS` policy over `users`; `roles`/`role_permissions` stay system-only), **and** the seed from your config.
 
 ### Step 4 — Set the initial admin (once, in `.env`)
 

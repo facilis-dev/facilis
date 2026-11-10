@@ -18,6 +18,7 @@ const KNOWN_ERROR_CODES = new Set([
   "network_error",
   "file_too_large",
   "storage_unavailable",
+  "unsupported_media_type",
 ]);
 
 /**

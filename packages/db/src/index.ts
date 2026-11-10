@@ -21,6 +21,7 @@ export {
   AppRoleUnavailableError,
   ensureAppRole,
   runWithPolicyScope,
+  type AppRoleProvisioning,
   type PolicyScope,
   type PolicyScopedDatabase,
   type PolicyScopedTransaction,

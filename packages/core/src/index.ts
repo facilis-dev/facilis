@@ -26,6 +26,7 @@ export type {
   FacilisI18nConfig,
   FacilisNitroOptions,
   FacilisReleaseConfig,
+  FacilisSecurityConfig,
   FacilisLoggingConfig,
   FacilisLoggingConfigInput,
   FacilisStorageConfig,

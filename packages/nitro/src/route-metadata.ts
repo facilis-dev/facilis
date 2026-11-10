@@ -158,11 +158,13 @@ function toRouteMetadata(
   if (fact.permission === null) unresolved.push("permission");
   if (fact.dbTables === null) unresolved.push("dbTables");
   if (fact.dbColumns === null) unresolved.push("dbColumns");
+  if (fact.crossSite === null) unresolved.push("crossSite");
 
   return {
     method: fact.method,
     path: fact.path,
     ...(fact.permission === null ? {} : { permission: fact.permission }),
+    ...(fact.crossSite === true ? { crossSite: true } : {}),
     dbTables: fact.dbTables ?? [],
     dbColumns: fact.dbColumns ?? [],
     ...(fact.description === null ? {} : { description: fact.description }),

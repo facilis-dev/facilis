@@ -79,8 +79,10 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 1. Every API route is written with `defineAuthorizedHandler` — no exceptions.
 2. `dbTables` is always present (empty array allowed) and accurate.
 3. Input is validated with Zod; invalid input → `400`.
-4. Every scoped table ships with a `pgPolicy` + `ENABLE ROW LEVEL SECURITY`; app-level
-   scoping uses `drizzle-policy`.
+4. Every table is exactly one of two classes (D-136): RLS-scoped (`ENABLE ROW LEVEL SECURITY` +
+   its `pgPolicy` set, which is what grants `facilis_app` access) or system-only (no RLS → no
+   app-role privilege; reachable only through the audited system identity). App-level scoping uses
+   `drizzle-policy`.
 5. No raw Drizzle client imports outside `@facilis/db`.
 6. Dev-only endpoints are `404` in production and origin-allowlisted.
 7. Studio writes go through `kernel.writeFiles` (Vivari VFS); never touch OPFS directly.

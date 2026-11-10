@@ -24,11 +24,20 @@ interface FakeEventOptions {
   form?: FormData;
   formReaderFails?: boolean;
   storage?: StorageApi;
+  /** `null` omits the header; multipart routes get a boundary-bearing header by default. */
+  contentType?: string | null;
 }
 
 function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
+  const headers = new Headers();
+  if (options.contentType !== null) {
+    headers.set(
+      "content-type",
+      options.contentType ?? "multipart/form-data; boundary=facilis-test-boundary",
+    );
+  }
   const req: FacilisRequestEvent["req"] = {
-    headers: new Headers(),
+    headers,
     url: "http://localhost/api/files",
     method: "POST",
   };
@@ -84,6 +93,20 @@ describe("multipart form routes", () => {
     const response = (await route(makeEvent({ form }))) as Response;
     expect(response.status).toBe(400);
     expect((await readBody(response)).code).toBe("invalid_input");
+  });
+
+  it("returns 415 when a form route gets a non-multipart media type", async () => {
+    const route = defineAuthorizedHandler(
+      { permission: [], dbTables: [], form: z.object({ file: z.instanceof(File) }) },
+      () => null,
+    );
+
+    const response = (await route(
+      makeEvent({ form: new FormData(), contentType: "application/json" }),
+    )) as Response;
+
+    expect(response.status).toBe(415);
+    expect((await readBody(response)).code).toBe("unsupported_media_type");
   });
 
   it("returns 400 for an unreadable multipart body", async () => {
