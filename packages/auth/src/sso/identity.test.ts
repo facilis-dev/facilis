@@ -21,7 +21,11 @@ function audit(): SsoAudit {
   };
 }
 
-const options: ResolveIdentityOptions = { defaultRole: "user", audit: audit() };
+const options: ResolveIdentityOptions = {
+  defaultRole: "user",
+  linkPasswordAccounts: false,
+  audit: audit(),
+};
 
 function claims(overrides: Partial<IdentityClaims> = {}): IdentityClaims {
   return {

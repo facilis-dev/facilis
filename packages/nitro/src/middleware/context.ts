@@ -1,5 +1,5 @@
 import type { H3Event } from "nitro";
-import { getRequestHeader, setResponseHeader } from "nitro/h3";
+import { getRequestHeader, getRequestIP, setResponseHeader } from "nitro/h3";
 import {
   acceptRequestId,
   newLogRequestId,
@@ -42,9 +42,16 @@ const handler = async (event: H3Event): Promise<void> => {
   if (state.db === null) return;
 
   const client = resolveClient(event, state.loggingConfig);
+  // The wrapper's rate-limit key is resolved for every request, independently of the logging
+  // opt-ins (D-152): proxy trust decides whether the address identifies the caller, and leaving
+  // it unresolved means "no per-client throttle", never one shared window for every user.
+  const clientAddress = getRequestIP(event, {
+    xForwardedFor: state.loggingConfig.trustProxy,
+  });
   context.facilis = {
     db: state.db,
     defaultTenantId: readDefaultTenantId(),
+    ...(clientAddress === undefined ? {} : { clientAddress }),
     // ctx.log and the access/error streams are structural for every authorized handler
     // (D-119): attach the runtime and the one id all entries of this request share.
     logging: state.logging,

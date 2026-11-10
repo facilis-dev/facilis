@@ -193,8 +193,11 @@ A sign-in resolves as follows, entirely inside the audited `ctx.system` elevatio
 
 1. **Existing link** - the identity row's user signs in; the row's email and `last_login_at`
    are refreshed. A later unverified email does not break an existing link.
-2. **No link, verified email** - the email is matched to `users` case-insensitively. A match
-   gets a new identity row (audit `auth:sso:link`).
+2. **No link, verified email** - the email is matched to `users` canonically (lowercase,
+   D-150). A match on an SSO-provisioned user (no password) gets a new identity row (audit
+   `auth:sso:link`). A match on a **password** account is refused with `sso_email_conflict`
+   unless `auth.sso.linkPasswordAccounts` is enabled (default false, D-151): that account was
+   never email-verified, so linking it would hand it to whoever registered the address first.
 3. **No link, no user** - with `autoProvision` the framework creates a user with a **null
    password hash**, assigns `provider.defaultRole ?? auth.defaultRole`, and writes the identity
    (audit `auth:sso:provision`). Without `autoProvision`, the login fails with
@@ -227,8 +230,9 @@ and the assigned role only - never tokens, codes, SAML payloads or email address
   ACS is not an open assertion endpoint. `@node-saml/node-saml` is imported **lazily** inside
   the SAML path (a non-SAML project never loads it; a production server build may emit it as a
   separate on-demand chunk), validates signatures,
-  recipient/audience and time windows with 5 s clock skew, and checks `InResponseTo` when the
-  response carries it, bound to the stored request id through a single-use cache provider.
+  recipient/audience and time windows with 5 s clock skew, and requires `InResponseTo` on every
+  response (`validateInResponseTo: "always"`, D-147), bound to the stored request id through a
+  single-use cache provider.
 - **No second factor**: SSO is the credential; TOTP/WebAuthn are out of scope until a second
   credential table exists (O-020).
 - **Framing**: SSO is top-level navigation. Inside the IDE preview iframe an IdP that sends

@@ -87,8 +87,11 @@ describe("generated starter contract", () => {
   });
 
   it("gives the registration default role the write permission and seeds it", () => {
-    expect(config).toMatch(/user: \["todos:read", "todos:write"\]/);
+    // The queue is RLS-gated by permissions (D-145), so the starter's default role carries
+    // them too: the template config and the seed migration must stay in lockstep.
+    expect(config).toMatch(/user: \["todos:read", "todos:write", "jobs:read", "jobs:exec"\]/);
     expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'todos:write')");
+    expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'jobs:read')");
   });
 
   it("keeps the starter free of test instrumentation", () => {

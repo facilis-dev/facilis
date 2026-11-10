@@ -74,7 +74,7 @@ describe("encrypted upload/download path", () => {
         auth: { roles: { user: [] }, defaultRole: "user" },
         storage: { driver: "local", encryption: { enabled: true } },
       }),
-      ENCRYPTION_ENV,
+      { NODE_ENV: "development", ...ENCRYPTION_ENV },
       project,
       { secret: "test-secret" },
     );
@@ -129,7 +129,7 @@ describe("encrypted upload/download path", () => {
         auth: { roles: { user: [] }, defaultRole: "user" },
         storage: { driver: "local", encryption: { enabled: true } },
       }),
-      ENCRYPTION_ENV,
+      { NODE_ENV: "development", ...ENCRYPTION_ENV },
       project,
       { secret: "test-secret" },
     );

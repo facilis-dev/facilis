@@ -44,6 +44,13 @@ export interface FacilisEventContext {
       readonly ip?: string;
       readonly userAgent?: string;
     };
+    /**
+     * Client address used to key the wrapper's rate limit (D-152). It is resolved by the
+     * middleware with the deployment's proxy-trust decision, independent of the logging
+     * opt-ins: an address that is not trusted to identify the caller is not logged and is not
+     * used to split a rate-limit window.
+     */
+    clientAddress?: string;
   };
   /**
    * Origin policy decided by the context middleware: the request-origin gate reads the

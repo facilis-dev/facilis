@@ -8,7 +8,7 @@ const ROOT = "/tmp/facilis-project";
 
 function resolveWith(env: Record<string, string> = {}, production?: boolean) {
   return resolveLogSettings({
-    env,
+    env: { NODE_ENV: "development", ...env },
     projectRoot: ROOT,
     ...(production === undefined ? {} : { production }),
   });

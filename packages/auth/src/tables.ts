@@ -6,6 +6,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   type PgColumn,
   type PgPolicy,
@@ -44,7 +45,10 @@ export const users = pgTable(
     isService: boolean("is_service").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
   },
-  () => [
+  (table) => [
+    // Canonical identity: emails are stored normalized, and the unique lower(email) index makes
+    // a case variant rejected by the database too, not only by the app (D-150).
+    uniqueIndex("users_email_lower_idx").on(sql`lower(${table.email})`),
     ...usersRls.policies,
     pgPolicy("users_tenant_access", {
       for: "all",
@@ -68,6 +72,7 @@ function parentUserAccessPolicy(name: string, column: PgColumn): PgPolicy {
 export const sessions = pgTable(
   "sessions",
   {
+    // sha256(cookie id): the raw credential never reaches the table (D-144).
     id: text("id").primaryKey(),
     userId: uuid("user_id")
       .notNull()

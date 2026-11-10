@@ -1,15 +1,40 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
-import { hashPassword, registerInitialAdmin, userRoles, users } from "@facilis/auth";
+import { defineAuthorizedHandler } from "@facilis/core";
+import {
+  hashPassword,
+  normalizeEmail,
+  registerInitialAdmin,
+  userRoles,
+  users,
+} from "@facilis/auth";
 import config from "~/facilis.config";
 
+const registerRequestSchema = z.object({
+  // Canonical form before any lookup or insert: the unique lower(email) index and the stored
+  // value then agree, so a case variant can never create a second account (D-150).
+  email: z.email().transform(normalizeEmail),
+  password: z.string().min(8),
+  // The operator's one-time bootstrap secret (SPEC §8.4.3, D-150). An email registration is
+  // never promoted to admin without it, so knowing FACILIS_INITIAL_ADMIN is not enough.
+  bootstrapToken: z.string().min(1).max(512).optional(),
+});
+
+/**
+ * Registration is public and has no email verification (a framework capability the next
+ * security pass introduces), so its response is deliberately generic: success and "already
+ * registered" return the same body and status instead of an enumerable 409 (SEC-04). Callers
+ * learn the outcome by logging in; the server audit records the real one.
+ */
 export default defineAuthorizedHandler(
   {
     permission: [],
-    body: z.object({ email: z.email(), password: z.string().min(8) }),
+    body: registerRequestSchema,
     dbTables: ["users", "user_roles"],
     dbColumns: ["users.email", "users.tenantId", "user_roles.role"],
+    // Registration writes an account: throttled per client so the public surface cannot be used
+    // to mass-create accounts (SEC-04, D-152).
+    rateLimit: { maxRequests: 5, windowMs: 60_000 },
     description: "Register a user with the default role.",
   },
   async (_event, { body, db, system, log }) => {
@@ -23,7 +48,7 @@ export default defineAuthorizedHandler(
 
     if (existing.length > 0) {
       log.audit({ operation: "auth:register", outcome: "failed", errorCode: "conflict" });
-      return fail("conflict", { email: "already_registered" });
+      return { accepted: true };
     }
 
     // Hashing is CPU work: do it outside the elevated block (never hold the system role
@@ -57,28 +82,24 @@ export default defineAuthorizedHandler(
           .values({ userId: user.id, role: config.auth.defaultRole })
           .onConflictDoNothing();
 
-        // First registration whose email matches FACILIS_INITIAL_ADMIN becomes admin.
-        const promoted = await registerInitialAdmin(systemDb, user.id);
+        // The promotion needs the operator's bootstrap token, not the email alone (D-150).
+        const promoted = await registerInitialAdmin(systemDb, user.id, body.bootstrapToken);
         return { user, promoted };
       },
     );
 
     if (registration === null) {
       log.audit({ operation: "auth:register", outcome: "failed", errorCode: "internal_error" });
-      return fail("internal_error");
+      return { accepted: true };
     }
 
-    // The initial-admin promotion is recorded as the resulting role, never the email.
+    // The initial-admin promotion is recorded as the resulting role, never the email or token.
     log.audit({
       operation: "auth:register",
       outcome: "succeeded",
       details: { role: registration.promoted ? "admin" : config.auth.defaultRole },
     });
 
-    return {
-      id: registration.user.id,
-      email: registration.user.email,
-      role: registration.promoted ? "admin" : config.auth.defaultRole,
-    };
+    return { accepted: true };
   },
 );

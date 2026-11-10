@@ -2,6 +2,8 @@ import { SESSION_COOKIE_NAME } from "@facilis/auth";
 import type { FacilisHandlerEvent } from "@facilis/core";
 import { deleteCookie, getCookie, setCookie, type H3Event } from "nitro/h3";
 
+import { isProductionEnvironment } from "./runtime/env.ts";
+
 /**
  * Session-cookie helpers for route handlers (contracts §4.4, D-038).
  *
@@ -22,7 +24,7 @@ const MS_PER_SECOND = 1000;
 export interface SessionCookieOptions {
   /** Session lifetime: the cookie must expire with the `sessions` row (config.auth.sessionDurationMs). */
   readonly ttlMs: number;
-  /** `Secure` attribute; defaults to `NODE_ENV === "production"` (contracts §4.4). */
+  /** `Secure` attribute; defaults to the fail-closed production check (D-146). */
   readonly secure?: boolean;
 }
 
@@ -50,7 +52,7 @@ export function setSessionCookie(
     httpOnly: true,
     path: COOKIE_PATH,
     sameSite: "lax",
-    secure: options.secure ?? process.env.NODE_ENV === "production",
+    secure: options.secure ?? isProductionEnvironment(),
     maxAge: Math.max(0, Math.floor(options.ttlMs / MS_PER_SECOND)),
   });
 }

@@ -110,7 +110,15 @@ describe("session lifecycle", () => {
     expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
 
     const validated = await validateSession(db.db, id);
-    expect(validated?.session.id).toBe(id);
+    // D-144: the row key is sha256(cookie id); the raw credential never reaches the table.
+    const storedKey = await sha256Hex(id);
+    expect(validated?.session.id).toBe(storedKey);
+    expect(validated?.session.id).not.toBe(id);
+    const rawRows = await db.db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.id, id));
+    expect(rawRows).toEqual([]);
     expect(validated?.user).toEqual({
       id: userId,
       email: "admin@example.com",
@@ -241,7 +249,7 @@ describe("session lifecycle", () => {
     const { userId: serviceUserId } = await insertBearerClient("admin");
     const sessionId = "service-session-fixture";
     await db.db.insert(sessions).values({
-      id: sessionId,
+      id: await sha256Hex(sessionId),
       userId: serviceUserId,
       expiresAt: new Date(Date.now() + 60_000),
     });

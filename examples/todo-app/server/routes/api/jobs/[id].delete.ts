@@ -3,7 +3,7 @@ import { defineAuthorizedHandler, fail } from "@facilis/core";
 
 export default defineAuthorizedHandler(
   {
-    permission: ["todos:write"],
+    permission: ["jobs:exec"],
     params: z.object({ id: z.uuid() }),
     dbTables: ["facilis_jobs"],
     description: "Cancel a queued background job or abort a running one.",

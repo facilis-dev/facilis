@@ -14,7 +14,9 @@ generated from the schema, auth tables and roles come from `facilis.config.ts`, 
 # from the repo root, once:
 pnpm install
 cd examples/todo-app
-FACILIS_INITIAL_ADMIN=admin@example.com PORT=5199 pnpm dev
+FACILIS_INITIAL_ADMIN=admin@example.com \
+FACILIS_INITIAL_ADMIN_TOKEN=<one-time secret> \
+PORT=5199 pnpm dev
 ```
 
 One process: Vite serves the client and mounts Nitro (spec §10.6). Open
@@ -43,8 +45,10 @@ One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 
 ## Demo flow
 
-1. Register `admin@example.com` (set `FACILIS_INITIAL_ADMIN` when starting) → the first
-   registration matching that email is granted `admin`.
+1. Register `admin@example.com` and send the bootstrap token in the registration body
+   (`FACILIS_INITIAL_ADMIN` + `FACILIS_INITIAL_ADMIN_TOKEN` set at startup, D-150) → the first
+   registration matching that email **with the token** is granted `admin`; the response is
+   generic (`{ accepted: true }`) either way.
 2. Register a second user → gets the `user` role from `facilis.config.ts`.
 3. Each user only sees their own todos: tenant isolation is `AS RESTRICTIVE` and owner
    isolation is permissive, both driven by `app.tenant_id`/`app.user_id`/`app.roles`
@@ -186,7 +190,7 @@ states, and `/login` redirecting an authenticated session to `/todos`.
 
 It checks: health + revision, full manifest with no warnings, `?format=summary` budget
 (<2000 chars), ETag/304, invalid `sections` 400, cross-origin 403, `/_openapi.json`
-`x-db-tables`/`x-permission`, registration with `FACILIS_INITIAL_ADMIN` -> admin, default
+`x-db-tables`/`x-permission`, registration with `FACILIS_INITIAL_ADMIN` + token -> admin, default
 role for a second user, login/session permissions, todo CRUD, RLS isolation (the second user
 sees nothing, cross-user DELETE is 404), binary attachments (multipart upload, byte-for-byte
 download through the signed token URL, attachment in the list, cross-user upload 404,

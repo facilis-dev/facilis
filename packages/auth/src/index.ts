@@ -33,6 +33,7 @@ export {
   type IssueApiTokenInput,
   type ValidatedApiToken,
 } from "./api-clients.ts";
+export { normalizeEmail } from "./email.ts";
 export { expandRoles, hasPermission, type AuthConfig, type AuthContext } from "./roles.ts";
 export { hashPassword, verifyPassword } from "./password.ts";
 export {

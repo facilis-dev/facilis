@@ -65,9 +65,60 @@ afterAll(async () => {
 });
 
 describe("example app migrations", () => {
-  it("finds every migration, with 0006 last in name order", () => {
+  it("finds every migration, with 0008 last in name order", () => {
     expect(MIGRATION_NAMES.length).toBeGreaterThan(0);
-    expect(MIGRATION_NAMES.at(-1)).toMatch(/\/0006_api_clients\.sql$/);
+    expect(MIGRATION_NAMES.at(-1)).toMatch(/\/0008_users_email_lower\.sql$/);
+  });
+
+  it("enforces case-insensitive email identity with a unique lower(email) index (D-150)", async () => {
+    const result = await db.query<{ indexdef: string }>(
+      `select indexdef from pg_indexes
+        where schemaname = 'public' and indexname = 'users_email_lower_idx'`,
+    );
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.indexdef.toLowerCase()).toContain("lower(email)");
+    expect(result.rows[0]?.indexdef.toLowerCase()).toContain("unique");
+  });
+
+  it("replaces the queue's tenant-only policy with permission-gated policies (D-145)", async () => {
+    const result = await db.query<PolicyRow>(
+      `select policyname, tablename, permissive, cmd
+         from pg_policies
+        where schemaname = 'public' and tablename = 'facilis_jobs'
+        order by policyname`,
+    );
+    expect(result.rows).toEqual([
+      {
+        policyname: "facilis_jobs_delete",
+        tablename: "facilis_jobs",
+        permissive: "PERMISSIVE",
+        cmd: "DELETE",
+      },
+      {
+        policyname: "facilis_jobs_insert",
+        tablename: "facilis_jobs",
+        permissive: "PERMISSIVE",
+        cmd: "INSERT",
+      },
+      {
+        policyname: "facilis_jobs_read",
+        tablename: "facilis_jobs",
+        permissive: "PERMISSIVE",
+        cmd: "SELECT",
+      },
+      {
+        policyname: "facilis_jobs_update",
+        tablename: "facilis_jobs",
+        permissive: "PERMISSIVE",
+        cmd: "UPDATE",
+      },
+      {
+        policyname: "tenant_isolation",
+        tablename: "facilis_jobs",
+        permissive: "RESTRICTIVE",
+        cmd: "ALL",
+      },
+    ]);
   });
 
   it("adds users.is_service as a non-null boolean defaulting to false", async () => {

@@ -34,7 +34,7 @@ describe("createBootstrapLogging", () => {
   it("uses the documented defaults when the project config failed", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
-      env: {},
+      env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 
@@ -47,7 +47,7 @@ describe("createBootstrapLogging", () => {
   it("writes access entries into the project's .facilis/logs in development", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
-      env: {},
+      env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 
@@ -69,7 +69,7 @@ describe("createBootstrapLogging", () => {
         includeUserAgent: true,
         trustProxy: true,
       },
-      env: {},
+      env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 

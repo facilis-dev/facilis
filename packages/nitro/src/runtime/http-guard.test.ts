@@ -55,6 +55,13 @@ describe("guardDevRequest", () => {
   });
 
   it("allows a development request", () => {
-    expect(guardDevRequest(headers({ origin: "http://localhost:5173" }), {})).toBeNull();
+    expect(
+      guardDevRequest(headers({ origin: "http://localhost:5173" }), { NODE_ENV: "development" }),
+    ).toBeNull();
+  });
+
+  it("fails closed when NODE_ENV is unset (D-146)", () => {
+    expect(guardDevRequest(headers({}), {})?.status).toBe(404);
+    expect(guardDevRequest(headers({}), { NODE_ENV: "staging" })?.status).toBe(404);
   });
 });

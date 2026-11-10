@@ -1,11 +1,13 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.21 (Token endpoint rate-limited per client, revoca per client confermata, D-143)
+**Version:** 1.23 (Security hardening: email canonica e bootstrap a token, link SSO opt-in, throttle per route, cap dei body, gate CI route — D-150…D-154)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.23 — Security hardening (review 2026-11-10): email canonica (`normalizeEmail`) e indice unico `lower(email)`, bootstrap del primo admin con token monouso `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); link SSO verso un account password rifiutato di default (`auth.sso.linkPasswordAccounts`, D-151); throttle per route nel wrapper (`rateLimit`, chiave client address + route, D-152); cap dei byte del body prima del parsing e nuovo codice `payload_too_large` = 413 (D-153); gate CI che esegue l'analyzer sulle route di `examples/` e rifiuta wrapper non valido o `dbTables` assente (D-154). §5.1/§5.3/§7.4/§8.2/§8.4.1/§8.4.3/§8.6/§12 follow.
+- v1.22 — Session id memorizzato come SHA-256 (D-144); coda gated da `jobs:read`/`jobs:exec` nelle policy RLS (D-145); rilevamento produzione fail-closed (D-146); SAML richiede `InResponseTo` (D-147); PBKDF2 600k + login a tempo costante (D-148); rate limiter del token endpoint con mappa limitata (D-149).
 - v1.21 — Il token endpoint e' rate-limited (D-143). `auth.apiClients.rateLimit` (default `windowMs: 60000`, `maxRequests: 30`) limita gli scambi per client id in una finestra fissa in-process; oltre il budget la route risponde `429 too_many_requests` (nuovo codice della registry chiusa O-002) con `retry-after`, prima di toccare il database, e audita il tentativo. La revoca resta per client: un client revocato invalida client e token in una transazione e non esiste revoca per singolo token. §7.1/§7.4/§8.6 follow.
 - v1.20 — External APIs (D-142). `auth.apiClients` (default disabled) exposes the framework-owned `POST /api/auth/token` (OAuth2 `client_credentials`, JSON body, no refresh token: renewal is a new grant); the access token is opaque and stored as a SHA-256 hash, and `Authorization: Bearer` resolves to a **service account** (`users.isService`, a role fixed on the client) in the session middleware. A service account can never log in: `validateSession` refuses it, `createSession` throws, SSO does not link it and the template login route rejects it. `crossSite: true` with a non-empty `permission` is now legal (it is reachable only with a Bearer token) and publishes `x-cross-site` + OpenAPI `security: [{ bearerAuth: [] }]`; `originCheck: "skip"` is the protocol-only exemption (SAML ACS). §5.3/§6.9/§7.1/§7.3/§7.4/§8.2/§8.4.4/§8.6 follow.
 - v1.19 — CSRF is structural (D-141). `defineAuthorizedHandler` rejects an unsafe cross-site request with `403 forbidden` before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback; a missing `Origin` is a non-browser client) and a `body`/`form` route accepts only `application/json`/`multipart/form-data` (`415 unsupported_media_type`, a new code in the closed registry), so `SameSite=Lax` is defense in depth rather than the only barrier. `config.security.trustedOrigins` (default `[]`) allow-lists a same-site SPA/API split; `crossSite: true` declares a public route exposed to other origins and is propagated as `RouteMeta.crossSite`/`x-cross-site`, with a Nitro middleware answering CORS preflight — it is an exposure declaration, not a CSRF defense. §7.1/§7.3/§7.4/§8.2/§8.6 follow.
@@ -524,8 +526,11 @@ Exports:
 - `facilisJobs` — the persistent job-queue table (name, status, JSONB input/output, attempts,
   maxAttempts, timeoutMs, runAt/startedAt/finishedAt, tenant): tenant-scoped with the framework RLS
   policy, re-exported by the project's `db/schema.ts` so a Drizzle migration owns its DDL (D-107).
-  The engine's own queue reads/writes run as `facilis_app` under the deployment tenant; only a job
-  *body* runs as `facilis_system` (see the audited-sudo bullet)
+  Access is permission-gated at the database level (D-145): `SELECT` requires `jobs:read`,
+  `INSERT`/`UPDATE`/`DELETE` require `jobs:exec`; the engine's own scope passes both as framework
+  permissions, a request scope carries the session's (or Bearer client's). Only a job *body* runs as
+  `facilis_system` (see the audited-sudo bullet). Cross-user visibility within the tenant is the
+  endpoint's responsibility — the queue has no owner column.
 - `ensureAppRole(db)` — provisions the non-superuser `facilis_app` role and reconciles its
   privileges with the live schema (§8.4.6, D-136): a table with RLS gets DML for the app role, a
   table without RLS gets none and is system-only. Returns the system-only table names.
@@ -543,13 +548,16 @@ Exports:
 - `sessionMiddleware` — Nitro middleware populating `event.context.user`; for a valid
   session it also sets `AuthContext.sessionHash` (SHA-256 hex of the session id), which the sudo
   audit writes instead of the raw cookie (D-099)
-- `createSession()`, `destroySession()`, `validateSession()`
+- `createSession()`, `destroySession()`, `validateSession()` — the `sessions` row key is
+  `sha256(cookie id)`; the raw id exists only in the cookie, so a tenant-wide read of the table
+  cannot be replayed as a session (D-144)
 - API clients (D-142): `createApiClient()`, `listApiClients()`, `revokeApiClient()`, `issueApiToken()`, `validateApiToken()` — a client is a service user (`users.isService`) plus a hashed secret and a fixed role; the framework-owned `POST /api/auth/token` exchanges the client id + secret for a short-lived Bearer token (no refresh token), rate-limited per client id (D-143, `auth.apiClients.rateLimit` → `429 too_many_requests` with `retry-after`), and the session middleware resolves `Authorization: Bearer` before the cookie
 - `hasPermission(user, permission)` — RBAC check helper
 - `expandRoles(roles, roleMap)` — expands roles to permission set (pure function, reads config)
 - `db` — re-export of the auth tables (`users`, `sessions`, `roles`, `role_permissions`, `user_roles`, `api_clients`, `api_tokens`)
 - `seedFromConfig(config)` — generates the seed migration from `FacilisConfig.auth`
-- `registerInitialAdmin()` — reads `FACILIS_INITIAL_ADMIN` env var and grants admin role on registration
+- `registerInitialAdmin()` — grants `admin` once, when the registration's canonical email matches `FACILIS_INITIAL_ADMIN` AND the caller presents the operator's `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); the email alone is not a credential
+- `normalizeEmail(email)` — canonical email form (trim + lowercase) used by every auth lookup, insert and comparison; `users` carries a unique `lower(email)` index (D-150)
 - Login/logout/register route blueprints (optional to install)
 - Role-assignment API blueprint (`POST /api/users/:id/roles`)
 - Single sign-on (D-120): `ssoProviderList()` (the public provider list), the start/callback orchestration for OIDC/OAuth2/SAML, the `auth_identities` and `auth_sso_states` tables, and the framework-owned routes `GET /api/auth/sso/providers`, `GET /api/auth/sso/:provider/start` and `GET|POST /api/auth/sso/:provider/callback` (implemented by `@facilis/nitro`)
@@ -559,12 +567,12 @@ Exports:
 ```typescript
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
+  email: text("email").notNull().unique(), // stored canonical (lowercase); unique index on lower(email) (D-150)
   tenantId: tenantColumn(), // @facilis/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
   passwordHash: text("password_hash"),
   isService: boolean("is_service").default(false).notNull(), // D-142: API service account, never loggable
   createdAt: timestamp("created_at").defaultNow(),
-})
+}, () => [uniqueIndex("users_email_lower_idx").on(sql`lower(${table.email})`)])
 
 // App-scoped (D-136): no tenant column of its own, so the policy inherits the parent user's
 // visibility — exists (select 1 from users u where u.id = user_id), the D-053 pattern.
@@ -645,7 +653,7 @@ export const authSsoStates = pgTable("auth_sso_states", {
 
 **Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded at migration time and never written at runtime.
 
-**Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
+**Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. Linking a verified SSO email to an existing PASSWORD account is opt-in (`auth.sso.linkPasswordAccounts`, default false, D-151): such an account was never email-verified, so inheriting it would be account pre-hijacking. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
 
 ### 5.4 `@facilis/blocks` — removed (D-131)
 
@@ -1035,7 +1043,7 @@ AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the
 |---|---|
 | Method | `GET` |
 | Path | `/__facilis/manifest` |
-| Availability | `NODE_ENV !== "production"` (else 404) |
+| Availability | `NODE_ENV` is `development`/`test` (anything else, including unset, is production → 404; D-146) |
 | Auth | None (dev-only, origin-locked) |
 | Content-Type | `application/json; charset=utf-8` |
 
@@ -1087,7 +1095,7 @@ interface FacilisMetaResponse {
 | 304 | `If-None-Match` matches current revision |
 | 400 | Invalid `sections` value |
 | 403 | Origin mismatch |
-| 404 | `NODE_ENV === "production"` |
+| 404 | production (`NODE_ENV` not `development`/`test`, D-146) |
 | 503 | Facilis module failed to start |
 
 **Partial failure is 200, not 500.** A broken `db/schema.ts` emits a warning and omits the `schema` section.
@@ -1122,7 +1130,7 @@ No file watchers required. Recomputed on every request; clients use ETag.
 
 ### 6.8 Security
 
-- Dev-only guard: `NODE_ENV === "production"` → 404
+- Dev-only guard: production (`NODE_ENV` not `development`/`test`) → 404 (D-146)
 - Origin allowlist: only Vivari preview origin
 - **No secrets** in the manifest. `facilis.config.ts` must never contain them.
 
@@ -1180,6 +1188,7 @@ interface FacilisConfig {
       providers: SsoProvider[]           // oidc | oauth2 | saml; secrets only as ENV VAR names
       failureRedirect: string            // same-origin path, default "/login"
       stateTtlMs: number                 // login-attempt lifetime, default 10 min
+      linkPasswordAccounts: boolean      // link a verified SSO email to a PASSWORD account; default false (D-151)
     }
     apiClients: {                        // D-142; every key has a default
       enabled: boolean                   // expose POST /api/auth/token, default false
@@ -1330,6 +1339,7 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
   crossSite?: boolean                      // true = exposed to other origins; with a permission it requires a Bearer token (D-142)
   originCheck?: "enforce" | "skip"         // "skip" only for framework protocol endpoints (SAML ACS); default enforce (D-142)
+  rateLimit?: { windowMs: number; maxRequests: number } // per-client, per-route fixed window (D-152); skipped when no client address
 }
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
@@ -1438,10 +1448,12 @@ sink from `@facilis/db` (D-099). The output is JSON Lines files
 schema and the wrapper parses exactly that representation (a multipart request is consumed
 once). With `form`, the wrapper reads `req.formData()`, collapses repeated names to arrays,
 validates against the schema and hands the parsed fields to the handler as `ctx.form`; a
-missing or malformed multipart body is `400 invalid_input`. `maxUploadBytes` is enforced by
-`storeUpload` before the bytes are stored, so its rejection is `413 file_too_large`. Uploading
-is not zero-copy: the platform's `formData()` materializes the multipart form once (bounded by
-`maxUploadBytes`, default 10 MiB, hard cap 100 MiB) before `storeUpload` streams the file into
+missing or malformed multipart body is `400 invalid_input`. The wrapper caps the body bytes
+before parsing (D-153): multipart is bounded by `storage.maxUploadBytes + 1 MiB` (1 MiB when
+storage is unconfigured) and an over-cap body is `413 payload_too_large`. `maxUploadBytes` is
+still enforced by `storeUpload` before the bytes are stored, so a single oversized file is
+`413 file_too_large`. Uploading is not zero-copy: the platform's `formData()` materializes the
+multipart form once (bounded by the wrapper cap) before `storeUpload` streams the file into
 storage; the framework's storage/crypto path itself never buffers the whole file (D-117).
 
 **Binary storage on the context (D-116).** `ctx.storage` is the ready `StorageApi` from
@@ -1459,8 +1471,9 @@ work. With at-rest encryption on (D-117) there is no presigned path: the handler
 and decrypts while streaming. A blob stored before encryption was enabled is refused on decrypt
 — the download fails instead of ever returning plaintext — so it must be re-uploaded. Every
 mutation — upload, delete, attach — stays session-authenticated. The
-API error registry is closed (O-002): `file_too_large` is `413`, `storage_unavailable` is `503`,
-`unsupported_media_type` is `415` and `too_many_requests` is `429` (D-143).
+API error registry is closed (O-002): `file_too_large` is `413`, `payload_too_large` is `413`
+(a body over the wrapper's byte cap, D-153), `storage_unavailable` is `503`,
+`unsupported_media_type` is `415` and `too_many_requests` is `429` (D-143, D-152).
 
 ### 7.5 `AIResponse`
 
@@ -1780,6 +1793,8 @@ possibly `[]` — so the job body always sees a system-scoped transaction (§8.4
 - request-origin gate on unsafe methods (403 when cross-site; D-141)
 - strict media type on body/form routes (415 `unsupported_media_type`; D-141)
 - `crossSite: true` with a permission is exposed and Bearer-authenticated (D-142); a protocol endpoint may set `originCheck: "skip"` (SAML ACS only)
+- body byte caps before parsing (D-153): JSON 1 MiB, multipart `storage.maxUploadBytes + 1 MiB` (1 MiB fallback); `content-length` pre-check plus a streamed counter, over the cap → `413 payload_too_large`
+- optional per-route fixed window (`rateLimit`) keyed by the middleware's client address and the route path, evaluated before permissions and body parsing → `429 too_many_requests` with `retry-after` (D-152); a deployment that resolved no client address skips it rather than sharing one window
 - Input validation against Zod schemas (400 on failure)
 - `ctx.db` is the policy-wrapped client (never raw)
 - `dbTables` required (compile-time enforcement)
@@ -1890,25 +1905,26 @@ INSERT INTO role_permissions (role, permission) VALUES
 
 #### 8.4.3 Phase 3 — Assignment (admin, runtime, data)
 
-**Bootstrap of the first admin** — via env var:
+**Bootstrap of the first admin** — via env vars: the email names the account, the token is the
+credential. Both are required (D-150):
 
 ```bash
 # .env (never committed)
 FACILIS_INITIAL_ADMIN=founder@azienda.it
+FACILIS_INITIAL_ADMIN_TOKEN=<one-time secret, e.g. openssl rand -base64 32>
 ```
 
-`@facilis/auth`'s registration handler checks:
+`@facilis/auth` promotes only when ALL of these hold: `FACILIS_INITIAL_ADMIN` is set, a
+non-empty `FACILIS_INITIAL_ADMIN_TOKEN` is set, the registration presents that token (constant-time
+comparison over SHA-256 digests), the canonical `lower(email)` equals the configured address, and no
+`admin` role exists yet. The registration route's response is generic (`{ accepted: true }`) and
+never reveals whether the caller was promoted; the audit records the resulting role, never the token
+or the email. A missing token fails closed, and the promotion is one-time: keeping the variable
+configured after bootstrap does not allow a second promotion.
 
 ```typescript
-async function onRegister(email: string) {
-  const user = await createUser(email)
-  if (email === process.env.FACILIS_INITIAL_ADMIN) {
-    await assignRole(user.id, "admin", null)
-  } else {
-    await assignRole(user.id, config.auth.defaultRole, null)
-  }
-  return user
-}
+// server/routes/api/auth/register.post.ts (blueprint, abbreviated)
+const promoted = await registerInitialAdmin(systemDb, user.id, body.bootstrapToken)
 ```
 
 **Subsequent assignments** — via admin UI or API:
@@ -2152,7 +2168,7 @@ write path; an application route must not add another one (D-141).
 
 **Destination is a deployment concern.** `FACILIS_LOG_SINK` = `auto|stdout|file|both`;
 `auto` (default) writes `.facilis/logs/{access,audit,error,app}.jsonl` when
-`NODE_ENV !== "production"` and stdout in production. `FACILIS_LOG_DIR` overrides the
+`NODE_ENV` is `development`/`test` and stdout otherwise (D-146). `FACILIS_LOG_DIR` overrides the
 directory, `FACILIS_LOG_MAX_BYTES` (10 MiB) / `FACILIS_LOG_KEEP` (5) bound rotation, and
 `FACILIS_LOG_LEVEL` overrides `logging.level` from the config. A project cannot redirect the
 operator's trail: sinks are env-owned like the database target.
@@ -2851,7 +2867,7 @@ see `examples/todo-app/scripts/verify-headless.sh` and D-015.
 - All routes use `defineAuthorizedHandler`
 - RLS policies auto-generated for scoped tables
 - Auth tables created, roles seeded from config
-- `FACILIS_INITIAL_ADMIN` grants admin on first registration
+- `FACILIS_INITIAL_ADMIN` + `FACILIS_INITIAL_ADMIN_TOKEN` grant `admin` once, to the registration that presents the token (D-150)
 - `/__facilis/manifest` returns full manifest with no warnings
 - Background jobs: a `server/jobs/**` definition runs in a system context and returns data;
   `ctx.jobs.enqueue` returns an id; a future-`runAt` job is inspectable and cancellable; a
@@ -3078,9 +3094,11 @@ The plugin emits `CREATE TABLE roles`, `CREATE TABLE role_permissions`, `CREATE 
 
 ```bash
 FACILIS_INITIAL_ADMIN=founder@azienda.it
+FACILIS_INITIAL_ADMIN_TOKEN=<one-time secret>
 ```
 
-The first registration with that email gets the `admin` role.
+The registration that presents the token gets the `admin` role (one-time; D-150). The email alone
+is not a credential, so knowing the address is not enough to become admin.
 
 ### Step 5 — Protect routes and tables
 

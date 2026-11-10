@@ -113,7 +113,7 @@ describe("ACS validation", () => {
       wantAssertionsSigned: true,
       wantAuthnResponseSigned: false,
       acceptedClockSkewMs: 5000,
-      validateInResponseTo: "ifPresent",
+      validateInResponseTo: "always",
     });
     const cache = seen.config?.cacheProvider;
     expect(await cache?.getAsync("_request-1")).toBe("_request-1");

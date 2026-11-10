@@ -1,5 +1,5 @@
 import { hasPermission, type AuthContext } from "@facilis/auth";
-import { runWithPolicyScope, type PolicyScope, type PolicyScopedDatabase } from "@facilis/db";
+import { runWithPolicyScope, type PolicyScopedDatabase } from "@facilis/db";
 import type { z } from "zod";
 
 import { fail } from "./errors.ts";
@@ -7,11 +7,12 @@ import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import type { FacilisLogger } from "./logging.ts";
 import { startRequestLogging } from "./route-logging.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
+import { throttleRouteRequest, type RateLimitWindow } from "./rate-limit.ts";
 import { parseRequestInput } from "./request-input.ts";
 import { isRequestOriginAllowed } from "./request-security.ts";
+import { resolveScope } from "./route-scope.ts";
 import { unavailableStorage, type StorageApi } from "./storage.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
-import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
 /**
  * The route security contract (SPEC §7.4, §8.2; contracts §7).
@@ -48,6 +49,13 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   dbTables: readonly string[];
   /** `"table.column"` references, used by the release diff and entity explorer. */
   dbColumns?: readonly string[];
+  /**
+   * Per-route fixed-window throttle, keyed by the client address and the route path (D-152).
+   * Evaluated by the wrapper before permissions and body parsing, so a brute-force loop cannot
+   * reach the PBKDF2 comparison; a deployment that resolves no client address skips it rather
+   * than throttling every caller through one shared window.
+   */
+  rateLimit?: RateLimitWindow;
   description?: string;
 }
 
@@ -137,29 +145,6 @@ function toHandlerEvent(
   };
 }
 
-/** The request scope: tenant is always resolved, unlike the general PolicyScope contract. */
-interface ResolvedScope extends PolicyScope {
-  readonly tenantId: string;
-}
-
-function resolveScope(
-  auth: AuthContext | null,
-  facilis: { defaultTenantId?: string } | undefined,
-): ResolvedScope {
-  // The tenant is the deployment's, never the session's (D-040): this is the only value RLS
-  // will accept, so a session cannot widen or change the scope. Anonymous routes
-  // (registration/login) get the same value, which is what makes the tenant column default
-  // and the RLS WITH CHECK agree. The framework constant is the fallback so an app that
-  // forgets FACILIS_TENANT_ID behaves like the Nitro middleware.
-  const tenantId = facilis?.defaultTenantId ?? DEFAULT_TENANT_ID;
-  // Permissions travel in app.permissions for permission views (D-098); they are the
-  // session's expanded set, never the route's required list.
-  const permissions = auth?.permissions ?? [];
-  return auth === null
-    ? { tenantId, permissions }
-    : { tenantId, permissions, userId: auth.userId, roles: auth.roles };
-}
-
 export function defineAuthorizedHandler<
   B = void,
   Q = void,
@@ -203,6 +188,23 @@ export function defineAuthorizedHandler<
         crossSite: config.crossSite === true || config.originCheck === "skip",
       });
       if (!originAllowed) return respond(fail("forbidden"));
+
+      // Throttle before permissions and body parsing: every route passes through this wrapper,
+      // and a login brute-force loop must be stopped before it reaches the password hash
+      // (SEC-04, D-152). The address comes from the middleware's proxy-trust decision; without
+      // one there is no honest per-client key, so the route is not globally throttled.
+      const rateLimit = config.rateLimit;
+      if (rateLimit !== undefined) {
+        const denied = throttleRouteRequest(event, rateLimit, facilis?.clientAddress);
+        if (denied !== undefined) {
+          requestLog.log.audit({
+            operation: "http:rate_limit",
+            outcome: "failed",
+            errorCode: "too_many_requests",
+          });
+          return respond(denied);
+        }
+      }
 
       if (requiredPermissions.length > 0) {
         if (auth === null) return respond(fail("unauthorized"));

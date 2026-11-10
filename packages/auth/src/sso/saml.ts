@@ -91,9 +91,9 @@ export type SamlValidatorFactory = (config: SamlConfig) => SamlValidator | Promi
 /**
  * A cache provider whose only entry is the request id of THIS attempt.
  *
- * `validateInResponseTo: "ifPresent"` makes node-saml call get/consume with the response's
- * InResponseTo; answering only the id stored in the single-use state row binds the assertion to
- * the AuthnRequest this framework issued, without a second shared cache to keep in sync.
+ * `validateInResponseTo: "always"` (D-147) requires the response to carry the InResponseTo of the
+ * AuthnRequest this framework issued and to match the single-use state row; a response without
+ * it (IdP-initiated / unsolicited, or a replayed assertion) is rejected by node-saml.
  */
 function singleUseRequestCache(requestId: string | null): CacheProvider {
   let remaining = requestId;
@@ -138,7 +138,7 @@ function toSamlConfig(
     wantAuthnResponseSigned: provider.wantResponseSigned,
     acceptedClockSkewMs: CLOCK_SKEW_MS,
     // The library's enum is a runtime value; the string literal is the same member.
-    validateInResponseTo: "ifPresent" as SamlConfig["validateInResponseTo"],
+    validateInResponseTo: "always" as SamlConfig["validateInResponseTo"],
     cacheProvider: singleUseRequestCache(requestId),
   };
 }

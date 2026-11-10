@@ -70,6 +70,8 @@ export interface SsoConfigLike {
   readonly providers: readonly SsoProviderConfig[];
   readonly failureRedirect: string;
   readonly stateTtlMs: number;
+  /** `config.auth.sso.linkPasswordAccounts`; absent means false (D-151, SEC-02). */
+  readonly linkPasswordAccounts?: boolean;
 }
 
 /** What the login page may see: no secret, no endpoint beyond the framework start URL. */
