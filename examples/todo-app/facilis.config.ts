@@ -12,10 +12,12 @@ export default defineConfig({
   },
   i18n: { defaultLocale: "en", locales: ["en", "it"] },
   auth: {
-    permissions: ["todos:read", "todos:write", "users:read"],
+    // tasks:read/tasks:decide back the manual-task routes (D-135): reading the inbox is a
+    // normal permission, recording the decision is the manager's.
+    permissions: ["todos:read", "todos:write", "users:read", "tasks:read", "tasks:decide"],
     roles: {
       admin: ["*"],
-      manager: ["todos:read", "todos:write", "users:read"],
+      manager: ["todos:read", "todos:write", "users:read", "tasks:read", "tasks:decide"],
       user: ["todos:read", "todos:write"],
     },
     defaultRole: "user",

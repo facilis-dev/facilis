@@ -32,6 +32,7 @@ function state(db: FacilisDb | null, config: FacilisConfig | null = null): Boots
     warnings: [],
     startedAt: "2026-11-06T00:00:00.000Z",
     jobs: null,
+    tasks: null,
     storage: null,
     logging: NOOP_LOGGING_API,
     loggingConfig: DEFAULT_LOGGING_CONFIG,

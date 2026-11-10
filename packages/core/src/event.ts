@@ -2,6 +2,7 @@ import type { AuthContext } from "@facilis/auth";
 import type { FacilisDb } from "@facilis/db";
 
 import type { JobsApi } from "./jobs.ts";
+import type { TasksApi } from "./tasks.ts";
 import type { FacilisLoggingApi } from "./logging.ts";
 import type { StorageApi } from "./storage.ts";
 
@@ -33,6 +34,8 @@ export interface FacilisEventContext {
     defaultTenantId?: string;
     /** Server-only background-job API, started by the same middleware (D-107). */
     jobs?: JobsApi;
+    /** Server-only manual-task API (D-135): request, list and decide durable human tasks. */
+    tasks?: TasksApi;
     /** Binary-storage runtime, started by the same middleware (D-053). */
     storage?: StorageApi;
     /** Request logging runtime (D-119): sink, buffer and per-request logger factory. */

@@ -7,6 +7,7 @@ import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import type { FacilisLogger } from "./logging.ts";
 import { startRequestLogging } from "./route-logging.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
+import { unavailableTasks, type TasksApi } from "./tasks.ts";
 import { parseRequestInput } from "./request-input.ts";
 import { unavailableStorage, type StorageApi } from "./storage.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
@@ -71,6 +72,12 @@ export interface AuthorizedHandlerContext<
    * HTTP surface of its own.
    */
   jobs: JobsApi;
+  /**
+   * Server-only manual-task surface (D-135): request a durable human task, list the inbox
+   * and record the decision. The task row is the continuation flag; the caller never writes
+   * the workflow state itself.
+   */
+  tasks: TasksApi;
   /**
    * Server-only binary storage (D-053, SPEC §5.10): store bytes, build signed download URLs
    * and verify their tokens. Access control stays in the app routes.
@@ -194,6 +201,7 @@ export function defineAuthorizedHandler<
       // unexpected boot failure) must not take the whole route down: the fallback fails only
       // the job calls, with a code the route can handle.
       const jobs = facilis.jobs ?? unavailableJobs();
+      const tasks = facilis.tasks ?? unavailableTasks();
       const storage = facilis.storage ?? unavailableStorage();
 
       // The raw root client stays here in the wrapper: the handler event exposes only the safe
@@ -203,6 +211,9 @@ export function defineAuthorizedHandler<
         // Queue calls made by the handler must run in this transaction: opening a second one
         // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
+        // The decider comes from the session, never from the request body: decide() writes
+        // decided_by from this actor (D-135, docs/WORKFLOWS.md §7).
+        const requestTasks = tasks.bindScope?.(db, { actor: auth?.userId ?? null }) ?? tasks;
         const elevations = createElevationContext({
           event,
           db,
@@ -221,6 +232,7 @@ export function defineAuthorizedHandler<
           sudo: elevations.sudo,
           system: elevations.system,
           jobs: requestJobs,
+          tasks: requestTasks,
           storage,
           log: requestLog.log,
           requestId: requestLog.requestId,

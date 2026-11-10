@@ -100,6 +100,27 @@ export type {
   JobStatus,
   JobsApi,
 } from "./jobs.ts";
+export {
+  serializeTaskData,
+  TASK_DECISIONS,
+  TASK_ERROR_CODES,
+  TASK_KINDS,
+  TASK_STATUSES,
+  TaskError,
+} from "./tasks.ts";
+export type {
+  RequestTaskInput,
+  TaskActorContext,
+  TaskDecision,
+  TaskDecisionInput,
+  TaskErrorCode,
+  TaskJson,
+  TaskKind,
+  TaskListOptions,
+  TaskRecord,
+  TasksApi,
+  TaskStatus,
+} from "./tasks.ts";
 
 export { defineAuthorizedHandler } from "./route.ts";
 export type {

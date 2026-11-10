@@ -66,6 +66,7 @@ function state(): BootstrapState {
     warnings: [],
     startedAt: "2026-11-08T00:00:00.000Z",
     jobs: null,
+    tasks: null,
     storage: null,
     logging: NOOP_LOGGING_API,
     loggingConfig: DEFAULT_LOGGING_CONFIG,

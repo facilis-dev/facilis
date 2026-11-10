@@ -8,12 +8,12 @@ import {
   type ManifestWarning,
   type StorageApi,
 } from "@facilis/core";
-import config, { configError, projectRoot } from "#facilis/config";
+import { projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 import dbViewModules from "#facilis/db-views";
 import jobModules from "#facilis/jobs";
 
-import { isFacilisConfig, toAuthConfig } from "./config.ts";
+import { toAuthConfig } from "./config.ts";
 import { bootstrapDevelopmentDatabase, describe } from "./db-bootstrap.ts";
 import { resolveDbTarget } from "./db-target.ts";
 import {
@@ -24,6 +24,9 @@ import {
 import { isProductionEnvironment } from "./env.ts";
 import { bootJobs } from "./jobs/boot.ts";
 import type { JobsRuntime } from "./jobs/runtime.ts";
+import { bootTasks } from "./tasks/boot.ts";
+import type { TasksRuntime } from "./tasks/boot.ts";
+import { readProjectConfig } from "./project-config.ts";
 import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
 import { installSudoAuditBridge } from "./logging/sudo-bridge.ts";
 import { readDefaultTenantId } from "./tenant.ts";
@@ -39,6 +42,11 @@ export interface BootstrapState {
    * middleware carries `jobs.api` on `event.context.facilis`.
    */
   readonly jobs: JobsRuntime | null;
+  /**
+   * Manual-task runtime (D-135); null when facilis_tasks is missing or the task boot failed.
+   * The context middleware carries tasks.api on event.context.facilis.
+   */
+  readonly tasks: TasksRuntime | null;
   /** Binary-storage runtime (D-053); null when the boot refused its configuration. */
   readonly storage: StorageApi | null;
   /**
@@ -106,6 +114,7 @@ async function bootstrap(): Promise<BootstrapState> {
       warnings,
       startedAt,
       jobs: null,
+      tasks: null,
       storage: null,
       ...loggingFields,
     };
@@ -129,6 +138,7 @@ async function bootstrap(): Promise<BootstrapState> {
       warnings,
       startedAt,
       jobs: null,
+      tasks: null,
       storage,
       ...loggingFields,
     };
@@ -171,6 +181,7 @@ async function bootstrap(): Promise<BootstrapState> {
         warnings,
         startedAt,
         jobs: null,
+        tasks: null,
         storage,
         ...loggingFields,
       };
@@ -201,6 +212,7 @@ async function bootstrap(): Promise<BootstrapState> {
         warnings,
         startedAt,
         jobs: null,
+        tasks: null,
         storage,
         ...loggingFields,
       };
@@ -262,32 +274,20 @@ async function bootstrap(): Promise<BootstrapState> {
     warnings,
   });
 
+  // Manual tasks are durable rows, not a process queue (D-135): booting them is just the
+  // store and its table probe; there is no tick until the workflow runner lands (W2).
+  const tasks = await bootTasks({ db, tenantId: readDefaultTenantId(), warnings });
+
   return {
     db,
     config: projectConfig,
     warnings,
     startedAt,
     jobs,
+    tasks,
     storage,
     ...loggingFields,
   };
-}
-
-function readProjectConfig(warnings: ManifestWarning[]): FacilisConfig | null {
-  if (configError !== undefined) {
-    warnings.push(warning("config_load_failed", configError));
-    return null;
-  }
-  if (!isFacilisConfig(config)) {
-    warnings.push(
-      warning(
-        "config_invalid",
-        "facilis.config.ts must export defineConfig({ auth, db, i18n, ... }).",
-      ),
-    );
-    return null;
-  }
-  return config;
 }
 
 function warning(code: string, message: string): ManifestWarning {
