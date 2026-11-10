@@ -113,6 +113,33 @@ export function createDbTaskStore(options: {
       });
     },
 
+    async expireDue(now: Date, limit: number): Promise<StoredTask[]> {
+      return run(async (tx) => {
+        const due = await tx
+          .select({ id: facilisTasks.id })
+          .from(facilisTasks)
+          .where(and(eq(facilisTasks.status, "pending"), lte(facilisTasks.expiresAt, now)))
+          .orderBy(asc(facilisTasks.createdAt))
+          .limit(limit);
+        if (due.length === 0) return [];
+        const rows = await tx
+          .update(facilisTasks)
+          .set({ status: "expired" })
+          .where(
+            and(
+              eq(facilisTasks.status, "pending"),
+              lte(facilisTasks.expiresAt, now),
+              inArray(
+                facilisTasks.id,
+                due.map((row) => row.id),
+              ),
+            ),
+          )
+          .returning();
+        return rows.map(toStoredTask);
+      });
+    },
+
     async expire(id: string, now: Date): Promise<boolean> {
       return run(async (tx) => {
         const rows = await tx

@@ -1,7 +1,6 @@
 import { createDb, type FacilisDb } from "@facilis/db";
 import { sessionMiddleware, type SessionEvent } from "@facilis/auth";
 import {
-  DEFAULT_JOBS_CONFIG,
   type FacilisConfig,
   type FacilisLoggingApi,
   type FacilisLoggingConfig,
@@ -12,6 +11,7 @@ import { projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 import dbViewModules from "#facilis/db-views";
 import jobModules from "#facilis/jobs";
+import workflowModules from "#facilis/workflows";
 
 import { toAuthConfig } from "./config.ts";
 import { bootstrapDevelopmentDatabase, describe } from "./db-bootstrap.ts";
@@ -21,11 +21,11 @@ import {
   installDevDbSnapshotter,
   readDevDbSnapshot,
 } from "./dev-db-persistence.ts";
+import { bootRuntimes } from "./boot-runtimes.ts";
 import { isProductionEnvironment } from "./env.ts";
-import { bootJobs } from "./jobs/boot.ts";
 import type { JobsRuntime } from "./jobs/runtime.ts";
-import { bootTasks } from "./tasks/boot.ts";
 import type { TasksRuntime } from "./tasks/boot.ts";
+import type { WorkflowsRuntime } from "./workflows/runner.ts";
 import { readProjectConfig } from "./project-config.ts";
 import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
 import { installSudoAuditBridge } from "./logging/sudo-bridge.ts";
@@ -47,6 +47,11 @@ export interface BootstrapState {
    * The context middleware carries tasks.api on event.context.facilis.
    */
   readonly tasks: TasksRuntime | null;
+  /**
+   * Workflow runtime (D-135); null when the tables or the job queue are unavailable. The
+   * context middleware carries workflows.api on event.context.facilis.
+   */
+  readonly workflows: WorkflowsRuntime | null;
   /** Binary-storage runtime (D-053); null when the boot refused its configuration. */
   readonly storage: StorageApi | null;
   /**
@@ -115,6 +120,7 @@ async function bootstrap(): Promise<BootstrapState> {
       startedAt,
       jobs: null,
       tasks: null,
+      workflows: null,
       storage: null,
       ...loggingFields,
     };
@@ -139,6 +145,7 @@ async function bootstrap(): Promise<BootstrapState> {
       startedAt,
       jobs: null,
       tasks: null,
+      workflows: null,
       storage,
       ...loggingFields,
     };
@@ -182,6 +189,7 @@ async function bootstrap(): Promise<BootstrapState> {
         startedAt,
         jobs: null,
         tasks: null,
+        workflows: null,
         storage,
         ...loggingFields,
       };
@@ -213,6 +221,7 @@ async function bootstrap(): Promise<BootstrapState> {
         startedAt,
         jobs: null,
         tasks: null,
+        workflows: null,
         storage,
         ...loggingFields,
       };
@@ -262,21 +271,16 @@ async function bootstrap(): Promise<BootstrapState> {
     });
   }
 
-  // The queue starts after the roles/views exist: its own writes run as facilis_app, while
-  // a job body escalates to facilis_system (D-107). A failure there is a warning, not a 500.
-  const jobs = await bootJobs({
+  // The queue, manual tasks and workflows all run as facilis_app after the roles/views exist
+  // (D-107, D-135); a failure in any of them is a warning and a null service, not a 500.
+  const { jobs, tasks, workflows } = await bootRuntimes({
     db,
-    // isFacilisConfig deliberately does not require `jobs`, so an older virtual config can
-    // still hand an undefined section to a newer runtime: fall back to the documented defaults.
-    jobsConfig: projectConfig.jobs ?? DEFAULT_JOBS_CONFIG,
-    modules: jobModules,
     tenantId: readDefaultTenantId(),
+    projectConfig,
+    jobModules,
+    workflowModules,
     warnings,
   });
-
-  // Manual tasks are durable rows, not a process queue (D-135): booting them is just the
-  // store and its table probe; there is no tick until the workflow runner lands (W2).
-  const tasks = await bootTasks({ db, tenantId: readDefaultTenantId(), warnings });
 
   return {
     db,
@@ -285,6 +289,7 @@ async function bootstrap(): Promise<BootstrapState> {
     startedAt,
     jobs,
     tasks,
+    workflows,
     storage,
     ...loggingFields,
   };

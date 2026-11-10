@@ -40,4 +40,5 @@ export {
   VIRTUAL_DB_SCHEMA_ID,
   VIRTUAL_JOBS_ID,
   VIRTUAL_OPENAPI_META_ID,
+  VIRTUAL_WORKFLOWS_ID,
 } from "./virtual-ids.ts";

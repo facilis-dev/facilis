@@ -39,6 +39,7 @@ const FULL_CONFIG: FacilisConfig = {
     pollIntervalMs: 500,
     persist: false,
   },
+  workflows: { tickIntervalMs: 750, persist: false, defaultTaskTtlMs: 60_000 },
   storage: {
     driver: "s3",
     bucket: "facilis-files",

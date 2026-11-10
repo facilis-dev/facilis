@@ -40,6 +40,19 @@ class FakeStore implements TaskStore {
     return rows.slice(0, filters.limit);
   }
 
+  async expireDue(now: Date, limit: number): Promise<StoredTask[]> {
+    const due = [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.status === "pending" &&
+          row.expiresAt !== null &&
+          row.expiresAt.getTime() <= now.getTime(),
+      )
+      .slice(0, limit);
+    for (const row of due) this.rows.set(row.id, { ...row, status: "expired" });
+    return due.map((row) => ({ ...row, status: "expired" }));
+  }
+
   async decide(id: string, write: TaskDecisionWrite): Promise<StoredTask | null> {
     const row = this.rows.get(id);
     if (row === undefined || row.status !== "pending") return null;
@@ -117,9 +130,9 @@ describe("createTasksApi", () => {
     await expect(api.request({ titleKey: "ok.key", payload: circular })).rejects.toMatchObject({
       code: "task_invalid_input",
     });
-    await expect(api.request({ titleKey: "ok.key", expiresAt: "not-a-date" })).rejects.toMatchObject(
-      { code: "task_invalid_input" },
-    );
+    await expect(
+      api.request({ titleKey: "ok.key", expiresAt: "not-a-date" }),
+    ).rejects.toMatchObject({ code: "task_invalid_input" });
   });
 
   it("normalises list filters to the documented caps", async () => {

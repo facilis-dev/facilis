@@ -1,10 +1,11 @@
 # Workflows and manual tasks — design
 
-**Status:** proposed — design approved (D-135, 2026-11-10). W1 (manual tasks) is implemented;
-the workflow layer (W2–W3) is not started. SPEC §5.6/§7.9 still describe the jobs surface
-(D-107) while O-017 stays open until W3 lands. This document is the design reference behind
-the approved direction: contract, runtime semantics, tables, rejected alternatives and the
-phased plan.
+**Status:** accepted — design approved (D-135, 2026-11-10). W1 (manual tasks) and W2
+(workflows) are implemented; W3 is the remaining polish (reject branches, task assignment,
+external-signal tasks, the analyzer pass, final SPEC §7.10 and the Studio inbox). SPEC
+§5.6/§7.9 still describe the jobs surface (D-107) while O-017 stays open until W3 lands. This
+document is the design reference behind the approved direction: contract, runtime semantics,
+tables, rejected alternatives and the phased plan.
 
 ## 1. What the feature must do
 
@@ -69,14 +70,16 @@ flag changes. Derived requirements:
 | `name` | text not null | definition key |
 | `status` | text not null | `running`, `waiting`, `succeeded`, `failed`, `cancelled` — text like `facilis_jobs`, so a new state is a code change, not a migration |
 | `input` | jsonb not null | validated by the definition's input schema |
-| `progress` | jsonb not null default `'[]'` | completed steps: `{ index, kind, jobId?, taskId?, output? }`; the plan snapshot lives here |
+| `progress` | jsonb not null default `'[]'` | completed steps: `{ index, kind, jobId?, taskId?, output? }` |
+| `plan` | jsonb not null default `'[]'` | step identities captured at start: `{ index, kind, name }`; resume compares them (§6) |
 | `current_step` | integer not null default 0 | index into the definition's steps |
 | `current_job_id` | uuid null | the in-flight job step |
 | `waiting_task_id` | uuid null | the pending manual step |
 | `attempts` | integer not null default 0 | consecutive dispatches of the current step; reset on advance; boot recovery stops at `jobs.maxAttempts` |
 | `output` | jsonb null | last step's output on success |
 | `error` | text null | coded failure or last error message (server-only) |
-| `started_at` / `finished_at` / `created_at` | timestamptz | |
+| `started_at` / `created_at` | timestamptz not null default now | |
+| `finished_at` | timestamptz null | set on every terminal transition |
 | `tenant_id` | uuid not null | `tenantColumn()` |
 
 Indexes: `(status, created_at)` for the tick scan, `(name)` for listing. The tick reads only
@@ -144,8 +147,10 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
   reached, receiving `{ input, steps }` where `steps[i]` is the output of a completed step. The
   resolved value is validated by `enqueue` (existing `job_invalid_input` → workflow
   `workflow_step_failed`).
-- **Plan snapshot.** At start the runner stores the step identities `(index, kind, name)` in the
-  row; a step's resolved input/output is materialised before its side effect. On resume the
+- A job step without an `input` resolver receives the chain input unchanged (the common
+  first-step case); a resolver is only needed when a step reads a previous output.
+- **Plan snapshot.** At start the runner stores the step identities `(index, kind, name)` in
+  `plan`; a step's resolved input/output is materialised before its side effect. On resume the
   current step's identity is compared with the definition: a mismatch fails the workflow with
   `workflow_definition_changed` instead of guessing after a project edit.
 - Invalid or duplicate definitions become manifest warnings and are skipped (jobs behaviour).
@@ -164,6 +169,12 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
     }
 
     interface TasksApi {
+      request(input: {
+        titleKey: string;
+        titleParams?: Record<string, string | number>;
+        payload?: unknown;
+        expiresAt?: string | Date;
+      }): Promise<TaskRecord>;
       list(options?: {
         status?: TaskStatus | TaskStatus[];
         workflowId?: string;
@@ -186,10 +197,10 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
   `decided_at = now()`, optional comment) and wakes the tick; it never advances the workflow
   directly.
 - **No HTTP endpoint in the framework** (JOBS.md §6): a project writes its own
-  `defineAuthorizedHandler` routes. The starter ships `server/api/tasks/index.get.ts` (pending
-  inbox) and `server/api/tasks/[id].patch.ts` (decide), with permission `tasks:decide` declared
-  in `facilis.config.ts` roles. The Studio `Attività` panel lists and decides through those
-  routes.
+  `defineAuthorizedHandler` routes; the example project ships `server/routes/api/tasks/index.get.ts`
+  (pending inbox) and `server/routes/api/tasks/[id].patch.ts` (decide), with permissions
+  `tasks:read`/`tasks:decide` declared in `facilis.config.ts` roles. The Studio `Attività`
+  panel lists and decides through those routes.
 - If the runtime is unavailable (tables missing or boot failure) `ctx.workflows`/`ctx.tasks`
   reject with coded `workflow_unavailable`/`task_unavailable` errors — never a framework-wide
   500 (jobs behaviour).
@@ -256,20 +267,25 @@ adds no second scheduler.
 
     packages/core/src/workflows.ts             defineWorkflow, records, APIs, error codes
     packages/core/src/workflows-config.ts      FacilisWorkflowsConfig schema + defaults
-    packages/db/src/workflows.ts               facilis_workflows + facilis_tasks (split at the
-                                               300-line gate if needed)
+    packages/db/src/workflows.ts               facilis_workflows (facilis_tasks landed in W1,
+                                               packages/db/src/tasks.ts)
     packages/nitro/src/runtime/workflows/
-      contracts.ts                            StoredWorkflow/Task, store interfaces
+      contracts.ts                            StoredWorkflow/Store interfaces, runner deps
       definitions.ts                          registry from #facilis/workflows
-      store.ts                                Drizzle-backed store
-      runner.ts                               the tick (expire/resume/advance/dispatch)
-      recovery.ts                             boot reconciliation
-      row-mapping.ts                          row <-> record mapping
+      db-store.ts                             Drizzle-backed store, CAS updates
+      runtime.ts                              ctx.workflows API (start/get/list/cancel/bindScope)
+      steps.ts                                step identity, plan comparison, resolver context
+      dispatch.ts                             job enqueue / approval insert (one transaction)
+      transitions.ts                          expire / resume / advance
+      support.ts                              CAS guard, failure settling, helpers
+      runner.ts                               the tick (start/stop/tick)
+      boot.ts                                 table probes, registry, runner start
+    packages/nitro/src/runtime/boot-runtimes.ts  jobs + tasks + workflows boot together
     packages/nitro/src/module.ts              registers #facilis/workflows
-    starter/server/api/tasks/index.get.ts     inbox route (W1)
-    starter/server/api/tasks/[id].patch.ts    decide route (W1)
-    starter/facilis.config.ts                 permission tasks:decide (W1)
-    ide/src/components/ide/TasksPanel.tsx     Studio inbox (W1)
+    examples/todo-app/server/routes/api/tasks/  inbox + decide routes (W1)
+    examples/todo-app/facilis.config.ts       permissions tasks:read/tasks:decide (W1)
+    examples/todo-app/server/workflows/**     example definitions (W3)
+    ide/src/components/ide/TasksPanel.tsx     Studio inbox (W3)
 
 ## 12. Out of scope (v1)
 
@@ -284,15 +300,20 @@ of the two tables, multi-instance workers (one process per database, as jobs).
   with list/decide + starter routes + tests. Tasks exist standalone (`workflow_id` null); the
   approval primitive is useful on its own and W2 needs no migration. The Studio `Attività` inbox
   panel is deferred to W3: it needs the preview transport decision (open question below).
-- **W2 — workflows.** `facilis_workflows` + `defineWorkflow` + registry + runner tick + boot
-  recovery + `ctx.workflows` + tests; approval steps reuse W1's tasks.
+- **W2 — workflows (landed).** `facilis_workflows` + `defineWorkflow` + registry + runner tick
+  + boot recovery + `ctx.workflows` + tests; approval steps reuse W1's tasks. Dispatch enqueues
+  the step job (or inserts the task) in the same transaction as the workflow update, every
+  transition is a CAS on the row, expiry is part of the tick, and cancel stops the current
+  job/task before settling the row.
 - **W3 — polish.** Reject branches, task assignment, expiry tick, external-signal tasks, an
   `@facilis/analyze` pass mapping `server/workflows/**` definitions to project-graph nodes, and
   the final SPEC §7.10 + DECISIONS entry.
 
 ## 14. Open questions
 
-- Default task TTL (`null` vs a week) and whether expiry fails or auto-cancels the workflow.
+- Default task TTL remains `null` (per-step `ttlMs` only); W2 implements expiry as a tick
+  transition and a `workflow_task_expired` failure — whether a deployment wants a week-long
+  default is still open.
 - Reject semantics: fail now, branch in W3 — and whether a decided task can be reopened.
 - Decision audit: route `ctx.log` line vs a dedicated event.
 - Studio inbox placement (bottom panel vs editor tab) and whether it can call the project's

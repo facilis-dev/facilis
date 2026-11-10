@@ -55,6 +55,11 @@ export interface TaskStore {
   insert(task: NewStoredTask): Promise<void>;
   get(id: string): Promise<StoredTask | null>;
   list(filters: TaskListFilters): Promise<StoredTask[]>;
+  /**
+   * Marks up to `limit` due pending tasks expired and returns them: the workflow runner
+   * fails the chains waiting on them (docs/WORKFLOWS.md §8.1).
+   */
+  expireDue(now: Date, limit: number): Promise<StoredTask[]>;
   /** pending -> decided when the row is still pending and not expired; null otherwise. */
   decide(id: string, write: TaskDecisionWrite): Promise<StoredTask | null>;
   /** pending -> expired (lazy expiry, called by decide); false when the row is not pending. */

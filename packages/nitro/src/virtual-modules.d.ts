@@ -38,6 +38,15 @@ declare module "#facilis/jobs" {
   export default modules;
 }
 
+/**
+ * Every definition module under server/workflows/ (one default export per file), for the
+ * workflow registry: nested directories are allowed, tests are skipped (D-135).
+ */
+declare module "#facilis/workflows" {
+  const modules: ReadonlyArray<import("./runtime/workflows/contracts.ts").WorkflowModule>;
+  export default modules;
+}
+
 declare module "#facilis/openapi-meta" {
   const metadata: import("./types.ts").RouteMetadataMap;
   export default metadata;

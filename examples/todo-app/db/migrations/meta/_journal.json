@@ -43,6 +43,13 @@
       "when": 1794324905754,
       "tag": "0005_facilis_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794326979459,
+      "tag": "0006_facilis_workflows",
+      "breakpoints": true
     }
   ]
 }

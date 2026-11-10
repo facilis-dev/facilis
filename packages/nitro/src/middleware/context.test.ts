@@ -29,6 +29,7 @@ function state(overrides: Partial<BootstrapState> = {}): BootstrapState {
     startedAt: "2026-11-08T12:00:00.000Z",
     jobs: null,
     tasks: null,
+    workflows: null,
     storage: null,
     logging: NOOP_LOGGING_API,
     loggingConfig: DEFAULT_LOGGING_CONFIG,

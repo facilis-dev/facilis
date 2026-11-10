@@ -1,6 +1,7 @@
 import {
   JobError,
   type EnqueueJobOptions,
+  type JobDefinition,
   type JobQueueStats,
   type JobRecord,
   type JobsApi,
@@ -13,6 +14,10 @@ import type { JobEngine, StoredJob } from "./contracts.ts";
 /** The booted job runtime carried by `BootstrapState` (D-107). */
 export interface JobsRuntime {
   readonly api: JobsApi;
+  /** Internal seam for the workflow runner: dispatch step jobs, read and cancel them. */
+  readonly engine: JobEngine;
+  /** The project's definitions, so workflows can reject a dangling job step at boot. */
+  readonly definitions: ReadonlyMap<string, JobDefinition<unknown, unknown>>;
   start(): Promise<void>;
   stop(): Promise<void>;
 }

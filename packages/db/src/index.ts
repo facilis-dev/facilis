@@ -115,6 +115,13 @@ export {
   type NewFacilisTaskRow,
 } from "./tasks.ts";
 export {
+  FACILIS_WORKFLOW_STATUSES,
+  facilisWorkflows,
+  type FacilisWorkflowRow,
+  type FacilisWorkflowStatus,
+  type NewFacilisWorkflowRow,
+} from "./workflows.ts";
+export {
   newSudoId,
   resetSudoAuditSink,
   setSudoAuditSink,

@@ -33,6 +33,13 @@ export default defineConfig({
     pollIntervalMs: 500,
     persist: true,
   },
+  // Workflows (D-135): a chain is durable rows advanced by this tick; an approval step
+  // reuses the manual tasks and waits on a task row, never on a job body.
+  workflows: {
+    tickIntervalMs: 500,
+    persist: true,
+    defaultTaskTtlMs: null,
+  },
   // Operator logging (D-119): every key is shown once. Entries are JSON Lines files under
   // <project>/.facilis/logs in development (open them in the IDE editor) and stdout in
   // production; the sink itself is environment-owned (FACILIS_LOG_SINK/DIR/MAX_BYTES/KEEP).

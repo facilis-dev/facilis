@@ -3,6 +3,7 @@ import type { FacilisDb } from "@facilis/db";
 
 import type { JobsApi } from "./jobs.ts";
 import type { TasksApi } from "./tasks.ts";
+import type { WorkflowsApi } from "./workflows.ts";
 import type { FacilisLoggingApi } from "./logging.ts";
 import type { StorageApi } from "./storage.ts";
 
@@ -36,6 +37,8 @@ export interface FacilisEventContext {
     jobs?: JobsApi;
     /** Server-only manual-task API (D-135): request, list and decide durable human tasks. */
     tasks?: TasksApi;
+    /** Server-only workflow API (D-135): start, inspect and cancel job/approval chains. */
+    workflows?: WorkflowsApi;
     /** Binary-storage runtime, started by the same middleware (D-053). */
     storage?: StorageApi;
     /** Request logging runtime (D-119): sink, buffer and per-request logger factory. */

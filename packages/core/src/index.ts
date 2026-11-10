@@ -79,6 +79,8 @@ export type {
 
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+export { DEFAULT_WORKFLOWS_CONFIG, facilisWorkflowsConfigSchema } from "./workflows-config.ts";
+export type { FacilisWorkflowsConfig, FacilisWorkflowsConfigInput } from "./workflows-config.ts";
 export {
   defineJob,
   isJobDefinition,
@@ -121,6 +123,31 @@ export type {
   TasksApi,
   TaskStatus,
 } from "./tasks.ts";
+export {
+  defineWorkflow,
+  isWorkflowDefinition,
+  serializeWorkflowData,
+  WORKFLOW_ERROR_CODES,
+  WORKFLOW_STATUSES,
+  WORKFLOW_STEP_KINDS,
+  WorkflowError,
+} from "./workflows.ts";
+export type {
+  WorkflowApprovalStep,
+  WorkflowDefinition,
+  WorkflowErrorCode,
+  WorkflowJobStep,
+  WorkflowJson,
+  WorkflowListOptions,
+  WorkflowProgressEntry,
+  WorkflowRecord,
+  WorkflowResolveContext,
+  WorkflowsApi,
+  WorkflowStatus,
+  WorkflowStep,
+  WorkflowStepIdentity,
+  WorkflowStepKind,
+} from "./workflows.ts";
 
 export { defineAuthorizedHandler } from "./route.ts";
 export type {
