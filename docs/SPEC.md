@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.22 (DDL generato al rilascio, artefatti immutabili + ledger, D-145/D-146)
+**Version:** 1.23 (generatore `planSchema`, snapshot dichiarato esteso, D-145)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.23 — Il generatore (P2, D-145). `@facilis/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
 - v1.22 — Il DDL nasce al rilascio, non si scrive a mano (D-145/D-146). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
 - v1.21 — Il token endpoint e' rate-limited (D-143). `auth.apiClients.rateLimit` (default `windowMs: 60000`, `maxRequests: 30`) limita gli scambi per client id in una finestra fissa in-process; oltre il budget la route risponde `429 too_many_requests` (nuovo codice della registry chiusa O-002) con `retry-after`, prima di toccare il database, e audita il tentativo. La revoca resta per client: un client revocato invalida client e token in una transazione e non esiste revoca per singolo token. §7.1/§7.4/§8.6 follow.
 - v1.20 — External APIs (D-142). `auth.apiClients` (default disabled) exposes the framework-owned `POST /api/auth/token` (OAuth2 `client_credentials`, JSON body, no refresh token: renewal is a new grant); the access token is opaque and stored as a SHA-256 hash, and `Authorization: Bearer` resolves to a **service account** (`users.isService`, a role fixed on the client) in the session middleware. A service account can never log in: `validateSession` refuses it, `createSession` throws, SSO does not link it and the template login route rejects it. `crossSite: true` with a non-empty `permission` is now legal (it is reachable only with a Bearer token) and publishes `x-cross-site` + OpenAPI `security: [{ bearerAuth: [] }]`; `originCheck: "skip"` is the protocol-only exemption (SAML ACS). §5.3/§6.9/§7.1/§7.3/§7.4/§8.2/§8.4.4/§8.6 follow.
@@ -1281,6 +1282,7 @@ interface RouteMeta {
 
 interface SchemaSnapshot {
   tables: TableSnapshot[]
+  enums?: EnumSnapshot[]                       // enum types referenced by columns (D-145)
 }
 
 interface TableSnapshot {
@@ -1290,6 +1292,11 @@ interface TableSnapshot {
   foreignKeys: ForeignKeySnapshot[]
   policies: PolicySnapshot[]
   scopeColumn?: { name: string; kind: "tenant" | "owner" }
+  primaryKey?: string[]                        // ordered PK columns; empty when none
+  indexes?: IndexSnapshot[]
+  checks?: CheckSnapshot[]
+  uniqueConstraints?: UniqueConstraintSnapshot[]
+  unsupported?: UnsupportedDeclarationSnapshot[]  // readable but not renderable: the generator fails closed
 }
 
 interface ColumnSnapshot {
@@ -1297,9 +1304,17 @@ interface ColumnSnapshot {
   type: string
   notNull: boolean
   default: string | null
-  isPrimaryKey: boolean
+  isPrimaryKey: boolean                        // also true for a composite PK member (D-145)
   isUnique: boolean
+  identity?: "always" | "byDefault"            // not renderable in v1: the generator refuses
+  generated?: true                             // computed columns: same fail-closed treatment
 }
+
+interface IndexSnapshot { name: string; columns: string[]; unique: boolean }
+interface CheckSnapshot { name: string; expression: string }   // expression already rendered as SQL
+interface UniqueConstraintSnapshot { name: string; columns: string[] }
+interface EnumSnapshot { name: string; values: string[] }
+interface UnsupportedDeclarationSnapshot { construct: "index" | "foreign_key"; name: string }
 
 interface ForeignKeySnapshot {
   columns: string[]

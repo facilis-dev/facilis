@@ -1,7 +1,7 @@
 # Migration generation in the release and deploy pipeline
 
-**Status:** proposed, v2.2 (a plan, not a contract). 2026-11-10. Decisions 1-6 taken in §7 (7-8 open).
-ADRs D-145/D-146 accepted; P0 and P1 implemented in this branch.
+**Status:** proposed, v2.3 (a plan, not a contract). 2026-11-10. Decisions 1-6 taken in §7 (7-8 open).
+ADRs D-145/D-146 accepted; P0, P1 and P2 implemented (branches feat/schema-artifacts, feat/schema-plan).
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
 tags** (in the release pipeline, no database access) and **applied as an immutable artifact** by the
 deploy job. The live database is used for **verification**, and only exceptionally for adoption or
@@ -185,7 +185,8 @@ is approved, and a backup pointer is recorded.
 
 ### 2.5 Phased order inside an artifact
 
-1. drop obsolete policies/constraints that must change (destructive risk);
+1. drop obsolete policies/constraints/indexes that must change (careful: they lose no data;
+   removing or broadening a policy on a scoped table is a policy_unsafe problem instead);
 2. create tables (columns, PK, defaults), add nullable columns, create enum types;
 3. tighten columns (type, SET/DROP NOT NULL, defaults) - refused with data_needed when rows exist;
 4. unique/check/FK constraints;
@@ -285,10 +286,17 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 - Exit: one tag pair produces a valid artifact; the example's digest round-trips on both drivers.
 
 ### P2 - Generator (release side, pure)
-- @facilis/core: planSchema(from, to) -> ordered batches + risk + problems; renderer; move the
-  D-109 renderer here and delete the orphan.
-- Golden tests: empty -> target, v1 -> v2, unsupported, policy safety; oracle
-  comparison with drizzle-kit generateDrizzleJson + generateMigration (CI only, not a dependency).
+- Done: @facilis/core planSchema(from, to) -> ordered batches (the §2.5 phases), per-batch risk,
+  destructive ids, requires preconditions and machine problems; the D-109 renderer is ported
+  here and the orphan deleted. The declared snapshot gained ordered PK, indexes, checks, unique
+  constraints and enums (SPEC §7.3).
+- Fail closed: enum value changes, identity/generated columns, advanced index shapes, PK
+  changes, dangling FKs and policy broadening are problems with no batches, never silent SQL.
+- Golden tests: empty -> target and add/drop/change for tables, columns, indexes, checks, FKs,
+  policies, RLS and enums, plus a PGlite round-trip (plan SQL applied -> live digest == declared).
+- Deferred to P4: the drizzle-kit oracle comparison (it needs the pipeline's Drizzle schema
+  loader); digest v2 (FKs/indexes/checks/enums) lands with the P3 fingerprint. Renames are
+  drop+create (destructive) in v1.
 - Exit: deterministic artifacts; CI fails on unsupported declarations.
 
 ### P3 - Deploy applier + CLI
@@ -346,6 +354,8 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 | Postgres DDL locks | One short transaction per artifact, statement timeout, maintenance window; CONCURRENTLY out of scope. |
 | Preview limitations in the browser | Fail closed on unresolved declarations; authoritative artifact from CI; no DB access needed. |
 | Legacy projects | adopt (verify) or repair (explicit reconcile, backup), never silent replay. |
+| Enum ALTER and identity columns | Fail closed with typed problems (unsupported_change / unsupported_declaration); v2 adds ALTER TYPE and identity rendering. |
+| Renames | No rename detection in v1: a rename is drop+create, i.e. destructive and approval-gated. |
 
 ## 7. Decisions taken and still open
 
