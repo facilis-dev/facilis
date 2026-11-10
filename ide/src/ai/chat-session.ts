@@ -8,13 +8,14 @@
 
 import { applyAccepted, applyUndo } from "./chat-actions";
 import { buildChatContext } from "./chat-context";
+import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
-import { TURN_IDLE, TURN_RESET, errorText, initialState, replayTurns } from "./chat-session-types";
+import { TURN_IDLE, TURN_RESET, errorText, initialState } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
-import { StreamAccumulator } from "./chat-stream";
+import { ChatStreamWriter } from "./chat-stream";
 import type { PtcRunner } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
@@ -31,13 +32,12 @@ export class ChatSession {
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
   private readonly runner: PtcRunner;
-  private readonly stream: StreamAccumulator;
+  private readonly stream: ChatStreamWriter;
   private listeners = new Set<() => void>();
   private state: ChatState;
   private controller: AbortController | null = null;
   private seq = 0;
   private cancelled = false;
-  private streamId: string | null = null;
   constructor(host: ChatHost, options: ChatSessionOptions) {
     this.host = host;
     this.call = options.call ?? callModel;
@@ -45,7 +45,11 @@ export class ChatSession {
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
     this.runner = options.runner;
-    this.stream = new StreamAccumulator(this.now);
+    this.stream = new ChatStreamWriter(this.now, {
+      messages: () => this.state.messages,
+      next: (role, content) => this.nextMessage(role, content),
+      emit: (patch) => this.emit(patch),
+    });
     this.state = initialState(this.load());
   }
 
@@ -82,13 +86,56 @@ export class ChatSession {
     this.controller?.abort();
     this.controller = null;
     this.cancelled = false;
-    this.resetStream();
+    this.stream.reset();
     this.emit(initialState(this.state.settings));
   }
 
   cancel(): void {
     this.cancelled = true;
     this.controller?.abort();
+  }
+
+  /**
+   * O-018: one model call summarizes the conversation; the next send replays the summary
+   * instead of the covered messages. The transcript stays visible, only state changes.
+   */
+  async compact(): Promise<void> {
+    const settings = this.state.settings;
+    if (this.state.phase !== "idle") return;
+    if (settings === null || !this.state.configured) {
+      this.fail({ kind: "unsupported", message: "No AI provider configured." });
+      return;
+    }
+    const messages = this.state.messages;
+    // Nothing new since the last summary: do not spend a call re-summarizing the same text.
+    const from = this.state.summary?.through ?? 0;
+    if (!messages.slice(from).some((message) => message.content.length > 0)) return;
+
+    this.cancelled = false;
+    this.stream.reset();
+    this.emit({ phase: "compacting", error: null });
+    const abort = new AbortController();
+    this.controller = abort;
+    const outcome = await compactConversation({
+      call: this.call,
+      now: this.now,
+      settings,
+      messages,
+      summary: this.state.summary,
+      signal: abort.signal,
+    });
+    // A new chat superseded this call: its own state must stand (newChat reset it).
+    if (this.controller !== abort) return;
+    this.controller = null;
+    const cancelled = this.cancelled;
+    this.cancelled = false;
+    this.emit({
+      phase: "idle",
+      ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
+    });
+    if (cancelled) return;
+    if ("failure" in outcome) this.fail(outcome.failure);
+    else this.emit({ summary: outcome.summary });
   }
 
   openFile = (path: string): void => this.host.openFile(path);
@@ -130,7 +177,7 @@ export class ChatSession {
     }
 
     this.cancelled = false;
-    this.resetStream();
+    this.stream.reset();
     const user = this.nextMessage("user", content);
     // A pasted screenshot (D-113) rides on the user's bubble; an image-only message has no text.
     const messages = [...this.state.messages, images.length > 0 ? { ...user, images } : user];
@@ -158,30 +205,30 @@ export class ChatSession {
         call: this.call,
         settings,
         system: built.system,
-        messages: replayTurns(messages, HISTORY_LIMIT),
+        messages: replayWithSummary(messages, this.state.summary, HISTORY_LIMIT),
         host: this.host,
         signal: abort.signal,
         runner: this.runner,
-        onText: (chunk) => this.streamChunk(chunk),
+        onText: (chunk) => this.stream.chunk(chunk),
         // D-110: the status lines, the program rows and the model-call rows are wired in
         // chat-turn-hooks.ts, which reads this session's current state.
         ...turnHooks({
           trace: () => this.state.trace,
           reasoning: () => this.state.reasoning,
           emit: (patch) => this.emit(patch),
-          dropStream: () => this.dropStream(),
+          dropStream: () => this.stream.drop(),
         }),
       });
       if (this.cancelled) return;
       if (!outcome.ok) {
-        this.dropStream();
+        this.stream.drop();
         this.emit({ repair: null });
         this.fail(outcome.failure);
         return;
       }
       this.emit({ repair: null });
       const response = outcome.parsed.response;
-      this.finishStream(response.message || "Done.");
+      this.stream.finish(response.message || "Done.");
       if (response.patches.length > 0) {
         this.emit({
           proposal: await buildProposal(
@@ -195,14 +242,14 @@ export class ChatSession {
       }
     } catch (error) {
       if (!this.cancelled) {
-        this.dropStream();
+        this.stream.drop();
         this.fail({ kind: "stream", message: errorText(error) });
       }
     } finally {
       this.controller = null;
       const cancelled = this.cancelled;
       this.cancelled = false;
-      this.resetStream();
+      this.stream.reset();
       this.emit({
         phase: "idle",
         streaming: false,
@@ -210,54 +257,6 @@ export class ChatSession {
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }
-  }
-
-  /** Paint the growing `message` field into a bubble while the JSON streams in. */
-  private streamChunk(chunk: string): void {
-    const visible = this.stream.push(chunk);
-    if (visible === null) return;
-    if (this.streamId === null) {
-      const message = this.nextMessage("assistant", visible);
-      this.streamId = message.id;
-      this.emit({ streaming: true, messages: [...this.state.messages, message] });
-      return;
-    }
-    const id = this.streamId;
-    this.emit({
-      messages: this.state.messages.map((message) =>
-        message.id === id ? { ...message, content: visible } : message,
-      ),
-    });
-  }
-
-  private finishStream(content: string): void {
-    const id = this.streamId;
-    this.streamId = null;
-    this.emit({
-      streaming: false,
-      messages:
-        id === null
-          ? [...this.state.messages, this.nextMessage("assistant", content)]
-          : this.state.messages.map((message) =>
-              message.id === id ? { ...message, content } : message,
-            ),
-    });
-  }
-
-  private dropStream(): void {
-    const id = this.streamId;
-    this.streamId = null;
-    this.emit({
-      streaming: false,
-      ...(id === null
-        ? {}
-        : { messages: this.state.messages.filter((message) => message.id !== id) }),
-    });
-  }
-
-  private resetStream(): void {
-    this.stream.reset();
-    this.streamId = null;
   }
 
   /** Write the accepted files through the validated path. */

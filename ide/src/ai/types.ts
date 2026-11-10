@@ -186,7 +186,16 @@ export interface ChatTraceRun {
 /** The turn's activity, in order: a model call, then the program it asked for, then the next. */
 export type ChatActivity = ChatTraceCall | ChatTraceRun;
 
-export type ChatPhase = "idle" | "sending" | "applying";
+export type ChatPhase = "idle" | "sending" | "applying" | "compacting";
+
+/** The model's replayable summary of a covered transcript prefix (O-018 context compaction). */
+export interface ChatSummary {
+  content: string;
+  /** When the summarization call finished. */
+  at: number;
+  /** Transcript messages the summary replaces: a prefix of ChatState.messages. */
+  through: number;
+}
 
 /** What the conversation was assembled from, for the footer. */
 export interface ChatContextInfo {
@@ -200,6 +209,8 @@ export interface ChatContextInfo {
 export interface ChatState {
   phase: ChatPhase;
   messages: ChatMessage[];
+  /** The latest compaction, replayed instead of the messages it covers (O-018). */
+  summary: ChatSummary | null;
   proposal: ChatProposal | null;
   applied: ChatApplied | null;
   /** Set after a clean Apply; Undo writes these before-images back. */
