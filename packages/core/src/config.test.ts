@@ -30,7 +30,14 @@ const FULL_CONFIG: FacilisConfig = {
     ownerColumns: ["ownerId"],
   },
   i18n: { defaultLocale: "en", locales: ["en", "fr"] },
-  auth: SPEC_AUTH,
+  auth: {
+    ...SPEC_AUTH,
+    apiClients: {
+      enabled: false,
+      tokenTtlMs: 3_600_000,
+      rateLimit: { windowMs: 60_000, maxRequests: 30 },
+    },
+  },
   jobs: {
     maxConcurrent: 3,
     maxAttempts: 2,
@@ -74,6 +81,12 @@ describe("defineConfig", () => {
     });
     expect(config.i18n).toEqual({ defaultLocale: "en", locales: ["en"] });
     expect(config.auth.sessionDurationMs).toBe(1000 * 60 * 60 * 24 * 7);
+    // API clients are opt-in, tokens last one hour and issuance is throttled (V3a, D-143).
+    expect(config.auth.apiClients).toEqual({
+      enabled: false,
+      tokenTtlMs: 3_600_000,
+      rateLimit: { windowMs: 60_000, maxRequests: 30 },
+    });
     // The queue is safe by default: two slots, no retry, persisted (D-107).
     expect(config.jobs).toEqual({
       maxConcurrent: 2,

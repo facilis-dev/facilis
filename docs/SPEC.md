@@ -1,12 +1,14 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.19 (CSRF: origin gate, strict media type and the crossSite exposure flag, D-140)
+**Version:** 1.21 (Token endpoint rate-limited per client, revoca per client confermata, D-143)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
-- v1.19 — CSRF is structural (D-140). `defineAuthorizedHandler` rejects an unsafe cross-site request with `403 forbidden` before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback; a missing `Origin` is a non-browser client) and a `body`/`form` route accepts only `application/json`/`multipart/form-data` (`415 unsupported_media_type`, a new code in the closed registry), so `SameSite=Lax` is defense in depth rather than the only barrier. `config.security.trustedOrigins` (default `[]`) allow-lists a same-site SPA/API split; `crossSite: true` declares a public route exposed to other origins and is propagated as `RouteMeta.crossSite`/`x-cross-site`, with a Nitro middleware answering CORS preflight — it is an exposure declaration, not a CSRF defense. §7.1/§7.3/§7.4/§8.2/§8.6 follow.
+- v1.21 — Il token endpoint e' rate-limited (D-143). `auth.apiClients.rateLimit` (default `windowMs: 60000`, `maxRequests: 30`) limita gli scambi per client id in una finestra fissa in-process; oltre il budget la route risponde `429 too_many_requests` (nuovo codice della registry chiusa O-002) con `retry-after`, prima di toccare il database, e audita il tentativo. La revoca resta per client: un client revocato invalida client e token in una transazione e non esiste revoca per singolo token. §7.1/§7.4/§8.6 follow.
+- v1.20 — External APIs (D-142). `auth.apiClients` (default disabled) exposes the framework-owned `POST /api/auth/token` (OAuth2 `client_credentials`, JSON body, no refresh token: renewal is a new grant); the access token is opaque and stored as a SHA-256 hash, and `Authorization: Bearer` resolves to a **service account** (`users.isService`, a role fixed on the client) in the session middleware. A service account can never log in: `validateSession` refuses it, `createSession` throws, SSO does not link it and the template login route rejects it. `crossSite: true` with a non-empty `permission` is now legal (it is reachable only with a Bearer token) and publishes `x-cross-site` + OpenAPI `security: [{ bearerAuth: [] }]`; `originCheck: "skip"` is the protocol-only exemption (SAML ACS). §5.3/§6.9/§7.1/§7.3/§7.4/§8.2/§8.4.4/§8.6 follow.
+- v1.19 — CSRF is structural (D-141). `defineAuthorizedHandler` rejects an unsafe cross-site request with `403 forbidden` before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback; a missing `Origin` is a non-browser client) and a `body`/`form` route accepts only `application/json`/`multipart/form-data` (`415 unsupported_media_type`, a new code in the closed registry), so `SameSite=Lax` is defense in depth rather than the only barrier. `config.security.trustedOrigins` (default `[]`) allow-lists a same-site SPA/API split; `crossSite: true` declares a public route exposed to other origins and is propagated as `RouteMeta.crossSite`/`x-cross-site`, with a Nitro middleware answering CORS preflight — it is an exposure declaration, not a CSRF defense. §7.1/§7.3/§7.4/§8.2/§8.6 follow.
 - v1.18 — System-only is a class, not a defect (D-137). The project graph and the Data Explorer label a table without RLS **system-only** in a neutral colour (the amber "no RLS" badge is gone; the red "RLS off on scoped table" stays), and `@facilis/analyze` warns `route-system-table` when a route declares a system-only table in `dbTables`/`dbColumns` outside an audited `ctx.sudo`/`ctx.system` elevation — that elevation is the only legal access, so the declared use would fail closed at runtime. §8.4.6/§11.1 follow.
 - v1.17 — Table access is two-class (D-136): a table with RLS is app-scoped (the policies decide its rows; `facilis_app` holds DML on it) and a table without RLS is system-only (no privilege for the app role; reachable only through the privileged owner connection and the audited `facilis_system`). `ensureAppRole` reconciles the grants with the live catalog after migrations, installs no table default privilege (a new table fails closed until it enables RLS), and the app role is `NOINHERIT` so its `facilis_system` membership (needed for the audited `SET ROLE`) does not inherit the system grants. `sessions`/`user_roles` become app-scoped with an `EXISTS` policy over `users`; `roles`/`role_permissions` are system-only. §5.2/§5.3/§8.4.6 follow.
 - v1.16 — The project graph shows every real page, explicit page links and audited elevation (D-134): page nodes are `src/pages/**` only (all pages, including pages with no API calls), with URL paths from the explicit route table; `page-link` edges follow `Link`/`NavLink`/`navigate` targets; a route→table edge reached through `ctx.sudo`/`ctx.system` is marked with one warning colour and a route-card chip; selecting a page opens a bounded static structure inspector (nested components/sections, `Outlet` composition, dynamic branches marked), not a rendering. §10.2 follows.
@@ -542,9 +544,10 @@ Exports:
   session it also sets `AuthContext.sessionHash` (SHA-256 hex of the session id), which the sudo
   audit writes instead of the raw cookie (D-099)
 - `createSession()`, `destroySession()`, `validateSession()`
+- API clients (D-142): `createApiClient()`, `listApiClients()`, `revokeApiClient()`, `issueApiToken()`, `validateApiToken()` — a client is a service user (`users.isService`) plus a hashed secret and a fixed role; the framework-owned `POST /api/auth/token` exchanges the client id + secret for a short-lived Bearer token (no refresh token), rate-limited per client id (D-143, `auth.apiClients.rateLimit` → `429 too_many_requests` with `retry-after`), and the session middleware resolves `Authorization: Bearer` before the cookie
 - `hasPermission(user, permission)` — RBAC check helper
 - `expandRoles(roles, roleMap)` — expands roles to permission set (pure function, reads config)
-- `db` — re-export of the auth tables (`users`, `sessions`, `roles`, `role_permissions`, `user_roles`)
+- `db` — re-export of the auth tables (`users`, `sessions`, `roles`, `role_permissions`, `user_roles`, `api_clients`, `api_tokens`)
 - `seedFromConfig(config)` — generates the seed migration from `FacilisConfig.auth`
 - `registerInitialAdmin()` — reads `FACILIS_INITIAL_ADMIN` env var and grants admin role on registration
 - Login/logout/register route blueprints (optional to install)
@@ -559,6 +562,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   tenantId: tenantColumn(), // @facilis/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
   passwordHash: text("password_hash"),
+  isService: boolean("is_service").default(false).notNull(), // D-142: API service account, never loggable
   createdAt: timestamp("created_at").defaultNow(),
 })
 
@@ -570,6 +574,32 @@ export const sessions = pgTable("sessions", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 }, () => [parentUserAccessPolicy("sessions_user_access")]).enableRLS()
+
+// API clients (D-142): app-scoped through the parent service user, like sessions. The secret and
+// the tokens are SHA-256 hashes; plaintext exists only in the creation/issue result.
+export const apiClients = pgTable("api_clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: text("client_id").notNull().unique(),
+  secretHash: text("secret_hash").notNull(),
+  name: text("name").notNull(),
+  role: text("role").notNull(),                 // validated against config.auth.roles
+  userId: uuid("user_id").notNull().references(() => users.id), // the service user
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"),
+  lastUsedAt: timestamp("last_used_at"),
+}, () => [parentUserAccessPolicy("api_clients_user_access")]).enableRLS()
+
+export const apiTokens = pgTable("api_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tokenHash: text("token_hash").notNull().unique(),
+  clientId: uuid("client_id").notNull().references(() => apiClients.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"),
+  lastUsedAt: timestamp("last_used_at"),
+}, () => [parentUserAccessPolicy("api_tokens_user_access")]).enableRLS()
 
 // System-only (D-136): no RLS, no privilege for facilis_app. Seeded by the migration and never
 // read at runtime — permissions reach the app from facilis.config.ts via expandRoles().
@@ -1119,8 +1149,10 @@ generator is disabled, and `404` in production unless `openAPI.production` is en
 Behavior changes vs the old scanner: same-file and one-hop imported consts are resolved;
 wrapper-less routes are listed with `security: "unknown"`; permissions are arrays; methods
 outside core's five are omitted with a warning; there is no `defineRouteMeta` fallback.
-`x-cross-site: true` (D-140) is emitted only when the wrapper declares `crossSite: true`; the
-same value appears as `RouteMeta.crossSite`.
+`x-cross-site: true` (D-141) is emitted only when the wrapper declares `crossSite: true`; the
+same value appears as `RouteMeta.crossSite`. A `crossSite` route with a non-empty permission is
+reachable only with a Bearer token, so the operation declares `security: [{ bearerAuth: [] }]` and
+the document gains `components.securitySchemes.bearerAuth` only when such a route exists (D-142).
 
 ---
 
@@ -1149,6 +1181,14 @@ interface FacilisConfig {
       failureRedirect: string            // same-origin path, default "/login"
       stateTtlMs: number                 // login-attempt lifetime, default 10 min
     }
+    apiClients: {                        // D-142; every key has a default
+      enabled: boolean                   // expose POST /api/auth/token, default false
+      tokenTtlMs: number                 // access-token lifetime, default 3600000
+      rateLimit: {                       // D-143; token exchanges per client id
+        windowMs: number                 // fixed window length, default 60000
+        maxRequests: number              // exchanges allowed in a window, default 30
+      }
+    }
   }
   jobs: {
     maxConcurrent: number      // attempts executing at the same time (default 2)
@@ -1175,7 +1215,7 @@ interface FacilisConfig {
     includeUserAgent: boolean  // default false
     trustProxy: boolean        // trust x-forwarded-for, default false
   }
-  security: {                  // D-140; request-origin policy for unsafe methods
+  security: {                  // D-141; request-origin policy for unsafe methods
     trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []
   }
 }
@@ -1231,7 +1271,7 @@ interface RouteMeta {
   dbTables: string[]                          // empty = explicit "no DB"
   dbColumns: string[]                         // format: "table.column"
   security: "required" | "optional" | "public" | "unknown"
-  crossSite?: boolean                         // true = declared callable from another origin (D-140)
+  crossSite?: boolean                         // true = declared exposed to other origins (D-141; Bearer when a permission is set, D-142)
   sourceFile?: string                         // for editor jump-to
 }
 
@@ -1288,7 +1328,8 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   dbTables: string[]                          // REQUIRED
   dbColumns?: string[]
   description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
-  crossSite?: boolean                      // true = callable from another origin, no credentials; requires permission: [] (D-140)
+  crossSite?: boolean                      // true = exposed to other origins; with a permission it requires a Bearer token (D-142)
+  originCheck?: "enforce" | "skip"         // "skip" only for framework protocol endpoints (SAML ACS); default enforce (D-142)
 }
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
@@ -1370,15 +1411,18 @@ elevation; it cannot reach a policy-free client. Using the raw client (or import
 is reported by the analyzer as `route-direct-db` — "not recommended" made visible in the
 manifest.
 
-**Request-origin gate and media type (D-140).** Before the permission check, an unsafe method
+**Request-origin gate and media type (D-141).** Before the permission check, an unsafe method
 (POST/PUT/PATCH/DELETE) must pass the origin gate: `Sec-Fetch-Site` is authoritative when present
 (`same-origin`/`none` allowed, `same-site` only for an origin in `config.security.trustedOrigins`,
 `cross-site` rejected), otherwise `Origin` must match the request `Host` or a trusted origin; a
 missing `Origin` is a non-browser client and is allowed, `null` is rejected. A rejection is
 `403 forbidden`. A route with a `body` schema accepts only `application/json`, one with `form`
 only `multipart/form-data`; anything else is `415 unsupported_media_type`, decided before the
-body is read. `crossSite: true` skips the gate for that route (public API exposed to other
-origins) and is rejected at definition time unless `permission: []`.
+body is read. `crossSite: true` skips the gate for that route (an exposed API): with
+`permission: []` it is anonymous, with a permission it is reachable only with a Bearer token
+(D-142) — a session cookie never crosses origins. `originCheck: "skip"` is the same exemption for
+framework protocol endpoints that validate the request themselves (the SAML ACS POST); an
+application route must not use it.
 
 **Logging on the context (D-119).** The wrapper records exactly one access entry for every
 request exit path (401/403, 400, 503, a handler result or a throw) with method, pathname, status,
@@ -1415,8 +1459,8 @@ work. With at-rest encryption on (D-117) there is no presigned path: the handler
 and decrypts while streaming. A blob stored before encryption was enabled is refused on decrypt
 — the download fails instead of ever returning plaintext — so it must be re-uploaded. Every
 mutation — upload, delete, attach — stays session-authenticated. The
-API error registry is closed (O-002): `file_too_large` is `413`, `storage_unavailable` is `503`
-and `unsupported_media_type` is `415`.
+API error registry is closed (O-002): `file_too_large` is `413`, `storage_unavailable` is `503`,
+`unsupported_media_type` is `415` and `too_many_requests` is `429` (D-143).
 
 ### 7.5 `AIResponse`
 
@@ -1733,9 +1777,9 @@ possibly `[]` — so the job body always sees a system-scoped transaction (§8.4
 `defineAuthorizedHandler` is the **only** documented way to create a route. It enforces:
 
 - `permission` check (403 before body validation)
-- request-origin gate on unsafe methods (403 when cross-site; D-140)
-- strict media type on body/form routes (415 `unsupported_media_type`; D-140)
-- `crossSite: true` only on `permission: []` routes (throw at definition, analyzer diagnostic)
+- request-origin gate on unsafe methods (403 when cross-site; D-141)
+- strict media type on body/form routes (415 `unsupported_media_type`; D-141)
+- `crossSite: true` with a permission is exposed and Bearer-authenticated (D-142); a protocol endpoint may set `originCheck: "skip"` (SAML ACS only)
 - Input validation against Zod schemas (400 on failure)
 - `ctx.db` is the policy-wrapped client (never raw)
 - `dbTables` required (compile-time enforcement)
@@ -1892,14 +1936,14 @@ export default defineAuthorizedHandler(
 #### 8.4.4 Runtime Flow
 
 ```
-1. Session middleware reads session cookie
-   → loads user from `users`
-   → loads assigned roles from `user_roles`
+1. Session middleware reads `Authorization: Bearer <token>` first, else the session cookie
+   → bearer: validateApiToken → the client's service user + the client's fixed role (`via: "bearer"`)
+   → cookie: loads user from `users` → assigned roles from `user_roles` (`via: "session"`)
 
 2. expandRoles(roles, config.auth.roles) → permission set
    (pure function, reads config — no DB query)
 
-3. event.context.user = { userId, roles, perms }   // no tenant: it is the deployment's
+3. event.context.auth = { userId, roles, permissions, via }   // no tenant: it is the deployment's
 
 4. defineAuthorizedHandler checks `permission` against perms
    → 403 if missing, before handler runs
@@ -2021,9 +2065,11 @@ connection already is `facilis_app` can `SET ROLE` for the audited elevation, an
 membership's grants would reopen every system-only table.
 
 **Framework tables.** `users`, `sessions`, `user_roles`, `auth_identities`, `auth_sso_states`,
-`facilis_files`, `facilis_jobs` and the generated link tables are app-scoped. `sessions` and
-`user_roles` have no tenant column of their own: their policy is an `EXISTS` over `users` (the
-D-053 inheritance pattern), so they are visible exactly when their user is. `roles` and
+`api_clients`, `api_tokens`, `facilis_files`, `facilis_jobs` and the generated link tables are
+app-scoped. `sessions`, `user_roles`, `api_clients` and `api_tokens` have no tenant column of
+their own: their policy is an `EXISTS` over `users` (the D-053 inheritance pattern), so they are
+visible exactly when their parent user is — for an API client, its `users.is_service` service
+account (D-142). `roles` and
 `role_permissions` are system-only: migrations seed them, and permissions reach the runtime from
 `facilis.config.ts` through `expandRoles`, never from the table.
 
@@ -2049,12 +2095,22 @@ classification, not a defect).
 - A GET route is side-effect free: `SameSite=Lax` sends the session cookie on a cross-site
 top-level GET navigation, so a state-changing GET is CSRF-able even with the origin gate (which
 covers unsafe methods only). The framework-owned SSO GET/ACS pair is the single, protocol-driven
-write path; an application route must not add another one (D-140).
-- CSRF is structural, not a per-route courtesy (D-140): `defineAuthorizedHandler` rejects an
+write path; an application route must not add another one (D-141).
+- CSRF is structural, not a per-route courtesy (D-141): `defineAuthorizedHandler` rejects an
   unsafe cross-site request (403) before the permission check, and a JSON/form route answers
   `415 unsupported_media_type` for any other media type — so `SameSite=Lax` is defense in depth,
   not the only barrier. `crossSite: true` is an exposure declaration for public routes, never a
   CSRF defense; login/logout/register are covered because they write cookies.
+- API service accounts cannot log in (D-142): `users.is_service` marks them, `createSession`
+  throws and `validateSession` refuses one, SSO never links/provisions one and the template login
+  route rejects it. The framework-owned `POST /api/auth/token` is their only credential path
+  (client id + secret → short-lived Bearer, no refresh token); it answers 404 when
+  `auth.apiClients.enabled` is false, 401 generically for a wrong/revoked client, and audits
+  issuance/failures without the secret or the token. Issuance is rate-limited per client id
+  (D-143): over the `auth.apiClients.rateLimit` budget the route answers `429 too_many_requests`
+  with `retry-after` before touching the database. The window is in-process, so it resets on
+  restart and is not shared across instances; revocation stays per client (the client and every
+  token it issued), never per single token.
 - AI patches are **validated** before write (17 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM

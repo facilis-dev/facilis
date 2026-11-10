@@ -105,7 +105,10 @@ describe("preflightResponse", () => {
     expect(response?.headers.get("access-control-allow-methods")).toBe(
       "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     );
-    expect(response?.headers.get("access-control-allow-headers")).toBe("content-type");
+    // v3a: the default allow-list carries authorization so a browser Bearer preflight passes.
+    expect(response?.headers.get("access-control-allow-headers")).toBe(
+      "content-type,authorization",
+    );
     expect(response?.headers.get("access-control-max-age")).toBe("600");
   });
 

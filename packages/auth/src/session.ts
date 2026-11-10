@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis/db";
 
+import { validateApiToken } from "./api-clients.ts";
 import { randomToken, sha256Hex } from "./crypto.ts";
 import { expandRoles, type AuthConfig } from "./roles.ts";
 import { sessions, userRoles, users, type AuthUser, type SessionRow } from "./tables.ts";
@@ -26,6 +27,17 @@ export async function createSession(
   userId: string,
   options: CreateSessionOptions = {},
 ): Promise<{ id: string; expiresAt: Date }> {
+  // A service account exists only for machine credentials: minting a cookie session for one
+  // would make it loggable in a browser, so refuse here even if a caller missed the flag.
+  const serviceAccount = await db
+    .select({ isService: users.isService })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (serviceAccount[0]?.isService === true) {
+    throw new Error("createSession: service accounts cannot log in");
+  }
+
   const id = randomToken(32);
   const expiresAt = new Date(Date.now() + (options.ttlMs ?? DEFAULT_SESSION_TTL_MS));
   await db.insert(sessions).values({ id, userId, expiresAt });
@@ -52,6 +64,7 @@ export async function validateSession(
         tenantId: users.tenantId,
         createdAt: users.createdAt,
       },
+      isService: users.isService,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
@@ -60,6 +73,9 @@ export async function validateSession(
 
   const found = rows[0];
   if (found === undefined) return null;
+  // Defense in depth: a service account never validates a cookie session, even one inserted
+  // before createSession started refusing them.
+  if (found.isService) return null;
   if (found.session.expiresAt.getTime() <= Date.now()) return null;
   return { user: found.user, session: found.session };
 }
@@ -90,10 +106,10 @@ export interface SessionMiddlewareDeps {
 }
 
 /**
- * Builds the `facilis-session` middleware handler. It reads the session cookie, then
- * validates the session and loads app roles inside ONE deployment-tenant policy scope
- * (`runWithPolicyScope`), expands the roles from config (SPEC §8.4.4) and sets
- * `context.auth`.
+ * Builds the `facilis-session` middleware handler. An `Authorization: Bearer` token wins
+ * over the session cookie; otherwise it reads the cookie, then validates the session and
+ * loads app roles inside ONE deployment-tenant policy scope (`runWithPolicyScope`), expands
+ * the roles from config (SPEC §8.4.4) and sets `context.auth` with the auth channel in `via`.
  *
  * The scope matters: production connects as the non-superuser facilis_app role, so `users`
  * is RLS-filtered and an unscoped read cannot see any user row. Running both queries in the
@@ -103,6 +119,29 @@ export function sessionMiddleware(
   deps: SessionMiddlewareDeps,
 ): (event: SessionEvent) => Promise<void> {
   return async (event) => {
+    const bearerToken = readBearerToken(event.req.headers.get("authorization"));
+    if (bearerToken !== null) {
+      // A bearer request never falls back to the cookie: the client chose token auth, so an
+      // invalid token is anonymous rather than a browser session. The raw token is only ever
+      // hashed here — it must never be logged or stored (D-099).
+      event.context.auth = await runWithPolicyScope(
+        deps.db,
+        { tenantId: deps.tenantId },
+        async (tx) => {
+          const validated = await validateApiToken(tx, bearerToken);
+          if (validated === null) return null;
+          return {
+            userId: validated.userId,
+            roles: [validated.role],
+            permissions: expandRoles([validated.role], deps.config),
+            sessionHash: validated.tokenHash,
+            via: "bearer" as const,
+          };
+        },
+      );
+      return;
+    }
+
     const sessionId = readCookie(event.req.headers.get("cookie"), SESSION_COOKIE_NAME);
     if (sessionId === null) {
       event.context.auth = null;
@@ -127,7 +166,7 @@ export function sessionMiddleware(
     // Only a valid session gets a hash: the audit trail correlates requests with a session
     // without ever storing the cookie value (D-099).
     event.context.auth =
-      auth === null ? null : { ...auth, sessionHash: await sha256Hex(sessionId) };
+      auth === null ? null : { ...auth, sessionHash: await sha256Hex(sessionId), via: "session" };
   };
 }
 
@@ -137,6 +176,18 @@ async function loadUserRoles(db: PolicyScopedDatabase, userId: string): Promise<
     .from(userRoles)
     .where(eq(userRoles.userId, userId));
   return rows.map((row) => row.role);
+}
+
+/**
+ * Extracts the token from an `Authorization: Bearer <token>` header. The scheme is
+ * case-insensitive (RFC 7235) and the token is returned verbatim; an empty, absent or
+ * malformed header yields null, i.e. "no bearer auth".
+ */
+export function readBearerToken(header: string | null): string | null {
+  if (header === null || header.length === 0) return null;
+  const match = /^Bearer[ \t]+(.+)$/i.exec(header.trim());
+  const token = match?.[1]?.trim();
+  return token === undefined || token.length === 0 ? null : token;
 }
 
 function readCookie(header: string | null, name: string): string | null {

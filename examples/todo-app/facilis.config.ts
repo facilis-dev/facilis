@@ -12,7 +12,13 @@ export default defineConfig({
   },
   i18n: { defaultLocale: "en", locales: ["en", "it"] },
   auth: {
-    permissions: ["todos:read", "todos:write", "users:read"],
+    permissions: [
+      "todos:read",
+      "todos:write",
+      "users:read",
+      "api-clients:read",
+      "api-clients:write",
+    ],
     roles: {
       admin: ["*"],
       manager: ["todos:read", "todos:write", "users:read"],
@@ -20,6 +26,9 @@ export default defineConfig({
     },
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
+    // Programmatic API clients (V3a): the client-credentials endpoint and the management
+    // routes exist only when enabled; tokens live one hour, so a leaked token is short-lived.
+    apiClients: { enabled: true, tokenTtlMs: 3_600_000 },
   },
   // Background jobs (D-107): every key is shown once; a definition may override
   // maxAttempts/timeoutMs, the rest is queue-wide.

@@ -3,11 +3,15 @@
  */
 
 export {
+  apiClients,
+  apiTokens,
   rolePermissions,
   roles,
   sessions,
   userRoles,
   users,
+  type ApiClientRow,
+  type ApiTokenRow,
   type AuthUser,
   type NewUserRow,
   type RolePermissionRow,
@@ -16,6 +20,19 @@ export {
   type UserRoleRow,
   type UserRow,
 } from "./tables.ts";
+export {
+  createApiClient,
+  issueApiToken,
+  listApiClients,
+  revokeApiClient,
+  validateApiToken,
+  type ApiClientSummary,
+  type CreateApiClientInput,
+  type CreatedApiClient,
+  type IssuedApiToken,
+  type IssueApiTokenInput,
+  type ValidatedApiToken,
+} from "./api-clients.ts";
 export { expandRoles, hasPermission, type AuthConfig, type AuthContext } from "./roles.ts";
 export { hashPassword, verifyPassword } from "./password.ts";
 export {

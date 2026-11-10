@@ -19,6 +19,7 @@ const KNOWN_ERROR_CODES = new Set([
   "file_too_large",
   "storage_unavailable",
   "unsupported_media_type",
+  "too_many_requests",
 ]);
 
 /**

@@ -17,8 +17,16 @@ export interface OpenApiDocument {
   openapi?: string;
   info?: Record<string, unknown>;
   paths?: Record<string, OpenApiPathItem>;
+  components?: OpenApiComponents;
   [key: string]: unknown;
 }
+
+export interface OpenApiComponents {
+  securitySchemes?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+const BEARER_AUTH_SCHEME = { type: "http", scheme: "bearer" } as const;
 
 export interface OpenApiFacadeDependencies {
   metadata: RouteMetadataMap;
@@ -45,6 +53,7 @@ export function mergeOpenApiMetadata(
   metadata: RouteMetadataMap,
 ): OpenApiDocument {
   const paths: Record<string, OpenApiPathItem> = { ...spec.paths };
+  let usesBearerAuth = false;
 
   for (const [path, operations] of Object.entries(metadata)) {
     const pathItem = paths[path];
@@ -55,11 +64,33 @@ export function mergeOpenApiMetadata(
       if (!operation) continue;
       mergedPath ??= { ...pathItem };
       mergedPath[method] = mergeOperation(operation, route);
+      usesBearerAuth ||= needsBearerAuth(route);
     }
     if (mergedPath) paths[path] = mergedPath;
   }
 
-  return { ...spec, paths };
+  if (!usesBearerAuth) return { ...spec, paths };
+  // The scheme is declared once, only when an operation actually references it, so a
+  // project without token-authenticated cross-site routes publishes no dangling scheme.
+  return { ...spec, paths, components: withBearerAuth(spec.components) };
+}
+
+/** A cross-site route with a permission is reachable only with a Bearer token (v3a). */
+function needsBearerAuth(route: RouteMetadata): boolean {
+  if (route.crossSite !== true) return false;
+  if (route.permission === undefined || route.unresolved.includes("permission")) return false;
+  return route.permission.length > 0;
+}
+
+/** Merge the bearer scheme into the spec's components without dropping the native ones. */
+function withBearerAuth(components: OpenApiComponents | undefined): OpenApiComponents {
+  return {
+    ...components,
+    securitySchemes: {
+      ...components?.securitySchemes,
+      bearerAuth: BEARER_AUTH_SCHEME,
+    },
+  };
 }
 
 function mergeOperation(operation: OpenApiOperation, route: RouteMetadata): OpenApiOperation {
@@ -71,6 +102,7 @@ function mergeOperation(operation: OpenApiOperation, route: RouteMetadata): Open
   if (!route.unresolved.includes("dbTables")) merged["x-db-tables"] = [...route.dbTables];
   if (!route.unresolved.includes("dbColumns")) merged["x-db-columns"] = [...route.dbColumns];
   if (route.crossSite === true) merged["x-cross-site"] = true;
+  if (needsBearerAuth(route)) merged["security"] = [{ bearerAuth: [] }];
   if (route.sourceFile !== undefined) merged["x-facilis-source"] = route.sourceFile;
   if (route.warnings.length > 0) {
     merged["x-facilis-warning"] = route.warnings.map((warning) => ({

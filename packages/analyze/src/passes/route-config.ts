@@ -6,7 +6,7 @@
  */
 
 import { callArguments, type AstNode } from "../ast/node.ts";
-import { error } from "../diagnostics.ts";
+import { error, warning } from "../diagnostics.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import type { StaticContext } from "../static-eval.ts";
 import type { ConfigFacts, Diagnostic, RouteInputFact, SourceRef, UnknownFact } from "../types.ts";
@@ -147,11 +147,13 @@ export function routeConfigFacts(
       }
     }
   }
+  // v3a: crossSite + a non-empty permission is legal now (the route is reached with a Bearer
+  // token); the warning only reminds the author that a session cookie never crosses origins.
   if (crossSite === true && permission !== null && permission.length > 0) {
     diagnostics.push(
-      error(
+      warning(
         "route-cross-site-authenticated",
-        "crossSite routes must be public: permission must be [] (a session cookie never crosses origins)",
+        "crossSite route requires a Bearer token: session cookies never cross origins",
         ref,
       ),
     );

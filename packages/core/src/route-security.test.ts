@@ -110,13 +110,34 @@ describe("request-origin gate", () => {
     expect(await route(event)).toEqual({ ok: true });
   });
 
-  it("rejects crossSite unless the route is public", () => {
-    expect(() =>
-      defineAuthorizedHandler(
-        { permission: "todos:read", dbTables: [], crossSite: true },
-        () => null,
-      ),
-    ).toThrow(/crossSite requires permission: \[\]/);
+  it("accepts crossSite together with a non-empty permission (Bearer authenticates)", async () => {
+    // v3a: a cross-site route may be authenticated, but only by a Bearer token; a session
+    // cookie never crosses origins, so the wrapper no longer refuses the combination.
+    const route = defineAuthorizedHandler(
+      { permission: "todos:read", dbTables: [], crossSite: true },
+      (_event, ctx) => ({ userId: ctx.auth.userId }),
+    );
+
+    expect(await route(makeEvent({ auth: AUTH }))).toEqual({ userId: AUTH.userId });
+  });
+
+  it("skips the origin gate only with originCheck: skip (framework protocol endpoints)", async () => {
+    const skipped = defineAuthorizedHandler(
+      { permission: [], dbTables: [], originCheck: "skip" },
+      () => ({ ok: true }),
+    );
+    const enforced = defineAuthorizedHandler(
+      { permission: [], dbTables: [], originCheck: "enforce" },
+      () => ({ ok: true }),
+    );
+    const crossSite = (): FacilisRequestEvent => {
+      const event = makeEvent();
+      event.req.headers.set("sec-fetch-site", "cross-site");
+      return event;
+    };
+
+    expect(await skipped(crossSite())).toEqual({ ok: true });
+    expect(((await enforced(crossSite())) as Response).status).toBe(403);
   });
 });
 

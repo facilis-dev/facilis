@@ -14,6 +14,7 @@ import {
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
   SSO_ROUTE,
+  TOKEN_ROUTE,
 } from "./constants.ts";
 import {
   VIRTUAL_CONFIG_ID,
@@ -235,6 +236,9 @@ function registerRuntimeHandlers(nitro: Nitro): void {
   // configured every path answers not_found, so the handler exists unconditionally and the
   // app never ships its own copy. It is reserved to the framework (SPEC §5.3).
   add(SSO_ROUTE, routeFile("sso.ts"));
+  // The token endpoint is framework auth in every environment (v3a): with apiClients disabled
+  // it answers not_found, so the app never ships its own copy (reserved to the framework).
+  add(TOKEN_ROUTE, routeFile("token.post.ts"));
 
   // Middleware order is significant: cors answers preflight before anything boots, then
   // context (db) before session (auth) (contracts §4.1).

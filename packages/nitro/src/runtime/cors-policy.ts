@@ -13,7 +13,9 @@ const PATH_PATTERNS = new Map<string, RegExp>();
 const PARAM_SEGMENT = /^\{[^}]+\}$/;
 const CATCH_ALL_SEGMENT = /^\{\*[^}]+\}$/;
 const ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
-const DEFAULT_ALLOW_HEADERS = "content-type";
+// A browser preflight for a Bearer token asks for authorization: without it in the default
+// allow-list a cross-site token request (v3a) would be blocked before reaching the route.
+const DEFAULT_ALLOW_HEADERS = "content-type,authorization";
 const PREFLIGHT_MAX_AGE = "600";
 
 function escapeSegment(segment: string): string {

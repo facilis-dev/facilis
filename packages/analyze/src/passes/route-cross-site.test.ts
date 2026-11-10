@@ -55,13 +55,16 @@ describe("route crossSite", () => {
     expect(diagnostics.map((item) => item.code)).toContain(STATIC_READ);
   });
 
-  it("errors when crossSite is true and permission is non-empty", () => {
+  it("warns when crossSite is true and permission is non-empty", () => {
     const { routes, diagnostics } = routesOf(
       '{ permission: ["todos:read"], crossSite: true, dbTables: [] }',
       ["todos:read"],
     );
     expect(routes[0]?.crossSite).toBe(true);
-    expect(diagnostics.map((item) => item.code)).toEqual([CROSS_SITE_AUTHENTICATED]);
+    // v3a: the combination is legal (Bearer token); only the cookie caveat remains a warning.
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: CROSS_SITE_AUTHENTICATED, severity: "warning" }),
+    ]);
   });
 
   it("does not flag crossSite true when permission is explicitly public", () => {

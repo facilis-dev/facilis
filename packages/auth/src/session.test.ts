@@ -3,21 +3,25 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
 
-import { sha256Hex } from "./crypto.ts";
+import { randomToken, sha256Hex } from "./crypto.ts";
 import type { AuthConfig } from "./roles.ts";
 import {
   createSession,
   destroySession,
+  readBearerToken,
   SESSION_COOKIE_NAME,
   sessionMiddleware,
   validateSession,
   type SessionEvent,
 } from "./session.ts";
-import { roles, userRoles, users } from "./tables.ts";
+import { apiClients, apiTokens, roles, sessions, userRoles, users } from "./tables.ts";
 import { createAuthTestDb } from "./test-support.ts";
 
 const TENANT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const OTHER_TENANT_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+// Module scope so the Bearer fixture builder (defined before the suite) can use it too.
+let db: FacilisDb;
 
 const config: AuthConfig = {
   permissions: ["todos:read", "todos:write"],
@@ -31,6 +35,10 @@ function eventWithCookie(cookie: string | undefined): SessionEvent {
   return { context: {}, req: { headers } };
 }
 
+function eventWithHeaders(headers: Record<string, string>): SessionEvent {
+  return { context: {}, req: { headers: new Headers(headers) } };
+}
+
 /** Inserts a fixture row through the privileged test connection (a superuser bypasses RLS). */
 async function insertUser(db: FacilisDb, email: string, tenantId: string): Promise<string> {
   const inserted = await db.db
@@ -42,8 +50,47 @@ async function insertUser(db: FacilisDb, email: string, tenantId: string): Promi
   return row.id;
 }
 
+/** Inserts a service user with a client and a live token: the state a Bearer request meets. */
+async function insertBearerClient(role: string): Promise<{ userId: string; accessToken: string }> {
+  const secret = "fsec_" + randomToken(16);
+  const accessToken = "fat_" + randomToken(24);
+
+  const createdUser = await db.db
+    .insert(users)
+    .values({
+      email: "service+" + globalThis.crypto.randomUUID() + "@facilis.invalid",
+      tenantId: TENANT_ID,
+      passwordHash: null,
+      isService: true,
+    })
+    .returning({ id: users.id });
+  const userId = createdUser[0]?.id;
+  if (userId === undefined) throw new Error("failed to insert the service user fixture");
+  await db.db.insert(userRoles).values({ userId, role });
+
+  const createdClient = await db.db
+    .insert(apiClients)
+    .values({
+      clientId: "fcli_" + randomToken(16),
+      secretHash: await sha256Hex(secret),
+      name: "session fixture",
+      role,
+      userId,
+    })
+    .returning({ id: apiClients.id });
+  const clientRowId = createdClient[0]?.id;
+  if (clientRowId === undefined) throw new Error("failed to insert the api client fixture");
+
+  await db.db.insert(apiTokens).values({
+    tokenHash: await sha256Hex(accessToken),
+    clientId: clientRowId,
+    userId,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  return { userId, accessToken };
+}
+
 describe("session lifecycle", () => {
-  let db: FacilisDb;
   let userId: string;
 
   beforeAll(async () => {
@@ -101,6 +148,7 @@ describe("session lifecycle", () => {
       roles: ["admin"],
       permissions: ["todos:read", "todos:write"],
       sessionHash,
+      via: "session",
     });
     expect(sessionHash).toMatch(/^[0-9a-f]{64}$/);
     expect(sessionHash).not.toBe(id);
@@ -159,5 +207,58 @@ describe("session lifecycle", () => {
 
     expect(own).toEqual([{ id: userId }]);
     expect(foreign).toEqual([]);
+  });
+
+  it("authenticates a Bearer token and records the auth channel", async () => {
+    const { userId: serviceUserId, accessToken } = await insertBearerClient("admin");
+    const event = eventWithHeaders({ authorization: "Bearer " + accessToken });
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
+
+    expect(event.context.auth).toEqual({
+      userId: serviceUserId,
+      roles: ["admin"],
+      permissions: ["todos:read", "todos:write"],
+      sessionHash: await sha256Hex(accessToken),
+      via: "bearer",
+    });
+  });
+
+  it("does not fall back to the cookie when a Bearer token is invalid", async () => {
+    const { id } = await createSession(db.db, userId);
+    await expect(validateSession(db.db, id)).resolves.not.toBeNull();
+
+    const event = eventWithHeaders({
+      authorization: "Bearer fat_not-a-real-token",
+      cookie: SESSION_COOKIE_NAME + "=" + id,
+    });
+    await sessionMiddleware({ db, config, tenantId: TENANT_ID })(event);
+
+    // The request chose token auth: an invalid token is anonymous, not a cookie session.
+    expect(event.context.auth).toBeNull();
+  });
+
+  it("never validates a cookie session for a service user", async () => {
+    const { userId: serviceUserId } = await insertBearerClient("admin");
+    const sessionId = "service-session-fixture";
+    await db.db.insert(sessions).values({
+      id: sessionId,
+      userId: serviceUserId,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await expect(validateSession(db.db, sessionId)).resolves.toBeNull();
+    await expect(createSession(db.db, serviceUserId)).rejects.toThrow(
+      /service accounts cannot log in/,
+    );
+  });
+});
+
+describe("readBearerToken", () => {
+  it("accepts a case-insensitive scheme and rejects malformed headers", () => {
+    expect(readBearerToken("Bearer token-1")).toBe("token-1");
+    expect(readBearerToken("bearer   token-2")).toBe("token-2");
+    expect(readBearerToken(null)).toBeNull();
+    expect(readBearerToken("Basic token-3")).toBeNull();
+    expect(readBearerToken("Bearer ")).toBeNull();
   });
 });

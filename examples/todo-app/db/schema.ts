@@ -8,6 +8,8 @@ import {
   tenantIsolationPolicy,
 } from "@facilis/db";
 import {
+  apiClients,
+  apiTokens,
   authIdentities,
   authSsoStates,
   rolePermissions,
@@ -20,8 +22,10 @@ import {
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
 // generates them together with the application tables. The job queue and the binary-file
 // metadata are framework state the project owns the DDL for, so they are re-exported the
-// same way (D-107, D-053).
+// same way (D-107, D-053), and the API-client tables are auth state (V3a).
 export {
+  apiClients,
+  apiTokens,
   authIdentities,
   authSsoStates,
   facilisFiles,

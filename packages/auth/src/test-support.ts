@@ -9,7 +9,15 @@ import {
 } from "@facilis/db";
 
 import { authIdentities, authSsoStates } from "./sso/tables.ts";
-import { rolePermissions, roles, sessions, userRoles, users } from "./tables.ts";
+import {
+  apiClients,
+  apiTokens,
+  rolePermissions,
+  roles,
+  sessions,
+  userRoles,
+  users,
+} from "./tables.ts";
 
 /**
  * Hand-written DDL matching the drizzle tables exactly (no drizzle-kit in CI). Column
@@ -21,6 +29,7 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
     email text NOT NULL UNIQUE,
     tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid,
     password_hash text,
+    is_service boolean NOT NULL DEFAULT false,
     created_at timestamp DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS sessions (
@@ -40,6 +49,28 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
     assigned_by uuid,
     assigned_at timestamp DEFAULT now(),
     PRIMARY KEY (user_id, role)
+  )`,
+  `CREATE TABLE IF NOT EXISTS api_clients (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id text NOT NULL UNIQUE,
+    secret_hash text NOT NULL,
+    name text NOT NULL,
+    role text NOT NULL,
+    user_id uuid NOT NULL REFERENCES users(id),
+    created_by uuid,
+    created_at timestamp DEFAULT now(),
+    revoked_at timestamp,
+    last_used_at timestamp
+  )`,
+  `CREATE TABLE IF NOT EXISTS api_tokens (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash text NOT NULL UNIQUE,
+    client_id uuid NOT NULL REFERENCES api_clients(id),
+    user_id uuid NOT NULL REFERENCES users(id),
+    expires_at timestamp NOT NULL,
+    created_at timestamp DEFAULT now(),
+    revoked_at timestamp,
+    last_used_at timestamp
   )`,
   `CREATE TABLE IF NOT EXISTS auth_identities (
     provider text NOT NULL,
@@ -70,6 +101,8 @@ const RLS_TABLES: readonly (readonly [string, PgTable])[] = [
   ["roles", roles],
   ["role_permissions", rolePermissions],
   ["user_roles", userRoles],
+  ["api_clients", apiClients],
+  ["api_tokens", apiTokens],
   ["auth_identities", authIdentities],
   ["auth_sso_states", authSsoStates],
 ];

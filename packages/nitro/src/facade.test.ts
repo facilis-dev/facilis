@@ -130,6 +130,48 @@ describe("mergeOpenApiMetadata", () => {
     expect(sameOrigin.paths?.["/api/todos"]?.get?.["x-cross-site"]).toBeUndefined();
   });
 
+  it("declares bearerAuth and operation security for a cross-site authenticated route", () => {
+    const spec: OpenApiDocument = {
+      openapi: "3.1.0",
+      paths: { "/api/todos": { get: { responses: {} } } },
+    };
+    const merged = mergeOpenApiMetadata(
+      spec,
+      metadataMap({ crossSite: true, permission: "todos:read" }),
+    );
+
+    expect(merged.components?.securitySchemes).toEqual({
+      bearerAuth: { type: "http", scheme: "bearer" },
+    });
+    expect(merged.paths?.["/api/todos"]?.get?.["security"]).toEqual([{ bearerAuth: [] }]);
+  });
+
+  it("omits bearerAuth for a public cross-site route and for a same-origin permission", () => {
+    const publicCrossSite = mergeOpenApiMetadata(nitroSpec(), metadataMap({ crossSite: true }));
+    expect(publicCrossSite.components).toBeUndefined();
+    expect(publicCrossSite.paths?.["/api/todos"]?.get?.["security"]).toBeUndefined();
+
+    const sameOrigin = mergeOpenApiMetadata(nitroSpec(), metadataMap({ permission: "todos:read" }));
+    expect(sameOrigin.components).toBeUndefined();
+    expect(sameOrigin.paths?.["/api/todos"]?.get?.["security"]).toBeUndefined();
+  });
+
+  it("keeps native security schemes when adding bearerAuth", () => {
+    const spec: OpenApiDocument = {
+      openapi: "3.1.0",
+      components: { securitySchemes: { basic: { type: "http", scheme: "basic" } } },
+      paths: { "/api/todos": { get: { responses: {} } } },
+    };
+    const merged = mergeOpenApiMetadata(
+      spec,
+      metadataMap({ crossSite: true, permission: "todos:read" }),
+    );
+    expect(merged.components?.securitySchemes).toEqual({
+      basic: { type: "http", scheme: "basic" },
+      bearerAuth: { type: "http", scheme: "bearer" },
+    });
+  });
+
   it("handles multiple permissions (array) and keeps array order", () => {
     const merged = mergeOpenApiMetadata(
       nitroSpec(),

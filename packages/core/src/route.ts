@@ -33,10 +33,17 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   query?: z.ZodType<Q>;
   params?: z.ZodType<P>;
   /**
-   * `true` = callable from a page on another origin, without credentials; requires
-   * `permission: []` because a session cookie never crosses origins.
+   * `true` = callable from a page on another origin, without credentials. A permission
+   * route is then reached with a Bearer token, never the session cookie (which cannot cross
+   * origins); v3a makes this combination legal.
    */
   crossSite?: boolean;
+  /**
+   * Origin-gate policy for framework protocol endpoints (e.g. the SAML ACS): the protocol
+   * performs its own origin validation, so the generic CSRF gate must not refuse its
+   * cross-site POST. Defaults to `"enforce"`.
+   */
+  originCheck?: "enforce" | "skip";
   /** REQUIRED (possibly empty): static metadata extracted by the Nitro AST pass (SPEC §7.4). */
   dbTables: readonly string[];
   /** `"table.column"` references, used by the release diff and entity explorer. */
@@ -171,11 +178,6 @@ export function defineAuthorizedHandler<
     throw new Error("defineAuthorizedHandler: body and form are mutually exclusive");
   }
   const requiredPermissions = normalizePermissions(config.permission);
-  if (config.crossSite === true && requiredPermissions.length > 0) {
-    throw new Error(
-      "defineAuthorizedHandler: crossSite requires permission: [] (a session cookie never crosses origins)",
-    );
-  }
 
   return async (event: FacilisRequestEvent): Promise<unknown> => {
     const auth = event.context.auth ?? null;
@@ -192,12 +194,13 @@ export function defineAuthorizedHandler<
 
     try {
       // CSRF gate: a credentialed request from another origin is refused before anything
-      // else runs, and it still records its access entry through the finally below.
+      // else runs, and it still records its access entry through the finally below. A
+      // protocol endpoint (originCheck: "skip") relies on its own protocol validation.
       const originAllowed = isRequestOriginAllowed({
         method: event.req.method,
         headers: event.req.headers,
         trustedOrigins: event.context.security?.trustedOrigins ?? [],
-        crossSite: config.crossSite === true,
+        crossSite: config.crossSite === true || config.originCheck === "skip",
       });
       if (!originAllowed) return respond(fail("forbidden"));
 

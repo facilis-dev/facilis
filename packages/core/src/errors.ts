@@ -11,6 +11,8 @@ export const FACILIS_ERROR_CODES = [
   "unauthorized",
   "forbidden",
   "invalid_input",
+  // 429: a caller exceeded a framework rate limit (D-143); the response carries `retry-after`.
+  "too_many_requests",
   // 415: a body-carrying route was called with the wrong media type; the body is not read.
   "unsupported_media_type",
   "conflict",
@@ -28,6 +30,7 @@ export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = 
   unauthorized: 401,
   forbidden: 403,
   invalid_input: 400,
+  too_many_requests: 429,
   unsupported_media_type: 415,
   conflict: 409,
   db_unavailable: 500,
