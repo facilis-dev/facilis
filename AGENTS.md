@@ -50,10 +50,13 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 
 ## Code conventions
 
-- **Hard limit: 300 lines per source file.** Enforced by `scripts/check-file-length.mjs`;
-  fix by splitting, never by adding an exclusion. The only exception is the upstream-derived
-  IDE import: those files are pinned in `scripts/file-length-baseline.json` and the check is a
-  **ratchet** (may shrink, may not grow, entries disappear as files are split, no new entries).
+- **Hard limit: 300 lines per production source file.** Enforced by
+  `scripts/check-file-length.mjs`; fix by splitting, never by adding an exclusion. **Test
+  modules are exempt** (`*.test.ts`, `*.test.tsx`, `*.spec.*`): a long scenario suite or
+  fixture is expected, and splitting it just to satisfy the gate is wasted effort — the limit's
+  purpose is production source. The only other exception is the upstream-derived IDE import:
+  those files are pinned in `scripts/file-length-baseline.json` and the check is a **ratchet**
+  (may shrink, may not grow, entries disappear as files are split, no new entries).
 - **Named exports only.** Default exports are allowed only where a tool requires them
   (`vite.config.ts`, `nitro.config.ts`, route modules if Nitro forces it).
 - **File names kebab-case** (`define-authorized-handler.ts`); **React components

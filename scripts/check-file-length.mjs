@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Fails when a tracked TypeScript source file exceeds MAX_LINES (see AGENTS.md).
+ * Fails when a tracked production TypeScript source file exceeds MAX_LINES (see AGENTS.md).
  *
  * The limit is not configurable per file: split the file instead of adding an exclusion.
- * Generated output, dependencies and the read-only vendor/ submodule are never counted.
+ * Test modules (*.test.*, *.spec.*) are exempt: a long scenario suite is expected and must
+ * not be fragmented just to satisfy this gate. Generated output, dependencies and the
+ * read-only vendor/ submodule are never counted.
  *
  * The single exception is the upstream-derived IDE import: files that arrived from Vivari
  * above the limit are listed in scripts/file-length-baseline.json at their import size. It is
@@ -20,6 +22,8 @@ const MAX_LINES = 300;
 const BASELINE_FILE = "scripts/file-length-baseline.json";
 const UPDATE_BASELINE = process.argv.includes("--update-baseline");
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
+/** Test modules are exempt: a long scenario suite is expected (AGENTS.md). */
+const TEST_FILE_PATTERN = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const IGNORED_SEGMENTS = new Set([
   "node_modules",
   "dist",
@@ -38,6 +42,10 @@ function isIgnored(relativePath) {
   return relativePath.split(sep).some((segment) => IGNORED_SEGMENTS.has(segment));
 }
 
+function isTestFile(filePath) {
+  return TEST_FILE_PATTERN.test(filePath);
+}
+
 function listFromGit() {
   const output = execFileSync(
     "git",
@@ -53,7 +61,11 @@ function walk(directory, found = []) {
     const fullPath = join(directory, entry.name);
     if (entry.isDirectory()) {
       walk(fullPath, found);
-    } else if (entry.isFile() && SOURCE_EXTENSIONS.has(extname(entry.name))) {
+    } else if (
+      entry.isFile() &&
+      SOURCE_EXTENSIONS.has(extname(entry.name)) &&
+      !isTestFile(entry.name)
+    ) {
       found.push(fullPath);
     }
   }
@@ -64,7 +76,9 @@ function listSourceFiles() {
   try {
     return (
       listFromGit()
-        .filter((file) => SOURCE_EXTENSIONS.has(extname(file)) && !isIgnored(file))
+        .filter(
+          (file) => SOURCE_EXTENSIONS.has(extname(file)) && !isTestFile(file) && !isIgnored(file),
+        )
         .map((file) => join(repoRoot, file))
         // The git index can still list a file that was deleted on disk mid-refactor;
         // it is not part of the tree being checked, so skip it instead of crashing.
