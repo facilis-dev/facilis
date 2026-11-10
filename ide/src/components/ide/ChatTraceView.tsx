@@ -162,12 +162,18 @@ export function ChatTraceView({
   trace,
   exploring,
   reasoning,
+  live = true,
 }: {
   trace: readonly ChatActivity[];
   /** The 1-based exploration program currently running, or null. */
   exploring: number | null;
   /** The reasoning streaming right now; the running call row renders it in place. */
   reasoning: string | null;
+  /**
+   * The current turn: its newest call row stays open so its reasoning is in view. A persisted
+   * turn's rows stay collapsed (the reasoning is still there, one click away).
+   */
+  live?: boolean;
 }) {
   if (trace.length === 0) return null;
   // Program numbers count programs only; model calls are numbered by the loop.
@@ -190,7 +196,7 @@ export function ChatTraceView({
             key={"call-" + String(index)}
             call={entry}
             liveReasoning={entry.outcome === "running" ? reasoning : null}
-            latest={index === lastCallIndex}
+            latest={live && index === lastCallIndex}
           />
         ) : (
           <RunRow

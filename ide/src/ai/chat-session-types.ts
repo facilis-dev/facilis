@@ -9,7 +9,7 @@ import type { PreviewAccess } from "./preview-access";
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
-import type { AiChatTurn, AiSettings, ChatMessage, ChatState } from "./types";
+import type { AiChatTurn, AiSettings, ChatActivity, ChatMessage, ChatState } from "./types";
 
 /** What the chat needs from the editor, all in project-relative terms. */
 export interface ChatHost {
@@ -97,13 +97,35 @@ export const TURN_RESET: Pick<
   reasoning: null,
 };
 
-/** State a finished turn clears without dropping the visible trace. */
+/** State a finished turn clears; its activity moves onto the turn's user message (turnEnded). */
 export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts" | "reasoning"> = {
   repair: null,
   exploring: null,
   patchParts: null,
   reasoning: null,
 };
+
+/**
+ * The state a finished turn leaves (success, failure or abort): the live trace is snapshotted
+ * onto the user message that opened the turn, so the transcript keeps that turn in place across
+ * later turns, and ChatState.trace goes back to being the live turn only.
+ */
+export function turnEnded(
+  messages: ChatMessage[],
+  userId: string,
+  trace: readonly ChatActivity[],
+): typeof TURN_IDLE & Pick<ChatState, "messages" | "trace"> {
+  return {
+    messages:
+      trace.length === 0
+        ? messages
+        : messages.map((message) =>
+            message.id === userId ? { ...message, activity: trace } : message,
+          ),
+    ...TURN_IDLE,
+    trace: [],
+  };
+}
 
 export function initialState(settings: AiSettings | null): ChatState {
   return {

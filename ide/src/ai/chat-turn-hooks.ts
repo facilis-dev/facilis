@@ -34,8 +34,10 @@ export function turnHooks(surface: TurnSurface): TurnHooks {
   };
   return {
     onRepair: (attempt) => status({ repair: { attempt }, patchParts: null }),
+    // An exploration answer is not the turn's answer: drop its partial bubble, so its prose
+    // never renders above the program that followed it (the call row records the call).
     onScriptStart: (program, programNumber) =>
-      surface.emit({ exploring: programNumber, trace: beginTraceRun(surface.trace(), program) }),
+      status({ exploring: programNumber, trace: beginTraceRun(surface.trace(), program) }),
     onScript: (result, program, images) =>
       surface.emit({
         exploring: null,

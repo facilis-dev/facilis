@@ -5,15 +5,7 @@
 // All strings go through t() and every colour is a role, so the panel lands
 // compliant with D-043/D-044 from its first commit (ide/I18N.md).
 
-import {
-  Fragment,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Sparkles from "~icons/lucide/sparkles";
 import Settings from "~icons/lucide/settings";
 import Plus from "~icons/lucide/plus";
@@ -22,10 +14,8 @@ import FileText from "~icons/lucide/file-text";
 import FoldVertical from "~icons/lucide/fold-vertical";
 import { Button } from "@/components/ui/button";
 import { ChatComposer } from "./ChatComposer";
-import { ChatMessageView } from "./ChatMessageView";
-import { ChatSummaryView } from "./ChatSummaryView";
+import { ChatTranscriptView } from "./ChatTranscriptView";
 import { ChatProposalView } from "./ChatProposalView";
-import { ChatTraceView } from "./ChatTraceView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
 import { chatFor } from "@/ai/chat-host";
@@ -197,22 +187,8 @@ export function ChatPanel() {
           <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")} />
         ) : (
           <>
-            {state.messages.map((message, index) => (
-              <Fragment key={message.id}>
-                <ChatMessageView
-                  message={message}
-                  streaming={state.streaming && index === state.messages.length - 1}
-                />
-                {state.summary !== null && index === state.summary.through - 1 && (
-                  <ChatSummaryView summary={state.summary} />
-                )}
-              </Fragment>
-            ))}
-            <ChatTraceView
-              trace={state.trace}
-              exploring={state.exploring}
-              reasoning={state.reasoning}
-            />
+            {/* Strict time order: each turn's activity sits between its user message and answer. */}
+            <ChatTranscriptView state={state} />
             <ChatProposalView chat={chat} state={state} />
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">

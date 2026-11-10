@@ -17,7 +17,9 @@ bordered cards.
   diff), exactly like our `<details>` rows but without the card chrome: no rounded boxes, no
   hairline borders per row, 11–12 px type, muted meta, generous line-height.
 - Assistant prose stays a plain block, not a bubble; the transcript reads top-to-bottom in
-  strict time order (D-110 already does this for model calls and programs).
+  strict time order. D-110 scoped the rows correctly inside one turn's timeline; D-138 makes the
+  transcript itself chronological — a turn's activity is persisted on its user message, so it
+  always sits between the question and the answer, and the live turn renders before its answer.
 - The composer keeps the current behaviour; the transcript is where the density work is.
 
 **Landed (2026-11-08, D-114).** The trace rows lost their card chrome (`ChatTraceView.tsx`: icon,
@@ -72,5 +74,7 @@ the user's message is a quiet bubble on the right. The composer only gained the 
 ## Status
 
 Partly landed (2026-11-08/09): the lighter transcript (D-114), pasted screenshots (D-113) and
-context compaction (D-133). The preview tools landed first (D-111); the remaining chat slice is
-the project-file picker ("+").
+context compaction (D-133). Chronological ordering across turns landed in D-138 (a turn's activity
+persisted on its user message, rendered between question and answer). The preview tools landed
+first (D-111) and the git tools in D-139; the remaining chat slice is the project-file picker
+("+").

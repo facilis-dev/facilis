@@ -12,7 +12,7 @@ import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
 import { buildProposal } from "./chat-proposal";
 import { callModel } from "./client";
-import { TURN_IDLE, TURN_RESET, errorText, initialState } from "./chat-session-types";
+import { TURN_RESET, errorText, initialState, turnEnded } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 import { openProjectInstructions } from "./instructions";
 import { ChatStreamWriter } from "./chat-stream";
@@ -250,10 +250,12 @@ export class ChatSession {
       const cancelled = this.cancelled;
       this.cancelled = false;
       this.stream.reset();
+      // The turn is over (answer, failure or abort): its activity moves onto the user message
+      // that opened it, so the transcript keeps the work above its answer across later turns.
       this.emit({
         phase: "idle",
         streaming: false,
-        ...TURN_IDLE,
+        ...turnEnded(this.state.messages, user.id, this.state.trace),
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
     }

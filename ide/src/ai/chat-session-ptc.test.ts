@@ -90,8 +90,12 @@ describe("ChatSession with the PTC runtime", () => {
     const state = chat.getSnapshot();
     expect(state.error).toBeNull();
     expect(state.exploring).toBeNull();
-    // D-110: the timeline holds the two model calls around the program.
-    const runs = state.trace.filter((entry) => entry.kind === "run");
+    // D-110: the finished turn's timeline holds the two model calls around the program, in
+    // order, persisted on the user message that opened it.
+    expect(state.trace).toEqual([]);
+    const activity = state.messages[0]?.activity ?? [];
+    expect(activity.map((entry) => entry.kind)).toEqual(["call", "run", "call"]);
+    const runs = activity.filter((entry) => entry.kind === "run");
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
       program: "return await tools.read_file({ path: 'src/App.tsx' });",
@@ -99,7 +103,6 @@ describe("ChatSession with the PTC runtime", () => {
       toolCalls: 1,
     });
     expect(runs[0]?.entries[0]?.name).toBe("read_file");
-    expect(state.trace.filter((entry) => entry.kind === "call")).toHaveLength(2);
     expect(state.proposal?.files[0]?.patch).toEqual({
       path: "src/new.ts",
       action: "create",

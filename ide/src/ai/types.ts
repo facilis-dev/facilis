@@ -148,6 +148,12 @@ export interface ChatMessage {
   at: number;
   /** Images the user attached (data URLs, D-113); replayed with the conversation. */
   images?: readonly string[];
+  /**
+   * The turn activity that FOLLOWED this message: its model calls and PTC programs, settled
+   * when the turn ends (success, failure or abort). Set on the user message that opened the
+   * turn, so the transcript can render the answer after the work that produced it.
+   */
+  activity?: readonly ChatActivity[];
   /** Parser/validator output for an unusable answer, shown under the bubble. */
   detail?: string;
 }
@@ -222,7 +228,10 @@ export interface ChatState {
    * `attempt` is 1-based; null while no repair is running (D-108: no attempt cap).
    */
   repair: { attempt: number } | null;
-  /** The model calls and PTC programs of the turn, in order (D-101/D-110). */
+  /**
+   * The model calls and PTC programs of the LIVE turn, in order (D-101/D-110). A finished
+   * turn's activity moves onto its ChatMessage.activity.
+   */
   trace: ChatActivity[];
   /** Live reasoning of the current model call, or null when none is streaming (D-110). */
   reasoning: string | null;

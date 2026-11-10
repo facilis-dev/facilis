@@ -2291,7 +2291,11 @@ remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`net
 `click`/`fill`/`open`/`wait`/`screenshot`): the page's chobitsu CDP backend is the transport;
 they observe or reproduce runtime failures but never write the project. A screenshot is shown in
 the activity row and sent to the model only for a `vision` preset (D-112); the user's own
-screenshot pasted into the composer with Ctrl+V follows the same wire path (D-113).
+screenshot pasted into the composer with Ctrl+V follows the same wire path (D-113). D-126 added
+the project-graph family (`graph_state`/`graph_arrange`): the graph is diagram state, so it is
+written directly and is not source. D-138 makes the transcript itself chronological: a turn's activity is
+persisted on its user message (success, failure or cancel) and rendered between the question and
+the answer, so the executions precede the prose in every state.
 
 ---
 

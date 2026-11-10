@@ -253,7 +253,9 @@ describe("ChatSession", () => {
     const state = chat.getSnapshot();
     expect(live).toEqual(["first thought"]);
     expect(state.reasoning).toBeNull();
-    const calls = state.trace.filter((entry): entry is ChatTraceCall => entry.kind === "call");
+    expect(state.trace).toEqual([]);
+    const activity = state.messages[0]?.activity ?? [];
+    const calls = activity.filter((entry): entry is ChatTraceCall => entry.kind === "call");
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ n: 1, outcome: "answer" });
     expect(calls[0]?.reasoning).toBe("first thought");
