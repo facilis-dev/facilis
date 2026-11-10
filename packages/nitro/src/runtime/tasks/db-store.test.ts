@@ -59,7 +59,12 @@ describe("createDbTaskStore", () => {
     await store.insert(first);
     await store.insert(second);
     await store.insert(decided);
-    await store.decide(decided.id, { decision: "approve", decidedBy: "u1", comment: null, now: LATER });
+    await store.decide(decided.id, {
+      decision: "approve",
+      decidedBy: "u1",
+      comment: null,
+      now: LATER,
+    });
 
     const pending = await store.list({ status: "pending", limit: 10 });
     expect(pending.map((task) => task.id)).toEqual([second.id, first.id]);
@@ -69,6 +74,17 @@ describe("createDbTaskStore", () => {
 
     const limited = await store.list({ limit: 1 });
     expect(limited).toHaveLength(1);
+  });
+
+  it("filters by the assignment permission", async () => {
+    const assigned = newTask({ assignedPermission: "tasks:decide" });
+    const unassigned = newTask();
+    await store.insert(assigned);
+    await store.insert(unassigned);
+
+    const rows = await store.list({ assignedPermission: "tasks:decide", limit: 10 });
+    expect(rows.map((task) => task.id)).toEqual([assigned.id]);
+    expect(rows[0]?.assignedPermission).toBe("tasks:decide");
   });
 
   it("decides a pending task atomically and records who, when and why", async () => {
@@ -112,7 +128,12 @@ describe("createDbTaskStore", () => {
 
     const decided = newTask();
     await store.insert(decided);
-    await store.decide(decided.id, { decision: "approve", decidedBy: "u1", comment: null, now: LATER });
+    await store.decide(decided.id, {
+      decision: "approve",
+      decidedBy: "u1",
+      comment: null,
+      now: LATER,
+    });
     await expect(store.cancel(decided.id, LATER)).resolves.toBe(false);
   });
 

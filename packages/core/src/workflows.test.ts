@@ -48,13 +48,47 @@ describe("defineWorkflow", () => {
     expect(() => defineWorkflow({ ...VALID, steps: [{} as never] })).toThrow(TypeError);
   });
 
-  it("rejects a malformed job name, title key or ttl", () => {
+  it("accepts a forward reject branch and rejects a backward or out-of-range target", () => {
+    expect(() =>
+      defineWorkflow({
+        ...VALID,
+        steps: [
+          { job: "reserve-stock" },
+          { approval: { titleKey: "workflow.order.approve", onReject: { step: 2 } } },
+          { job: "ship-order" },
+        ],
+      }),
+    ).not.toThrow();
+    expect(() =>
+      defineWorkflow({
+        ...VALID,
+        steps: [
+          { approval: { titleKey: "workflow.order.approve", onReject: { step: 0 } } },
+          { job: "ship-order" },
+        ],
+      }),
+    ).toThrow(TypeError);
+    expect(() =>
+      defineWorkflow({
+        ...VALID,
+        steps: [{ approval: { titleKey: "workflow.order.approve", onReject: { step: 3 } } }],
+      }),
+    ).toThrow(TypeError);
+  });
+
+  it("rejects a malformed job name, title key, permission or ttl", () => {
     expect(() => defineWorkflow({ ...VALID, steps: [{ job: "Ship Order" }] })).toThrow(TypeError);
     expect(() =>
       defineWorkflow({ ...VALID, steps: [{ approval: { titleKey: "not a key" } }] }),
     ).toThrow(TypeError);
     expect(() =>
       defineWorkflow({ ...VALID, steps: [{ approval: { titleKey: "x", ttlMs: 0 } }] }),
+    ).toThrow(TypeError);
+    expect(() =>
+      defineWorkflow({
+        ...VALID,
+        steps: [{ approval: { titleKey: "x", permission: "has spaces" } }],
+      }),
     ).toThrow(TypeError);
   });
 });
@@ -72,6 +106,12 @@ describe("isWorkflowDefinition", () => {
       isWorkflowDefinition({
         ...VALID,
         steps: [{ approval: { titleKey: "x", params: "not-a-function" } }],
+      }),
+    ).toBe(false);
+    expect(
+      isWorkflowDefinition({
+        ...VALID,
+        steps: [{ job: "reserve-stock" }, { approval: { titleKey: "x", onReject: { step: 0 } } }],
       }),
     ).toBe(false);
   });

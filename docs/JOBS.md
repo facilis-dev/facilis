@@ -232,5 +232,5 @@ Workflows/chains, retention & pruning policies for `facilis_jobs`, exponential b
 multi-instance/distributed workers (the engine assumes one process per database), a dev-only
 inspection endpoint, and serverless scheduling guarantees. The durable parts (a persisted
 queue, an explicit claim/attempt counter) are the seam the workflow construct reuses. A
-workflow is implemented above the queue in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, W1–W2 landed,
-W3 polish pending); this section remains the jobs' own scope.
+workflow is implemented above the queue in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, W1–W3 landed;
+SPEC §7.10); this section remains the jobs' own scope.

@@ -148,6 +148,22 @@ describe("createTasksApi", () => {
     });
   });
 
+  it("stores an assignment permission and filters the inbox by it", async () => {
+    const { store, api } = setup();
+    const task = await api.request({
+      titleKey: "todos.approval",
+      assignedPermission: "tasks:decide",
+    });
+    expect(task.assignedPermission).toBe("tasks:decide");
+
+    await api.list({ assignedPermission: "tasks:decide" });
+    expect(store.lastFilters).toMatchObject({ assignedPermission: "tasks:decide" });
+
+    await expect(
+      api.request({ titleKey: "todos.approval", assignedPermission: "has spaces" }),
+    ).rejects.toMatchObject({ code: "task_invalid_input" });
+  });
+
   it("decides once and records the bound actor, instant and comment", async () => {
     const { api } = setup();
     const scoped = api.bindScope?.(SCOPE, { actor: "user-7" });

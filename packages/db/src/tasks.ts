@@ -4,7 +4,16 @@
 // holds (pgPolicy + ENABLE ROW LEVEL SECURITY), re-exported by the project's db/schema.ts, and
 // DDL-owned by a Drizzle migration like the job queue (D-107).
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgPolicy, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgPolicy,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { tenantIsolationPolicy } from "./rls.ts";
 import { tenantColumn } from "./tenant-column.ts";
@@ -42,6 +51,7 @@ export const facilisTasks = pgTable(
     titleParams: jsonb("title_params").notNull().default({}),
     payload: jsonb("payload"),
     requestedBy: text("requested_by"),
+    assignedPermission: text("assigned_permission"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     decidedBy: text("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
@@ -61,6 +71,7 @@ export const facilisTasks = pgTable(
     }),
     index("facilis_tasks_status_created_idx").on(table.status, table.createdAt),
     index("facilis_tasks_workflow_idx").on(table.workflowId),
+    index("facilis_tasks_assigned_idx").on(table.assignedPermission, table.status),
   ],
 ).enableRLS();
 

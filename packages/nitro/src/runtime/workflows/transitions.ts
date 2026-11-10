@@ -5,8 +5,10 @@
 import type { JobJson, WorkflowDefinition, WorkflowProgressEntry } from "@facilis/core";
 
 import { formatIssues } from "../jobs/engine-support.ts";
+import type { StoredTask } from "../tasks/contracts.ts";
 import type { StoredWorkflow, WorkflowRuntimeDeps } from "./contracts.ts";
 import { dispatch } from "./dispatch.ts";
+import { planMatches } from "./steps.ts";
 import { fail, guard, type Now } from "./support.ts";
 
 /** Active rows one tick advances; the tick re-arms itself, so this is a fairness bound. */
@@ -79,18 +81,13 @@ async function resume(
     );
   }
   if (task.decision === "reject") {
-    return fail(
-      deps,
-      now,
-      workflow,
-      "workflow_task_rejected",
-      "Task " + task.id + " was rejected.",
-    );
+    return rejectTask(deps, now, workflow, task);
   }
   const entry: WorkflowProgressEntry = {
     index: task.stepIndex ?? workflow.currentStep,
     kind: "approval",
     taskId: task.id,
+    decision: "approve",
   };
   const updated = await deps.store.update(workflow.id, guard(workflow), {
     status: "running",
@@ -101,6 +98,66 @@ async function resume(
   });
   if (updated === null) return;
   await dispatch(deps, now, updated, 1);
+}
+
+/** A rejected approval continues at its declared step, or fails the run (§8.2). */
+async function rejectTask(
+  deps: WorkflowRuntimeDeps,
+  now: Now,
+  workflow: StoredWorkflow,
+  task: StoredTask,
+): Promise<void> {
+  const definition = deps.definitions.get(workflow.name);
+  if (definition === undefined) {
+    return fail(
+      deps,
+      now,
+      workflow,
+      "workflow_definition_changed",
+      'Workflow "' + workflow.name + '" is no longer defined.',
+    );
+  }
+  const index = task.stepIndex ?? workflow.currentStep;
+  const step = definition.steps[index];
+  const target = step !== undefined && "approval" in step ? step.approval.onReject : undefined;
+  if (target === undefined) {
+    return fail(
+      deps,
+      now,
+      workflow,
+      "workflow_task_rejected",
+      "Task " + task.id + " was rejected.",
+    );
+  }
+  // A definition edited mid-run must not redirect the branch: the plan snapshot has to still
+  // describe the target step (the same rule dispatch applies to the current step).
+  if (
+    target.step <= index ||
+    target.step >= definition.steps.length ||
+    !planMatches(workflow.plan, definition, target.step)
+  ) {
+    return fail(
+      deps,
+      now,
+      workflow,
+      "workflow_definition_changed",
+      "Step " + target.step + " is not the planned reject target.",
+    );
+  }
+  const entry: WorkflowProgressEntry = {
+    index,
+    kind: "approval",
+    taskId: task.id,
+    decision: "reject",
+  };
+  const updated = await deps.store.update(workflow.id, guard(workflow), {
+    status: "running",
+    waitingTaskId: null,
+    progress: [...workflow.progress, entry],
+    currentStep: target.step,
+    attempts: 0,
+  });
+  if (updated !== null) await dispatch(deps, now, updated, 1);
 }
 
 /** Settles the in-flight job step: advance, fail, cancelled, or recover a missing job (§8.3). */

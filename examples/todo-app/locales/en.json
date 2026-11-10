@@ -110,5 +110,6 @@
   "todos.filtered.description": "Try a different search or filter.",
   "todos.filtered.action": "Clear filters",
   "todos.delete.title": "Delete this todo?",
-  "todos.delete.description": "“{title}” will be removed permanently."
+  "todos.delete.description": "“{title}” will be removed permanently.",
+  "workflows.purge.approval": "Purge completed todos older than {days} days?"
 }

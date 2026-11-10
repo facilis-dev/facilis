@@ -50,6 +50,7 @@ export function createDbTaskStore(options: {
           titleParams: task.titleParams,
           payload: task.payload,
           requestedBy: task.requestedBy,
+          assignedPermission: task.assignedPermission,
           expiresAt: task.expiresAt,
           createdAt: task.createdAt,
         }),
@@ -76,6 +77,9 @@ export function createDbTaskStore(options: {
         }
         if (filters.workflowId !== undefined) {
           conditions.push(eq(facilisTasks.workflowId, filters.workflowId));
+        }
+        if (filters.assignedPermission !== undefined) {
+          conditions.push(eq(facilisTasks.assignedPermission, filters.assignedPermission));
         }
         const rows = await tx
           .select()

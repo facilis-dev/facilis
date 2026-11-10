@@ -185,6 +185,7 @@ export async function createWorkflowsTestContext(): Promise<WorkflowsTestContext
       title_params jsonb NOT NULL DEFAULT '{}'::jsonb,
       payload jsonb,
       requested_by text,
+      assigned_permission text,
       expires_at timestamptz,
       decided_by text,
       decided_at timestamptz,

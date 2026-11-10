@@ -6,12 +6,19 @@ import { defineAuthorizedHandler } from "@facilis/core";
 export default defineAuthorizedHandler(
   {
     permission: ["tasks:read"],
-    query: z.object({ limit: z.coerce.number().int().min(1).max(200).optional() }),
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(200).optional(),
+      permission: z.string().min(1).max(100).optional(),
+    }),
     dbTables: ["facilis_tasks"],
-    description: "List pending manual tasks, oldest first.",
+    description: "List pending manual tasks, oldest first, optionally by assignment.",
   },
   async (_event, { query, tasks }) => {
-    const rows = await tasks.list({ status: "pending", limit: query.limit ?? 50 });
+    const rows = await tasks.list({
+      status: "pending",
+      limit: query.limit ?? 50,
+      ...(query.permission === undefined ? {} : { assignedPermission: query.permission }),
+    });
     return { tasks: rows };
   },
 );

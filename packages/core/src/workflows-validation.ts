@@ -12,6 +12,8 @@ const WORKFLOW_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const JOB_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const TITLE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const MAX_TITLE_KEY_LENGTH = 200;
+const PERMISSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:_-]*$/;
+const MAX_PERMISSION_LENGTH = 100;
 
 export function isWorkflowName(name: unknown): name is string {
   return typeof name === "string" && WORKFLOW_NAME_PATTERN.test(name);
@@ -50,7 +52,13 @@ export function isStep(value: unknown, index: number): boolean {
   }
   const approval = candidate.approval;
   if (typeof approval !== "object" || approval === null) return false;
-  const spec = approval as { titleKey?: unknown; params?: unknown; ttlMs?: unknown };
+  const spec = approval as {
+    titleKey?: unknown;
+    params?: unknown;
+    ttlMs?: unknown;
+    permission?: unknown;
+    onReject?: unknown;
+  };
   if (
     typeof spec.titleKey !== "string" ||
     spec.titleKey.length === 0 ||
@@ -63,7 +71,62 @@ export function isStep(value: unknown, index: number): boolean {
   if (spec.ttlMs !== undefined && (!Number.isInteger(spec.ttlMs) || (spec.ttlMs as number) < 1)) {
     return false;
   }
+  if (spec.permission !== undefined && !isPermission(spec.permission)) return false;
+  if (spec.onReject !== undefined) {
+    if (typeof spec.onReject !== "object" || spec.onReject === null) return false;
+    const target = (spec.onReject as { step?: unknown }).step;
+    if (typeof target !== "number" || !Number.isInteger(target) || target < 0) return false;
+  }
   return Number.isInteger(index);
+}
+
+export function isPermission(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= MAX_PERMISSION_LENGTH &&
+    PERMISSION_PATTERN.test(value)
+  );
+}
+
+/** Reads a step's `onReject.step`, ignoring structurally invalid definitions. */
+function rejectTargetOf(step: unknown): unknown {
+  if (typeof step !== "object" || step === null) return undefined;
+  const approval = (step as { approval?: unknown }).approval;
+  if (typeof approval !== "object" || approval === null) return undefined;
+  const onReject = (approval as { onReject?: unknown }).onReject;
+  if (typeof onReject !== "object" || onReject === null) return undefined;
+  return (onReject as { step?: unknown }).step;
+}
+
+/**
+ * A reject branch may only jump forward: progress entries are appended in index order, so a
+ * target at or before the approval would replay completed steps (loops are out of scope).
+ */
+export function hasValidRejectTargets(steps: readonly unknown[]): boolean {
+  return steps.every((step, index) => {
+    const target = rejectTargetOf(step);
+    if (target === undefined) return true;
+    return typeof target === "number" && target > index && target < steps.length;
+  });
+}
+
+export function assertRejectTargets(workflow: string, steps: readonly unknown[]): void {
+  if (hasValidRejectTargets(steps)) return;
+  steps.forEach((step, index) => {
+    const target = rejectTargetOf(step);
+    if (target === undefined) return;
+    if (
+      typeof target !== "number" ||
+      !Number.isInteger(target) ||
+      target <= index ||
+      target >= steps.length
+    ) {
+      throw new TypeError(
+        `Workflow "${workflow}" step ${index}: onReject.step must be a later step index (< ${steps.length}).`,
+      );
+    }
+  });
 }
 
 export function isSchema(value: unknown): value is z.ZodType {

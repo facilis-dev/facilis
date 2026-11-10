@@ -7,7 +7,13 @@ import { sql } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 
 import type { FacilisDb } from "@facilis/db";
-import { createDb, ensureAppRole, facilisTasks, policyCreateSql, tenantDefaultSql } from "@facilis/db";
+import {
+  createDb,
+  ensureAppRole,
+  facilisTasks,
+  policyCreateSql,
+  tenantDefaultSql,
+} from "@facilis/db";
 
 import type { NewStoredTask } from "./contracts.ts";
 import { createDbTaskStore } from "./db-store.ts";
@@ -38,12 +44,15 @@ export async function createTasksTestContext(): Promise<TasksTestContext> {
       title_params jsonb NOT NULL DEFAULT '{}'::jsonb,
       payload jsonb,
       requested_by text,
+      assigned_permission text,
       expires_at timestamptz,
       decided_by text,
       decided_at timestamptz,
       comment text,
       created_at timestamptz NOT NULL DEFAULT now(),
-      tenant_id uuid NOT NULL DEFAULT ` + tenantDefault + `
+      tenant_id uuid NOT NULL DEFAULT ` +
+      tenantDefault +
+      `
     )`,
     "ALTER TABLE facilis_tasks ENABLE ROW LEVEL SECURITY",
     ...getTableConfig(facilisTasks).policies.map((policy) =>
@@ -75,6 +84,7 @@ export function newTask(overrides: Partial<NewStoredTask> = {}): NewStoredTask {
     titleParams: { title: "Buy milk" },
     payload: { todoId: "todo-1" },
     requestedBy: "system:test",
+    assignedPermission: null,
     expiresAt: null,
     createdAt: new Date(BASE.getTime() + sequence),
     ...overrides,

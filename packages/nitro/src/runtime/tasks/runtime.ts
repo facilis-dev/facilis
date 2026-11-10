@@ -26,6 +26,8 @@ const MAX_LIMIT = 200;
 const MAX_TITLE_KEY_LENGTH = 200;
 const MAX_COMMENT_LENGTH = 1000;
 const TITLE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const PERMISSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:_-]*$/;
+const MAX_PERMISSION_LENGTH = 100;
 
 /**
  * Adapts a TaskStore to the handler-facing API. The actor is the session user id (or null
@@ -117,6 +119,7 @@ function normalizeTask(input: RequestTaskInput, actor: string | null): NewStored
     titleParams: normalizeTitleParams(input.titleParams),
     payload: input.payload === undefined ? null : serializeTaskData(input.payload),
     requestedBy: actor,
+    assignedPermission: normalizePermission(input.assignedPermission),
     expiresAt: normalizeExpiresAt(input.expiresAt),
     createdAt: new Date(),
   };
@@ -129,6 +132,21 @@ function normalizeTitleParams(value: RequestTaskInput["titleParams"]): TaskJson 
     throw invalid("titleParams must be a JSON object.");
   }
   return parsed;
+}
+
+function normalizePermission(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_PERMISSION_LENGTH ||
+    !PERMISSION_PATTERN.test(value)
+  ) {
+    throw invalid(
+      "assignedPermission must be a permission name (letters, digits, colon, dash, underscore).",
+    );
+  }
+  return value;
 }
 
 function normalizeExpiresAt(value: string | Date | undefined): Date | null {
@@ -152,9 +170,11 @@ function normalizeComment(value: string | undefined): string | null {
 function normalizeFilters(options: TaskListOptions): TaskListFilters {
   const status = options.status;
   const workflowId = options.workflowId;
+  const assignedPermission = options.assignedPermission;
   return {
     ...(status === undefined ? {} : { status }),
     ...(workflowId === undefined ? {} : { workflowId }),
+    ...(assignedPermission === undefined ? {} : { assignedPermission }),
     limit: normalizeLimit(options.limit),
   };
 }

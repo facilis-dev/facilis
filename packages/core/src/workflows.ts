@@ -2,9 +2,12 @@ import type { PolicyScopedDatabase } from "@facilis/db";
 import type { z } from "zod";
 
 import type { JobJson } from "./jobs.ts";
+import type { TaskDecision } from "./tasks.ts";
 import {
+  assertRejectTargets,
   assertStep,
   assertWorkflowName,
+  hasValidRejectTargets,
   isSchema,
   isStep,
   isWorkflowName,
@@ -92,6 +95,17 @@ export interface WorkflowApprovalStep<Input = unknown> {
     ) => Readonly<Record<string, string | number>>;
     /** Overrides `workflows.defaultTaskTtlMs` for this step. */
     readonly ttlMs?: number;
+    /**
+     * The permission a decider needs (task assignment, D-135 W3): stored on the task row, so
+     * the app's inbox can filter and its decide route can enforce it. Omitted: any holder of
+     * the route's own permission may decide.
+     */
+    readonly permission?: string;
+    /**
+     * A rejection continues at this later step index (a forward jump past the skipped steps)
+     * instead of failing the run. Omitted: the run fails with `workflow_task_rejected`.
+     */
+    readonly onReject?: { readonly step: number };
   };
 }
 
@@ -136,6 +150,7 @@ export function defineWorkflow<Input = unknown, Output = unknown>(
     throw new TypeError(`Workflow "${definition.name}" requires at least one step.`);
   }
   definition.steps.forEach((step, index) => assertStep(definition.name, step, index));
+  assertRejectTargets(definition.name, definition.steps);
   return definition;
 }
 
@@ -152,7 +167,10 @@ export function isWorkflowDefinition(value: unknown): value is WorkflowDefinitio
   ) {
     return false;
   }
-  return candidate.steps.every((step, index) => isStep(step, index));
+  return (
+    candidate.steps.every((step, index) => isStep(step, index)) &&
+    hasValidRejectTargets(candidate.steps)
+  );
 }
 
 /** One completed step, appended by the runner when the step settles. */
@@ -165,6 +183,8 @@ export interface WorkflowProgressEntry {
   readonly taskId?: string;
   /** The job's serialized output; approval steps carry no output. */
   readonly output?: WorkflowJson;
+  /** Set for approval steps: how the task was decided. */
+  readonly decision?: TaskDecision;
 }
 
 /** Filters for `ctx.workflows.list`; order is oldest-created first (chain order). */

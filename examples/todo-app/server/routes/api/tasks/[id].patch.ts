@@ -14,7 +14,14 @@ export default defineAuthorizedHandler(
     dbTables: ["facilis_tasks"],
     description: "Record the decision on a pending manual task.",
   },
-  async (_event, { params, body, tasks }) => {
+  async (_event, { params, body, tasks, auth }) => {
+    // Assignment is a permission on the task row (D-135 W3): the framework stores it, this
+    // route enforces it against the session.
+    const task = await tasks.get(params.id);
+    if (task === null) return fail("not_found");
+    if (task.assignedPermission !== null && !auth.permissions.includes(task.assignedPermission)) {
+      return fail("forbidden");
+    }
     try {
       return await tasks.decide(params.id, {
         kind: body.decision,
@@ -28,7 +35,9 @@ export default defineAuthorizedHandler(
 );
 
 /** Maps the task runtime codes onto the canonical API codes (O-002). */
-function taskFailureCode(code: string): "not_found" | "conflict" | "invalid_input" | "db_unavailable" {
+function taskFailureCode(
+  code: string,
+): "not_found" | "conflict" | "invalid_input" | "db_unavailable" {
   switch (code) {
     case "task_not_found":
       return "not_found";

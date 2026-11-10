@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.16 (project-graph pages, links and elevation, D-134)
+**Version:** 1.17 (workflows and manual tasks, D-135)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.17 — Workflows and manual tasks (D-135): a workflow is a named, ordered chain of job and approval steps in `server/workflows/**/*.ts` (`defineWorkflow`), advanced by a runtime tick over `facilis_workflows` rows, never a job body that waits; a manual step inserts a durable `facilis_tasks` row and the chain suspends until the task's status/decision changes through the app's authorized route (`ctx.tasks.decide`); a rejection either fails the run or continues at a declared forward step (`onReject`), a step may assign its task to a permission, and every transition is a compare-and-set short transaction with boot recovery and cancellation. The server-only `ctx.workflows`/`ctx.tasks` surface has no HTTP endpoint of its own, exactly like `ctx.jobs`; §5.6/§7.1/§7.4/§7.10/§8.4.5 follow.
 - v1.16 — The project graph shows every real page, explicit page links and audited elevation (D-134): page nodes are `src/pages/**` only (all pages, including pages with no API calls), with URL paths from the explicit route table; `page-link` edges follow `Link`/`NavLink`/`navigate` targets; a route→table edge reached through `ctx.sudo`/`ctx.system` is marked with one warning colour and a route-card chip; selecting a page opens a bounded static structure inspector (nested components/sections, `Outlet` composition, dynamic branches marked), not a rendering. §10.2 follows.
 - v1.15 — Route descriptions are source documentation (D-129): `description` in the `defineAuthorizedHandler` config is the route's one-sentence, English summary (≤120 characters ≈ two lines) and flows through `@facilis/analyze`'s `RouteNodeData` to the project-graph route card, as a quoted source line clamped to two lines. The analyzer warns `route-description-length` above the cap; patch validator rule 17 `route-description` warns (never blocks) when a patched route's sentence is missing, too long, or unchanged while the route's contract changed, and the assistant writes/refreshes it in the same patch turn. Consumers are OpenAPI, the analyzer, the graph and the AI context — none negotiates a locale, so the field is never a `t()` key and the app's user-facing language stays in `locales/*.json`. §7.3/§7.4/§9.3/§10.2 follow.
 - v1.14 — Operator logging and single sign-on (D-119/D-120). Logging is one pipeline with four streams (access, error, audit, app): `defineAuthorizedHandler` records exactly one access entry on every exit path, unexpected failures stay server-side, the sudo trail joins the same sink, and a route can append app lines/audit events through `ctx.log`. Entries are JSON Lines files in `<project>/.facilis/logs/` (dev default, opened from the IDE editor) or stdout (production default), selected by `FACILIS_LOG_SINK`; there is **no HTTP endpoint that serves logs**. Sinks are env-owned, redaction/caps are structural, audit entries carry a SHA-256 `seq`/`prevHash`/`hash` chain and audit writes fail closed, rotation keeps `FACILIS_LOG_KEEP` files, and the deploy owns WORM/retention (O-019). SSO is framework auth: `auth.sso.providers` (OIDC, generic OAuth2, SAML) with secrets only as env-var names, framework-owned `/api/auth/sso/{providers,start,callback}` routes, OIDC discovery + PKCE + nonce + ID-token verification (`jose`), generic OAuth2 userinfo mapping, SP-initiated SAML validated by `@node-saml/node-saml` (lazily imported), single-use DB-backed state, `auth_identities`/`auth_sso_states` with RLS, conservative linking (verified email only), JIT provisioning with the provider/default role, and audit events without tokens or emails. §4.2/§5.3/§5.6/§7.1/§7.4/§8.6/§8.7/§11.4/§12 follow.
@@ -834,6 +835,34 @@ schedule it for a future instant, then read, inspect or cancel it. The design re
 - **Runtime boundary.** The scheduler assumes one long-lived server process per database. A
   serverless deployment that freezes the process cannot promise a scheduled instant (O-017); a
   hard reload is what the at-least-once recovery covers.
+
+**Workflows and manual tasks (D-135).** A workflow is a named, ordered chain of job and
+approval steps, advanced by the same server process that runs the jobs. The design reference is
+[`WORKFLOWS.md`](./WORKFLOWS.md); the public types are §7.10.
+
+- **Definitions** are one default export per `server/workflows/**/*.ts` (`defineWorkflow`), nested
+  directories allowed, `*.test.ts` ignored. The Nitro module registers the `#facilis/workflows`
+  virtual module, rendered as `WorkflowModule[]`; an invalid or duplicate definition becomes a
+  `workflow_definition_invalid` manifest warning and is skipped, never a boot failure.
+- **Runtime tick.** With `workflows.persist` and both migrated tables the runner expires due tasks,
+  resumes waiting runs whose task settled, advances running runs whose step job settled, and
+  dispatches the current step. Every transition is a compare-and-set short transaction, and the
+  step job (or the approval task) and the workflow row change in the same transaction, so a
+  hand-off is either fully there or not there. Boot recovers interrupted runs by re-dispatching a
+  missing step job up to `jobs.maxAttempts`.
+- **Manual steps.** An approval step inserts a `facilis_tasks` row and leaves the workflow
+  `waiting`; nothing blocks in memory or in a transaction. The decision is the app-owned
+  authorized write `ctx.tasks.decide` (the example guards it with `tasks:decide`); a rejection
+  fails the run, or continues at the step named by `onReject` (a forward jump). Expiry is part of
+  the tick; cancellation stops the in-flight job/task before settling the row.
+- **`ctx.workflows`/`ctx.tasks` only.** There is deliberately **no HTTP endpoint** behind them — a
+  project writes its own inbox/decide/start routes, with its own permissions and Zod bodies. Both
+  APIs are also on `event.context.facilis.workflows`/`.tasks` for framework middleware; a runtime
+  that did not boot leaves the unavailable fallback (`workflow_unavailable`/`task_unavailable`).
+- **Config** is the three-key `workflows` section of `facilis.config.ts` (§7.1). v1 is linear: no
+  branches/loops/fan-out/compensation, at-least-once step jobs, exactly-once decisions by CAS, no
+  in-memory mode. An external signal is an app-owned webhook route deciding the pending task; a
+  first-class signal step is out of scope.
 
 ### 5.7 `@facilis/ui` — removed`
 
@@ -1685,6 +1714,167 @@ request waiting for it. A job attempt is the opposite case — it runs outside a
 its own system transaction. Every attempt
 runs through `runAsSystem` with actor `system:job:<name>` and the definition's `tables` —
 possibly `[]` — so the job body always sees a system-scoped transaction (§8.4.5).
+
+### 7.10 Workflow and Manual-Task API
+
+The workflow contract (D-135; design reference [`WORKFLOWS.md`](./WORKFLOWS.md)). A workflow is a
+named, ordered chain of steps advanced by a runtime tick; a step is a job instance or a manual
+approval. The chain is rows (`facilis_workflows`), never a suspended job body: a job body holds
+its transaction on the single PGlite connection and cannot wait (§5.6). The API is server-only;
+the framework owns no HTTP endpoint — the app writes its task inbox/decide and workflow start
+routes.
+
+```typescript
+interface FacilisWorkflowsConfig {
+  tickIntervalMs: number           // runner tick, minimum 100 (default 1000)
+  persist: boolean                 // keep runs in facilis_workflows (default true)
+  defaultTaskTtlMs: number | null  // default approval expiry; null = none (default null)
+}
+
+type WorkflowStatus = "running" | "waiting" | "succeeded" | "failed" | "cancelled"
+type WorkflowStepKind = "job" | "approval"
+
+interface WorkflowResolveContext<Input> {
+  input: Input                        // the serialized start input
+  steps: readonly (JobJson | null)[]  // outputs of completed steps; approvals are null
+}
+
+interface WorkflowJobStep<Input = unknown> {
+  job: string
+  input?: (context: WorkflowResolveContext<Input>) => unknown // absent = the chain input
+}
+
+interface WorkflowApprovalStep<Input = unknown> {
+  approval: {
+    titleKey: string   // flat i18n key, rendered with t(titleKey, params)
+    params?: (context: WorkflowResolveContext<Input>) => Record<string, string | number>
+    ttlMs?: number     // overrides workflows.defaultTaskTtlMs
+    permission?: string // assignment: the permission a decider needs on the task
+    onReject?: { step: number } // a forward jump on rejection; absent = the run fails
+  }
+}
+
+type WorkflowStep<Input = unknown> = WorkflowJobStep<Input> | WorkflowApprovalStep<Input>
+
+interface WorkflowDefinition<Input = unknown, Output = unknown> {
+  name: string                       // start key, unique across the registry
+  input: z.ZodType<Input>            // validated at start, stored serialized
+  output?: z.ZodType<Output>         // validated before the run is "succeeded"
+  steps: readonly WorkflowStep<Input>[]
+}
+
+function defineWorkflow<Input, Output>(
+  definition: WorkflowDefinition<Input, Output>
+): WorkflowDefinition<Input, Output>
+function isWorkflowDefinition(value: unknown): value is WorkflowDefinition
+
+interface WorkflowProgressEntry {
+  index: number
+  kind: WorkflowStepKind
+  jobId?: string
+  taskId?: string
+  output?: JobJson                    // job steps only
+  decision?: "approve" | "reject"     // approval steps only
+}
+
+interface WorkflowRecord {
+  id: string
+  name: string
+  status: WorkflowStatus
+  input: JobJson
+  progress: readonly WorkflowProgressEntry[]
+  currentStep: number                 // equals steps.length once succeeded
+  currentJobId: string | null
+  waitingTaskId: string | null
+  attempts: number
+  output: JobJson | null
+  error: string | null                // coded failure kind plus message (server-only)
+  startedAt: string
+  finishedAt: string | null
+  createdAt: string
+}
+
+interface WorkflowListOptions {
+  status?: WorkflowStatus | readonly WorkflowStatus[]
+  name?: string
+  limit?: number                      // default 50, capped at 200
+}
+
+interface WorkflowsApi {
+  start(name: string, input: unknown): Promise<{ id: string }>
+  get(id: string): Promise<WorkflowRecord | null>
+  list(options?: WorkflowListOptions): Promise<WorkflowRecord[]>
+  cancel(id: string): Promise<boolean>
+  bindScope?(scope: PolicyScopedDatabase): WorkflowsApi
+}
+
+type TaskStatus = "pending" | "decided" | "expired" | "cancelled"
+type TaskKind = "approval"
+type TaskDecision = "approve" | "reject"
+
+interface RequestTaskInput {
+  titleKey: string
+  titleParams?: Readonly<Record<string, string | number>>
+  payload?: unknown                   // opaque JSON shown to the decider
+  expiresAt?: string | Date
+  assignedPermission?: string         // app-enforced assignment
+}
+
+interface TaskDecisionInput { kind: TaskDecision; comment?: string }
+
+interface TaskListOptions {
+  status?: TaskStatus | readonly TaskStatus[]
+  workflowId?: string
+  assignedPermission?: string
+  limit?: number                      // default 50, capped at 200
+}
+
+interface TaskRecord {
+  id: string
+  workflowId: string | null           // set for a workflow step; null standalone
+  stepIndex: number | null
+  kind: TaskKind
+  status: TaskStatus
+  decision: TaskDecision | null
+  titleKey: string
+  titleParams: TaskJson
+  payload: TaskJson | null
+  requestedBy: string | null
+  assignedPermission: string | null
+  expiresAt: string | null
+  decidedBy: string | null
+  decidedAt: string | null
+  comment: string | null
+  createdAt: string
+}
+
+interface TasksApi {
+  request(input: RequestTaskInput): Promise<TaskRecord>
+  get(id: string): Promise<TaskRecord | null>
+  list(options?: TaskListOptions): Promise<TaskRecord[]>
+  decide(id: string, decision: TaskDecisionInput): Promise<TaskRecord>
+  cancel(id: string): Promise<boolean>
+  bindScope?(scope: PolicyScopedDatabase, context: TaskActorContext): TasksApi
+}
+```
+
+Semantics: `start` validates the name and input against the definition, serializes the input,
+stores a plan snapshot of each step's kind and name, inserts the running row and wakes the tick; a
+definition edited mid-run is detected against that snapshot (`workflow_definition_changed`). The
+tick advances one row per compare-and-set: `waiting` resumes on the task's decision (`approve`
+continues, `reject` fails with `workflow_task_rejected` or jumps forward to `onReject.step`),
+`running` with a step job waits for it and validates its output (`workflow_step_failed`,
+`workflow_invalid_output`), and a running row with no job dispatches the current step. `cancel`
+stops the in-flight job and pending task, then settles the row. A decided or expired task never
+reopens; `failed`/`succeeded`/`cancelled` are terminal. Approval assignment is stored as
+`assignedPermission` and filtered by `ctx.tasks.list`; enforcement is in the app route because
+permissions live in the session. Both tables are tenant-scoped, RLS-policied framework tables
+(`facilis_workflows`, `facilis_tasks`), DDL-owned by a migration like `facilis_jobs`. Error
+codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
+`workflow_unavailable`, `workflow_definition_changed`, `workflow_step_failed`,
+`workflow_task_rejected`, `workflow_task_expired`, `workflow_task_cancelled`,
+`workflow_interrupted`; tasks: `task_not_found`, `task_already_decided`, `task_expired`,
+`task_invalid_input`, `task_unavailable`.
 
 ---
 
@@ -2696,6 +2886,10 @@ see `examples/todo-app/scripts/verify-headless.sh` and D-015.
   `ctx.jobs.enqueue` returns an id; a future-`runAt` job is inspectable and cancellable; a
   persisted queue survives a boot; the example app verifies it in
   `scripts/verify-headless.sh` (D-107)
+- Workflows: a `server/workflows/**` chain of a job and an approval step runs through the tick,
+  the approval task is decided through an app-owned authorized route, and the chain continues (or
+  fails on rejection); a declared `onReject` step is reached instead of failing; the example app
+  ships a purge workflow with a start route (D-135)
 - Binary storage: an attachment uploads as multipart (size-limited, `413` over the limit),
   is listed with its parent, downloads through the token-only `GET /api/files/:id?token=…`
   byte-for-byte, and a cross-user attach/delete is `404`; the example app verifies it in
@@ -2819,6 +3013,12 @@ export default defineConfig({
     timeoutMs: 30000,      // wall-clock bound of one attempt
     pollIntervalMs: 1000,  // scheduler tick
     persist: true,         // keep the queue in facilis_jobs
+  },
+  // Workflows (D-135, optional): a chain of job and approval steps advanced by a tick.
+  workflows: {
+    tickIntervalMs: 1000,  // runner tick, minimum 100
+    persist: true,         // keep runs in facilis_workflows (needs a migrated table)
+    defaultTaskTtlMs: null, // null = approvals do not expire unless a step sets ttlMs
   },
   // Binary storage (D-116, optional at-rest encryption D-117): every key has a default.
   // The secrets stay in the environment (FACILIS_S3_* / FACILIS_STORAGE_SECRET and, when

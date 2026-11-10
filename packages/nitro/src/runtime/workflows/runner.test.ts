@@ -144,6 +144,58 @@ describe("workflow runner", () => {
     expect(failed.error).toContain("workflow_task_rejected");
   });
 
+  it("continues at the declared reject branch instead of failing", async () => {
+    const flow = setup([
+      { job: "reserve-stock" },
+      { approval: { titleKey: "flow.approve", onReject: { step: 2 } } },
+      { job: "ship-order" },
+    ]);
+    const { id } = await flow.api.start(FLOW, { orderId: "o-1" });
+    await flow.tick();
+    const first = context.jobs.latest;
+    if (first === undefined) throw new Error("job missing");
+    context.jobs.succeed(first.id, { amount: 10 });
+    await flow.tick();
+
+    const waiting = await row(id);
+    const task = await context.tasks.get(waiting.waitingTaskId ?? "");
+    if (task === null) throw new Error("approval task missing");
+    await context.tasks.decide(task.id, {
+      decision: "reject",
+      decidedBy: "user-1",
+      comment: "no",
+      now: new Date(clock),
+    });
+    await flow.tick();
+
+    const branched = await row(id);
+    expect(branched.status).toBe("running");
+    expect(branched.currentStep).toBe(2);
+    expect(branched.progress).toEqual([
+      { index: 0, kind: "job", jobId: first.id, output: { amount: 10 } },
+      { index: 1, kind: "approval", taskId: task.id, decision: "reject" },
+    ]);
+    const second = context.jobs.latest;
+    expect(second?.name).toBe("ship-order");
+    if (second === undefined) throw new Error("second job missing");
+    context.jobs.succeed(second.id, { shipped: true });
+    await flow.tick();
+
+    const done = await row(id);
+    expect(done.status).toBe("succeeded");
+    expect(done.output).toEqual({ shipped: true });
+  });
+
+  it("stores the approval's permission on the task as its assignment", async () => {
+    const flow = setup([{ approval: { titleKey: "flow.approve", permission: "tasks:decide" } }]);
+    const { id } = await flow.api.start(FLOW, { orderId: "o-1" });
+    await flow.tick();
+
+    const stored = await row(id);
+    const task = await context.tasks.get(stored.waitingTaskId ?? "");
+    expect(task?.assignedPermission).toBe("tasks:decide");
+  });
+
   it("fails the chain when a step job fails", async () => {
     const flow = setup([{ job: "reserve-stock" }]);
     const { id } = await flow.api.start(FLOW, { orderId: "o-1" });

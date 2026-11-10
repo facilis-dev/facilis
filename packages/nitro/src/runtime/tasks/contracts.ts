@@ -15,6 +15,7 @@ export interface StoredTask {
   readonly titleParams: JobJson;
   readonly payload: JobJson | null;
   readonly requestedBy: string | null;
+  readonly assignedPermission: string | null;
   readonly expiresAt: Date | null;
   readonly decidedBy: string | null;
   readonly decidedAt: Date | null;
@@ -32,6 +33,7 @@ export interface NewStoredTask {
   readonly titleParams: JobJson;
   readonly payload: JobJson | null;
   readonly requestedBy: string | null;
+  readonly assignedPermission: string | null;
   readonly expiresAt: Date | null;
   readonly createdAt: Date;
 }
@@ -39,6 +41,7 @@ export interface NewStoredTask {
 export interface TaskListFilters {
   readonly status?: TaskStatus | readonly TaskStatus[];
   readonly workflowId?: string;
+  readonly assignedPermission?: string;
   /** Already normalised by the API (default 50, max 200). */
   readonly limit: number;
 }

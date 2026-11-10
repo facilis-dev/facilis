@@ -61,6 +61,11 @@ export interface RequestTaskInput {
   readonly payload?: unknown;
   /** Optional absolute expiry; a task decided after it is `task_expired`. */
   readonly expiresAt?: string | Date;
+  /**
+   * Permission a decider needs (task assignment, D-135 W3). The framework stores and filters
+   * it; the app's decide route enforces it, because permissions live in the session (D-098).
+   */
+  readonly assignedPermission?: string;
 }
 
 /** A human decision on a pending task. */
@@ -72,6 +77,8 @@ export interface TaskDecisionInput {
 export interface TaskListOptions {
   readonly status?: TaskStatus | readonly TaskStatus[];
   readonly workflowId?: string;
+  /** Only tasks assigned to this permission (the inbox of an approver). */
+  readonly assignedPermission?: string;
   /** Defaults to 50 rows, max 200 (same caps as the queue). */
   readonly limit?: number;
 }
@@ -89,6 +96,8 @@ export interface TaskRecord {
   readonly titleParams: TaskJson;
   readonly payload: TaskJson | null;
   readonly requestedBy: string | null;
+  /** Permission required to decide the task; null for an unassigned task. */
+  readonly assignedPermission: string | null;
   readonly expiresAt: string | null;
   readonly decidedBy: string | null;
   readonly decidedAt: string | null;

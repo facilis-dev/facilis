@@ -130,6 +130,7 @@ async function dispatchApproval(
         // The decider sees the chain input; the params are only the rendered title.
         payload: workflow.input,
         requestedBy: "system:workflow:" + workflow.name,
+        assignedPermission: approval.permission ?? null,
         expiresAt,
         createdAt,
       });
