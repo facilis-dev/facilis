@@ -5,19 +5,23 @@ import {
   PAGE,
   PROJECTS,
   TODOS,
+  WORKFLOW,
   graphOf,
   routeNode,
   tableNode,
 } from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView layout", () => {
-  it("puts pages left, routes in the middle and tables right", () => {
-    const view = buildProjectGraphView({ graph: graphOf([PAGE, GET, TODOS, PROJECTS]) });
+  it("puts pages left, routes in the middle, then tables and workflows", () => {
+    const view = buildProjectGraphView({
+      graph: graphOf([PAGE, GET, TODOS, PROJECTS, WORKFLOW]),
+    });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
     expect(byId.get(PAGE.id)?.position).toEqual({ x: GRAPH_COLUMNS.page, y: 0 });
     expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
     expect(byId.get(TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
     expect(byId.get(PROJECTS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
+    expect(byId.get(WORKFLOW.id)?.position).toEqual({ x: GRAPH_COLUMNS.workflow, y: 0 });
   });
 
   it("leaves room for the taller route card in the route column", () => {

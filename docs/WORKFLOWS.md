@@ -1,13 +1,14 @@
 # Workflows and manual tasks — design
 
 **Status:** accepted — design approved (D-135, 2026-11-10). W1 (manual tasks), W2
-(workflows) and W3 (reject branches, task assignment by permission, an example workflow with
-its start route, SPEC §7.10) are implemented. Two follow-ups remain outside this slice: the
-`@facilis/analyze` pass mapping definitions to project-graph nodes, and the Studio `Attività`
-inbox (it needs the preview transport decision, §14). SPEC §5.6/§7.9 describe the jobs surface
-(D-107) and §7.10 the workflow/task surface; O-017 stays open for retention/pruning and the
-dev-only inspection endpoint. This document is the design reference behind the approved
-direction: contract, runtime semantics, tables, rejected alternatives and the phased plan.
+(workflows) and W3 (reject branches, task assignment by permission, an example workflow with its
+start route, SPEC §7.10) are implemented. Workflows are shown in the project graph as definition
+nodes with their steps (D-137, `@facilis/analyze` pass); there is deliberately **no Studio task
+inbox tab** — the task inbox/decide routes are app UI and the graph is the only new IDE surface.
+SPEC §5.6/§7.9 describe the jobs surface (D-107) and §7.10 the workflow/task surface; O-017
+stays open for retention/pruning and the dev-only inspection endpoint. This document is the
+design reference behind the approved direction: contract, runtime semantics, tables, rejected
+alternatives and the phased plan.
 
 ## 1. What the feature must do
 
@@ -306,7 +307,9 @@ adds no second scheduler.
     examples/todo-app/server/workflows/purge-completed-todos.ts  example definition (W3)
     examples/todo-app/server/routes/api/workflows/index.post.ts  start route (W3)
     examples/todo-app/facilis.config.ts       permissions tasks:read/tasks:decide (W1)
-    (follow-ups, own slices)                   @facilis/analyze pass; ide TasksPanel inbox
+    packages/analyze/src/passes/workflows.ts  definition facts -> project-graph workflow nodes (W3)
+    ide/src/facilis/graph-model.ts             workflow column/card/inspector (W3)
+    (not planned)                              Studio task inbox tab: app-owned routes + graph (D-137)
 
 ## 12. Out of scope (v1)
 
@@ -315,7 +318,8 @@ step graphs, sub-workflows, cron or scheduled workflows, compensation/rollback, 
 step execution, assignment to a user or role (only a permission is stored; the app enforces it),
 notifications, first-class external-signal (webhook) steps — an app-owned public route can decide
 a pending task, but the framework models no signal outcome — retention/pruning of the two tables,
-multi-instance workers (one process per database, as jobs).
+multi-instance workers (one process per database, as jobs), a Studio task inbox tab (the app
+owns the inbox routes and the project graph shows the workflow definitions, D-137).
 
 ## 13. Phased plan
 
@@ -331,8 +335,9 @@ multi-instance workers (one process per database, as jobs).
 - **W3 — polish (landed).** Reject branches (`onReject`, a forward jump validated at load and
   against the plan snapshot), task assignment by permission (`assigned_permission`, filtered by
   the inbox and enforced by the example decide route), the example workflow definition with its
-  start route, and SPEC §7.10. The `@facilis/analyze` pass and the Studio inbox are the
-  remaining follow-ups, each its own slice (the inbox needs the preview transport decision, §14).
+  start route, the `@facilis/analyze` pass and the project-graph workflow nodes, and SPEC §7.10.
+  There is no Studio task inbox tab: the inbox/decide routes are app UI and the graph is the only
+  new IDE surface (D-137).
 
 ## 14. Open questions
 
@@ -342,6 +347,6 @@ multi-instance workers (one process per database, as jobs).
 - Reject semantics: resolved in W3 — a declared forward step or failure; a decided task never
   reopens (the CAS makes it terminal).
 - Decision audit: route `ctx.log` line vs a dedicated event.
-- Studio inbox placement (bottom panel vs editor tab) and whether it can call the project's
-  routes generically.
+- Studio inbox: resolved in D-137 — none. The app owns the task routes; the Studio adds only the
+  workflow definition nodes to the project graph.
 

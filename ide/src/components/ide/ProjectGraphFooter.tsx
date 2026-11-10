@@ -42,6 +42,7 @@ export function ProjectGraphFooter({
             pages: stats.pages,
             routes: stats.routes,
             tables: stats.tables,
+            workflows: stats.workflows,
             edges: stats.edges,
           })}
           {stats.pageLinks > 0 && (
@@ -61,7 +62,7 @@ export function ProjectGraphFooter({
       {stats !== null && (
         <ul className="flex flex-wrap items-center gap-1">
           <li className="font-medium text-foreground">{t("projectGraph.legend")}</li>
-          {(["page", "route", "table"] as const).map((kind) => (
+          {(["page", "route", "table", "workflow"] as const).map((kind) => (
             <li key={kind} className="rounded border px-1">
               {t(("projectGraph.node." + kind) as MessageKey)}
             </li>

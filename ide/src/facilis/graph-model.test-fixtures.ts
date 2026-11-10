@@ -95,6 +95,36 @@ export function tableNode(
   };
 }
 
+export function workflowNode(
+  name: string,
+  steps: readonly {
+    index: number;
+    kind: "job" | "approval";
+    name: string | null;
+    permission?: string | null;
+    onRejectStep?: number | null;
+  }[] = [],
+): GraphNode {
+  return {
+    id: "workflow:" + name,
+    kind: "workflow",
+    label: name,
+    sourceFile: "server/workflows/" + name + ".ts",
+    data: {
+      kind: "workflow",
+      name,
+      steps: steps.map((step) => ({
+        index: step.index,
+        kind: step.kind,
+        name: step.name,
+        permission: step.permission ?? null,
+        onRejectStep: step.onRejectStep ?? null,
+      })),
+      unknown: false,
+    },
+  };
+}
+
 export function graphOf(
   nodes: readonly GraphNode[],
   edges: ProjectGraph["edges"] = [],
@@ -115,3 +145,13 @@ export const TODOS = tableNode("todos", {
   ],
 });
 export const PROJECTS = tableNode("projects");
+export const WORKFLOW = workflowNode("purge", [
+  { index: 0, kind: "job", name: "purge-todos" },
+  {
+    index: 1,
+    kind: "approval",
+    name: "workflows.purge.approval",
+    permission: "tasks:decide",
+    onRejectStep: 2,
+  },
+]);

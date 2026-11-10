@@ -3,31 +3,19 @@
 // bridge, no IO, so the geometry and the filters are unit-testable and a refresh can rebuild
 // the view without touching the editor.
 //
-// Layout is three columns — pages, routes, tables — with FK/relation edges staying inside the
-// tables column. A saved position overrides the automatic one; edge kinds listed in the
-// layout's `hiddenEdges` are dropped before the canvas sees them.
+// Layout is four columns — pages, routes, tables, workflows — with FK/relation edges staying
+// inside the tables column. A saved position overrides the automatic one; edge kinds listed in
+// the layout's `hiddenEdges` are dropped before the canvas sees them.
 
-import type {
-  ColumnFact,
-  GraphEdgeKind,
-  GraphNode,
-  GraphNodeKind,
-  ProjectGraph,
-  RouteInputFact,
-} from "@facilis/analyze";
+import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis/analyze";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
-import { pathParamsOf } from "./graph-path-params";
+import { pageData, routeData, tableData, workflowData } from "./graph-node-data";
 import {
   GRAPH_COLUMNS,
-  type ColumnMarker,
-  type GraphColumn,
-  type PageGraphData,
   type ProjectGraphEdge,
   type ProjectGraphNode,
   type ProjectGraphView,
   type ProjectGraphViewInput,
-  type RouteGraphData,
-  type TableGraphData,
 } from "./graph-types";
 
 export type {
@@ -43,6 +31,8 @@ export type {
   ProjectGraphViewInput,
   RouteGraphData,
   TableGraphData,
+  WorkflowGraphData,
+  WorkflowStepGraphData,
 } from "./graph-types";
 export { GRAPH_COLUMNS } from "./graph-types";
 
@@ -50,69 +40,7 @@ export { GRAPH_COLUMNS } from "./graph-types";
  * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
  * the tallest of the fixed rows because they carry the input flags and path-parameter row.
  */
-const ROW_PITCH = { page: 88, route: 112, table: 190 } as const;
-
-function columnView(column: ColumnFact): GraphColumn {
-  const markers: ColumnMarker[] = [];
-  if (column.primaryKey) markers.push("primaryKey");
-  if (column.notNull) markers.push("notNull");
-  if (column.unique) markers.push("unique");
-  if (column.default !== null) markers.push("default");
-  if (column.unknown.length > 0) markers.push("unknown");
-  return {
-    property: column.property,
-    name: column.name,
-    type: column.type,
-    markers,
-  };
-}
-
-function pageData(node: GraphNode): PageGraphData | null {
-  if (node.data.kind !== "page") return null;
-  return {
-    kind: "page",
-    pagePath: node.data.pagePath,
-    pageKind: node.data.pageKind,
-    callCount: node.data.callCount,
-    routePaths: node.data.routePaths ?? [],
-    preview: node.data.preview ?? null,
-  };
-}
-
-/** An analyzer bundled before the input facts (or a still-running old worker) omits the field. */
-const NO_ROUTE_INPUT: RouteInputFact = { body: false, form: false, query: false, params: false };
-
-function routeData(node: GraphNode): RouteGraphData | null {
-  if (node.data.kind !== "route") return null;
-  return {
-    kind: "route",
-    method: node.data.method,
-    path: node.data.path,
-    permission: node.data.permission,
-    wrapper: node.data.wrapper,
-    description: node.data.description ?? null,
-    input: node.data.input ?? NO_ROUTE_INPUT,
-    pathParams: pathParamsOf(node.data.path),
-    elevations: node.data.elevations ?? [],
-    unknown: node.data.unknown,
-  };
-}
-
-function tableData(node: GraphNode): TableGraphData | null {
-  if (node.data.kind !== "table") return null;
-  return {
-    kind: "table",
-    table: node.data.table,
-    columns: node.data.columns.map(columnView),
-    rlsEnabled: node.data.rlsEnabled,
-    framework: node.data.framework,
-    scope:
-      node.data.scope === null
-        ? null
-        : { column: node.data.scope.column, kind: node.data.scope.kind },
-    unknown: node.data.unknown,
-  };
-}
+const ROW_PITCH = { page: 88, route: 112, table: 190, workflow: 150 } as const;
 
 function isTableEdge(edge: ProjectGraphEdge): boolean {
   return edge.kind === "fk" || edge.kind === "relation";
@@ -160,6 +88,7 @@ function autoPositions(
   pages: readonly ProjectGraphNode[],
   routes: readonly ProjectGraphNode[],
   tables: readonly ProjectGraphNode[],
+  workflows: readonly ProjectGraphNode[],
 ): Map<string, GraphPosition> {
   const positions = new Map<string, GraphPosition>();
   const place = (kind: GraphNodeKind, ordered: readonly ProjectGraphNode[]): void => {
@@ -170,6 +99,7 @@ function autoPositions(
   place("page", pages);
   place("route", routes);
   place("table", tables);
+  place("workflow", workflows);
   return positions;
 }
 
@@ -184,8 +114,13 @@ function matchesQuery(node: ProjectGraphNode, needle: string): boolean {
     for (const elevation of data.elevations) {
       values.push(elevation.kind, ...elevation.tables);
     }
-  } else {
+  } else if (data.kind === "table") {
     for (const column of data.columns) values.push(column.property, column.name, column.type);
+  } else {
+    values.push(data.name);
+    for (const step of data.steps) {
+      values.push(step.kind, step.name ?? "", step.permission ?? "");
+    }
   }
   return values.some((value) => value.toLowerCase().includes(needle));
 }
@@ -209,7 +144,9 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
         ? pageData(node)
         : node.data.kind === "route"
           ? routeData(node)
-          : tableData(node);
+          : node.data.kind === "table"
+            ? tableData(node)
+            : workflowData(node);
     if (data === null) continue;
     nodes.push({
       id: node.id,
@@ -233,11 +170,14 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       return a.data.path.localeCompare(b.data.path) || a.data.method.localeCompare(b.data.method);
     });
   const tables = nodes.filter((node) => node.kind === "table");
+  const workflows = nodes
+    .filter((node) => node.kind === "workflow")
+    .toSorted((a, b) => a.label.localeCompare(b.label));
   const tableOrder = orderTables(tables, input.graph.edges.map(edgeView).filter(isTableEdge));
   const orderedTables = tableOrder
     .map((id) => tables.find((node) => node.id === id))
     .filter((node): node is ProjectGraphNode => node !== undefined);
-  const auto = autoPositions(pages, routes, orderedTables);
+  const auto = autoPositions(pages, routes, orderedTables, workflows);
 
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const positioned = nodes.map((node) => {
@@ -262,6 +202,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       pages: pages.length,
       routes: routes.length,
       tables: tables.length,
+      workflows: workflows.length,
       edges: visible.length,
       hiddenEdges: hiddenCount,
       matches: positioned.filter((node) => node.matched).length,

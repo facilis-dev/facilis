@@ -5146,7 +5146,7 @@ the framework analysis regression is updated to the new node/edge counts. Root
 ---
 
 ### D-135 — Workflows are a state machine over rows; manual steps are tasks
-**Status:** accepted (2026-11-10) — design approved; W1 (manual tasks), W2 (workflows) and W3 (reject branches, task assignment, example, SPEC §7.10) implemented; the analyzer pass and the Studio inbox remain follow-ups.
+**Status:** accepted (2026-11-10) — design approved; W1 (manual tasks), W2 (workflows) and W3 (reject branches, task assignment, example, SPEC §7.10) implemented, and the analyzer pass puts workflow definitions in the project graph (D-137); there is no Studio inbox tab (D-137).
 
 Owner request (2026-11-10): a workflow is a chain of jobs, and a manual step (typically an
 approval) should be the simplest possible mechanism — the chain stays suspended until a row
@@ -5189,7 +5189,32 @@ branch (contract validation, forward jump, plan-snapshot check and runner test),
 assignment (`assigned_permission` column and migration 0007, store filter, runtime validation,
 example route enforcement), the example workflow with its start route, and SPEC §7.10; root
 `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` are green. The analyzer pass and
-the Studio inbox are follow-ups.
+the `workflow` graph node landed in D-137; the Studio adds no task inbox tab (D-137).
+
+---
+
+### D-137 — Workflow definitions are project-graph nodes; no Studio task inbox
+**Status:** accepted (2026-11-10).
+
+Owner request (2026-11-10): workflows should appear only in the project graph, with no new
+"Attività" tab. The graph (D-092/D-134) is already the single static visualizer of the project,
+built from `@facilis/analyze` facts without booting the app. A tasks inbox in the Studio would
+need a transport to the app's own authorized routes (session, page context, caching) and would
+duplicate a surface the app owns; the tasks API deliberately has no framework HTTP endpoint
+(D-135).
+
+**Decision.** Add a `workflow` graph node kind. A pass reads each `server/workflows/**` default
+export (a `defineWorkflow()` call from `@facilis/core`): the name, the ordered steps with their
+kind (`job`/`approval`), the job name or approval title key, the approval assignment permission and
+the forward `onReject.step`. Unreadable fields stay explicit (`name: null` plus unknown facts),
+and a file whose default export is not a `defineWorkflow` call is a `workflow-definition` warning,
+never a crash. The graph renders the definitions in a fourth column with a per-step inspector;
+there are no edges yet, because a workflow references jobs by name and jobs are not graph nodes.
+
+**Consequences.** The graph is a definition view, not a run view: instance status and progress stay
+in `facilis_workflows` and in the app's own UI. Static extraction covers literals and consts;
+computed values show as unknown instead of guessing. Adding jobs as graph nodes later can add a
+workflow→job edge without changing this node.
 
 ---
 

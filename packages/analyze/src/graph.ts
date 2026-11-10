@@ -2,15 +2,23 @@ import type {
   GraphEdge,
   GraphNode,
   PageFact,
-  PageNodeData,
   ProjectGraph,
   RelationFact,
   RouteFact,
-  RouteNodeData,
   ScreenFacts,
   TableFact,
-  TableNodeData,
+  WorkflowFact,
 } from "./types.ts";
+import {
+  pageId,
+  pageNode,
+  routeId,
+  routeNode,
+  tableId,
+  tableNode,
+  workflowId,
+  workflowNode,
+} from "./graph-nodes.ts";
 
 export interface GraphInput {
   readonly routes: readonly RouteFact[];
@@ -19,87 +27,8 @@ export interface GraphInput {
   readonly pages: readonly PageFact[];
   /** Route paths, bounded page previews and explicit page links. */
   readonly screens?: ScreenFacts;
-}
-
-const NODE_PREFIX = { page: "page:", route: "route:", table: "table:" } as const;
-
-function tableId(name: string): string {
-  return NODE_PREFIX.table + name;
-}
-
-function routeId(route: RouteFact): string {
-  return NODE_PREFIX.route + route.method + " " + route.path;
-}
-
-function pageId(path: string): string {
-  return NODE_PREFIX.page + path;
-}
-
-function tableNode(table: TableFact): GraphNode {
-  const data: TableNodeData = {
-    kind: "table",
-    table: table.name,
-    columns: table.columns,
-    rlsEnabled: table.rlsEnabled,
-    scope: table.scope,
-    framework: table.source.file.startsWith("node_modules/"),
-    unknown:
-      table.unknown.length > 0 ||
-      table.columns.some((column) => column.unknown.length > 0) ||
-      table.policies.some((policy) => policy.unknown.length > 0),
-  };
-  return {
-    id: tableId(table.name),
-    kind: "table",
-    label: table.name,
-    sourceFile: table.source.file,
-    data,
-  };
-}
-
-function routeNode(route: RouteFact, id: string): GraphNode {
-  const data: RouteNodeData = {
-    kind: "route",
-    method: route.method,
-    path: route.path,
-    permission: route.permission ?? [],
-    wrapper: route.wrapper,
-    input: route.input,
-    dbTables: route.dbTables ?? [],
-    dbColumns: route.dbColumns ?? [],
-    elevations: route.elevations,
-    description: route.description,
-    unknown:
-      route.unknown.length > 0 ||
-      route.wrapper === "unknown" ||
-      route.permission === null ||
-      route.dbTables === null,
-  };
-  return {
-    id,
-    kind: "route",
-    label: route.method + " " + route.path,
-    sourceFile: route.sourceFile,
-    data,
-  };
-}
-
-function pageNode(page: PageFact, id: string, screens: ScreenFacts): GraphNode {
-  const preview = screens.previews[page.path];
-  const data: PageNodeData = {
-    kind: "page",
-    pagePath: page.path,
-    pageKind: page.kind,
-    callCount: page.calls.length,
-    ...(preview === undefined ? {} : { routePaths: preview.routePaths, preview }),
-  };
-  return {
-    id,
-    kind: "page",
-    label: page.path,
-    sourceFile: page.path,
-    data,
-  };
+  /** Workflow definitions read from `server/workflows/**` (D-135 W3). */
+  readonly workflows?: readonly WorkflowFact[];
 }
 
 function fkLabel(
@@ -150,6 +79,13 @@ function collectNodes(input: GraphInput): GraphNode[] {
     if (pageIds.has(id)) continue;
     pageIds.add(id);
     nodes.push(pageNode(page, id, screens));
+  }
+  const workflowIds = new Set<string>();
+  for (const workflow of input.workflows ?? []) {
+    const id = workflowId(workflow.name);
+    if (workflowIds.has(id)) continue;
+    workflowIds.add(id);
+    nodes.push(workflowNode(workflow, id));
   }
   return nodes;
 }

@@ -231,6 +231,30 @@ export interface PageFact {
   readonly unknown: readonly UnknownFact[];
 }
 
+// ── workflows ─────────────────────────────────────────────────────────────────────
+
+/** One step of a `defineWorkflow` chain, as the static subset reads it. */
+export interface WorkflowStepFact {
+  readonly index: number;
+  readonly kind: "job" | "approval";
+  /** Job name for a job step, approval title key for an approval step. */
+  readonly name: string | null;
+  /** Approval assignment permission, when the definition declares one. */
+  readonly permission: string | null;
+  /** Forward step index declared by `onReject.step`, when present. */
+  readonly onRejectStep: number | null;
+  readonly source: SourceRef;
+}
+
+/** One `server/workflows/**` definition. */
+export interface WorkflowFact {
+  readonly name: string;
+  readonly sourceFile: string;
+  readonly source: SourceRef;
+  readonly steps: readonly WorkflowStepFact[];
+  readonly unknown: readonly UnknownFact[];
+}
+
 // ── graph ──────────────────────────────────────────────────────────────────────────
 // The graph-facing shapes live in types-graph.ts (the 300-line split); they are re-exported
 // here so every existing `from "./types.ts"` import keeps working.
@@ -249,6 +273,8 @@ export type {
   RouteNodeData,
   ScreenFacts,
   TableNodeData,
+  WorkflowNodeData,
+  WorkflowStepNodeData,
 } from "./types-graph.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
@@ -261,6 +287,7 @@ export interface Analysis {
   readonly tables: readonly TableFact[];
   readonly relations: readonly RelationFact[];
   readonly pages: readonly PageFact[];
+  readonly workflows: readonly WorkflowFact[];
   /** Module facts for every parsed source file, in path order. */
   readonly fileFacts: readonly FileFacts[];
   readonly locales: LocaleCatalogs;

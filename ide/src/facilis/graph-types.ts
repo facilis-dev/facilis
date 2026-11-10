@@ -72,6 +72,22 @@ export interface RouteGraphData {
   readonly unknown: boolean;
 }
 
+export interface WorkflowStepGraphData {
+  readonly index: number;
+  readonly kind: "job" | "approval";
+  /** Job name or approval title key; null when the definition could not be read. */
+  readonly name: string | null;
+  readonly permission: string | null;
+  readonly onRejectStep: number | null;
+}
+
+export interface WorkflowGraphData {
+  readonly kind: "workflow";
+  readonly name: string;
+  readonly steps: readonly WorkflowStepGraphData[];
+  readonly unknown: boolean;
+}
+
 export interface TableGraphData {
   readonly kind: "table";
   readonly table: string;
@@ -83,7 +99,8 @@ export interface TableGraphData {
   readonly unknown: boolean;
 }
 
-export type ProjectGraphNodeData = PageGraphData | RouteGraphData | TableGraphData;
+export type ProjectGraphNodeData =
+  PageGraphData | RouteGraphData | TableGraphData | WorkflowGraphData;
 
 export interface ProjectGraphNode {
   readonly id: string;
@@ -112,6 +129,7 @@ export interface ProjectGraphStats {
   readonly pages: number;
   readonly routes: number;
   readonly tables: number;
+  readonly workflows: number;
   readonly edges: number;
   readonly hiddenEdges: number;
   readonly matches: number;
@@ -147,5 +165,5 @@ export const GRAPH_EDGE_KINDS = [
   "page-link",
 ] as const satisfies readonly GraphEdgeKind[];
 
-/** The three layout columns, in CSS pixels. */
-export const GRAPH_COLUMNS = { page: 0, route: 344, table: 680 } as const;
+/** The four layout columns, in CSS pixels. */
+export const GRAPH_COLUMNS = { page: 0, route: 344, table: 680, workflow: 1016 } as const;

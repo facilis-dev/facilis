@@ -81,6 +81,67 @@ function PageDetails({
   );
 }
 
+function WorkflowDetails({
+  node,
+  onOpenFile,
+}: {
+  node: ProjectGraphNode;
+  onOpenFile: (file: string) => void;
+}) {
+  const workflow = node.data.kind === "workflow" ? node.data : null;
+  if (workflow === null) return null;
+  return (
+    <>
+      <p className="truncate font-mono text-[11px]">{workflow.name}</p>
+      {node.sourceFile !== null && (
+        <button
+          type="button"
+          title={t("projectGraph.openSource", { source: node.sourceFile })}
+          className="block w-full truncate text-left font-mono text-[10px] text-muted-foreground hover:text-foreground"
+          onClick={() => onOpenFile(node.sourceFile ?? "")}
+        >
+          {node.sourceFile}
+        </button>
+      )}
+      <section className="space-y-1">
+        <h3 className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+          {t("projectGraph.workflow.title")}
+        </h3>
+        {workflow.steps.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground">{t("projectGraph.workflow.empty")}</p>
+        ) : (
+          <ol className="space-y-1">
+            {workflow.steps.map((step) => (
+              <li key={step.index} className="rounded border px-1.5 py-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0 text-[9px] text-muted-foreground">
+                    {step.index + 1}.
+                  </span>
+                  <span className="shrink-0 rounded border px-1 text-[9px] text-muted-foreground">
+                    {t(("projectGraph.workflow." + step.kind) as MessageKey)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                    {step.name ?? "?"}
+                  </span>
+                </div>
+                {(step.permission !== null || step.onRejectStep !== null) && (
+                  <p className="mt-0.5 text-[9px] text-muted-foreground">
+                    {step.permission !== null &&
+                      t("projectGraph.workflow.permission", { permission: step.permission })}
+                    {step.permission !== null && step.onRejectStep !== null ? " · " : ""}
+                    {step.onRejectStep !== null &&
+                      t("projectGraph.workflow.onReject", { step: step.onRejectStep + 1 })}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </>
+  );
+}
+
 function OtherDetails({
   node,
   onOpenFile,
@@ -139,6 +200,8 @@ export function ProjectGraphInspector({
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
         {node.data.kind === "page" ? (
           <PageDetails node={node} links={links} onOpenFile={onOpenFile} />
+        ) : node.data.kind === "workflow" ? (
+          <WorkflowDetails node={node} onOpenFile={onOpenFile} />
         ) : (
           <OtherDetails node={node} onOpenFile={onOpenFile} />
         )}

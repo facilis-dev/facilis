@@ -74,6 +74,7 @@ function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     tables: [],
     relations: [],
     pages: [],
+    workflows: [],
     fileFacts: [],
     locales: {},
     diagnostics: [],

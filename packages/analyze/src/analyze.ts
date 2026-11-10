@@ -5,6 +5,7 @@ import { readLocaleCatalogs } from "./passes/i18n.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
+import { buildWorkflowFacts } from "./passes/workflows.ts";
 import { buildProjectGraph } from "./graph.ts";
 import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
@@ -40,6 +41,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
   const config = buildConfigFacts(graph);
   const routes = buildRouteFacts(graph, config.facts);
   const schema = buildSchemaFacts(graph, config.facts);
+  const workflows = buildWorkflowFacts(graph);
   const locales = readLocaleCatalogs(graph);
   const pages = buildPageFacts(graph, routes.routes, input.transport ?? DEFAULT_TRANSPORT);
   const screens = buildScreens(graph, pages.pages);
@@ -58,6 +60,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...schema.diagnostics,
       ...locales.diagnostics,
       ...pages.diagnostics,
+      ...workflows.diagnostics,
     ].filter(
       // Framework sources are shipped code: their facts stay, but their lint-style
       // diagnostics are not the project's. Project files start outside node_modules/.
@@ -73,6 +76,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     tables: schema.tables,
     relations: schema.relations,
     pages: pages.pages,
+    workflows: workflows.workflows,
     fileFacts,
     locales: locales.locales,
     diagnostics,
@@ -82,6 +86,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       relations: schema.relations,
       pages: pages.pages,
       screens,
+      workflows: workflows.workflows,
     }),
   };
 }

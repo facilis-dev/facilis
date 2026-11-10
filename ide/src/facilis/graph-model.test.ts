@@ -5,6 +5,7 @@ import {
   PAGE,
   PROJECTS,
   TODOS,
+  WORKFLOW,
   graphOf,
   pageNode,
   ref,
@@ -40,6 +41,26 @@ describe("buildProjectGraphView data", () => {
       pathParams: [],
       unknown: false,
     });
+  });
+
+  it("maps workflow definitions and their steps", () => {
+    const view = buildProjectGraphView({ graph: graphOf([WORKFLOW]) });
+    expect(view.nodes[0]?.data).toEqual({
+      kind: "workflow",
+      name: "purge",
+      unknown: false,
+      steps: [
+        { index: 0, kind: "job", name: "purge-todos", permission: null, onRejectStep: null },
+        {
+          index: 1,
+          kind: "approval",
+          name: "workflows.purge.approval",
+          permission: "tasks:decide",
+          onRejectStep: 2,
+        },
+      ],
+    });
+    expect(view.stats.workflows).toBe(1);
   });
 
   it("maps route paths and the static page structure onto a page card", () => {
