@@ -177,9 +177,12 @@ export const projects = pgTable(
 projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
 ```
 
-The migration is **generated**, never hand-written:
-`pnpm --filter @facilis/example-todo-app db:generate` (drizzle-kit writes the SQL, snapshot and
-journal). Hand-written SQL diverges from `meta/_journal.json` and the next generate rewrites it.
+The schema DDL is **generated, never authored**: no human and no AI writes `.sql`. The release
+pipeline reads `db/schema.ts` + `facilis.config.ts` at the previous release tag and at the new tag
+and generates the artifact from the diff, with no database access (D-145);
+`facilis db deploy --release <tag>` applies the pending artifacts through the ledger (D-146). In
+dev, boot reconciles the live PGlite schema to the declared one with the same planner on disposable
+data; that is the only exception and never a release path.
 
 ## 6. Wiring checklist (every section)
 

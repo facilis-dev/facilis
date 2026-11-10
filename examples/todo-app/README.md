@@ -74,7 +74,8 @@ surface over it:
 The `jobs` section of `facilis.config.ts` shows every key once: `maxConcurrent`,
 `maxAttempts`, `retryDelayMs`, `timeoutMs`, `pollIntervalMs`, `persist`. With
 `persist: true` the queue lives in `facilis_jobs`, which `db/schema.ts` re-exports from
-`@facilis/db`, so `pnpm db:generate` owns its DDL (`0002`: the queue table + its RLS policy).
+`@facilis/db`; its DDL is the checked-in migration `0002` (the queue table + its RLS policy; see
+the D-145 note below).
 Queue state survives the dev-server worker reload; a missing table degrades to the in-memory
 store with a `jobs_table_missing` manifest warning.
 
@@ -199,3 +200,10 @@ input-validation 400s and anonymous 401.
 # the seed migration 0001_seed_roles.sql is generated from the config):
 pnpm db:generate
 ```
+
+**Transitional (D-145).** The example still carries the old authored migration files. The target
+model has no authored `db/migrations`: the release pipeline generates the SQL at release time from
+the previous and new tag (no database access) and the deploy applies it as an immutable artifact
+with a ledger and schema fingerprints. P5 of
+[docs/MIGRATION-PLAN.md](../../docs/MIGRATION-PLAN.md) retires this directory and `meta/`, and
+`drizzle-kit` stays only as a CI test oracle.

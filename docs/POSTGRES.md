@@ -1,11 +1,12 @@
 # Running a Facilis app on Postgres
 
-**Status:** implemented (2026-11-01). Decision: **D-068**. Contract: SPEC §5.2, §7.1;
-[PHASE1-CONTRACTS.md](./PHASE1-CONTRACTS.md) §5; RLS composition: SPEC §8.4.5 and D-008.
+**Status:** implemented (2026-11-01); the deploy step follows the accepted D-145/D-146 model.
+Decision: **D-068**. Contract: SPEC §5.2, §7.1; [PHASE1-CONTRACTS.md](./PHASE1-CONTRACTS.md) §5;
+RLS composition: SPEC §8.4.5 and D-008.
 
 An app runs on **PGlite** (WASM Postgres) inside the browser VM in development and on a **real
 Postgres** everywhere else. Both are the same client API, the same Drizzle schema, the same
-migrations and the same RLS policies — the driver is the only difference.
+release artifacts and the same RLS policies — the driver is the only difference.
 
 ## 1. Two drivers, one API
 
@@ -13,7 +14,7 @@ migrations and the same RLS policies — the driver is the only difference.
     createDb({ driver: "postgres", url: DATABASE_URL })  // production: pg.Pool
 
 `FacilisDb.db` is a Drizzle pg-core client in both cases, so routes, `runWithPolicyScope`,
-the migrator and `schemaSnapshot` are driver-agnostic. What is **not** shared is the cluster
+the deploy applier and `schemaSnapshot` are driver-agnostic. What is **not** shared is the cluster
 dump: `snapshot()` is a PGlite capability and the postgres driver throws
 `SnapshotUnavailableError`; the dev snapshotter is only ever installed for PGlite.
 
@@ -66,39 +67,65 @@ statement is a no-op; in PGlite (dev) it is what makes the superuser enforce RLS
 middleware validates the session **inside a tenant-scoped transaction**, so it no longer needs
 a privileged connection to read `users`/`user_roles`.
 
-## 4. One-time provisioning (the deploy step)
+## 4. One-time provisioning and the deploy step
 
-Migrations, the role seed and the `facilis_app` grants are applied once per deployment, by
-the **owner/admin** connection — never by the runtime, and never on every boot. `ensureAppRole`
-**classifies every table by its live RLS state** (D-136): an RLS table gets DML for the app role,
-a table without RLS gets none and is system-only, so the runtime can never read it. From the
-project root, with the package installed:
+The schema, the role seed and the `facilis_app` grants are applied by the deploy job, over the
+**owner/admin** connection — never by the runtime, and never on every boot. The deploy does not
+generate DDL (D-145): it applies the immutable artifacts the release pipeline produced for the
+release tags, in order, behind a ledger (D-146). From the project root, with the package installed:
 
 ```bash
 FACILIS_MIGRATION_DATABASE_URL='postgres://owner:...@host:5432/db?sslmode=require' \
-node --input-type=module <<'JS'
-import { createDb, applyMigrations, ensureAppRole, ensureSystemRole } from "@facilis/db";
-
-const db = await createDb({ driver: "postgres", url: process.env.FACILIS_MIGRATION_DATABASE_URL });
-await applyMigrations(db, { directory: "db/migrations" }); // idempotent: content-hashed rows
-await ensureAppRole(db);                                   // classify tables: RLS gets DML, the rest is revoked
-await ensureSystemRole(db);                                // sudo identity + membership (needs a superuser)
-await db.close();
-JS
+facilis db deploy --release <tag> --backup-ref <ref>
 ```
 
+- **Ledger.** `_facilis_deploy_runs(release, plan_hash, from_digest, to_digest, status, statements,
+  approval_ref, backup_ref, started_at, finished_at)` has one row per applied artifact. The
+  database's release is what the ledger says; the pending artifacts are the release tags between
+  it and `--release`.
+- **Fingerprint preflight.** Before each artifact the deploy checks
+  `digest(live) == artifact.fromDigest`; a mismatch is a typed refusal (drift), never a silent
+  repair — `facilis db adopt`/`repair` are the explicit one-time operations.
+- **Approval and backup.** A destructive artifact needs an approval bound to its `planHash` and an
+  environment policy that permits destructive DDL (`destroy: "deny" | "approval" | "allow"`); the
+  deploy requires and records `--backup-ref` and **never runs a backup itself**: the backup is the
+  release environment's/operator's job, passed as a pointer (D-146).
+- **Atomicity and lock.** One transaction per artifact, an advisory lock on the deploy connection
+  (a concurrent deploy exits `deploy_locked`), and a post-check `digest(live) == artifact.toDigest`
+  that rolls back on mismatch.
+- **Post-steps.** After the artifacts: the role seed from `facilis.config.ts`,
+  `ensureAppRole(db)`, `ensureSystemRole(db)` and the `db/views/**` definitions. They run in the
+  deploy, never in the runtime.
+- **No downgrade.** A database ahead of `--release` is refused; restore the backup or ship a
+  forward artifact.
+
+**Unknown/legacy database (no ledger, one-time).**
+
+```bash
+# Verify digest(live) == declared(v2.0.0) and record the baseline; no DDL.
+facilis db adopt --release v2.0.0
+# Explicit live -> declared plan with the backup pointer; break-glass only.
+facilis db repair --release v2.0.0 --backup-ref <ref> [--allow-destructive]
+```
+
+Both are human operations; `--allow-destructive` exists only here (break-glass, never on the
+release path) and a repair is recorded as a repair run, never as a release artifact.
+
+`ensureAppRole` **classifies every table by its live RLS state** (D-136): an RLS table gets DML for
+the app role, a table without RLS gets none and is system-only, so the runtime can never read it.
+The grant list is derived from the catalog, so a table an artifact creates stays closed to the
+runtime until its RLS is enabled and the post-step runs. It also removes the table default
+privilege, so there is no window in which the table an artifact just created is app-readable.
+
 `ensureSystemRole` creates `facilis_system` (`NOLOGIN NOSUPERUSER BYPASSRLS`) and makes
-`facilis_app` a member of it. `CREATE ROLE … BYPASSRLS` is a superuser operation, so this line
+`facilis_app` a member of it. `CREATE ROLE … BYPASSRLS` is a superuser operation, so this step
 needs the owner/superuser connection; a managed host that cannot provision such a role (§3) must
 skip it, and the runtime then has no elevation path — `ctx.sudo`/`ctx.system`/`runAsSystem` fail
 closed. The membership is what the `NOINHERIT` note below is about.
 
-Run it again after **every** migration that adds or changes tables: the grant list is derived from
-the catalog, so a new table stays closed to the runtime until its RLS is enabled and this step
-runs. The step also removes the table default privilege, so there is no window in which a table
-the migration just created is app-readable. The role is `NOINHERIT` on purpose: it is a member of
-`facilis_system` only so the runtime can `SET ROLE` for the audited sudo (D-099), and membership
-must not hand the system grants to the request identity.
+The role is `NOINHERIT` on purpose: it is a member of `facilis_system` only so the runtime can
+`SET ROLE` for the audited sudo (D-099), and membership must not hand the system grants to the
+request identity.
 
 Then give the role a login and let the runtime use it:
 
@@ -119,7 +146,7 @@ through `createRequire`, which is what keeps `node:net`/`node:tls` out of the in
 The project that deploys installs it once (`pnpm add pg`). The generated starter does not list
 it yet — that is the IDE template's dependency list (D-062), not the driver's job.
 
-A production boot does **not** run migrations or the dev bootstrap. It reports
+A production boot does **not** run DDL or the dev bootstrap. It reports
 `db_migrations_skipped` instead, so a forgotten deploy step surfaces as a manifest warning
 next to a schema error, not as DDL racing the first request.
 
@@ -156,7 +183,8 @@ server installed.
 
 - `snapshot()`/`loadSnapshot` are PGlite-only (dev persistence, D-052).
 - `db.mode: "json"` remains a declared-but-unimplemented mode.
-- There is no provisioning CLI yet: the block in §4 is the deploy step, and a
-  `facilis db migrate` command is the follow-up.
+- The deploy CLI (`facilis db deploy/status/adopt/repair`) is specified in
+  [MIGRATION-PLAN.md](./MIGRATION-PLAN.md) §2.3-§2.4; drizzle-kit migrates nothing at deploy time
+  (D-146).
 - The generated starter's dependency list does not include `pg` yet, so a deployment adds it
   (`pnpm add pg`) until the IDE template ships it (D-062).

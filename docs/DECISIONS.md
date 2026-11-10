@@ -5608,6 +5608,109 @@ chiavi indipendenti, clock iniettabile), `token.post.test.ts` (429 + `retry-afte
 negato non arriva al database + audit), config tests (default e validazione di windowMs/
 maxRequests), errors test (429 nella registry), root gates lint/typecheck/test/build.
 
+### D-145 — Il DDL dello schema nasce al rilascio dal diff dei tag, mai scritto a mano
+**Status:** accepted (2026-11-10)
+
+**Context.** Il DDL oggi si scrive a mano. Nell'esempio e' hand-written (0001_seed_roles,
+0005_app_access, 0006_api_clients), nei progetti generati lo scrive l'AI (regola 14 del validator e
+regola config-sync), e i documenti dichiarano drizzle-kit come generatore (SPEC §2, §8.3) anche se
+il progetto generato non ha ne' drizzle-kit ne' db:generate. D-109 aveva stabilito che il framework
+rende le migrazioni dai fatti dello schema, ma l'unico renderer (ide/src/ai/schema-migration.ts) e'
+rimasto orfano: nessun import, nessun test. Chi cambia db/schema.ts deve quindi anche scrivere il
+SQL, e quel SQL puo' essere incompleto, non riproducibile e diverso da un ambiente all'altro.
+
+**Decision.** Per test e produzione il DDL e' un artefatto generato in pipeline, dal diff fra il tag
+del rilascio precedente e il tag nuovo, senza accesso al database.
+
+- **Dove nasce.** Il release pipeline fa checkout dei due tag, carica db/schema.ts e
+  facilis.config.ts, costruisce i due snapshot dichiarati e chiama planSchema(from, to) in
+  @facilis/core: batch ordinati, classi di rischio, problemi. Un problema (dichiarazione
+  irrappresentabile, sicurezza delle policy) fa fallire il rilascio, non degrada.
+- **Nessun database al momento della generazione.** L'IDE e la CI non raggiungono test/prod: il
+  confronto live e' impossibile per costruzione, quindi il tag e' l'unica sorgente. Il catalogo
+  live resta una verifica del deploy e un attrezzo di adozione/riparazione (D-146).
+- **Nessun AI e nessun utente scrivono DDL.** La regola 14 del validator e la regola config-sync
+  smettono di chiedere un file .sql e diventano un blocco: un DDL scritto a mano in una patch viene
+  rifiutato. db/migrations/ e meta/ escono dal template.
+- **Eccezione dev.** In PGlite lo schema cambia senza tag: al boot il dev database si riconcilia
+  live -> dichiarato con lo stesso planner, sui dati usa-e-getta. Non e' un percorso di rilascio.
+- **Nessuna dipendenza runtime da drizzle-kit.** I percorsi programmatici sono verificati rotti o
+  lossy (pushSchema perde i parametri, il pull non e' idempotente) e il progetto generato non lo
+  installa: drizzle-kit resta un oracolo di test in CI, non una dipendenza.
+- **D-109 si completa.** Il renderer orfano si sposta in @facilis/core con i suoi test.
+
+**Rejected.** drizzle-kit come generatore di produzione (rotto/lossy e assente dal progetto
+generato), diff live come generatore (la pipeline non ha accesso al DB: e' la ragione del modello),
+SQL scritto dall'AI (non riproducibile dai tag, non revisionabile), migrazioni scritte a mano per i
+backfill in v1 (fuori scope, decisione 5 del piano).
+
+**Consequences.** Una modifica di schema in un PR non contiene piu' .sql; rilanciare il pipeline
+sugli stessi tag produce lo stesso piano. Da emendare: SPEC §2/§7.7/§8.3/§8.4.2/§9.4/§11.3/Appendix
+D, PATTERNS §5 (generated, never authored), APP-UPDATES §5, POSTGRES §4, README dell'esempio. Il
+piano operativo e' docs/MIGRATION-PLAN.md.
+
+**Verification.** P0: nessuna riga di codice. P2: golden test del planner e confronto con
+drizzle-kit generateDrizzleJson + generateMigration come oracolo; una dichiarazione non supportata
+fallisce il rilascio. Gate finali: pnpm lint/typecheck/test/build.
+
+### D-146 — Un rilascio e' un tag piu' un artefatto immutabile; il deploy applica artefatti con un ledger e un fingerprint
+**Status:** accepted (2026-11-10)
+
+**Context.** SPEC §2 dice che la pipeline esegue drizzle-kit migrate e POSTGRES §4 documenta uno
+snippet una-tantum: applicano SQL senza sapere a che release e' il database, senza verificare che il
+DB sia quello che si aspettano e senza un modo per rifiutare il drift. La prima versione del piano
+(docs/MIGRATION-PLAN.md §1) calcolava il piano live -> dichiarato dentro il deploy: ma il deploy deve
+partire da qualunque stato (vuoto, indietro di N release, ripristinato da backup, adottato) e il
+confronto live non e' disponibile ne' dall'IDE ne' dalla CI.
+
+**Decision.** Un rilascio e' un tag piu' un artefatto: il tag e' la release, l'artefatto e' il suo
+schema diff immutabile, e il deploy applica artefatti con un ledger.
+
+- **Artefatto.** Prodotto dal pipeline di D-145: release/from/to (tag + oid), fromDigest/toDigest,
+  planHash (sha256 del corpo), risk, batch ordinati, destructive (gli id dei batch che perdono
+  dati), approved? (autore, data, hash), problems. E' conservato come artifact CI chiave tag, non
+  committato, e il deploy ne registra l'hash nel ledger.
+- **Ledger.** _facilis_deploy_runs(release, plan_hash, from_digest, to_digest, status, statements,
+  approval_ref, backup_ref, started_at, finished_at), una riga per artefatto applicato. Lo stato di
+  un database e' cio' che dice il ledger: pending = artefatti fra la release del ledger e il target.
+- **Deploy.** Preflight digest(live) == artifact.fromDigest (altrimenti rifiuto tipizzato),
+  fingerprint post-check, lock consultivo, una transazione per artefatto, post-step (seed,
+  ensureAppRole, ensureSystemRole, views). Nessun downgrade: si ripristina il backup o si spedisce
+  un artefatto in avanti.
+- **Il catalogo live e' verifica, non generatore.** facilis db adopt registra la baseline di un DB
+  senza ledger; facilis db repair e' la riconciliazione esplicita live -> dichiarato, con backup,
+  registrata come repair e mai come release. --allow-destructive esiste solo qui.
+- **Approvazione e esecuzione sono atti separati.** L'approvazione e' un atto di rilascio legato al
+  planHash e alla lista dei batch distruttivi; la policy dell'ambiente (destroy: deny | approval |
+  allow) decide se il deploy puo' eseguirla; il deploy resta non presidiato. Il backup e'
+  dell'ambiente di rilascio: il deploy richiede e registra un backup_ref, non lo produce.
+- **Stesso artefatto in ogni ambiente.** Test/staging applicano per primi lo stesso SQL; la
+  produzione applica lo stesso dopo l'approvazione, quindi non possono divergere in silenzio.
+- **Release Preview.** L'IDE calcola lo stesso piano tag -> HEAD dal git tree, senza database, e
+  fallisce chiuso dove l'analyzer non risolve una dichiarazione. Il preview mostra il piano che
+  parte, non SQL inventato: cio' sostituisce la premessa di D-086 (che rifiutava di sintetizzare
+  SQL nel preview) perche' la generazione ora e' deterministica dai tag e l'artefatto CI e'
+  l'autorita'.
+- **v1 non fa data batch.** Un piano che richiede righe esistenti modificate fallisce il rilascio
+  con data_needed; i backfill scritti a mano restano fuori scope (decisione 5 del piano).
+
+**Rejected.** applicare il diff live -> dichiarato al deploy (non deterministico, dipende dallo
+stato e non e' revisionabile), SQL committato nel repo o manifest OCI (artefatti CI chiave tag:
+decisione 1), drizzle-kit migrate come deploy step, flag umano a ogni deploy (l'approvazione e' un
+atto di rilascio), backup eseguito dal framework (lo fa l'ambiente di rilascio), confronto live al
+momento del rilascio (l'IDE/CI non hanno il DB).
+
+**Consequences.** facilis db deploy/status/adopt/repair prende il posto dello snippet di POSTGRES
+§4; SPEC §2/§7.7/§11.3 e APP-UPDATES §5 cambiano; da emendare anche D-086 (premessa schema-lens),
+D-109 (completato da D-145), D-065/D-070 (step DB dell'upgrade), D-136 (RLS dentro gli artefatti),
+D-052 (snapshot PGlite dev), D-078 (publish + tag). Matrice di stati e flussi:
+docs/MIGRATION-PLAN.md §2.3-§2.5.
+
+**Verification.** P1: digest canonico e round-trip dichiarato <-> live. P3: matrice di stati
+(vuoto, indietro, ripristinato, adottato, drift, parziale, ruolo sbagliato), secondo run a 0
+statement, deploy interrotto, rifiuti tipizzati, e2e PGlite + Postgres. P4: lo stesso piano in IDE e
+pipeline per la stessa coppia di tag.
+
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
