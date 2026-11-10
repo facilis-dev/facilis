@@ -211,3 +211,20 @@ export type {
   SchemaDiffSummary,
   SecurityDiff,
 } from "./release.ts";
+export {
+  approvalMatches,
+  parseReleaseArtifact,
+  RELEASE_ARTIFACT_FORMAT_VERSION,
+  releaseArtifactSchema,
+  sealReleaseArtifact,
+} from "./release-artifact.ts";
+export type {
+  ReleaseApproval,
+  ReleaseArtifact,
+  ReleaseArtifactInput,
+  ReleaseArtifactIssue,
+  ReleaseArtifactParseResult,
+  ReleaseBatch,
+  ReleaseProblem,
+  ReleaseRef,
+} from "./release-artifact.ts";

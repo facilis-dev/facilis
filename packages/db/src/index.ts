@@ -66,6 +66,17 @@ export {
   type SchemaDrift,
   type SchemaDriftKind,
 } from "./schema-drift.ts";
+export {
+  canonicalDigestJson,
+  declaredDigestSchema,
+  digestSchema,
+  liveDigestSchema,
+  SCHEMA_DIGEST_VERSION,
+  type DigestColumn,
+  type DigestPolicy,
+  type DigestSchema,
+  type DigestTable,
+} from "./schema-digest.ts";
 export { applyMigrations, applyStatements, type MigrationSource } from "./migrator.ts";
 export {
   applyViews,

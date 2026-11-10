@@ -141,7 +141,7 @@ function nullability(notNull: boolean): string {
 function policySignature(policy: PolicySnapshot): string {
   return [
     policy.command.toUpperCase(),
-    /\bas\s+restrictive\b/i.test(policy.sql) ? "RESTRICTIVE" : "PERMISSIVE",
+    isRestrictivePolicy(policy) ? "RESTRICTIVE" : "PERMISSIVE",
     normalizePolicySql(policy.using),
     normalizePolicySql(policy.withCheck),
   ].join("|");
@@ -157,12 +157,23 @@ function livePolicySignature(policy: LivePolicySnapshot): string {
 }
 
 /**
+ * Code-side permissiveness: `PolicySnapshot` keeps only the rendered SQL, so the flag is
+ * read from the `AS RESTRICTIVE` clause the generator emits (D-008).
+ */
+export function isRestrictivePolicy(policy: PolicySnapshot): boolean {
+  return /\bas\s+restrictive\b/i.test(policy.sql);
+}
+
+/**
  * Postgres re-renders a policy's qualifier (adds parentheses and explicit `::text`
  * casts), so raw SQL text never matches the Drizzle rendering even when the policies are
  * identical. Compare a normalized form instead: lower-case, casts removed, quotes and
  * parentheses dropped, whitespace collapsed away.
+ *
+ * Exported so the canonical schema digest (./schema-digest.ts) normalizes the same way
+ * instead of carrying a second copy.
  */
-function normalizePolicySql(value: string | null): string {
+export function normalizePolicySql(value: string | null): string {
   if (value === null) return "";
   return value
     .toLowerCase()
