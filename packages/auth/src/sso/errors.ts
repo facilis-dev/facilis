@@ -13,8 +13,8 @@ export const SSO_ERROR_CODES = [
   "sso_exchange_failed",
   "sso_identity_invalid",
   "sso_email_unverified",
-  // The verified email names an existing PASSWORD account: linking would be account
-  // pre-hijacking until email verification exists (SEC-02, D-151).
+  // Verified IdP email matched a PASSWORD account that is not verified, in a deployment where
+  // email verification is off: linking it would be account pre-hijacking (SEC-02, D-156).
   "sso_email_conflict",
   "sso_account_not_found",
   "sso_internal_error",

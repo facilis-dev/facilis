@@ -7,12 +7,14 @@
 
 export {
   DB_MODES,
+  DEFAULT_EMAIL_VERIFICATION_CONFIG,
   DEFAULT_LOGGING_CONFIG,
   DEFAULT_SSO_CONFIG,
   DEFAULT_STORAGE_CONFIG,
   SSO_PROVIDER_KINDS,
   defineConfig,
   facilisConfigSchema,
+  facilisEmailVerificationConfigSchema,
   ssoConfigSchema,
   ssoProviderSchema,
   STORAGE_DRIVERS,
@@ -28,6 +30,8 @@ export type {
   FacilisConfig,
   FacilisConfigInput,
   FacilisDbConfig,
+  FacilisEmailVerificationConfig,
+  FacilisEmailVerificationConfigInput,
   FacilisI18nConfig,
   FacilisNitroOptions,
   FacilisReleaseConfig,

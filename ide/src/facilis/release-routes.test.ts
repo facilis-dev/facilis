@@ -7,7 +7,7 @@ const TEMPLATE_ROUTES = "server/routes/api/todos/index.get.ts";
 describe("routesFromFiles", () => {
   it("derives every route of the template from its file name", () => {
     const routes = routesFromFiles(Object.keys(exampleProjectFiles()));
-    expect(routes).toHaveLength(17);
+    expect(routes).toHaveLength(18);
     expect(routes.map((route) => route.method + " " + route.path)).toEqual([
       "DELETE /api/auth/clients/:id",
       "DELETE /api/jobs/:id",
@@ -15,6 +15,7 @@ describe("routesFromFiles", () => {
       "DELETE /api/todos/:id/files/:fileId",
       "GET /api/auth/clients",
       "GET /api/auth/session",
+      "GET /api/auth/verify-email",
       "GET /api/files/:id",
       "GET /api/jobs/:id",
       "GET /api/todos",

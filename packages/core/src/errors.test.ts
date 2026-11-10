@@ -35,6 +35,7 @@ describe("fail", () => {
     expect(FACILIS_ERROR_STATUS).toEqual({
       unauthorized: 401,
       forbidden: 403,
+      email_unverified: 403,
       invalid_input: 400,
       too_many_requests: 429,
       unsupported_media_type: 415,

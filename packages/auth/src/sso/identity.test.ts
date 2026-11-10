@@ -23,7 +23,7 @@ function audit(): SsoAudit {
 
 const options: ResolveIdentityOptions = {
   defaultRole: "user",
-  linkPasswordAccounts: false,
+  claimUnverifiedPasswordAccount: false,
   audit: audit(),
 };
 

@@ -25,6 +25,7 @@ const SSO_ERROR_KEYS = new Set([
   "sso_exchange_failed",
   "sso_identity_invalid",
   "sso_email_unverified",
+  "sso_email_conflict",
   "sso_account_not_found",
   "sso_internal_error",
 ]);
@@ -75,6 +76,27 @@ export function LoginPage() {
       active = false;
     };
   }, []);
+
+  // The verification route redirects here (D-156): surface the outcome once, then drop the
+  // parameter so a reload does not repeat the toast.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const verified = params.get("verified") === "1";
+    const failed = params.has("verify_error");
+    if (!verified && !failed) return;
+    if (verified) {
+      toast.success(t("auth.login.email_verified"));
+    } else {
+      toast.error(t("auth.login.email_verify_failed"));
+    }
+    params.delete("verified");
+    params.delete("verify_error");
+    const search = params.toString();
+    navigate(
+      { pathname: location.pathname, search: search.length === 0 ? "" : "?" + search },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate]);
 
   const errorKey = ssoErrorKey(new URLSearchParams(location.search).get("sso_error"));
 

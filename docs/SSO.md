@@ -178,6 +178,7 @@ The browser only sees a code in `?sso_error=`; the app translates it with
 | `sso_exchange_failed` | token/userinfo/SAML exchange failed, or the IdP reported an error |
 | `sso_identity_invalid` | the IdP returned no usable subject/email, or a token/signature check failed |
 | `sso_email_unverified` | linking/provisioning needs a verified email the provider did not assert |
+| `sso_email_conflict` | the verified email matches a PASSWORD account that is still pending, in a deployment with email verification disabled |
 | `sso_account_not_found` | `autoProvision: false` and no user matches the verified email |
 | `sso_internal_error` | unexpected server failure (details are server-side only) |
 
@@ -195,9 +196,14 @@ A sign-in resolves as follows, entirely inside the audited `ctx.system` elevatio
    are refreshed. A later unverified email does not break an existing link.
 2. **No link, verified email** - the email is matched to `users` canonically (lowercase,
    D-150). A match on an SSO-provisioned user (no password) gets a new identity row (audit
-   `auth:sso:link`). A match on a **password** account is refused with `sso_email_conflict`
-   unless `auth.sso.linkPasswordAccounts` is enabled (default false, D-151): that account was
-   never email-verified, so linking it would hand it to whoever registered the address first.
+   `auth:sso:link`). A match on a **password** account depends on its verification state (D-156):
+   a VERIFIED account belongs to the same proven mailbox and links normally; a PENDING account
+   (never verified) is **claimed** - the placeholder password set by whoever registered the
+   address first is removed, the account is marked verified and the identity is linked (audit
+   `auth:sso:link` with `claimed: "unverified_password"`). An attacker who only registered the
+   address therefore loses the account to the mailbox owner, and cannot keep a password to it.
+   With `auth.verification.enabled` false the claim would silently reset a password the owner may
+   still use, so the login is refused with `sso_email_conflict` instead.
 3. **No link, no user** - with `autoProvision` the framework creates a user with a **null
    password hash**, assigns `provider.defaultRole ?? auth.defaultRole`, and writes the identity
    (audit `auth:sso:provision`). Without `autoProvision`, the login fails with

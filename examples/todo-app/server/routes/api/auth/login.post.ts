@@ -24,7 +24,12 @@ export default defineAuthorizedHandler(
   },
   async (event, { body, db, log }) => {
     const [user] = await db
-      .select({ id: users.id, passwordHash: users.passwordHash, isService: users.isService })
+      .select({
+        id: users.id,
+        passwordHash: users.passwordHash,
+        isService: users.isService,
+        emailVerifiedAt: users.emailVerifiedAt,
+      })
       .from(users)
       .where(eq(users.email, body.email))
       .limit(1);
@@ -40,6 +45,13 @@ export default defineAuthorizedHandler(
     if (!(await verifyPassword(passwordHash, body.password))) {
       log.audit({ operation: "auth:login", outcome: "failed", errorCode: "unauthorized" });
       return fail("unauthorized");
+    }
+
+    // D-156: a password account must prove mailbox ownership before a session starts. Checked
+    // only after the password succeeded, so the response is not an existence oracle.
+    if (config.auth.verification.enabled && user.emailVerifiedAt === null) {
+      log.audit({ operation: "auth:login", outcome: "failed", errorCode: "email_unverified" });
+      return fail("email_unverified");
     }
 
     const session = await createSession(db, user.id, { ttlMs: config.auth.sessionDurationMs });

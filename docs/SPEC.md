@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.23 (Security hardening: email canonica e bootstrap a token, link SSO opt-in, throttle per route, cap dei body, gate CI route — D-150…D-154)
+**Version:** 1.24 (Email verification: colonna e token monouso, claim SSO dell'account pendente, delivery env-owned — D-156)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.24 — Email verification (D-156). `auth.verification` (default disabled) abilita il flusso: la registrazione crea l'account con `users.email_verified_at` NULL e un link monouso (token hashato in `auth_email_verifications`, TTL 24 h), il login del blueprint rifiuta `403 email_unverified` finché l'indirizzo non è verificato, e la route `GET /api/auth/verify-email` consuma il link con un redirect sicuro. La delivery è del deploy (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`); in `development`/`test` senza webhook il blueprint verifica subito (demo e smoke senza casella). Il link SSO a un account password ora si basa sulla verifica: un account verificato si collega, un account pendente viene reclamato dall'identità verificata con rimozione della password segnaposto (chiude SEC-02 alla radice). §5.1/§5.3/§8.4.4/§4.4/§12 follow.
 - v1.23 — Security hardening (review 2026-11-10): email canonica (`normalizeEmail`) e indice unico `lower(email)`, bootstrap del primo admin con token monouso `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); link SSO verso un account password rifiutato di default (`auth.sso.linkPasswordAccounts`, D-151); throttle per route nel wrapper (`rateLimit`, chiave client address + route, D-152); cap dei byte del body prima del parsing e nuovo codice `payload_too_large` = 413 (D-153); gate CI che esegue l'analyzer sulle route di `examples/` e rifiuta wrapper non valido o `dbTables` assente (D-154). §5.1/§5.3/§7.4/§8.2/§8.4.1/§8.4.3/§8.6/§12 follow.
 - v1.22 — Session id memorizzato come SHA-256 (D-144); coda gated da `jobs:read`/`jobs:exec` nelle policy RLS (D-145); rilevamento produzione fail-closed (D-146); SAML richiede `InResponseTo` (D-147); PBKDF2 600k + login a tempo costante (D-148); rate limiter del token endpoint con mappa limitata (D-149).
 - v1.21 — Il token endpoint e' rate-limited (D-143). `auth.apiClients.rateLimit` (default `windowMs: 60000`, `maxRequests: 30`) limita gli scambi per client id in una finestra fissa in-process; oltre il budget la route risponde `429 too_many_requests` (nuovo codice della registry chiusa O-002) con `retry-after`, prima di toccare il database, e audita il tentativo. La revoca resta per client: un client revocato invalida client e token in una transazione e non esiste revoca per singolo token. §7.1/§7.4/§8.6 follow.
@@ -558,6 +559,7 @@ Exports:
 - `seedFromConfig(config)` — generates the seed migration from `FacilisConfig.auth`
 - `registerInitialAdmin()` — grants `admin` once, when the registration's canonical email matches `FACILIS_INITIAL_ADMIN` AND the caller presents the operator's `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); the email alone is not a credential
 - `normalizeEmail(email)` — canonical email form (trim + lowercase) used by every auth lookup, insert and comparison; `users` carries a unique `lower(email)` index (D-150)
+- Email verification (D-156): `issueEmailVerification()`, `consumeEmailVerification()` and `markEmailVerified()` own the single-use token (`sha256(token)` in `auth_email_verifications`, TTL from `auth.verification.tokenTtlMs`) and the `users.email_verified_at` transition; delivery is the project's, never the framework's
 - Login/logout/register route blueprints (optional to install)
 - Role-assignment API blueprint (`POST /api/users/:id/roles`)
 - Single sign-on (D-120): `ssoProviderList()` (the public provider list), the start/callback orchestration for OIDC/OAuth2/SAML, the `auth_identities` and `auth_sso_states` tables, and the framework-owned routes `GET /api/auth/sso/providers`, `GET /api/auth/sso/:provider/start` and `GET|POST /api/auth/sso/:provider/callback` (implemented by `@facilis/nitro`)
@@ -571,6 +573,7 @@ export const users = pgTable("users", {
   tenantId: tenantColumn(), // @facilis/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
   passwordHash: text("password_hash"),
   isService: boolean("is_service").default(false).notNull(), // D-142: API service account, never loggable
+  emailVerifiedAt: timestamp("email_verified_at"), // null = pending; set by the link or an SSO claim (D-156)
   createdAt: timestamp("created_at").defaultNow(),
 }, () => [uniqueIndex("users_email_lower_idx").on(sql`lower(${table.email})`)])
 
@@ -649,11 +652,21 @@ export const authSsoStates = pgTable("auth_sso_states", {
   createdAt: timestamp("created_at").defaultNow(),
   tenantId: tenantColumn(),
 }, () => [...rlsForTable({ tenantColumn: "tenant_id" }).policies])
+
+// Email verification links (D-156): one active token per user, sha256(token) as the key; written
+// and consumed inside the audited ctx.system elevation because no session exists yet.
+export const authEmailVerifications = pgTable("auth_email_verifications", {
+  id: text("id").primaryKey(),                // sha256(token)
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  tenantId: tenantColumn(),
+}, () => [...rlsForTable({ tenantColumn: "tenant_id" }).policies])
 ```
 
 **Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded at migration time and never written at runtime.
 
-**Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. Linking a verified SSO email to an existing PASSWORD account is opt-in (`auth.sso.linkPasswordAccounts`, default false, D-151): such an account was never email-verified, so inheriting it would be account pre-hijacking. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
+**Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. Email verification (D-156) decides the linking rule: a VERIFIED password account links (the mailbox is proven), while a pending one is claimed by the identity — its placeholder password is removed and the account marked verified — so an attacker who merely registered the address first cannot keep it. See `docs/SSO.md`.
 
 ### 5.4 `@facilis/blocks` — removed (D-131)
 
@@ -1188,7 +1201,12 @@ interface FacilisConfig {
       providers: SsoProvider[]           // oidc | oauth2 | saml; secrets only as ENV VAR names
       failureRedirect: string            // same-origin path, default "/login"
       stateTtlMs: number                 // login-attempt lifetime, default 10 min
-      linkPasswordAccounts: boolean      // link a verified SSO email to a PASSWORD account; default false (D-151)
+    }
+    verification: {                      // D-156; every key has a default
+      enabled: boolean                   // blueprint login requires a verified email; default false
+      tokenTtlMs: number                 // link lifetime, default 86400000 (24 h), max 30 days
+      successRedirect: string            // same-origin path, default "/login" (?verified=1 appended)
+      failureRedirect: string            // same-origin path, default "/login" (?verify_error=code appended)
     }
     apiClients: {                        // D-142; every key has a default
       enabled: boolean                   // expose POST /api/auth/token, default false
@@ -1473,7 +1491,8 @@ and decrypts while streaming. A blob stored before encryption was enabled is ref
 mutation — upload, delete, attach — stays session-authenticated. The
 API error registry is closed (O-002): `file_too_large` is `413`, `payload_too_large` is `413`
 (a body over the wrapper's byte cap, D-153), `storage_unavailable` is `503`,
-`unsupported_media_type` is `415` and `too_many_requests` is `429` (D-143, D-152).
+`unsupported_media_type` is `415`, `too_many_requests` is `429` (D-143, D-152) and
+`email_unverified` is `403` (correct password, unverified address — D-156).
 
 ### 7.5 `AIResponse`
 
@@ -1972,6 +1991,19 @@ export default defineAuthorizedHandler(
 
 6. Handler runs. RLS evaluates policies on every query.
 ```
+
+**Email verification (D-156).** With `auth.verification.enabled`, a password account starts with
+`email_verified_at = NULL` and the blueprint login answers `403 email_unverified` after the
+password check (never before: the response must not be an existence oracle). The single-use link
+`GET /api/auth/verify-email?token=…` consumes the hashed row inside the audited `system:auth`
+elevation and redirects to `successRedirect?verified=1` or `failureRedirect?verify_error=invalid_token`.
+Delivery is environment-owned: the project posts `{ to, subject, text }` to
+`FACILIS_EMAIL_WEBHOOK_URL` (optional `FACILIS_EMAIL_WEBHOOK_TOKEN`, sent as a Bearer) or, in
+`development`/`test` only, verifies immediately without a mailbox so the demo and the IDE smoke
+run need no account. An unverified registration cannot start a session; an SSO login with the
+verified IdP address claims it and clears the placeholder password (SEC-02). With
+`auth.verification.enabled` false the claim would reset a password its owner may still use, so the
+link is refused with `sso_email_conflict` instead.
 
 The tenant in step 5 is the deployment's (`FACILIS_TENANT_ID`, or the framework constant),
 never the session's: `AuthContext` carries no tenant, and a session whose user row names another
@@ -2868,6 +2900,9 @@ see `examples/todo-app/scripts/verify-headless.sh` and D-015.
 - RLS policies auto-generated for scoped tables
 - Auth tables created, roles seeded from config
 - `FACILIS_INITIAL_ADMIN` + `FACILIS_INITIAL_ADMIN_TOKEN` grant `admin` once, to the registration that presents the token (D-150)
+- Email verification (D-156): with `auth.verification.enabled` an unverified login answers
+  `403 email_unverified`, the single-use link verifies the account, and a pending account is claimed
+  by a verified SSO identity
 - `/__facilis/manifest` returns full manifest with no warnings
 - Background jobs: a `server/jobs/**` definition runs in a system context and returns data;
   `ctx.jobs.enqueue` returns an id; a future-`runAt` job is inspectable and cancellable; a
@@ -3099,6 +3134,13 @@ FACILIS_INITIAL_ADMIN_TOKEN=<one-time secret>
 
 The registration that presents the token gets the `admin` role (one-time; D-150). The email alone
 is not a credential, so knowing the address is not enough to become admin.
+
+**Email verification (D-156, optional).** With `auth.verification.enabled` the registration sends a
+single-use link. The framework never ships an SMTP client: the deployment sets
+`FACILIS_EMAIL_WEBHOOK_URL` (the app POSTs `{ to, subject, text }`) and optionally
+`FACILIS_EMAIL_WEBHOOK_TOKEN` (Bearer). In `development`/`test` without a webhook the account is
+verified immediately, so demos and the IDE smoke run need no mailbox; production without the webhook
+leaves the account pending and logs the delivery failure.
 
 ### Step 5 — Protect routes and tables
 

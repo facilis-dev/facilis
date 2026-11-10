@@ -6,7 +6,7 @@ import { AuthShell } from "../components/ui/auth-shell.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Field } from "../components/ui/field.tsx";
 import { Input } from "../components/ui/input.tsx";
-import { api, errorMessageKey } from "../lib/api.ts";
+import { ApiError, api, errorMessageKey } from "../lib/api.ts";
 import { rememberEmail, useSession } from "../lib/session.tsx";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -45,10 +45,22 @@ export function RegisterPage() {
       });
       // POST /api/auth/register creates the user but does not start a session (server contract),
       // so sign in with the same credentials before landing on the protected route.
-      await api("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      try {
+        await api("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+      } catch (error) {
+        // D-156: with email verification on, the account exists but login is refused until the
+        // link is consumed; point the user at the mailbox instead of a misleading "unauthorized".
+        if (error instanceof ApiError && error.code === "email_unverified") {
+          rememberEmail(email);
+          toast.success(t("auth.register.check_email"));
+          navigate("/login", { replace: true });
+          return;
+        }
+        throw error;
+      }
       rememberEmail(email);
       await refresh();
       toast.success(t("auth.register.success"));

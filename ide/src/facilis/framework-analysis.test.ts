@@ -47,6 +47,7 @@ describe("project analysis with framework sources", () => {
     expect(tableNames(analysis)).toEqual([
       "api_clients",
       "api_tokens",
+      "auth_email_verifications",
       "auth_identities",
       "auth_sso_states",
       "facilis_files",
@@ -59,8 +60,8 @@ describe("project analysis with framework sources", () => {
       "user_roles",
       "users",
     ]);
-    expect(analysis.graph.nodes).toHaveLength(34);
-    expect(analysis.graph.edges).toHaveLength(57);
+    expect(analysis.graph.nodes).toHaveLength(36);
+    expect(analysis.graph.edges).toHaveLength(64);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {
@@ -87,8 +88,8 @@ describe("project analysis without framework sources", () => {
 
   it("keeps only the locally declared tables", () => {
     expect(tableNames(analysis)).toEqual(["todo_files", "todos"]);
-    expect(analysis.graph.nodes).toHaveLength(23);
-    expect(analysis.graph.edges).toHaveLength(22);
+    expect(analysis.graph.nodes).toHaveLength(24);
+    expect(analysis.graph.edges).toHaveLength(23);
   });
 
   it("drops the route and FK edges into framework state", () => {

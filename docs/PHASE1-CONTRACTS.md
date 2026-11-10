@@ -146,7 +146,8 @@ insert does not name the tenant either.
 - Codes in Phase 1: `unauthorized` (401), `forbidden` (403), `invalid_input` (400, `details` =
   flatten of Zod issues), `conflict` (409), `db_unavailable` (500), `not_found` (404),
   `storage_unavailable` (503), `file_too_large` (413), `payload_too_large` (413, D-153),
-  `unsupported_media_type` (415, D-141), `too_many_requests` (429, D-143), `internal_error` (500).
+  `unsupported_media_type` (415, D-141), `too_many_requests` (429, D-143),
+  `email_unverified` (403, D-156), `internal_error` (500).
 - CSRF (D-141): on unsafe methods the wrapper rejects a cross-site request with `403 forbidden`
   before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback, a missing
   `Origin` means a non-browser client); `body` routes accept only `application/json` and `form`
@@ -270,6 +271,9 @@ export interface AuthConfig { permissions: readonly string[]; roles: Readonly<Re
 export function expandRoles(roles: readonly string[], config: AuthConfig): string[];
 export function hasPermission(subject: Pick<AuthContext, "permissions"> | null, permission: string | readonly string[]): boolean;
 export function normalizeEmail(email: string): string; // canonical (trim + lowercase), D-150
+export function issueEmailVerification(db: PolicyScopedDatabase, userId: string, options: { ttlMs: number; now?: Date }): Promise<{ token: string; expiresAt: Date }>; // D-156
+export function consumeEmailVerification(db: PolicyScopedDatabase, token: string, now?: Date): Promise<{ userId: string } | null>; // D-156
+export function markEmailVerified(db: PolicyScopedDatabase, userId: string, now?: Date): Promise<boolean>; // dev fallback, D-156
 export const users, sessions, roles, rolePermissions, userRoles;  // Drizzle pgTable, SPEC §5.3
 export function hashPassword(password: string): Promise<string>;    // PBKDF2-SHA256 600k, WebCrypto (D-148)
 export function verifyPassword(hash: string, password: string): Promise<boolean>;
@@ -347,9 +351,12 @@ export function registerCatalog(locale: string, messages: Record<string, string>
   server-side; `ctx.log` adds app lines and audit events. The sink is environment-owned
   (`FACILIS_LOG_SINK`/DIR/MAX_BYTES/KEEP/LEVEL), never an HTTP endpoint; audit is fail-closed
   and the sudo trail is bridged in. `sso` (D-120): `auth.sso.providers` (oidc | oauth2 | saml,
-  secrets by env var name only) plus `failureRedirect`, `stateTtlMs` and `linkPasswordAccounts`
-  (false by default, D-151: a verified SSO email does not link to a PASSWORD account), cross-checked
-  by `defineConfig`; the framework owns `/api/auth/sso/**`.
+  secrets by env var name only) plus `failureRedirect` and `stateTtlMs`, cross-checked by
+  `defineConfig`; the framework owns `/api/auth/sso/**`. `verification` (D-156): `enabled`
+  (false by default), `tokenTtlMs` (24 h, max 30 days), `successRedirect`/`failureRedirect`
+  (same-origin paths); delivery is env-owned (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`). SSO links a
+  verified PASSWORD account; a pending one is claimed (placeholder password removed, account
+  verified) — SEC-02.
 - `storage` (D-116/D-117): every key defaults (`driver: "local"`, `maxUploadBytes` 10 MiB / cap
   100 MiB, `tokenTtlSeconds` 300 / max 24 h, `encryption.enabled` false) and `driver: "s3"`
   requires `bucket` + `region`; secrets stay in `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET`,
