@@ -5145,6 +5145,47 @@ the framework analysis regression is updated to the new node/edge counts. Root
 
 ---
 
+### D-135 — Workflows are a state machine over rows; manual steps are tasks
+**Status:** accepted (2026-11-10) — design approved; W1 (manual tasks) implemented, W2–W3 not started.
+
+Owner request (2026-11-10): a workflow is a chain of jobs, and a manual step (typically an
+approval) should be the simplest possible mechanism — the chain stays suspended until a row
+flag changes. The jobs runtime (D-107, [JOBS.md](./JOBS.md)) deliberately keeps jobs
+independent (O-017: "a workflow is a separate construct"), and a job body runs through
+`runAsSystem` inside its own transaction on the single PGlite connection (JOBS.md §8): a
+suspended attempt would hold that connection and deadlock the app, and the browser host has no
+cross-process wake-up. A blocking wait is therefore not expressible; the wait must be data.
+
+**Decision.** Add a workflow layer above the unchanged job queue: `facilis_workflows` (one
+row per instance: status, input, progress/plan snapshot, current step, waiting task, attempts)
+and `facilis_tasks` (one row per manual step: i18n title, payload, pending → decided/expired,
+`decided_by`/`decided_at`, comment). `defineWorkflow` declares an ordered chain of job and
+approval steps in `server/workflows/**/*.ts`; a runtime tick advances each workflow by CAS
+transitions (dispatch the step, observe the job, observe the decision) in short transactions
+and reconciles interrupted instances on boot. The manual flag is the task row's
+`status = 'decided'` plus `decision`, written by an authorized `ctx.tasks.decide` (permission
+`tasks:decide`); the runtime keeps ownership of the workflow row, so a decision cannot race
+the tick and who decided when is audited. Like jobs, the framework owns no HTTP endpoint —
+the starter ships the task routes. Design and the phased plan (W1 tasks, W2 workflows, W3
+polish) are in [WORKFLOWS.md](./WORKFLOWS.md).
+
+**Rejected.** A root job with `parent_job_id` and a `waiting` status (pollutes the job
+contract, scatters chain state — O-017); a chain assembled by `ctx.jobs` inside job bodies
+(recovery/observability in app code); advancing only from the decision route (no boot
+reconciliation after a reload between job completion and advance); suspend points inside step
+functions (a job cannot release its transaction).
+
+**Consequences.** Jobs stay independent and unchanged; workflow state is rows, so a reload
+resumes it; step jobs are at-least-once (jobs semantics), decisions are exactly-once via the
+CAS. v1 is linear (no branches/loops/fan-out) and has no compensation. SPEC §5.6/§7.9 still
+describe the implemented surface; §7.10 and the spec version land with W2.
+
+Verification: W1 landed with unit and integration tests (contract, handler binding, the Drizzle
+store over PGlite with RLS, boot and API); root `pnpm lint`, `pnpm typecheck`, `pnpm test` and
+`pnpm build` are green. W2–W3 have no code yet.
+
+---
+
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
@@ -5164,7 +5205,7 @@ the framework analysis regression is updated to the new node/edge counts. Root
 | O-013 | Views are not in the analyzer facts, project graph or reverse lookup; a route using one declares its base tables in `dbTables` | parse `defineView` (`db/views/**`) into `ViewFact`s and expand a route's `dbTables` through the views it selects; add their edges to the graph and the AI validator's table namespace. With D-098 carry `permission`/`access` and check that a route using a permission view declares that permission | Phase 4 |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
-| O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) | Phase 7+ |
+| O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) — design approved in D-135 ([WORKFLOWS.md](./WORKFLOWS.md)), implementation W1–W3 | Phase 7+ |
 | O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. **Context compaction landed in D-133** (header action, `ChatState.summary`, replay swap, marker row). Remaining: the project-file picker | IDE chat polish, after the preview tools (D-111 landed) |
 | O-019 | Log retention and tamper evidence beyond a local file: WORM storage, an HMAC-keyed chain, and external sinks (S3/Syslog/OTLP) | D-119 gives the file/stdout pipeline with a SHA-256 `seq`/`prevHash` chain and delegates WORM/retention to the deploy's log platform. Add an optional HMAC key per deployment (`FACILIS_LOG_HMAC_KEY`) and a `committed`/`rolled_back` entry for the request transaction before this is called tamper-proof | Phase 7+ |
 | O-020 | SSO depth: IdP-initiated SAML, SCIM provisioning, refresh tokens/session sync, TOTP/WebAuthn as a second factor | keep SP-initiated SAML, JIT linking/provisioning and password+SSO only; each of the four is a separate contract (and 2FA needs a second credential table, not a provider flag) | Phase 7+ |

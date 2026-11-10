@@ -231,4 +231,6 @@ packages/nitro/src/middleware/context.ts exposes event.context.facilis.jobs
 Workflows/chains, retention & pruning policies for `facilis_jobs`, exponential backoff,
 multi-instance/distributed workers (the engine assumes one process per database), a dev-only
 inspection endpoint, and serverless scheduling guarantees. The durable parts (a persisted
-queue, an explicit claim/attempt counter) are the seam a workflow construct can reuse later.
+queue, an explicit claim/attempt counter) are the seam the workflow construct reuses. A
+workflow is now designed in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, design approved, not
+implemented); this section remains the jobs' own scope.
