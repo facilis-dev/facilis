@@ -103,7 +103,7 @@ export function matchesQuery(node: ProjectGraphNode, needle: string): boolean {
     }
   } else if (data.kind === "table") {
     for (const column of data.columns) values.push(column.property, column.name, column.type);
-  } else {
+  } else if (data.kind === "view") {
     values.push(data.view, ...data.tables);
     if (data.permission !== null) values.push(data.permission);
     if (data.access !== null) values.push(data.access);

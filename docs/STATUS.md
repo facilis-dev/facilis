@@ -20,11 +20,11 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 | Acceptance app | [`examples/todo-app`](../examples/todo-app) | `scripts/verify-headless.sh`: auth, RBAC, CRUD, RLS, manifest, `x-db-tables`, jobs, attachments |
 | Template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke` creates, paints and validates a Facilis app (the only creation path, D-051) |
 | Chat + validator | `ide/src/ai/`, `packages/ai/` | PTC runtime — the only mode (D-101/D-103); 18 rules at proposal/Apply/write (D-084); §9.4 repair loop (D-100) |
-| Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/` | pages, explicit page links, audited elevation, framework tables and declarative views (D-092/D-134/D-160); committable layout in `.facilis/graph/` (D-126) |
+| Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/` | pages, explicit page links, audited elevation, framework tables, declarative views and workflow definitions (D-092/D-134/D-160/D-161); committable layout in `.facilis/graph/` (D-126) |
 | Entity Explorer + query console | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/` | dev schema diff, read-only SQL console and Create-view (D-083/D-097) |
 | Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | risk-classified ref diff (D-086) on the release-tag plan (D-158) |
 | Git round-trip + publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push, GitHub OAuth device flow, hosted publishing (D-078/D-079/D-082) |
-| Jobs + manual tasks | `packages/core/src/jobs*.ts`, `packages/db/src/jobs.ts` | durable queue, system-context runs, W1 manual tasks (D-107/D-135) |
+| Jobs, workflows + manual tasks | `packages/core/src/jobs*.ts`, `packages/db/src/jobs.ts`, `packages/core/src/workflows*.ts` | durable queue, system-context runs, chained workflows with approval tasks (D-107/D-135/D-161) |
 | Single sign-on | `packages/auth/src/sso/`, `packages/nitro/src/routes/sso.ts` | OIDC, generic OAuth2, SAML, verified-email linking (D-120) |
 | Logs | `packages/core/src/logging*.ts`, `packages/nitro/src/runtime/logging/` | one JSONL pipeline, redaction/rotation/hash chain, no HTTP endpoint (D-119) |
 | Binary storage | `packages/storage/`, `packages/core/src/storage.ts` | content-addressed local + S3 drivers, signed tokens, encryption (D-116/D-117) |
@@ -50,7 +50,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 
 - **Phase 4:** the eval corpus and the browser matrix.
 - **Skills runtime** and MCP servers on the PTC seam ([AI-SKILLS.md](./AI-SKILLS.md) §7–8).
-- **Workflow layer** W2–W3 ([WORKFLOWS.md](./WORKFLOWS.md)); W1 manual tasks are in.
+- **Workflow retention/pruning and a dev inspection endpoint** ([WORKFLOWS.md](./WORKFLOWS.md), O-017).
 - **Open decisions:** O-005/O-006 (publish target), O-010 (auth schema reconcile), O-011
   (declared-AST + preview mode C), O-012 (console RLS mode), O-013 (Entity Explorer views and
   reverse lookup), O-015 (definer-view provenance), O-017 (job workflows/retention), O-018
