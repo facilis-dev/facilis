@@ -30,6 +30,10 @@ import {
   type FacilisEmailVerificationConfig,
   type FacilisEmailVerificationConfigInput,
 } from "./verification-config.ts";
+import {
+  securityConfigSchema,
+  type FacilisSecurityConfig,
+} from "./security-config.ts";
 import { crossCheckConfig } from "./config-validation.ts";
 import {
   facilisStorageConfigSchema,
@@ -59,6 +63,7 @@ export type {
   FacilisEmailVerificationConfig,
   FacilisEmailVerificationConfigInput,
 } from "./verification-config.ts";
+export type { FacilisSecurityConfig } from "./security-config.ts";
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
 export { DEFAULT_WORKFLOWS_CONFIG, facilisWorkflowsConfigSchema } from "./workflows-config.ts";
@@ -110,12 +115,6 @@ export interface FacilisAuthConfig {
   readonly verification: FacilisEmailVerificationConfig;
   /** Bearer-token API clients (V3a): opt-in, with a token lifetime. */
   readonly apiClients: FacilisApiClientsConfig;
-}
-
-/** Request-origin policy for the CSRF gate (SPEC §8); the framework default is same-origin only. */
-export interface FacilisSecurityConfig {
-  /** Absolute http(s) origins allowed to make unsafe requests besides the request's own. */
-  readonly trustedOrigins: readonly string[];
 }
 
 /**
@@ -242,31 +241,6 @@ const authSchema = z.strictObject({
   apiClients: apiClientsSchema,
 });
 
-/**
- * An allow-list entry must be an exact origin: `Origin` is always `scheme://host[:port]`,
- * so a path or a default-port spelling would silently never match.
- */
-function isAbsoluteHttpOrigin(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && url.origin === value;
-  } catch {
-    return false;
-  }
-}
-
-const securitySchema = z
-  .strictObject({
-    trustedOrigins: z
-      .array(
-        z.string().refine(isAbsoluteHttpOrigin, {
-          message: "security.trustedOrigins entries must be absolute http(s) origins",
-        }),
-      )
-      .default([]),
-  })
-  .default(() => ({ trustedOrigins: [] }));
-
 const baseConfigSchema = z.strictObject({
   release: releaseSchema,
   db: dbSchema,
@@ -275,7 +249,7 @@ const baseConfigSchema = z.strictObject({
   jobs: facilisJobsConfigSchema,
   workflows: facilisWorkflowsConfigSchema,
   storage: facilisStorageConfigSchema,
-  security: securitySchema,
+  security: securityConfigSchema,
   logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
 });
