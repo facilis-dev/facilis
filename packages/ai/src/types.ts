@@ -23,6 +23,8 @@ export type {
   Diagnostic,
   FileFacts,
   ImportFact,
+  JobFact,
+  JobRelationsFact,
   LocaleCatalogs,
   RouteElevationUsage,
   RouteRelationUse,
