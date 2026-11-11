@@ -24,6 +24,10 @@ export const FACILIS_ERROR_CODES = [
   // 413: the request body exceeds the wrapper cap before parsing (SEC-09).
   "payload_too_large",
   "file_too_large",
+  // 500: the runtime guard refused a relation outside the route's dbTables (D-157).
+  "table_not_declared",
+  // 500: db.execute was used without rawSql: true on the route (D-157).
+  "raw_sql_not_allowed",
   "internal_error",
 ] as const;
 
@@ -45,6 +49,9 @@ export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = 
   payload_too_large: 413,
   // 413: the upload is a valid form, but the file exceeds storage.maxUploadBytes.
   file_too_large: 413,
+  // 500: a route reached an undeclared relation or raw SQL without the flag (D-157).
+  table_not_declared: 500,
+  raw_sql_not_allowed: 500,
   internal_error: 500,
 };
 

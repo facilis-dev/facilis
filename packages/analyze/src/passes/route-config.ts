@@ -20,6 +20,8 @@ export interface RouteConfigFacts {
   readonly permission: readonly string[] | null;
   /** True when the wrapper opts the route into cross-origin calls; null when unreadable. */
   readonly crossSite: boolean | null;
+  /** rawSql: true allows `db.execute` (D-157); false when absent; null when unreadable. */
+  readonly rawSql: boolean | null;
   readonly dbTables: readonly string[] | null;
   readonly dbColumns: readonly string[] | null;
   readonly description: string | null;
@@ -86,6 +88,20 @@ export function routeConfigFacts(
     else {
       crossSite = null;
       addUnknown(unknown, "route-config-static", "crossSite must be a boolean", ref);
+    }
+  }
+
+  const rawSqlField = field("rawSql");
+  let rawSql: boolean | null = false;
+  if (rawSqlField !== undefined && !rawSqlField.ok) {
+    rawSql = null;
+    addUnknown(unknown, "route-config-static", unreadable("rawSql", rawSqlField), ref);
+  } else if (rawSqlField !== undefined) {
+    if (typeof rawSqlField.value === "boolean") rawSql = rawSqlField.value;
+    else {
+      // An unreadable derogation is never assumed: db.execute then fails closed (D-157).
+      rawSql = null;
+      addUnknown(unknown, "route-config-static", "rawSql must be a boolean", ref);
     }
   }
 
@@ -158,5 +174,15 @@ export function routeConfigFacts(
       ),
     );
   }
-  return { permission, crossSite, dbTables, dbColumns, description, input, unknown, diagnostics };
+  return {
+    permission,
+    crossSite,
+    rawSql,
+    dbTables,
+    dbColumns,
+    description,
+    input,
+    unknown,
+    diagnostics,
+  };
 }

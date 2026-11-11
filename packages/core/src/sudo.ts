@@ -11,7 +11,9 @@
 
 import type { AuthContext } from "@facilis/auth";
 import {
+  guardDatabase,
   runWithSystemRole,
+  TableAccessError,
   writeSudoAudit,
   type PolicyScopedDatabase,
   type SudoAuditEvent,
@@ -79,6 +81,8 @@ export interface CreateElevationContextInput {
   readonly dbTables: readonly string[];
   /** Deployment tenant, already resolved for the request scope. */
   readonly tenantId: string;
+  /** The route's `rawSql` flag; the elevated client inherits the same exception (D-157). */
+  readonly rawSql?: boolean;
 }
 
 /** Builds the request-scoped sudo/system closures carried by the handler context. */
@@ -95,15 +99,27 @@ export function createElevationContext(
   ): Promise<T> => {
     active = true;
     const startedAt = Date.now();
+    // The elevated client is guarded by the elevation's own subset, not the route's: access
+    // outside `options.tables` fails closed even inside a system role (D-157).
+    const observed = new Set<string>();
+    const guardedFn = (systemDb: PolicyScopedDatabase): Promise<T> =>
+      fn(
+        guardDatabase(systemDb, {
+          declared: base.tables,
+          allowRawSql: input.rawSql === true,
+          onRelation: (relation) => observed.add(relation),
+        }),
+      );
     try {
       // Fail closed: a broken audit sink throws here, before any role switch.
       writeSudoAudit({ ...base, event: "started", at: new Date().toISOString() });
       try {
-        const result = await runWithSystemRole(input.db, { sudoId: id }, fn);
+        const result = await runWithSystemRole(input.db, { sudoId: id }, guardedFn);
         writeSudoAudit({
           ...base,
           event: "succeeded",
           outcome: "succeeded",
+          observedTables: [...observed],
           at: new Date().toISOString(),
           durationMs: Date.now() - startedAt,
         });
@@ -115,7 +131,7 @@ export function createElevationContext(
           event: "failed",
           outcome: "failed",
           at: new Date().toISOString(),
-          errorCode: "handler_failed",
+          errorCode: error instanceof TableAccessError ? error.code : "handler_failed",
           durationMs: Date.now() - startedAt,
         });
         throw error;

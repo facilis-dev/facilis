@@ -90,6 +90,8 @@
   "errors.not_found": "Impossibile trovare l'elemento.",
   "errors.db_unavailable": "Il servizio è temporaneamente non disponibile.",
   "errors.internal_error": "Qualcosa è andato storto. Riprova.",
+  "errors.table_not_declared": "La richiesta ha toccato dati fuori dallo scope dichiarato.",
+  "errors.raw_sql_not_allowed": "Questo endpoint non può eseguire SQL raw.",
   "errors.network_error": "Errore di rete. Controlla la connessione.",
   "errors.file_too_large": "Il file è troppo grande.",
   "errors.payload_too_large": "La richiesta è troppo grande.",

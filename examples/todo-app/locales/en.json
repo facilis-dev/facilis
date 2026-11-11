@@ -90,6 +90,8 @@
   "errors.not_found": "That item could not be found.",
   "errors.db_unavailable": "The service is temporarily unavailable.",
   "errors.internal_error": "Something went wrong. Try again.",
+  "errors.table_not_declared": "The request touched data outside its declared scope.",
+  "errors.raw_sql_not_allowed": "This endpoint is not allowed to run raw SQL.",
   "errors.network_error": "Network error. Check your connection.",
   "errors.file_too_large": "That file is too large.",
   "errors.payload_too_large": "That request is too large.",

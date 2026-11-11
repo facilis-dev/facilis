@@ -30,7 +30,7 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. AI output is validated against 17 rules before it touches disk. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. AI output is validated against 18 rules before it touches disk. |
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema and seed. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
@@ -152,7 +152,7 @@ PGlite + `/__facilis/*` on one origin, zero manifest warnings). The Studio (Phas
 complete: the Entity Explorer (D-083), the AST project graph (D-092; it replaced the API Flow,
 D-095), the Data Explorer's query console + declarative views (D-097) and the Release Preview
 (D-086). In
-Phase 4 the AI chat, the full 17-rule patch validator (D-084) and the §9.4 repair loop
+Phase 4 the AI chat, the full 18-rule patch validator (D-084) and the §9.4 repair loop
 (D-100) are implemented; Model B is now a PTC tool runtime (D-101, [design](docs/PTC.md)) whose
 phase-0 sandbox spike and the read-only tool chain have landed; the tool runtime is now the
 chat's only mode (D-103). Generated
@@ -178,7 +178,7 @@ What exists today, runnable in this repo:
 | Query console + declarative views | `ide/src/components/ide/DataQuery*.tsx`, `packages/db/src/{views,query-console}.ts` | `data-query` tab: `POST /__facilis/dev/query` runs one read-only statement (read-only transaction, 5 s timeout, capped rows) and Create-view writes `db/views/<name>.ts` with `defineView`; the framework creates the view `security_invoker`, so routes inherit the base tables' RLS (D-097) |
 | Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/src/` | `project-graph` editor tab over `@facilis/analyze` facts (D-092): pages → routes → tables plus FK/`relations()` edges, fullscreen, edge filters, drag, committable merge-friendly layout + markdown notes in `.facilis/graph/` (D-126); no runtime endpoint |
 | Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | `buildReleasePreview` (D-086) diffs schema/API/security between refs with risk classes; refs read from the VFS via isomorphic-git, plus the code↔live drift card from D-083 |
-| AI patch validator (17 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 575 IDE tests |
+| AI patch validator (18 rules) | `packages/ai/src/`, `ide/src/ai/patch-validation.ts` | SPEC §9.3 implemented (D-084): typed project context, rule 1 through Monaco/rolldown, three validation points (proposal → Apply → VFS write); 48 ai tests, 575 IDE tests |
 | Git round-trip and publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push over HTTPS through a stateless proxy (D-079), publish to GitHub/GitLab/Gitea (D-078), GitHub OAuth device flow (D-082) |
 | Deployment profiles and app updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | `open`/`managed` builds with a compiled policy and CSP (D-063/D-064/D-071/D-072), offline update recipes (D-065/D-070) |
 | Operator logging (access/error/audit/app) | `packages/core/src/logging*.ts`, `packages/nitro/src/runtime/logging/`, `ide/src/components/ide/LogsPanel.tsx` | one JSONL pipeline with env-owned sinks: files under `<project>/.facilis/logs` in dev (read through the kernel VFS by the IDE Logs panel/editor) and stdout in production; structural access entries on every request, server-side error entries, redaction/caps, rotation, SHA-256 audit chain; **no HTTP endpoint serves logs** (D-119, [docs/LOGS.md](docs/LOGS.md)) |
@@ -215,7 +215,7 @@ The full specification — architecture, types, endpoint contracts, security mod
 | **1** | Core packages (`@facilis/*`) | 2–3 wk — ✅ implemented, acceptance app green |
 | **2** | Studio extension (chat shell, PAT, multi-project) | 2 wk — ✅ shipped: one project per tab (D-033), real git import/push/publish, GitHub OAuth (D-082), `ide.facilis.dev` (D-077) |
 | **3** | Visualizers (project graph, entity explorer, release preview) | 2 wk — ✅ Entity Explorer (D-083), project graph (D-092, replaced the API Flow, D-095) and Release Preview (D-086), plus the query console + declarative views (D-097); O-011 keeps the declared-AST half and preview mode C |
-| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 17-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101) and the chat's only mode (D-103): sandbox spike ✅ (21/21), read-only tool chain ✅ (runner/tools/validate), exploration trace UI ✅; eval corpus + browser matrix remaining |
+| **4** | AI orchestration + patch validator | 2–3 wk — 🟡 AI chat ✅ (BYO key, streamed proposal, undo, D-045…D-048), 18-rule validator ✅ (D-084), §9.4 repair loop ✅ (D-100); Model B is PTC (D-101) and the chat's only mode (D-103): sandbox spike ✅ (21/21), read-only tool chain ✅ (runner/tools/validate), exploration trace UI ✅; eval corpus + browser matrix remaining |
 | **5** | ~~Headless blocks + i18n + RoleAssignment~~ | retired (D-131): the v2 frontend copies Base UI primitives into the project (`src/components/ui`, D-090/D-096) and the AI writes pages against that source, so no block supply chain ships |
 | **6** | Polish + MVP demo | 1–2 wk — 🟡 template and deployment done; [demo script](docs/DEMO.md) written and its headless equivalent (`pnpm ide:smoke`) green on a fresh profile; human rehearsal and the add-route/security how-to pages open |
 

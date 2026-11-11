@@ -128,7 +128,12 @@ export default defineAuthorizedHandler(
 );
 `;
     const { result } = validate([create(ROUTE + "columns.get.ts", content)]);
-    expect(rulesOf(result.warnings)).toEqual(["db-columns-valid", "db-columns-valid"]);
+    // The route declares `todos` but never queries it: rule 18 adds its unused warning.
+    expect(rulesOf(result.warnings)).toEqual([
+      "db-columns-valid",
+      "db-columns-valid",
+      "route-table-declared",
+    ]);
     expect(result.ok).toBe(true);
   });
 });

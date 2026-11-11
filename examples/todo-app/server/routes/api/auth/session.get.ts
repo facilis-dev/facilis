@@ -3,7 +3,8 @@ import { defineAuthorizedHandler, fail } from "@facilis/core";
 export default defineAuthorizedHandler(
   {
     permission: [],
-    dbTables: ["users", "sessions"],
+    // The session was resolved by the framework middleware: this handler reads no relation.
+    dbTables: [],
     description: "Return the current session, or authenticated: false.",
   },
   async (event) => {

@@ -61,7 +61,8 @@ describe("project analysis with framework sources", () => {
       "users",
     ]);
     expect(analysis.graph.nodes).toHaveLength(36);
-    expect(analysis.graph.edges).toHaveLength(64);
+    // 59 after D-157: session/jobs routes no longer declare tables they do not touch.
+    expect(analysis.graph.edges).toHaveLength(59);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {

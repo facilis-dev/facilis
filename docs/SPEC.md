@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.24 (Email verification: colonna e token monouso, claim SSO dell'account pendente, delivery env-owned — D-156)
-**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
+**Version:** 1.25 (dbTables enforced: tables and views, static + runtime guard, rawSql — D-157)
+**Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 18-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.25 — `dbTables` è una dichiarazione applicata (D-157): ogni route dichiara tutte le relazioni che tocca, **tabelle e viste**, e il framework la verifica staticamente (analyzer con follow delle chiamate locali, gate CI, nuova regola 18 `route-table-declared`) e a runtime (guard su `ctx.db` e sulle elevazioni: `table_not_declared`, `raw_sql_not_allowed`); `rawSql: true` è l'unica deroga per `db.execute`, e l'audit delle elevazioni registra le tabelle osservate. §7.4/§8.4.6/§9.3/§11.2 follow.
 - v1.24 — Email verification (D-156). `auth.verification` (default disabled) abilita il flusso: la registrazione crea l'account con `users.email_verified_at` NULL e un link monouso (token hashato in `auth_email_verifications`, TTL 24 h), il login del blueprint rifiuta `403 email_unverified` finché l'indirizzo non è verificato, e la route `GET /api/auth/verify-email` consuma il link con un redirect sicuro. La delivery è del deploy (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`); in `development`/`test` senza webhook il blueprint verifica subito (demo e smoke senza casella). Il link SSO a un account password ora si basa sulla verifica: un account verificato si collega, un account pendente viene reclamato dall'identità verificata con rimozione della password segnaposto (chiude SEC-02 alla radice). §5.1/§5.3/§8.4.4/§4.4/§12 follow.
 - v1.23 — Security hardening (review 2026-11-10): email canonica (`normalizeEmail`) e indice unico `lower(email)`, bootstrap del primo admin con token monouso `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); link SSO verso un account password rifiutato di default (`auth.sso.linkPasswordAccounts`, D-151); throttle per route nel wrapper (`rateLimit`, chiave client address + route, D-152); cap dei byte del body prima del parsing e nuovo codice `payload_too_large` = 413 (D-153); gate CI che esegue l'analyzer sulle route di `examples/` e rifiuta wrapper non valido o `dbTables` assente (D-154). §5.1/§5.3/§7.4/§8.2/§8.4.1/§8.4.3/§8.6/§12 follow.
 - v1.22 — Session id memorizzato come SHA-256 (D-144); coda gated da `jobs:read`/`jobs:exec` nelle policy RLS (D-145); rilevamento produzione fail-closed (D-146); SAML richiede `InResponseTo` (D-147); PBKDF2 600k + login a tempo costante (D-148); rate limiter del token endpoint con mappa limitata (D-149).
@@ -274,7 +275,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   ├── prompt.ts             system prompt builder
 │   │   │   ├── context.ts            context assembly (A vs B)
 │   │   │   ├── parser.ts             AIResponse parser
-│   │   │   ├── validator/            patch validator (17 rules)
+│   │   │   ├── validator/            patch validator (18 rules)
 │   │   │   ├── tools/                Model B tool definitions (Phase 4.5)
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -686,7 +687,7 @@ Exports:
 - `parseResponse(raw)` — AIResponse parser
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
-- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 17-rule
+- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 18-rule
   validator over analyzer facts (D-092); the main entry stays browser-safe and the only
   parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -1352,13 +1353,16 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   form?: ZodSchema<Form>                      // multipart fields (name → string | File); D-116
   query?: ZodSchema<Query>
   params?: ZodSchema<Params>
-  dbTables: string[]                          // REQUIRED
+  dbTables: string[]                          // REQUIRED: every table/view the handler may access (D-157)
   dbColumns?: string[]
+  rawSql?: boolean                            // allow db.execute (raw SQL) in this route; default false (D-157)
   description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
   crossSite?: boolean                      // true = exposed to other origins; with a permission it requires a Bearer token (D-142)
   originCheck?: "enforce" | "skip"         // "skip" only for framework protocol endpoints (SAML ACS); default enforce (D-142)
   rateLimit?: { windowMs: number; maxRequests: number } // per-client, per-route fixed window (D-152); skipped when no client address
 }
+
+**`dbTables` is enforced (D-157).** The array declares **every** relation the handler may touch through `ctx.db`, `ctx.sudo` and `ctx.system`: tables and views, by SQL name (a view is declared by its own name, D-097/D-098; a definer view keeps its declared permission as the gate). It is not documentation: `@facilis/analyze` follows the handler's project-local helper calls and reports an undeclared relation as `route-table-undeclared` (error), a declared-but-unused one as `route-table-unused` (warning), an unresolvable/dynamic relation as `route-table-unresolved` (error) and `db.execute` without `rawSql: true` as `route-raw-sql` (error); the CI route gate (D-154) runs the pass on the shipped examples and the AI validator rule 18 `route-table-declared` rejects a patch that breaks it. At runtime the wrapper **guards** the scoped client and the elevation callbacks: a relation outside the declared set fails closed with `500 table_not_declared`, raw SQL without the flag with `500 raw_sql_not_allowed`, and the violation is audited (`route:table_access`); inside `ctx.sudo`/`ctx.system` the observed tables must also be within the elevation's `tables`, whose `succeeded` audit entry records the observed set. Package calls are opaque statically (the runtime is the authority).
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   auth: AuthContext | null                    // null only on permission: [] routes
@@ -2112,6 +2116,12 @@ table), and the role is `NOINHERIT`: it is a member of `facilis_system` only so 
 connection already is `facilis_app` can `SET ROLE` for the audited elevation, and inheriting that
 membership's grants would reopen every system-only table.
 
+**Route declarations (D-157).** The route-level counterpart is `dbTables`: a route declares every table or
+view it reaches through `ctx.db`/`ctx.sudo`/`ctx.system`, the analyzer/validator check the declaration
+against the code, and the runtime guard refuses an undeclared relation before the query (fail-closed). A
+system-only table is still reachable only through the audited elevation, and the elevation's own `tables`
+are checked against what the callback observed.
+
 **Framework tables.** `users`, `sessions`, `user_roles`, `auth_identities`, `auth_sso_states`,
 `api_clients`, `api_tokens`, `facilis_files`, `facilis_jobs` and the generated link tables are
 app-scoped. `sessions`, `user_roles`, `api_clients` and `api_tokens` have no tenant column of
@@ -2159,7 +2169,7 @@ write path; an application route must not add another one (D-141).
   with `retry-after` before touching the database. The window is in-process, so it resets on
   restart and is not shared across instances; revocation stays per client (the client and every
   token it issued), never per single token.
-- AI patches are **validated** before write (17 rules, §9.3)
+- AI patches are **validated** before write (18 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2267,7 +2277,7 @@ Rules the AI must obey:
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 10. **Every route carries a description:** one English sentence, max 120 characters (about two lines), saying what the route does and what it touches; keep it current when the route's contract (permission, inputs, `dbTables`/`dbColumns`) changes. It is source documentation shown in the graph and OpenAPI, never a `t()` key (D-129).
 
-### 9.3 Patch Validator (17 Rules)
+### 9.3 Patch Validator (18 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2288,6 +2298,7 @@ Rules the AI must obey:
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, a new migration file must update seeds |
 | 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
+| 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 
 **Status (2026-11-04): implemented over AST facts** in `@facilis/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
@@ -2446,7 +2457,7 @@ from a root `AGENTS.md`, and `applyPatch()` as the only write path (D-045…D-04
 `ide/src/facilis/apply-patch.ts` rather than on `IdeController`, because the controller is
 pinned by the file-length ratchet (D-019); the activity view is `chat`.
 
-**Status (2026-11-02): the full 17-rule validator is implemented** (D-084): `parseTurn()`
+**Status (2026-11-02): the full 18-rule validator is implemented** (D-084): `parseTurn()`
 validates a proposal against the live project before it is shown, the accepted files are
 re-validated with a fresh context on Apply, and `applyPatch()` re-validates before the first
 VFS write. Rule 1 uses the analyzer worker's oxc parser (D-105); the remaining rules read the
@@ -2666,6 +2677,12 @@ in the `data` activity view on the left.
   exposes; the permission gate survives a route that forgot its `permission` but is not a
   boundary against deliberately hostile code (custom GUCs are settable). A plain view would
   bypass RLS — `@facilis/db` proves both the leak and the invoker guarantee.
+- **Route declaration (D-157).** A route that reads a view declares the view's **name** in `dbTables`, not its
+  base tables: the view is the relation the handler touches, and for a definer view the declared `permission`
+  (not the base RLS) is the gate. `@facilis/analyze` parses `defineView` into `ViewFact`s (name, base tables,
+  permission, access), so the validator accepts the view name and the usage pass resolves it; the runtime
+  guard compares the Drizzle view object's name with the declaration. Base tables stay in the view's own
+  metadata, never in the route declaration.
 - **Provisioning**: dev boot re-applies `db/views/**` after migrations (a broken view becomes a
   manifest warning, never a failed boot). A Postgres deployment provisions views in its deploy
   step like migrations, and boot reports `view_ddl_skipped`.
@@ -2786,7 +2803,7 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 - Prompt builder + context assembly (Model A)
 - AIResponse parser
-- Patch validator (17 rules)
+- Patch validator (18 rules)
 - Retry loop — implemented (D-100, no attempt cap since D-108): findings fed back, the model
   reads the files it rewrites with the PTC tools (D-103)
 - `requires_confirmation` modal
@@ -2795,7 +2812,7 @@ sudo context (§8.4.5) with a dedicated append-only audit log (the pipeline/rete
 
 **Exit criteria:** "Make a todo app" from blank starter produces a working, secure, authenticated app.
 
-**Status (2026-11-02):** Model A (prompt + context), the response parser, the 17-rule validator
+**Status (2026-11-02):** Model A (prompt + context), the response parser, the 18-rule validator
 (D-084), the proposal/diff review and the apply path are implemented; the §9.4 repair loop
 (D-100) is implemented too and the PTC tool runtime is the chat's only mode (D-103); the eval
 corpus and browser matrix remain. The validator's warnings still

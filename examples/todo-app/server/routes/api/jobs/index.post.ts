@@ -12,7 +12,8 @@ export default defineAuthorizedHandler(
       olderThanDays: z.number().int().positive().max(365).optional(),
       runAt: z.iso.datetime({ offset: true }).optional(),
     }),
-    dbTables: ["facilis_jobs"],
+    // The queue is written through ctx.jobs (framework, D-107), not through the route db.
+    dbTables: [],
     description: "Enqueue a purge of completed todos, optionally at a future instant.",
   },
   async (_event, { body, jobs }) => {

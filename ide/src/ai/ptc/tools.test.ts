@@ -27,6 +27,7 @@ export const todos = pgTable("todos", {
 `;
 
 const ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+import { todos } from "~/db/schema";
 
 export default defineAuthorizedHandler(
   {
@@ -34,7 +35,19 @@ export default defineAuthorizedHandler(
     dbTables: ["todos"],
     description: "List todos visible to the current user.",
   },
-  async () => null,
+  async (_event, { db }) => db.select().from(todos),
+);
+`;
+
+const PING_ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+
+export default defineAuthorizedHandler(
+  {
+    permission: [],
+    dbTables: [],
+    description: "Liveness probe.",
+  },
+  async () => ({ ok: true }),
 );
 `;
 
@@ -267,7 +280,7 @@ describe("get_manifest", () => {
 describe("validate", () => {
   it("returns the same verdict the final gate would", async () => {
     const accepted = await call<{ ok: boolean; errors: unknown[] }>("validate", {
-      patches: [patch(PING_PATH, ROUTE)],
+      patches: [patch(PING_PATH, PING_ROUTE)],
     });
     expect(accepted).toMatchObject({ ok: true, errors: [], warnings: [] });
     const rejected = await call<{ ok: boolean; errors: { rule: string }[] }>("validate", {

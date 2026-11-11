@@ -112,6 +112,12 @@ export function isSchemaFile(graph: ModuleGraph, path: string): boolean {
   return path.startsWith(prefix);
 }
 
+/** View declarations live under `db/views/` (SPEC §11.2, D-157). */
+export function isViewFile(graph: ModuleGraph, path: string): boolean {
+  const prefix = graph.root.length === 0 ? "db/views/" : graph.root + "/db/views/";
+  return path.startsWith(prefix);
+}
+
 export function schemaUnknown(reason: string, source: SourceRef): UnknownFact {
   return { code: "schema-static", reason, source };
 }

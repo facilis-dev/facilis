@@ -76,6 +76,7 @@ export function parseManifestRoutes(value: unknown): ReleaseRouteFact[] {
     const permission = readPermission(entry["permission"]);
     const dbTables = readStringArray(entry["dbTables"]);
     const dbColumns = readStringArray(entry["dbColumns"]);
+    const rawSql = typeof entry["rawSql"] === "boolean" ? entry["rawSql"] : null;
     routes.push({
       method: method.toUpperCase(),
       path,
@@ -83,6 +84,7 @@ export function parseManifestRoutes(value: unknown): ReleaseRouteFact[] {
       ...(permission === null ? {} : { permission }),
       ...(dbTables === null ? {} : { dbTables }),
       ...(dbColumns === null ? {} : { dbColumns }),
+      ...(rawSql === null ? {} : { rawSql }),
     });
   }
   return routes;
@@ -113,6 +115,7 @@ export function mergeRouteMetadata(
             ...(meta.permission === undefined ? {} : { permission: meta.permission }),
             ...(meta.dbTables === undefined ? {} : { dbTables: meta.dbTables }),
             ...(meta.dbColumns === undefined ? {} : { dbColumns: meta.dbColumns }),
+            ...(meta.rawSql === undefined ? {} : { rawSql: meta.rawSql }),
           },
     );
   }

@@ -3,9 +3,11 @@ import { buildConfigFacts } from "./passes/config.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
+import { buildRouteRelationFacts } from "./passes/route-relations.ts";
 import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
+import { buildViewFacts } from "./passes/views.ts";
 import { buildProjectGraph } from "./graph.ts";
 import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
@@ -41,6 +43,10 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
   const config = buildConfigFacts(graph);
   const routes = buildRouteFacts(graph, config.facts);
   const schema = buildSchemaFacts(graph, config.facts);
+  const views = buildViewFacts(graph);
+  // D-157: the declaration check runs after the schema and the views, because a route's
+  // `dbTables` and its usage are compared against both (tables and views).
+  const routeRelations = buildRouteRelationFacts(graph, routes.routes, schema.tables, views.views);
   const locales = readLocaleCatalogs(graph);
   const pages = buildPageFacts(graph, routes.routes, input.transport ?? DEFAULT_TRANSPORT);
   const screens = buildScreens(graph, pages.pages);
@@ -57,6 +63,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...config.diagnostics,
       ...routes.diagnostics,
       ...schema.diagnostics,
+      ...views.diagnostics,
+      ...routeRelations.diagnostics,
       ...locales.diagnostics,
       ...pages.diagnostics,
       ...routeSystemTableDiagnostics(routes.routes, schema.tables),
@@ -71,9 +79,10 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     revision: computeRevision(input.files),
     files: [...graph.files.keys()].toSorted((left, right) => left.localeCompare(right)),
     config: config.facts,
-    routes: routes.routes,
+    routes: routeRelations.routes,
     tables: schema.tables,
     relations: schema.relations,
+    views: views.views,
     pages: pages.pages,
     fileFacts,
     locales: locales.locales,
