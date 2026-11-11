@@ -17,7 +17,7 @@ D-100 (repair loop), D-102 (repair hardening).
   Chrome-only `csp=""` attribute.
 - **Spike first.** Phase 0 proved isolation, RPC, worker termination and parent responsiveness
   before any tool work (results in §5).
-- **`validate` tool.** The model can run the 18-rule validator on candidate patches before its
+- **`validate` tool.** The model can run the 19-rule validator on candidate patches before its
   final answer. The final §9.3 gate **stays mandatory** (invariant 9): the goal is that the
   model self-checks and the user almost never sees a final validation failure, not removing the
   safety net.
@@ -26,7 +26,7 @@ D-100 (repair loop), D-102 (repair hardening).
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
 read-only tool registry (files, analyzer facts, manifest, later MCP servers), returns lossless
 JSON to the model, and only the final answer of the conversation becomes an `AIResponse` whose
-patches still go through the 18-rule validator and the user's Apply.
+patches still go through the 19-rule validator and the user's Apply.
 
 ---
 
@@ -347,7 +347,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
 | 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
-| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 18-rule validator; token/cost report |
+| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 19-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist — **client and config landed 2026-11-08 (D-118); settings UI and allowlist remain** | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 

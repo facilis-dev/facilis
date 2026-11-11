@@ -7,7 +7,7 @@ anti-patterns are the part in force.
 
 Why a standard: at section scale the model stops failing on syntax and starts failing on
 **plumbing** — it invents an envelope, forgets a permission, filters client-side, adds no
-route or no i18n key. The 18-rule validator cannot see any of that. A short, exact contract
+route or no i18n key. The 19-rule validator cannot see any of that. A short, exact contract
 plus one reference file per surface removes most of the degrees of freedom.
 
 ## 1. What a section is

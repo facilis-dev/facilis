@@ -1,8 +1,9 @@
 # Background jobs — design
 
-**Status:** implemented (D-107). This document is the design reference behind SPEC §5.6,
-§7.1 and §7.9: the contract, the runtime semantics and the rejected alternatives, including
-the evaluation of Nitro's own task system requested before the feature was accepted.
+**Status:** implemented (D-107); D-157's applied `dbTables` declaration extends to jobs (D-162).
+This document is the design reference behind SPEC §5.6, §7.1 and §7.9: the contract, the
+runtime semantics and the rejected alternatives, including the evaluation of Nitro's own task
+system requested before the feature was accepted.
 
 ## 1. What the feature must do
 
@@ -95,7 +96,8 @@ export default defineJob({
   name: "purge-completed-todos",
   input: z.object({ olderThanDays: z.number().int().positive().default(7) }),
   output: z.object({ deleted: z.number().int() }),
-  tables: ["todos"],        // sudo-audit tables; [] for a job that reads none
+  dbTables: ["todos"],      // REQUIRED: tables/views the run body reaches; [] = none (D-162)
+  rawSql: false,            // optional: allow db.execute; default false (D-162)
   maxAttempts: 3,           // optional override of jobs.maxAttempts
   timeoutMs: 10_000,        // optional override of jobs.timeoutMs
   async run({ data, db, signal, jobId, attempt }) {
@@ -113,11 +115,24 @@ export default defineJob({
   ignored) and are loaded through the `#facilis/jobs` virtual module. An invalid or
   duplicate definition becomes a `job_definition_invalid` manifest warning and is skipped;
   it never breaks boot.
-- Every definition runs through `runAsSystem(db, { actor: "system:job:<name>", operation:
-  "jobs:<name>", reason, tables }, fn)`: its own transaction as `facilis_system`, audited
-  started/succeeded/failed on the sudo-audit sink. `runAsSystem` accepts `tables: []`
-  (the job counterpart of a route's `dbTables` subset); `ctx.sudo`/`ctx.system` keep
-  requiring a non-empty subset.
+- Every definition's required `dbTables` (tables and views; `[]` = no relation) is the
+  declaration the runtime **enforces**: `runAsSystem(db, { actor: "system:job:<name>",
+  operation: "jobs:<name>", reason, dbTables, rawSql }, fn)` opens the system transaction and
+  wraps it in `guardDatabase`, so an undeclared relation fails closed with `table_not_declared`
+  and `db.execute` without `rawSql: true` with `raw_sql_not_allowed` (D-157/D-162). Unlike a
+  route's elevation, `runAsSystem` accepts an empty declaration — a job may touch no relation —
+  while `ctx.sudo`/`ctx.system` keep requiring a non-empty subset of the route's `dbTables`.
+- A declaration violation is **terminal**: the attempt fails with the stable code and is not
+  retried, and the audit `failed` entry records the code, never the relation name. The
+  started/succeeded/failed entries record the declared set; the `succeeded` one adds the
+  relations actually observed (`observedTables`).
+- **Static checks.** `@facilis/analyze` reads every definition into `jobs`/`jobRelations` facts
+  (following project-local helper calls; views count as relations; package calls stay opaque)
+  and reports `job-definition`/`job-definition-static` (warnings), `job-table-undeclared`,
+  `job-table-unresolved` and `job-raw-sql` (errors) and `job-table-unused` (warning); the
+  `jobs-gate.test.ts` CI gate runs it over the shipped example (D-154 pattern) and AI
+  validator rule 19 `job-table-declared` covers patches (SPEC §9.3). Jobs are not project-graph
+  nodes yet.
 
 ## 6. Runtime API — server-only
 
@@ -177,13 +192,15 @@ interface JobsApi {
   attempt settles (success, failure, timeout, cancellation). Enqueue wakes the tick.
 - **Retry.** A failed attempt with `attempts < maxAttempts` returns the job to `queued`
   with `runAt = now + retryDelayMs` and the last error retained. Attempts are at-least-once:
-  a job that crashes the worker may be re-run after recovery.
+  a job that crashes the worker may be re-run after recovery. A declaration violation is the
+  exception: it is terminal, because the definition cannot change between attempts.
 - **Timeout.** One attempt is bounded by `timeoutMs`; the engine aborts the signal and
   records a `timeout after <n>ms` failure. JavaScript cannot force-kill a running function,
   so a job that ignores the signal keeps running while the engine has already moved on — the
   signal is the contract, not a kill.
 - **System context.** The executor wraps the definition's `run` in `runAsSystem`; the
-  job body never sees a policy-free client, only the system-scoped transaction.
+  job body never sees a policy-free client, only the system-scoped transaction, and that client
+  is guarded by the definition's `dbTables` (D-162).
 - **Independence.** The engine has no dependency graph and no parent/child link.
 
 ## 8. Persistence and recovery
@@ -194,7 +211,8 @@ D-145) is re-exported by the project's `db/schema.ts` and therefore created by a
 migration like the auth tables. The engine's own reads/writes run as `facilis_app` under the
 deployment tenant with the framework permissions in scope (`runWithPolicyScope`); a request
 carries the session's permissions. RLS applies in both cases and the sudo audit stays for job
-bodies only.
+bodies only, where it records the declared `dbTables` and, on `succeeded`, the observed
+relations (D-162).
 
 The store is transaction-aware: `JobStore.scoped(requestTx)` returns a view whose operations
 join that transaction. The route wrapper binds `ctx.jobs` to it through `JobsApi.bindScope`,
@@ -241,7 +259,8 @@ packages/nitro/src/middleware/context.ts exposes event.context.facilis.jobs
 
 Workflows/chains, retention & pruning policies for `facilis_jobs`, exponential backoff,
 multi-instance/distributed workers (the engine assumes one process per database), a dev-only
-inspection endpoint, and serverless scheduling guarantees. The durable parts (a persisted
+inspection endpoint, and serverless scheduling guarantees. Project-graph nodes/edges for jobs
+are deferred (D-162). The durable parts (a persisted
 queue, an explicit claim/attempt counter) are the seam the workflow construct reuses. A
 workflow is implemented above the queue in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, W1–W3 landed;
 SPEC §7.10); this section remains the jobs' own scope.

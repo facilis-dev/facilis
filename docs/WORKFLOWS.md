@@ -5,8 +5,10 @@
 start route, SPEC §7.10) are implemented. Workflows are shown in the project graph as definition
 nodes with their steps (D-161, `@facilis/analyze` pass); there is deliberately **no Studio task
 inbox tab** — the task inbox/decide routes are app UI and the graph is the only new IDE surface.
-SPEC §5.6/§7.9 describe the jobs surface (D-107) and §7.10 the workflow/task surface (SPEC v1.30); O-017
-stays open for retention/pruning and the dev-only inspection endpoint. This document is the
+SPEC §5.6/§7.9 describe the jobs surface (D-107) and §7.10 the workflow/task surface (SPEC v1.31);
+O-017 stays open for retention/pruning and the dev-only inspection endpoint. A workflow declares
+no tables: its table surface is derived from the `dbTables` of the jobs its steps reference
+(D-162, §9). This document is the
 design reference behind the approved direction: contract, runtime semantics, tables, rejected
 alternatives and the phased plan.
 
@@ -170,6 +172,12 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
   `workflow_definition_changed` instead of guessing after a project edit.
 - Invalid or duplicate definitions become manifest warnings and are skipped (jobs behaviour).
 
+
+**Table surface (D-162).** A workflow declares no `dbTables`: the union of the `dbTables` of the
+jobs its job steps reference is its surface (derived in the analyzer, §9) and the runtime
+inherits each step job's own guard. There is deliberately no workflow-level declaration that
+could drift from the jobs it runs.
+
 ## 7. Runtime API — server-only
 
     interface WorkflowsApi {
@@ -277,6 +285,16 @@ pending task; completed steps are not compensated.
 - `title_key`/`title_params` are data for `t()`; every other user-facing string is an i18n key
   (UI rules, D-043).
 
+**Derived table surface (D-162).** A workflow declares no `dbTables` of its own and none is
+checked at runtime: what a workflow can reach is the sorted union of the `dbTables` of the
+jobs its job steps reference (approval steps contribute nothing; a step references a job by
+name). `Analysis.workflowTables` carries one `WorkflowTablesFact` per definition with
+`tables`, `unknownJobs` and an `unknown` flag. A referenced job with no definition under
+`server/jobs/**` is a `workflow-job-unknown` warning; an unreadable job declaration (or an
+unreadable step name) marks the surface `unknown` instead of guessing. There is no runtime
+change: a workflow job step runs through the job executor, which inherits that job's guard
+(D-157/D-162), so the effective surface is enforced where it is used.
+
 ## 10. Config
 
 `facilis.config.ts` gains a `workflows` section, every key defaulted, mirroring `jobs`:
@@ -318,6 +336,7 @@ adds no second scheduler.
     examples/todo-app/server/routes/api/workflows/index.post.ts  start route
     examples/todo-app/facilis.config.ts       permissions tasks:read/tasks:decide
     packages/analyze/src/passes/workflows.ts  definition facts -> project-graph workflow nodes
+    packages/analyze/src/passes/workflow-tables.ts  derived table surface (D-162)
     ide/src/facilis/graph-model.ts            workflow column/card/inspector
     (not planned)                              Studio task inbox tab: app-owned routes + graph (D-161)
 

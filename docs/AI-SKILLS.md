@@ -1,7 +1,7 @@
 # AI and skills
 
 **Status:** accepted and implemented (2026-11-11) except the skills runtime: the provider/gateway
-policy, the "AI off by default in managed" behaviour, the 18-rule blocking validator (D-084) and
+policy, the "AI off by default in managed" behaviour, the 19-rule blocking validator (D-084/D-162) and
 the PTC tool runtime — the chat's only mode (D-101/D-103) — landed. Still pending: the skills
 runtime and MCP servers on the same PTC seam (design: [`PTC.md`](./PTC.md), O-016).
 Decisions: D-066 (AI security boundary), D-067 (skills as a reviewed supply chain).

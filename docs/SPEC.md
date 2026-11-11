@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.30 (workflows and manual tasks; workflow definitions in the project graph, D-135/D-161)
+**Version:** 1.31 (job table declarations, D-162)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.31 — Job table declarations (D-162). `defineJob` now requires `dbTables` (tables and views by SQL name, `[]` = no relation) and accepts the `rawSql` exception; the old `tables` field is gone. A job attempt runs through the same runtime guard the routes use: an undeclared relation fails closed with `table_not_declared`, `db.execute` without `rawSql: true` with `raw_sql_not_allowed`, and a violation is terminal (not retried, stable code). The sudo audit records the declared set and, on `succeeded`, the observed relations. `@facilis/analyze` reads `server/jobs/**` into `jobs`/`jobRelations` facts with `job-definition`/`job-definition-static` (warnings), `job-table-undeclared`/`job-table-unresolved`/`job-raw-sql` (errors) and `job-table-unused` (warning); `jobs-gate.test.ts` gates the examples (D-154 pattern) and the AI validator gains rule 19 `job-table-declared`. A workflow declares no tables: its surface is derived from the jobs its steps reference (`workflowTables`, `workflow-job-unknown`). §5.6/§7.9/§8.4.6/§9.3 follow.
 - v1.30 — Workflows and manual tasks (D-135, D-161). A workflow is a named, ordered chain of job and approval steps in `server/workflows/**/*.ts` (`defineWorkflow`), advanced by a runtime tick over `facilis_workflows` rows, never a job body that waits; a manual step inserts a durable `facilis_tasks` row and the chain suspends until the task's status/decision changes through the app's authorized route (`ctx.tasks.decide`); a rejection either fails the run or continues at a declared forward step (`onReject`), a step may assign its task to a permission, and every transition is a compare-and-set short transaction with boot recovery and cancellation. The server-only `ctx.workflows`/`ctx.tasks` surface has no HTTP endpoint of its own, exactly like `ctx.jobs`. Workflow definitions are also project-graph nodes (D-161): `@facilis/analyze` reads every default export of `server/workflows/**` (name, job/approval steps, assignment permission, forward reject target) into `WorkflowFact`s, and the graph gains a workflow node per definition with its own column and inspector; there is deliberately no Studio tasks inbox tab. §5.6/§7.1/§7.4/§7.10/§8.4.5/§10.2 follow.
 - v1.29 — Docs consolidation: phase plans, resolved open questions and the Phase 0 ticket list leave the spec; no contract change.
 - v1.28 — Le viste entrano nel project graph (D-160). `@facilis/analyze` produce un nodo `view` per ogni `defineView` (`db/views/**`) con modalità invoker/definer, permesso e tabelle base dichiarate; una route che dichiara la vista in `dbTables` prende un arco `route-view` (marcato elevato dentro un'elevazione audited) e la vista è collegata alle tabelle base con `view-base`. L'IDE mostra le viste nella colonna dello schema sotto le tabelle, con badge e "usata da N rotte", e l'inspector elenca le rotte. Il contratto del grafo guadagna il nodo `view` e i due tipi di arco; i file di layout restano v3. §10.2/§11.2 follow.
@@ -258,7 +259,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   ├── prompt.ts             system prompt builder
 │   │   │   ├── context.ts            context assembly (A vs B)
 │   │   │   ├── parser.ts             AIResponse parser
-│   │   │   ├── validator/            patch validator (18 rules)
+│   │   │   ├── validator/            patch validator (19 rules)
 │   │   │   ├── tools/                Model B tool definitions (Phase 4.5)
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -526,8 +527,9 @@ Exports:
   `writeSudoAudit` — the audited sudo identity and append-only trail behind `ctx.sudo`
   (§7.4/§8.4.5, D-099). `facilis_system` is `NOLOGIN NOSUPERUSER BYPASSRLS` with DML grants only;
   it is never assigned to users and never referenced by a policy. `runAsSystem`, the job/CLI
-  counterpart, accepts `tables: []` when a job declares no audit tables (D-107); `ctx.sudo`/
-  `ctx.system` still require a non-empty subset
+  counterpart, takes the job's required `dbTables` (possibly `[]`, D-162) and the `rawSql` flag,
+  guards the elevated client with that declaration and audits the observed relations; `ctx.sudo`/
+  `ctx.system` still require a non-empty subset of the route's `dbTables`
 
 ### 5.3 `@facilis/auth`
 
@@ -673,7 +675,7 @@ Exports:
 - `parseResponse(raw)` — AIResponse parser
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
-- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 18-rule
+- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 19-rule
   validator over analyzer facts (D-092); the main entry stays browser-safe and the only
   parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -868,10 +870,20 @@ schedule it for a future instant, then read, inspect or cancel it. The design re
   a scheduler/store failure during a tick is a `jobs_runtime_error` warning. Boot never fails
   because of jobs, and a handler whose `ctx.jobs` is the unavailable fallback rejects every call
   with `JobError("job_unavailable")` instead of failing the route.
-- **System context.** Every attempt runs through `runAsSystem` (actor `system:job:<name>`,
-  operation `jobs:<name>`, the definition's `tables`) in its own `facilis_system` transaction,
-  audited started/succeeded/failed on the sudo-audit sink; the job body receives that scoped
-  client, never the app client.
+- **System context and table declaration.** Every attempt runs through `runAsSystem` (actor
+  `system:job:<name>`, operation `jobs:<name>`) in its own `facilis_system` transaction. The
+  definition's required `dbTables` (tables and views; `[]` = none) is an applied declaration
+  (D-162): the system client is guarded by it, so an undeclared relation fails closed with
+  `table_not_declared` and `db.execute` without `rawSql: true` with `raw_sql_not_allowed`. The
+  violation is terminal — the attempt is not retried and the job error stores the stable code.
+  The job body receives that guarded system client, never the app client.
+- **Audit and static checks.** The sudo trail records the declared `dbTables` on
+  `started/succeeded/failed` and the relations actually observed on `succeeded`
+  (`observedTables`); a failure entry carries the canonical code, never the relation name.
+  `@facilis/analyze` reads every definition into `jobs`/`jobRelations` facts and reports the job
+  diagnostics (§8.4.6); `jobs-gate.test.ts` fails a project whose jobs break the declaration
+  (D-154 pattern) and AI validator rule 19 covers patches (§9.3). Jobs are not project-graph
+  nodes yet.
 - **`ctx.jobs` only.** `defineAuthorizedHandler` carries `JobsApi`: enqueue/schedule returns
   `{ id }`, then `get`/`list`/`queue`/`running`/`cancel`/`stats`. There is deliberately **no HTTP
   endpoint** behind it — a project that needs a user-facing surface writes a normal
@@ -1694,7 +1706,8 @@ interface JobDefinition<Input = unknown, Output = unknown> {
   name: string               // enqueue key, unique across the registry
   input: z.ZodType<Input>    // parsed at enqueue and before every attempt
   output: z.ZodType<Output>  // parsed before the result is persisted
-  tables?: readonly string[] // sudo-audit tables; [] when the job reads none
+  dbTables: readonly string[] // REQUIRED: tables and views reached via ctx.db; [] = none (D-162)
+  rawSql?: boolean           // explicit db.execute exception; default false (D-162)
   maxAttempts?: number       // per-job override of jobs.maxAttempts
   timeoutMs?: number         // per-job override of jobs.timeoutMs
   run: (ctx: JobRunContext<Input>) => Promise<Output> | Output
@@ -1764,8 +1777,9 @@ interface JobsApi {
 ```
 
 `defineJob` validates the authored definition at module load (name pattern, Zod schemas, positive
-integer overrides); `isJobDefinition` is the structural guard the registry uses on a scanned
-module. Both the input and the result cross a JSON round-trip (`serializeJobData`): what the queue
+integer overrides, and the required `dbTables` array plus the boolean `rawSql`);
+`isJobDefinition` is the structural guard the registry uses on a scanned module and requires
+`dbTables` too. Both the input and the result cross a JSON round-trip (`serializeJobData`): what the queue
 stores is exactly what the job receives and what `get`/`list` return. `JobsApi` is on the
 authorized-handler context (`ctx.jobs`, §7.4) and on the request event's
 `context.facilis.jobs`; it has no HTTP surface of its own. A route always has `ctx.jobs`: if the
@@ -1777,9 +1791,10 @@ implementation itself is internal; only the code is public through `JobError`. T
 binds `ctx.jobs` to the request's policy-scoped transaction (`bindScope`, framework plumbing):
 PGlite is a single connection, so a queue call that opened its own transaction would deadlock the
 request waiting for it. A job attempt is the opposite case — it runs outside a request and opens
-its own system transaction. Every attempt
-runs through `runAsSystem` with actor `system:job:<name>` and the definition's `tables` —
-possibly `[]` — so the job body always sees a system-scoped transaction (§8.4.5).
+its own system transaction. Every attempt runs through `runAsSystem` with actor
+`system:job:<name>` and the definition's `dbTables`/`rawSql`, so the job body always sees a
+system-scoped transaction **guarded** by its declaration (§8.4.5, §8.4.6). A declaration
+violation is terminal: the attempt fails with the stable code and is not retried.
 
 ### 7.10 Workflow and Manual-Task API
 
@@ -1934,7 +1949,9 @@ continues, `reject` fails with `workflow_task_rejected` or jumps forward to `onR
 stops the in-flight job and pending task, then settles the row. A decided or expired task never
 reopens; `failed`/`succeeded`/`cancelled` are terminal. Approval assignment is stored as
 `assignedPermission` and filtered by `ctx.tasks.list`; enforcement is in the app route because
-permissions live in the session. Both tables are tenant-scoped, RLS-policied framework tables
+permissions live in the session. A workflow declares no `dbTables`: its table surface is derived
+from the `dbTables` of the jobs its steps reference (approval steps contribute nothing,
+D-162/§8.4.6). Both tables are tenant-scoped, RLS-policied framework tables
 (`facilis_workflows`, `facilis_tasks`), DDL-owned by a migration like `facilis_jobs`. Error
 codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
 `workflow_unavailable`, `workflow_definition_changed`, `workflow_step_failed`,
@@ -2191,8 +2208,10 @@ rejected. Public/bootstrap routes that have no session (registration, initial ad
 sibling `ctx.system({ actor: "system:<job>", operation, reason, tables }, fn)`: the same audited
 flow, with the system actor recorded instead of a user. Background jobs use the same audited
 flow through `runAsSystem` (D-107): the job/CLI counterpart opens its own transaction instead of
-joining a request, records `system:job:<name>`, and accepts `tables: []` when the definition
-declares no audit tables — `ctx.sudo` and `ctx.system` keep requiring a non-empty subset. The
+joining a request, records `system:job:<name>`, and guards the elevated client with the job's
+required `dbTables` (possibly `[]`, D-162), whether `db.execute` is allowed by `rawSql`, and the
+observed relations; `ctx.sudo` and `ctx.system` keep requiring a non-empty subset of the route's
+`dbTables`. The
 trail is a dedicated append-only log, never a database table, so it survives the rollback it
 describes; the
 default sink is one JSON line on stdout (`facilis:sudo …`), replaceable by the deploy (O-014).
@@ -2283,6 +2302,22 @@ against the code, and the runtime guard refuses an undeclared relation before th
 system-only table is still reachable only through the audited elevation, and the elevation's own `tables`
 are checked against what the callback observed.
 
+**Job declarations (D-162).** Jobs extend the same declaration to the system client their `run(ctx)`
+receives: `defineJob` requires `dbTables` (tables and views by SQL name, `[]` = no relation) and
+accepts `rawSql: true` for `db.execute`. `runAsSystem` wraps the elevated transaction in the same
+`guardDatabase`, so an undeclared relation fails closed with `table_not_declared` and raw SQL
+without the flag with `raw_sql_not_allowed`. A violation is terminal (the attempt is not retried) and
+the job error stores the canonical code; the audit entries record the declared set and, on
+`succeeded`, the observed relations (`observedTables`). The analyzer's job pass follows
+project-local helper calls in the `run` body and reports `job-definition`/`job-definition-static`
+(warnings), `job-table-undeclared`/`job-table-unresolved`/`job-raw-sql` (errors) and
+`job-table-unused` (warning); `jobs-gate.test.ts` runs it over `examples/` (D-154 pattern) and
+validator rule 19 `job-table-declared` covers patches. A workflow declares no tables: its surface is
+derived from the `dbTables` of the jobs its job steps reference (approval steps contribute
+nothing); a referenced job with no definition is a `workflow-job-unknown` warning and an
+unreadable job declaration makes the derived surface explicitly unknown (§7.10). Jobs are
+deliberately not project-graph nodes yet.
+
 **Framework tables.** `users`, `sessions`, `user_roles`, `auth_identities`, `auth_sso_states`,
 `api_clients`, `api_tokens`, `facilis_files`, `facilis_jobs` and the generated link tables are
 app-scoped. `sessions`, `user_roles`, `api_clients` and `api_tokens` have no tenant column of
@@ -2330,7 +2365,7 @@ write path; an application route must not add another one (D-141).
   with `retry-after` before touching the database. The window is in-process, so it resets on
   restart and is not shared across instances; revocation stays per client (the client and every
   token it issued), never per single token.
-- AI patches are **validated** before write (18 rules, §9.3)
+- AI patches are **validated** before write (19 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2431,7 +2466,7 @@ Rules the AI must obey:
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 10. **Every route carries a description:** one English sentence, max 120 characters (about two lines), saying what the route does and what it touches; keep it current when the route's contract (permission, inputs, `dbTables`/`dbColumns`) changes. It is source documentation shown in the graph and OpenAPI, never a `t()` key (D-129).
 
-### 9.3 Patch Validator (18 Rules)
+### 9.3 Patch Validator (19 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2453,6 +2488,7 @@ Rules the AI must obey:
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, the schema must stay renderable and consistent: the seed is generated at release, never authored |
 | 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
+| 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 
 **Status (2026-11-04): implemented over AST facts** in `@facilis/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
@@ -2467,8 +2503,8 @@ parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside
 closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
 closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
 an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
-round asking the model to fix it (D-105). Rules 5, 13 and 17 are warnings; the rest
-block the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
+round asking the model to fix it (D-105). Rules 5, 13 and 17 are warnings, and rule 19 adds a declared-but-unused warning; every
+other finding blocks the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
 time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
 property names, imports cover static/re-export/dynamic/`require` and rules 10/15 ignore
@@ -2592,7 +2628,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 18-rule validator is applied at proposal, Apply and the first VFS write
+D-101/D-103); the 19-rule validator is applied at proposal, Apply and the first VFS write
 (D-084/D-100); the project graph is built from `@facilis/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,
