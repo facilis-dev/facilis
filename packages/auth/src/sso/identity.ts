@@ -39,10 +39,11 @@ export interface ResolveIdentityOptions {
   /** `config.auth.defaultRole`, used when the provider has no `defaultRole`. */
   readonly defaultRole: string;
   /**
-   * `config.auth.sso.linkPasswordAccounts`: linking to a PASSWORD account is opt-in because that
-   * account was never email-verified (SEC-02, D-151).
+   * `config.auth.verification.enabled` (D-156): with email verification on, a pending password
+   * account is claimed (the IdP just proved the mailbox). With it off, the account was never
+   * meant to be verified, so the link is refused instead of silently resetting its password.
    */
-  readonly linkPasswordAccounts: boolean;
+  readonly claimUnverifiedPasswordAccount: boolean;
   readonly audit: SsoAudit;
 }
 
@@ -73,9 +74,13 @@ async function findIdentityUserId(
 async function findUserByEmail(
   db: PolicyScopedDatabase,
   email: string,
-): Promise<{ id: string; passwordHash: string | null } | null> {
+): Promise<{ id: string; passwordHash: string | null; emailVerifiedAt: Date | null } | null> {
   const rows = await db
-    .select({ id: users.id, passwordHash: users.passwordHash })
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+      emailVerifiedAt: users.emailVerifiedAt,
+    })
     .from(users)
     .where(sql`lower(${users.email}) = ${normalizeEmail(email)}`)
     .limit(1);
@@ -136,11 +141,21 @@ export async function resolveIdentity(
     const existingUser = await findUserByEmail(db, claims.email);
     if (existingUser !== null) {
       await assertLoginable(db, existingUser.id);
-      // A password account carries no proof that its email belongs to the caller: linking the
-      // IdP identity to it would hand the account to whoever registered the address first
-      // (account pre-hijacking, SEC-02). SSO-provisioned accounts (no password) still link.
-      if (existingUser.passwordHash !== null && !options.linkPasswordAccounts) {
-        throw new SsoError("sso_email_conflict");
+      // Account pre-hijacking (SEC-02): a pending password account was registered by someone
+      // who never proved they own the address, and with email verification enabled it cannot
+      // even log in. The verified IdP email IS that proof now, so the identity claims the
+      // account and the placeholder password is removed before linking (D-156): whoever
+      // registered the address first loses it, the mailbox owner keeps it. A verified password
+      // account belongs to the same proven mailbox and links without clearing anything.
+      const claimed = existingUser.passwordHash !== null && existingUser.emailVerifiedAt === null;
+      if (claimed) {
+        // With verification disabled the account was never meant to prove its mailbox: refuse
+        // rather than silently reset a password its owner may still use (D-156).
+        if (!options.claimUnverifiedPasswordAccount) throw new SsoError("sso_email_conflict");
+        await db
+          .update(users)
+          .set({ passwordHash: null, emailVerifiedAt: now })
+          .where(eq(users.id, existingUser.id));
       }
       const inserted = await db
         .insert(authIdentities)
@@ -159,8 +174,11 @@ export async function resolveIdentity(
       options.audit({
         operation: "auth:sso:link",
         outcome: "succeeded",
-        tables: ["auth_identities"],
-        details: { provider: claims.provider },
+        tables: claimed ? ["auth_identities", "users"] : ["auth_identities"],
+        details: {
+          provider: claims.provider,
+          ...(claimed ? { claimed: "unverified_password" } : {}),
+        },
       });
       return { userId: raced, outcome: "linked" };
     }

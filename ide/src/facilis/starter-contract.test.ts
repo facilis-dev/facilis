@@ -23,6 +23,7 @@ describe("generated starter contract", () => {
       "server/routes/api/auth/logout.post.ts",
       "server/routes/api/auth/register.post.ts",
       "server/routes/api/auth/session.get.ts",
+      "server/routes/api/auth/verify-email.get.ts",
     ]);
     const login = files["server/routes/api/auth/login.post.ts"];
     expect(login).toContain("createSession(");
@@ -40,6 +41,13 @@ describe("generated starter contract", () => {
     expect(register).toContain('actor: "system:auth"');
     expect(register).toContain('operation: "user:register"');
     expect(register).not.toContain("facilis.db");
+    // D-156: registration issues the single-use link through the framework primitive and the
+    // verify route consumes it; both replace a direct write to the verification table.
+    expect(register).toContain("issueEmailVerification(");
+    expect(register).toContain("EMAIL_VERIFICATION_TABLES");
+    const verify = files["server/routes/api/auth/verify-email.get.ts"];
+    expect(verify).toContain("consumeEmailVerification(");
+    expect(verify).toContain("permission: []");
   });
 
   it("inserts through an authorized handler without naming the tenant", () => {

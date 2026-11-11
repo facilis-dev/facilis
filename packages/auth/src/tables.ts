@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  index,
   pgPolicy,
   pgTable,
   primaryKey,
@@ -43,6 +44,9 @@ export const users = pgTable(
     // Service accounts exist only to back an API client. They have no password and every
     // login path rejects them, so the flag is a stored fact the session/SSO code can check.
     isService: boolean("is_service").notNull().default(false),
+    // null means "never verified" (D-156): a password account starts here and only the
+    // single-use link consumed by the verification route sets the timestamp.
+    emailVerifiedAt: timestamp("email_verified_at"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
@@ -68,6 +72,37 @@ function parentUserAccessPolicy(name: string, column: PgColumn): PgPolicy {
   const predicate = sql`exists (select 1 from ${users} u where u.id = ${column})`;
   return pgPolicy(name, { for: "all", using: predicate, withCheck: predicate });
 }
+
+/**
+ * Email verification links (D-156): one active token per user, stored as `sha256(token)`; the raw
+ * link exists only in the delivered email. App-scoped like the other auth tables (D-136), and
+ * reached through the audited system elevation by the verification route, which has no session.
+ */
+const emailVerificationsRls = rlsForTable({ tenantColumn: "tenant_id" });
+
+export const authEmailVerifications = pgTable(
+  "auth_email_verifications",
+  {
+    // sha256(token): a tenant-scoped read of the table cannot be replayed as a verification link.
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    tenantId: tenantColumn(),
+  },
+  (table) => [
+    // One lookup per user for "rotate the outstanding link"; the primary key covers the token.
+    index("auth_email_verifications_user_idx").on(table.userId),
+    ...emailVerificationsRls.policies,
+    pgPolicy("auth_email_verifications_tenant_access", {
+      for: "all",
+      using: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
+      withCheck: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
+    }),
+  ],
+).enableRLS();
 
 export const sessions = pgTable(
   "sessions",
@@ -172,6 +207,8 @@ export type RolePermissionRow = typeof rolePermissions.$inferSelect;
 export type UserRoleRow = typeof userRoles.$inferSelect;
 export type ApiClientRow = typeof apiClients.$inferSelect;
 export type ApiTokenRow = typeof apiTokens.$inferSelect;
+export type EmailVerificationRow = typeof authEmailVerifications.$inferSelect;
+export type NewEmailVerificationRow = typeof authEmailVerifications.$inferInsert;
 
 /** Public projection of a user row: the password hash never leaves @facilis/auth. */
 export type AuthUser = Pick<UserRow, "id" | "email" | "tenantId" | "createdAt">;

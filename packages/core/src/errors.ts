@@ -10,6 +10,8 @@ import { z } from "zod";
 export const FACILIS_ERROR_CODES = [
   "unauthorized",
   "forbidden",
+  // 403: the password was correct but the account has not verified its email yet (D-156).
+  "email_unverified",
   "invalid_input",
   // 429: a caller exceeded a framework rate limit (D-143); the response carries `retry-after`.
   "too_many_requests",
@@ -31,6 +33,7 @@ export type FacilisErrorCode = (typeof FACILIS_ERROR_CODES)[number];
 export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = {
   unauthorized: 401,
   forbidden: 403,
+  email_unverified: 403,
   invalid_input: 400,
   too_many_requests: 429,
   unsupported_media_type: 415,

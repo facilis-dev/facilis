@@ -20,6 +20,11 @@ import {
   type FacilisSsoConfig,
   type FacilisSsoConfigInput,
 } from "./sso-config.ts";
+import {
+  facilisEmailVerificationConfigSchema,
+  type FacilisEmailVerificationConfig,
+  type FacilisEmailVerificationConfigInput,
+} from "./verification-config.ts";
 import { crossCheckConfig } from "./config-validation.ts";
 import {
   facilisStorageConfigSchema,
@@ -41,6 +46,14 @@ export type {
   FacilisSsoProvider,
   SsoProviderKind,
 } from "./sso-config.ts";
+export {
+  DEFAULT_EMAIL_VERIFICATION_CONFIG,
+  facilisEmailVerificationConfigSchema,
+} from "./verification-config.ts";
+export type {
+  FacilisEmailVerificationConfig,
+  FacilisEmailVerificationConfigInput,
+} from "./verification-config.ts";
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
 export { DEFAULT_STORAGE_CONFIG, STORAGE_DRIVERS } from "./storage-config.ts";
@@ -86,6 +99,8 @@ export interface FacilisAuthConfig {
   readonly sessionDurationMs: number;
   /** External identity providers (D-120); `providers: []` when the app uses passwords only. */
   readonly sso: FacilisSsoConfig;
+  /** Email verification for password accounts (D-156); disabled by default. */
+  readonly verification: FacilisEmailVerificationConfig;
   /** Bearer-token API clients (V3a): opt-in, with a token lifetime. */
   readonly apiClients: FacilisApiClientsConfig;
 }
@@ -144,6 +159,8 @@ export interface FacilisConfigInput {
     readonly sessionDurationMs?: number;
     /** External identity providers (D-120); every key has a default. */
     readonly sso?: FacilisSsoConfigInput;
+    /** Email verification for password accounts (D-156); every key has a default. */
+    readonly verification?: FacilisEmailVerificationConfigInput;
     /** Bearer-token API clients (V3a); optional, disabled by default. */
     readonly apiClients?: FacilisApiClientsConfigInput;
   };
@@ -210,6 +227,7 @@ const authSchema = z.strictObject({
   defaultRole: z.string().min(1),
   sessionDurationMs: z.number().int().positive().default(DEFAULT_SESSION_DURATION_MS),
   sso: ssoConfigSchema,
+  verification: facilisEmailVerificationConfigSchema,
   apiClients: apiClientsSchema,
 });
 

@@ -5,6 +5,7 @@
 export {
   apiClients,
   apiTokens,
+  authEmailVerifications,
   rolePermissions,
   roles,
   sessions,
@@ -13,6 +14,8 @@ export {
   type ApiClientRow,
   type ApiTokenRow,
   type AuthUser,
+  type EmailVerificationRow,
+  type NewEmailVerificationRow,
   type NewUserRow,
   type RolePermissionRow,
   type RoleRow,
@@ -35,6 +38,14 @@ export {
 } from "./api-clients.ts";
 export { normalizeEmail } from "./email.ts";
 export { expandRoles, hasPermission, type AuthConfig, type AuthContext } from "./roles.ts";
+export {
+  consumeEmailVerification,
+  EMAIL_VERIFICATION_TABLES,
+  issueEmailVerification,
+  markEmailVerified,
+  type IssuedEmailVerification,
+  type IssueEmailVerificationOptions,
+} from "./email-verification.ts";
 export { hashPassword, verifyPassword } from "./password.ts";
 export {
   createSession,

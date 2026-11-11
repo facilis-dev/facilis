@@ -12,6 +12,7 @@ import { authIdentities, authSsoStates } from "./sso/tables.ts";
 import {
   apiClients,
   apiTokens,
+  authEmailVerifications,
   rolePermissions,
   roles,
   sessions,
@@ -30,6 +31,7 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
     tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid,
     password_hash text,
     is_service boolean NOT NULL DEFAULT false,
+    email_verified_at timestamp,
     created_at timestamp DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS sessions (
@@ -93,6 +95,13 @@ export const AUTH_TABLE_STATEMENTS: readonly string[] = [
     expires_at timestamp NOT NULL,
     tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid
   )`,
+  `CREATE TABLE IF NOT EXISTS auth_email_verifications (
+    id text PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamp DEFAULT now() NOT NULL,
+    expires_at timestamp NOT NULL,
+    tenant_id uuid NOT NULL DEFAULT nullif(current_setting('app.tenant_id', true), '')::uuid
+  )`,
 ];
 
 const RLS_TABLES: readonly (readonly [string, PgTable])[] = [
@@ -105,6 +114,7 @@ const RLS_TABLES: readonly (readonly [string, PgTable])[] = [
   ["api_tokens", apiTokens],
   ["auth_identities", authIdentities],
   ["auth_sso_states", authSsoStates],
+  ["auth_email_verifications", authEmailVerifications],
 ];
 
 /**

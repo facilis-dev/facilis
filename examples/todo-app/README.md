@@ -22,6 +22,12 @@ PORT=5199 pnpm dev
 One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 `http://localhost:5199`.
 
+Email verification (D-156) is enabled in `facilis.config.ts`. In `development`/`test` without
+`FACILIS_EMAIL_WEBHOOK_URL` the account is verified immediately and the link is logged, so the demo
+needs no mailbox. A real flow sets `FACILIS_EMAIL_WEBHOOK_URL` (the app POSTs `{ to, subject, text }`)
+and optionally `FACILIS_EMAIL_WEBHOOK_TOKEN` (sent as a Bearer); production requires the webhook and
+an account without it stays pending.
+
 > In the sandbox the browser can only reach the `facilis.home` HTTPS vhost, which forwards to
 > **port 5173**. Start this example there when you want to try it through the proxy:
 > `pnpm exec vite dev --host 0.0.0.0 --port 5173` — the example's `vite.config.ts` allows
@@ -48,7 +54,8 @@ One process: Vite serves the client and mounts Nitro (spec §10.6). Open
 1. Register `admin@example.com` and send the bootstrap token in the registration body
    (`FACILIS_INITIAL_ADMIN` + `FACILIS_INITIAL_ADMIN_TOKEN` set at startup, D-150) → the first
    registration matching that email **with the token** is granted `admin`; the response is
-   generic (`{ accepted: true }`) either way.
+   generic (`{ accepted: true }`) either way. The account is email-verified immediately in dev
+   (D-156); in production the user follows the emailed link before logging in.
 2. Register a second user → gets the `user` role from `facilis.config.ts`.
 3. Each user only sees their own todos: tenant isolation is `AS RESTRICTIVE` and owner
    isolation is permissive, both driven by `app.tenant_id`/`app.user_id`/`app.roles`

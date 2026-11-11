@@ -65,9 +65,9 @@ afterAll(async () => {
 });
 
 describe("example app migrations", () => {
-  it("finds every migration, with 0008 last in name order", () => {
+  it("finds every migration, with 0009 last in name order", () => {
     expect(MIGRATION_NAMES.length).toBeGreaterThan(0);
-    expect(MIGRATION_NAMES.at(-1)).toMatch(/\/0008_users_email_lower\.sql$/);
+    expect(MIGRATION_NAMES.at(-1)).toMatch(/\/0009_email_verification\.sql$/);
   });
 
   it("enforces case-insensitive email identity with a unique lower(email) index (D-150)", async () => {
@@ -78,6 +78,48 @@ describe("example app migrations", () => {
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]?.indexdef.toLowerCase()).toContain("lower(email)");
     expect(result.rows[0]?.indexdef.toLowerCase()).toContain("unique");
+  });
+
+  it("adds users.email_verified_at and the verification table with RLS (D-156)", async () => {
+    const column = await db.query<ColumnRow>(
+      `select data_type, is_nullable, column_default from information_schema.columns
+        where table_schema = 'public' and table_name = 'users' and column_name = 'email_verified_at'`,
+    );
+    expect(column.rows).toEqual([
+      { data_type: "timestamp without time zone", is_nullable: "YES", column_default: null },
+    ]);
+
+    const rls = await db.query<RlsRow>(
+      `select relname, relrowsecurity from pg_class
+        where relname = 'auth_email_verifications' and relkind = 'r'`,
+    );
+    expect(rls.rows).toEqual([{ relname: "auth_email_verifications", relrowsecurity: true }]);
+
+    const policies = await db.query<PolicyRow>(
+      `select policyname, tablename, permissive, cmd from pg_policies
+        where schemaname = 'public' and tablename = 'auth_email_verifications'
+        order by policyname`,
+    );
+    expect(policies.rows).toEqual([
+      {
+        policyname: "auth_email_verifications_tenant_access",
+        tablename: "auth_email_verifications",
+        permissive: "PERMISSIVE",
+        cmd: "ALL",
+      },
+      {
+        policyname: "tenant_isolation",
+        tablename: "auth_email_verifications",
+        permissive: "RESTRICTIVE",
+        cmd: "ALL",
+      },
+    ]);
+
+    const index = await db.query<{ indexdef: string }>(
+      `select indexdef from pg_indexes
+        where schemaname = 'public' and indexname = 'auth_email_verifications_user_idx'`,
+    );
+    expect(index.rows[0]?.indexdef).toContain("user_id");
   });
 
   it("replaces the queue's tenant-only policy with permission-gated policies (D-145)", async () => {

@@ -121,6 +121,7 @@ function flowDeps(context: SsoRequestContext): SsoFlowDeps {
   return {
     sso: context.config.auth.sso,
     defaultRole: context.config.auth.defaultRole,
+    verificationEnabled: context.config.auth.verification.enabled,
     publicOrigin: resolvePublicOrigin(context.event, context.environment ?? process.env),
     system: context.system,
     audit: (input) => context.log.audit(input),

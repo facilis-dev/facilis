@@ -30,6 +30,10 @@ export default defineConfig({
     },
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
+    // Email verification for password accounts (D-156). Delivery is deployment-owned: a
+    // production deploy sets FACILIS_EMAIL_WEBHOOK_URL; development/test without a webhook
+    // verifies immediately (no mailbox needed for the demo or the IDE smoke run).
+    verification: { enabled: true },
     // Programmatic API clients (V3a): the client-credentials endpoint and the management
     // routes exist only when enabled; tokens live one hour, so a leaked token is short-lived.
     apiClients: { enabled: true, tokenTtlMs: 3_600_000 },

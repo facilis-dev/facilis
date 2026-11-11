@@ -22,7 +22,7 @@ l'*utente* quando alcune policy RLS scoping solo il *tenant*.
 | ID | Finding | Gravità | Confidenza | Area |
 |---|---|---|---|---|
 | SEC-01 | Bootstrap admin dirottabile via email non verificata (anche con varianti di maiuscole) — risolto con token monouso (D-150) | **Critica** | Alta | auth/bootstrap |
-| SEC-02 | Linking SSO su account creati da registrazione non verificata → pre-hijacking — risolto con opt-in (D-151) | **Alta** | Alta | auth/SSO |
+| SEC-02 | Linking SSO su account creati da registrazione non verificata → pre-hijacking — risolto alla radice con la verifica email e il claim dell'account pendente (D-156) | **Alta** | Alta | auth/SSO |
 | SEC-03 | Rilevamento produzione fail-open: con `NODE_ENV` non impostato restano aperti manifest, dev/query, dev/schema, dev/view e cookie senza `Secure` | **Alta** | Media | nitro/deploy |
 | SEC-04 | Nessun rate-limit/lockout su login e registrazione; registrazione enumerabile (409 con dettaglio) — throttle per route (D-152), risposta generica, timing D-148 | **Alta** | Alta | auth |
 | SEC-06 | RLS di `sessions`/`user_roles`/`api_clients`/`api_tokens`/`auth_identities` è tenant-wide, non per-utente | Media | Alta | DB/RLS |
@@ -34,12 +34,13 @@ l'*utente* quando alcune policy RLS scoping solo il *tenant*.
 | SEC-12 | Invarianti 1/2 (wrapper e dbTables accurati) non bloccanti per codice scritto a mano: solo diagnostica analyzer — risolto con gate CI (D-154) | Bassa | Alta | processo |
 | SEC-13 | Coda job senza ownership: `input`/`output` leggibili da chi ha il permesso della route (risolto con `jobs:read`/`jobs:exec` in RLS, D-145) | Bassa | Alta | jobs |
 
-**Stato al 2026-11-10 (hardening completato):** risolti SEC-01 (D-150), SEC-02 (D-151),
-SEC-03 (D-146), SEC-04 (D-148 timing/PBKDF2 + D-152 throttle per route e risposta di registrazione
-generica), SEC-07 (D-147), SEC-08 (D-149), SEC-09 (D-153), SEC-11 (D-148), SEC-12 (D-154),
-SEC-13 (D-145); SEC-06 mitigato (hash delle sessioni, D-144). Resta aperto solo **SEC-10**,
-rimandato a una feature IDE dedicata (D-155) perché cambiare il sandbox della preview tocca
-cookie/storage/Service Worker e va verificato nel browser.
+**Stato al 2026-11-10 (hardening completato):** risolti SEC-01 (D-150), SEC-02 (verifica email e
+claim dell'account pendente, D-156; D-151 è superata), SEC-03 (D-146), SEC-04 (D-148 timing/PBKDF2 +
+D-152 throttle per route, risposta di registrazione generica; resta un canale indiretto di
+enumerazione mitigato dal rate limit), SEC-07 (D-147), SEC-08 (D-149), SEC-09 (D-153),
+SEC-11 (D-148), SEC-12 (D-154), SEC-13 (D-145); SEC-06 mitigato (hash delle sessioni, D-144). Resta
+aperto solo **SEC-10**, rimandato a una feature IDE dedicata (D-155) perché cambiare il sandbox della
+preview tocca cookie/storage/Service Worker e va verificato nel browser.
 
 Totale: 1 critica, 3 alte, 5 medie, 3 basse. **SEC-05 è stato ritirato** dopo la revisione:
 una route `crossSite` è utilizzabile anche dall'utente loggato con i ruoli, quindi accettare il
@@ -91,11 +92,14 @@ variante di maiuscole di `FACILIS_INITIAL_ADMIN` non deve produrre `admin`.
 
 ### SEC-02 — SSO: linking su account con email mai verificata → account pre-hijacking — Alta, confidenza alta
 
-**Stato (2026-11-10): risolto — D-151.** `auth.sso.linkPasswordAccounts` (default `false`) blocca il
-link a un account con `password_hash` non-null: la risposta è il codice sicuro
-`sso_email_conflict`, nessun link e nessuna scrittura. Gli account provisionati da SSO continuano a
-collegarsi per email verificata; la verifica email vera resta la feature che chiude il caso alla
-radice (fuori da questo PR). Verifica: `identity-guard.test.ts`.
+**Stato (2026-11-10): risolto alla radice — D-156 (sostituisce D-151).** Il framework ora verifica
+gli account password: `users.email_verified_at` + link monouso in `auth_email_verifications`, login
+`403 email_unverified` finché non è verificato, e la registrazione pubblica non può essere usata per
+"prenotare" un indirizzo (un account pendente si reclama ri-registrando l'email e viene verificato dal
+link). Il linking SSO segue la verifica: un account verificato si collega, un account pendente viene
+reclamato dall'identità con la password segnaposto rimossa — l'attaccante che ha registrato l'indirizzo
+per primo perde l'account, la vittima lo mantiene. Verifica: `identity-guard.test.ts`,
+`email-verification.test.ts`, `migrations.test.ts`.
 
 **Evidenza.**
 - `packages/auth/src/sso/identity.ts:121-140` — senza identità collegata, un'email
@@ -154,11 +158,13 @@ fallisce chiusa; testare `guardDevRequest({})` → 404. Richiedere `DATABASE_URL
 in produzione e rifiutare l'avvio altrimenti.
 
 ### SEC-04 — Nessun throttling su login/registrazione, registrazione enumerabile — Alta, confidenza alta
-**Stato (2026-11-10): mitigato — D-148, D-152.** Login a tempo costante (hash dummy), PBKDF2 600k
-e throttle per route nel wrapper (login 10/min, registrazione 5/min per client); la registrazione
-risponde `{ accepted: true }` senza dettagli. Resta un canale indiretto di enumerazione
-(registrazione → login con le stesse credenziali) finché non esiste la verifica email: la chiusura
-alla radice è la feature email di SEC-02.
+**Stato (2026-11-10): mitigato — D-148, D-152, D-156.** Login a tempo costante (hash dummy),
+PBKDF2 600k e throttle per route nel wrapper (login 10/min, registrazione 5/min per client); la
+registrazione risponde `{ accepted: true }` senza dettagli e la verifica email (D-156) rende gli
+account non verificati inutilizzabili. Resta un canale indiretto di enumerazione (registrazione →
+login: un account verificato risponde `unauthorized`, uno pendente `email_unverified`), mitigato
+dal rate limit; si chiude con la registrazione "deferred" (utente creato solo dopo la verifica),
+rimandata come evoluzione in D-156.
 
 **Evidenza.**
 - L'unico rate limit del repo è per `/api/auth/token`: `packages/nitro/src/routes/token.post.ts:44`,
@@ -488,13 +494,13 @@ D-145; migrazione `examples/todo-app/db/migrations/0007_jobs_permissions.sql`; t
 
 ## 4. Priorità di rimedio
 
-**Stato al 2026-11-10: P0/P1 completati (D-146…D-154).** L'unico punto rimasto è SEC-10 (P2,
-rimandato con D-155); la verifica email (P0 di SEC-01/02) resta la feature successiva per chiudere
-l'enumerazione e il linking alla radice.
+**Stato al 2026-11-10: P0/P1 completati (D-146…D-156).** L'unico punto rimasto è SEC-10 (P2,
+rimandato con D-155). La verifica email (D-156) ha chiuso SEC-02 alla radice; l'eventuale evoluzione
+"registrazione deferred" chiuderebbe anche l'ultimo canale indiretto di enumerazione di SEC-04.
 
 1. **P0** — SEC-01 (bootstrap admin), SEC-02 (pre-hijacking SSO): introdurre la verifica email o un
    bootstrap a token; normalizzare l'email. Sono i due percorsi con impatto più alto e rimedio
-   contenuto. **(completato con D-150/D-151; verifica email come feature successiva)**
+   contenuto. **(completato: D-150 per il bootstrap, D-156 per verifica email e claim SSO)**
 2. **P0** — SEC-04 (throttling) e SEC-03 (fail-closed in produzione): entrambe sono capacità del
    framework, non del singolo progetto, e proteggono tutte le app generate.
 3. **P1** — SEC-06 (policy per-utente sulle tabelle credenziali) e SEC-07 (SAML binding):

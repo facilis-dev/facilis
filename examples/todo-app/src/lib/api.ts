@@ -10,6 +10,7 @@ const PREVIEW_PATH = /^\/preview\/([^/]+)/;
 const KNOWN_ERROR_CODES = new Set([
   "unauthorized",
   "forbidden",
+  "email_unverified",
   "invalid_input",
   "conflict",
   "db_unavailable",
