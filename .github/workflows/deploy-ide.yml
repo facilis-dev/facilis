@@ -6,7 +6,9 @@ name: Deploy IDE
 # by kernel commit, and the finished `ide/dist` is uploaded to Cloudflare Pages (D-077).
 # Cloudflare's own Git integration is deliberately not used: it cannot cache the ~2 min
 # toolchain + ~100 s cargo build, and its builder is the wrong place to reproduce it.
-# Nothing needs to run locally.
+# Nothing needs to run locally: the workflow creates the Pages project itself (idempotent).
+# The ide.facilis.dev custom domain is added once from the project's Custom domains page; the
+# deploy job also attempts it, but only a token with zone permissions can do that.
 on:
   push:
     branches: [main]
@@ -57,6 +59,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Account state the operator should never create by hand. Idempotent: the first run
+      # creates the project, every later run reads it back. It runs before the long build so
+      # a missing/under-scoped token fails in under a minute instead of after the Wasm build.
+      - name: Ensure the Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -eu
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          code=$(curl -sS -o /tmp/cf-project.json -w '%{http_code}' -H "$auth" "$api/facilis-ide")
+          if [ "$code" = "200" ]; then
+            echo "Pages project facilis-ide already exists"
+          elif [ "$code" = "404" ]; then
+            curl -fsS -X POST "$api" -H "$auth" -H "Content-Type: application/json" \
+              -d '{"name":"facilis-ide","production_branch":"main"}'
+            echo "Pages project facilis-ide created (production branch: main)"
+          else
+            cat /tmp/cf-project.json
+            exit 1
+          fi
+
       - name: Resolve the pinned kernel commit
         id: kernel
         run: echo "sha=$(git -C vendor/vivari rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -93,6 +118,32 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # Attaching the domain is idempotent and best-effort: the deployment above already
+      # landed, and a token without the zone permissions must not fail the release. The zone
+      # is on Cloudflare, so Pages creates the proxied CNAME and the certificate itself.
+      - name: Attach the ide.facilis.dev custom domain
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -eu
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/facilis-ide/domains"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          code=$(curl -sS -o /tmp/cf-domain.json -w '%{http_code}' -H "$auth" "$api/ide.facilis.dev")
+          if [ "$code" = "200" ]; then
+            echo "custom domain ide.facilis.dev already attached"
+          elif [ "$code" = "404" ]; then
+            if curl -fsS -X POST "$api" -H "$auth" -H "Content-Type: application/json" \
+                 -d '{"name":"ide.facilis.dev"}' >/dev/null; then
+              echo "custom domain ide.facilis.dev attached; its certificate is issued asynchronously"
+            else
+              echo "::warning::could not attach ide.facilis.dev — attach it from the Pages project's Custom domains page"
+            fi
+          else
+            cat /tmp/cf-domain.json
+            echo "::warning::could not read the custom-domain state — attach ide.facilis.dev from the Pages project's Custom domains page"
+          fi
+
       # wrangler exiting 0 only means the upload landed. The headers are what make the
       # kernel boot, so assert them on the production URL (*.pages.dev serves the same
       # deployment as the custom domain, without waiting for DNS or the certificate).
@@ -109,3 +160,14 @@ jobs:
             code=$(curl -fsSL -o /dev/null -w '%{http_code}' "$base/$path")
             test "$code" = "200"
           done
+          # The custom domain trails the first deploy while Cloudflare provisions its
+          # certificate, so a slow first run is a warning rather than a release failure.
+          for attempt in 1 2 3 4 5 6; do
+            if custom=$(curl -fsS -m 10 -D - -o /dev/null https://ide.facilis.dev/ 2>/dev/null) &&
+               printf '%s\n' "$custom" | grep -qi '^cross-origin-opener-policy: same-origin'; then
+              echo "ide.facilis.dev serves the deployment with COOP/COEP"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::ide.facilis.dev is not serving with COOP/COEP yet (first-deploy DNS/certificate); re-run after a few minutes"

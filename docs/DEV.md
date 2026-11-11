@@ -440,30 +440,27 @@ shipping an IDE whose kernel cannot boot.
 
 ### 9.2 One-time account setup
 
-Both items are account state, not repo state, and are done once:
+The operator supplies two repository secrets and adds one custom domain; nothing runs locally.
 
-1. **Token + secrets.** In the Cloudflare dashboard create an API token on the account that
-   owns `facilis.dev` with `Account → Cloudflare Pages → Edit`, and (to attach the custom
-   domain) `Zone → Zone → Read` + `Zone → DNS → Edit` for the `facilis.dev` zone. Store it
-   in the repository as `CLOUDFLARE_API_TOKEN`, and the account id
-   (`GET /client/v4/accounts`) as `CLOUDFLARE_ACCOUNT_ID`.
-2. **Project + custom domain.** The zone is already on Cloudflare, so these two calls create
-   the project, the proxied CNAME `ide.facilis.dev → facilis-ide.pages.dev` and its
-   certificate:
+1. **API token.** Create a token on the account that owns `facilis.dev` with the single
+   permission `Account → Cloudflare Pages → Edit` (project creation and deploy). No zone-wide
+   rights are needed. Store it as `CLOUDFLARE_API_TOKEN`.
+2. **Account id.** Dashboard sidebar (or `GET /client/v4/accounts`) → store it as
+   `CLOUDFLARE_ACCOUNT_ID`; it is not secret, but the workflow reads both from the secrets
+   store.
+3. **First deploy.** A push to `main` (or **Deploy IDE → Run workflow**) creates the Pages
+   project `facilis-ide` (`production_branch: main`), deploys and verifies the headers on
+   `facilis-ide.pages.dev`. Account state is read back on later runs, so a deleted project
+   needs nothing but a re-run.
+4. **Custom domain, once.** In the dashboard open **Workers & Pages → facilis-ide → Custom
+   domains → Set up a custom domain**, enter `ide.facilis.dev` and activate it: because the
+   zone is on Cloudflare, Pages creates the proxied CNAME and the certificate itself. The
+   workflow's domain step is only an attempt for tokens that also carry the zone permissions —
+   without them it prints a warning and the click above is the whole setup.
 
-   ```bash
-   curl -fsS -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
-     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-     -d '{"name":"facilis-ide","production_branch":"main"}'
+Re-run the workflow after step 4 and the verify step also checks the custom origin; the
+certificate takes a few minutes on the first activation.
 
-   curl -fsS -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/facilis-ide/domains" \
-     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-     -d '{"name":"ide.facilis.dev"}'
-   ```
-
-Deploy (a push to `main`, or **Deploy IDE → Run workflow** for a manual re-deploy) and the
-custom domain serves the new deployment once its certificate is issued (a few minutes on the
-first deploy only).
 ## 10. Real git in the IDE — the same-origin proxy (D-079)
 
 Git hosts send no CORS headers on their smart-HTTP endpoints, so the tab reaches git through a

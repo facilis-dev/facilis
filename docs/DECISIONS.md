@@ -2306,9 +2306,12 @@ deployed production URL returns those headers, so configuration drift fails the 
 **Consequences.** The apex stays free for the presentation site (D-020); the IDE's canonical
 link points at its own origin (D-075's brand strings and canonical-domain rule are unchanged —
 the product is still called facilis.dev). Deploying is a push to `main`; `workflow_dispatch`
-covers a manual re-deploy. The only account-level state is the Pages project, its custom domain
-and the repository secrets `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`, bootstrapped once
-and documented in `docs/DEV.md` §9. Per-PR preview deployments are not enabled yet; a
+covers a manual re-deploy. The operator supplies the repository secrets
+`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` (token scoped to `Cloudflare Pages: Edit`,
+no zone-wide rights): the workflow creates the Pages project itself, idempotently, on the first
+run (documented in `docs/DEV.md` §9). The `ide.facilis.dev` custom domain is a one-time
+`Custom domains` click in the project; the workflow would attach it too, but only for a token
+that carries the zone permissions. Per-PR preview deployments are not enabled yet; a
 `*.pages.dev` preview URL is a later change to the same workflow.
 
 ### D-078 — Publishing pushes one commit through the host's REST API; it never runs git
