@@ -6,9 +6,10 @@
 // silently drops every re-exported table from the project graph.
 //
 // Inline the two packages' source at IDE build time, exactly as example-template.ts does for
-// the starter app. The vendored tarballs ship this same source (D-030), so this is what a
-// project actually installs; inlining keeps the analysis free of extra VFS I/O and makes the
-// graph correct before (and without) a successful npm install.
+// the starter app. The published packages ship this same source (D-164) and the generated
+// project installs them from npm (D-166), so this is what a project actually gets; inlining
+// keeps the analysis free of extra VFS I/O and makes the graph correct before (and without) a
+// successful npm install.
 
 /**
  * The template packages that declare `pgTable` today, in template order.

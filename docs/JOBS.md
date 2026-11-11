@@ -21,9 +21,10 @@ From the request:
 
 ## 2. Placement — no new package
 
-The feature reuses the existing layer split instead of adding a `@facilis.dev/jobs` tarball
-(the generated project ships framework packages as vendored tarballs, so a new package would
-also change the IDE template):
+The feature reuses the existing layer split instead of adding a `@facilis.dev/jobs` package
+(the framework packages are published npm packages now, D-166, so the old "a new package would
+change the vendored IDE template" reason is outdated; the decision stands on scope — the job
+surface is small enough for the three existing layers):
 
 | Layer | Owns |
 |---|---|

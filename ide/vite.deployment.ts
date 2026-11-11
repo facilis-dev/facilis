@@ -22,6 +22,7 @@ import type { ResolvedDeployment } from "./src/deploy/types.ts";
 import { gitProxyDevPlugin } from "./vite.git-proxy.ts";
 
 const ENV_VERSION = "FACILIS_ENV_VERSION";
+const PACKAGES_VERSION = "FACILIS_PACKAGES_VERSION";
 
 /** The virtual modules a managed build substitutes for the import implementation (D-063). */
 const GIT_IMPORT_OFF = "\0facilis:git-import-off";
@@ -214,6 +215,9 @@ export function deploymentPlugin(): Plugin[] {
         const define: Record<string, string> = {
           __FACILIS_DEPLOYMENT__: JSON.stringify(loaded.deployment),
           __FACILIS_ENV_VERSION__: JSON.stringify(version),
+          // The exact published @facilis.dev/* version new projects pin (D-164): the
+          // deploy pipeline sets it, and a local build falls back to the current release.
+          __FACILIS_PACKAGES_VERSION__: JSON.stringify(process.env[PACKAGES_VERSION] || "0.1.0"),
         };
         // The controller reads this at boot (ide/src/vv/controller.ts); a managed build
         // sets it from its policy unless the operator chose one explicitly.

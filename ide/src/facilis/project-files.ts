@@ -1,12 +1,10 @@
 // IDE-specific wrappers around examples/todo-app, the single source of the generated
 // project (D-062).
 //
-// The @facilis.dev/* framework packages are published to npm (D-164) but the generated project
-// installs them from tarballs the IDE serves from its own public directory. npm is the
-// installer and the tarballs are inlined INTO the create request (manifest.assets,
-// project-assets.ts, D-032), then declared as file: dependencies: no package manager has to
-// reach the studio over HTTP to install them, and the project keeps working once it leaves
-// the IDE. This is interim until the packages are published. The v1 UI kit was removed
+// The @facilis.dev/* framework packages install from the public npm registry at the exact
+// version this build pins (frameworkPackagesVersion, D-166). They are ordinary published
+// dependencies, not file: tarballs: the generated project keeps working once it leaves the
+// IDE, and there is nothing binary to ship beside the sources. The v1 UI kit was removed
 // (D-096): template v2 copies its primitives into src/components/ui.
 //
 // Everything else the project contains comes from examples/todo-app (example-template.ts);
@@ -14,7 +12,7 @@
 // scripts the VM needs.
 
 import { renderProjectNpmrc } from "@/deploy/artifacts";
-import { deployment, environmentVersion } from "@/deploy/current";
+import { deployment, environmentVersion, frameworkPackagesVersion } from "@/deploy/current";
 import type { ResolvedDeployment } from "@/deploy/types";
 import { APP_MANIFEST_FILE, renderAppManifest } from "./app-manifest";
 import { examplePackageJson } from "./example-template";
@@ -24,15 +22,14 @@ type ExamplePackage = {
   devDependencies: Record<string, string>;
 };
 
-/** The example's dependency versions, with workspace specs pointed at vendored tarballs. */
+/** The example's dependency versions, with workspace specs pinned to the published version. */
 function packageJson(): string {
-  const tarball = (name: string) => "file:./vendor/facilis-" + name + "-0.0.0.tgz";
   const example = JSON.parse(examplePackageJson()) as ExamplePackage;
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies)) {
-    dependencies[name] = name.startsWith("@facilis.dev/")
-      ? tarball(name.slice("@facilis.dev/".length))
-      : spec;
+    // Exact, never a range: the deploy pipeline injects the published version this IDE was
+    // built against, and the framework packages move in lockstep with it (D-166).
+    dependencies[name] = name.startsWith("@facilis.dev/") ? frameworkPackagesVersion : spec;
   }
   // Nitro 3.0.260903-beta imports a dozen packages it lists only in its devDependencies —
   // but it also vendors pruned copies of them under dist/node_modules, so the runtime's
@@ -90,9 +87,9 @@ function packageJson(): string {
         dependencies,
         devDependencies,
         // The emnapi pins are the verified interim fix for Vite 8's wasi binding
-        // (DEV.md 6.1). The @facilis.dev packages need no override: they are file:
-        // dependencies of the root, and npm satisfies the tarballs' 0.0.0 interdeps
-        // from that same hoisted set instead of asking the registry.
+        // (DEV.md 6.1). The @facilis.dev packages need no override: they are published
+        // dependencies at one exact version, so npm resolves their interdeps from the
+        // registry like any other package.
         overrides: {
           "@emnapi/core": "2.0.0-beta.2",
           "@emnapi/runtime": "2.0.0-beta.2",
@@ -128,7 +125,7 @@ const tsconfig = `{
 const checkPm = `// Runs as the project preinstall hook: the project must be installed with npm.
 // The IDE vendors exactly one package manager and keeps it aligned with the VM's
 // Node (D-032); any other one on PATH would build a tree nothing here was tested
-// with, and the @facilis.dev tarballs' interdeps assume the flat layout npm produces.
+// with, and the @facilis.dev packages assume the flat layout npm produces.
 const agent = process.env.npm_config_user_agent ?? "";
 if (!agent.startsWith("npm/")) {
   console.error("Use npm in this project — it is the package manager this project ships with.");
@@ -148,55 +145,16 @@ in the project.
 
 ## Package manager
 
-npm, with the @facilis.dev/* packages installed from the tarballs in ./vendor:
+npm. The @facilis.dev/* packages install from the npm registry, pinned to one
+exact published version:
 
     npm run dev
 
 "npm run dev" expects dependencies to be installed: the IDE's Run installs them for
-you, and scripts/vendor-paths.cjs is what makes that install resolve the
-@facilis.dev/* tarballs in ./vendor (run it before a bare npm install).
+you, or run "npm install" yourself before it.
 
 The preinstall guard rejects other package managers on purpose: the IDE vendors the
 npm it was built and tested against, and keeps it aligned with its Node version.
-`;
-
-const vendorPathsScript = `// Resolve the @facilis.dev/* tarballs to absolute file: paths before npm reads
-// package.json.
-//
-// The @facilis.dev/* packages come from tarballs in ./vendor (published ones would need
-// O-006). A RELATIVE file: spec is re-derived by npm — it recomputes the target with
-// path.relative() and stores that as the dependency's resolved form — and inside the VM
-// that derivation was measured producing /user/projects/... instead of
-// /home/user/projects/...: the tarball then "does not exist", npm retries it as
-// corrupted and the install dies with ENOENT. An absolute spec leaves npm nothing to
-// re-derive, so this runs before every install (manifest.install). Idempotent, and it
-// refuses a project whose template assets are missing instead of failing later.
-const fs = require("node:fs");
-const path = require("node:path");
-
-const root = process.cwd();
-const file = path.join(root, "package.json");
-const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
-const deps = pkg.dependencies || {};
-let changed = 0;
-for (const name of Object.keys(deps)) {
-  if (!name.startsWith("@facilis.dev/")) continue;
-  const tarball = path.join(root, "vendor", "facilis-" + name.slice("@facilis.dev/".length) + "-0.0.0.tgz");
-  if (!fs.existsSync(tarball)) {
-    console.error("[facilis] missing " + tarball);
-    console.error("[facilis] the project's template assets are incomplete — recreate it from the IDE");
-    process.exit(1);
-  }
-  const spec = "file:" + tarball;
-  if (deps[name] !== spec) {
-    deps[name] = spec;
-    changed++;
-  }
-}
-if (changed > 0) {
-  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\\n");
-  console.log("[facilis] resolved " + changed + " @facilis.dev/* dependencies to absolute tarball paths");
-}
 `;
 
 /**
@@ -224,6 +182,5 @@ export function projectFiles(
     ".npmrc": renderProjectNpmrc(d),
     "README.md": readme,
     "scripts/check-pm.mjs": checkPm,
-    "scripts/vendor-paths.cjs": vendorPathsScript,
   };
 }

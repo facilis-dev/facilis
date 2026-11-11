@@ -4,8 +4,8 @@
 // "New project" scaffolds, and a drift test fails if a file the template needs is missing.
 //
 // Only the IDE-specific wrappers are written in this package: package.json (workspace
-// specs become vendored tarballs), tsconfig (extends the repo base), npm hooks, the
-// liveness ping route and the HMR hint (see template-overrides.ts).
+// specs become exact published versions, D-166), tsconfig (extends the repo base), npm
+// hooks, the liveness ping route and the HMR hint (see template-overrides.ts).
 
 const EXAMPLE_DIR = "examples/todo-app/";
 const EXAMPLE_PATH = new RegExp(EXAMPLE_DIR.replace(/\//g, "\\/"));
@@ -38,8 +38,8 @@ export function exampleProjectFiles(): Record<string, string> {
   const files: Record<string, string> = {};
   for (const [key, source] of Object.entries(rawSources)) {
     const path = projectPath(key);
-    // package.json is rebuilt for npm + vendor tarballs; tsconfig is standalone and
-    // not part of the glob at all (the example's extends the repo base).
+    // package.json is rebuilt for npm + the pinned published versions; tsconfig is
+    // standalone and not part of the glob at all (the example's extends the repo base).
     if (path !== null && path !== "package.json") files[path] = source;
   }
   return files;

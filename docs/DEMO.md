@@ -6,7 +6,7 @@ counterpart of `pnpm ide:smoke`; the smoke run is what proves it in CI (see §Au
 
 ## One-time setup
 
-The IDE runs the vendored kernel, so the four build artifacts must exist first (full recipe and
+The IDE runs the vendored kernel, so the three build artifacts must exist first (full recipe and
 troubleshooting in [DEV.md](./DEV.md)):
 
 ```bash
@@ -14,10 +14,12 @@ git submodule update --init vendor/vivari
 pnpm install
 pnpm ide:wasm
 pnpm ide:assets
-pnpm ide:facilis-deps
 pnpm ide:browser          # only needed for the headless smoke run
 pnpm ide:dev              # http://localhost:5173
 ```
+
+The `@facilis.dev/*` dependencies come from npm at the exact version the IDE build pins
+(`FACILIS_PACKAGES_VERSION`, D-166) — there is no local vendoring step.
 
 Start from a **fresh browser profile** (or a private window with no stored site data) so the
 timings below are honest.
@@ -28,7 +30,7 @@ timings below are honest.
 |---|---|---|
 | 0:00 | Open the Studio. | Home lists no project; the kernel boots behind the splash. |
 | 0:05 | **New project** → keep the pre-filled folder name → **Create**. | The project is scaffolded from `examples/todo-app` (D-062) and opens in the editor. |
-| 0:20 | Press **Run**. | The install runs from the IDE-served tarballs (D-032); the preview paints the todo login page. |
+| 0:20 | Press **Run**. | The install resolves `@facilis.dev/*` from npm at the pinned version (D-166); the preview paints the todo login page. |
 | 0:40 | Register the `FACILIS_INITIAL_ADMIN` email **and the bootstrap token** in the preview (D-150); the dev fallback verifies the address immediately (D-156). | The todo app is authenticated: create/complete a todo works. |
 | 0:55 | Open the **Data** view (database icon). | Tables with columns, RLS badges on the scoped tables, reverse route usage, and *"Code and database are in sync"*. |
 | 1:10 | Open **AI Chat** → settings → provider **Mock (dev)** → send any prompt. | The answer streams, then a **reviewable proposal** appears: one per-file diff, validator clean, Apply enabled. |

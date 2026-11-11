@@ -89,22 +89,21 @@ describe("generated template", () => {
 
   it("keeps the run manifest pointing at the example's entry", () => {
     expect(template.manifest.entry).toBe("src/app.tsx");
-    // analyze, auth, core, db, nitro, storage, time — @facilis.dev/ui is no longer shipped.
-    expect((template.manifest as FacilisManifest).assets).toHaveLength(7);
+    // Sources only: the @facilis.dev packages install from npm (D-166), so no binary
+    // asset is inlined into the create request any more.
+    expect((template.manifest as FacilisManifest).assets).toEqual([]);
   });
 
-  it("declares every @facilis.dev package as a vendored tarball", () => {
+  it("pins every @facilis.dev package to the published version", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
     for (const name of ["analyze", "auth", "core", "db", "nitro", "storage", "time"]) {
-      expect(pkg.dependencies["@facilis.dev/" + name]).toBe(
-        "file:./vendor/facilis-" + name + "-0.0.0.tgz",
-      );
+      expect(pkg.dependencies["@facilis.dev/" + name]).toBe("0.1.0");
     }
     expect(pkg.dependencies["@facilis.dev/ui"]).toBeUndefined();
     expect(JSON.stringify(pkg)).not.toContain("workspace:");
-    const assets = (template.manifest as FacilisManifest).assets;
-    expect(assets.some((asset) => asset.path.includes("facilis-ui-"))).toBe(false);
+    expect(JSON.stringify(pkg)).not.toContain("file:./vendor");
+    expect(Object.keys(files).some((path) => path.startsWith("vendor/"))).toBe(false);
   });
 });

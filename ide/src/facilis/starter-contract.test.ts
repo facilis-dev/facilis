@@ -72,7 +72,8 @@ describe("generated starter contract", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
-    expect(pkg.dependencies["@facilis.dev/storage"]).toBe("file:./vendor/facilis-storage-0.0.0.tgz");
+    // Published from npm at the version the build pins (D-166), never a file: tarball.
+    expect(pkg.dependencies["@facilis.dev/storage"]).toBe("0.1.0");
     expect(files["db/schema.ts"]).toContain("fileLinks(todos");
     const migration = Object.keys(files).find((path) => path.startsWith("db/migrations/0003_"));
     expect(migration, "missing the file-link migration").toBeDefined();

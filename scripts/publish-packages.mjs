@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Publish the Facilis workspace packages to npm under the @facilis.dev scope (D-164).
 //
-// Called by .github/workflows/publish-packages.yml on every deploy and usable locally:
+// Called by .github/workflows/deploy-ide.yml on every release and usable locally:
 //   pnpm publish:packages            # build, stage, publish
 //   pnpm publish:dry-run             # build, stage, npm publish --dry-run
 //
@@ -61,8 +61,9 @@ function discoverPackages() {
     .sort((a, b) => (a.name < b.name ? -1 : 1));
 }
 
-async function publishedMetadata(name) {
-  const response = await fetch(REGISTRY + "/" + encodeURIComponent(name), {
+async function publishedMetadata(name, bustCache = false) {
+  const url = REGISTRY + "/" + encodeURIComponent(name) + (bustCache ? "?t=" + Date.now() : "");
+  const response = await fetch(url, {
     headers: { accept: "application/vnd.npm.install-v1+json" },
     signal: AbortSignal.timeout(20_000),
   });
@@ -223,6 +224,30 @@ function verifyStaged(stage, manifest) {
   }
 }
 
+// npm exiting 0 only means the registry accepted the upload: it serves a new version after a
+// delay (a first release took ~2 min), so poll until every package reports it as `latest`.
+// A stage-only token never gets there — it stages a 0.0.0 placeholder — hence the error text.
+async function verifyPublished(packages, version) {
+  for (let attempt = 1; attempt <= 12; attempt++) {
+    const metadata = await Promise.all(packages.map((pkg) => publishedMetadata(pkg.name, true)));
+    const stale = packages.filter((_, index) => metadata[index]?.["dist-tags"]?.latest !== version);
+    if (stale.length === 0) {
+      console.log("[publish] verified " + version + " as latest on npm");
+      return;
+    }
+    if (attempt === 12) {
+      fail(
+        "registry does not serve " +
+          version +
+          " as latest for " +
+          stale.map((pkg) => pkg.name).join(", ") +
+          ": a stage-only npm token stages versions (a 0.0.0 placeholder) instead of publishing them",
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 8_000));
+  }
+}
+
 async function main() {
   const packages = discoverPackages();
   if (packages.length === 0) fail("no " + SCOPE + "* packages found under packages/");
@@ -260,6 +285,10 @@ async function main() {
     } finally {
       fs.rmSync(stage, { recursive: true, force: true });
     }
+  }
+  if (!dryRun) await verifyPublished(packages, version);
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, "version=" + version + "\n");
   }
   console.log("[publish] done: " + packages.length + " packages at " + version);
 }

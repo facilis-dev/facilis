@@ -6,11 +6,11 @@ so they are not re-litigated or lost.
 
 Format: `D-0NN — title` · **status** (accepted / open) · context · decision · consequences.
 
-**Reading guide.** Start with the newest entries (D-142…D-164); the rest is history that still
+**Reading guide.** Start with the newest entries (D-142…D-167); the rest is history that still
 explains the current code. A handful of decisions are superseded by a later one — D-017
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
-(→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149, while
-D-157 was extended to jobs by D-162. The "Open items" table at the end lists what is still
+(→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149,
+D-032 was completed by D-164/D-166, while D-157 was extended to jobs by D-162. The "Open items" table at the end lists what is still
 undecided.
 
 ---
@@ -772,6 +772,11 @@ The template keeps the asset list, but the IDE now fetches the tarballs in the p
 their bytes through the create message's `files` (`ide/src/facilis/project-assets.ts`) — the
 mechanism the kernel already had (`writeFilesBatch` takes bytes) and the one the fork's
 `FORK.md` recommends to embedders. The created project is byte-identical.
+
+**Amended by D-164/D-166:** the packages are published, so the `file:` tarball delivery described
+above is gone. Generated projects declare exact versions and install the `@facilis.dev/*` packages
+from npm; the version is injected by the release build (D-166).
+
 ---
 
 ### D-033 — Several projects at once: one project per browser tab
@@ -6367,11 +6372,12 @@ would mean occupying a second organization instead.
   trusted publisher can be attached to each.
 
 **Consequences.** O-006 is resolved: the packages are installable by name, which unblocks the
-`starter/` task D-027 deferred. The IDE still installs from vendored tarballs (D-022), so an in-VM
-install never depends on registry availability; those tarballs are built from the same sources and
-keep the workspace version. The repo version is a floor, not the published version — the workflow
+`starter/` task D-027 deferred. **Amended by D-166:** generated projects no longer install vendored
+tarballs; they install these published packages at the exact version the IDE build pins. The repo version is a floor, not the published version — the workflow
 derives it — and a manual release uses the same script (`pnpm publish:dry-run`, then
 `pnpm publish:packages` after `npm login`). The old `@facilis/*` names stop resolving.
+**Amended by D-166:** the separate publish workflow is gone — publishing is the first job of
+`.github/workflows/deploy-ide.yml`, which then builds the IDE against the version it just published.
 
 ### D-165 — The hosted IDE signs in with a GitHub App; its public client id lives in the deploy config
 **Status:** accepted (2026-11-11)
@@ -6401,6 +6407,88 @@ config file. An OAuth app remains supported and documented for deployments that 
 
 ---
 
+### D-166 — Generated projects install the published packages at the version the IDE build pins
+**Status:** accepted (2026-11-11)
+
+**Context.** D-032 kept the `@facilis.dev/*` dependencies of a generated project as `file:`
+specs pointing at tarballs the IDE served from its own origin, because the packages were
+workspace-only (O-006). D-164 published them and resolved O-006, and D-032 already said the
+follow-up was only a change of dependency specs. The tarball path also carried machinery that
+existed for that reason alone: `scripts/dev/vendor-facilis-deps.sh`, an `ide:facilis-deps`
+deploy step, ~900 KB of assets inlined into every create request, a `scripts/vendor-paths.cjs`
+rewrite in every generated project, and the workspace `0.0.0` version leaking into manifests.
+
+**Decision.**
+
+- **Exact version, injected at build time.** The generated project declares every
+  `@facilis.dev/*` dependency at one exact version, `frameworkPackagesVersion`, and installs
+  with plain `npm install`. The version is not stored in the repo: the IDE build reads
+  `FACILIS_PACKAGES_VERSION`, compiles it in through Vite (`__FACILIS_PACKAGES_VERSION__`) and
+  writes it into the template; a dev build without the variable pins `0.1.0`.
+- **Publishing rides the deploy in one workflow.** On a push that changes `packages/**` (or a
+  manual dispatch with the `publish` input), the release job first gates and publishes the
+  packages, takes the version the publish script returns, then builds and deploys the IDE with
+  it. On a deploy-only change the version is the current npm `latest`. Two parallel workflows
+  would race: the IDE would pin the version it saw before the publish finished.
+- **The publish script verifies the registry before the build continues.** It polls until every
+  package reports the new version as `latest` and fails the release otherwise. This catches a
+  stage-only npm token (which stages versions and leaves a `0.0.0-stage` placeholder instead of
+  publishing them) before an IDE is shipped pointing at packages that are not installable.
+- **The tarball machinery is removed.** No `vendor/` assets in the template, no
+  `vendor-paths.cjs`, no `TEMPLATE_PACKAGES`-driven asset inlining (the template-asset plumbing
+  stays with an empty list for future binary files), no `ide:facilis-deps` script or deploy
+  step, and the IDE no longer serves `/vendor/facilis/*.tgz`.
+- **The analyzer is unchanged.** `framework-sources.ts` keeps inlining `packages/auth` and
+  `packages/db` source at IDE build time, so the project graph is correct before (and without) a
+  successful install; `analyze-files.ts` already reads `node_modules/@facilis.dev/` from the VFS,
+  which is exactly what a registry install produces.
+
+**Consequences.** A created project installs the framework like any other dependency, from the
+registry, inside the VM, and keeps working outside the IDE with no vendored files. Create
+requests get smaller and the generated manifest carries a real semver. The deploy now fails if
+the packages cannot be published or verified — by design, because the deployed IDE must point at
+installable packages — so a red npm token blocks the IDE release instead of silently producing a
+stale one. Dev builds (`pnpm ide:dev`) pin the fallback `0.1.0`; a project created there installs
+that version from npm, so a change in a package requires a deploy (or a build with
+`FACILIS_PACKAGES_VERSION` set) before it appears in newly created projects.
+
+---
+
+### D-167 — Patch write scope follows the deployment profile: `open` allows the project minus the machine surfaces, `managed` keeps the six roots
+**Status:** accepted (2026-11-11)
+
+**Context.** Rule 11 `file-path-allowed` only allowed the six project roots plus
+`facilis.config.ts` (D-084), so an AI patch could not add a Wrangler config, a `.github`
+pipeline, root Vite/Nitro config or `index.html`; the IDE's own writers already had
+`allowedRootFiles`, but AI patches never pass it by design. The deployment profile (D-063) is
+the right axis: `managed` cannot review each patch, while `open` is the user's own project and
+the user still reviews and applies every patch.
+
+**Decision.**
+
+- `validatePatch` gains `writePolicy: "open" | "managed"`, defaulting to `"managed"`
+  (fail-closed for external/Node callers); rule 11 keeps its id and severity.
+- `managed` is unchanged: the six roots plus `facilis.config.ts`, plus the IDE writer's explicit
+  `allowedRootFiles` (AI patches never get it).
+- `open` allows any project-relative path except a `node_modules`/`.git`/`.facilis`/`dist`/
+  `.turbo`/`coverage` segment, the install surface (`package.json`, `package-lock.json`,
+  `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `.npmrc`) and `AGENTS.md`.
+- The IDE maps `aiWritePolicy` from its build profile (`ide/src/deploy/current.ts`) and passes
+  it to apply/proposal/Apply validation and the PTC validate tool; `buildSystemPrompt` states the
+  effective rule in a "## Writable paths" section. Node tooling keeps `managed`.
+
+**Why.** `package.json`/lockfiles/`.npmrc` are the install surface (dependency injection;
+AI-SKILLS §4 rule 5, O-009); `node_modules` is code that never went through an install;
+`.git`/`.facilis`/`dist`/`.turbo`/`coverage` is VCS/IDE/build state the Explorer does not
+review and the PTC read policy already hides; `AGENTS.md` persists instructions into later
+sessions (D-084). A CI workflow can read repository secrets, which is why `managed` stays strict.
+
+**Consequences.** Managed AI stays strict and never accepts a CI workflow, which is the point of
+the split; `open` builds can create CI, Wrangler and root config. No rule id or count changes.
+§5.5/§9.3 of the spec and MANAGED-DEPLOYMENT §1 follow.
+
+---
+
 ## Open items (post-MVP)
 
 Rows marked `done` are kept so their O-IDs stay resolvable; only the rows without a resolution are
@@ -6413,10 +6501,10 @@ live. The resolving ADR is in the row.
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
 | O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis.dev/blocks` deleted; nothing to discover | done |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
-| O-006 | Publish target for `@facilis.dev/*` (public npm vs private registry) | **resolved by D-164:** public npm under the `facilis.dev` organization, published by `.github/workflows/publish-packages.yml` on every deploy with a derived patch version | done |
+| O-006 | Publish target for `@facilis.dev/*` (public npm vs private registry) | **resolved by D-164:** public npm under the `facilis.dev` organization, published by the release job in `.github/workflows/deploy-ide.yml` on every deploy with a derived patch version (D-166) | done |
 | O-007 | Recommended default AI model | **resolved with D-045:** no enforced default; each provider preset carries an editable model default | done |
 | O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | **resolved with D-086:** no boot — the Studio reads the refs from the git tree with isomorphic-git and diffs parsed snapshots | done |
-| O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch | done |
+| O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch. **Revisited by D-167:** the write scope follows the deployment profile — `open` allows the project minus the install surface, the VCS/IDE/build state and `AGENTS.md`, `managed` keeps the six roots — while `package.json`, lockfiles and `.npmrc` stay blocked in both | done |
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis.dev/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
 | O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis.dev/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |

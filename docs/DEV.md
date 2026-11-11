@@ -5,7 +5,7 @@ Everything here is one command, reproducible, and needs **no root**.
 
 **Status:** current (2026-11-11); this page is the only supported setup recipe.
 
-The IDE runs the vendored Vivari kernel, which means four build artifacts that are
+The IDE runs the vendored Vivari kernel, which means three build artifacts that are
 gitignored by upstream and therefore absent from a fresh checkout. `scripts/dev/` produces
 them; this page is the contract for those scripts.
 
@@ -17,7 +17,6 @@ pnpm install
 
 pnpm ide:wasm          # Rust -> Wasm kernel (vendor/vivari/packages/{vfs,codec,crypto}/pkg)
 pnpm ide:assets        # ide/public/vendor/{npm-pack.bin,pnpm-pack.bin,sqlite/sqlite3.wasm}
-pnpm ide:facilis-deps  # @facilis.dev/* tarballs -> ide/public/vendor/facilis/*.tgz
 pnpm ide:browser       # headless Chromium + shared libs + fonts (private sysroot, no root)
 
 pnpm ide:dev          # vite dev on 0.0.0.0:5173 (reachable from another machine)
@@ -26,6 +25,11 @@ pnpm ide:smoke        # headless acceptance: boot -> create React/TS project -> 
 
 Everything is installed under `FACILIS_TOOLING_DIR` (default `/tmp/facilis-dev`), never in
 the repository. Nothing under `vendor/` or `ide/public/vendor/` is ever committed.
+
+There is no vendoring step for the framework packages any more: a generated project installs
+`@facilis.dev/*` from npm at the exact version the IDE build pins with
+`FACILIS_PACKAGES_VERSION` (a dev build without the variable pins the fallback `0.1.0`; D-166,
+§9/§13).
 
 ## Why this page exists
 
@@ -86,55 +90,35 @@ here, so the script extracts the published tarball instead).
 | `npm-pack.bin` | real npm 12.2.1 (3.04 MB gz), the project installer (D-032) | `/vendor/npm-pack.bin` |
 | `pnpm-pack.bin` | real pnpm 9.15.9 (3.66 MB gz) — only for rolldown's wasm fallback, not a project manager (D-032) | `/vendor/pnpm-pack.bin` |
 | `sqlite/sqlite3.wasm` | SQLite wasm (865 KB) | `/vendor/sqlite/sqlite3.wasm` |
-| `facilis/*.tgz` | this workspace's `@facilis.dev/{analyze,auth,core,db,nitro,storage,time}` (0.0.0), packed with `pnpm pack` | `/vendor/facilis/facilis-<pkg>-0.0.0.tgz` |
 
 ```bash
 sh scripts/dev/vendor-assets.sh          # or: pnpm ide:assets
 sh scripts/dev/vendor-assets.sh --all    # + yarn, corepack, tsgo, pyodide, ruff (needs host npm)
-
-sh scripts/dev/vendor-facilis-deps.sh          # or: pnpm ide:facilis-deps
-sh scripts/dev/vendor-facilis-deps.sh --all    # + @facilis.dev/{ai,blocks}
 ```
 
 The generators write into `vendor/vivari/packages/studio/public/vendor` (gitignored, inside
 the submodule); the script copies the results into `ide/public/vendor/` (also gitignored).
 
-The second script packs the template's `@facilis.dev/*` dependencies — `analyze auth core db
-nitro storage time` today, plus `ai` and `blocks` with `--all` — from this workspace into
-`ide/public/vendor/facilis/facilis-<pkg>-<version>.tgz` — `0.0.0` today, because those
-packages are published to npm (D-164) but still delivered to the WebContainer as tarballs.
-Generated projects install with **npm** inside the WebContainer
-(D-032) and the Facilis template declares them as `file:` dependencies under its own
-`./vendor/`, inlined from the IDE build at create time: no package manager fetches the
-framework from the studio over HTTP. Three in-VM constraints shape that:
+The template's `@facilis.dev/*` dependencies are not packed or vendored locally any more
+(D-166). Generated projects install with **npm** inside the WebContainer (D-032) and the
+template declares every framework package at an exact registry version: the IDE build injects
+the release version through `FACILIS_PACKAGES_VERSION` and pins all of them to it, so
+`npm install` resolves them like React or Zod. The IDE no longer fetches package bytes from its
+own origin into the create request, and the project has no `vendor/` directory and no
+`scripts/vendor-paths.cjs`.
 
-- **The tarballs are inlined, not fetched.** The IDE page fetches each `manifest.assets`
-  path from its own origin and writes the bytes into the project's `./vendor/` in the create
-  request (`ide/src/facilis/project-assets.ts`), so the project is self-contained once
-  created and no registry or HTTP-egress constraint can break the install.
-- **The tarballs export `dist/`, not `src/`.** The generated project's Vite config is loaded
-  with `--configLoader native`, and a native ESM loader refuses to strip types from files
-  under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the config imports
-  `@facilis.dev/nitro/vite`, so that entry must be JS. The script builds each package, packs it,
-  then rewrites the packed manifest's `exports` from `./src/*.ts` to `./dist/*.js` (the
-  workspace source keeps its `src` entry points). `@facilis.dev/nitro` also derives its Nitro
-  handler paths from its own module extension for the same reason.
+The published manifest still exports `dist/`, not `src/`: the generated project's Vite config
+is loaded with `--configLoader native`, and a native ESM loader refuses to strip types from
+files under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the config imports
+`@facilis.dev/nitro/vite`, so that entry must be JS. `scripts/publish-packages.mjs` stages
+exactly that manifest (`exports` resolve to `dist/*.js`, internal deps are pinned to the
+release version), because publishing the workspace manifest directly is not installable.
 
-- **The specs are made absolute before npm runs.** npm re-derives a RELATIVE `file:` target
-  when it normalizes a spec, and inside the VM that derivation was measured producing
-  `/user/projects/...` instead of `/home/user/projects/...`, so every install died with
-  ENOENT on a tarball that exists. The template's install command runs
-  `scripts/vendor-paths.cjs` first, which pins each `@facilis.dev/*` spec to an absolute path
-  and fails loudly if a `vendor/` tarball is missing (D-032).
-
-`pnpm pack` rewrites the workspace-internal `workspace:*` specifiers to `0.0.0`, so pnpm
-resolves the inter-package dependencies from the tarballs and never asks the registry for
-`@facilis.dev/*`. The packages are also published to npm (D-164), but the in-VM install keeps
-using the tarballs so it never depends on registry availability; switching the template to the
-registry would only change delivery, not the project code.
-The script removes stale tarballs first and fails if a packed manifest still contains
-`workspace:`, does not export `dist/`, or is missing `dist/index.js`. Re-run it after changing package sources; the directory is
-gitignored like the rest of `ide/public/vendor/`.
+Changes under `packages/**` reach a generated project only through a published version: a
+project is created with whatever `FACILIS_PACKAGES_VERSION` the running IDE build carries (a
+dev build without the variable pins the fallback `0.1.0`), so publish a version and rebuild —
+or restart `pnpm ide:dev` with the new `FACILIS_PACKAGES_VERSION` — before testing a package
+change against a fresh project.
 
 `vendor/locks/index.json` and `vendor/depcache/index.json` are **not** generated: the kernel
 logs a warning and installs every project from scratch (slower, still correct).
@@ -200,11 +184,11 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
 - The scaffolded project **is** `examples/todo-app` plus the IDE wrappers (D-062): editing
   the example changes what Create produces, and the smoke drives the framework endpoints
   from the IDE page rather than from code inside the project. The tree is inlined at IDE
-  build time, so restart `pnpm ide:dev` after changing the example; run
-  `pnpm ide:facilis-deps` after changing packages packaged as tarballs
-  (`analyze auth core db nitro storage time`) so the vendored versions match — and recreate any
-  project created before that run: its `vendor/*.tgz` are inlined at creation time, so a
-  project keeps the tarballs it was born with.
+  build time, so restart `pnpm ide:dev` after changing the example. The `@facilis.dev/*`
+  dependencies are ordinary published packages installed from npm at the exact version the
+  build pins through `FACILIS_PACKAGES_VERSION` (D-166; a dev build without the variable pins
+  the fallback `0.1.0`): a package change reaches a project only through a published version,
+  so publish and rebuild the IDE, then create the project anew.
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 
@@ -219,8 +203,8 @@ new-project dialog opens, project name filled, `Create` enabled, project created
 `preview-paint` boot mark, preview iframe mounted, preview answers `200` with HTML,
 no page errors, no console errors, no failed requests. Exit code is non-zero on any failure.
 
-It then asserts the framework contract from the Facilis app inside the preview (after
-`pnpm ide:facilis-deps`): `health: ok`,
+It then asserts the framework contract from the Facilis app inside the preview (after the
+in-VM `npm install`): `health: ok`,
 `manifest: ok` with **0 warnings**, a revision, `/_openapi.json` carrying `x-db-tables` for
 `/api/todos`, an unauthenticated `/api/todos` → 401, and a **database roundtrip** — the smoke
 registers a user, logs in (the session cookie is staged by h3's `setCookie` through
@@ -352,10 +336,10 @@ under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the same retention
 | Binary uploads live on the project filesystem in dev | the local driver writes `<project>/.facilis/binary/<hh>/<hash>` through the kernel VFS, so the OPFS mirror persists blobs like the dev database (D-052); production uses S3, and a production boot with `storage.driver: "local"` refuses storage with the `storage_local_in_production` manifest warning | leave the dev default `local`; set `driver: "s3"` + `bucket`/`region` and `FACILIS_S3_ACCESS_KEY_ID`/`FACILIS_S3_SECRET_ACCESS_KEY` (+ `FACILIS_STORAGE_SECRET`) in production — SPEC §5.10 |
 | At-rest encryption is opt-in and needs a stable key even in dev | with `storage.encryption.enabled: true` the app stores AES-256-GCM ciphertext and every boot needs the same `FACILIS_STORAGE_ENCRYPTION_KEY` — there is no per-boot random fallback, because blobs written with a throwaway key would be undecryptable after a restart (D-117) | set `FACILIS_STORAGE_ENCRYPTION_KEY` (required when encryption is on; 32-byte KEK as base64 or 64-character hex) plus optionally `FACILIS_STORAGE_ENCRYPTION_KEY_ID` (active-key label, default `primary`) and `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS` (JSON `{ "keyId": "key" }`, decrypt-only rotation) in the environment before starting the dev server; enabling it on a project that already holds plaintext blobs means re-uploading them — SPEC §5.10 |
 | Storage streams end to end; the multipart parser materializes the upload once | the framework's storage/crypto/download path never buffers the whole file (D-117): the local driver writes a temp file and renames it, an S3 PUT stages the upload stream (ciphertext when encryption is on) to a `0600` temp file while hashing and counting it (SigV4 needs the payload hash and length) and deletes it after the PUT, and downloads stream with `content-length` taken from `facilis_files.size` (with encryption on there is no presigned S3 redirect — every download proxies through the app and decrypts). Uploading is not zero-copy for the whole request: `request.formData()` materializes the form once, bounded by `maxUploadBytes` (default 10 MiB, hard cap 100 MiB) | keep the upload limit within what the VM/browser can hold; nothing else to configure — SPEC §5.10 |
-| Package managers cannot install plain-http URL dependencies | npm's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND`; registry `https://` traffic is unaffected | **nothing on this path any more:** generated projects install with npm from `file:` tarballs the IDE inlines into the create request (D-032), so no install touches the studio over HTTP. Do not reintroduce URL dependencies |
+| Package managers cannot install plain-http URL dependencies | npm's `agent-base` HTTP agent makes the runtime skip the fetch-backed egress (`internal/http-egress` only egresses with the stock agent), so npm dials the virtual network and fails with `ENOTFOUND`; registry `https://` traffic is unaffected | **nothing on this path any more:** generated projects install everything, `@facilis.dev/*` included, with npm from the **https registry** (D-166), so no install touches the studio over HTTP. Do not reintroduce URL dependencies |
 | Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
-| Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. npm also re-derives a RELATIVE `file:` target when it normalizes a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists | the template's install command runs `scripts/vendor-paths.cjs` first, which pins the `@facilis.dev/*` specs to absolute paths and fails loudly if a `vendor/` tarball is missing (D-032 follow-up); bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` |
+| Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. **The `file:` half of this row is superseded by D-166** (kept as history): npm re-derived a RELATIVE `file:` target when it normalized a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists. No tarball is installed any more — the `@facilis.dev/*` specs are exact registry versions — so `scripts/vendor-paths.cjs` is gone | bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` |
 | Facilis template uses Vite 8 | the framework's `@facilis.dev/nitro` peers `vite@8.3.5` and its route-metadata pass imports `rolldown/utils` (the WebContainer-safe parser, D-093), so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
 
 | Two tabs on one origin | each tab is its own kernel and dev server, so a pair costs ~0.7 GB of worker memory and the second tab boots +2.5-2.9 s (it restores the shared tree); both dev servers bind the same in-VM port, and the VFS mirror's index is per origin | preview traffic is routed per preview frame by the Service Worker, the index is merged per tab under a Web Lock, and the Studio claims each project so two tabs cannot open the same one — `pnpm ide:smoke:multitab` asserts it (D-033) |
@@ -391,7 +375,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `Blocked request. This host ("…") is not allowed.` | Vite 8 Host check | `FACILIS_DEV_HOST=<host> pnpm --filter @facilis.dev/ide dev …` |
 | UI renders but every text label is missing/blank | no system fonts for Chromium | `pnpm ide:browser`, or point `FACILIS_FONTCONFIG` at a `fonts.conf` |
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
-| `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the vendored `@facilis.dev/*` tarballs predate a framework change, so the in-VM config is validated by an older schema: a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Regenerate the tarballs (`pnpm ide:facilis-deps`), restart `pnpm ide:dev`, then **recreate the project** — a project's `vendor/*.tgz` are inlined at creation time |
+| `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the project is pinned to a `@facilis.dev/*` version that predates a framework change (or is not on npm at all), or the IDE was built with a stale `FACILIS_PACKAGES_VERSION`: the in-VM config is validated by an older schema, so a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Redeploy so the pipeline publishes the current packages and pins the version it just published, then **recreate the project** — packages are installed when the project is created |
 | `manifest` warns `storage_*` and the file routes answer `503 storage_unavailable` | binary storage failed to boot: `storage_local_in_production` means a production build still has `storage.driver: "local"`; `storage_s3_credentials_missing` / `storage_secret_missing` mean the `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET` env vars are absent; `storage_encryption_key_missing` / `storage_encryption_key_invalid` mean `storage.encryption.enabled` is on but `FACILIS_STORAGE_ENCRYPTION_KEY` is absent or the key, key id or retired-keys JSON is malformed; `storage_boot_failed` is an unexpected driver-construction failure (the dev log carries the cause) | set the variables in the deployment environment, or fix the driver configuration, and restart; the rest of the app keeps working, only the file routes degrade (SPEC §5.10, D-116/D-117) |
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
@@ -416,13 +400,19 @@ rm -rf vendor/vivari/packages/*/pkg        # kernel wasm, rebuilt by ide:wasm
 
 Production is a **Cloudflare Pages** project named `facilis-ide`, served at
 <https://ide.facilis.dev>. `.github/workflows/deploy-ide.yml` runs on every push to `main`
-that touches the IDE inputs: it rebuilds the four gitignored artifacts (`pnpm ide:wasm` —
-cached by kernel commit — then `pnpm ide:assets` and `pnpm ide:facilis-deps`), runs
+that touches the IDE inputs, and it is the **one** release workflow: publishing and deploying
+are a single pipeline (D-166). A `publish` job runs first when the push can change
+`packages/**` (or when a manual run sets the `publish` input): it gates, stages and uploads the
+`@facilis.dev/*` packages, and the publish script verifies the registry before the build
+continues (§13). The build then runs with `FACILIS_PACKAGES_VERSION` set to the version it just
+published, rebuilds the two gitignored artifacts it needs (`pnpm ide:wasm` — cached by kernel
+commit — then `pnpm ide:assets`; the third build artifact, the headless browser, is only used
+by `pnpm ide:smoke`), runs
 `pnpm --filter @facilis.dev/ide build:app`, and uploads the finished `ide/dist` with
-`wrangler pages deploy`. The same pushes also publish the `@facilis.dev/*` packages (D-164):
-`.github/workflows/publish-packages.yml` runs in parallel with this deploy, see §13. **Nothing is run locally**, and Cloudflare's own Git integration is
-deliberately not used (D-077): it cannot cache the Rust/Wasm toolchain, and the pipeline should
-deploy exactly the tree this repo builds.
+`wrangler pages deploy`. A push that does not touch `packages/**` skips the publish job and
+pins the current npm `latest`. **Nothing is run locally**, and Cloudflare's own Git
+integration is deliberately not used (D-077): it cannot cache the Rust/Wasm toolchain, and the
+pipeline should deploy exactly the tree this repo builds.
 
 The agent build in CI is the same one described in §1–§2; the only difference is that the
 kernel Wasm is restored from the Actions cache (keyed by the pinned `vendor/vivari` commit)
@@ -573,13 +563,21 @@ Prompt variants exist to size the quality gap: `baseline` (the IDE prompt as shi
 and schema as few-shot examples). The probe caps output at 16k tokens; the IDE sends no
 `max_tokens`, so a `finish_reason: length` here only says the answer was very long.
 
-## 13. Publishing the framework packages — `@facilis.dev` (D-164)
+## 13. Publishing the framework packages — `@facilis.dev` (D-164/D-166)
 
-The nine `packages/*` packages publish to public npm under the `@facilis.dev` organization scope.
-`.github/workflows/publish-packages.yml` runs on every push to `main` that can change
-`packages/**` — the same pushes that deploy the IDE — gates the published surface
-(`turbo lint/typecheck/test/build --filter=./packages/*` plus `scripts/check-file-length.mjs`),
-then stages and uploads each package.
+The nine `packages/*` packages publish to public npm under the `@facilis.dev` organization
+scope. There is no separate publish workflow: publishing is a job inside
+`.github/workflows/deploy-ide.yml` (see §9), because the deploy has to publish first and then
+pin the version it just published. The job runs only when the push can change `packages/**`,
+or when a manual **Deploy IDE** run sets the `publish` input; it gates the published surface
+(`turbo lint/typecheck/test/build --filter=./packages/*` plus
+`scripts/check-file-length.mjs`), then stages and uploads each package. Once the upload
+finishes, `scripts/publish-packages.mjs` verifies the registry — it polls until every package
+reports the new version as `latest` — before the IDE build continues, so a failed or
+inconsistent publish fails the deploy instead of shipping a template pinned to packages that
+are not there. The published version becomes the build's `FACILIS_PACKAGES_VERSION`, and the
+generated-project template pins every `@facilis.dev/*` dependency to it (D-166). A deploy-only
+change skips the job and pins the current npm `latest`.
 
 Versions are derived, not committed: all packages release in lockstep on the next patch after the
 highest version already on npm (`0.1.0` for the first release, the workspace stays at `0.0.0`), and

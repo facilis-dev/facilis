@@ -12,17 +12,14 @@ import { projectFiles } from "./project-files";
 import { templateOverrides } from "./template-overrides";
 
 /**
- * The @facilis.dev packages, shipped as tarballs (D-022); npm publishes the same sources (D-164).
+ * The @facilis.dev packages a generated project declares (D-166).
  *
- * They are inlined into the create request at create time (project-assets.ts) and declared
- * as file: dependencies in package.json, so the install never reaches the studio over HTTP
- * (D-032). The specs are written relative (portable) and made absolute by
- * scripts/vendor-paths.cjs before every install, because npm's own re-derivation of a
- * relative file: target is what breaks inside the VM.
+ * They install from the public npm registry at the exact version this build pins
+ * (frameworkPackagesVersion) — ordinary published dependencies (D-164), not inlined
+ * tarballs.
  *
  * "ui" is absent: the v1 component kit was removed (D-096), and template v2 copies its
- * primitives into the project (src/components/ui) instead of shipping a package, so no
- * tarball is inlined and no file: dependency is declared.
+ * primitives into the project (src/components/ui) instead of shipping a package.
  */
 export const TEMPLATE_PACKAGES = [
   "analyze",
@@ -43,16 +40,13 @@ export type FacilisManifest = ProjectManifest & { assets: TemplateAsset[] };
 /**
  * Build the template.
  *
- * `asset` is vendor-relative (the studio's own /vendor/ path) and resolved by the IDE
- * page itself — same origin, under the app's Vite base — then inlined as bytes into the
- * create request: no host alias, no VM networking, nothing for a guest package manager
- * to fetch.
+ * The template ships sources only: every @facilis.dev/* package installs from npm at the
+ * exact version its package.json pins (project-files.ts), so the create request carries no
+ * binary assets. The manifest keeps the asset list because the create pipeline reads it
+ * (project-assets.ts); an empty list makes that step a no-op.
  */
 export function createFacilisTemplate(): ProjectTemplate {
-  const assets: TemplateAsset[] = TEMPLATE_PACKAGES.map((name) => ({
-    path: "vendor/facilis-" + name + "-0.0.0.tgz",
-    asset: "vendor/facilis/facilis-" + name + "-0.0.0.tgz",
-  }));
+  const assets: TemplateAsset[] = [];
   // npm is the project's package manager: the one the IDE vendors and keeps aligned
   // with the VM's Node (D-032). The first `--` is npm's, so `--configLoader native`
   // reaches vite — its config bundler cannot run in the WebContainer.
@@ -62,12 +56,9 @@ export function createFacilisTemplate(): ProjectTemplate {
     entry: "src/app.tsx",
     hmr: true,
     reload: false,
-    // The @facilis.dev/* deps resolve from the vendored tarballs. npm re-derives the target of
-    // a RELATIVE file: spec and, inside the VM, that derivation was measured producing
-    // /user/projects/... instead of /home/user/projects/... (install dies with ENOENT on a
-    // tarball that exists). scripts/vendor-paths.cjs pins them to absolute paths first —
-    // see project-files.ts.
-    install: "node scripts/vendor-paths.cjs && npm install",
+    // The @facilis.dev/* deps are ordinary registry dependencies pinned to one exact
+    // version (see project-files.ts), so the install needs no pre-step.
+    install: "npm install",
     // In the VM the in-process runner makes Nitro own the listener and front Vite, so
     // the single origin the preview targets is the nitro dev-server port, not 5173.
     port: 3000,

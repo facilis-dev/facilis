@@ -177,7 +177,9 @@ green `pnpm ide:smoke`.
 A generated project installs with **npm**, the package manager the IDE vendors (D-032), pinned in
 lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the
 template's `packageManager` (`ide/src/facilis/package-manager.test.ts` fails if they drift;
-`pnpm` survives only as rolldown's in-VM fallback).
+`pnpm` survives only as rolldown's in-VM fallback). The framework packages are ordinary
+**registry dependencies**, installed from npm at the exact version the IDE build pins through
+`FACILIS_PACKAGES_VERSION` (D-166); nothing is vendored into the project or inlined as a tarball.
 Several projects run at once as **browser tabs** (D-033): one project per tab, one kernel per
 tab, and the same project refused in a second tab (Web Lock, `ide/src/vv/project-lock.ts`). A
 tab opened from another one carries `?project=<rootPath>`; `ide/src/vv/project-tabs.ts` boots it

@@ -1,11 +1,29 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.32 (published packages, D-164)
+**Version:** 1.34 (patch write scope follows the deployment profile, D-167)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.34 — Rule 11's write scope follows the deployment profile (D-167). `validatePatch`
+  gains a `writePolicy` of `"open" | "managed"` and defaults to `managed` (fail-closed);
+  rule 11 keeps its id and severity. `managed` is unchanged — the six project roots plus
+  `facilis.config.ts` — and never accepts a `.github/workflows` file. `open` allows any
+  project-relative path except the install surface (`package.json`, lockfiles, `.npmrc`),
+  `node_modules`, the unreviewed VCS/IDE/build state (`.git`, `.facilis`, `dist`, `.turbo`,
+  `coverage`) and `AGENTS.md`, so root config (`index.html`, `vite.config.ts`,
+  `wrangler.jsonc`) and `.github/**` become writable. The IDE maps the policy from its build
+  profile (D-063) and the system prompt states the effective rule. §5.5/§9.3 follow.
+- v1.33 — Generated projects install the published packages (D-166). Every `@facilis.dev/*`
+  dependency is an exact version resolved from npm like any other package: the IDE build injects
+  the release version through `FACILIS_PACKAGES_VERSION` and the template pins all framework
+  dependencies to it, so the generated tree no longer carries `vendor/` tarballs or
+  `scripts/vendor-paths.cjs`, and the IDE no longer inlines package bytes into the create
+  request. Publishing rides the IDE deploy workflow instead of a separate one: the publish job
+  runs first only when `packages/**` changed (or via the workflow_dispatch `publish` input), the
+  publish script verifies the registry, and the build pins the version it just published.
+  §4.1/§4.2 follow.
 - v1.32 — Published packages (D-164). The framework packages publish to public npm under the
   organization scope `@facilis.dev`; every `@facilis/*` name in this spec is now
   `@facilis.dev/*` (imports, generated-project template, vendored tarballs, lockfile). Outside the
@@ -310,7 +328,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
 │
 ├── starter/                  user-cloned template (D-027), unblocked now that the
-│                             packages publish by name (D-164); generated from
+│                             packages publish by name (D-164) and install from npm at
+│                             the IDE build's pinned version (D-166); generated from
 │                             examples/todo-app at IDE build time (D-062) — no drift
 │
 ├── examples/
@@ -350,9 +369,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 ├── vite.config.ts                plugins: [tailwindcss(), facilis(), react()]
 ├── facilis.config.ts             the one config: roles, permissions, storage, nitro options
 ├── tsconfig.json
-├── package.json                  scripts.dev = "vite dev"
-├── scripts/                      check-pm.mjs, vendor-paths.cjs
-├── vendor/                       @facilis.dev/* tarballs, inlined by the IDE (D-032)
+├── package.json                  scripts.dev = "vite dev"; @facilis.dev/* pinned exactly (D-166)
+├── scripts/                      check-pm.mjs
 └── README.md
 ```
 
@@ -365,6 +383,13 @@ it from `facilis.config.ts`: the framework defaults are `serverDir: "./server"` 
 `experimental.openAPI: true`, and a project overrides only what it changes in the config's
 optional `nitro` section. Route files live under `server/routes/`, not `routes/` at project
 root.
+
+Every `@facilis.dev/*` dependency in `package.json` is an **exact version installed from npm**,
+like any other dependency (D-166): the IDE build injects the release version through
+`FACILIS_PACKAGES_VERSION` and the template pins every framework package to it (a dev build
+without the variable pins the `0.1.0` fallback). The generated tree therefore carries no
+`vendor/` directory and no tarball-path shim — `scripts/` holds only `check-pm.mjs` — and npm
+fetches the framework packages when the project installs.
 
 `db/migrations/` and its `meta/` journal are not part of the generated project: DDL is a release
 artifact generated from the tag pair, never a directory the app carries (D-158).
@@ -682,9 +707,10 @@ Exports:
 - `parseResponse(raw)` — AIResponse parser
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
-- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })` — 19-rule
-  validator over analyzer facts (D-092); the main entry stays browser-safe and the only
-  parser is the injected syntax checker
+- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
+  19-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
+  only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
 
 ### 5.6 `@facilis.dev/nitro` — Vite plugin + Nitro module
@@ -2487,7 +2513,7 @@ Rules the AI must obey:
 | 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required |
 | 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis.dev/db` |
 | 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
-| 11 | `file-path-allowed` | error | Files only in `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/`, plus `facilis.config.ts` (`AGENTS.md` only through the IDE writer's explicit `rootFiles`) |
+| 11 | `file-path-allowed` | error | `managed` (default): `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/` plus `facilis.config.ts`; AI patches never get the IDE writer's explicit `rootFiles`. `open`: any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage` segments, `package.json`/lockfiles/`.npmrc` and `AGENTS.md` (D-167) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
 | 13 | `i18n-keys-registered` | warning | All `t("key")` calls have keys in `locales/en.json` |
 | 14 | `migration-generated` | error | No authored `.sql`: DDL is generated into the release artifact (D-158); the schema must stay renderable |
@@ -2499,11 +2525,15 @@ Rules the AI must obey:
 
 **Status (2026-11-04): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
-allowedRootFiles })` is synchronous and takes a typed `PatchContext` whose facts are the
-effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for inverse
-edits. The caller supplies them — the IDE analyzes the VFS snapshot and the patch overlay with
-its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
-`@facilis.dev/ai/node` helper. Sources are read only for `package.json` (installed packages) and
+allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
+the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
+inverse edits. The caller supplies them — the IDE analyzes the VFS snapshot and the patch overlay
+with its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
+`@facilis.dev/ai/node` helper. `writePolicy` defaults to `managed` (D-167): the six roots plus
+`facilis.config.ts`, with `allowedRootFiles` only for the IDE's own writers, so a managed build
+never accepts a `.github/workflows` file. An `open` build passes `open` and may write any
+project-relative path except the deny list in the rule 11 row — install surface, VCS/IDE/build
+state and `AGENTS.md` — so root config and `.github/**` are writable. Sources are read only for `package.json` (installed packages) and
 `tsconfig.json` (path aliases); the manifest's `blocks` section is reserved and always empty now
 that no block package ships (D-131). Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
 parser in the IDE (D-105), the `@facilis.dev/ai/node` subpath (rolldown/oxc) outside it — and fails

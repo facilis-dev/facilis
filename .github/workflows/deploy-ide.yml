@@ -1,14 +1,19 @@
 name: Deploy IDE
 
-# The IDE is a static SPA, but it cannot be built from a fresh checkout: the kernel Wasm,
-# the runtime CLI assets and the @facilis.dev tarballs are gitignored build artifacts
-# (docs/DEV.md §1-2). So the build runs here, with a real Rust toolchain and a cache keyed
-# by kernel commit, and the finished `ide/dist` is uploaded to Cloudflare Pages (D-077).
+# The IDE is a static SPA, but it cannot be built from a fresh checkout: the kernel Wasm and
+# the runtime CLI assets are gitignored build artifacts (docs/DEV.md §1-2). So the build runs
+# here, with a real Rust toolchain and a cache keyed by kernel commit, and the finished
+# `ide/dist` is uploaded to Cloudflare Pages (D-077).
 # Cloudflare's own Git integration is deliberately not used: it cannot cache the ~2 min
 # toolchain + ~100 s cargo build, and its builder is the wrong place to reproduce it.
 # Nothing needs to run locally: the workflow creates the Pages project itself (idempotent).
 # The ide.facilis.dev custom domain is added once from the project's Custom domains page; the
 # deploy job also attempts it, but only a token with zone permissions can do that.
+#
+# This is the single release workflow (D-164): when a push can have changed packages/ it
+# publishes the @facilis.dev packages first, then builds the IDE against that exact version.
+# Publishing rides the deploy instead of racing it in a parallel workflow, which could deploy
+# an IDE pinned to a version npm does not serve yet (or to an older one).
 on:
   push:
     branches: [main]
@@ -25,6 +30,11 @@ on:
       - "tsconfig.base.json"
       - ".github/workflows/deploy-ide.yml"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a new patch version of the @facilis.dev packages first"
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-ide-${{ github.ref }}
@@ -46,6 +56,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          # The publish decision diffs HEAD^ against HEAD, so the parent must be present.
+          fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
         with:
@@ -59,6 +71,80 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Publishing must ride the deploy instead of racing it: a parallel workflow could deploy
+      # an IDE pinned to a version npm does not serve yet (or an older one). A push publishes
+      # when it can have changed packages/; a manual run publishes only when asked to.
+      - name: Decide whether to publish the packages
+        id: packages
+        env:
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            changed="$PUBLISH_INPUT"
+          elif ! git diff --quiet HEAD^ HEAD -- packages/; then
+            # Non-zero also covers a diff we cannot compute (e.g. shallow history): publishing
+            # an extra patch is harmless, deploying an IDE against packages older than the
+            # commit is not.
+            changed=true
+          else
+            changed=false
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      # The packages are the published contract: never upload them from a red tree. The gate is
+      # package-scoped because the IDE is not published, and it runs before the long Wasm build
+      # so a package regression fails in minutes, not after the IDE has been built.
+      - name: Gate the packages
+        if: steps.packages.outputs.changed == 'true'
+        run: |
+          pnpm exec turbo run lint typecheck build --filter='./packages/*'
+          pnpm exec turbo run test --concurrency=2 --filter='./packages/*' -- --fsModuleCachePath=node_modules/.vitest-cache
+          node scripts/check-file-length.mjs
+
+      # Publishing a brand-new scoped package answers 404 (not 403) when the token may not
+      # write that scope, so log who the token is and whether it can see the organization.
+      - name: Check the npm credentials
+        if: steps.packages.outputs.changed == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::the NPM_TOKEN repository secret is missing: add a granular npm token with read/write on @facilis.dev (docs/DEV.md section 13)"
+            exit 1
+          fi
+          echo "npm token belongs to: $(npm whoami)"
+          if ! npm org ls facilis.dev --json; then
+            echo "::warning::this token cannot list the facilis.dev organization: give it Organizations: Read and write (docs/DEV.md section 13)"
+          fi
+
+      - name: Publish
+        id: publish
+        if: steps.packages.outputs.changed == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/publish-packages.mjs --skip-build
+
+      # The IDE installs the exact packages version: this run's release when it published,
+      # otherwise the latest already on npm. Never a range — the version is pinned at build time.
+      - name: Resolve the @facilis.dev packages version
+        id: framework-version
+        env:
+          PUBLISHED_VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          version="${PUBLISHED_VERSION:-}"
+          if [ -z "$version" ]; then
+            if ! version=$(npm view @facilis.dev/core version 2>/dev/null); then
+              echo "::error::no published @facilis.dev/core version was found on npm: publish the packages first (workflow_dispatch with publish=true, or a push that changes packages/)"
+              exit 1
+            fi
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::the @facilis.dev packages version '$version' is not a plain semver (dist-tag or registry problem)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building the IDE against @facilis.dev packages $version"
 
       # Account state the operator should never create by hand. Idempotent: the first run
       # creates the project, every later run reads it back. It runs before the long build so
@@ -106,14 +192,14 @@ jobs:
       - name: Vendor the runtime assets the kernel fetches
         run: pnpm ide:assets
 
-      - name: Pack the @facilis.dev tarballs a generated project installs
-        run: pnpm ide:facilis-deps
-
       # The hosted build's deployment config (D-077/D-082): the open profile plus the public
       # GitHub App client id for device-flow sign-in. Public by design, not a secret.
+      # FACILIS_PACKAGES_VERSION pins the generated project's framework deps to the version
+      # this run published (or verified on npm), so the deployed IDE never installs anything else.
       - name: Build the IDE
         env:
           FACILIS_DEPLOY_CONFIG: ${{ github.workspace }}/deploy/ide.facilis.dev.json
+          FACILIS_PACKAGES_VERSION: ${{ steps.framework-version.outputs.version }}
         run: pnpm --filter @facilis.dev/ide build:app
 
       - name: Deploy to Cloudflare Pages

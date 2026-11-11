@@ -9,6 +9,7 @@ import type { ProjectImports, ResolvedDeployment } from "./types.ts";
 
 declare const __FACILIS_DEPLOYMENT__: ResolvedDeployment | undefined;
 declare const __FACILIS_ENV_VERSION__: string | undefined;
+declare const __FACILIS_PACKAGES_VERSION__: string | undefined;
 
 export const deployment: ResolvedDeployment =
   typeof __FACILIS_DEPLOYMENT__ !== "undefined" ? __FACILIS_DEPLOYMENT__ : openDeployment();
@@ -16,6 +17,15 @@ export const deployment: ResolvedDeployment =
 /** The deployment build's version, written into new projects (APP-UPDATES.md §1). */
 export const environmentVersion: string =
   typeof __FACILIS_ENV_VERSION__ !== "undefined" ? __FACILIS_ENV_VERSION__ : "0.0.0";
+
+/**
+ * The published @facilis.dev/* version new projects pin (D-164, D-166).
+ *
+ * The deploy pipeline injects the exact published version at build time; a template must
+ * never float a range, because the packages move in lockstep with this IDE.
+ */
+export const frameworkPackagesVersion: string =
+  typeof __FACILIS_PACKAGES_VERSION__ !== "undefined" ? __FACILIS_PACKAGES_VERSION__ : "0.1.0";
 
 export const isManaged: boolean = deployment.profile === "managed";
 
