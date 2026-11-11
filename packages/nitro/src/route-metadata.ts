@@ -159,12 +159,15 @@ function toRouteMetadata(
   if (fact.dbTables === null) unresolved.push("dbTables");
   if (fact.dbColumns === null) unresolved.push("dbColumns");
   if (fact.crossSite === null) unresolved.push("crossSite");
+  if (fact.rawSql === null) unresolved.push("rawSql");
 
   return {
     method: fact.method,
     path: fact.path,
     ...(fact.permission === null ? {} : { permission: fact.permission }),
     ...(fact.crossSite === true ? { crossSite: true } : {}),
+    // A null rawSql is "unreadable" (unresolved), never "false": the facade then omits it.
+    rawSql: fact.rawSql ?? false,
     dbTables: fact.dbTables ?? [],
     dbColumns: fact.dbColumns ?? [],
     ...(fact.description === null ? {} : { description: fact.description }),

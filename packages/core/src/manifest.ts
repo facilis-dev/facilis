@@ -56,6 +56,8 @@ export interface RouteMeta {
   readonly permission?: string | readonly string[];
   /** Declared callable from other origins (CORS); absent when the route is same-origin only. */
   readonly crossSite?: boolean;
+  /** `rawSql: true` allows `db.execute` (D-157); absent when not declared or not readable. */
+  readonly rawSql?: boolean;
   /** REQUIRED (SPEC §7.4): an empty array is an explicit "this route does not touch the DB". */
   readonly dbTables: readonly string[];
   /** `"table.column"` references used by the release diff and the entity explorer. */

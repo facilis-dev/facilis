@@ -11,6 +11,7 @@ import { error, info, warning } from "../diagnostics.ts";
 import { defaultExportDeclaration } from "../module-info.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import { sourceRef } from "../source.ts";
+import { EMPTY_ROUTE_RELATIONS } from "../types-relations.ts";
 import type { ConfigFacts, Diagnostic, RouteFact, WrapperState } from "../types.ts";
 import { routeConfigFacts } from "./route-config.ts";
 import { scanElevations } from "./route-elevation.ts";
@@ -114,6 +115,8 @@ function scanRoute(
         crossSite: null,
         dbTables: null,
         dbColumns: null,
+        rawSql: null,
+        relations: EMPTY_ROUTE_RELATIONS,
         description: null,
         input: { body: false, form: false, query: false, params: false },
         handlerBodyRead: false,
@@ -137,6 +140,8 @@ function scanRoute(
       crossSite: facts.crossSite,
       dbTables: facts.dbTables,
       dbColumns: facts.dbColumns,
+      rawSql: facts.rawSql,
+      relations: EMPTY_ROUTE_RELATIONS,
       description: facts.description,
       input: facts.input,
       handlerBodyRead: handlerReadsBody(wrapper.call),
@@ -153,6 +158,12 @@ function scanRoute(
       ...directDbWarnings(file, ref),
     ],
   };
+}
+
+/** The `defineAuthorizedHandler(...)` call of a valid wrapper, for later passes (D-157). */
+export function resolveWrapperCall(file: ProjectFile): AstNode | null {
+  const wrapper = resolveWrapper(file);
+  return wrapper.state === "valid" ? wrapper.call : null;
 }
 
 /** Read `server/routes/**` and `server/api/**` into route facts. */

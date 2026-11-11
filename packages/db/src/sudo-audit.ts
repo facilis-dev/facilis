@@ -36,6 +36,8 @@ export interface SudoAuditEvent {
   readonly operation: string;
   readonly reason: string;
   readonly tables: readonly string[];
+  /** Succeeded entries: the declared tables the elevated callback actually reached (D-157). */
+  readonly observedTables?: readonly string[];
   readonly requestId?: string;
   /** Terminal entries only: how the elevated block ended. */
   readonly outcome?: "succeeded" | "failed";

@@ -118,6 +118,7 @@ const routes: readonly RouteMeta[] = [
     method: "POST",
     path: "/api/todos",
     permission: ["todos:write"],
+    rawSql: true,
     dbTables: ["todos"],
     dbColumns: [],
     security: "required",
@@ -168,6 +169,13 @@ describe("buildManifest", () => {
     expect(manifest.routes).toBe(routes);
     expect(manifest.schema).toBe(schema);
     expect(manifest.i18n).toEqual({ defaultLocale: "en", catalogs });
+  });
+
+  it("keeps the optional rawSql derogation on the route", () => {
+    const manifest = buildManifest({ config, routes });
+
+    expect(manifest.routes[1]?.rawSql).toBe(true);
+    expect(manifest.routes[0]?.rawSql).toBeUndefined();
   });
 
   it("keeps the optional crossSite flag on the route", () => {

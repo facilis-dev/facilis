@@ -38,6 +38,13 @@ export function diffRoutes(
       !sameStrings(previous.dbTables, route.dbTables)
     )
       fields.push("dbTables");
+    // Both refs must know the derogation: unknown at an old ref never reads as "changed".
+    if (
+      previous.rawSql !== undefined &&
+      route.rawSql !== undefined &&
+      previous.rawSql !== route.rawSql
+    )
+      fields.push("rawSql");
     if (
       previous.sourceFile !== undefined &&
       route.sourceFile !== undefined &&
@@ -65,6 +72,7 @@ function toRouteRef(route: ReleaseRouteFact): ApiRouteRef {
     ...ref,
     ...(permission === undefined ? {} : { permission }),
     ...(route.dbTables === undefined ? {} : { dbTables: [...route.dbTables] }),
+    ...(route.rawSql === undefined ? {} : { rawSql: route.rawSql }),
     ...(route.sourceFile === undefined ? {} : { sourceFile: route.sourceFile }),
   };
 }

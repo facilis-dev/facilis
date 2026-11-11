@@ -64,6 +64,7 @@ describe("parseManifestRoutes", () => {
         permission: ["todos:read"],
         dbTables: ["todos"],
         dbColumns: ["todos.title"],
+        rawSql: true,
       },
       { method: "post" },
       "nope",
@@ -76,6 +77,7 @@ describe("parseManifestRoutes", () => {
         permission: ["todos:read"],
         dbTables: ["todos"],
         dbColumns: ["todos.title"],
+        rawSql: true,
       },
     ]);
     expect(parseManifestRoutes(undefined)).toEqual([]);
@@ -92,6 +94,7 @@ describe("mergeRouteMetadata", () => {
         sourceFile: TEMPLATE_ROUTES,
         permission: "todos:read",
         dbTables: ["todos"],
+        rawSql: true,
       },
       { method: "GET", path: "/api/health" },
     ]);
@@ -102,6 +105,7 @@ describe("mergeRouteMetadata", () => {
       permission: "todos:read",
       dbTables: ["todos"],
       sourceFile: TEMPLATE_ROUTES,
+      rawSql: true,
     });
     expect(merged.find((route) => route.path === "/api/health")?.permission).toBeUndefined();
   });

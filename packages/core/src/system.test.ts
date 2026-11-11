@@ -104,8 +104,11 @@ describe("ctx.system", () => {
     expect(started?.sessionHash).toBeUndefined();
     expect(started?.permission).toBeUndefined();
     expect(result.systemDb.systemFor).toBe(started?.id);
-    // The elevated callback runs on the policy-scoped request transaction, not another one.
-    expect(dbMock.elevatedDbs[0]).toBe(result.ctxDb);
+    // The elevated callback runs on the policy-scoped request transaction, wrapped per
+    // elevation by the table guard (D-157); it does not open another transaction.
+    expect(dbMock.elevatedDbs[0]).toEqual({
+      scopedFor: { tenantId: "tenant-1", permissions: [] },
+    });
     expect(succeeded).toMatchObject({ id: started?.id, event: "succeeded", outcome: "succeeded" });
   });
 

@@ -19,6 +19,7 @@ export function toSudoAuditEntry(event: SudoAuditEvent): AuditLogEntry {
     operation: event.operation,
     reason: event.reason,
     tables: event.tables,
+    ...(event.observedTables === undefined ? {} : { observedTables: event.observedTables }),
     roles: event.roles,
     ...(event.actorUserId === undefined ? {} : { userId: event.actorUserId }),
     ...(event.sessionHash === undefined ? {} : { sessionHash: event.sessionHash }),

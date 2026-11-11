@@ -311,7 +311,10 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   permission: string | readonly string[];
   body?: z.ZodType<B>; form?: z.ZodType<F>; // form XOR body (D-116)
   query?: z.ZodType<Q>; params?: z.ZodType<P>;
-  dbTables: readonly string[];       // REQUIRED, may be empty
+  // REQUIRED (may be empty): every table/view reached through ctx.db/ctx.sudo/ctx.system,
+  // enforced statically and at runtime (D-157).
+  dbTables: readonly string[];
+  rawSql?: boolean;                  // allow db.execute (raw SQL); default false (D-157)
   dbColumns?: readonly string[];      // "table.column"
   description?: string;
 }
@@ -345,6 +348,14 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 - `defineAuthorizedHandler` semantics: session → permission → Zod parse → scoped DB → handler.
   It must **not** call `defineRouteMeta` at runtime (it is a Nitro build macro; Phase 0 A16).
   Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
+- `dbTables` is an enforced declaration (D-157): it lists **every** table and view the handler may
+  reach through `ctx.db`/`ctx.sudo`/`ctx.system`, by SQL name — a view is declared by its own name
+  (invoker or definer), never by its base tables. `@facilis/analyze` parses `defineView` into
+  `ViewFact`s and checks the declaration against the code (following project-local helper calls);
+  the CI gate runs the pass and validator rule 18 `route-table-declared` covers AI patches. At
+  runtime the guarded client fails closed with `table_not_declared`, `db.execute` requires
+  `rawSql: true` (otherwise `raw_sql_not_allowed`), violations audit `route:table_access`, and an
+  elevation's `succeeded` audit entry records `observedTables`.
 - Config validation must cross-check roles/permissions (unknown permission in a role → error),
   and `defaultRole` must exist (SPEC §8.4.1).
 - Logging (D-119): the wrapper records one access entry per request exit path and an error entry

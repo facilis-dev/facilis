@@ -1,5 +1,10 @@
 import { hasPermission, type AuthContext } from "@facilis/auth";
-import { runWithPolicyScope, type PolicyScopedDatabase } from "@facilis/db";
+import {
+  guardDatabase,
+  runWithPolicyScope,
+  TableAccessError,
+  type PolicyScopedDatabase,
+} from "@facilis/db";
 import type { z } from "zod";
 
 import { fail } from "./errors.ts";
@@ -56,6 +61,11 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
    * than throttling every caller through one shared window.
    */
   rateLimit?: RateLimitWindow;
+  /**
+   * Explicit exception for `ctx.db.execute(sql)` (D-157): the SQL is not inspectable, so the
+   * declaration stays authoritative; without this flag raw execution is refused. Default false.
+   */
+  rawSql?: boolean;
   description?: string;
 }
 
@@ -229,6 +239,7 @@ export function defineAuthorizedHandler<
         // Queue calls made by the handler must run in this transaction: opening a second one
         // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
+        const rawSql = config.rawSql === true;
         const elevations = createElevationContext({
           event,
           db,
@@ -236,14 +247,16 @@ export function defineAuthorizedHandler<
           permissions: requiredPermissions,
           dbTables: config.dbTables,
           tenantId: scope.tenantId,
+          rawSql,
         });
+        // The handler gets the guarded client; elevations keep the unguarded tx (D-157).
         const ctx: AuthorizedHandlerContext<B, Q, P, AuthContext | null, F> = {
           auth,
           body: input.body,
           form: input.form,
           query: input.query,
           params: input.params,
-          db,
+          db: guardDatabase(db, { declared: config.dbTables, allowRawSql: rawSql }),
           sudo: elevations.sudo,
           system: elevations.system,
           jobs: requestJobs,
@@ -262,6 +275,16 @@ export function defineAuthorizedHandler<
       return result;
     } catch (error) {
       if (error instanceof Response) return respond(error);
+      // A declaration violation is audited by code, never by relation name (D-157).
+      if (error instanceof TableAccessError) {
+        requestLog.log.audit({
+          operation: "route:table_access",
+          outcome: "failed",
+          errorCode: error.code,
+        });
+        requestLog.recordError(error, error.code);
+        return respond(fail(error.code));
+      }
       // Without a logging runtime (standalone wrapper) keep the server-side trace here.
       if (facilis?.logging === undefined) {
         console.error("facilis: authorized handler failed", error);

@@ -101,6 +101,8 @@ function mergeOperation(operation: OpenApiOperation, route: RouteMetadata): Open
   }
   if (!route.unresolved.includes("dbTables")) merged["x-db-tables"] = [...route.dbTables];
   if (!route.unresolved.includes("dbColumns")) merged["x-db-columns"] = [...route.dbColumns];
+  // An unreadable derogation is omitted, never published as "false" (fail closed, D-157).
+  if (!route.unresolved.includes("rawSql")) merged["x-raw-sql"] = route.rawSql === true;
   if (route.crossSite === true) merged["x-cross-site"] = true;
   if (needsBearerAuth(route)) merged["security"] = [{ bearerAuth: [] }];
   if (route.sourceFile !== undefined) merged["x-facilis-source"] = route.sourceFile;

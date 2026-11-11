@@ -5,7 +5,7 @@ export default defineAuthorizedHandler(
   {
     permission: ["jobs:exec"],
     params: z.object({ id: z.uuid() }),
-    dbTables: ["facilis_jobs"],
+    dbTables: [],
     description: "Cancel a queued background job or abort a running one.",
   },
   async (_event, { params, jobs }) => {

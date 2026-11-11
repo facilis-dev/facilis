@@ -157,6 +157,24 @@ describe("buildReleasePreview", () => {
     expect(preview.api?.changed).toEqual([expect.objectContaining({ fields: ["permission"] })]);
   });
 
+  it("carries rawSql into route refs and flags a change only when both refs know it", () => {
+    const before = snapshot([], [route({ rawSql: false })]);
+    const after = snapshot([], [route({ rawSql: true })]);
+    const current = buildReleasePreview({ from: FROM, to: TO, before, after });
+    expect(current.api?.changed).toEqual([
+      expect.objectContaining({
+        fields: ["rawSql"],
+        before: expect.objectContaining({ rawSql: false }),
+        after: expect.objectContaining({ rawSql: true }),
+      }),
+    ]);
+
+    // A route parsed from a filename has no rawSql: unknown never reads as "changed".
+    const unknown = snapshot([], [route()]);
+    const legacy = buildReleasePreview({ from: FROM, to: TO, before: unknown, after });
+    expect(legacy.api?.changed).toEqual([]);
+  });
+
   it("collects pending-migration and destructive warnings", () => {
     const after = snapshot(
       [table("todos", ["id"])],

@@ -130,6 +130,21 @@ describe("mergeOpenApiMetadata", () => {
     expect(sameOrigin.paths?.["/api/todos"]?.get?.["x-cross-site"]).toBeUndefined();
   });
 
+  it("publishes x-raw-sql when resolved and omits it when unreadable", () => {
+    const enabled = mergeOpenApiMetadata(nitroSpec(), metadataMap({ rawSql: true }));
+    expect(enabled.paths?.["/api/todos"]?.get?.["x-raw-sql"]).toBe(true);
+
+    const disabled = mergeOpenApiMetadata(nitroSpec(), metadataMap({ rawSql: false }));
+    expect(disabled.paths?.["/api/todos"]?.get?.["x-raw-sql"]).toBe(false);
+
+    // An unreadable flag is unknown, not "false" (fail closed, D-157).
+    const unresolved = mergeOpenApiMetadata(
+      nitroSpec(),
+      metadataMap({ rawSql: false, unresolved: ["rawSql"] }),
+    );
+    expect(unresolved.paths?.["/api/todos"]?.get?.["x-raw-sql"]).toBeUndefined();
+  });
+
   it("declares bearerAuth and operation security for a cross-site authenticated route", () => {
     const spec: OpenApiDocument = {
       openapi: "3.1.0",

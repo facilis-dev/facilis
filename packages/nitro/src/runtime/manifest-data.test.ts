@@ -43,6 +43,7 @@ describe("toRouteMeta", () => {
       summary: "Create a todo.",
       description: "Create a todo.",
       permission: "todos:write",
+      rawSql: false,
       dbTables: ["todos"],
       dbColumns: ["todos.title"],
       security: "required",
@@ -53,6 +54,12 @@ describe("toRouteMeta", () => {
   it("exposes crossSite only when the route declares it", () => {
     expect(toRouteMeta(route({ crossSite: true })).crossSite).toBe(true);
     expect(toRouteMeta(route({})).crossSite).toBeUndefined();
+  });
+
+  it("maps rawSql and omits an unreadable flag", () => {
+    expect(toRouteMeta(route({ rawSql: true })).rawSql).toBe(true);
+    expect(toRouteMeta(route({ rawSql: false })).rawSql).toBe(false);
+    expect(toRouteMeta(route({ rawSql: false, unresolved: ["rawSql"] })).rawSql).toBeUndefined();
   });
 
   it("classifies public, required and unknown routes", () => {

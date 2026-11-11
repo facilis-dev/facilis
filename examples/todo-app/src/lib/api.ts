@@ -16,6 +16,8 @@ const KNOWN_ERROR_CODES = new Set([
   "db_unavailable",
   "not_found",
   "internal_error",
+  "table_not_declared",
+  "raw_sql_not_allowed",
   "network_error",
   "file_too_large",
   "payload_too_large",

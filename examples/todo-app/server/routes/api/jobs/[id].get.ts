@@ -5,7 +5,7 @@ export default defineAuthorizedHandler(
   {
     permission: ["jobs:read"],
     params: z.object({ id: z.uuid() }),
-    dbTables: ["facilis_jobs"],
+    dbTables: [],
     description: "Read one background job by id (queue state is server-side).",
   },
   async (_event, { params, jobs }) => {

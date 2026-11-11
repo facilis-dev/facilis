@@ -33,8 +33,9 @@ l'*utente* quando alcune policy RLS scoping solo il *tenant*.
 | SEC-11 | PBKDF2 a 210k iterazioni (< raccomandazione OWASP) e timing oracle sull'esistenza dell'email | Bassa | Alta | auth |
 | SEC-12 | Invarianti 1/2 (wrapper e dbTables accurati) non bloccanti per codice scritto a mano: solo diagnostica analyzer — risolto con gate CI (D-154) | Bassa | Alta | processo |
 | SEC-13 | Coda job senza ownership: `input`/`output` leggibili da chi ha il permesso della route (risolto con `jobs:read`/`jobs:exec` in RLS, D-145) | Bassa | Alta | jobs |
+| SEC-14 | `dbTables` ed elevazioni autocertificati: nulla verificava le relazioni realmente interrogate (route RLS arbitrarie; elevazioni con audit fuorviante) — risolto con analisi statica + guard runtime e regola AI 18 (D-157) | Media | Alta | DB/route |
 
-**Stato al 2026-11-10 (hardening completato):** risolti SEC-01 (D-150), SEC-02 (verifica email e
+**Stato al 2026-11-11 (hardening completato):** risolti SEC-01 (D-150), SEC-02 (verifica email e
 claim dell'account pendente, D-156; D-151 è superata), SEC-03 (D-146), SEC-04 (D-148 timing/PBKDF2 +
 D-152 throttle per route, risposta di registrazione generica; resta un canale indiretto di
 enumerazione mitigato dal rate limit), SEC-07 (D-147), SEC-08 (D-149), SEC-09 (D-153),
@@ -437,6 +438,38 @@ chi implementa la route filtra se serve. Stesso schema previsto per `facilis_tas
 D-145; migrazione `examples/todo-app/db/migrations/0007_jobs_permissions.sql`; test in
 `db-store.test.ts` (scope con permessi vs scope senza) e `migrations.test.ts`.
 
+### SEC-14 — `dbTables` ed elevazioni autocertificati: la dichiarazione non era applicata — Media, confidenza alta
+
+L'invariante 2 richiede `dbTables` presente e accurato, ma solo la **presenza** era garantita (gate
+CI SEC-12/D-154). A runtime nessuno confrontava la dichiarazione con l'accesso: `ctx.db` è il client
+Drizzle nella transazione `facilis_app`, e la RLS è il confine di grant, non di dichiarazione — una
+route che dichiara `["todos"]` poteva leggere `users`, `auth_identities` o `auth_email_verifications`
+(tutte RLS con policy tenant-wide) presentandosi al manifest/OpenAPI/grafo come una route che tocca
+solo `todos`. Dentro `ctx.sudo`/`ctx.system` il problema è più grave: il callback gira come
+`facilis_system` con `BYPASSRLS`, quindi può leggere qualsiasi riga di qualsiasi tenant, mentre
+l'audit registra solo le `tables` **autodichiarate**; il trail di sicurezza era auto-certificato.
+D-136/D-137 proteggevano solo le tabelle system-only (nessun grant → `permission denied`).
+
+**Esito (2026-11-11, D-157).** `dbTables` è ora una dichiarazione applicata, per tabelle **e viste**
+(una vista si dichiara con il proprio nome, D-097/D-098):
+- **statico** — `@facilis/analyze` risolve le `defineView` in `ViewFact` e un pass interprocedurale
+  segue l'handler nelle funzioni del progetto (chiamate annidate), registrando `from/join`,
+  `insert/update/delete(relazione)`, `db.query.<relazione>` e `db.execute`; produce
+  `route-table-undeclared`, `route-table-unused`, `route-table-unresolved`, `route-raw-sql` e
+  `route-elevation-undeclared`, il gate CI li blocca e il validator AI ha la regola 18
+  `route-table-declared` su tutte le route effettive;
+- **runtime** — il client di `ctx.db` e quello delle callback di elevazione sono proxati: una
+  relazione non dichiarata fallisce chiusa con `500 table_not_declared` prima della query, e
+  `db.execute` (SQL non ispezionabile) richiede `rawSql: true` sulla route, altrimenti
+  `500 raw_sql_not_allowed`; le escape hatch raw (`$client`/`session`) sono chiuse. L'audit delle
+  elevazioni registra le tabelle **osservate** (`observedTables`) accanto a quelle dichiarate, così
+  il trail non è più auto-certificato; `ctx.jobs` resta fuori (framework, D-107).
+
+Residui: SQL raw autorizzato con `rawSql` e frammenti `sql` dentro i builder non sono ispezionabili
+a runtime (li copre solo l'analisi statica quando il frammento è nel codice); le chiamate dentro i
+pacchetti sono opache per l'analisi statica (il runtime resta l'autorità); le viste non hanno ancora
+nodi/edge nel grafo (O-013, Phase 4).
+
 ## 2. Controlli verificati (cosa tiene)
 
 - **Wrapper route** (`packages/core/src/route.ts:199-213`): ordine corretto origin → permesso →
@@ -494,7 +527,7 @@ D-145; migrazione `examples/todo-app/db/migrations/0007_jobs_permissions.sql`; t
 
 ## 4. Priorità di rimedio
 
-**Stato al 2026-11-10: P0/P1 completati (D-146…D-156).** L'unico punto rimasto è SEC-10 (P2,
+**Stato al 2026-11-11: P0/P1 completati (D-146…D-157).** L'unico punto rimasto è SEC-10 (P2,
 rimandato con D-155). La verifica email (D-156) ha chiuso SEC-02 alla radice; l'eventuale evoluzione
 "registrazione deferred" chiuderebbe anche l'ultimo canale indiretto di enumerazione di SEC-04.
 
@@ -505,8 +538,9 @@ rimandato con D-155). La verifica email (D-156) ha chiuso SEC-02 alla radice; l'
    framework, non del singolo progetto, e proteggono tutte le app generate.
 3. **P1** — SEC-06 (policy per-utente sulle tabelle credenziali) e SEC-07 (SAML binding):
    deviazioni rispetto al contratto scritto, con impatto su confidenzialità/replay.
-4. **P2** — SEC-08/09 (DoS), SEC-10 (isolamento preview), SEC-11/12/13 (hardening e gate; SEC-13
-   risolto con i permessi `jobs:read`/`jobs:exec`, D-145).
+4. **P2** — SEC-08/09 (DoS), SEC-10 (isolamento preview), SEC-11/12/13/14 (hardening e gate; SEC-13
+   risolto con i permessi `jobs:read`/`jobs:exec`, D-145; SEC-14 con l'enforcement di `dbTables`,
+   D-157).
 
 ## 5. Limiti dell'analisi
 
