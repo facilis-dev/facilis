@@ -16,6 +16,7 @@ on:
       - "ide/**"
       - "packages/**"
       - "examples/**"
+      - "deploy/**"
       - "scripts/dev/**"
       - "vendor/**"
       - "package.json"
@@ -108,7 +109,11 @@ jobs:
       - name: Pack the @facilis.dev tarballs a generated project installs
         run: pnpm ide:facilis-deps
 
+      # The hosted build's deployment config (D-077/D-082): the open profile plus the public
+      # GitHub App client id for device-flow sign-in. Public by design, not a secret.
       - name: Build the IDE
+        env:
+          FACILIS_DEPLOY_CONFIG: ${{ github.workspace }}/deploy/ide.facilis.dev.json
         run: pnpm --filter @facilis.dev/ide build:app
 
       - name: Deploy to Cloudflare Pages

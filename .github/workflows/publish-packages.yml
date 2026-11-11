@@ -59,7 +59,7 @@ jobs:
       - name: Gate the packages
         run: |
           pnpm exec turbo run lint typecheck build --filter='./packages/*'
-          pnpm exec turbo run test --filter='./packages/*' -- --fsModuleCachePath=node_modules/.vitest-cache
+          pnpm exec turbo run test --concurrency=2 --filter='./packages/*' -- --fsModuleCachePath=node_modules/.vitest-cache
           node scripts/check-file-length.mjs
 
       - name: Check the npm credentials

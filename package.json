@@ -17,7 +17,7 @@
     "lint:file-length": "node scripts/check-file-length.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test -- --fsModuleCachePath=node_modules/.vitest-cache",
+    "test": "turbo run test --concurrency=2 -- --fsModuleCachePath=node_modules/.vitest-cache",
     "publish:packages": "node scripts/publish-packages.mjs",
     "publish:dry-run": "node scripts/publish-packages.mjs --dry-run",
     "ide:dev": "pnpm --filter @facilis.dev/ide dev --port 5173",

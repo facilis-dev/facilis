@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "profile": "open",
+  "projects": {
+    "imports": { "git": true },
+    "exports": { "git": true },
+    "gitProxy": "same-origin",
+    "gitOAuth": { "github": { "clientId": "Iv23liu0Ffft2yiSx86V" } }
+  }
+}
