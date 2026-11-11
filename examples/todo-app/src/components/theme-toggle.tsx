@@ -1,4 +1,4 @@
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { IconMoon, IconSun } from "./icons.tsx";
 import { Button } from "./ui/button.tsx";
 import { useTheme } from "../lib/theme.ts";

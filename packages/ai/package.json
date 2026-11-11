@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/ai",
+  "name": "@facilis.dev/ai",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis AI orchestration: prompt assembly, response parsing and patch validation.",
@@ -24,12 +24,31 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@facilis/analyze": "workspace:*"
+    "@facilis.dev/analyze": "workspace:*"
   },
   "devDependencies": {
     "oxlint": "catalog:",
     "rolldown": "1.2.15",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/ai"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/ai#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

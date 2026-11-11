@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { IdentityClaims, SsoAudit, SystemRunner } from "./contracts.ts";
 import { SsoError } from "./errors.ts";

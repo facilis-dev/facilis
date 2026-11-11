@@ -1,5 +1,5 @@
-import type { AuthConfig } from "@facilis/auth";
-import type { FacilisConfig } from "@facilis/core";
+import type { AuthConfig } from "@facilis.dev/auth";
+import type { FacilisConfig } from "@facilis.dev/core";
 
 export const DEFAULT_SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEFAULT_MIGRATIONS_DIR = "db/migrations";
@@ -14,8 +14,8 @@ export interface AuthConfigLike {
 }
 
 /**
- * Normalise the project auth config into @facilis/auth's AuthConfig. The config is
- * validated by @facilis/core at definition time; defaults here only cover the
+ * Normalise the project auth config into @facilis.dev/auth's AuthConfig. The config is
+ * validated by @facilis.dev/core at definition time; defaults here only cover the
  * "config module missing/corrupt" bootstrap path so it degrades to a warning.
  */
 export function toAuthConfig(auth: AuthConfigLike | undefined): AuthConfig {

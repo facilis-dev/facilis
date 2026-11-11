@@ -1,7 +1,7 @@
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb } from "@facilis.dev/db";
 
 import { createSession, validateSession } from "./session.ts";
 import { rolePermissions, roles, sessions, userRoles, users } from "./tables.ts";

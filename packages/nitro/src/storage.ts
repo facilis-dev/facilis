@@ -9,8 +9,8 @@ import {
   type AuthContext,
   type FacilisHandlerEvent,
   type StorageApi,
-} from "@facilis/core";
-import { facilisFiles, type PolicyScopedDatabase } from "@facilis/db";
+} from "@facilis.dev/core";
+import { facilisFiles, type PolicyScopedDatabase } from "@facilis.dev/db";
 
 /**
  * Route-facing helpers for binary uploads (D-053, SPEC §5.10).

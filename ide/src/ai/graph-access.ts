@@ -14,7 +14,7 @@
 // an untrusted plan (the helpers live with the handlers in ptc/graph-tools.ts) before writing,
 // and reports bad input as a PtcToolError that names the field, so a wrong call self-corrects.
 
-import type { ProjectGraph } from "@facilis/analyze";
+import type { ProjectGraph } from "@facilis.dev/analyze";
 import { loadProjectAnalysis } from "@/facilis/analyze-client";
 import { buildProjectGraphView } from "@/facilis/graph-model";
 import {

@@ -1,6 +1,6 @@
 // `server/workflows/**` definitions -> WorkflowFacts (docs/WORKFLOWS.md §6, D-135).
 //
-// The default export is the only source: a `defineWorkflow()` call from `@facilis/core`
+// The default export is the only source: a `defineWorkflow()` call from `@facilis.dev/core`
 // whose argument is an object literal. Resolvers (`input`, `params`) are functions, so the
 // reader takes the static fields one by one instead of evaluating the whole definition.
 
@@ -27,7 +27,7 @@ import {
   sortDiagnostics,
 } from "./static-read.ts";
 
-const CORE_SPECIFIER = "@facilis/core";
+const CORE_SPECIFIER = "@facilis.dev/core";
 const WORKFLOW_DIR = "server/workflows/";
 const STATIC_CODE = "workflow-definition-static";
 
@@ -88,7 +88,7 @@ function scanFile(
   workflows.push({ name, sourceFile: file.path, source: ref, steps, unknown });
 }
 
-/** The default export must be the `defineWorkflow` import from `@facilis/core`. */
+/** The default export must be the `defineWorkflow` import from `@facilis.dev/core`. */
 function definitionProblem(file: ProjectFile, expression: AstNode | undefined): string | null {
   if (expression === undefined) return "the workflow file has no default export";
   if (expression.type !== "CallExpression") {
@@ -104,7 +104,7 @@ function definitionProblem(file: ProjectFile, expression: AstNode | undefined): 
     imported.specifier !== CORE_SPECIFIER ||
     imported.imported !== "defineWorkflow"
   ) {
-    return "the default export is not the defineWorkflow import from @facilis/core";
+    return "the default export is not the defineWorkflow import from @facilis.dev/core";
   }
   return null;
 }

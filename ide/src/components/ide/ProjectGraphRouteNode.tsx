@@ -3,7 +3,7 @@
 // description is project content in the project's language, not IDE chrome, so it is rendered
 // verbatim instead of through t().
 
-import type { RouteInputFact } from "@facilis/analyze";
+import type { RouteInputFact } from "@facilis.dev/analyze";
 import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";

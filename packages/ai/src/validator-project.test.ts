@@ -199,7 +199,7 @@ describe("integration", () => {
       'user: ["todos:read", "todos:write"]',
       'user: ["todos:read", "todos:write", "tags:read"]',
     );
-    const route = `import { defineAuthorizedHandler } from "@facilis/core";
+    const route = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   { permission: ["tags:read"], dbTables: ["todos"], dbColumns: ["todos.title"] },

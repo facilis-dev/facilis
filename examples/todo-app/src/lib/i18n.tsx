@@ -6,7 +6,7 @@
  */
 
 import { useSyncExternalStore } from "react";
-import { registerCatalog, setDefaultLocale, t as translate } from "@facilis/core/i18n";
+import { registerCatalog, setDefaultLocale, t as translate } from "@facilis.dev/core/i18n";
 import en from "../../locales/en.json";
 import it from "../../locales/it.json";
 

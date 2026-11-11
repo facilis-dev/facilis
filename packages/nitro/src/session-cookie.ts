@@ -1,5 +1,5 @@
-import { SESSION_COOKIE_NAME } from "@facilis/auth";
-import type { FacilisHandlerEvent } from "@facilis/core";
+import { SESSION_COOKIE_NAME } from "@facilis.dev/auth";
+import type { FacilisHandlerEvent } from "@facilis.dev/core";
 import { deleteCookie, getCookie, setCookie, type H3Event } from "nitro/h3";
 
 import { isProductionEnvironment } from "./runtime/env.ts";

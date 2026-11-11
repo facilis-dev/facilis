@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { scanPatchWarnings } from "./patch-warnings";
 
 function update(path: string, content: string): FilePatch {
@@ -46,9 +46,9 @@ describe("scanPatchWarnings", () => {
     const content = [
       'import fs from "node:fs";',
       'import path from "path";',
-      'import { db } from "@facilis/db";',
-      'import { auth } from "@facilis/auth";',
-      'import { nitro } from "@facilis/nitro";',
+      'import { db } from "@facilis.dev/db";',
+      'import { auth } from "@facilis.dev/auth";',
+      'import { nitro } from "@facilis.dev/nitro";',
       'import { drizzle } from "drizzle-orm";',
       'import { spawn } from "child_process";',
       'import "os";',
@@ -57,9 +57,9 @@ describe("scanPatchWarnings", () => {
     expect(warnings.map((warning) => warning.symbol)).toEqual([
       "node:fs",
       "path",
-      "@facilis/db",
-      "@facilis/auth",
-      "@facilis/nitro",
+      "@facilis.dev/db",
+      "@facilis.dev/auth",
+      "@facilis.dev/nitro",
       "drizzle-orm",
       "child_process",
       "os",
@@ -135,17 +135,17 @@ describe("scanPatchWarnings", () => {
 
   it("scans export-from specifiers too", () => {
     const warnings = scanPatchWarnings([
-      update("src/barrel.ts", 'export { x } from "fs";\nexport * from "@facilis/db";'),
+      update("src/barrel.ts", 'export { x } from "fs";\nexport * from "@facilis.dev/db";'),
     ]);
-    expect(warnings.map((warning) => warning.symbol)).toEqual(["fs", "@facilis/db"]);
+    expect(warnings.map((warning) => warning.symbol)).toEqual(["fs", "@facilis.dev/db"]);
   });
 
   it("orders warnings by first occurrence across rules", () => {
     const warnings = scanPatchWarnings([
-      update("src/App.tsx", 'import { db } from "@facilis/db";\nexport const x = process.env.X;'),
+      update("src/App.tsx", 'import { db } from "@facilis.dev/db";\nexport const x = process.env.X;'),
     ]);
     expect(warnings).toEqual([
-      { path: "src/App.tsx", rule: "server-import", symbol: "@facilis/db" },
+      { path: "src/App.tsx", rule: "server-import", symbol: "@facilis.dev/db" },
       { path: "src/App.tsx", rule: "node-global", symbol: "process" },
     ]);
   });

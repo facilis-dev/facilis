@@ -1,4 +1,4 @@
-import type { FacilisConfig, FacilisHandlerEvent, FacilisLogger } from "@facilis/core";
+import type { FacilisConfig, FacilisHandlerEvent, FacilisLogger } from "@facilis.dev/core";
 import {
   completeLogin,
   failureRedirectPath,
@@ -14,10 +14,10 @@ import {
   type SamlValidatorFactory,
   type SsoFlowDeps,
   type SystemRunner,
-} from "@facilis/auth";
+} from "@facilis.dev/auth";
 
 /**
- * SSO runtime glue between the framework route and @facilis/auth (D-120).
+ * SSO runtime glue between the framework route and @facilis.dev/auth (D-120).
  *
  * Everything environment-dependent lives here: the public origin (callback/ACS URL), the
  * failure redirect, the provider list and the flow dependency bundle. The route stays a thin

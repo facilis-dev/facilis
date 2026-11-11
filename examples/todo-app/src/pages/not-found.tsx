@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { buttonVariants } from "../components/ui/button.tsx";
 import { EmptyState } from "../components/ui/empty-state.tsx";
 import { Page } from "../components/ui/page.tsx";

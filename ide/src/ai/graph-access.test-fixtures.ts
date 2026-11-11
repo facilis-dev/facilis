@@ -1,7 +1,7 @@
 // Shared fixtures for the AI graph-access tests: the fake VFS controller, the seeded layout
 // files and the analysis/graph builders. Split out so the test module stays under the 300-line
 // source limit; not a test module itself (the file name does not match Vitest's test glob).
-import type { Analysis, ProjectGraph } from "@facilis/analyze";
+import type { Analysis, ProjectGraph } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
 import { GRAPH_LAYOUT_PATH, GRAPH_NOTES_DIR } from "@/facilis/graph-layout-file";
 import { elementPath } from "@/facilis/graph-layout-files";

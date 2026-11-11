@@ -1,5 +1,5 @@
 /**
- * @facilis/storage: content-addressed binary storage.
+ * @facilis.dev/storage: content-addressed binary storage.
  *
  * Dev: createLocalStorage({ rootDir: "<project>/.facilis/binary" }) (project filesystem/VFS).
  * Prod: createS3Storage(...) for any S3-compatible store (AWS S3, Cloudflare R2, MinIO).

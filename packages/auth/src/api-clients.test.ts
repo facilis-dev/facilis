@@ -6,7 +6,7 @@ import {
   runWithPolicyScope,
   runWithSystemRole,
   type FacilisDb,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import {
   createApiClient,

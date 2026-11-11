@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { Alert } from "../components/ui/alert.tsx";
 import { AuthShell } from "../components/ui/auth-shell.tsx";
 import { Button, buttonVariants } from "../components/ui/button.tsx";

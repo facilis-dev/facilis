@@ -6,7 +6,7 @@
  * block); the others are errors and make `ok` false, which is what stops the IDE's apply
  * path before it writes anything (invariant 9).
  *
- * Every contextual rule reads @facilis/analyze's fact model (D-092): the effective
+ * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
  * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
  */
 

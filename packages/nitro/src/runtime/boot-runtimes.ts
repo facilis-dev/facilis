@@ -8,8 +8,8 @@ import {
   DEFAULT_WORKFLOWS_CONFIG,
   type FacilisConfig,
   type ManifestWarning,
-} from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+} from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import { bootJobs } from "./jobs/boot.ts";
 import type { JobModule } from "./jobs/contracts.ts";

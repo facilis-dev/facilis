@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 export default defineAuthorizedHandler(

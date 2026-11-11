@@ -1,6 +1,6 @@
 // Internal contracts of the workflow runtime (D-135, docs/WORKFLOWS.md §5-§8). The public
-// API lives in @facilis/core; this module only knows rows, statuses and the store seams.
-import type { FacilisDb, PolicyScopedDatabase } from "@facilis/db";
+// API lives in @facilis.dev/core; this module only knows rows, statuses and the store seams.
+import type { FacilisDb, PolicyScopedDatabase } from "@facilis.dev/db";
 import type {
   FacilisWorkflowsConfig,
   JobJson,
@@ -8,7 +8,7 @@ import type {
   WorkflowProgressEntry,
   WorkflowStatus,
   WorkflowStepIdentity,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import type { JobEngine, JobTimers } from "../jobs/contracts.ts";
 import type { TaskStore } from "../tasks/contracts.ts";

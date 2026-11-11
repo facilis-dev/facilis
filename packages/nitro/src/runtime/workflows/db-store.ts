@@ -6,8 +6,8 @@
 // are compare-and-set UPDATEs, so a transition that lost a race changes nothing.
 import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 
-import { facilisWorkflows, runWithPolicyScope } from "@facilis/db";
-import type { FacilisDb, PolicyScopedDatabase } from "@facilis/db";
+import { facilisWorkflows, runWithPolicyScope } from "@facilis.dev/db";
+import type { FacilisDb, PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type {
   NewStoredWorkflow,

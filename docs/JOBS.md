@@ -21,15 +21,15 @@ From the request:
 
 ## 2. Placement — no new package
 
-The feature reuses the existing layer split instead of adding a `@facilis/jobs` tarball
+The feature reuses the existing layer split instead of adding a `@facilis.dev/jobs` tarball
 (the generated project ships framework packages as vendored tarballs, so a new package would
 also change the IDE template):
 
 | Layer | Owns |
 |---|---|
-| `@facilis/core` | The public contract: `FacilisJobsConfig`, `defineJob`, `JobsApi`, `JobRecord`, `JobError`, serialization, route-context `ctx.jobs`. |
-| `@facilis/db` | The `facilis_jobs` table (schema + RLS), re-exported by the project's `db/schema.ts` so migrations own it. |
-| `@facilis/nitro` | The runtime: `#facilis/jobs` virtual module, definition registry, scheduler engine, stores, boot wiring, `ctx.jobs` injection. |
+| `@facilis.dev/core` | The public contract: `FacilisJobsConfig`, `defineJob`, `JobsApi`, `JobRecord`, `JobError`, serialization, route-context `ctx.jobs`. |
+| `@facilis.dev/db` | The `facilis_jobs` table (schema + RLS), re-exported by the project's `db/schema.ts` so migrations own it. |
+| `@facilis.dev/nitro` | The runtime: `#facilis/jobs` virtual module, definition registry, scheduler engine, stores, boot wiring, `ctx.jobs` injection. |
 
 ## 3. Nitro's task system — evaluated, not adopted
 
@@ -89,7 +89,7 @@ A definition may override `maxAttempts` and `timeoutMs`; otherwise the config ap
 ```ts
 // server/jobs/purge-completed-todos.ts — one default export per file.
 import { z } from "zod";
-import { defineJob } from "@facilis/core";
+import { defineJob } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 export default defineJob({
@@ -126,7 +126,7 @@ export default defineJob({
   retried, and the audit `failed` entry records the code, never the relation name. The
   started/succeeded/failed entries record the declared set; the `succeeded` one adds the
   relations actually observed (`observedTables`).
-- **Static checks.** `@facilis/analyze` reads every definition into `jobs`/`jobRelations` facts
+- **Static checks.** `@facilis.dev/analyze` reads every definition into `jobs`/`jobRelations` facts
   (following project-local helper calls; views count as relations; package calls stay opaque)
   and reports `job-definition`/`job-definition-static` (warnings), `job-table-undeclared`,
   `job-table-unresolved` and `job-raw-sql` (errors) and `job-table-unused` (warning); the
@@ -205,7 +205,7 @@ interface JobsApi {
 
 ## 8. Persistence and recovery
 
-`facilis_jobs` (table in `@facilis/db`, tenant-scoped with the restrictive
+`facilis_jobs` (table in `@facilis.dev/db`, tenant-scoped with the restrictive
 `tenantIsolationPolicy`, `enableRLS`, plus the per-command `jobs:read`/`jobs:exec` policies of
 D-145) is re-exported by the project's `db/schema.ts` and therefore created by a Drizzle
 migration like the auth tables. The engine's own reads/writes run as `facilis_app` under the

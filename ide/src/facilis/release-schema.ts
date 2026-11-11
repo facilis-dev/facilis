@@ -1,4 +1,4 @@
-// The Release Preview's declared schema, read through @facilis/analyze (D-086, D-094).
+// The Release Preview's declared schema, read through @facilis.dev/analyze (D-086, D-094).
 //
 // The panel diffs what the repository declares at two refs without booting a project. The
 // old reader was a tolerant text scanner of `db/schema.ts`; the ref's DSL sources are now
@@ -6,7 +6,7 @@
 // The caller supplies the analyzer because the browser runs it in a worker: this module
 // stays pure apart from the reads it is handed.
 
-import type { Analysis } from "@facilis/analyze";
+import type { Analysis } from "@facilis.dev/analyze";
 import { isAnalysisPath } from "./analyze-files";
 import type { ProjectAnalysisResult } from "./project-analysis";
 import type { ReleaseTableFact } from "./release-engine";

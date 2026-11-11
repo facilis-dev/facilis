@@ -1,4 +1,4 @@
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";
 import { LOCALES, useLocale } from "../lib/i18n.tsx";
 

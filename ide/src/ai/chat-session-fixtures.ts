@@ -1,7 +1,7 @@
 // Shared fixtures for the ChatSession suites (chat-session.test.ts and any test that needs
 // the same fake host/settings). Not a test file: vitest collects only *.test.ts.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import type { PtcRunner } from "./ptc/protocol";

@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { IconAttach, IconRemove } from "./icons.tsx";
 import { Button } from "./ui/button.tsx";
 

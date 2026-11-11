@@ -1,6 +1,6 @@
 /**
  * Shared fixtures for the validator tests: a realistic todo-app project analyzed with
- * @facilis/analyze, plus the patch overlay applied to its file map.
+ * @facilis.dev/analyze, plus the patch overlay applied to its file map.
  *
  * Tests build the effective (post-patch) Analysis exactly as the IDE does — project the
  * patch onto the pre-patch file map and analyze the result — so every rule runs against
@@ -20,7 +20,7 @@ import {
 import { normalizeProjectPath } from "../paths.ts";
 import { analyzeProjectSources } from "../node.ts";
 
-export const CONFIG = `import { defineConfig } from "@facilis/core";
+export const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   release: { ref: "origin/main" },
@@ -40,7 +40,7 @@ export const CONFIG_IT = CONFIG.replace(
 );
 
 export const SCHEMA = `import { boolean, pgTable, text, uuid } from "drizzle-orm/pg-core";
-import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis.dev/db";
 
 export const todos = pgTable(
   "todos",
@@ -62,9 +62,9 @@ const PACKAGE_JSON =
   JSON.stringify(
     {
       dependencies: {
-        "@facilis/blocks": "workspace:*",
-        "@facilis/core": "workspace:*",
-        "@facilis/db": "workspace:*",
+        "@facilis.dev/blocks": "workspace:*",
+        "@facilis.dev/core": "workspace:*",
+        "@facilis.dev/db": "workspace:*",
         "drizzle-orm": "0.45.4",
         react: "19.3.1",
         zod: "4.6.7",
@@ -78,7 +78,7 @@ const PACKAGE_JSON =
 const TSCONFIG = JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }, null, 2) + "\n";
 
 export const ROUTE_SOURCE = `import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 export default defineAuthorizedHandler(

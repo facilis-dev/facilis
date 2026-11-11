@@ -1,4 +1,4 @@
-import { defineConfig } from "@facilis/core";
+import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   release: { ref: "origin/main" },

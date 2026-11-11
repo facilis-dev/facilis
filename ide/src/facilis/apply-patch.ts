@@ -1,7 +1,7 @@
 // The Studio-side write path for AI patches (SPEC §10.2 "applyPatch()", §10.3 VFS rule).
 //
 // A generated patch reaches a project only through this function: it validates the patch
-// with @facilis/ai before anything touches the VFS (security invariant 9), then writes
+// with @facilis.dev/ai before anything touches the VFS (security invariant 9), then writes
 // every file through the kernel bridge — never OPFS — which is what makes the in-VM dev
 // server hot-update the preview and the OPFS mirror pick the change up.
 //
@@ -18,7 +18,7 @@ import {
   type FilePatch,
   type PatchContext,
   type ValidationResult,
-} from "@facilis/ai";
+} from "@facilis.dev/ai";
 import { fetchRevision } from "./manifest-client";
 
 /** The slice of KernelBridge a patch needs. Structural so the unit test stays a plain fake. */

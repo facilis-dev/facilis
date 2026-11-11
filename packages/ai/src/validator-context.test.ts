@@ -57,7 +57,7 @@ describe("rule 2 route-security", () => {
   });
 
   it("rejects a file that calls the wrapper but exports a raw handler", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 const handler = defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);
 export default async () => null;
@@ -70,7 +70,7 @@ export default async () => null;
   });
 
   it("accepts the assign-then-export form", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 const handler = defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);
 export default handler;
@@ -82,7 +82,7 @@ export default handler;
 
 describe("rule 3 db-tables-present", () => {
   it("rejects a route config without dbTables (unknown fails closed)", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler({ permission: ["todos:read"] }, async () => null);
 `;
@@ -93,7 +93,7 @@ export default defineAuthorizedHandler({ permission: ["todos:read"] }, async () 
 
 describe("rule 4 db-tables-valid", () => {
   it("rejects a dbTables entry that is not in the schema", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   { permission: ["todos:read"], dbTables: ["missing"] },
@@ -115,7 +115,7 @@ export default defineAuthorizedHandler(
 
 describe("rule 5 db-columns-valid", () => {
   it("warns about a malformed or unknown column reference", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   {
@@ -140,7 +140,7 @@ export default defineAuthorizedHandler(
 
 describe("rule 6 permission-valid", () => {
   it("rejects a permission the config does not declare", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   { permission: ["nope:read"], dbTables: ["todos"] },
@@ -152,7 +152,7 @@ export default defineAuthorizedHandler(
   });
 
   it("rejects a route whose permission is unknown (null fails closed)", () => {
-    const content = `import { defineAuthorizedHandler } from "@facilis/core";
+    const content = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler({ dbTables: ["todos"] }, async () => null);
 `;
@@ -177,7 +177,7 @@ function makeConfig(edit: (config: string) => string): string {
 
 describe("rule 7 block-import-valid", () => {
   it("accepts an import of a registered block", () => {
-    const content = `import { DataTable } from "@facilis/blocks";
+    const content = `import { DataTable } from "@facilis.dev/blocks";
 
 export const table = DataTable;
 `;
@@ -185,7 +185,7 @@ export const table = DataTable;
   });
 
   it("rejects an import that matches no BlockManifest", () => {
-    const content = `import { Mystery } from "@facilis/blocks";
+    const content = `import { Mystery } from "@facilis.dev/blocks";
 
 export const block = Mystery;
 `;
@@ -194,11 +194,11 @@ export const block = Mystery;
   });
 
   it("reads re-exported block paths too", () => {
-    const good = `export { DataTable } from "@facilis/blocks/DataTable";\n`;
+    const good = `export { DataTable } from "@facilis.dev/blocks/DataTable";\n`;
     expect(rulesOf(validate([create("src/table.ts", good)]).result.errors)).not.toContain(
       "block-import-valid",
     );
-    const bad = `export { Mystery } from "@facilis/blocks/Mystery";\n`;
+    const bad = `export { Mystery } from "@facilis.dev/blocks/Mystery";\n`;
     expect(rulesOf(validate([create("src/table.ts", bad)]).result.errors)).toContain(
       "block-import-valid",
     );
@@ -207,7 +207,7 @@ export const block = Mystery;
 
 describe("rule 8 route-input-validated", () => {
   const header = `import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 `;
 
   it("rejects a handler that reads the body without a body schema", () => {

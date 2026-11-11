@@ -1,8 +1,8 @@
 import { relations } from "drizzle-orm";
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis.dev/db";
 
-export { users } from "@facilis/auth";
+export { users } from "@facilis.dev/auth";
 
 export const projects = pgTable(
   "projects",

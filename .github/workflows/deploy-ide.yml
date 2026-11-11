@@ -1,7 +1,7 @@
 name: Deploy IDE
 
 # The IDE is a static SPA, but it cannot be built from a fresh checkout: the kernel Wasm,
-# the runtime CLI assets and the @facilis tarballs are gitignored build artifacts
+# the runtime CLI assets and the @facilis.dev tarballs are gitignored build artifacts
 # (docs/DEV.md §1-2). So the build runs here, with a real Rust toolchain and a cache keyed
 # by kernel commit, and the finished `ide/dist` is uploaded to Cloudflare Pages (D-077).
 # Cloudflare's own Git integration is deliberately not used: it cannot cache the ~2 min
@@ -105,11 +105,11 @@ jobs:
       - name: Vendor the runtime assets the kernel fetches
         run: pnpm ide:assets
 
-      - name: Pack the @facilis tarballs a generated project installs
+      - name: Pack the @facilis.dev tarballs a generated project installs
         run: pnpm ide:facilis-deps
 
       - name: Build the IDE
-        run: pnpm --filter @facilis/ide build:app
+        run: pnpm --filter @facilis.dev/ide build:app
 
       - name: Deploy to Cloudflare Pages
         working-directory: ide

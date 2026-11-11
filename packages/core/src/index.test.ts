@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import * as core from "./index.ts";
 
-describe("@facilis/core public surface", () => {
+describe("@facilis.dev/core public surface", () => {
   it("exposes the SPEC §5.1 runtime API by name", () => {
     expect(core.defineConfig).toBeTypeOf("function");
     expect(core.defineAuthorizedHandler).toBeTypeOf("function");

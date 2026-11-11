@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineWorkflow, WorkflowError } from "@facilis/core";
-import type { WorkflowDefinition } from "@facilis/core";
+import { defineWorkflow, WorkflowError } from "@facilis.dev/core";
+import type { WorkflowDefinition } from "@facilis.dev/core";
 
 import type { JobEngine } from "../jobs/contracts.ts";
 import type { WorkflowRuntimeDeps } from "./contracts.ts";

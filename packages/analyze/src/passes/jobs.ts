@@ -1,7 +1,7 @@
 /**
  * `server/jobs/**` definitions -> JobFacts (D-157 applied to jobs).
  *
- * One default export per file: a `defineJob()` call from `@facilis/core`. A file that is not
+ * One default export per file: a `defineJob()` call from `@facilis.dev/core`. A file that is not
  * a valid definition is a warning, not an error: jobs are optional, so a broken file must not
  * hide the rest of the project. `dbTables` is the declaration the runtime guard enforces, so
  * an unreadable one is explicit (null) and its warning keeps the jobs gate red.
@@ -22,7 +22,7 @@ import {
   sortDiagnostics,
 } from "./static-read.ts";
 
-const CORE_SPECIFIER = "@facilis/core";
+const CORE_SPECIFIER = "@facilis.dev/core";
 const JOBS_DIR = "server/jobs/";
 const STATIC_CODE = "job-definition-static";
 
@@ -59,7 +59,7 @@ function resolveDefinition(file: ProjectFile): DefinitionResolution {
   ) {
     return {
       call: null,
-      reason: "the default export is not the defineJob import from @facilis/core",
+      reason: "the default export is not the defineJob import from @facilis.dev/core",
     };
   }
   return { call: expression, reason: "" };

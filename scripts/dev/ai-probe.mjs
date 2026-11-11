@@ -107,9 +107,9 @@ const TASKS = [
 /** Optional system-prompt addendum, to measure how much of the failure rate is missing context. */
 const CONVENTIONS_PROMPT = [
   "## Project API conventions (verified in the existing code; follow exactly)",
-  '- Server route (server/routes/...): import { defineAuthorizedHandler } from "@facilis/core"; import { todos } from "~/db/schema"; export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: ["todos"], query: z.object({}) }, async (_event, { auth, body, query, params, db }) => { ... }); the context carries auth/body/query/params/db - never import a db client from "@facilis/db".',
-  '- Client page (src/pages/...): use the components in src/components/ui; import { t } from "@facilis/core/i18n"; call the server through the api helper in src/lib/api.ts; src/ must never use process, Buffer, fs or server-only packages.',
-  '- Schema (db/schema.ts): import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db"; define pgTable(...).enableRLS() with the policies; re-export the @facilis/auth tables, never redefine them.',
+  '- Server route (server/routes/...): import { defineAuthorizedHandler } from "@facilis.dev/core"; import { todos } from "~/db/schema"; export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: ["todos"], query: z.object({}) }, async (_event, { auth, body, query, params, db }) => { ... }); the context carries auth/body/query/params/db - never import a db client from "@facilis.dev/db".',
+  '- Client page (src/pages/...): use the components in src/components/ui; import { t } from "@facilis.dev/core/i18n"; call the server through the api helper in src/lib/api.ts; src/ must never use process, Buffer, fs or server-only packages.',
+  '- Schema (db/schema.ts): import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis.dev/db"; define pgTable(...).enableRLS() with the policies; re-export the @facilis.dev/auth tables, never redefine them.',
   '- i18n: add every new string to locales/en.json and locales/it.json and render it with t("key").',
 ].join("\n");
 

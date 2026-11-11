@@ -6,7 +6,7 @@ import {
   ensureAppRole,
   policyCreateSql,
   type FacilisDb,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import { authIdentities, authSsoStates } from "./sso/tables.ts";
 import {

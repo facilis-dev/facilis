@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import type { Diagnostic } from "@facilis/analyze";
-import type { ManifestWarning } from "@facilis/core";
+import type { Diagnostic } from "@facilis.dev/analyze";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 import { emptyAnalysis, routeFact } from "./route-metadata-test-harness.ts";
 import {
@@ -150,8 +150,8 @@ describe("scanRouteMetadata", () => {
     const metadata = routeMetadataFromAnalysis(
       emptyAnalysis({
         diagnostics: [
-          diagnostic("parse-error", "node_modules/@facilis/core/src/broken.ts"),
-          diagnostic("config-static", "node_modules/@facilis/core/src/config.ts"),
+          diagnostic("parse-error", "node_modules/@facilis.dev/core/src/broken.ts"),
+          diagnostic("config-static", "node_modules/@facilis.dev/core/src/config.ts"),
         ],
       }),
       warnings.onWarning,

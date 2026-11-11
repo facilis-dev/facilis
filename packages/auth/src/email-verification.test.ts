@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis.dev/db";
 
 import {
   consumeEmailVerification,

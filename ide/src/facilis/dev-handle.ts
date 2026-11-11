@@ -8,7 +8,7 @@
 // Kept out of IdeProvider so the wiring stays a one-liner there and the signature lives
 // next to the implementation it forwards to.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import type { IdeController } from "@/vv/controller";
 import { applyPatch, type ApplyPatchResult } from "./apply-patch";
 

@@ -1,5 +1,5 @@
 import { inArray, sql } from "drizzle-orm";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 import { z } from "zod";
 
 import { i18nMessages } from "./messages.ts";

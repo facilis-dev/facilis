@@ -1,5 +1,5 @@
 /**
- * @facilis/db — Drizzle client for PGlite and Postgres, policy scope, RLS policy
+ * @facilis.dev/db — Drizzle client for PGlite and Postgres, policy scope, RLS policy
  * generators, schema snapshot and idempotent statement runner.
  */
 

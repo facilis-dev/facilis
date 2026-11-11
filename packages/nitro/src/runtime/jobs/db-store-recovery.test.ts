@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import {
   BASE,

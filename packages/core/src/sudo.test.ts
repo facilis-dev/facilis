@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import type { AuthContext } from "@facilis/auth";
-import type { FacilisDb } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
 import type { JobsApi } from "./jobs.ts";
@@ -23,9 +23,9 @@ const dbMock = vi.hoisted(() => {
 });
 
 // Only the db transaction runners are mocked: the audit sink and its fail-closed behaviour
-// are the real @facilis/db implementations, so the tests observe the production trail.
-vi.mock("@facilis/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/db")>();
+// are the real @facilis.dev/db implementations, so the tests observe the production trail.
+vi.mock("@facilis.dev/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/db")>();
   return {
     ...actual,
     runWithPolicyScope: dbMock.runWithPolicyScope,
@@ -33,7 +33,7 @@ vi.mock("@facilis/db", async (importOriginal) => {
   };
 });
 
-import { resetSudoAuditSink, setSudoAuditSink, type SudoAuditEvent } from "@facilis/db";
+import { resetSudoAuditSink, setSudoAuditSink, type SudoAuditEvent } from "@facilis.dev/db";
 
 const SESSION_HASH = "a".repeat(64);
 

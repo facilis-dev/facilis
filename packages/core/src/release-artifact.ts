@@ -17,7 +17,7 @@ import type { RiskClass } from "./release.ts";
 
 export const RELEASE_ARTIFACT_FORMAT_VERSION = 1;
 
-/** Digest projection this contract was written against; see @facilis/db SCHEMA_DIGEST_VERSION. */
+/** Digest projection this contract was written against; see @facilis.dev/db SCHEMA_DIGEST_VERSION. */
 const DIGEST_VERSION = 1;
 
 const RISK_CLASSES = ["safe", "careful", "destructive", "breaking"] as const;

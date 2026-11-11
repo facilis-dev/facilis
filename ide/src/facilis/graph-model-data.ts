@@ -2,7 +2,7 @@
 // plus the search predicate over them. Split from graph-model.ts so both files stay under the
 // 300-line source limit; graph-model.ts keeps the layout and the public build entry point.
 
-import type { ColumnFact, GraphNode, RouteInputFact } from "@facilis/analyze";
+import type { ColumnFact, GraphNode, RouteInputFact } from "@facilis.dev/analyze";
 import { pathParamsOf } from "./graph-path-params";
 import type {
   ColumnMarker,
@@ -55,6 +55,8 @@ export function routeData(node: GraphNode): RouteGraphData | null {
     description: node.data.description ?? null,
     input: node.data.input ?? NO_ROUTE_INPUT,
     pathParams: pathParamsOf(node.data.path),
+    // A worker from before the field existed still yields a route card, classified as project.
+    dbTables: node.data.dbTables ?? [],
     elevations: node.data.elevations ?? [],
     unknown: node.data.unknown,
   };

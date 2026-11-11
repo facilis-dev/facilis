@@ -97,7 +97,7 @@ export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change 
 7. Make minimal patches and match the project's existing style.
 8. Do not invent roles or permissions. If a route needs a permission or role that facilis.config.ts does not declare, add it to config.auth.permissions in the same patch and explain it in notes.
 9. A destructive schema change (dropping or renaming a table or column) must set requires_confirmation to true.
-10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis/db, @facilis/auth, @facilis/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
+10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis.dev/db, @facilis.dev/auth, @facilis.dev/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
 11. server/ runs in Nitro (Node): process.env is allowed there, but never import server code from src/ or components/. A change that needs secrets belongs in a server route, not in the browser bundle.
 12. Every route carries a description: one English sentence, max ~120 characters (about two lines), saying what the route does and what it touches. Keep it up to date when the route's contract (permission, inputs, dbTables/dbColumns) changes. It is developer documentation, never a user-facing string — never t().
 
@@ -105,7 +105,7 @@ export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change 
 Copy these instead of inventing an API. A route (server/routes/api/<name>/index.get.ts):
 ~~~ts
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 export default defineAuthorizedHandler(
@@ -125,7 +125,7 @@ export default defineAuthorizedHandler(
 A scoped table (db/schema.ts):
 ~~~ts
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+import { ownerIsolationPolicy, tenantColumn, tenantIsolationPolicy } from "@facilis.dev/db";
 
 export const todos = pgTable(
   "todos",

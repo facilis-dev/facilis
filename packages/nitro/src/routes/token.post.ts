@@ -1,5 +1,5 @@
-import { issueApiToken } from "@facilis/auth";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
+import { issueApiToken } from "@facilis.dev/auth";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
 import { z } from "zod";
 
 import { getBootstrap } from "../runtime/bootstrap.ts";

@@ -1,4 +1,4 @@
-import type { Analysis, RouteFact } from "@facilis/analyze";
+import type { Analysis, RouteFact } from "@facilis.dev/analyze";
 
 /** Shared fixtures for the route-metadata adapter suites (kept out of the 300-line budget). */
 export function routeFact(

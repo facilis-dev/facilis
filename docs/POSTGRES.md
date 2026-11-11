@@ -141,7 +141,7 @@ TLS comes from the connection string (`sslmode=require`); there is no separate T
 keep in sync. The pool defaults to 10 connections — `createDb({ poolMax })` overrides it for
 a plan with a lower limit.
 
-`pg` is **not** a dependency of `@facilis/db`: it is an optional capability loaded at runtime
+`pg` is **not** a dependency of `@facilis.dev/db`: it is an optional capability loaded at runtime
 through `createRequire`, which is what keeps `node:net`/`node:tls` out of the in-VM bundle.
 The project that deploys installs it once (`pnpm add pg`). The generated starter does not list
 it yet — that is the IDE template's dependency list (D-062), not the driver's job.
@@ -173,7 +173,7 @@ What that harness cannot prove: password authentication, TLS and the network pat
 server ignores the connecting user (every session is `postgres`) and is loopback-only. Those
 belong to the hosting provider; the wire behaviour and the SQL semantics are real.
 
-The whole path is scripted: `pnpm pg:e2e` builds `@facilis/db` and the example for
+The whole path is scripted: `pnpm pg:e2e` builds `@facilis.dev/db` and the example for
 production, provisions that endpoint through the owner connection, runs
 `node .output/server/index.mjs` with `NODE_ENV=production` and `DATABASE_URL`, and asserts
 register/login/session/todo over HTTP plus the row landing in the cluster — with no database

@@ -1,7 +1,7 @@
 // The git-reading layer, exercised against a real repository in a temp directory: the VFS
 // adapter is the only part the browser smoke covers, and the ref/blob logic is worth a unit
 // test because a wrong tree read is silent (an empty snapshot looks like "nothing changed").
-import { analyzeProject } from "@facilis/analyze";
+import { analyzeProject } from "@facilis.dev/analyze";
 import * as git from "isomorphic-git";
 import type { FsClient } from "isomorphic-git";
 import { afterEach, describe, expect, it } from "vitest";

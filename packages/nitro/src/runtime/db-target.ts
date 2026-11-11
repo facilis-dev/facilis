@@ -1,8 +1,8 @@
-import type { FacilisConfig, ManifestWarning } from "@facilis/core";
+import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "./env.ts";
 
-/** Driver a booting project can open; mirrors @facilis/db's `DbDriver`. */
+/** Driver a booting project can open; mirrors @facilis.dev/db's `DbDriver`. */
 export type DbTargetDriver = "pglite" | "postgres";
 
 /** The database the runtime must open. `url` is set for a postgres target only. */

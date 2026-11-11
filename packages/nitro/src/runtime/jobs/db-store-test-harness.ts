@@ -7,14 +7,14 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 import {
   createDb,
   ensureAppRole,
   facilisJobs,
   policyCreateSql,
   tenantDefaultSql,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import type { NewStoredJob, StoredJob } from "./contracts.ts";
 import { createDbJobStore } from "./db-store.ts";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defineWorkflow, DEFAULT_WORKFLOWS_CONFIG } from "@facilis/core";
-import type { ManifestWarning, WorkflowDefinition } from "@facilis/core";
-import { createDb } from "@facilis/db";
+import { defineWorkflow, DEFAULT_WORKFLOWS_CONFIG } from "@facilis.dev/core";
+import type { ManifestWarning, WorkflowDefinition } from "@facilis.dev/core";
+import { createDb } from "@facilis.dev/db";
 
 import type { JobsRuntime } from "../jobs/runtime.ts";
 import { bootWorkflows } from "./boot.ts";

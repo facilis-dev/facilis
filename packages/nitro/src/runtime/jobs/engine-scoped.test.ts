@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { JobDefinition } from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { JobDefinition } from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobEngineConfig, JobExecutor, JobStore, JobTimers } from "./contracts.ts";
 import { createJobEngine } from "./engine.ts";

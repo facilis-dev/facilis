@@ -1,4 +1,4 @@
-import type { Analysis } from "@facilis/analyze";
+import type { Analysis } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
 
 /** Result of one browser-side analysis of the active project. */

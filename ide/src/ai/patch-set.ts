@@ -6,7 +6,7 @@
 // final answer and writes the turns that ask for the rest. There is no part quota (D-108):
 // the loop keeps asking until the model sends a last part. Nothing here touches the project.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import type { AiResponse } from "./types";
 
 export interface PatchSetState {

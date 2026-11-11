@@ -8,6 +8,7 @@ import {
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
+  withHiddenSystemNodes,
   withNodePosition,
   withNotePosition,
   withNoteText,
@@ -42,6 +43,8 @@ describe("parseGraphLayout (v1/v2 migration)", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: { "table:todos": { x: 10, y: 20 } },
       hiddenEdges: ["fk", "relation"],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: { "table:todos": true },
       edgeCurves: {},
       notes: {},
@@ -155,6 +158,8 @@ describe("mutations", () => {
       nodes: { "table:todos": { x: 1, y: 2 } },
       collapsed: { "table:todos": true },
       hiddenEdges: ["relation"],
+      hideSystemRoutes: true,
+      hideSystemTables: true,
       edgeCurves: { "fk:1": { x: 2, y: 3 } },
       notes: { [NOTE]: note() },
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -163,10 +168,26 @@ describe("mutations", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: {},
       hiddenEdges: ["relation"],
+      hideSystemRoutes: true,
+      hideSystemTables: true,
       collapsed: {},
       edgeCurves: {},
       notes: { [NOTE]: note() },
     });
+  });
+
+  it("toggles the two system filters independently and keeps identity on a no-op", () => {
+    const base = layout();
+    expect(withHiddenSystemNodes(base, "routes", false)).toBe(base);
+    expect(withHiddenSystemNodes(base, "tables", false)).toBe(base);
+    const routes = withHiddenSystemNodes(base, "routes", true);
+    expect(routes.hideSystemRoutes).toBe(true);
+    expect(routes.hideSystemTables).toBe(false);
+    const tables = withHiddenSystemNodes(routes, "tables", true);
+    expect(tables.hideSystemTables).toBe(true);
+    expect(withHiddenSystemNodes(tables, "routes", true)).toBe(tables);
+    expect(withHiddenSystemNodes(tables, "tables", true)).toBe(tables);
+    expect(withHiddenSystemNodes(tables, "tables", false).hideSystemTables).toBe(false);
   });
 
   it("keeps an edge curve exactly at the reset distance", () => {

@@ -3,7 +3,7 @@
 // Not a test file: vitest collects only *.test.ts, so both suites import these helpers and
 // stay under the 300-line limit.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import type { CallModelInput } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
@@ -29,7 +29,7 @@ export const ROUTE: FilePatch = {
   path: "server/routes/api/ping.get.ts",
   action: "create",
   content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     'export default defineAuthorizedHandler({ permission: ["todos:write"], dbTables: [] }, async () => null);\n',
 };
 
@@ -37,7 +37,7 @@ export const ROUTE: FilePatch = {
 export const ROUTE_FIXED: FilePatch = {
   ...ROUTE,
   content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
 };
 
@@ -83,7 +83,7 @@ const FILES = [
   "locales/en.json",
   "tsconfig.json",
 ];
-const CONFIG = `import { defineConfig } from "@facilis/core";
+const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
@@ -95,7 +95,7 @@ export function host(): PatchValidationHost {
     if (path === "facilis.config.ts") return CONFIG;
     if (path === "db/schema.ts") return "export {};\n";
     if (path === "package.json") {
-      return JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } });
+      return JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } });
     }
     if (path === "locales/en.json" || path === "tsconfig.json") return "{}";
     return "";

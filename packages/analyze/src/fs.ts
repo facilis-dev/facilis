@@ -1,5 +1,5 @@
 /**
- * Node filesystem loader for the analyzer (exported as `@facilis/analyze/fs`).
+ * Node filesystem loader for the analyzer (exported as `@facilis.dev/analyze/fs`).
  *
  * Kept apart from the `./node` parser adapter: a Vite config that runs in the browser VM
  * needs to read a project directory but must not load a native/wasm parser. The loader only
@@ -13,7 +13,7 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts",
 const ALWAYS_SKIPPED = new Set([".git", "dist", "coverage", ".turbo", ".facilis", ".output"]);
 
 export interface LoadProjectOptions {
-  /** Package scopes allowed under node_modules (default: @facilis). */
+  /** Package scopes allowed under node_modules (default: @facilis.dev). */
   readonly nodeModuleScopes?: readonly string[];
 }
 
@@ -22,7 +22,7 @@ export function loadProjectFiles(
   root: string,
   options: LoadProjectOptions = {},
 ): Map<string, string> {
-  const scopes = options.nodeModuleScopes ?? ["@facilis"];
+  const scopes = options.nodeModuleScopes ?? ["@facilis.dev"];
   const files = new Map<string, string>();
   const walk = (directory: string, relativeDirectory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {

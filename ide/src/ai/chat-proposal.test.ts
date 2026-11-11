@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { buildProposal } from "./chat-proposal";
 
 const files: Record<string, string> = {
@@ -55,11 +55,11 @@ describe("buildProposal", () => {
     const patch: FilePatch = {
       path: "src/App.tsx",
       action: "update",
-      content: 'import { db } from "@facilis/db";\nexport const x = process.env.X;\n',
+      content: 'import { db } from "@facilis.dev/db";\nexport const x = process.env.X;\n',
     };
     const proposal = await buildProposal([patch], [], false, read);
     expect(proposal.warnings).toEqual([
-      { path: "src/App.tsx", rule: "server-import", symbol: "@facilis/db" },
+      { path: "src/App.tsx", rule: "server-import", symbol: "@facilis.dev/db" },
       { path: "src/App.tsx", rule: "node-global", symbol: "process" },
     ]);
   });

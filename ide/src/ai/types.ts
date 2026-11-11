@@ -5,7 +5,7 @@
 // shapes, and the UI only reads them. The model's contract is SPEC §9.2: one
 // AIResponse JSON object per turn, patches project-relative.
 
-import type { FilePatch, ValidationResult } from "@facilis/ai";
+import type { FilePatch, ValidationResult } from "@facilis.dev/ai";
 import type { MessageKey } from "@/i18n";
 import type { PtcFailureKind, PtcTraceEntry } from "./ptc/protocol";
 

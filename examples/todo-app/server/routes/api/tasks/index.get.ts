@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 // The framework keeps the task API server-only (D-135, docs/WORKFLOWS.md §7); this route is
 // the app's own authenticated inbox over it: the oldest pending request first.

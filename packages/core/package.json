@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/core",
+  "name": "@facilis.dev/core",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis framework core: configuration contract, authorized-handler types and manifest shapes.",
@@ -31,8 +31,27 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@facilis/auth": "workspace:*",
-    "@facilis/db": "workspace:*",
+    "@facilis.dev/auth": "workspace:*",
+    "@facilis.dev/db": "workspace:*",
     "zod": "4.6.7"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

@@ -26,7 +26,7 @@ import {
 } from "./static-read.ts";
 
 const CONFIG_FILE = "facilis.config.ts";
-const CORE_SPECIFIER = "@facilis/core";
+const CORE_SPECIFIER = "@facilis.dev/core";
 // Mirrors packages/core/src/config.ts. The analyzer is browser-safe and must not import the
 // server package, so the defaults are restated here and covered by a test.
 const DEFAULT_MIGRATIONS_DIR = "./drizzle";
@@ -138,7 +138,7 @@ function readSection(
   return out;
 }
 
-/** The default export must be a `defineConfig(...)` call of the @facilis/core named import. */
+/** The default export must be a `defineConfig(...)` call of the @facilis.dev/core named import. */
 function resolveDefineConfig(file: ProjectFile): { call: AstNode | null; reason: string | null } {
   const expression = defaultExportExpression(file);
   if (expression === undefined) {
@@ -155,10 +155,10 @@ function resolveDefineConfig(file: ProjectFile): { call: AstNode | null; reason:
   }
   const imported = file.module.imports.find((entry) => entry.local === name);
   if (imported === undefined) {
-    return { call: null, reason: "defineConfig is not imported from @facilis/core" };
+    return { call: null, reason: "defineConfig is not imported from @facilis.dev/core" };
   }
   if (imported.specifier !== CORE_SPECIFIER || imported.imported !== "defineConfig") {
-    return { call: null, reason: "defineConfig must be the named import from @facilis/core" };
+    return { call: null, reason: "defineConfig must be the named import from @facilis.dev/core" };
   }
   return { call: expression, reason: null };
 }

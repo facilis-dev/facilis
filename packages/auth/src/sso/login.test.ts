@@ -2,7 +2,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb } from "@facilis.dev/db";
 
 import type { FetchResponse, SsoAudit, SsoAuditInput, SystemRunner } from "./contracts.ts";
 import { completeLogin, startLogin, type SsoFlowDeps } from "./login.ts";

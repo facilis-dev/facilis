@@ -83,7 +83,7 @@ export type {
  * reviewable, diffable and the only source of truth for roles and permissions (SPEC §8.4.1).
  */
 
-/** Database driver modes supported by `@facilis/db` (SPEC §7.1). */
+/** Database driver modes supported by `@facilis.dev/db` (SPEC §7.1). */
 export const DB_MODES = ["pglite", "postgres", "json"] as const;
 export type DbMode = (typeof DB_MODES)[number];
 
@@ -121,7 +121,7 @@ export interface FacilisAuthConfig {
  * Nitro options owned by the project (D-034).
  *
  * Facilis validates only the shape — an object — and passes every key to Nitro untouched:
- * these are Nitro's options, not the framework's. `@facilis/nitro` merges them over the
+ * these are Nitro's options, not the framework's. `@facilis.dev/nitro` merges them over the
  * Facilis defaults (`serverDir: "./server"`, `experimental.openAPI: true`), so a project
  * only declares what it changes.
  */
@@ -158,7 +158,7 @@ export interface FacilisConfigInput {
     readonly ownerColumns?: readonly string[];
   };
   readonly i18n?: { readonly defaultLocale?: string; readonly locales?: readonly string[] };
-  /** Passed to Nitro unchanged; `@facilis/nitro` merges the framework defaults underneath. */
+  /** Passed to Nitro unchanged; `@facilis.dev/nitro` merges the framework defaults underneath. */
   readonly nitro?: FacilisNitroOptions;
   readonly auth: {
     readonly permissions?: readonly string[];
@@ -226,7 +226,7 @@ const i18nSchema = z
   .default(() => DEFAULT_I18N_CONFIG);
 
 // Nitro's own options are not Facilis's contract, so the section is a pass-through: keep
-// the object as authored and let @facilis/nitro apply the framework defaults underneath.
+// the object as authored and let @facilis.dev/nitro apply the framework defaults underneath.
 const nitroSchema = z.record(z.string(), z.unknown()).default({});
 
 // Session duration is a safe default (one week, matching SPEC §8.4.1's example); everything

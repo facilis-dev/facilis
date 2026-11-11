@@ -1,5 +1,5 @@
-import type { FacilisJobsConfig, FacilisWorkflowsConfig, ManifestWarning } from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisJobsConfig, FacilisWorkflowsConfig, ManifestWarning } from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { JobsRuntime } from "../jobs/runtime.ts";
 import type { TaskStore } from "../tasks/contracts.ts";

@@ -1,7 +1,7 @@
 // Internal task-runtime contract (D-135, docs/WORKFLOWS.md §7-8). The public API lives in
-// @facilis/core; this module only knows rows, statuses and the store seams.
-import type { PolicyScopedDatabase } from "@facilis/db";
-import type { JobJson, TaskDecision, TaskKind, TaskStatus } from "@facilis/core";
+// @facilis.dev/core; this module only knows rows, statuses and the store seams.
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
+import type { JobJson, TaskDecision, TaskKind, TaskStatus } from "@facilis.dev/core";
 
 /** One task as the store sees it: JSON data plus real Dates (the API ISO-izes them). */
 export interface StoredTask {

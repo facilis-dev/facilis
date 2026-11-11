@@ -1,10 +1,10 @@
-// Analyzer worker: runs @facilis/analyze over a project snapshot in its own thread.
+// Analyzer worker: runs @facilis.dev/analyze over a project snapshot in its own thread.
 //
 // The wasm parser needs ~250 MiB of linear memory and a top-level-await module, so it must
 // not run on (or be bundled into) the editor's main thread. Protocol and guards live in
 // analyze-protocol.ts; the parser adapter lives in oxc-browser.ts. No UI code here.
 
-import { analyzeProject } from "@facilis/analyze";
+import { analyzeProject } from "@facilis.dev/analyze";
 import { isAnalyzeRequest, type AnalyzeWorkerMessage } from "./analyze-protocol";
 import { createBrowserOxcParser } from "./oxc-browser";
 

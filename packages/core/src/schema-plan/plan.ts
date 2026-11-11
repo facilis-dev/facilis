@@ -1,4 +1,4 @@
-import type { SchemaSnapshot } from "@facilis/db";
+import type { SchemaSnapshot } from "@facilis.dev/db";
 
 import { planConstraints, planIndexes, planSecurity } from "./diff-constraints.ts";
 import { createContext } from "./diff-helpers.ts";

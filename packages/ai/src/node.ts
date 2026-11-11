@@ -1,14 +1,14 @@
 /**
- * Node-only helpers, exported as `@facilis/ai/node` (D-084, D-092).
+ * Node-only helpers, exported as `@facilis.dev/ai/node` (D-084, D-092).
  *
  * The main entry must stay browser-safe, so this subpath is the only place that imports
  * runtime code from a parser: rule 1's rolldown `parseSync` (oxc) and, for tests/tooling,
- * @facilis/analyze's oxc adapter so a project file map can be analyzed without a browser.
+ * @facilis.dev/analyze's oxc adapter so a project file map can be analyzed without a browser.
  * The IDE never imports this module: it injects the analyzer worker's oxc parser instead.
  */
 
-import { analyzeProject, type Analysis, type PathAlias } from "@facilis/analyze";
-import { createOxcParser as createAnalyzerParser } from "@facilis/analyze/node";
+import { analyzeProject, type Analysis, type PathAlias } from "@facilis.dev/analyze";
+import { createOxcParser as createAnalyzerParser } from "@facilis.dev/analyze/node";
 import { parseSync } from "rolldown/utils";
 
 import type { SyntaxChecker, SyntaxIssue } from "./types.ts";

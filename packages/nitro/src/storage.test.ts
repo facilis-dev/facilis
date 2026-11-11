@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { unavailableStorage, type AuthContext, type StorageApi } from "@facilis/core";
+import { unavailableStorage, type AuthContext, type StorageApi } from "@facilis.dev/core";
 
 import {
   fileHeaders,

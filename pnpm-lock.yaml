@@ -218,25 +218,25 @@ importers:
       '@electric-sql/pglite':
         specifier: 0.5.11
         version: 0.5.11
-      '@facilis/analyze':
+      '@facilis.dev/analyze':
         specifier: workspace:*
         version: link:../../packages/analyze
-      '@facilis/auth':
+      '@facilis.dev/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@facilis/core':
+      '@facilis.dev/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@facilis/db':
+      '@facilis.dev/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@facilis/nitro':
+      '@facilis.dev/nitro':
         specifier: workspace:*
         version: link:../../packages/nitro
-      '@facilis/storage':
+      '@facilis.dev/storage':
         specifier: workspace:*
         version: link:../../packages/storage
-      '@facilis/time':
+      '@facilis.dev/time':
         specifier: workspace:*
         version: link:../../packages/time
       '@fontsource-variable/geist':
@@ -318,13 +318,13 @@ importers:
       '@emnapi/runtime':
         specifier: 2.0.0-beta.2
         version: 2.0.0-beta.2
-      '@facilis/ai':
+      '@facilis.dev/ai':
         specifier: workspace:*
         version: link:../packages/ai
-      '@facilis/analyze':
+      '@facilis.dev/analyze':
         specifier: workspace:*
         version: link:../packages/analyze
-      '@facilis/core':
+      '@facilis.dev/core':
         specifier: workspace:*
         version: link:../packages/core
       '@fontsource-variable/geist':
@@ -457,7 +457,7 @@ importers:
 
   packages/ai:
     dependencies:
-      '@facilis/analyze':
+      '@facilis.dev/analyze':
         specifier: workspace:*
         version: link:../analyze
     devDependencies:
@@ -494,7 +494,7 @@ importers:
 
   packages/auth:
     dependencies:
-      '@facilis/db':
+      '@facilis.dev/db':
         specifier: workspace:*
         version: link:../db
       '@node-saml/node-saml':
@@ -525,10 +525,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@facilis/auth':
+      '@facilis.dev/auth':
         specifier: workspace:*
         version: link:../auth
-      '@facilis/db':
+      '@facilis.dev/db':
         specifier: workspace:*
         version: link:../db
       zod:
@@ -572,10 +572,10 @@ importers:
 
   packages/i18n-db:
     dependencies:
-      '@facilis/core':
+      '@facilis.dev/core':
         specifier: workspace:*
         version: link:../core
-      '@facilis/db':
+      '@facilis.dev/db':
         specifier: workspace:*
         version: link:../db
       drizzle-orm:
@@ -600,19 +600,19 @@ importers:
 
   packages/nitro:
     dependencies:
-      '@facilis/analyze':
+      '@facilis.dev/analyze':
         specifier: workspace:*
         version: link:../analyze
-      '@facilis/auth':
+      '@facilis.dev/auth':
         specifier: workspace:*
         version: link:../auth
-      '@facilis/core':
+      '@facilis.dev/core':
         specifier: workspace:*
         version: link:../core
-      '@facilis/db':
+      '@facilis.dev/db':
         specifier: workspace:*
         version: link:../db
-      '@facilis/storage':
+      '@facilis.dev/storage':
         specifier: workspace:*
         version: link:../storage
       drizzle-orm:

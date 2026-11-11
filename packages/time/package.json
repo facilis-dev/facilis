@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/time",
+  "name": "@facilis.dev/time",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis date/time logic: zero-dependency, Intl-based formatting and calendar-day handling with explicit time zones.",
@@ -26,5 +26,24 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/time"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/time#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

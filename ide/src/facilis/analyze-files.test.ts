@@ -36,8 +36,8 @@ describe("isAnalysisPath", () => {
       "src/pages/todos.tsx",
       "src/lib/api.mjs",
       "locales/en.json",
-      "node_modules/@facilis/core/src/index.ts",
-      "node_modules/@facilis/db/package.json",
+      "node_modules/@facilis.dev/core/src/index.ts",
+      "node_modules/@facilis.dev/db/package.json",
     ]) {
       expect(isAnalysisPath(path), path).toBe(true);
     }
@@ -56,8 +56,8 @@ describe("isAnalysisPath", () => {
       "db/schema.test.ts",
       "src/lib/api.spec.ts",
       "node_modules/react/index.js",
-      "node_modules/@facilis/core/dist/index.js",
-      "node_modules/@facilis/core/node_modules/dep/index.ts",
+      "node_modules/@facilis.dev/core/dist/index.js",
+      "node_modules/@facilis.dev/core/node_modules/dep/index.ts",
       "src/node_modules/x/index.ts",
     ]) {
       expect(isAnalysisPath(path), path).toBe(false);

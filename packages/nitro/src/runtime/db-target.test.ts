@@ -1,4 +1,4 @@
-import { defineConfig, type DbMode, type FacilisConfig } from "@facilis/core";
+import { defineConfig, type DbMode, type FacilisConfig } from "@facilis.dev/core";
 import { describe, expect, it } from "vitest";
 
 import { resolveDbTarget } from "./db-target.ts";

@@ -30,7 +30,7 @@ import {
   fileLinks,
   tenantColumn,
   tenantIsolationPolicy,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 export { facilisFiles };
 
@@ -69,15 +69,15 @@ export const facilisFiles = pgTable(
 `;
 
 const FRAMEWORK_SOURCES: Readonly<Record<string, string>> = {
-  "node_modules/@facilis/db/package.json": JSON.stringify(
-    { name: "@facilis/db", type: "module", exports: { ".": "./src/index.ts" } },
+  "node_modules/@facilis.dev/db/package.json": JSON.stringify(
+    { name: "@facilis.dev/db", type: "module", exports: { ".": "./src/index.ts" } },
     null,
     2,
   ),
-  "node_modules/@facilis/db/src/index.ts": `export { facilisFiles, fileLinks } from "./files.ts";\n`,
-  "node_modules/@facilis/db/src/files.ts": FRAMEWORK_SCHEMA,
-  "node_modules/@facilis/db/src/rls.ts": `export function tenantIsolationPolicy(column = "tenant_id") {\n  return column;\n}\n`,
-  "node_modules/@facilis/db/src/tenant-column.ts": `export function tenantColumn(name = "tenant_id") {\n  return name;\n}\n`,
+  "node_modules/@facilis.dev/db/src/index.ts": `export { facilisFiles, fileLinks } from "./files.ts";\n`,
+  "node_modules/@facilis.dev/db/src/files.ts": FRAMEWORK_SCHEMA,
+  "node_modules/@facilis.dev/db/src/rls.ts": `export function tenantIsolationPolicy(column = "tenant_id") {\n  return column;\n}\n`,
+  "node_modules/@facilis.dev/db/src/tenant-column.ts": `export function tenantColumn(name = "tenant_id") {\n  return name;\n}\n`,
 };
 
 function schemaOf(files: Readonly<Record<string, string>>): SchemaResult {
@@ -176,7 +176,7 @@ describe("fileLinks schema facts", () => {
 
   it("defaults the parent column and records an unreadable parent instead of throwing", () => {
     const result = schemaOf({
-      "db/schema.ts": `import { fileLinks } from "@facilis/db";
+      "db/schema.ts": `import { fileLinks } from "@facilis.dev/db";
 import { pgTable, uuid } from "drizzle-orm/pg-core";
 
 export const todos = pgTable("todos", { id: uuid("id").primaryKey() });
@@ -192,7 +192,7 @@ export const looseFiles = fileLinks(missing, { table: "loose_files" });
 
   it("keeps a dynamic table name explicit and falls back to the binding", () => {
     const result = schemaOf({
-      "db/schema.ts": `import { fileLinks } from "@facilis/db";
+      "db/schema.ts": `import { fileLinks } from "@facilis.dev/db";
 import { pgTable, uuid } from "drizzle-orm/pg-core";
 
 export const todos = pgTable("todos", { id: uuid("id").primaryKey() });

@@ -1,6 +1,6 @@
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { constantTimeEqual, randomToken, sha256Hex } from "./crypto.ts";
 import { apiClients, apiTokens, roles, userRoles, users } from "./tables.ts";

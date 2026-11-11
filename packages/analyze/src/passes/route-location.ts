@@ -2,7 +2,7 @@
  * Route file name -> method/path (Nitro's file router, SPEC §4.2).
  *
  * Kept apart from the route pass so the filename rules are testable and the pass stays within
- * the file-length limit. Two deliberate extensions over @facilis/nitro's route-path: every
+ * the file-length limit. Two deliberate extensions over @facilis.dev/nitro's route-path: every
  * HTTP method is recognized, and a method-less file serves ALL methods (Nitro's behavior).
  */
 

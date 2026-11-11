@@ -1,4 +1,4 @@
-import type { AuthContext } from "@facilis/auth";
+import type { AuthContext } from "@facilis.dev/auth";
 
 import type { FacilisRequestEvent } from "./event.ts";
 import {

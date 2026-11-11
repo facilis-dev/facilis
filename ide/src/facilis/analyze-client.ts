@@ -1,7 +1,7 @@
 // Browser-side project analysis for the IDE (task-6, task-10).
 //
 // Reads the active project's DSL surface out of the VFS, hands it to one module worker that
-// runs @facilis/analyze with oxc-parser's wasm binding, and returns the fact model. The
+// runs @facilis.dev/analyze with oxc-parser's wasm binding, and returns the fact model. The
 // contract is throw-free (project-analysis.ts): every failure is an { ok:false, error } the
 // panel renders, so nothing here can take React down.
 //

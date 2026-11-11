@@ -3,7 +3,7 @@ import {
   type JobDefinition,
   type ManifestWarning,
   type WorkflowDefinition,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import type { WorkflowModule } from "./contracts.ts";
 

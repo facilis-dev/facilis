@@ -17,15 +17,15 @@ describe("createModuleGraph", () => {
     expect(graph.resolve("server/routes/api/todos/index.get.ts", "~/db/schema.ts")).toBe(
       "db/schema.ts",
     );
-    expect(graph.resolve("db/schema.ts", "@facilis/auth")).toBe(
-      "node_modules/@facilis/auth/src/index.ts",
+    expect(graph.resolve("db/schema.ts", "@facilis.dev/auth")).toBe(
+      "node_modules/@facilis.dev/auth/src/index.ts",
     );
   });
 
   it("resolves re-exported bindings", () => {
     const graph = fixtureGraph();
     expect(graph.resolveExport("db/schema.ts", "users")).toEqual({
-      file: "node_modules/@facilis/auth/src/index.ts",
+      file: "node_modules/@facilis.dev/auth/src/index.ts",
       name: "users",
     });
   });

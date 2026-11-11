@@ -129,13 +129,13 @@ copies component CSS into `dist/` so tarballs work, and `css.test.ts` enforces t
 
 `examples/design-lab`: the same four screens (auth, dashboard/projects, detail/form, settings)
 in A/B/C, light and dark, switchable. Mock data + client-side interactions: it exists to choose
-the visual line, not to ship. After the choice: tokens move into `@facilis/ui/theme.css`
+the visual line, not to ship. After the choice: tokens move into `@facilis.dev/ui/theme.css`
 (operations + brand theme blocks), primitives are polished against them, then the patterns land
 one by one.
 
 ## Decision status
 
 - **A (green) is the app base — chosen.** Its token set and patterns are promoted into
-  `@facilis/ui`; the gallery and the todo app are restyled against it.
+  `@facilis.dev/ui`; the gallery and the todo app are restyled against it.
 - **Brand layer — still open:** B (violet) or C (warm), each in light and dark. Until that choice,
   auth/empty states use A as well; the brand theme blocks land when the owner picks one.

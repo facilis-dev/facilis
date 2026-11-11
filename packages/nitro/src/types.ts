@@ -1,4 +1,4 @@
-import type { ManifestWarning } from "@facilis/core";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 /** HTTP methods a Facilis route file can declare (SPEC §7.3 RouteMeta.method). */
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

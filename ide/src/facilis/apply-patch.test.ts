@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildProjectContext, type FilePatch, type PatchContext } from "@facilis/ai";
+import { buildProjectContext, type FilePatch, type PatchContext } from "@facilis.dev/ai";
 import { analyzePatchesOf } from "@/ai/analysis-fixtures";
 import { applyPatch, type PatchBridge } from "./apply-patch";
 
@@ -147,7 +147,7 @@ describe("applyPatch", () => {
   });
 });
 
-const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis/core";
+const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },

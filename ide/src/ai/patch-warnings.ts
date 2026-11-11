@@ -5,7 +5,7 @@
 // before Apply but never blocks: the user can accept anyway. Messages are not built here; the
 // UI translates rule + symbol through t().
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 
 export type PatchWarningRule = "node-global" | "server-import";
 
@@ -25,7 +25,7 @@ const BARE_IMPORT = /\bimport\s*["']([^"']+)["']/g;
 const REQUIRE_SPECIFIER = /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g;
 
 const SERVER_MODULES = new Set(["fs", "path", "os", "crypto", "child_process", "drizzle-orm"]);
-const SERVER_PREFIXES = ["@facilis/db", "@facilis/auth", "@facilis/nitro"];
+const SERVER_PREFIXES = ["@facilis.dev/db", "@facilis.dev/auth", "@facilis.dev/nitro"];
 
 const STRING_QUOTES = new Set(['"', "'", "`"]);
 

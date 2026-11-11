@@ -30,9 +30,15 @@ export const projectGraphEn = {
   "projectGraph.edge.routeView": "Route → view",
   "projectGraph.edge.viewBase": "View → base",
   "projectGraph.edge.elevated": "Route → table (elevated)",
+  "projectGraph.systemFilters": "System",
+  "projectGraph.systemRoutes": "System routes",
+  "projectGraph.systemTables": "Unused system tables",
+  "projectGraph.systemHint":
+    "Framework-provided routes (auth, jobs, workflows, files) and framework tables that none of your routes uses. Hide them to keep the graph readable.",
   "projectGraph.stats":
     "{pages} pages · {routes} routes · {tables} tables · {views} views · {workflows} workflows · {edges} edges",
   "projectGraph.hiddenEdges": "{count} hidden",
+  "projectGraph.hiddenNodes": "{count} hidden nodes",
   "projectGraph.matches": "{count} matched",
   "projectGraph.noMatches": "No node matches the search.",
   "projectGraph.legend": "Legend",

@@ -1,5 +1,5 @@
 import { defineHandler } from "nitro";
-import { summarizeManifest, type ManifestSection } from "@facilis/core";
+import { summarizeManifest, type ManifestSection } from "@facilis.dev/core";
 
 import { guardDevRequest } from "../runtime/http-guard.ts";
 import { jsonResult, parseRequestUrl, toResponse } from "../runtime/http.ts";

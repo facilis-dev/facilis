@@ -6,7 +6,7 @@ so they are not re-litigated or lost.
 
 Format: `D-0NN — title` · **status** (accepted / open) · context · decision · consequences.
 
-**Reading guide.** Start with the newest entries (D-142…D-162); the rest is history that still
+**Reading guide.** Start with the newest entries (D-142…D-164); the rest is history that still
 explains the current code. A handful of decisions are superseded by a later one — D-017
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
 (→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149, while
@@ -44,10 +44,10 @@ is part of lint, not an optional advisory.
 
 The Studio we fork (Vivari) uses **Tailwind CSS v4 + shadcn/ui (`base-nova`) + Base UI
 primitives** and React 19. Facilis follows that stack for Studio **and** for
-`@facilis/blocks`/generated pages. The spec/README wording "Radix UI" was replaced
+`@facilis.dev/blocks`/generated pages. The spec/README wording "Radix UI" was replaced
 accordingly (§2.1, §5.4, README).
 
-**Consequences:** styling is Tailwind utility-first; `@facilis/blocks` assume Tailwind is
+**Consequences:** styling is Tailwind utility-first; `@facilis.dev/blocks` assume Tailwind is
 present in the generated app; no second component system is introduced.
 
 ### D-004 — Docs hygiene
@@ -78,7 +78,7 @@ framework code depends on them (spec §12 Phase 0, §14.1). The Phase 0 spike wa
 Phase 0 proved that Nitro's route-meta scanner only recognises a **top-level**
 `defineRouteMeta(...)`; the call inside `defineAuthorizedHandler` is invisible, so
 `x-db-tables` never reaches `/_openapi.json` natively (A16 = fail). The fallback required
-by spec §13 risk 3 is therefore **adopted as the design**: `@facilis/nitro` ships a
+by spec §13 risk 3 is therefore **adopted as the design**: `@facilis.dev/nitro` ships a
 framework-owned AST pass (statically reads the wrapper config into a virtual module) plus a
 facade that merges the metadata into Nitro's generated spec at `/_openapi.json`.
 Nitro's own spec moves to the internal dev-only route `/_facilis/openapi.json`.
@@ -94,7 +94,7 @@ Postgres ORs multiple permissive policies per command, so the spec's verbatim po
 (§8.4.5) let a manager see all tenant rows and an admin cross tenants. Adopted:
 tenant isolation is `AS RESTRICTIVE` (always AND-ed), and role GUC reads use
 `nullif(current_setting('app.roles', true), '')` before casting to jsonb (after `RESET`
-the GUC is `''`, and `''::jsonb` throws). Spec §8.4.5 updated; `@facilis/db`'s RLS
+the GUC is `''`, and `''::jsonb` throws). Spec §8.4.5 updated; `@facilis.dev/db`'s RLS
 generator must emit this shape. PGlite is a superuser and bypasses RLS, so tests must
 `SET ROLE` to a non-superuser.
 
@@ -119,7 +119,7 @@ package:
 - `nitro()` returns a `Plugin[]`, and `defineHandler` is an identity wrapper (a plain
   async function is a valid route handler).
 
-**Consequences:** `@facilis/nitro` implements the plain-object module; the spec snippets are
+**Consequences:** `@facilis.dev/nitro` implements the plain-object module; the spec snippets are
 corrected in the Phase 1 docs pass. No behaviour change to the design.
 
 ### D-011 — Vivari Studio is a vendored fork in `studio/`
@@ -145,8 +145,8 @@ WebContainer-capable browser harness exists.
 ### D-012 — Phase 1 work split, branch and PR strategy
 **Status:** accepted (2026-10-25)
 
-Phase 1 is split into four disjoint write scopes (one shared task each): `@facilis/core`,
-`@facilis/db` + `@facilis/auth`, `@facilis/nitro`, and the `studio/` fork. Module boundaries
+Phase 1 is split into four disjoint write scopes (one shared task each): `@facilis.dev/core`,
+`@facilis.dev/db` + `@facilis.dev/auth`, `@facilis.dev/nitro`, and the `studio/` fork. Module boundaries
 and exact public APIs are fixed in `docs/archive/PHASE1-CONTRACTS.md` so the packages can be built in
 parallel without import cycles: `db` (leaf) <- `auth` <- `core` <- `nitro`; `core`, `auth`
 and `db` never import `nitro`/`vite`/`h3` (they type handlers against a structural event).
@@ -167,7 +167,7 @@ every permission a role references must be declared, `"*"` is valid only as a ro
 full `FacilisConfig`.
 
 **Consequences:** `facilis.config.ts` stays short, typos fail at boot with a readable error,
-and `@facilis/nitro`/`@facilis/db` always consume the resolved shape.
+and `@facilis.dev/nitro`/`@facilis.dev/db` always consume the resolved shape.
 
 ### D-014 — RLS enforcement identity, auth lookups and role policies
 **Status:** accepted (2026-10-25)
@@ -224,7 +224,7 @@ Deviations accepted while getting there:
 
 A Vite config is loaded by **Node's native ESM loader**, which does type stripping but requires
 explicit extensions. Because packages export their `src`, the plugin entry graph
-(`@facilis/nitro/vite` -> core/db/auth) must be loadable that way. Adopted: relative imports
+(`@facilis.dev/nitro/vite` -> core/db/auth) must be loadable that way. Adopted: relative imports
 inside `packages/*/src` carry `.ts`, with `allowImportingTsExtensions` +
 `rewriteRelativeImportExtensions` so `tsc` rewrites them to `.js` on emit. `tsconfig.base.json`
 also sets `types: ["node"]` (source-exporting packages are typechecked by their consumers, so
@@ -302,7 +302,7 @@ and the domain is short enough to say out loud.
 facilis.ai agentic manufacturing, Facilisgroup), so the wordmark alone is not searchable.
 
 **Consequences:** every page title carries a descriptor ("Facilis — …"); `www` 301s to the apex;
-docs stay on the apex path until they outgrow it; GitHub org, npm scope `@facilis` (O-006),
+docs stay on the apex path until they outgrow it; GitHub org, npm scope `@facilis.dev` (O-006),
 social handles and `hello@facilis.dev` must be claimed early. Site strategy — including the
 two-pillar message architecture — lives in [`docs/WEBSITE.md`](./WEBSITE.md) (W-1, W-9).
 
@@ -346,11 +346,12 @@ A6 and A8-A12 that were waiting on a harness.
 ### D-022 — Facilis projects install with pnpm only, from IDE-served tarballs
 **Status:** superseded by D-032 (2026-10-29); kept for the investigation it records
 
-A generated Facilis project installs `@facilis/*` from `pnpm pack` tarballs served by the
+A generated Facilis project installs `@facilis.dev/*` from `pnpm pack` tarballs served by the
 IDE origin, and it does so with **pnpm only**. Both halves are forced by the WebContainer,
 not preferences:
 
-- **Tarball delivery.** The packages are workspace-only (O-006), so the template declares
+- **Tarball delivery.** The packages were workspace-only when this decision was taken (O-006,
+  resolved by D-164), so the template declares
   them as `http://host.vivari.internal:<studio-port>/vendor/facilis/facilis-<pkg>-0.0.0.tgz`.
   It cannot use the studio origin verbatim: the kernel's virtual network owns loopback, so
   `127.0.0.1:<port>` inside the VM is the VM, and npm/pnpm get `ECONNREFUSED`. The kernel's
@@ -373,7 +374,7 @@ split (a vendor change, not ours). The kernel's dependency cache is namespaced p
 manager and snapshots `node_modules` by package.json hash, so a **second Facilis project in
 the same browser restores it in one blob instead of reinstalling** — the cross-project cache
 this decision leans on. Each headless smoke run still starts from a fresh profile, so it pays
-a cold install (prebuilt `vendor/depcache` is the later optimisation). Switching `@facilis/*`
+a cold install (prebuilt `vendor/depcache` is the later optimisation). Switching `@facilis.dev/*`
 to published packages changes the dependency specs only; pnpm stays the installer.
 
 ### D-023 — Packed Facilis tarballs expose compiled dist
@@ -382,9 +383,9 @@ to published packages changes the dependency specs only; pnpm stays the installe
 The generated project's Vite config is loaded with `--configLoader native` (Vite's own config
 bundler cannot run in the WebContainer), and a native ESM loader refuses to strip types from
 files under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). The config imports
-`@facilis/nitro/vite`, so that entry must be JavaScript. `pnpm ide:facilis-deps` therefore
+`@facilis.dev/nitro/vite`, so that entry must be JavaScript. `pnpm ide:facilis-deps` therefore
 builds each package, packs it, and rewrites the packed manifest's `exports` from `./src/*.ts`
-to `./dist/*.js`; the workspace source keeps its `src` entry points. `@facilis/nitro` also
+to `./dist/*.js`; the workspace source keeps its `src` entry points. `@facilis.dev/nitro` also
 derives its Nitro handler file paths from the extension of its own module (`RUNTIME_EXT`),
 because a dist build previously registered `dist/routes/*.ts` handlers that do not exist.
 
@@ -483,7 +484,7 @@ pinned by the file-length ratchet.
 `controller.ts` cannot grow (ratchet). It is therefore a function in
 `ide/src/facilis/apply-patch.ts` taking the controller's bridge and folder root — which is
 also what AGENTS.md asks for ("isolate Facilis changes in new modules"). It validates with
-`@facilis/ai`'s `validatePatch` before any write (security invariant 9), writes
+`@facilis.dev/ai`'s `validatePatch` before any write (security invariant 9), writes
 sequentially through the kernel bridge (SPEC §10.3), and returns the refreshed manifest
 revision. The read side is `ide/src/facilis/manifest-client.ts` (SPEC §6), throw-free
 so a booting or broken project renders as "unreachable" instead of taking the editor down.
@@ -523,7 +524,7 @@ and/or bump `monaco-editor` once upstream stops spreading non-cloneable diagnost
 **Status:** accepted (2026-10-28)
 
 SPEC §4 lists a `starter/` template that users clone. Today every Facilis project installs
-`@facilis/*` from tarballs the IDE serves on its own origin (D-022), and those URLs are only
+`@facilis.dev/*` from tarballs the IDE serves on its own origin (D-022), and those URLs are only
 reachable from inside the WebContainer. A committed `starter/` tree would declare dependencies
 nobody outside the IDE can install — a copy that rots instead of a starter.
 
@@ -534,6 +535,9 @@ template payload is the single source of truth.
 
 **Consequences:** the Phase 2 "starter" item is a publish-time task, not a UI one — the same
 decision as O-006, not a new one.
+
+**Amended by D-164:** the publish target is public npm and the packages are installable by name,
+so the starter is unblocked.
 
 ---
 
@@ -715,7 +719,7 @@ inside the VM. Two measurements changed the calculus.
   on 2026-10-28). A developer-facing IDE shipping a
   2025 package manager against a 2026 `latest` is exactly the "already old" signal we refuse
   to ship, and no version bump fixes it.
-- **The URL dependency was never necessary.** The four `@facilis/*` tarballs are static files
+- **The URL dependency was never necessary.** The four `@facilis.dev/*` tarballs are static files
   the IDE already serves (17-57 KB each). The IDE fetches them at create time (template
   `manifest.assets`) and inlines them into the create request, so they land in the project's
   `./vendor`, which declares them as `file:` dependencies. The install touches no HTTP at all — no agent/egress split, no host
@@ -738,19 +742,19 @@ Node" becomes a maintenance routine we own (bump the version, rebuild the pack, 
 smokes; the vendoring patch to Arborist's `#loadPeerSet` is the only coupling, and it fails
 loudly when npm refactors it). pnpm remains in the VM only as the tool rolldown invokes for
 its wasm binding inside a Vite 8 project (`pnpm i @rolldown/binding-wasm32-wasi`): pinned,
-internal, and carrying no version promise. The `@facilis/*` `file:` specs are interim —
+internal, and carrying no version promise. The `@facilis.dev/*` `file:` specs are interim —
 when the packages are published (O-006) the dependency specs change and nothing else does.
 
 
 **Follow-up (2026-10-29, same day): npm re-derives a RELATIVE `file:` target, and that broke
 installs.** The first generated projects failed with
-`npm warn tarball ... @facilis/auth@file:../../../../user/projects/<name>/vendor/...` and then
+`npm warn tarball ... @facilis.dev/auth@file:../../../../user/projects/<name>/vendor/...` and then
 `ENOENT /user/projects/<name>/vendor/...`: the `package.json` on disk was correct
 (`file:./vendor/...`) and `path.resolve` inside the VM was correct, but npm normalizes a
 relative `file:` dependency by storing `file:` + `path.relative(where, resolvedPath)`
 (`npm-package-arg`) and reading that back — in that environment the re-derived target lost
 `/home` and every install retried a file that exists. The project's specs are now **resolved
-before npm runs**: `scripts/vendor-paths.cjs` rewrites the four `@facilis/*` dependencies to
+before npm runs**: `scripts/vendor-paths.cjs` rewrites the four `@facilis.dev/*` dependencies to
 absolute tarball paths (and refuses a project whose `vendor/` assets are missing), and the
 template's install command is `node scripts/vendor-paths.cjs && npm install`, so the IDE's Run
 and a later bare `npm install` both work. The specs stay relative *in the template* (a project
@@ -854,14 +858,14 @@ wrong (SPEC §13 risk 12).
 Nitro in `vite.config.ts`.
 
 - `facilis.config.ts` gains an optional **`nitro`** section: pass-through Nitro options, which
-  `@facilis/core` validates only as an object (`FacilisNitroOptions =
+  `@facilis.dev/core` validates only as an object (`FacilisNitroOptions =
   Readonly<Record<string, unknown>>`) because they are Nitro's options, not the framework's. A
   project declares only what it overrides.
 - Facilis applies the framework defaults underneath — `serverDir: "./server"` and
-  `experimental.openAPI: true` — in `@facilis/nitro`'s `mergeNitroOptions`, deep-merged for
+  `experimental.openAPI: true` — in `@facilis.dev/nitro`'s `mergeNitroOptions`, deep-merged for
   plain objects (so `experimental: { openAPI: false }` flips that switch and keeps the rest of
   the block).
-- `facilis()` from `@facilis/nitro/vite` **mounts Nitro itself**: it returns
+- `facilis()` from `@facilis.dev/nitro/vite` **mounts Nitro itself**: it returns
   `FacilisPlugins = [FacilisVitePlugin, ...Plugin[]]` — the Facilis plugin first
   (`name: "facilis"`, `enforce: "pre"`, carrying the Nitro module on its `nitro` key),
   followed by `nitro()`'s plugins.
@@ -869,7 +873,7 @@ Nitro in `vite.config.ts`.
   dynamic import and returns `{ nitro: mergeNitroOptions(config.nitro) }`. `enforce: "pre"`
   makes its config hook run before Nitro's, so Nitro boots with those options and the order
   inside the user's `plugins` array cannot matter.
-- `@facilis/nitro` value-imports `nitro/vite`, so `nitro` is a **required** peer dependency
+- `@facilis.dev/nitro` value-imports `nitro/vite`, so `nitro` is a **required** peer dependency
   (`vite` stays optional: only the `/vite` entry needs it).
 
 **Consequences:** the generated project, the starter and `examples/todo-app` ship no
@@ -1038,7 +1042,7 @@ does not survive this Nitro dev path, while a header staged on the event is merg
 final response by h3 itself and does.
 
 **Decision:** routes set or clear cookies with the framework's `setSessionCookie` /
-`clearSessionCookie` helpers (`@facilis/nitro/session`), which call h3's `setCookie` /
+`clearSessionCookie` helpers (`@facilis.dev/nitro/session`), which call h3's `setCookie` /
 `deleteCookie`. h3 serialises the attributes and writes them to the event's response headers —
 the same surface the first fix's manual `set("set-cookie", …)` used, but with append semantics
 (a cookie another handler staged on that response is not clobbered) and one attribute set
@@ -1049,11 +1053,11 @@ and the list reads the row back.
 
 Hand-rolling the `Set-Cookie` string was the wrong level: h3 already owns cookie serialisation
 and the append rule, and the framework helper is where the h3 import belongs. It is a separate
-entry point (`@facilis/nitro/session`) because core's route contract is h3-free (contracts §4.1):
+entry point (`@facilis.dev/nitro/session`) because core's route contract is h3-free (contracts §4.1):
 the single `FacilisRequestEvent` → `H3Event` narrowing lives in the helper, so handlers and
 generated apps never import h3.
 
-**Consequences:** any Facilis app sets cookies through `@facilis/nitro/session`, never through a
+**Consequences:** any Facilis app sets cookies through `@facilis.dev/nitro/session`, never through a
 returned `Response` — a route returning its own `Response` with `Set-Cookie` looks successful and
 logs the user out on the next request in the WebContainer. Acceptance:
 `TEMPLATE=Facilis pnpm ide:smoke` asserts the session, the insert and the query
@@ -1079,7 +1083,7 @@ synthesises `import.meta.url` from the module id it was handed. A non-absolute i
 `fileURLToPath` then yields `/user/projects/…`, outside the tree. Its CJS build resolves the
 same artifacts from `__filename`, which stays an absolute VFS path.
 
-**Decision:** `@facilis/db` loads `@electric-sql/pglite` through `createRequire` — the CJS build
+**Decision:** `@facilis.dev/db` loads `@electric-sql/pglite` through `createRequire` — the CJS build
 — instead of an ESM `import` (resolved from this module's URL first, the project root second).
 That is also the vendor's documented in-VM rule (`vendor/vivari/AGENTS.md`, "In-VM databases"):
 PGlite must be required via its CJS build.
@@ -1120,7 +1124,7 @@ value the deployment does not own.
    (`FACILIS_TENANT_ID`, else `DEFAULT_TENANT_ID`) for anonymous and authenticated requests alike.
    `AuthContext` carries no `tenantId`, and `sessionMiddleware` refuses a session whose user row
    names another tenant, so no session, request or row value can widen or change the scope.
-2. **Storage.** `@facilis/db` exports `tenantColumn()` — a `uuid` `NOT NULL` column whose
+2. **Storage.** `@facilis.dev/db` exports `tenantColumn()` — a `uuid` `NOT NULL` column whose
    `DEFAULT` is `nullif(current_setting('app.tenant_id', true), '')::uuid`, exactly the expression
    the RLS policies read. A scoped table declares `tenantId: tenantColumn()`; inserts do not name
    the tenant at all (Drizzle marks defaulted columns optional in its insert type), and the
@@ -1161,7 +1165,7 @@ drive spec and does not have exactly three slashes is parsed as a UNC path, so t
 segment becomes the **host**), so on Windows the URL is `file://home/…` with pathname
 `/user/…`, and the fork's strict `fileURLToPath` (D-039) refuses it, loudly.
 
-**Interim decision (2026-10-31, removed):** `@facilis/db` read the three artifacts beside the
+**Interim decision (2026-10-31, removed):** `@facilis.dev/db` read the three artifacts beside the
 resolved CJS entry (an absolute VFS path, no URL parsing) and passed them to PGlite:
 `fsBundle` (the `pglite.data` bytes as a `Blob`), `pgliteWasmModule` and
 `initdbWasmModule` (`WebAssembly.Module`), so the database no longer depended on how a
@@ -1188,7 +1192,7 @@ evidence) recovers `"/" + hostname + pathname`, with no join for a bare `/` path
 `Bun.file(URL)`, which now shares the rule through `createBunFile` instead of stripping a
 `file://` prefix into a relative path. Three-slash URLs, `localhost` and the non-file-scheme
 error are unchanged; the one deliberate deviation from Node is that a real UNC URL maps to
-`/server/share` instead of throwing. With that pin, `@facilis/db` is back to the plain
+`/server/share` instead of throwing. With that pin, `@facilis.dev/db` is back to the plain
 constructor (`new PGlite({ dataDir })`): the artifact hand-off and the one-boot recovery shim
 are deleted, and the database locates its own `.data`/`.wasm` again.
 
@@ -1197,7 +1201,7 @@ shim, and the fix covers every hostful `file:` URL in the VM (PGlite, any other 
 module, `Bun.file`), where the shim covered one boot of one library. Acceptance: `pnpm test`
 (db), the gates, and `TEMPLATE=Facilis pnpm ide:smoke` with
 `facilisDbInsert`/`facilisDbQuery` = ok; a project created before the bump keeps working,
-because the runtime — not the `@facilis/db` tarball — carries the fix.
+because the runtime — not the `@facilis.dev/db` tarball — carries the fix.
 
 ### D-042 — The controller is a facade; each subsystem is a session object
 **Status:** accepted (2026-10-31)
@@ -1235,7 +1239,7 @@ checklist lives in `ide/I18N.md`).
 
 **Strings.** Every user-facing string in `ide/` goes through `t()` from `ide/src/i18n`, with
 its text in `ide/src/i18n/en.ts` and (where translated) `ide/src/i18n/it.ts`. The runtime is the
-framework's own i18n (`@facilis/core/i18n`: flat keys per O-001, `{placeholder}` interpolation, a
+framework's own i18n (`@facilis.dev/core/i18n`: flat keys per O-001, `{placeholder}` interpolation, a
 missing key returns the key and is reported once) — the IDE imports that **subpath** so the
 static SPA bundle does not pull the framework's zod/db modules. `it` may be partial: at boot
 `registerCatalog("it", { ...en, ...it })` makes a missing translation fall back to English key
@@ -1354,14 +1358,14 @@ output in the chat instead of guessing.
 from the project, `fileDiff` renders a unified diff with three lines of context (capped at 400
 rendered lines per file — a UI budget, not a security limit), and every file is accepted by
 default but can be unchecked. Apply sends **only the accepted patches** through
-`applyPatch()`, which re-validates them (`@facilis/ai`) and writes through the kernel bridge —
+`applyPatch()`, which re-validates them (`@facilis.dev/ai`) and writes through the kernel bridge —
 never OPFS — then refreshes the framework revision. Failures are reported per file; a partially
 applied patch is shown as such and is not retried blindly. `requires_confirmation` is surfaced as
 a banner on destructive turns; it is not yet a blocking modal.
 
 **Scope now vs Phase 4.** Only the structural validator rules (`file-path-allowed`,
 `content-present`) are enforced today. The other 14 SPEC §9.3 rules need a TypeScript program,
-the manifest and the O-009 path allowlist; they land in `@facilis/ai` and are called from the
+the manifest and the O-009 path allowlist; they land in `@facilis.dev/ai` and are called from the
 same `parseAiResponse`/`applyPatch` seam. At the time the SPEC §9.4 retry loop was not
 implemented: a failure was reported in the chat and the user re-asked (implemented later,
 D-100). Neither gap weakens invariant 9 — the model still writes nothing on its own.
@@ -1532,7 +1536,7 @@ AI, and no product surface the framework cannot support. The trade-off is that i
 existing non-Facilis project (folder/GitHub/npm) still works as an editor, but the IDE no
 longer scaffolds one.
 
-**Verification:** `pnpm --filter @facilis/ide typecheck|test` (the asset tests build the Facilis
+**Verification:** `pnpm --filter @facilis.dev/ide typecheck|test` (the asset tests build the Facilis
 template directly); `pnpm lint` (the file-length ratchet and theme check no longer exempt the
 deleted files); `pnpm ide:smoke` drives the new dialog and the framework probes.
 
@@ -1549,8 +1553,8 @@ cluster, so it would cross the VFS/OPFS mirror per file and replay on every proj
 
 **Decision.** Keep the cluster in memory and persist one snapshot at
 `<project>/.facilis/db/snapshot.tar.gz`. On boot the runtime reads it (if present) and
-passes it to `createDb({ loadSnapshot })`; `@facilis/db` exposes `snapshot()` and a
-monotonic `activity()` count, and `@facilis/nitro` installs a snapshotter that dumps only
+passes it to `createDb({ loadSnapshot })`; `@facilis.dev/db` exposes `snapshot()` and a
+monotonic `activity()` count, and `@facilis.dev/nitro` installs a snapshotter that dumps only
 when the cluster changed, from a 1 s ticker, and writes atomically (temp + rename).
 Migrations are tracked by statement hash (`migrator.ts`), so a restored cluster re-applies
 only new migrations. A corrupt or incompatible snapshot is a manifest warning and the
@@ -1587,7 +1591,7 @@ S3-compatible bucket with the key `blobs/<hash>`. One Signature V4 driver covers
 Cloudflare R2 and MinIO (endpoint + path style for the latter two); signing and presigning
 are implemented on `node:crypto` + `fetch` — no AWS SDK in the framework.
 
-**Package.** `@facilis/storage` exports `contentHash`, `createLocalStorage`,
+**Package.** `@facilis.dev/storage` exports `contentHash`, `createLocalStorage`,
 `createS3Storage` (`StorageDriver`: `put/get/exists/delete`, plus `signedGetUrl` on S3)
 and the token helpers. Access control is not the driver's job: it never exposes the store
 root, and the app's proxy route decides who may read a blob.
@@ -1601,7 +1605,7 @@ work without a cookie; every mutation stays session-authenticated. The token is 
 enough for URLs but readable (not encrypted); any change breaks the signature.
 
 **Metadata and attachment.** `facilis_files` (id, hash, name, mime, size, owner_id,
-tenant_id, created_at) ships from `@facilis/db` with a restrictive tenant policy; access
+tenant_id, created_at) ships from `@facilis.dev/db` with a restrictive tenant policy; access
 to the bytes is decided by the routes that issue tokens. An entity "contains" files through
 a generated link table: `fileLinks(todos, { table: "todo_files", column: "todo_id" })`
 returns a table with cascading FKs to the parent row and `facilis_files`, a restrictive
@@ -1664,7 +1668,7 @@ dimmed only when a rule actually ignores them.
 **Verification.** `workspace-index.test.ts` pins root and nested rules, negation, anchoring,
 directory-only patterns, the unreadable-`.gitignore` fallback and the ignored-ancestor
 prefix; `search-session.test.ts` pins the batch filter and the recomputed counts;
-`pnpm --filter @facilis/ide typecheck|test|build`; `pnpm ide:smoke`.
+`pnpm --filter @facilis.dev/ide typecheck|test|build`; `pnpm ide:smoke`.
 
 ### D-055 — The base UI kit is plain CSS + daisyUI-style role variables
 **Status:** accepted (2026-10-31); superseded for new projects by **D-090** — template v2 ships
@@ -1674,7 +1678,7 @@ for projects created before D-090, the UI gallery and the design lab.
 Generated projects need a small set of base components (table, toaster, inputs, fields,
 badge, alert) that a project can use, restyle or copy. The kit must work in the project the
 IDE generates today — a plain Vite + React app with no CSS framework installed — and as a
-tarball with no build configuration (D-023/D-032). It therefore ships as `@facilis/ui`:
+tarball with no build configuration (D-023/D-032). It therefore ships as `@facilis.dev/ui`:
 **plain CSS classes (`.fc-*`) plus one block of role variables**, not Tailwind utilities.
 This keeps the whole component copy-pasteable (the directive's "recreate it if you need
 more") and leaves Tailwind to the app for its own layout.
@@ -1688,7 +1692,7 @@ more") and leaves Tailwind to the app for its own layout.
 per-component colour/radius props.
 
 **Consequences:** the kit is usable without Tailwind and works with any stack the project
-chooses; `@facilis/blocks` may still be Tailwind/shadcn (D-003) because it builds app screens
+chooses; `@facilis.dev/blocks` may still be Tailwind/shadcn (D-003) because it builds app screens
 on top of the base kit. Deep customisation is "copy the component and its `.fc-*` rules into
 the project", not a configuration system.
 
@@ -1697,7 +1701,7 @@ the project", not a configuration system.
 
 The framework must not add a date library (bundle + in-VM install cost) and cannot rely on
 Temporal: it is not in Node 22/24 and is not guaranteed in the WebContainer browser. The base
-logic therefore lives in a zero-dependency `@facilis/time` package built only on `Intl`:
+logic therefore lives in a zero-dependency `@facilis.dev/time` package built only on `Intl`:
 
 - formatting takes `{ locale, timeZone }` explicitly (runtime zone only as a documented
   default); instants are `Date`/ISO strings;
@@ -1714,7 +1718,7 @@ that needs recurring rules, duration math or a picker writes/copies that on top.
 
 "Translatable texts in the DB" means **a text stored in a row can carry several languages,
 and the app serves only the user's language** — e.g. `{ en: "Todo", it: "Fare" }` on a
-product/blog row. It is not a switch for the UI catalogue. `@facilis/i18n-db` is an opt-in
+product/blog row. It is not a switch for the UI catalogue. `@facilis.dev/i18n-db` is an opt-in
 package with two independent pieces; a project imports what it needs.
 
 **A. Translated content fields (primary).**
@@ -1734,10 +1738,10 @@ package with two independent pieces; a project imports what it needs.
   drizzle.
 
 **B. Catalogue overlay (optional).** UI message keys can be overridden per deployment through
-the tenant-scoped `i18n_messages` table; the JSON catalogues of `@facilis/core/i18n` stay the
+the tenant-scoped `i18n_messages` table; the JSON catalogues of `@facilis.dev/core/i18n` stay the
 base and a per-key fallback. The table needs the restrictive tenant policy **and** the
 permissive tenant gate `i18n_messages_tenant_access` — a restrictive-only policy admits no
-rows (D-008), the same reason `@facilis/auth` has `users_tenant_access`. It ships a public
+rows (D-008), the same reason `@facilis.dev/auth` has `users_tenant_access`. It ships a public
 `loadCatalogs` and the project writes the explicit `defineAuthorizedHandler` route (the AST
 pass cannot see a re-exported handler, so the route metadata would be lost). `hydrateCatalogs`
 on the client merges the DB rows over the JSON per key and registers the catalogues.
@@ -1756,7 +1760,7 @@ reference implementation is `examples/todo-app` (real Nitro/PGlite backend), and
 
 **Layers.** `src/pages/*` = one component per route (data fetching + `Page` header, no shell
 markup); `src/layouts/*` = page shells composed with the project's router and session;
-`src/components/*` = app-specific pieces (promoted to `@facilis/ui` only when generic and
+`src/components/*` = app-specific pieces (promoted to `@facilis.dev/ui` only when generic and
 themeable through role variables); `src/lib/*` = framework-free logic (`api`, `session`,
 `theme`, `i18n`, `dates`) whose pure helpers take their inputs and are unit-tested.
 
@@ -1770,10 +1774,10 @@ errors map to `t("errors.<code>")`. Session = the framework cookie, loaded once 
 `SessionProvider` with `RequireAuth`/`PublicOnly` guards. Theme = `data-theme` on `<html>`
 with a stored preference (the kit stays variable-driven, D-055). i18n = project JSON
 catalogues registered at boot, persisted locale with a switcher, optional
-`hydrateCatalogs` overlay (D-057). Dates = `@facilis/time` with the user's zone, never
+`hydrateCatalogs` overlay (D-057). Dates = `@facilis.dev/time` with the user's zone, never
 `Date#toLocaleString`.
 
-**UI templates in the kit.** Neutral shells live in `@facilis/ui`: `Page` (header +
+**UI templates in the kit.** Neutral shells live in `@facilis.dev/ui`: `Page` (header +
 content), `AuthShell` (centred auth card), `EmptyState`, `Spinner`. Navigation-aware shells
 (sidebar/user menu) stay in the project, because they need the router and the session.
 
@@ -1796,7 +1800,7 @@ rendered with A; when chosen, its complete theme blocks are added alongside the 
 and auth/onboarding/empty states opt into them.
 
 **Consequences:** the kit keeps one component set with role-based tokens; the lab's A tokens and
-pattern CSS are promoted into `@facilis/ui/theme.css`, the existing primitives are polished
+pattern CSS are promoted into `@facilis.dev/ui/theme.css`, the existing primitives are polished
 (no API changes), the lab patterns (Card, StatCard, Tabs, Dialog, Switch, Avatar, Pagination,
 TableToolbar, Menu, Skeleton) become kit components, and the gallery + todo app are restyled as
 the first acceptance. Brand names stay out of the docs and code.
@@ -1826,7 +1830,7 @@ organised. This is the structure new components and the IDE template follow.
 **Status:** accepted (2026-11-01)
 
 Owner asked for a rich text editor ("markdown is fine") and a component to manage the
-multi-language value of a text. Both ship in `@facilis/ui` as content components:
+multi-language value of a text. Both ship in `@facilis.dev/ui` as content components:
 `MarkdownEditor` + `Markdown` (renderer) and `TranslationsInput`.
 
 **Decision.** The editor is Markdown source, not WYSIWYG: a toolbar transforms the real
@@ -1838,7 +1842,7 @@ HTML stays text, and link targets are limited to `http(s)`, `mailto:`, `#` and r
 URLs, so previewing untrusted content cannot inject markup. No new dependency.
 
 `TranslationsInput` edits `Translations = Readonly<Record<string, string>>`, the same shape
-`@facilis/i18n-db` stores (D-057) but declared in the kit instead of importing the server
+`@facilis.dev/i18n-db` stores (D-057) but declared in the kit instead of importing the server
 package. Locales come from the project config (`locales`, tab order); `availableLocales`
 feeds the add-language action; the default locale is marked and cannot be removed; tabs
 carry a filled/empty dot so missing translations are visible. It is a client input only —
@@ -1853,8 +1857,8 @@ into `translatedText`/`resolveTranslation` unchanged.
 **Status:** accepted (2026-11-01). The template's UI is v2 since **D-090**; the single-source rule
 below is unchanged.
 
-The base kit restyled and reorganised `examples/todo-app` (pages/layouts/lib, `@facilis/ui`,
-`@facilis/time`, router), but the IDE still scaffolded its own probe app: different client
+The base kit restyled and reorganised `examples/todo-app` (pages/layouts/lib, `@facilis.dev/ui`,
+`@facilis.dev/time`, router), but the IDE still scaffolded its own probe app: different client
 files, plain CSS, no kit, no router. The starter users get and the reference app they should
 copy had drifted apart, and the base-kit contract left the wiring explicitly out of scope
 ("wiring the packages into the IDE template" was reported, not done).
@@ -1864,7 +1868,7 @@ copy had drifted apart, and the base-kit contract left the wiring explicitly out
 `locales/`, `index.html`, `vite.config.ts` and `facilis.config.ts` through
 `import.meta.glob(..., { query: "?raw" })`; `facilis-template.ts` then assembles example files
 + IDE wrappers + a small override map (`template-overrides.ts`). The wrappers are the only
-files written by hand: `package.json` (built from the example's versions, with `@facilis/*`
+files written by hand: `package.json` (built from the example's versions, with `@facilis.dev/*`
 rewritten to vendored tarballs plus the in-VM extras), the standalone `tsconfig.json`,
 `.npmrc`, README and the npm hooks. The overrides are the few places the IDE cannot take the
 example verbatim: add the HMR hint plus its `.muted` style to `app.tsx`/`styles.css`, and
@@ -1878,13 +1882,13 @@ framework endpoints from the IDE page against the preview's same-origin
 `/preview/<port>/` base (so the session cookie the login sets applies), which keeps a
 user's starter free of test instrumentation — it never auto-registers a probe user or
 inserts probe rows. The only IDE-only route is the public liveness `ping` the write smoke
-edits. `@facilis/time` and `@facilis/ui` join the vendored tarball set
+edits. `@facilis.dev/time` and `@facilis.dev/ui` join the vendored tarball set
 (`TEMPLATE_PACKAGES`, `scripts/dev/vendor-facilis-deps.sh`), and `ide/vitest.config.ts`
 enables `test.css` so `?raw` CSS is real in tests instead of Vitest's empty stub.
 
 Two supporting fixes came out of making the starter real. The IDE language service now uses
 TypeScript's `Bundler` module resolution instead of classic NodeJs: the generated app imports
-its own packages through `exports` maps (`@facilis/ui`, `@facilis/core/i18n`), which node10
+its own packages through `exports` maps (`@facilis.dev/ui`, `@facilis.dev/core/i18n`), which node10
 ignores — every such import would be a red TS2307 in the editor, and the IntelliSense smoke
 now proves it does not. The vendor packer, in turn, mirrors each package's root export as
 `main`/`types` and rewrites `.d.ts` relative specifiers to the emitted `.js` (and drops CSS
@@ -1895,11 +1899,11 @@ resolved out of `dist/`.
 generated app opens on the todo login page rather than a probe page; the smoke's HMR edit now
 targets `src/app.tsx`. The generated `vite.config.ts` keeps the example's dev-vhost
 `allowedHosts` (dev-only, harmless) and its `release.ref` becomes `main` instead of
-`origin/main`. `starter/` stays empty until `@facilis/*` has a publish target (D-027).
+`origin/main`. `starter/` stays empty until `@facilis.dev/*` has a publish target (D-027).
 
 **Verification:** `example-template.test.ts` (drift guard, overrides, tarball deps);
 `starter-contract.test.ts`, `project-files.test.ts` and `package-manager.test.ts` updated to
-the assembled template; `pnpm --filter @facilis/ide typecheck|test|build`;
+the assembled template; `pnpm --filter @facilis.dev/ide typecheck|test|build`;
 `pnpm ide:facilis-deps`; `pnpm ide:smoke` (endpoints driven from the IDE page, IntelliSense
 on the router/kit imports, HMR, server reload, database roundtrip).
 
@@ -2030,7 +2034,7 @@ Postgres. Phase 1 deferred exactly that with a typed "not implemented" error and
   both loaded through `createRequire` (the D-039 pattern). The generated project runs server
   code inside the WebContainer, where `node:net`/`node:tls` are meaningless, so a static
   import would drag them into the in-VM bundle for a branch that cannot run there. `pg` is
-  therefore an **optional capability**: `@facilis/db` does not depend on it and the
+  therefore an **optional capability**: `@facilis.dev/db` does not depend on it and the
   deployment installs it. (Declaring it in the package gave pnpm two peer variants of
   `drizzle-orm` and broke type identity across packages - the same reason it must not be a
   transitive dependency.)
@@ -2549,8 +2553,8 @@ the dev server has no endpoint that answers the live side.
   true and guarded by `guardDevRequest` (404 in production, 403 on an origin mismatch), like
   the manifest (§6.8/§11.4). It answers `200 { code, live, drift, warnings }` and
   `503 { code: "db_unavailable" }` when the runtime has no usable database. The db comes from
-  `getBootstrap()`; the route imports only `@facilis/db` and never a raw Drizzle client.
-- **Introspection lives in `@facilis/db`.** `liveSchemaSnapshot` reads `pg_catalog`
+  `getBootstrap()`; the route imports only `@facilis.dev/db` and never a raw Drizzle client.
+- **Introspection lives in `@facilis.dev/db`.** `liveSchemaSnapshot` reads `pg_catalog`
   (`pg_class`/`pg_attribute`/`pg_attrdef`/`pg_index`/`pg_policies`), not `information_schema`:
   `format_type()` renders types comparably, `pg_get_expr()` the defaults, and RLS/policies
   have no `information_schema` equivalent. Tables are limited to `current_schema()`, and the
@@ -2588,10 +2592,10 @@ D-046/D-047 left the validator at the structural checks (path + content present)
 16 rules of SPEC §9.3 to Phase 4; invariant 9 says a patch must pass the validator before it
 touches disk. The rules need things the structural gate never had: a TypeScript parser, the
 config (roles/permissions), the code schema plus the tables the patch adds, `locales/en.json`, the
-block manifests, the existing routes and import resolution. `@facilis/ai` is imported by the
+block manifests, the existing routes and import resolution. `@facilis.dev/ai` is imported by the
 IDE's browser bundle, so the main entry cannot import a compiler.
 
-**Decision.** Keep `@facilis/ai` browser-safe and synchronous, and push the two async inputs to
+**Decision.** Keep `@facilis.dev/ai` browser-safe and synchronous, and push the two async inputs to
 its edges.
 
 - **Typed context.** `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles })`
@@ -2605,8 +2609,8 @@ its edges.
 - **Rule 1 is an injected seam.** `SyntaxChecker` is supplied by the caller: the IDE passes
   Monaco's TypeScript worker (`getSyntacticDiagnostics` on a disposable in-memory model — no
   project model is swapped, open buffers are never touched), and Node tooling imports the
-  `@facilis/ai/node` subpath, which uses rolldown/oxc's `parseSync` (the same parser as
-  `@facilis/nitro`'s AST pass; dev-only, never in the browser bundle). A missing or throwing
+  `@facilis.dev/ai/node` subpath, which uses rolldown/oxc's `parseSync` (the same parser as
+  `@facilis.dev/nitro`'s AST pass; dev-only, never in the browser bundle). A missing or throwing
   checker fails the rule closed — a silent skip would defeat the gate.
 - **Rule 11's allowlist** is the six project roots plus `facilis.config.ts` (rule 16 needs it).
   Root `AGENTS.md` is writable only by the IDE's own instructions writer through the explicit
@@ -2642,7 +2646,7 @@ real dependency or an injected checker. The retry loop (§9.4) was not implement
 — `parseTurn` and `fix_hint`/`excerpt` were its seam; it is implemented now (D-100). Cost: one
 context read plus one manifest fetch per validation round, and three rounds per Apply.
 
-**Verification.** 48 `@facilis/ai` tests (a suite per rule group, a realistic fixture project,
+**Verification.** 48 `@facilis.dev/ai` tests (a suite per rule group, a realistic fixture project,
 rule 1 rejects invalid TS and accepts valid TS through rolldown) and 523 IDE tests with no
 regressions; `pnpm typecheck`, `pnpm lint` and the file-length/theme checks are green. The real
 browser path is green end to end on a fresh profile: `pnpm ide:smoke` drives the mock provider
@@ -2705,7 +2709,7 @@ shows the client pages that call each route.
 
 SPEC §7.7 declared the `ReleasePreview` contract and SPEC §11.3 asked for four diff lenses, but
 no engine existed (the types shipped with a "engine lands in Phase 3.5" note) and O-008 left the
-boot strategy open (sequential boots vs `?at=<oid>`). `@facilis/db` cannot host the browser-side
+boot strategy open (sequential boots vs `?at=<oid>`). `@facilis.dev/db` cannot host the browser-side
 engine: it imports PGlite/Drizzle, and the Studio must never reach the database directly (§11.2).
 Booting the project at an old commit to introspect it would be slow, would mutate the VFS and
 would tie the preview to the runtime being healthy.
@@ -2713,7 +2717,7 @@ would tie the preview to the runtime being healthy.
 **Decision.** A pure engine over snapshots, and snapshots read from the git tree.
 
 - **Engine.** `buildReleasePreview({ from, to, before, after, inUseRoutes?, pendingMigrations? })`
-  in `@facilis/core` (browser-safe, no I/O) returns the SPEC §7.7 `ReleasePreview`: schema
+  in `@facilis.dev/core` (browser-safe, no I/O) returns the SPEC §7.7 `ReleasePreview`: schema
   statements with risk, schema summary, API diff, security diff, breaking changes and warnings.
   It is the one engine behind all lenses and is reusable by the Model B `get_release_preview`
   tool (§9.5).
@@ -2740,7 +2744,7 @@ would tie the preview to the runtime being healthy.
 
 **Rejected alternatives.** Boot each ref (O-008's sequential-boots option): slow, mutates the
 VFS, needs a healthy runtime, and fails exactly when the preview matters most (a broken ref).
-Put the engine in `@facilis/db` (SPEC §5.2's original location): it cannot run in the browser
+Put the engine in `@facilis.dev/db` (SPEC §5.2's original location): it cannot run in the browser
 bundle. Parse the TypeScript AST to recover `defineAuthorizedHandler` metadata at each ref: the
 AST pass is Node-only and the routes' known metadata already comes from the manifest for the
 working copy; method+path is enough to diff the API surface. Synthesize `CREATE TABLE` SQL from
@@ -2756,17 +2760,17 @@ target database applied this migration?", so `pendingMigrations` stays an engine
 does not fill yet; the code↔live drift is the card's signal.
 
 The browser-safe subpath forced one contract detail. `SecurityDiff`/`PolicyChange` carry a
-structural `ReleasePolicySnapshot` declared in `release.ts` instead of `@facilis/db`'s
+structural `ReleasePolicySnapshot` declared in `release.ts` instead of `@facilis.dev/db`'s
 `PolicySnapshot`: even an `import type` from the db pulled `@types/pg` (and through it
 `@types/node`) into the Studio's browser program, where the Node and DOM `ReadableStream`
 typings collide and the vendor kernel stops typechecking. The shapes are identical, so values from
-`@facilis/db` stay assignable. For the same reason the IDE's `@types/node` was aligned to the
+`@facilis.dev/db` stay assignable. For the same reason the IDE's `@types/node` was aligned to the
 workspace catalog (22.20.5) instead of its own 24.x pin: two Node typings produced two Vite
-instances and broke `@facilis/nitro`'s build. The engine file was split across
+instances and broke `@facilis.dev/nitro`'s build. The engine file was split across
 `release-preview`/`release-sql`/`release-classify`/`release-breaking`/`release-security`/
 `release-api` to stay under 300 lines.
 
-**Verification.** 92 `@facilis/core` tests (31 new: splitter 3, classifier 20, engine 8; the
+**Verification.** 92 `@facilis.dev/core` tests (31 new: splitter 3, classifier 20, engine 8; the
 contract test still pins §7.7) and 562 IDE tests (19 API Flow + 20 Release Preview + the i18n
 parity suite). The engine rejects/classifies statements, lifts drops to breaking on route
 references, diffs policies and RLS, and reports pending/destructive/policy warnings. `pnpm lint`,
@@ -2951,7 +2955,7 @@ green.
 ### D-090 — Template v2: the generated app owns its UI (Tailwind v4 + Base UI + shadcn source)
 **Status:** accepted (2026-11-03)
 
-D-055 made the generated app's UI a plain-CSS kit (`@facilis/ui`) because the project had no CSS
+D-055 made the generated app's UI a plain-CSS kit (`@facilis.dev/ui`) because the project had no CSS
 framework and the kit had to survive as a tarball. That solved shipping, but left generated apps
 outside the standard React UI ecosystem: the kit could only grow by adding components and props,
 the visual line went stale, and the catalog of reusable sections the product needs would have had
@@ -2992,7 +2996,7 @@ with shadcn-style components copied into the project as source.
   (tailwindlabs/tailwindcss#20605), so the plugin, its `vite-plugins/` folder, the generated
   project's `@types/node` devDependency and the `node` tsconfig types were deleted. The
   verification below is the 4.3.5 run that closed it.
-- **`@facilis/ui` stays as the v1 kit.** Projects created before D-090 keep their import and their
+- **`@facilis.dev/ui` stays as the v1 kit.** Projects created before D-090 keep their import and their
   vendored tarball; the package remains for them, the UI gallery and the design lab. New projects
   do not receive its tarball. **Superseded by D-096:** the kit, both example apps and its
   documentation were removed; there is no v1 project to support.
@@ -3002,7 +3006,7 @@ with shadcn-style components copied into the project as source.
 **Rejected alternatives.** *Fork Tailwind*: a fork means maintaining WASI builds and re-applying a
 patch on every upgrade for one dev-only scanner bug; the workaround is a few dozen lines and can be
 deleted when upstream fixes it. Fork only if upstream stalls and the workaround regresses. *Proxy
-shadcn inside `@facilis/ui`*: shadcn is copy-in source, and Tailwind classes in `node_modules` need
+shadcn inside `@facilis.dev/ui`*: shadcn is copy-in source, and Tailwind classes in `node_modules` need
 precompiled CSS; a versioned tarball would have produced N divergent component forks. *Keep the v1
 kit and add Tailwind alongside it*: two styling systems in one starter, and the catalog would still
 depend on the private kit. *Ship the shadcn CLI*: the spike's CLI install was pathological in the VM
@@ -3010,14 +3014,14 @@ depend on the private kit. *Ship the shadcn CLI*: the spike's CLI install was pa
 
 **Consequences.** Generated apps are editable, standard React/Tailwind code, which is the premise of
 the copy-in catalog (a separate decision). The AI prompt, the generated README and the frontend docs
-now teach the v2 paths; `@facilis/ui` documentation is marked v1. A v1 project keeps working but does
+now teach the v2 paths; `@facilis.dev/ui` documentation is marked v1. A v1 project keeps working but does
 not receive v2 components automatically; a migration is an upgrade recipe, not a forced rewrite.
-The conformance cost is real: the tailwind trio must move together, and the `@facilis/ui` kit will
+The conformance cost is real: the tailwind trio must move together, and the `@facilis.dev/ui` kit will
 eventually be retired instead of grown.
 
 **Verification.** Browser run of the real Studio (CDP) on a project created from the IDE:
 in-VM `npm install` (69 requests, 85.3 MB), Vite 8.3.5 dev, preview painted 120.7 s after create
-(kernel online 1.4 s). The generated `package.json` has no `@facilis/ui`; the Tailwind trio is
+(kernel online 1.4 s). The generated `package.json` has no `@facilis.dev/ui`; the Tailwind trio is
 4.3.3 exactly and the oxide binding is generated-only; the preview paints the direction-A canvas
 `rgb(247, 248, 249)` with Geist and no `.fc-*` class. Writing a new `bg-[#123456]` utility into
 `src/app.tsx` through the VFS moved the computed background to `rgb(18, 52, 86)` without touching
@@ -3058,7 +3062,7 @@ argue "day one is a link" from a slow page.
   is not deployed: the site has no API, so it needs no database, no auth and no runtime.
 - **The catalog is the site's own data.** Section sources live under `catalog/sections/<slug>/` in
   the site repository
-  (files + `section.json` reusing `BlockManifest` from `@facilis/blocks`, plus the copy-in
+  (files + `section.json` reusing `BlockManifest` from `@facilis.dev/blocks`, plus the copy-in
   facts: dependency list, insertion point, migration, screenshot); a build step emits versioned,
   content-hashed, CORS-open JSON under `/catalog/`. The site renders those files and any client —
   including the Studio later — reads the same ones. No CMS, no database, no API.
@@ -3079,7 +3083,7 @@ argue "day one is a link" from a slow page.
 `sites/facilis-dev`, a pnpm-workspace member of this repo. Keeping it there coupled three things
 that should move independently: the site's release cadence, the framework's gates (a doc edit in
 the IDE repo would rebuild the site), and the generated-project boundary the site is supposed to
-prove (a workspace member silently resolves `@facilis/*` from source instead of from the tarballs
+prove (a workspace member silently resolves `@facilis.dev/*` from source instead of from the tarballs
 a user gets). The site now lives in **`facilis-dev/facilis-site`**: the unmodified Studio export,
 its journal, and a `tools/create-in-studio.mjs` provenance harness; it commits the `vendor/`
 tarballs so it stays a self-contained generated project and needs no workspace. The boundary is
@@ -3125,7 +3129,7 @@ disagree (property vs SQL column names, spoofable AI rules, route forms the mani
 and the panels degrade exactly when the project is broken. The spec's "everything is code" rule
 makes the declarations the source of truth; it does not require executing them to read them.
 
-**Decision.** Add `@facilis/analyze`, a browser-safe package that interprets the framework's
+**Decision.** Add `@facilis.dev/analyze`, a browser-safe package that interprets the framework's
 declarative DSL with an injected parser and **zero build-time execution** of project code. It
 produces one fact model (routes, config, tables/columns/policies, FK and `relations()` edges,
 i18n, client consumers, diagnostics) and one project graph.
@@ -3135,7 +3139,7 @@ i18n, client consumers, diagnostics) and one project graph.
   its existing rolldown/oxc pass until the WebContainer wasm path is proven; the AST shape is
   normalized to the repo's structural node helpers. The parser is pinned with the bundler's oxc
   generation where practical.
-- **DSL contract.** Routes must default-export the `@facilis/core` `defineAuthorizedHandler`
+- **DSL contract.** Routes must default-export the `@facilis.dev/core` `defineAuthorizedHandler`
   call; config is `defineConfig`; schema is `pgTable` plus the whitelisted column builders,
   methods and policy helpers; client calls go through the single `api()` transport; i18n uses
   literal `t()`. Values are read through a bounded static subset (literals, same-file consts
@@ -3144,7 +3148,7 @@ i18n, client consumers, diagnostics) and one project graph.
 - **Relations.** `.references(...)` (physical FK) and Drizzle `relations(...)` (logical
   one/many) are distinct edge kinds. `dbColumns` and `ScopeFact.column` use Drizzle property
   names; the SQL name stays on the column fact. Framework tables reached by re-export are read
-  from the installed `@facilis/*` source.
+  from the installed `@facilis.dev/*` source.
 - **Graph.** One editor-area graph (pages → routes → tables, plus table→table FK/relation
   edges), not two panels: fullscreen, per-edge-kind filters, draggable nodes, auto-layout with
   manual override, source jumps, integrity badges. The layout is local editor state in
@@ -3175,7 +3179,7 @@ worker (oxc wasm + one emnapi pin) and a startup analysis of the project's sourc
 DSL restrictions are enforced by the gate, so a project that steps outside the contract gets a
 diagnostic instead of silently missing facts.
 
-**Verification.** `@facilis/analyze`: 60 tests green (config/routes/i18n/schema/relations/
+**Verification.** `@facilis.dev/analyze`: 60 tests green (config/routes/i18n/schema/relations/
 clients/graph + module graph/static eval), `typecheck`, `lint`, build and the 300-line check
 green. Spike on `examples/todo-app`: 443 files, 8 routes, 6 tables (including re-exported auth
 tables), 4 pages with calls, 18 graph nodes / 31 edges, 0 diagnostics; the fixture project
@@ -3192,26 +3196,26 @@ checks, outside this change.
 
 **Status:** accepted (2026-11-04)
 
-D-092 introduced `@facilis/analyze` and committed to deleting the duplicated text scanners
+D-092 introduced `@facilis.dev/analyze` and committed to deleting the duplicated text scanners
 once parity tests passed. The cutover has one hard environment constraint: the Nitro Vite
 plugin runs inside the generated project's `vite.config.ts` under the Studio's WebContainer,
 where the config is loaded with `--configLoader native` and only the bundler's own oxc
-(`rolldown/utils`, already a template dependency) is proven to load. `@facilis/analyze/node`
+(`rolldown/utils`, already a template dependency) is proven to load. `@facilis.dev/analyze/node`
 imports `oxc-parser`, whose VM path (runtime package download + `node:wasi`) is unverified;
 shipping it in the generated project would put the dev server behind an unproven dependency.
 
 **Decision.** The analyzer's main entry is parser-injected and dependency-free; adapters stay
 on explicit subpaths. The Nitro plugin injects `parseSync` from `rolldown/utils` through a
-small `Parser` adapter and loads the project map from the new `@facilis/analyze/fs` subpath
+small `Parser` adapter and loads the project map from the new `@facilis.dev/analyze/fs` subpath
 (node:fs only, no parser). The IDE keeps its browser wasm parser in the worker. The AI
 validator's pure `validatePatch` now consumes the analyzer's **effective (post-patch)
 `Analysis`** plus the pre-patch one for inverse edits; the IDE builds both from one cached VFS
 snapshot and the patch overlay on the single warm worker, and fails the round closed with a
 `project-analysis` error if the analyzer is unavailable (it never falls back to text scanning).
-`@facilis/ai` imports the analyzer types only, so its main entry stays browser-safe; the Node
-helper lives in `@facilis/ai/node`. `@facilis/analyze` becomes part of the generated project's
+`@facilis.dev/ai` imports the analyzer types only, so its main entry stays browser-safe; the Node
+helper lives in `@facilis.dev/ai/node`. `@facilis.dev/analyze` becomes part of the generated project's
 vendored tarball set (its `oxc-parser` dependency is an optional peer, so the VM never installs
-it) and `@facilis/analyze/fs` ships compiled.
+it) and `@facilis.dev/analyze/fs` ships compiled.
 
 **Deleted (replaced by the analyzer):** `packages/nitro/src/ast/**` (scanner, extractor,
 static eval, route-path + tests), `packages/ai/src/{scan,config-facts,schema-facts}.ts`, and the
@@ -3232,12 +3236,12 @@ unchanged). The AI rules are no longer spoofable by comments/strings: wrapper, b
 `dbTables` and permissions are AST facts; `dbColumns` use Drizzle property names end-to-end;
 rules 10/14/15 ignore framework re-exported tables.
 
-**Verification.** `@facilis/analyze` 66 tests; `@facilis/ai` 61 tests (same rule scenarios plus
-new fact seams); `@facilis/nitro` 120 tests including the injected-parser `as const` proof and
+**Verification.** `@facilis.dev/analyze` 66 tests; `@facilis.dev/ai` 61 tests (same rule scenarios plus
+new fact seams); `@facilis.dev/nitro` 120 tests including the injected-parser `as const` proof and
 the "any source edit invalidates" test; IDE 84 files / 649 tests. Root `lint` (0 errors),
 `typecheck` (23 tasks), `test` (21 tasks), `build` (15 tasks), file-length and theme checks green.
 Browser smoke (real Studio + WebContainer): project-graph checks pass; the four unrelated chat
-provider/settings checks remain. `@facilis/nitro` grep confirms no `@facilis/analyze/node`
+provider/settings checks remain. `@facilis.dev/nitro` grep confirms no `@facilis.dev/analyze/node`
 import in source or dist.
 
 **Follow-up (2026-11-05, D-094).** The two scanners named above are gone: the Release Preview
@@ -3295,7 +3299,7 @@ unrelated chat provider/settings checks remain.
 
 D-085/D-087 shipped an API Flow that rendered `/_openapi.json` through the preview proxy and
 scanned `src/**` for consumers. D-092 then added the project graph: the same pages → routes →
-tables structure (plus FK/`relations()` edges) from `@facilis/analyze`, with no runtime
+tables structure (plus FK/`relations()` edges) from `@facilis.dev/analyze`, with no runtime
 endpoint, no preview and no polling. Keeping both duplicated the visualizer and the
 route/page/table model, while the OpenAPI-driven one only works while the project is reachable
 through the Studio's preview frame — when the app is opened in its own tab (and in the isolated
@@ -3335,7 +3339,7 @@ settings selection plus its downstream proposal/apply/undo checks and the two gl
 request checks they trip). Chat is currently known-broken and out of scope for this change;
 every non-chat check passes.
 
-### D-096 — `@facilis/ui` is removed: there is no v1 kit to support
+### D-096 — `@facilis.dev/ui` is removed: there is no v1 kit to support
 **Status:** accepted (2026-11-06)
 
 D-055 made the v1 kit the generated app's UI when a generated project had no CSS framework and a
@@ -3345,7 +3349,7 @@ and edits. Keeping the old kit alive bought nothing except a package, two exampl
 step and documentation that still presented it as the fallback — and there is no v1 project to
 support.
 
-**Decision.** Delete `@facilis/ui` and everything that existed to exercise or ship it.
+**Decision.** Delete `@facilis.dev/ui` and everything that existed to exercise or ship it.
 
 - `packages/ui/` is gone, with its `theme.css` contract and its `.fc-*` rules.
 - Its two example apps are gone: `examples/ui-gallery` (the kit gallery) and
@@ -3370,8 +3374,8 @@ loses an entry; no project can import the kit any more. Projects created before 
 migrated. The UI story is one stack: template v2's copy-in source.
 
 **Verification.** `pnpm install` prunes the workspace, no workspace package depends on
-`@facilis/ui`, and `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` run without it.
-`grep -r "@facilis/ui"` over the tree returns only historical ADR/SPEC prose.
+`@facilis.dev/ui`, and `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm build` run without it.
+`grep -r "@facilis.dev/ui"` over the tree returns only historical ADR/SPEC prose.
 
 ### D-097 — The Data Explorer gets a query console and declarative SQL views
 **Status:** accepted (2026-11-06)
@@ -3397,7 +3401,7 @@ views following the permissions of the underlying tables. D-095 left the connect
   Rows are JSON-safe values (bigint/Date/bytea/jsonb normalised) and columns carry their
   Postgres type name from `pg_type`, which the Studio's code generator consumes.
 - **Declarative views.** A view is code: `db/views/<name>.ts` declares it with
-  `defineView({ name, columns, query })` from `@facilis/db`, one file per view (no import
+  `defineView({ name, columns, query })` from `@facilis.dev/db`, one file per view (no import
   merge). `#facilis/db-views` collects the modules, and the dev boot applies
   `CREATE OR REPLACE VIEW "name" WITH (security_invoker = true) AS <literal query>` after
   migrations and the app-role bootstrap, then grants SELECT to `facilis_app`. The Create-view
@@ -3427,15 +3431,15 @@ saved query instead of a database view*: permissions would be inherited triviall
 asked for views in the code, and the security_invoker guarantee is the contract worth testing.
 *Materialised views*: a refresh lifecycle is a separate design.
 
-**Consequences.** `@facilis/db` grows `views.ts`, `query-console.ts` and `read-only-sql.ts`;
-`@facilis/nitro` gains the `#facilis/db-views` virtual module and the two dev routes (three
+**Consequences.** `@facilis.dev/db` grows `views.ts`, `query-console.ts` and `read-only-sql.ts`;
+`@facilis.dev/nitro` gains the `#facilis/db-views` virtual module and the two dev routes (three
 dev endpoints total). A generated project may have a `db/views/` directory. The IDE gains a
 `data-query` editor tab and the kernel-mediated base. Preview mode C has no same-origin SW, so
 the transport is still undefined there, and the declared-from-AST table list is still planned
 (O-011). The analyzer/manifest do not know views yet, so a route that selects from one declares
 its base tables in `dbTables`; extending the facts, the graph and the reverse lookup is O-013.
 
-**Verification.** `@facilis/db` 14 files / 107 tests (views under RLS, read-only transaction, JSON-safe rows), `@facilis/nitro` 19 files / 137 tests (both routes, guard/404, virtual module, view failure as a warning), IDE 83 files / 646 tests, IDE typecheck/lint (0 errors)/file-length/theme green (controller 2517 lines, under its 2518 ratchet). Root `lint` (0 errors, 212 warnings), `typecheck` (19 tasks), `test` (19 tasks) and `build` (12 tasks) green. The generated `defineView` file shape compiles inside `examples/todo-app`. Browser smoke re-run: 108 checks pass, including the Data Explorer table list and the whole query console flow (open, type, run, rows rendered); the 6 failures are all in the pre-existing chat flow (settings/provider picker, the proposal's file list, the patch reaching the VFS) plus the two global console/request checks it trips. Chat is known-broken and out of scope for this change; every non-chat check passes.
+**Verification.** `@facilis.dev/db` 14 files / 107 tests (views under RLS, read-only transaction, JSON-safe rows), `@facilis.dev/nitro` 19 files / 137 tests (both routes, guard/404, virtual module, view failure as a warning), IDE 83 files / 646 tests, IDE typecheck/lint (0 errors)/file-length/theme green (controller 2517 lines, under its 2518 ratchet). Root `lint` (0 errors, 212 warnings), `typecheck` (19 tasks), `test` (19 tasks) and `build` (12 tasks) green. The generated `defineView` file shape compiles inside `examples/todo-app`. Browser smoke re-run: 108 checks pass, including the Data Explorer table list and the whole query console flow (open, type, run, rows rendered); the 6 failures are all in the pre-existing chat flow (settings/provider picker, the proposal's file list, the patch reaching the VFS) plus the two global console/request checks it trips. Chat is known-broken and out of scope for this change; every non-chat check passes.
 
 ### D-098 — Views may carry their own permission: definer views with an `app.permissions` gate
 **Status:** accepted (2026-11-07)
@@ -3479,10 +3483,10 @@ check that a route using a permission view declares that permission; until then 
 the runtime check. Definer views bypass RLS by design: the release preview and the AI validator
 should flag new ones (follow-up). Selector strings are i18n keys in the Studio.
 
-**Verification.** `@facilis/db` 17 files / 127 tests (8 permission-view tests: definer returns
+**Verification.** `@facilis.dev/db` 17 files / 127 tests (8 permission-view tests: definer returns
 cross-owner aggregates through `facilis_app`, zero rows without `app.permissions`, rows with it,
 invoker unchanged, invalid/undeclared permission as data; the existing RLS leak/enforcement
-tests stay green). `@facilis/nitro` 20 files / 143 tests (endpoint accepts a declared permission,
+tests stay green). `@facilis.dev/nitro` 20 files / 143 tests (endpoint accepts a declared permission,
 400 `invalid_permission` otherwise, boot validation). IDE 83 files / 654 tests (selector,
 codegen exact file with/without `permission`, client payload). Root `lint` (0 errors, 212
 warnings), `typecheck` (19 tasks), `test` (19 tasks), `build` (12 tasks), file-length (674 files,
@@ -3534,12 +3538,12 @@ implemented (O-014); definer-view reads are not logged per query (O-015). An ana
 sudo call sites and the validator rule are follow-ups, as is the AST check that `tables` is a
 subset of `dbTables` (the runtime check exists today).
 
-**Verification.** `@facilis/db` 17 files / 127 tests (role attributes and membership, BYPASSRLS
+**Verification.** `@facilis.dev/db` 17 files / 127 tests (role attributes and membership, BYPASSRLS
 read/write inside the block, role restored + GUC cleared, savepoint rollback on throw,
 `runAsSystem` audit ids, fail-closed sink; Postgres-wire GUC assertions in the policy test).
-`@facilis/core` 13 files / 100 tests (`ctx.sudo` success/failure, audit transitions, validation,
-no nesting, session required, subset of `dbTables`). `@facilis/auth` 6 files / 41 tests
-(`sessionHash`). `@facilis/nitro` 20 files / 143 tests (system-role boot warning, dev-view
+`@facilis.dev/core` 13 files / 100 tests (`ctx.sudo` success/failure, audit transitions, validation,
+no nesting, session required, subset of `dbTables`). `@facilis.dev/auth` 6 files / 41 tests
+(`sessionHash`). `@facilis.dev/nitro` 20 files / 143 tests (system-role boot warning, dev-view
 permission). IDE 83 files / 654 tests; root lint/typecheck/test/build, file-length and theme
 green.
 
@@ -3554,9 +3558,9 @@ nesting guard with sudo. The example's registration keeps the duplicate-email re
 and performs the user/default-role/initial-admin writes inside one `ctx.system` call
 (`system:auth`, `user:register`). The analyzer adds a `route-direct-db` warning when route code
 reaches for the raw client (raw `facilis.db` or a `createDb` import), so the direct policy-free
-path is visible in the manifest and explicitly "not recommended". Verification: `@facilis/core`
+path is visible in the manifest and explicitly "not recommended". Verification: `@facilis.dev/core`
 14 files / **109 tests** (system elevation, shared nesting, handler event without `db`),
-`@facilis/analyze` 10 files / **71 tests** (direct-db warning), example 5 files / 33 tests,
+`@facilis.dev/analyze` 10 files / **71 tests** (direct-db warning), example 5 files / 33 tests,
 template consumers typecheck; the full root gates stay green.
 
 ### D-100 — Constructive validation feedback and the §9.4 retry loop
@@ -3567,7 +3571,7 @@ patches, the turn dead-ended on a one-line error. `parseTurn()` already produced
 `line`/`excerpt` per `ValidationError` (D-084), but nothing fed them back, so the model never
 learned what to fix — the user could only retype the request and hope for a different answer.
 
-**Decision.** The retry loop is implemented in the IDE chat, not in `@facilis/ai`.
+**Decision.** The retry loop is implemented in the IDE chat, not in `@facilis.dev/ai`.
 
 - `runTurn()` in `ide/src/ai/turn.ts` re-asks the model on a rejected answer up to
   `MAX_REPAIR_ATTEMPTS = 2` (§9.4's worst case is 3 attempts total; D-108 later removed the
@@ -3589,7 +3593,7 @@ learned what to fix — the user could only retype the request and hope for a di
 - `state.repair = { attempt, max }` on the chat session exposes the progress to the UI.
 - Final failure writes nothing: the findings are shown in the chat and the VFS is untouched.
 
-**Rejected alternatives.** *Loop inside `@facilis/ai`*: the validator is a pure function over
+**Rejected alternatives.** *Loop inside `@facilis.dev/ai`*: the validator is a pure function over
 patches + context, while retrying needs the conversation, the provider stream and file reads, all
 IDE-side. *Feed back `fix_hint`/`excerpt` only* (the literal §9.4 wording): documented, but it
 dead-ends exactly on whole-file updates, the common case. *Unbounded file context*: the prompt
@@ -3765,7 +3769,7 @@ it could not fix, burning corrections and ending in a misleading "invalid patch 
   it runs `analyzeProjectFiles` on the patched file (a one-file map) in the analyzer worker and
   keeps only `parse-error` diagnostics. `ide/src/ai/monaco-syntax.ts` and its test are deleted;
   Monaco remains the editor's IntelliSense surface only, and `scripts/dev/smoke-intellisense.mjs`
-  keeps testing that viewer feature. Node tooling keeps `@facilis/ai/node` (rolldown/oxc), so
+  keeps testing that viewer feature. Node tooling keeps `@facilis.dev/ai/node` (rolldown/oxc), so
   rule 1 has one parser family in the browser and in Node.
 - `ValidationError.infrastructure` marks findings about the validator's own plumbing: rule 1
   when the checker cannot answer, and `project-analysis` when the analyzer is down. The turn
@@ -3857,10 +3861,10 @@ read or cancel that instance; and read access to the running jobs and the queue.
 independent — chaining is a future "workflow" construct, not this feature. The project keeps its
 own HTTP surface; the framework adds no route of its own.
 
-**Decision.** No new package: the existing layer split owns the feature. `@facilis/core` holds
+**Decision.** No new package: the existing layer split owns the feature. `@facilis.dev/core` holds
 the contract (`FacilisJobsConfig`, `defineJob`, `isJobDefinition`, `serializeJobData`,
 `JobError`, `JobsApi`/`JobRecord`/`JobStatus`/`JobQueueStats`, the six-key `jobs` config
-section), `@facilis/db` the `facilis_jobs` table, `@facilis/nitro` the runtime (virtual
+section), `@facilis.dev/db` the `facilis_jobs` table, `@facilis.dev/nitro` the runtime (virtual
 module, registry, engine, stores, boot wiring, `ctx.jobs`). A new package would be another
 tarball the IDE template must vendor and another version to pin.
 
@@ -3906,7 +3910,7 @@ this instant"; `payload` and result are untyped with no schema; a task is an arb
 with no system role, transaction or audit; the `nitro-dev` preset mounts an unauthenticated
 `/_nitro/tasks/**` execution route with no origin allowlist (against §8.5/invariant 6); and
 `experimental.tasks` is process-local, so nothing survives the worker reloads the IDE triggers on
-every project edit. *A new `@facilis/jobs` package*: more tarball/template churn for a seam the
+every project edit. *A new `@facilis.dev/jobs` package*: more tarball/template churn for a seam the
 three existing packages already expose. *An in-memory-only queue*: loses scheduled work on every
 worker reload, which is exactly when a queue matters. *Workflow/chaining inside the engine*: a job
 graph is a different product surface (O-017); the durable claim/attempt counters are the seam a
@@ -3926,7 +3930,7 @@ would deadlock the request. The generated app's schema gains
 requested, table absent), `jobs_boot_failed` (runtime could not start) and
 `jobs_runtime_error` (scheduler/store failure during a tick, reported once per context).
 
-**Verification.** `@facilis/nitro` suites `src/runtime/jobs/engine.test.ts` (concurrency cap,
+**Verification.** `@facilis.dev/nitro` suites `src/runtime/jobs/engine.test.ts` (concurrency cap,
 retry delay, timeout via an injected `JobTimers`, queued/running cancellation, schedule, stats,
 stop/requeue, output-schema failure), `memory-store.test.ts`, `definitions.test.ts`
 (dedupe/warnings), `db-store.test.ts` + `db-store-recovery.test.ts` (PGlite + RLS claim
@@ -3936,7 +3940,7 @@ round-trips, interrupted recovery, counts),
 `bindScope` delegation), `engine-scoped.test.ts` (the scoped view shares scheduler state),
 `boot.test.ts` (store choice and warnings) plus `module.test.ts` (`#facilis/jobs`
 registration); `db-store.test.ts` also pins the request-transaction join (the nested-`BEGIN`
-deadlock regression); `@facilis/db/src/sudo.test.ts` accepts `tables: []` for `runAsSystem` and
+deadlock regression); `@facilis.dev/db/src/sudo.test.ts` accepts `tables: []` for `runAsSystem` and
 still rejects an empty string. The example app exercises it end-to-end in
 `examples/todo-app/scripts/verify-headless.sh`: enqueue with a future `runAt`, read it back
 `queued`, cancel it, read it back `cancelled`. The Lead's final root gates
@@ -4275,7 +4279,7 @@ without one); gates green.
 
 **Status:** accepted (2026-11-08)
 
-D-053 shipped `@facilis/storage` as a package — drivers, signing, metadata and link tables —
+D-053 shipped `@facilis.dev/storage` as a package — drivers, signing, metadata and link tables —
 but left the runtime wiring open: a generated project could not upload anything without
 hand-rolling the config section, the boot, the multipart parsing and the proxy route. The
 template's file attachments are the Phase 1 proof that the whole path works inside the
@@ -4307,7 +4311,7 @@ WebContainer.
   `form` the wrapper reads `req.formData()`, collapses repeated names to arrays, validates
   them with the declared Zod schema and hands the parsed fields to the handler as `ctx.form`.
   A missing or malformed multipart body is `invalid_input`; JSON routes are unchanged.
-- **Helpers.** `@facilis/nitro/storage` exports `storeUpload` (enforces
+- **Helpers.** `@facilis.dev/nitro/storage` exports `storeUpload` (enforces
   `maxUploadBytes`, stores the bytes, inserts the `facilis_files` metadata row and returns
   `{ id, name, mime, size, url }`) and `sendStoredFile` (verifies the HMAC token, loads the
   metadata row and streams the blob, or redirects to a driver-presigned S3 GET). The helpers
@@ -4340,9 +4344,9 @@ table makes the attachment a real, introspectable table (RLS inherited via `pare
 and the analyzer synthesizes it from `fileLinks`, so the manifest, project graph and release
 preview see it.
 
-**Verification.** The `@facilis/storage` suites from D-053; `@facilis/core` route/config/
+**Verification.** The `@facilis.dev/storage` suites from D-053; `@facilis.dev/core` route/config/
 input/errors suites pin the form-XOR-body rule, the storage defaults/validation and the two
-new codes; `@facilis/nitro` covers the boot target and both helpers; `examples/todo-app`'s
+new codes; `@facilis.dev/nitro` covers the boot target and both helpers; `examples/todo-app`'s
 `verify-headless.sh` uploads and downloads a file; the IDE drift tests
 (`example-template`, `release-routes`, `release-schema`, `starter-contract`) pin the
 template wiring; `pnpm ide:smoke` proves the path inside the WebContainer.
@@ -4390,12 +4394,12 @@ is the one place the upload is materialized, and it is bounded by `maxUploadByte
   the last one. Editing the key id, reordering chunks, truncating the body or appending bytes
   all fail authentication, and the encryptor never needs the size up front.
   `encryptStream`/`decryptStream` and `createEncryptedStorage({ driver, keys })` in
-  `@facilis/storage` do this while streaming: the encryptor holds one 1 MiB plaintext
+  `@facilis.dev/storage` do this while streaming: the encryptor holds one 1 MiB plaintext
   chunk, and the decryptor keeps up to two ciphertext frames (about 2 MiB) in flight to
   establish whether the last chunk is final.
 - **Streaming.** Bytes are async iterables at every layer: `StorageDriver.put` takes a
   `BlobSource` and hashes (and encrypts) while writing, and `get` validates the hash and
-  returns a `BlobSource`; `@facilis/core` mirrors that as `StorageStream`. The local driver
+  returns a `BlobSource`; `@facilis.dev/core` mirrors that as `StorageStream`. The local driver
   writes to a temp file and renames the finished blob into place. An S3 PUT must know the
   payload hash and length for SigV4, so the driver stages the upload stream (ciphertext when
   encryption is on) to a `0600` temp file while hashing and counting it, uploads from that file
@@ -4442,10 +4446,10 @@ failure on an unknown/wrong/short key, a flipped ciphertext byte, an edited head
 and a plaintext legacy blob; and rotation with a retired key. `encrypted.test.ts` pins the
 wrapper: streamed ciphertext, plaintext size returned, dedupe disabled (equal plaintexts
 become distinct hashes) and no `signedGetUrl`. `s3.test.ts` pins the streamed PUT (SigV4
-payload hash, temp-file staging) and GET. `@facilis/nitro`'s `storage-encrypted.test.ts`
+payload hash, temp-file staging) and GET. `@facilis.dev/nitro`'s `storage-encrypted.test.ts`
 uploads a multipart file through encryption and downloads it byte-for-byte with a plaintext
 `content-length`; `storage-target.test.ts` pins the two key warnings and the absent presign;
-`@facilis/core`'s config suite pins the strict `encryption` section; the D-053/D-116 plaintext
+`@facilis.dev/core`'s config suite pins the strict `encryption` section; the D-053/D-116 plaintext
 suites stay green.
 
 ---
@@ -4523,7 +4527,7 @@ platform.
 
 **Decision.**
 
-- **One pipeline, four kinds.** `@facilis/core` owns the shapes: an `AccessLogEntry` (one per
+- **One pipeline, four kinds.** `@facilis.dev/core` owns the shapes: an `AccessLogEntry` (one per
   authorized request), an `ErrorLogEntry` (a server-side failure), an `AuditLogEntry`
   (security-relevant events, including the existing sudo trail) and an `AppLogEntry` (a line a
   route writes through `ctx.log`). Every entry carries a `ts`, a `level` and, when request-scoped,
@@ -4598,12 +4602,12 @@ stdout so a platform can collect it; a project that wants files in production se
 audit file doubles as the sudo trail with a verifiable chain, while WORM/HMAC and external sinks
 remain open (O-019). The IDE viewer is read-only and cannot mutate or delete the files.
 
-**Verification.** `@facilis/core`: the config section defaults/cross-checks, access entry on
+**Verification.** `@facilis.dev/core`: the config section defaults/cross-checks, access entry on
 401/403/400/503/success/throw, error entry never reaches the client, audit actor for a session vs
-anonymous, request-id fallback. `@facilis/nitro`: env resolution and defaults, stream routing,
+anonymous, request-id fallback. `@facilis.dev/nitro`: env resolution and defaults, stream routing,
 redaction/caps, level filtering, rotation and keep, audit chain verify (good and tampered),
 fail-closed audit, best-effort access writes, middleware request-id/attach, bootstrap wiring and
-the sudo bridge (the existing db sudo tests stay green). `@facilis/ide`: the logs panel model
+the sudo bridge (the existing db sudo tests stay green). `@facilis.dev/ide`: the logs panel model
 (parse, filters, rotation ordering) and its VFS read path. `docs/LOGS.md` is the operator
 contract; the no-HTTP rule is also asserted by the absence of a route in the module registry.
 
@@ -4629,7 +4633,7 @@ insecurely per project.
   and redirect paths eagerly, so a broken provider fails at boot, not at first login.
   `auth.sso` adds `failureRedirect` (same-origin path, default `/login`) and `stateTtlMs`
   (default ten minutes).
-- **Framework-owned routes, one handler.** `/api/auth/sso/**` is registered by `@facilis/nitro`
+- **Framework-owned routes, one handler.** `/api/auth/sso/**` is registered by `@facilis.dev/nitro`
   in dev and production alike and handled by one `defineAuthorizedHandler` with
   `permission: []`: `GET /api/auth/sso/providers` (`{ providers: [{ id, label, kind,
   startUrl }] }`, no secrets), `GET /api/auth/sso/:provider/start` (302 to the IdP) and
@@ -4668,7 +4672,7 @@ insecurely per project.
   `createSession` and the cookie helper, exactly like a password login.
 - **Tables.** `auth_identities` (`(provider, subject)` PK, user id, email, tenant, timestamps) and
   `auth_sso_states` (single-use state, provider, nonce, PKCE verifier, SAML request id, redirect,
-  expiry, tenant) live in `@facilis/auth` with the standard restrictive tenant RLS plus a
+  expiry, tenant) live in `@facilis.dev/auth` with the standard restrictive tenant RLS plus a
   permissive tenant-scope policy; the project ships the generated migration.
 - **Audit and privacy.** `ctx.log.audit` records `auth:sso:start`, `auth:sso:login`,
   `auth:sso:link` and `auth:sso:provision` with the provider id and outcome only. Tokens,
@@ -4695,12 +4699,12 @@ the callback URL registered at the IdP. SAML adds `@node-saml/node-saml` (and it
 the generated project's install; the import is lazy, so boots and non-SAML logins do not touch
 it. Passkeys, TOTP/2FA, SCIM provisioning and token refresh are explicitly out of scope (O-020).
 
-**Verification.** `@facilis/auth` SSO tests: config/provider resolution (hidden when a secret is
+**Verification.** `@facilis.dev/auth` SSO tests: config/provider resolution (hidden when a secret is
 missing, public list shape), state single-use/expiry and redirect guard, PKCE/challenge and
 authorize URLs, OIDC ID-token verification against a local JWKS (valid, wrong nonce, wrong
 audience, expired), OAuth2 mapping and emailVerified policy, identity rules (existing identity,
 link by email, provision, autoProvision off, unverified email, role assignment), SAML request
-generation and ACS rejection (tampered/unsigned), audit entries without secrets. `@facilis/nitro`:
+generation and ACS rejection (tampered/unsigned), audit entries without secrets. `@facilis.dev/nitro`:
 the route dispatch (providers, start 302, callback 302 + cookie, unknown path 404, SAML POST body
 validation) with an injected fetch. The example app migration/schema and the login page are
 covered by the starter contract; a real-IdP checklist is in `docs/SSO.md`.
@@ -4719,7 +4723,7 @@ nothing ships.
 **Decision.** Remove `blocks` from `FacilisConfig`/`FacilisConfigInput` and its Zod schema (a
 config that still declares it fails the strict object check instead of being silently ignored),
 from the analyzer's `ConfigFacts.blocksPackages`, and from the example. AI rule 7
-(`block-import-valid`) keeps validating imports of the one shipped `@facilis/blocks` package
+(`block-import-valid`) keeps validating imports of the one shipped `@facilis.dev/blocks` package
 through its `DEFAULT_BLOCKS_PACKAGE` constant; the manifest's `BlockManifest` contract is
 unchanged.
 
@@ -4959,23 +4963,23 @@ D-125/D-126 made the project graph the primary development surface, but the rout
 ### D-130 — Framework tables reach the browser analyzer through build-time inlined package source
 **Status:** accepted (2026-11-09)
 
-D-092 says framework tables reached by re-export are read from the installed `@facilis/*` source. That held for the CLI (`@facilis/analyze/fs` walks `node_modules/@facilis`) but never for the IDE: the browser analyzer's input is the controller's VFS snapshot, and the workspace index skips `node_modules` by design (quick-open and search must not crawl an install). The starter's `db/schema.ts` re-exports nine framework tables, so the graph silently lost every one of them and every route/FK edge that targeted them — the todo-app graph showed 2 tables and 21 edges, with no edge from `GET /api/files/{id}` and no `todo_files → facilis_files` FK. The re-export pass only emitted an `info` diagnostic, so nothing looked broken.
+D-092 says framework tables reached by re-export are read from the installed `@facilis.dev/*` source. That held for the CLI (`@facilis.dev/analyze/fs` walks `node_modules/@facilis.dev`) but never for the IDE: the browser analyzer's input is the controller's VFS snapshot, and the workspace index skips `node_modules` by design (quick-open and search must not crawl an install). The starter's `db/schema.ts` re-exports nine framework tables, so the graph silently lost every one of them and every route/FK edge that targeted them — the todo-app graph showed 2 tables and 21 edges, with no edge from `GET /api/files/{id}` and no `todo_files → facilis_files` FK. The re-export pass only emitted an `info` diagnostic, so nothing looked broken.
 
 **Decision.**
-- **Inline the table-bearing packages at IDE build time.** `ide/src/facilis/framework-sources.ts` inlines `packages/auth` and `packages/db`'s `src/**/*.ts` (test files excluded) plus their `package.json`, with the same `import.meta.glob(…, { query: "?raw", eager: true })` pattern the starter template already uses, remapped to the `node_modules/@facilis/<pkg>/…` paths the analyzer resolves re-exports through. `analyzeProjectFiles()` merges it into every analysis input: one choke point covers the project graph, the AI patch validator and the Release Preview, and caller files win on collision.
+- **Inline the table-bearing packages at IDE build time.** `ide/src/facilis/framework-sources.ts` inlines `packages/auth` and `packages/db`'s `src/**/*.ts` (test files excluded) plus their `package.json`, with the same `import.meta.glob(…, { query: "?raw", eager: true })` pattern the starter template already uses, remapped to the `node_modules/@facilis.dev/<pkg>/…` paths the analyzer resolves re-exports through. `analyzeProjectFiles()` merges it into every analysis input: one choke point covers the project graph, the AI patch validator and the Release Preview, and caller files win on collision.
 - **Why inlining, not a VFS read.** The vendored tarballs ship this same source (they are packed from `packages/` by `scripts/dev/vendor-facilis-deps.sh`), so it is what a project actually installs. Reading it from the VFS would cost hundreds of bridge reads per analysis plus a cache-invalidation problem around `npm install`; inlining is zero I/O, deterministic, and correct before/without an install. The ~180 KB of raw source rides in the analyze-client bundle.
 - **Only template packages that declare tables.** `FRAMEWORK_TABLE_PACKAGES` lists `auth` and `db`. A drift-guard test fails when a package in `TEMPLATE_PACKAGES` starts declaring `pgTable` without being listed, so a future framework table cannot silently vanish again (`i18n-db` declares one, but the template does not install it).
 - **The table is visibly framework state.** `TableNodeData.framework` is true when the declaring file is under `node_modules/`; the card shows a `framework`/`sistema` badge next to RLS, so a reader can tell project-owned DDL from re-exported framework state.
-- **Rejected.** Reading installed sources through the VFS per analysis (bridge cost and install-timing cache); a hand-maintained DDL mirror inside `@facilis/analyze` (drifts from the packages, while the CLI already reads real source); keeping the dangling edges without their nodes (an edge into nothing answers nothing).
+- **Rejected.** Reading installed sources through the VFS per analysis (bridge cost and install-timing cache); a hand-maintained DDL mirror inside `@facilis.dev/analyze` (drifts from the packages, while the CLI already reads real source); keeping the dangling edges without their nodes (an edge into nothing answers nothing).
 
 **Consequences.** An analysis input now carries a fixed ~40-file framework prefix, so `files` and `revision` include it; diagnostics from framework sources stay filtered by the `node_modules/` prefix. The AI validator and the Release Preview see the same framework tables, which removes false "unknown table" facts rather than adding policy. The IDE bundle grows by the inlined source, and the e2e test pins the starter's 11-table / 46-edge graph as the regression.
 
-**Verification.** `@facilis/analyze`'s graph tests cover `framework: true` for re-exported tables and `false` for project tables; the IDE's `framework-sources.test.ts` covers the map and the drift guard, and `framework-analysis.test.ts` runs the real oxc parser over `exampleProjectFiles()` + `frameworkProjectFiles()` (11 tables, 29 nodes, 46 edges including `GET /api/files/{id} → facilis_files` and `todo_files → facilis_files`; the same project without framework source stays at 2 tables / 20 nodes / 21 edges). `pnpm lint`, `pnpm typecheck`, `pnpm test` (IDE 981, analyze 82, nitro 354) and `pnpm build` pass; file-length, theme and prettier checks are clean.
+**Verification.** `@facilis.dev/analyze`'s graph tests cover `framework: true` for re-exported tables and `false` for project tables; the IDE's `framework-sources.test.ts` covers the map and the drift guard, and `framework-analysis.test.ts` runs the real oxc parser over `exampleProjectFiles()` + `frameworkProjectFiles()` (11 tables, 29 nodes, 46 edges including `GET /api/files/{id} → facilis_files` and `todo_files → facilis_files`; the same project without framework source stays at 2 tables / 20 nodes / 21 edges). `pnpm lint`, `pnpm typecheck`, `pnpm test` (IDE 981, analyze 82, nitro 354) and `pnpm build` pass; file-length, theme and prettier checks are clean.
 
 ### D-131 — Phase 5 (headless blocks) is retired: the project owns its UI components
 **Status:** accepted (2026-11-09)
 
-Phase 5 planned a versioned `@facilis/blocks` supply chain (DataTable, ResourceForm, AuthGuard, …),
+Phase 5 planned a versioned `@facilis.dev/blocks` supply chain (DataTable, ResourceForm, AuthGuard, …),
 block discovery over `node_modules`, and a `RoleAssignment` block; the package in the repository
 was only a 29-line type skeleton, and no workspace package, template or generated project
 referenced it. The direction changed twice since: D-121 removed the `blocks` config section because
@@ -5000,12 +5004,12 @@ reader benefit); building the blocks anyway (they would duplicate the copy-in pr
 chose over a component package, and the AI already writes those pages directly).
 
 **Consequences.** One workspace package fewer; the manifest `blocks` section is now permanently
-empty, and rule 7 rejects any `@facilis/blocks` import as an unknown block (rule 12 would also fail
+empty, and rule 7 rejects any `@facilis.dev/blocks` import as an unknown block (rule 12 would also fail
 it, since the package is not installed). No user-facing behaviour changes.
 
 **Verification.** `pnpm lint`, `pnpm typecheck`, `pnpm test` (19 workspace tasks; IDE 981, analyze 82,
 nitro 354) and `pnpm build` (11 packages) pass with the package removed. No source imports it;
-`grep` finds `@facilis/blocks` only in this log, the spec's reserved notes, the validator's guard
+`grep` finds `@facilis.dev/blocks` only in this log, the spec's reserved notes, the validator's guard
 constant and its test fixtures.
 
 ### D-132 — The preview routing state survives Service Worker eviction
@@ -5142,7 +5146,7 @@ list of filenames.
 
 **Consequences:** the graph gains `page-link` as a fifth kind (filters, legend, persistence and
 AI tools pick it up from `GRAPH_EDGE_KINDS`); old `.facilis/graph/` files remain valid because
-unknown hidden-edge names are ignored. `@facilis/analyze` gains route `elevations`, page
+unknown hidden-edge names are ignored. `@facilis.dev/analyze` gains route `elevations`, page
 `routePaths`/`preview` and internal screen facts; the Nitro metadata/OpenAPI contract is
 unchanged. The preview is capped and static by design: conditions, data and CSS are never
 executed.
@@ -5289,7 +5293,7 @@ dynamic); suppressing the warning when any elevation exists (the elevation may n
 turning the graph badge red (system-only framework tables are normal, and a red badge would train
 people to ignore it).
 
-**Verification.** `@facilis/analyze` `src/passes/route-tables.test.ts` (declaration warns, the
+**Verification.** `@facilis.dev/analyze` `src/passes/route-tables.test.ts` (declaration warns, the
 literal elevation exempts, `dbColumns` counted, unknown table silent); analyzer suite 15 files/93
 tests; IDE i18n catalog tests, graph tests, typecheck and lint.
 
@@ -5552,7 +5556,7 @@ il ruolo scelto sulla credenziale. D-141 aveva reso crossSite sinonimo di route 
   defineAuthorizedHandler: senza eccezione il gate D-141 la rifiuterebbe. Il config del wrapper
   guadagna originCheck?: "enforce" | "skip" (default enforce), usato solo dagli endpoint di
   protocollo framework-owned; un'app non deve usarlo.
-- **Gestione dei client nel template.** Helper in @facilis/auth (createApiClient, listApiClients,
+- **Gestione dei client nel template.** Helper in @facilis.dev/auth (createApiClient, listApiClients,
   revokeApiClient) e route del template starter protette da permessi dell'app
   (api-clients:read/api-clients:write): il secret e' mostrato una sola volta, il ruolo e' scelto
   tra config.auth.roles, la revoca invalida i token esistenti, la lista non restituisce mai hash.
@@ -5655,7 +5659,7 @@ vorrà nascondere anche quella, la strada è `sessions` system-only (stessa deci
 
 **Verification.** `session.test.ts` (la riga è `sha256(cookie)` e l'id grezzo non compare nella
 tabella; lifecycle, scadenza, distruzione, middleware, Bearer che non fa fallback al cookie),
-suite `@facilis/auth` (135 test) e typecheck del pacchetto.
+suite `@facilis.dev/auth` (135 test) e typecheck del pacchetto.
 
 ### D-145 — Coda: accesso gated da `jobs:read`/`jobs:exec`, non da un ruolo system
 **Status:** accepted (2026-11-10)
@@ -5705,8 +5709,8 @@ senza cambiare la classe delle tabelle.
 
 **Verification.** `examples/todo-app/db/migrations.test.ts` (le quattro policy + la vecchia
 assente), `packages/nitro/src/runtime/jobs/db-store.test.ts` (scope con permessi: passa; scope
-senza: INSERT negato e SELECT invisibile), suite jobs di `@facilis/nitro`, suite
-`@facilis/db`, gates root.
+senza: INSERT negato e SELECT invisibile), suite jobs di `@facilis.dev/nitro`, suite
+`@facilis.dev/db`, gates root.
 
 ### D-146 — Rilevamento produzione fail-closed: solo `development`/`test` sono dev
 **Status:** accepted (2026-11-10)
@@ -5883,7 +5887,7 @@ cap, errori esistenti invariati), suite core/nitro verdi, file-length e lint.
 SEC-12: l'analyzer produceva `wrapper: "invalid"` ma solo l'IDE e il validatore AI lo usavano; niente
 in CI impediva di aggiungere a mano una route senza `defineAuthorizedHandler` o senza `dbTables`.
 
-**Decision.** Un test Vitest in `@facilis/analyze` (`routes-gate.test.ts`) carica le app con
+**Decision.** Un test Vitest in `@facilis.dev/analyze` (`routes-gate.test.ts`) carica le app con
 `server/routes`/`server/api` sotto `examples/` (e `starter/` quando esiste), esegue l'analyzer reale e
 fallisce se una route non ha un `RouteFact`, se `wrapper !== "valid"` o se `dbTables` è assente/non
 leggibile staticamente. Un fixture temporaneo dimostra che il gate scatta (default export non-wrapper,
@@ -5998,7 +6002,7 @@ dichiara è ciò a cui può accedere, così è semplice capire quale route fa co
   proprio nome (D-097/D-098), invoker o definer: le tabelle base non si dichiarano, perché l'accesso alla
   vista non è un accesso diretto e per una definer il gate resta il permesso dichiarato nella `defineView`.
   Questo sostituisce la convenzione di O-013 ("dichiara le tabelle base").
-- **Statico.** `@facilis/analyze` impara `defineView` (`db/views/**`) in `ViewFact` (nome, tabelle,
+- **Statico.** `@facilis.dev/analyze` impara `defineView` (`db/views/**`) in `ViewFact` (nome, tabelle,
   permesso, access). Un nuovo pass per route parte dall'handler, **segue le chiamate a funzioni del
   progetto** (stessi server module, con mappatura degli argomenti; profondità limitata, cicli chiusi; le
   chiamate nei pacchetti restano opache) e registra le relazioni lette/scritte: `select().from(...)` e join,
@@ -6053,7 +6057,7 @@ del rilascio precedente e il tag nuovo, senza accesso al database.
 
 - **Dove nasce.** Il release pipeline fa checkout dei due tag, carica db/schema.ts e
   facilis.config.ts, costruisce i due snapshot dichiarati e chiama planSchema(from, to) in
-  @facilis/core: batch ordinati, classi di rischio, problemi. Un problema (dichiarazione
+  @facilis.dev/core: batch ordinati, classi di rischio, problemi. Un problema (dichiarazione
   irrappresentabile, sicurezza delle policy) fa fallire il rilascio, non degrada.
 - **Nessun database al momento della generazione.** L'IDE e la CI non raggiungono test/prod: il
   confronto live e' impossibile per costruzione, quindi il tag e' l'unica sorgente. Il catalogo
@@ -6066,7 +6070,7 @@ del rilascio precedente e il tag nuovo, senza accesso al database.
 - **Nessuna dipendenza runtime da drizzle-kit.** I percorsi programmatici sono verificati rotti o
   lossy (pushSchema perde i parametri, il pull non e' idempotente) e il progetto generato non lo
   installa: drizzle-kit resta un oracolo di test in CI, non una dipendenza.
-- **D-109 si completa.** Il renderer orfano si sposta in @facilis/core con i suoi test.
+- **D-109 si completa.** Il renderer orfano si sposta in @facilis.dev/core con i suoi test.
 
 **Rejected.** drizzle-kit come generatore di produzione (rotto/lossy e assente dal progetto
 generato), diff live come generatore (la pipeline non ha accesso al DB: e' la ragione del modello),
@@ -6152,7 +6156,7 @@ le rotte.
 
 **Decision.**
 
-- **Fatti.** `@facilis/analyze` aggiunge un nodo `view` al `ProjectGraph` per ogni `ViewFact`:
+- **Fatti.** `@facilis.dev/analyze` aggiunge un nodo `view` al `ProjectGraph` per ogni `ViewFact`:
   id `view:<nome SQL>`, sorgente il file `db/views/**`, dati `ViewNodeData` (nome, tabelle base
   dichiarate, `permission`, `access` invoker/definer/ignoto, unknown). `analysis.views` resta la
   fonte dei fatti; il grafo ne è la proiezione.
@@ -6186,8 +6190,8 @@ vista come accesso della route (D-157: sono metadata della vista, non accesso di
 superato **solo per il grafo** (analyzer e validator invariati). Test: `graph.test.ts` (nodi e archi
 vista) e i test del modello/layout del grafo IDE.
 
-**Verification.** `pnpm --filter @facilis/analyze test` (nodi, route-view, view-base, determinismo),
-`pnpm --filter @facilis/ide test` (dati, used-by-routes, posizionamento nella colonna schema, ricerca,
+**Verification.** `pnpm --filter @facilis.dev/analyze test` (nodi, route-view, view-base, determinismo),
+`pnpm --filter @facilis.dev/ide test` (dati, used-by-routes, posizionamento nella colonna schema, ricerca,
 filtri), typecheck dei due pacchetti.
 
 ---
@@ -6197,13 +6201,13 @@ filtri), typecheck dei due pacchetti.
 
 Owner request (2026-11-10): workflows should appear only in the project graph, with no new
 "Attività" tab. The graph (D-092/D-134) is already the single static visualizer of the project,
-built from `@facilis/analyze` facts without booting the app. A tasks inbox in the Studio would
+built from `@facilis.dev/analyze` facts without booting the app. A tasks inbox in the Studio would
 need a transport to the app's own authorized routes (session, page context, caching) and would
 duplicate a surface the app owns; the tasks API deliberately has no framework HTTP endpoint
 (D-135).
 
 **Decision.** Add a `workflow` graph node kind. A pass reads each `server/workflows/**` default
-export (a `defineWorkflow()` call from `@facilis/core`): the name, the ordered steps with their
+export (a `defineWorkflow()` call from `@facilis.dev/core`): the name, the ordered steps with their
 kind (`job`/`approval`), the job name or approval title key, the approval assignment permission and
 the forward `onReject.step`. Unreadable fields stay explicit (`name: null` plus unknown facts),
 and a file whose default export is not a `defineWorkflow` call is a `workflow-definition` warning,
@@ -6245,7 +6249,7 @@ what it can reach is exactly the union of its steps' jobs' declarations.
   code — never the relation name or the internal message.
 - **Terminal failure.** A declaration violation is deterministic, so it is not retried: the
   attempt settles `failed` with the stable code even when `maxAttempts` would allow a retry.
-- **Static side.** `@facilis/analyze` gains `JobFact` (readable `dbTables`/`rawSql` or explicit
+- **Static side.** `@facilis.dev/analyze` gains `JobFact` (readable `dbTables`/`rawSql` or explicit
   unknown) and `JobRelationsFact` (relation usage in the `run` body, following project-local
   helper calls; views resolve like tables; package calls stay opaque). Diagnostics:
   `job-definition`/`job-definition-static` warnings, `job-table-undeclared`, `job-table-unresolved`
@@ -6277,6 +6281,100 @@ with the same codes and the same observed audit; the framework's own queue store
 §5.6/§7.9/§8.4.6/§9.3, JOBS.md §5/§7/§8, WORKFLOWS.md §6/§9 and AGENTS.md (invariant 2, 19
 rules) follow. The AI validator is now 19 rules, not 18.
 
+### D-163 — Two persisted filters remove the framework's feature surface from the project graph
+**Status:** accepted (2026-11-11)
+
+**Context.** The framework ships its own tables (auth users/sessions, jobs, workflows, files) and
+feature routes (login, queue, workflow endpoints), and D-130 deliberately made the framework
+tables reach the browser analyzer through the inlined package source. That closed the "missing
+tables" gap but made the graph noisy: the project's own schema and routes are outnumbered by
+surface the author did not write. Users need to declutter the drawn graph without losing the
+integrity view (invalid and unknown facts must stay visible), and the choice has to be team state
+like the rest of the graph layout (D-126).
+
+**Decision.**
+
+- **Two filters, off by default.** The graph toolbar gains a system-filters section
+  (`projectGraph.systemFilters`) with **System routes** (`hideSystemRoutes`,
+  `projectGraph.systemRoutes`) and **Unused system tables** (`hideSystemTables`,
+  `projectGraph.systemTables`), each independently persisted and default `false`; the hint is
+  `projectGraph.systemHint` and the removed-node count `projectGraph.hiddenNodes`.
+- **System routes.** A route is *system* when its `sourceFile` starts with `node_modules/` OR —
+  when the wrapper is known (`unknown === false`) — none of its declared `dbTables` names a
+  project-declared relation (a non-framework table or any view). A route whose wrapper is
+  unknown/invalid is never hidden, even when the filter is on.
+- **Unused system tables.** A table is *system* when it carries the framework flag (declared by
+  an installed `@facilis.dev` package, source under `node_modules/`, the `sistema` badge) and is not
+  the target of a `route-table` or `route-view` edge whose source is a non-system route. A
+  framework table the project's own routes use (e.g. `facilis_files` reached from the
+  `/api/todos` routes) therefore stays visible.
+- **Drawn view.** An enabled filter removes its hidden nodes and every edge touching them; the
+  automatic layout is computed from the visible nodes while the saved positions of the remaining
+  nodes are kept, and `ProjectGraphStats.hiddenNodes` reports how many nodes are gone.
+- **Persistence.** `.facilis/graph/layout.json` (D-126) gains two additive booleans,
+  `hideSystemRoutes`/`hideSystemTables`, default `false`; the file version stays 3 and a layout
+  written without them reads as show-everything. "Reset layout" keeps these view preferences,
+  exactly like `hiddenEdges`. `graph_state`/`graph_arrange` and the AI patch flow are unchanged
+  besides the two additive fields.
+
+**Consequences.** No analyzer change: the classification is derived in the IDE from facts that
+already exist (`framework`, `sourceFile`, `dbTables`, the two route edges), so the manifest,
+OpenAPI and validator are untouched. Old `layout.json` files and older IDE builds keep working —
+the fields are additive and the version does not move. The route classification is a documented
+heuristic: a project route that touches no DB relation is classified as system, so the filter
+defaults off and can simply be left off; it is a declutter option, not an integrity boundary.
+Hidden nodes are not deleted: their positions stay in the layout, so re-enabling a filter restores
+the arrangement.
+
+**Verification.** Unit tests in `ide/src/facilis` cover the classification and the view model
+(both filters on/off, unknown routes always shown, a project-used framework table kept) and the
+layout round-trip (fields default `false`, a file without them reads as off, reset keeps them).
+`pnpm --filter @facilis.dev/ide typecheck` and `pnpm --filter @facilis.dev/ide test`.
+
+### D-164 — The framework packages publish to npm under `@facilis.dev` on every deploy
+**Status:** accepted (2026-11-11)
+
+**Context.** O-006 left the publish target open until Phase 6, and every generated project has
+installed the framework packages from tarballs the IDE serves on its own origin (D-022). The npm
+organization `facilis.dev` now exists, and an npm scope is the organization name: the packages
+must move from `@facilis/*` to `@facilis.dev/*`, because an owner of `facilis.dev` cannot publish
+under the `facilis` scope. npm has no alias or relocation mechanism, so keeping the old names
+would mean occupying a second organization instead.
+
+**Decision.**
+
+- **Scope.** Every workspace package is renamed `@facilis/*` → `@facilis.dev/*` across imports,
+  package manifests, the IDE template, the lockfile and the docs. Nothing outside this repo
+  consumes the old names, so this is a one-shot breaking rename rather than a compatibility shim.
+- **Publishing rides the deploy.** `.github/workflows/publish-packages.yml` runs on every push to
+  `main` that can change `packages/**`. It gates the published surface (`turbo lint/typecheck/
+  test/build` scoped to `./packages/*`, plus the file-length gate) and then runs
+  `scripts/publish-packages.mjs --skip-build`; the IDE is not published and stays out of the gate.
+- **Versions are derived, not committed.** The nine packages release in lockstep on the next patch
+  after the highest version already on npm (`0.1.0` for the first release); the workspace version
+  stays `0.0.0` as the placeholder. A half-failed release retries on a version no package has yet,
+  so the set never splits. Runs are serialised (`cancel-in-progress: false`) so two deploys cannot
+  derive the same version.
+- **What is uploaded.** `scripts/publish-packages.mjs` stages each package into a temp directory:
+  `exports` are rewritten to `dist/*.js` with `main`/`types` derived, declaration specifiers are
+  repaired to `.js`, `workspace:` deps are pinned to the release version, `devDependencies`/
+  `scripts` are dropped, README/LICENSE are copied in and test modules are filtered out. The
+  workspace tree is never modified, so local development keeps resolving `src/` (and the IDE
+  keeps its own dist-rewritten tarballs, D-022).
+- **Credentials.** The workflow authenticates with the `NPM_TOKEN` repository secret (granular
+  token with read/write on the organization); a missing secret fails before the first upload with
+  a named error. Trusted publishing (OIDC) can replace the token once the packages exist and a
+  trusted publisher can be attached to each.
+
+**Consequences.** O-006 is resolved: the packages are installable by name, which unblocks the
+`starter/` task D-027 deferred. The IDE still installs from vendored tarballs (D-022), so an in-VM
+install never depends on registry availability; those tarballs are built from the same sources and
+keep the workspace version. The repo version is a floor, not the published version — the workflow
+derives it — and a manual release uses the same script (`pnpm publish:dry-run`, then
+`pnpm publish:packages` after `npm login`). The old `@facilis/*` names stop resolving.
+
+---
+
 ## Open items (post-MVP)
 
 Rows marked `done` are kept so their O-IDs stay resolvable; only the rows without a resolution are
@@ -6284,17 +6382,17 @@ live. The resolving ADR is in the row.
 
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
-| O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
-| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-141, `too_many_requests` — D-143, `payload_too_large` — D-153, `email_unverified` — D-156, `internal_error`), serialized as `{ code, details? }` — no prose | done |
+| O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis.dev/core`, `locales/en.json`) | done |
+| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis.dev/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-141, `too_many_requests` — D-143, `payload_too_large` — D-153, `email_unverified` — D-156, `internal_error`), serialized as `{ code, details? }` — no prose | done |
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
-| O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis/blocks` deleted; nothing to discover | done |
+| O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis.dev/blocks` deleted; nothing to discover | done |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
-| O-006 | Publish target for `@facilis/*` (public npm vs private registry) | start workspace-only; decide before first publish | Phase 6 |
+| O-006 | Publish target for `@facilis.dev/*` (public npm vs private registry) | **resolved by D-164:** public npm under the `facilis.dev` organization, published by `.github/workflows/publish-packages.yml` on every deploy with a derived patch version | done |
 | O-007 | Recommended default AI model | **resolved with D-045:** no enforced default; each provider preset carries an editable model default | done |
 | O-008 | Release-preview boot strategy (sequential boots vs `?at=<oid>`) | **resolved with D-086:** no boot — the Studio reads the refs from the git tree with isomorphic-git and diffs parsed snapshots | done |
 | O-009 | Validator rule 11 path allowlist vs rule 16 | **resolved with D-084:** the allowlist is the six project roots plus `facilis.config.ts`; root `AGENTS.md` only through the IDE writer's explicit `rootFiles`; rule 16 handles role/config sync via a migration in the same patch | done |
-| O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
-| O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
+| O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis.dev/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
+| O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis.dev/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
 | O-013 | Views in analyzer facts, graph and reverse lookup | **resolved for the project graph by D-160:** `ViewFact` becomes a `view:<name>` node (invoker/definer, permission, base tables), a route that declares a view in `dbTables` gets a `route-view` edge and the declared base tables get `view-base` edges; `defineView` facts and the validator were D-157. Still open: the Entity Explorer's declared views and its reverse lookup | Phase 4 (Entity Explorer half) |
 | O-014 | Log pipeline and retention beyond the local file | **resolved by D-119:** one JSONL pipeline, redaction/rotation/hash chain and env-owned sinks; WORM/external sinks remain O-019 | done |

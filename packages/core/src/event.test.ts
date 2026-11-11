@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { AuthContext } from "@facilis/auth";
+import type { AuthContext } from "@facilis.dev/auth";
 
 import type {
   FacilisContext,

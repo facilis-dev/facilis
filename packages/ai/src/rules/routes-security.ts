@@ -2,7 +2,7 @@
  * Rules 2 `route-security`, 3 `db-tables-present` and 8 `route-input-validated`
  * (SPEC §9.3), checked on the routes whose source file the patch creates or updates.
  *
- * The facts come from @facilis/analyze's route pass: wrapper resolution, `dbTables` and the
+ * The facts come from @facilis.dev/analyze's route pass: wrapper resolution, `dbTables` and the
  * handler's body read are AST facts, so a route cannot look valid by mentioning the wrapper
  * in a comment or a string. A route file with an invalid wrapper is still listed by the
  * analyzer, which is what lets rule 2 see it.

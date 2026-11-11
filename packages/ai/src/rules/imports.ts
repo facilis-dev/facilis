@@ -1,7 +1,7 @@
 /**
  * Rules 9 `no-raw-db-access` and 12 `import-resolves` (SPEC §9.3).
  *
- * Rule 9 keeps raw database clients inside `@facilis/db` (invariant 5); drizzle operators
+ * Rule 9 keeps raw database clients inside `@facilis.dev/db` (invariant 5); drizzle operators
  * and `drizzle-orm/pg-core` are the schema DSL and stay allowed. Rule 12 checks that every
  * module reference resolves against the effective file set, the project's aliases and the
  * packages package.json declares — no filesystem, no node_modules walk.
@@ -116,7 +116,7 @@ export function rawDbAccessErrors(state: EffectiveState): ValidationError[] {
         error(
           "no-raw-db-access",
           facts.path,
-          'Importing "' + imported.specifier + '" is a raw database client outside @facilis/db.',
+          'Importing "' + imported.specifier + '" is a raw database client outside @facilis.dev/db.',
           "Go through the policy-scoped db the handler receives (invariant 5).",
           imported.source.line,
         ),
@@ -128,7 +128,7 @@ export function rawDbAccessErrors(state: EffectiveState): ValidationError[] {
         error(
           "no-raw-db-access",
           facts.path,
-          "Constructing a raw drizzle() client is not allowed outside @facilis/db.",
+          "Constructing a raw drizzle() client is not allowed outside @facilis.dev/db.",
           "Use the policy-scoped db from the handler context; import operators from drizzle-orm instead (invariant 5).",
           rawDrizzleImport.source.line,
         ),

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { formatDueDate, isOverdue, localTimeZone } from "../lib/dates.ts";
 import { useLocale } from "../lib/i18n.tsx";
 import { cn } from "../lib/utils.ts";

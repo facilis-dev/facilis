@@ -76,6 +76,8 @@ export function ProjectGraphPanel() {
             graph: analysis.graph,
             positions: layout.nodes,
             hiddenEdgeKinds: layout.hiddenEdges,
+            hideSystemRoutes: layout.hideSystemRoutes,
+            hideSystemTables: layout.hideSystemTables,
             collapsed: layout.collapsed,
             query,
           }),
@@ -176,6 +178,9 @@ export function ProjectGraphPanel() {
         errors={errors}
         warnings={warnings}
         onToggleEdgeKind={graph.toggleEdgeKind}
+        hideSystemRoutes={layout.hideSystemRoutes}
+        hideSystemTables={layout.hideSystemTables}
+        onToggleSystemNodes={graph.toggleSystemNodes}
       />
       <div className="flex min-h-0 flex-1">
         <div className="relative min-h-0 flex-1">{body}</div>

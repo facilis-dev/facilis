@@ -1,5 +1,5 @@
-import type { AuthContext } from "@facilis/auth";
-import type { FacilisDb } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { JobsApi } from "./jobs.ts";
 import type { TasksApi } from "./tasks.ts";

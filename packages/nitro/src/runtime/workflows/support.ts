@@ -2,8 +2,8 @@
 //
 // Kept out of transitions.ts/dispatch.ts so both files stay under the 300-line gate and the
 // compare-and-set policy lives in one place: a transition only applies to the row it read.
-import { WorkflowError } from "@facilis/core";
-import type { JobJson, WorkflowProgressEntry } from "@facilis/core";
+import { WorkflowError } from "@facilis.dev/core";
+import type { JobJson, WorkflowProgressEntry } from "@facilis.dev/core";
 
 import type { StoredWorkflow, WorkflowRuntimeDeps } from "./contracts.ts";
 

@@ -4,7 +4,7 @@ import type {
   ManifestSection,
   ManifestSummary,
   ManifestWarning,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import { jsonResult, type HttpResult } from "./http.ts";
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Analysis, GraphNode } from "@facilis/analyze";
+import type { Analysis, GraphNode } from "@facilis.dev/analyze";
 import { GRAPH_NOTES_DIR } from "@/facilis/graph-layout-file";
 import { bendPath, elementPath, noteFilePath } from "@/facilis/graph-layout-files";
 import { ACTIVE_TODOS, GET, PAGE, TODOS, graphOf } from "@/facilis/graph-model.test-fixtures";
@@ -182,6 +182,8 @@ describe("graph_arrange", () => {
     expect(JSON.parse(files[ROOT + "/.facilis/graph/layout.json"] ?? "")).toEqual({
       version: 3,
       hiddenEdges: ["page-route"],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: { [TODOS.id]: true },
     });
     expect(files[ROOT + "/" + noteFilePath(NOTE)]?.trim()).toBe("edited");
@@ -198,6 +200,8 @@ describe("graph_arrange", () => {
     expect(JSON.parse(files[ROOT + "/.facilis/graph/layout.json"] ?? "")).toEqual({
       version: 3,
       hiddenEdges: ["route-view", "view-base"],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: {},
     });
   });

@@ -8,7 +8,7 @@
  */
 import { parseSync } from "rolldown/utils";
 
-import type { ParseError, ParsedModule, Parser } from "@facilis/analyze";
+import type { ParseError, ParsedModule, Parser } from "@facilis.dev/analyze";
 
 /** Languages the parser adapter maps a file extension to; the rest are TypeScript. */
 type ScriptLanguage = "ts" | "tsx" | "js" | "jsx";
@@ -27,7 +27,7 @@ function languageOf(filename: string): ScriptLanguage {
   return "ts";
 }
 
-/** 1-based line of an offset; `@facilis/analyze` keeps its own helper internal. */
+/** 1-based line of an offset; `@facilis.dev/analyze` keeps its own helper internal. */
 function lineOf(source: string, offset: number): number {
   let line = 1;
   const end = Math.min(Math.max(offset, 0), source.length);

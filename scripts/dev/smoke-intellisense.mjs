@@ -16,7 +16,7 @@
 // costs a few hundred ms on a healthy project instead of delaying the write path.
 
 const POLL_MS = 500;
-// The generated project imports its own @facilis packages through "exports" maps, so the
+// The generated project imports its own @facilis.dev packages through "exports" maps, so the
 // first semantic query builds a bigger program (react-router + the kit's declarations)
 // than the old plain-React probe; 30 s was the old app's budget and could abort a healthy
 // slow build, so give the worker room and keep the per-call race above it.

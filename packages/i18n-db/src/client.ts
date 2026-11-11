@@ -1,4 +1,4 @@
-import { registerCatalog, setDefaultLocale } from "@facilis/core/i18n";
+import { registerCatalog, setDefaultLocale } from "@facilis.dev/core/i18n";
 
 // The browser half also exposes the pure locale/translation helpers so a generated app can
 // resolve content without a second import; the column helper and Drizzle stay server-only.

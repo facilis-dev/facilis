@@ -1,5 +1,5 @@
-import type { FacilisJobsConfig, ManifestWarning } from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisJobsConfig, ManifestWarning } from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { JobModule, JobStore } from "./contracts.ts";
 import { createDbJobStore, isJobsTableAvailable } from "./db-store.ts";

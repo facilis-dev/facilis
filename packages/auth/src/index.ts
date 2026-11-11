@@ -1,5 +1,5 @@
 /**
- * @facilis/auth — auth tables, RBAC expansion, password hashing, sessions and seeding.
+ * @facilis.dev/auth — auth tables, RBAC expansion, password hashing, sessions and seeding.
  */
 
 export {

@@ -8,8 +8,8 @@ import { SsoError } from "./errors.ts";
  * public list and a start attempt answers `sso_provider_unavailable`. The value itself is never
  * read for logging, compared or echoed.
  *
- * The types here mirror the `auth.sso` section of facilis.config.ts structurally. @facilis/core
- * already validates that config and depends on @facilis/auth, so auth cannot import the core
+ * The types here mirror the `auth.sso` section of facilis.config.ts structurally. @facilis.dev/core
+ * already validates that config and depends on @facilis.dev/auth, so auth cannot import the core
  * types without a package cycle; a parsed core provider is assignable to these shapes.
  */
 

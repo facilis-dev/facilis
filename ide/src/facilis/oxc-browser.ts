@@ -1,4 +1,4 @@
-// Browser parser adapter for @facilis/analyze (docs/findings/ast-dsl-contract.md §4).
+// Browser parser adapter for @facilis.dev/analyze (docs/findings/ast-dsl-contract.md §4).
 //
 // The analyzer worker is the only runtime importer of this module: `oxc-parser`'s browser
 // condition resolves to
@@ -9,7 +9,7 @@
 // Mirrors `createOxcParser()` from the package's Node adapter: same parser options, same
 // `ParseError` mapping, because both adapters satisfy the same `Parser` contract.
 
-import type { ParseError, ParsedModule, Parser } from "@facilis/analyze";
+import type { ParseError, ParsedModule, Parser } from "@facilis.dev/analyze";
 import { parseSync } from "oxc-parser";
 
 /** 1-based line number of a source offset (the fact model's SourceRef is 1-based). */

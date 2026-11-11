@@ -8,7 +8,7 @@ import {
   type FacilisLogRequestMeta,
   type LogEntry,
   type LogLevel,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import { sanitizeEntry } from "./entry.ts";
 import { createFileLogSink } from "./file-sink.ts";

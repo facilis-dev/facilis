@@ -4,7 +4,7 @@
 // old commit (slow, mutates the VFS, needs a healthy runtime). isomorphic-git runs on the
 // main thread over the kernel VFS through createGitFs (the silent vv-git-fs RPC), and the
 // ~1 MB module is lazy-loaded with the Buffer polyfill installed first (same pattern as
-// scm-session.ts). The schema is `@facilis/analyze` facts over the ref's DSL sources (D-094),
+// scm-session.ts). The schema is `@facilis.dev/analyze` facts over the ref's DSL sources (D-094),
 // so the analyzer is injected rather than imported: the Studio passes its worker, tests a
 // parser they can run. Every exported function is throw-free: a missing ref, a broken repo
 // or a failed analysis is data the panel renders, never an exception that reaches the editor.

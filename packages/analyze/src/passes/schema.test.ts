@@ -126,7 +126,7 @@ describe("schema pass (edge cases)", () => {
   it("recognizes aliased imports and keeps custom-builder columns with a schema-static diagnostic", () => {
     const graph =
       singleFile(`import { pgTable as table, text as str, varchar } from "drizzle-orm/pg-core";
-import { tenantColumn } from "@facilis/db";
+import { tenantColumn } from "@facilis.dev/db";
 import { customColumn } from "../lib/custom.ts";
 
 export const widgets = table("widgets", {
@@ -156,7 +156,7 @@ export const widgets = table("widgets", {
 
   it("reads pgPolicy options and rlsForTable policy sets", () => {
     const graph = singleFile(`import { pgPolicy, pgTable, text } from "drizzle-orm/pg-core";
-import { rlsForTable } from "@facilis/db";
+import { rlsForTable } from "@facilis.dev/db";
 
 export const audit = pgTable(
   "audit",

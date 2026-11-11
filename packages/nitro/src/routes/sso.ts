@@ -1,11 +1,11 @@
-import { createSession, SsoError, type CompleteLoginResult } from "@facilis/auth";
+import { createSession, SsoError, type CompleteLoginResult } from "@facilis.dev/auth";
 import {
   defineAuthorizedHandler,
   fail,
   type FacilisConfig,
   type FacilisHandlerEvent,
-} from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+} from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { getBootstrap } from "../runtime/bootstrap.ts";
 import { jsonResult, parseRequestUrl, toResponse } from "../runtime/http.ts";
@@ -102,7 +102,7 @@ async function readBodyText(event: FacilisHandlerEvent): Promise<string | null> 
 
 /**
  * The two ACS form fields. This is a hand-written check rather than a Zod schema because the
- * framework route lives in @facilis/nitro, whose dependency set has no zod (and the route wrapper
+ * framework route lives in @facilis.dev/nitro, whose dependency set has no zod (and the route wrapper
  * has no urlencoded `form` schema); the validation is the same length/presence check a schema
  * would express, and every failure maps to a safe redirect code.
  */

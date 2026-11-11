@@ -170,7 +170,7 @@ export function buildViewSource(input: ViewSourceInput): ViewSource {
   const contents = [
     ...commentLines,
     'import { sql } from "drizzle-orm";',
-    'import { defineView } from "@facilis/db";',
+    'import { defineView } from "@facilis.dev/db";',
     "import { " + imported.join(", ") + ' } from "drizzle-orm/pg-core";',
     "",
     "export const " + exportName + " = defineView({",

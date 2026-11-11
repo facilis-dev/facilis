@@ -8,7 +8,7 @@
 //
 // The analyze function is injected so the mapping is unit-tested in Node without a worker.
 
-import type { SyntaxChecker, SyntaxIssue } from "@facilis/ai";
+import type { SyntaxChecker, SyntaxIssue } from "@facilis.dev/ai";
 import { analyzeProjectFiles } from "@/facilis/analyze-client";
 
 export interface AnalyzerDiagnostic {

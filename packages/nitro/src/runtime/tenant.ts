@@ -1,9 +1,9 @@
-import { DEFAULT_TENANT_ID } from "@facilis/core";
+import { DEFAULT_TENANT_ID } from "@facilis.dev/core";
 
 /**
  * Single-tenant fallback tenant id (DECISIONS O-003).
  *
- * The constant lives in @facilis/core so the middleware, the handler scoping and generated
+ * The constant lives in @facilis.dev/core so the middleware, the handler scoping and generated
  * apps cannot drift apart (a mismatch makes RLS reject every insert). It is also the value the
  * session middleware requires a session's user row to carry (D-040).
  */

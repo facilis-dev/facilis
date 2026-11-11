@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defineConfig } from "@facilis/core";
+import { defineConfig } from "@facilis.dev/core";
 
 import {
   ALL_MANIFEST_SECTIONS,

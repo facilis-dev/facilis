@@ -17,7 +17,7 @@ is also its own branch to propose upstream as a PR.
 | Our fork | `https://github.com/kele23/vivari` — `master` mirrors upstream, `facilis/main` is what we pin |
 | Upstream releases | second remote `upstream` in the same clone: `git -C vendor/vivari fetch upstream --tags` |
 | Branch map + workflow | `vendor/vivari/FORK.md` (in the fork) + this file |
-| Facilis code that uses it | `packages/` (`@facilis/*`) and `ide/` (fork of upstream `packages/studio`) |
+| Facilis code that uses it | `packages/` (`@facilis.dev/*`) and `ide/` (fork of upstream `packages/studio`) |
 
 ## First checkout
 
@@ -83,7 +83,7 @@ the same rule) now returns the absolute path the URL meant instead of throwing
 `ERR_INVALID_FILE_URL_HOST`. Three-slash URLs, `localhost` and the non-file-scheme error are
 unchanged; a real UNC URL maps to `/server/share` rather than throwing, the one deliberate
 deviation from Node, recorded in the fork's `FORK.md`. It has no branch yet and waits for the
-re-opened upstream `fix/file-url-host-v2` PR. Downstream, this is what let `@facilis/db` go
+re-opened upstream `fix/file-url-host-v2` PR. Downstream, this is what let `@facilis.dev/db` go
 back to the plain PGlite constructor: the artifact hand-off and the one-boot
 `fileURLToPath` shim are gone, and the database locates its own `.data`/`.wasm` again.
 
@@ -91,7 +91,7 @@ back to the plain PGlite constructor: the artifact hand-off and the one-boot
 |---|---|
 | `git submodule status` | clean at `e654919…` (`v1.1.5-23-ge654919`) |
 | `node vendor/vivari/scripts/spike-esm.mjs` | PASS, including the `[url]` section: a Chrome/Windows-style hostful URL comes back as `/home/user/projects/app/x.js` (spaces/unicode too), `file:/home` comes back as `/home`, a three-slash URL and `localhost` are unchanged, a non-file scheme still throws |
-| `pnpm --filter @facilis/db test` | 30/30 (the three shim tests went with the shim) |
+| `pnpm --filter @facilis.dev/db test` | 30/30 (the three shim tests went with the shim) |
 | `TEMPLATE=Facilis pnpm ide:smoke` | **PASSED**, `failures: []`: create, install, preview, the framework contract (health, manifest 0 warnings, OpenAPI `x-db-tables`, todos 401, session), IntelliSense, A8/A9/A10/A12, and **`facilisDbInsert`/`facilisDbQuery` = ok with the plain PGlite constructor** — i.e. the database booted through the runtime's recovery, not through a workaround |
 | `pnpm ide:smoke` (React template) | **PASSED** (create, install, preview, contract, IntelliSense, A8/A9/A10/A12) |
 | `pnpm lint && pnpm typecheck --force && pnpm test --concurrency=1 && pnpm build` + `pnpm format:check` + `node scripts/check-file-length.mjs` | green: 0 lint errors / 109 warnings, 13/13 typecheck, 12/12 test, 8/8 build, Prettier clean, 241 files under the 300-line limit |
@@ -114,7 +114,7 @@ The fork delta is replayed on the tag with one new fix: `9184ee5` builds
 now applies Node's posix rules, throwing `ERR_INVALID_FILE_URL_HOST` instead of converting a
 hostful URL into a plausible wrong path; `36c9714` applies the same rule to
 `Bun.pathToFileURL` and the debugger's script URLs. That is fork issue kele23/vivari#1,
-proposed upstream as PR #31. The CJS load in `@facilis/db` stays: the vendor's in-VM
+proposed upstream as PR #31. The CJS load in `@facilis.dev/db` stays: the vendor's in-VM
 database rule also forbids a non-entry ESM import of a top-level-await dependency (D-039).
 
 | Check | Result |

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
-import { sendStoredFile } from "@facilis/nitro/storage";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
+import { sendStoredFile } from "@facilis.dev/nitro/storage";
 
 // Token-only download proxy (D-053): GET carries no session cookie by design, so img tags
 // and shared links work. The signed token is what proves the caller may read this file.

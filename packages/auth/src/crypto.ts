@@ -1,5 +1,5 @@
 /**
- * Runtime-agnostic WebCrypto access. @facilis/auth runs inside a browser WebContainer too,
+ * Runtime-agnostic WebCrypto access. @facilis.dev/auth runs inside a browser WebContainer too,
  * so it uses the standard `globalThis.crypto` surface and never `node:crypto`.
  */
 

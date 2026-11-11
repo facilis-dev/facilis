@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import * as auth from "./index.ts";
 
-describe("@facilis/auth public surface", () => {
+describe("@facilis.dev/auth public surface", () => {
   it("re-exports the auth tables (Appendix D step 2 pattern)", () => {
     expect(auth.users).toBeDefined();
     expect(auth.sessions).toBeDefined();

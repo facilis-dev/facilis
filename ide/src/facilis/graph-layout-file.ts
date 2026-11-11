@@ -12,7 +12,7 @@
 // Pan/zoom lives in `viewport.json` and is deliberately git-ignored: it is per machine, not
 // team state.
 
-import type { GraphEdgeKind } from "@facilis/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { GRAPH_EDGE_KINDS, type GraphCurve, type GraphNote } from "./graph-types";
 
 export const GRAPH_LAYOUT_VERSION = 3 as const;
@@ -43,6 +43,9 @@ export interface GraphLayoutFile {
   readonly version: typeof GRAPH_LAYOUT_VERSION;
   readonly nodes: Readonly<Record<string, GraphPosition>>;
   readonly hiddenEdges: readonly GraphEdgeKind[];
+  /** View preferences (D-163): hide the framework's own routes / unused framework tables. */
+  readonly hideSystemRoutes: boolean;
+  readonly hideSystemTables: boolean;
   readonly collapsed: Readonly<Record<string, boolean>>;
   /** Manual edge bends, keyed by edge id; a missing id means the automatic path. */
   readonly edgeCurves: Readonly<Record<string, GraphCurve>>;
@@ -72,6 +75,8 @@ export function emptyGraphLayout(): GraphLayoutFile {
     version: GRAPH_LAYOUT_VERSION,
     nodes: {},
     hiddenEdges: [],
+    hideSystemRoutes: false,
+    hideSystemTables: false,
     collapsed: {},
     edgeCurves: {},
     notes: {},
@@ -165,6 +170,9 @@ export function parseGraphLayout(text: string | null | undefined): ParsedGraphLa
       version: GRAPH_LAYOUT_VERSION,
       nodes: positions,
       hiddenEdges: readEdgeKinds(raw.hiddenEdges),
+      // The legacy single-file format predates the system filters: show everything (D-163).
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: readCollapsed(raw.collapsed),
       edgeCurves: readCurves(raw.edgeCurves),
       notes: {},
@@ -192,6 +200,8 @@ export function mergeGraphLayout(
     version: GRAPH_LAYOUT_VERSION,
     nodes,
     hiddenEdges: layout.hiddenEdges.filter((kind) => edgeKinds.has(kind)),
+    hideSystemRoutes: layout.hideSystemRoutes,
+    hideSystemTables: layout.hideSystemTables,
     collapsed,
     // Edge ids are not node ids: stale curves are dropped by pruneGraphCurves when the panel
     // next sees the graph, so merge just carries the map along.
@@ -230,6 +240,8 @@ export function resetGraphLayoutPositions(layout: GraphLayoutFile): GraphLayoutF
     version: GRAPH_LAYOUT_VERSION,
     nodes: {},
     hiddenEdges: layout.hiddenEdges,
+    hideSystemRoutes: layout.hideSystemRoutes,
+    hideSystemTables: layout.hideSystemTables,
     collapsed: {},
     edgeCurves: {},
     notes: layout.notes,

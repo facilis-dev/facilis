@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defineConfig, type FacilisHandlerEvent } from "@facilis/core";
+import { defineConfig, type FacilisHandlerEvent } from "@facilis.dev/core";
 
 import {
   listSsoProviders,
@@ -7,7 +7,7 @@ import {
   SSO_ROUTE_TABLES,
   ssoFailureLocation,
 } from "./sso.ts";
-import { SsoError } from "@facilis/auth";
+import { SsoError } from "@facilis.dev/auth";
 
 const config = defineConfig({
   auth: {

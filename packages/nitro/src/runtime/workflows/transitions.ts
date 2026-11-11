@@ -2,7 +2,7 @@
 //
 // Every transition is a short transaction with a compare-and-set guard on the row it read;
 // the side-effecting half of a transition (job enqueue, task insert) lives in dispatch.ts.
-import type { JobJson, WorkflowDefinition, WorkflowProgressEntry } from "@facilis/core";
+import type { JobJson, WorkflowDefinition, WorkflowProgressEntry } from "@facilis.dev/core";
 
 import { formatIssues } from "../jobs/engine-support.ts";
 import type { StoredTask } from "../tasks/contracts.ts";

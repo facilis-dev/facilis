@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 // The framework exposes ctx.jobs to server code only (D-107, JOBS §6); this route is the
 // app's own authenticated surface over it. jobs:exec is checked here AND by the queue's RLS

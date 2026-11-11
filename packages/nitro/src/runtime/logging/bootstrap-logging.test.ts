@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_LOGGING_CONFIG, type AccessLogEntry } from "@facilis/core";
+import { DEFAULT_LOGGING_CONFIG, type AccessLogEntry } from "@facilis.dev/core";
 
 import { createBootstrapLogging, effectiveLoggingConfig } from "./bootstrap-logging.ts";
 

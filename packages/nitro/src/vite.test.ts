@@ -13,7 +13,7 @@ const absentRoot = fileURLToPath(new URL("../test-fixtures/absent", import.meta.
 type HookFn = (this: unknown, ...args: unknown[]) => unknown;
 type Listener = (event: string, file: string) => void;
 
-const CONFIG_SOURCE = `import { defineConfig } from "@facilis/core";
+const CONFIG_SOURCE = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   db: { mode: "pglite", migrationsDir: "db/migrations", tenantColumns: ["tenantId"], ownerColumns: ["ownerId"] },
@@ -27,7 +27,7 @@ export default defineConfig({
 });
 `;
 
-const ROUTE_SOURCE = `import { defineAuthorizedHandler } from "@facilis/core";
+const ROUTE_SOURCE = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { tables } from "../lib/route-config";
 
 export default defineAuthorizedHandler(
@@ -243,7 +243,7 @@ describe("facilis Vite plugin", () => {
     const routeFile = join(root, "server", "routes", "health.get.ts");
     await writeFile(
       routeFile,
-      `import { defineAuthorizedHandler } from "@facilis/core";
+      `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   { permission: [], dbTables: [], description: "Health probe." },

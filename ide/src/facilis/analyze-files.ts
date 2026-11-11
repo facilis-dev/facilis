@@ -29,11 +29,11 @@ const INCLUDED_ROOT_FILES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Installed framework sources: the @facilis packages ship their `src/`, and the analyzer
+ * Installed framework sources: the @facilis.dev packages ship their `src/`, and the analyzer
  * reads their declarations. The generated project installs with npm (flat node_modules), so
  * the scope is a direct child of the project root.
  */
-const INCLUDED_NODE_MODULE_PREFIX = "node_modules/@facilis/";
+const INCLUDED_NODE_MODULE_PREFIX = "node_modules/@facilis.dev/";
 
 /** Generated/build artifacts and VCS metadata. Never DSL facts. */
 const SKIPPED_SEGMENTS: ReadonlySet<string> = new Set([

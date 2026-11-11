@@ -165,7 +165,7 @@ export async function runAsSystem<T>(
  *
  * An empty `dbTables` list is deliberately allowed here (D-107): a job may declare that it
  * touches no relation, and it is the only caller permitted to do so — `ctx.sudo`/`ctx.system`
- * still reject an empty subset in @facilis/core. The declaration is enforced by the guard.
+ * still reject an empty subset in @facilis.dev/core. The declaration is enforced by the guard.
  */
 function assertSystemRunOptions(options: RunAsSystemOptions): void {
   if (typeof options.actor !== "string" || !options.actor.startsWith("system:")) {

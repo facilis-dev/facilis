@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { revokeApiClient } from "@facilis/auth";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
+import { revokeApiClient } from "@facilis.dev/auth";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   {

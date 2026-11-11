@@ -25,7 +25,7 @@ import type { ProjectFile } from "../module-graph.ts";
 import { sourceRef } from "../source.ts";
 import type { Diagnostic, SourceRef } from "../types.ts";
 
-const RAW_DB_SPECIFIER = "@facilis/db";
+const RAW_DB_SPECIFIER = "@facilis.dev/db";
 const RAW_DB_FACTORY = "createDb";
 
 /** Warning text for raw/direct DB access in a route file. */

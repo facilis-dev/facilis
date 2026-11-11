@@ -1,6 +1,6 @@
 import { and, eq, lt } from "drizzle-orm";
 import { z } from "zod";
-import { defineJob } from "@facilis/core";
+import { defineJob } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;

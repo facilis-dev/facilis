@@ -1,9 +1,9 @@
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 /**
  * Structural contracts shared by the SSO modules (D-120).
  *
- * @facilis/core depends on @facilis/auth (route.ts imports the RBAC helpers), so auth cannot
+ * @facilis.dev/core depends on @facilis.dev/auth (route.ts imports the RBAC helpers), so auth cannot
  * import core without a package cycle. A system elevation is therefore described structurally:
  * `ctx.system` from `defineAuthorizedHandler` satisfies {@link SystemRunner} without auth
  * owning a copy of the core type.

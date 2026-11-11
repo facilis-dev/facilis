@@ -1,4 +1,4 @@
-import { analyzeProject, type Analysis } from "@facilis/analyze";
+import { analyzeProject, type Analysis } from "@facilis.dev/analyze";
 import { describe, expect, it } from "vitest";
 import { exampleProjectFiles } from "./example-template";
 import { createBrowserOxcParser } from "./oxc-browser";
@@ -41,11 +41,11 @@ describe("release schema facts", () => {
     });
   });
 
-  it("expands the @facilis/db policy helpers and named pgPolicy calls", () => {
+  it("expands the @facilis.dev/db policy helpers and named pgPolicy calls", () => {
     const files = {
       "db/schema.ts": `
 import { pgTable, pgPolicy, text, uuid } from "drizzle-orm/pg-core";
-import { rlsForTable } from "@facilis/db";
+import { rlsForTable } from "@facilis.dev/db";
 export const documents = pgTable("documents", {
   id: uuid("id").primaryKey(),
   tenantId: uuid("tenant_id").notNull(),

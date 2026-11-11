@@ -42,11 +42,11 @@ import cycles or API drift.
 ## 3. Dependency graph (fixed — do not add cycles)
 
 ```
-@facilis/db      -> drizzle-orm, @electric-sql/pglite        (leaf)
-@facilis/storage -> node:crypto, node:fs/promises            (leaf, D-053)
-@facilis/auth    -> @facilis/db, drizzle-orm
-@facilis/core    -> @facilis/auth, @facilis/db, zod
-@facilis/nitro   -> @facilis/core, @facilis/auth, @facilis/db, @facilis/storage,
+@facilis.dev/db      -> drizzle-orm, @electric-sql/pglite        (leaf)
+@facilis.dev/storage -> node:crypto, node:fs/promises            (leaf, D-053)
+@facilis.dev/auth    -> @facilis.dev/db, drizzle-orm
+@facilis.dev/core    -> @facilis.dev/auth, @facilis.dev/db, zod
+@facilis.dev/nitro   -> @facilis.dev/core, @facilis.dev/auth, @facilis.dev/db, @facilis.dev/storage,
                     nitro, vite, rolldown
 ```
 
@@ -126,7 +126,7 @@ insert does not name the tenant either.
 
 - Session cookie name: `facilis_session`; `HttpOnly`, `Path=/`, `SameSite=Lax`, `Secure` in prod.
 - Routes set/clear it with `setSessionCookie(event, sessionId, { ttlMs })` /
-  `clearSessionCookie(event)` from `@facilis/nitro/session`, and read it with
+  `clearSessionCookie(event)` from `@facilis.dev/nitro/session`, and read it with
   `sessionIdFromRequest(event)`. Those helpers call h3's `setCookie`/`deleteCookie`, which
   stage the header on the event's response — the only surface that survives the in-VM Nitro dev
   path; a `Set-Cookie` on a returned `Response` is dropped (D-038). Never hand-serialise it.
@@ -136,7 +136,7 @@ insert does not name the tenant either.
   data — a returned `Response` keeps its own status. For everything else h3 provides (redirects, streams, app cookies, `getQuery`, params, …) import it from
   `nitro/h3` in `server/**` code — the documented Nitro re-export, and every project declares
   `nitro` — then narrow the structural event once: `const h3 = event as unknown as H3Event`.
-  That is the same single cast `@facilis/nitro/session` does: core's event contract stays
+  That is the same single cast `@facilis.dev/nitro/session` does: core's event contract stays
   h3-free (§4.1), so the h3 import lives in the route (or a `server/utils` module), never in
   `src/**` — `nitro/h3` is server-only.
 - Error codes: `unauthorized` (401), `forbidden` (403), `invalid_input` (400), `conflict` (409),
@@ -189,7 +189,7 @@ insert does not name the tenant either.
 - Dev-only `/__facilis/*`: `404` unless `NODE_ENV` is `development`/`test` (D-146); origin must match the request
   host (allow `http://localhost:*` and `http://127.0.0.1:*` / `[::1]`); `Cache-Control: no-cache`.
 
-## 5. `@facilis/db` (data-auth)
+## 5. `@facilis.dev/db` (data-auth)
 
 ```ts
 export type DbDriver = "pglite" | "postgres";
@@ -231,7 +231,7 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   builds `new URL("file:" + __filename)` = `file:/home/…`, which **Chromium on Windows** parses
   with `home` as the **host** (`file://home/…`; the parser's WIN32 branch treats that as UNC).
   The pinned kernel's `fileURLToPath` recovers `"/" + host + pathname` instead of throwing
-  (`e654919`, kele23/vivari#2), so `@facilis/db` passes PGlite only `dataDir` — no artifact
+  (`e654919`, kele23/vivari#2), so `@facilis.dev/db` passes PGlite only `dataDir` — no artifact
   hand-off, no shim.
 - The `postgres` driver is implemented in Phase 2 (D-068): `pg` + `drizzle-orm/node-postgres`
   loaded lazily through `createRequire` (never a static import - the in-VM bundle must not pull
@@ -261,7 +261,7 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   a defaulted column optional in its insert type), and RLS still rejects another tenant's row.
   Existing tables get the default with `ALTER TABLE <t> ALTER COLUMN tenant_id SET DEFAULT …`.
 
-## 6. `@facilis/auth` (data-auth)
+## 6. `@facilis.dev/auth` (data-auth)
 
 ```ts
 export interface AuthContext { userId: string; roles: readonly string[]; permissions: readonly string[];
@@ -299,7 +299,7 @@ export function sessionMiddleware(...): SessionEvent => Promise<void>  // reads 
 - `sessionMiddleware` also takes the deployment `tenantId`; a session whose user row names another
   tenant is refused, and the auth context it writes carries no tenant (D-040).
 
-## 7. `@facilis/core` (core-impl)
+## 7. `@facilis.dev/core` (core-impl)
 
 ```ts
 export function defineConfig(config: FacilisConfig): FacilisConfig; // validates via Zod, throws on invalid
@@ -347,10 +347,10 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 
 - `defineAuthorizedHandler` semantics: session → permission → Zod parse → scoped DB → handler.
   It must **not** call `defineRouteMeta` at runtime (it is a Nitro build macro; Phase 0 A16).
-  Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
+  Static metadata extraction is the route-facts adapter over `@facilis.dev/analyze` in `@facilis.dev/nitro`.
 - `dbTables` is an enforced declaration (D-157): it lists **every** table and view the handler may
   reach through `ctx.db`/`ctx.sudo`/`ctx.system`, by SQL name — a view is declared by its own name
-  (invoker or definer), never by its base tables. `@facilis/analyze` parses `defineView` into
+  (invoker or definer), never by its base tables. `@facilis.dev/analyze` parses `defineView` into
   `ViewFact`s and checks the declaration against the code (following project-local helper calls);
   the CI gate runs the pass and validator rule 18 `route-table-declared` covers AI patches. At
   runtime the guarded client fails closed with `table_not_declared`, `db.execute` requires
@@ -378,12 +378,12 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 - `defineAuthorizedHandler` rejects `body` and `form` together; a `form` schema receives the
   multipart fields as a record (`name` → `string | File`, repeated names as arrays) and the
   handler sees the parsed value as `ctx.form` (D-116).
-- Manifest types: re-export `SchemaSnapshot`/`TableSnapshot`/... from `@facilis/db` so the public
-  surface stays `@facilis/core` (SPEC §5.1). `RouteMeta`, `FacilisManifest`, `ManifestWarning`,
+- Manifest types: re-export `SchemaSnapshot`/`TableSnapshot`/... from `@facilis.dev/db` so the public
+  surface stays `@facilis.dev/core` (SPEC §5.1). `RouteMeta`, `FacilisManifest`, `ManifestWarning`,
   `ManifestSection`, `ManifestSummary` are declared in core.
 - i18n: flat keys, `t("key")` returns the key and records a warning when missing; no throw.
 
-## 8. `@facilis/nitro` (nitro-impl)
+## 8. `@facilis.dev/nitro` (nitro-impl)
 
 ```ts
 export function facilis(): FacilisPlugins;          // [FacilisVitePlugin, ...Plugin[]]
@@ -391,8 +391,8 @@ export const facilisNitroModule: NitroModule;             // plain { name, setup
 export function scanRouteMetadata(options: ScanOptions): RouteMetadataMap; // sync, { rootDir, onWarning? }
 export function mergeOpenApiMetadata(spec: OpenApiDocument, meta: RouteMetadataMap): OpenApiDocument;
 
-// @facilis/nitro/storage (D-116, SPEC §5.10) — separate entry point: core declares the
-// StorageApi contract without depending on the Node-only @facilis/storage package, which
+// @facilis.dev/nitro/storage (D-116, SPEC §5.10) — separate entry point: core declares the
+// StorageApi contract without depending on the Node-only @facilis.dev/storage package, which
 // this server runtime implements.
 export interface StoredFile { id: string; name: string; mime: string; size: number; url: string }
 export function storeUpload(input: {
@@ -419,15 +419,15 @@ through the driver; `sendStoredFile` returns the plaintext as a streamed respons
   and returns `{ nitro: mergeNitroOptions(config.nitro) }` — the framework defaults
   (`serverDir: "./server"`, `experimental.openAPI: true`) under the project's overrides.
   Because the hook runs before Nitro's, the order inside `plugins` does not matter.
-- `@facilis/nitro` value-imports `nitro/vite`, so `nitro` is a **required** peer dependency;
+- `@facilis.dev/nitro` value-imports `nitro/vite`, so `nitro` is a **required** peer dependency;
   `vite` stays optional (only the `/vite` entry needs it). Projects never import `nitro/vite`
   or keep a `nitro.config.ts`; a legacy one is still read by Nitro's c12 loader but
   `facilis.config.ts` wins.
 - Inside `setup`, `nitro.options.handlers` / `nitro.options.virtual` are available (see spec §5.6).
-- The static pass is `@facilis/analyze`'s route facts (D-092/D-093), not a Nitro-local parser:
+- The static pass is `@facilis.dev/analyze`'s route facts (D-092/D-093), not a Nitro-local parser:
   `packages/nitro/src/route-metadata.ts` maps `RouteFact[]` and `packages/nitro/src/rolldown-parser.ts`
   injects `parseSync` from `rolldown/utils`. That adapter must not import
-  `@facilis/analyze/node` (oxc-parser): the generated project's Vite config runs inside the
+  `@facilis.dev/analyze/node` (oxc-parser): the generated project's Vite config runs inside the
   WebContainer, where only the bundler's oxc is proven to load.
 - The facts come from the interpreter, not object-literal regexes: same-file and one-hop
   imported consts resolve; wrapper-less route files are **listed** with `wrapper: invalid`;
@@ -462,7 +462,7 @@ Integration wiring (confirmed with the Lead while writing the Phase 1 example ap
   is `storage_local_in_production` / `storage_s3_credentials_missing` /
   `storage_secret_missing` / `storage_boot_failed`, and `state.storage` is `null`, so only
   the file routes fail.
-- middleware `facilis-session` runs after it and calls `@facilis/auth`'s `sessionMiddleware`.
+- middleware `facilis-session` runs after it and calls `@facilis.dev/auth`'s `sessionMiddleware`.
 
 Routes served by the module (dev-only, SPEC §6.1-§6.4, §6.8): `/__facilis/manifest`,
 `/__facilis/manifest/revision`, `/__facilis/health`; facade: `/_openapi.json`; Nitro native spec
@@ -471,6 +471,6 @@ stays on `/_facilis/openapi.json`. Virtual modules: `#facilis/config`, `#facilis
 
 ## 9. Integration (Lead)
 
-- `examples/todo-app` consumes only published package APIs + `@facilis/nitro/vite`; it is the
+- `examples/todo-app` consumes only published package APIs + `@facilis.dev/nitro/vite`; it is the
   Phase 1 acceptance app (SPEC §14.2). Do not create it — the Lead wires it.
 - The Lead runs full gates and owns commits/PRs.

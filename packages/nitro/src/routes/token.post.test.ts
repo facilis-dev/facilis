@@ -4,18 +4,18 @@ import type {
   FacilisConfig,
   FacilisLoggingApi,
   FacilisRequestEvent,
-} from "@facilis/core";
-import { DEFAULT_LOGGING_CONFIG, defineConfig } from "@facilis/core";
-import { createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
+} from "@facilis.dev/core";
+import { DEFAULT_LOGGING_CONFIG, defineConfig } from "@facilis.dev/core";
+import { createDb, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
 // Only the exchange is mocked: the route's dispatch, validation and audit are the subject.
-vi.mock("@facilis/auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/auth")>();
+vi.mock("@facilis.dev/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/auth")>();
   return { ...actual, issueApiToken: vi.fn() };
 });
 
-import { issueApiToken } from "@facilis/auth";
+import { issueApiToken } from "@facilis.dev/auth";
 import { getBootstrap, type BootstrapState } from "../runtime/bootstrap.ts";
 import handler from "./token.post.ts";
 

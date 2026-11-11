@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createApiClient } from "@facilis/auth";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
+import { createApiClient } from "@facilis.dev/auth";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
 import config from "~/facilis.config";
 
 const createClientSchema = z.object({

@@ -1,5 +1,5 @@
-import { schemaSnapshot } from "@facilis/db";
-import type { FacilisConfig, ManifestWarning } from "@facilis/core";
+import { schemaSnapshot } from "@facilis.dev/db";
+import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 import config, { coreVersion, nitroVersion } from "#facilis/config";
 import routeMetadata from "#facilis/openapi-meta";
 

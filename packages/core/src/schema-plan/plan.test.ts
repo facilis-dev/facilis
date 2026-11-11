@@ -1,4 +1,4 @@
-import type { SchemaSnapshot, TableSnapshot } from "@facilis/db";
+import type { SchemaSnapshot, TableSnapshot } from "@facilis.dev/db";
 import { describe, expect, it } from "vitest";
 
 import { baseSnapshot, column, makeTable, todosTable, updateColumn, withTable } from "./fixtures.ts";

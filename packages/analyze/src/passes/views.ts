@@ -2,7 +2,7 @@
  * `db/views/**` -> ViewFacts (D-157, SPEC §11.2).
  *
  * A view is declared one per file with `defineView({ name, columns, query, tables?,
- * permission? })` from @facilis/db (D-097/D-098). The route-relations pass resolves a view
+ * permission? })` from @facilis.dev/db (D-097/D-098). The route-relations pass resolves a view
  * object used in `from(...)` to this fact, so a route declares the view's SQL name in
  * `dbTables` instead of its base tables. D-160 adds the view nodes and their edges to the
  * project graph; this pass stays facts-only.
@@ -38,7 +38,7 @@ function stringArray(value: unknown): string[] | null {
   return value.every((entry): entry is string => typeof entry === "string") ? [...value] : null;
 }
 
-/** The `defineView(...)` call an initializer holds, when it is the @facilis/db DSL. */
+/** The `defineView(...)` call an initializer holds, when it is the @facilis.dev/db DSL. */
 function viewCall(init: unknown, resolver: DslResolver): AstNode | null {
   const expression = unwrapExpression(init);
   if (expression?.type !== "CallExpression") return null;

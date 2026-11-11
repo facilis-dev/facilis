@@ -6,8 +6,8 @@ import type {
   WorkflowResolveContext,
   WorkflowStep,
   WorkflowStepIdentity,
-} from "@facilis/core";
-import { WorkflowError } from "@facilis/core";
+} from "@facilis.dev/core";
+import { WorkflowError } from "@facilis.dev/core";
 
 /** The plan-snapshot identity of a step: kind plus the name a resume compares against. */
 export function stepIdentity(step: WorkflowStep, index: number): WorkflowStepIdentity {

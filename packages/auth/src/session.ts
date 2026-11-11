@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb, type PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { validateApiToken } from "./api-clients.ts";
 import { randomToken, sha256Hex } from "./crypto.ts";

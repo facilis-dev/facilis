@@ -15,7 +15,7 @@
 // hides it from the Explorer/index/export.
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 /** Per-project, non-source state directory (dev database, binary blobs). */
 export const FACILIS_STATE_DIR = ".facilis";

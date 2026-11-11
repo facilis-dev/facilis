@@ -9,8 +9,8 @@
 // This module is deliberately UI-free: the IDE's ChatHost adapter and patch-validation.ts are
 // the only callers.
 
-import type { FilePatch } from "@facilis/ai";
-import type { Analysis } from "@facilis/analyze";
+import type { FilePatch } from "@facilis.dev/ai";
+import type { Analysis } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
 import {
   analyzeProjectFiles,

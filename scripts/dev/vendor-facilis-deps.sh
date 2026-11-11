@@ -1,9 +1,10 @@
 #!/bin/sh
-# Pack the workspace-only @facilis/* packages into URL-installable tarballs for the IDE.
+# Pack the @facilis.dev/* packages into URL-installable tarballs for the IDE.
 #
 # Why: a generated Facilis project runs inside the IDE's WebContainer and performs a real
-# `npm install` there. @facilis/* are not published (O-006 is deferred to Phase 6), so the
-# IDE serves pnpm-packed tarballs from its own origin and the Facilis template's package.json
+# `npm install` there. The packages are also published to npm (D-164), but an in-VM install must
+# not depend on registry availability, so the IDE serves pnpm-packed tarballs from its own origin
+# and the Facilis template's package.json
 # points at ${origin}/vendor/facilis/facilis-<pkg>-<version>.tgz. `pnpm pack` rewrites the
 # workspace:* interdependencies to the real version (0.0.0 today) while packing, which is what
 # lets plain npm accept them.
@@ -12,12 +13,12 @@
 # the workspace src/*.ts. The generated project's Vite config is loaded with
 # `--configLoader native` inside the WebContainer (Vite's own config bundler cannot run there),
 # and a native ESM loader refuses to strip types from files under node_modules
-# (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING) — the config imports @facilis/nitro/vite, so it
+# (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING) — the config imports @facilis.dev/nitro/vite, so it
 # must be JS. This is why the script builds the packages first and why the workspace source is
 # left untouched: only the packed copy is rewritten.
 #
 # Usage: scripts/dev/vendor-facilis-deps.sh [--all]
-#   --all also packs @facilis/ai (not part of the default project templates).
+#   --all also packs @facilis.dev/ai (not part of the default project templates).
 set -eu
 
 REPO_ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -63,10 +64,17 @@ for pkg in $PKGS; do
   tgz="$DST/facilis-$pkg-$version.tgz"
 
   # Build first: the tarball must carry a compiled dist/ (see the header for why).
-  ( cd "$REPO_ROOT" && pnpm --filter "@facilis/$pkg" build >/dev/null )
+  ( cd "$REPO_ROOT" && pnpm --filter "@facilis.dev/$pkg" build >/dev/null )
 
   # Run from the workspace root so the script works from any cwd (pnpm pack needs the workspace).
-  ( cd "$REPO_ROOT" && pnpm --filter "@facilis/$pkg" pack --pack-destination "$DST" >/dev/null )
+  # pnpm names the tarball after the package, and the scope now carries a dot
+  # (facilis.dev-core-0.0.0.tgz); the template and the served path keep the stable
+  # facilis-<pkg>-<version>.tgz name, so pack into a scratch dir and rename.
+  packdir=$(mktemp -d)
+  ( cd "$REPO_ROOT" && pnpm --filter "@facilis.dev/$pkg" pack --pack-destination "$packdir" >/dev/null )
+  produced=$(find "$packdir" -maxdepth 1 -name '*.tgz' | head -n 1)
+  if [ -n "$produced" ]; then mv "$produced" "$tgz"; fi
+  rm -rf "$packdir"
 
   if [ ! -f "$tgz" ]; then
     log "FAIL: pnpm pack did not produce ${tgz##*/}"
@@ -155,7 +163,7 @@ if (fs.existsSync(distDir)) walk(distDir);
     continue
   fi
   printf '%-16s %-8s %7s KB  %s\n' \
-    "@facilis/$pkg" "$version" "$(awk -v b="$bytes" 'BEGIN { printf "%.0f", b / 1024 }')" \
+    "@facilis.dev/$pkg" "$version" "$(awk -v b="$bytes" 'BEGIN { printf "%.0f", b / 1024 }')" \
     "${tgz##*/}" >&2
 done
 

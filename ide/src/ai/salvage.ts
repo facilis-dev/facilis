@@ -5,7 +5,7 @@
 // everything (which the same output limit would cut again). This scanner never guesses
 // content: it only slices objects whose braces balance in a string-aware scan.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { isRecord, parsePatches } from "./response-shape";
 
 const PATCHES_ARRAY = /"patches"\s*:\s*\[/;

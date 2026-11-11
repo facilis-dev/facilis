@@ -255,7 +255,7 @@ function createPgliteDrizzleClient(
   client: PgliteClient,
   schema: FacilisSchema | undefined,
 ): PgDatabaseLike {
-  // The cast collapses Drizzle's schema-dependent generics: @facilis/db does not consume
+  // The cast collapses Drizzle's schema-dependent generics: @facilis.dev/db does not consume
   // the relational query API, and callers get typed query builders from their table objects.
   if (schema === undefined) return drizzle(client) as unknown as PgDatabaseLike;
   return drizzle(client, { schema: { ...schema } }) as unknown as PgDatabaseLike;

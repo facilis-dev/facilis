@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/nitro",
+  "name": "@facilis.dev/nitro",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis Nitro module and its Vite plugin wrapper.",
@@ -45,12 +45,31 @@
     }
   },
   "dependencies": {
-    "@facilis/analyze": "workspace:*",
-    "@facilis/auth": "workspace:*",
-    "@facilis/core": "workspace:*",
-    "@facilis/db": "workspace:*",
-    "@facilis/storage": "workspace:*",
+    "@facilis.dev/analyze": "workspace:*",
+    "@facilis.dev/auth": "workspace:*",
+    "@facilis.dev/core": "workspace:*",
+    "@facilis.dev/db": "workspace:*",
+    "@facilis.dev/storage": "workspace:*",
     "drizzle-orm": "0.45.4",
     "zod": "4.6.7"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/nitro"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/nitro#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

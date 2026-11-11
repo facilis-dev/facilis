@@ -102,7 +102,7 @@ describe("buildProjectGraph", () => {
   });
 
   it("marks tables declared by an installed package and re-exported by the project", () => {
-    // db/schema.ts re-exports users from "@facilis/auth"; the analyzer follows the module
+    // db/schema.ts re-exports users from "@facilis.dev/auth"; the analyzer follows the module
     // and collects the package's tables (users, sessions), whose source is under node_modules.
     const frameworkOf = (id: string): boolean | undefined => {
       const data = graph.nodes.find((node) => node.id === id)?.data;
@@ -113,7 +113,7 @@ describe("buildProjectGraph", () => {
     expect(frameworkOf("table:todos")).toBe(false);
     expect(frameworkOf("table:projects")).toBe(false);
     expect(graph.nodes.find((node) => node.id === "table:users")?.sourceFile).toBe(
-      "node_modules/@facilis/auth/src/index.ts",
+      "node_modules/@facilis.dev/auth/src/index.ts",
     );
   });
 

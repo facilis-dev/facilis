@@ -5,7 +5,7 @@ import { createOxcParser } from "../node.ts";
 import { emptyConfigFacts } from "./config.ts";
 import { buildRouteFacts } from "./routes.ts";
 
-const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 
 function routesOf(files: Record<string, string>) {
   const graph = createModuleGraph({

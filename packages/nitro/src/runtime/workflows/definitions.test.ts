@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defineWorkflow } from "@facilis/core";
+import { defineWorkflow } from "@facilis.dev/core";
 
 import { buildWorkflowRegistry } from "./definitions.ts";
 import { FakeJobs } from "./workflows-test-harness.ts";

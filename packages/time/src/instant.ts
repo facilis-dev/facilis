@@ -20,19 +20,19 @@ export function toInstant(value: DateInput): Date {
   if (value instanceof Date) {
     // An invalid Date carries no instant; copying keeps the caller's object untouched.
     if (Number.isNaN(value.getTime())) {
-      throw new RangeError("@facilis/time: received an invalid Date");
+      throw new RangeError("@facilis.dev/time: received an invalid Date");
     }
     return new Date(value.getTime());
   }
   if (typeof value !== "string") {
     throw new TypeError(
-      "@facilis/time: expected a Date or ISO 8601 string, received " + describeValue(value),
+      "@facilis.dev/time: expected a Date or ISO 8601 string, received " + describeValue(value),
     );
   }
   const match = ISO_INSTANT_PATTERN.exec(value);
   if (match === null) {
     throw new RangeError(
-      '@facilis/time: "' +
+      '@facilis.dev/time: "' +
         value +
         '" is not an ISO 8601 date or date-time (a time requires a Z or +-hh:mm offset)',
     );
@@ -41,13 +41,13 @@ export function toInstant(value: DateInput): Date {
   const month = Number(match[2]);
   const day = Number(match[3]);
   if (!isRealCalendarDate(year, month, day)) {
-    throw new RangeError('@facilis/time: "' + value + '" is not a real calendar date');
+    throw new RangeError('@facilis.dev/time: "' + value + '" is not a real calendar date');
   }
   const hour = readField(match[4]);
   const minute = readField(match[5]);
   const second = readField(match[6]);
   if (hour > 23 || minute > 59 || second > 59) {
-    throw new RangeError('@facilis/time: "' + value + '" is not a valid time of day');
+    throw new RangeError('@facilis.dev/time: "' + value + '" is not a valid time of day');
   }
   const millisecond = match[7] === undefined ? 0 : Number(match[7].padEnd(3, "0"));
   const utcMs = utcDateFromParts({ year, month, day, hour, minute, second, millisecond }).getTime();
@@ -66,7 +66,7 @@ function offsetMs(offset: string | undefined): number {
   const hours = Number(offset.slice(1, 3));
   const minutes = Number(offset.slice(4, 6));
   if (hours > 23 || minutes > 59) {
-    throw new RangeError('@facilis/time: "' + offset + '" is not a valid UTC offset');
+    throw new RangeError('@facilis.dev/time: "' + offset + '" is not a valid UTC offset');
   }
   return sign * (hours * 60 + minutes) * 60_000;
 }

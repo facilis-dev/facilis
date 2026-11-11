@@ -10,7 +10,7 @@ import {
   type PolicySnapshot,
   type SchemaSnapshot,
   type TableSnapshot,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { planSchema } from "./plan.ts";

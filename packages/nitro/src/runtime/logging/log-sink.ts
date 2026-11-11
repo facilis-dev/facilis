@@ -1,4 +1,4 @@
-import type { LogEntry } from "@facilis/core";
+import type { LogEntry } from "@facilis.dev/core";
 
 /**
  * A destination for one serialized log entry (D-119).

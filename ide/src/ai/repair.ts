@@ -7,7 +7,7 @@
 // file content is inlined. Size caps keep one repair turn bounded, but the loop has no
 // attempt counter (D-108). Nothing here touches the project.
 
-import type { FilePatch, ValidationError } from "@facilis/ai";
+import type { FilePatch, ValidationError } from "@facilis.dev/ai";
 import type { AiParseFailure } from "./response";
 import type { AiChatTurn } from "./types";
 

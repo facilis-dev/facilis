@@ -6,7 +6,7 @@ import {
   createAccessEntry,
   defineConfig,
   type FacilisEventContext,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import type { BootstrapState } from "../runtime/bootstrap.ts";
 import type { ResolvedLogSettings } from "../runtime/logging/log-settings.ts";

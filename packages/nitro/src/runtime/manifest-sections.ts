@@ -3,7 +3,7 @@ import {
   isManifestSection,
   type FacilisManifest,
   type ManifestSection,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 export interface SectionsParameter {
   /** True when every requested section name is valid (or none were requested). */

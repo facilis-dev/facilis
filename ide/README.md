@@ -36,14 +36,14 @@ ide/                        # this app — the fork surface
 ├── index.html
 ├── vite.config.ts          # COOP/COEP, Monaco/xterm/DevTools middleware, kernel aliases
 ├── tsconfig*.json          # strict TypeScript, repo config
-└── package.json            # @facilis/ide — a pnpm workspace member
+└── package.json            # @facilis.dev/ide — a pnpm workspace member
 ```
 
 ## UI rules: dark mode + i18n (D-043)
 
 - **Strings.** Everything user-facing goes through `t()` from `ide/src/i18n`; the text lives
   in `ide/src/i18n/en.ts` and `ide/src/i18n/it.ts` (partial Italian is fine — missing keys
-  fall back to English). The runtime is `@facilis/core/i18n` imported via its subpath, so the
+  fall back to English). The runtime is `@facilis.dev/core/i18n` imported via its subpath, so the
   static SPA does not bundle the framework. `initI18n()` runs before the first render and sets
   `<html lang>`.
 - **Themes.** A theme is a complete `[data-theme="…"]` block of role values in
@@ -54,7 +54,7 @@ ide/                        # this app — the fork surface
   appearance Monaco/xterm follow. Adding a theme = one CSS block + one registry entry (D-044).
 - **Retrofit.** Upstream-inherited chrome is migrated file by file as it is touched; the
   checklist is [`I18N.md`](./I18N.md). New UI (ChatPanel and the Phase 3 panels) lands
-  compliant in its first commit, and `pnpm --filter @facilis/ide test` enforces the catalogue
+  compliant in its first commit, and `pnpm --filter @facilis.dev/ide test` enforces the catalogue
   parity.
 
 ## Repo conventions apply here
@@ -64,7 +64,7 @@ The IDE is a **workspace member** and is held to the same rules as the framework
 upstream per-app config was removed), repo **Prettier** (print width 100 — the whole tree was
 formatted once when the fork started), vitest tests, and the 300-line limit with one
 exception described below. Gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
-`pnpm format:check` from the repo root; per-package `pnpm --filter @facilis/ide <script>`.
+`pnpm format:check` from the repo root; per-package `pnpm --filter @facilis.dev/ide <script>`.
 
 **300-line ratchet:** ten files inherited from upstream are above the limit
 (`controller.ts` 2.5k and falling, eight components, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
@@ -76,7 +76,7 @@ immediately.
 
 ## Local modifications vs upstream (the complete patch set)
 
-1. `package.json`: name `@facilis/ide` (+ description), repo scripts (`build` = `tsc -b`,
+1. `package.json`: name `@facilis.dev/ide` (+ description), repo scripts (`build` = `tsc -b`,
    `build:app` = full `vite build`, `typecheck`, `lint`, `test`), tool versions from the repo
    catalog (TypeScript 7, oxlint, vitest); dropped upstream `bun.lock` and `.oxlintrc.json`.
 2. `vite.config.ts`: `@vivari/core` alias -> `../vendor/vivari/packages/core/src/index.ts`;
@@ -192,7 +192,7 @@ WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`) and the only p
 IDE creates (D-051). The generated project **is the reference app `examples/todo-app`**
 (D-062): `example-template.ts` inlines its client, server, schema, locales and configs at IDE
 build time through `import.meta.glob(?raw)`, so the two cannot drift; `project-files.ts`
-writes only what the IDE must own (the npm wrapper with vendored `@facilis/*` tarballs, a
+writes only what the IDE must own (the npm wrapper with vendored `@facilis.dev/*` tarballs, a
 standalone `tsconfig.json`, the npm hooks), and `template-overrides.ts` adds only the IDE's
 own bits: the liveness `ping` route the write smoke edits, the HMR hint plus its footer
 style, and the in-process Nitro runner. The framework probe is **not** in the project — 
@@ -209,7 +209,7 @@ the migrations and the authorized-handler stack only prove themselves inside the
 Node. Its `package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's
 TypeScript service only sees installed `@types/*.d.ts` — without them the editor reports
 TS2307 on `react`. The generated project installs with **npm**
-(D-032): the `@facilis/*` tarballs are inlined into the create request (the manifest's
+(D-032): the `@facilis.dev/*` tarballs are inlined into the create request (the manifest's
 `assets`, fetched same-origin by the IDE) and land in the project's `./vendor`, declared as
 `file:` dependencies,
 so no install reaches the studio over HTTP and the project stays installable outside the IDE.

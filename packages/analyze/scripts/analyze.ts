@@ -2,7 +2,7 @@ import { analyzeDirectory } from "../src/node.ts";
 
 const root = process.argv.slice(2).find((argument) => argument !== "--");
 if (root === undefined) {
-  console.error("usage: pnpm --filter @facilis/analyze analyze -- <project-dir>");
+  console.error("usage: pnpm --filter @facilis.dev/analyze analyze -- <project-dir>");
   process.exitCode = 1;
 } else {
   const analysis = analyzeDirectory(root);

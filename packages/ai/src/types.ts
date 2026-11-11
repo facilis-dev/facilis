@@ -1,7 +1,7 @@
 /**
  * Shared contracts of the SPEC §9.3 patch validator.
  *
- * Project facts now come from @facilis/analyze's AST interpreter (D-092), not from local
+ * Project facts now come from @facilis.dev/analyze's AST interpreter (D-092), not from local
  * text scanners. This module only imports analyzer *types* (erased at build), so the main
  * entry keeps its browser-safety guarantee: no analyzer runtime value is loaded.
  *
@@ -15,7 +15,7 @@ import type {
   ConfigFacts as AnalyzerConfigFacts,
   RouteFact as AnalyzerRouteFact,
   TableFact as AnalyzerTableFact,
-} from "@facilis/analyze";
+} from "@facilis.dev/analyze";
 
 export type { Analysis, AnalyzerConfigFacts, AnalyzerRouteFact, AnalyzerTableFact };
 export type {
@@ -32,7 +32,7 @@ export type {
   SourceRef,
   TranslationCallFact,
   ViewFact,
-} from "@facilis/analyze";
+} from "@facilis.dev/analyze";
 
 /** Readable aliases for the analyzer facts the rules consume. */
 export type ConfigFacts = AnalyzerConfigFacts;
@@ -85,7 +85,7 @@ export interface SyntaxFinding extends SyntaxIssue {
 
 /**
  * The rule-1 seam. The IDE injects the analyzer worker's oxc parser; Node tooling injects
- * `@facilis/ai/node` (the subpath is the only place that imports a parser).
+ * `@facilis.dev/ai/node` (the subpath is the only place that imports a parser).
  */
 export interface SyntaxChecker {
   check(path: string, content: string): Promise<readonly SyntaxIssue[]>;

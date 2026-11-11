@@ -5,7 +5,7 @@ import {
   newLogRequestId,
   type FacilisEventContext,
   type FacilisLoggingConfig,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import { getBootstrap } from "../runtime/bootstrap.ts";
 import { readDefaultTenantId } from "../runtime/tenant.ts";

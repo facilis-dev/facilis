@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 import type { StoredTask, TaskDecisionWrite, TaskListFilters, TaskStore } from "./contracts.ts";
 import type { NewStoredTask } from "./contracts.ts";
 import { createTasksApi } from "./runtime.ts";

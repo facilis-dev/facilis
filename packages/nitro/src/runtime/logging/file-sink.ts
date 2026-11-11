@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import type { AuditLogEntry, LogEntry } from "@facilis/core";
+import type { AuditLogEntry, LogEntry } from "@facilis.dev/core";
 
 import { chainAuditEntry, isChainedAuditEntry, type AuditChainHead } from "./audit-chain.ts";
 import type { LogSettingsWarning } from "./log-settings.ts";

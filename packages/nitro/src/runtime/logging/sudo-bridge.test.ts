@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_LOGGING_CONFIG } from "@facilis/core";
+import { DEFAULT_LOGGING_CONFIG } from "@facilis.dev/core";
 import {
   SudoAuditUnavailableError,
   resetSudoAuditSink,
   writeSudoAudit,
   type SudoAuditEvent,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import {
   DEFAULT_LOG_KEEP,

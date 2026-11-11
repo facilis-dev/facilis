@@ -16,7 +16,7 @@
 //
 // Pure: no VFS access, so the tests drive the codec directly.
 
-import type { GraphEdgeKind } from "@facilis/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import {
   GRAPH_BENDS_DIR,
   GRAPH_LAYOUT_PATH,
@@ -155,11 +155,16 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
       : parseGraphLayout(legacy);
   }
   let hiddenEdges: GraphEdgeKind[] = [];
+  let hideSystemRoutes = false;
+  let hideSystemTables = false;
   let collapsed: Record<string, boolean> = {};
   if (layoutText !== null) {
     const raw = parseJson(layoutText);
     if (!isRecord(raw) || raw.version !== GRAPH_LAYOUT_VERSION) return invalid();
     hiddenEdges = readEdgeKinds(raw.hiddenEdges);
+    // Additive since D-163: a layout written before the system filters shows everything.
+    hideSystemRoutes = raw.hideSystemRoutes === true;
+    hideSystemTables = raw.hideSystemTables === true;
     collapsed = readCollapsed(raw.collapsed);
   }
   const positions = readPositionedMap(files.positions);
@@ -182,6 +187,8 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
       version: GRAPH_LAYOUT_VERSION,
       nodes: graphNodes,
       hiddenEdges,
+      hideSystemRoutes,
+      hideSystemTables,
       collapsed,
       edgeCurves,
       notes: layoutNotes,
@@ -216,6 +223,8 @@ export function encodeGraphLayout(layout: GraphLayoutFile): readonly GraphLayout
           {
             version: GRAPH_LAYOUT_VERSION,
             hiddenEdges: GRAPH_EDGE_KINDS.filter((kind) => layout.hiddenEdges.includes(kind)),
+            hideSystemRoutes: layout.hideSystemRoutes,
+            hideSystemTables: layout.hideSystemTables,
             collapsed: sortedRecord(layout.collapsed, (value) => value),
           },
           null,

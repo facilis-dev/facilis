@@ -1,6 +1,6 @@
 // Framework state tables (users, sessions, roles, role_permissions, user_roles,
 // auth_identities, auth_sso_states, facilis_files, facilis_jobs) are declared inside the
-// installed @facilis/auth and @facilis/db packages, and a project only re-exports them from
+// installed @facilis.dev/auth and @facilis.dev/db packages, and a project only re-exports them from
 // db/schema.ts (D-092). The IDE's VFS snapshot index skips node_modules by design
 // (workspace-index.ts), so the browser analyzer never receives those declarations and
 // silently drops every re-exported table from the project graph.
@@ -41,12 +41,12 @@ function projectPath(key: string): string | null {
   const at = key.search(PACKAGE_PATH);
   if (at === -1) return null;
   const rest = key.slice(at + PACKAGES_DIR.length);
-  return rest.length === 0 ? null : "node_modules/@facilis/" + rest;
+  return rest.length === 0 ? null : "node_modules/@facilis.dev/" + rest;
 }
 
 /**
  * Every framework source an analysis needs, keyed by its path in an installed project
- * (`node_modules/@facilis/<pkg>/...`). Sorted so the analyzer's file map is deterministic
+ * (`node_modules/@facilis.dev/<pkg>/...`). Sorted so the analyzer's file map is deterministic
  * across glob orderings; package.json is included because module resolution reads its
  * `exports` to find `src/index.ts`.
  */

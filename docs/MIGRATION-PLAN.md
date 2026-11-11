@@ -118,11 +118,11 @@ the generator consumes the pair; P1 proves the loader.
 
 | Component | Where | Responsibility |
 |---|---|---|
-| Declared snapshot | @facilis/db adapter (+ browser-safe types in @facilis/core) | Extend snapshot.ts to the full DSL: table/composite PK, unique, FKs, indexes, enums, checks, identity, defaults normalized, policies with full SQL, RLS. |
-| Live snapshot + digest | @facilis/db | Extend live-schema.ts with FKs/indexes/checks/enums/identity, and a canonical digest(snapshot) shared with the declared side. Used for the deploy fingerprint and adopt/repair only. |
-| Generator / renderer | @facilis/core (pure, browser-safe) | planSchema(from, to) -> batches; deterministic ordering and quoting; the only place SQL text is produced. Moved from the orphaned D-109 renderer. |
+| Declared snapshot | @facilis.dev/db adapter (+ browser-safe types in @facilis.dev/core) | Extend snapshot.ts to the full DSL: table/composite PK, unique, FKs, indexes, enums, checks, identity, defaults normalized, policies with full SQL, RLS. |
+| Live snapshot + digest | @facilis.dev/db | Extend live-schema.ts with FKs/indexes/checks/enums/identity, and a canonical digest(snapshot) shared with the declared side. Used for the deploy fingerprint and adopt/repair only. |
+| Generator / renderer | @facilis.dev/core (pure, browser-safe) | planSchema(from, to) -> batches; deterministic ordering and quoting; the only place SQL text is produced. Moved from the orphaned D-109 renderer. |
 | Release pipeline | CI step (Node) | For each new tag: resolve previous release tag, build both snapshots, generate the artifact, classify risk, fail on problems, require approval for destructive/breaking, publish the artifact. |
-| Deploy applier | @facilis/db/bin | facilis db deploy/status/adopt/repair: ledger, ordered pending artifacts, fingerprint pre/post checks, lock, backup_ref gate, transaction per artifact, post-steps (seed, ensureAppRole, ensureSystemRole, views). |
+| Deploy applier | @facilis.dev/db/bin | facilis db deploy/status/adopt/repair: ledger, ordered pending artifacts, fingerprint pre/post checks, lock, backup_ref gate, transaction per artifact, post-steps (seed, ensureAppRole, ensureSystemRole, views). |
 | IDE Release Preview | ide/src/facilis/release-* | Tag -> HEAD generated plan, SQL + risk, no DB; fail closed where the analyzer cannot resolve a declaration. |
 | Dev boot | packages/nitro/src/runtime | Live PGlite -> declared reconcile at boot (dev only), same pure planner; disposable data. |
 
@@ -193,7 +193,7 @@ is approved, and a backup pointer is recorded.
 4. unique/check/FK constraints;
 5. enable RLS + create/replace policies (a scoped table never exists without RLS, D-136);
 6. indexes (non-concurrent; CONCURRENTLY is a non-goal for v1);
-7. seed sync (roles/role_permissions projection from facilis.config.ts; @facilis/auth seedStatements);
+7. seed sync (roles/role_permissions projection from facilis.config.ts; @facilis.dev/auth seedStatements);
 8. destructive drops - last, gated.
 
 ### 2.6 Approval and environment policy
@@ -240,7 +240,7 @@ and non-public schemas. A digest mismatch is always fail-closed.
 
 - problems are generated at release time: an unsupported declaration fails the release, never
   degrades silently.
-- Risk classes reuse @facilis/core's safe | careful | destructive | breaking; breaking keeps the
+- Risk classes reuse @facilis.dev/core's safe | careful | destructive | breaking; breaking keeps the
   route dbTables cross-check.
 - Policy safety: a plan that would disable RLS on a scoped table, remove a policy without a
   replacement, or broaden a current_setting('app.*') predicate is a release failure.
@@ -260,7 +260,7 @@ and non-public schemas. A digest mismatch is always fail-closed.
 - DDL only from the owner/admin connection at deploy time; production boot never runs DDL.
 - Every table is exactly one access class (D-136); a scoped table cannot end a release without RLS.
 - role_permissions stays a projection of facilis.config.ts, written only by the deploy/seed step.
-- No raw Drizzle client outside @facilis/db; the Studio never reaches a database.
+- No raw Drizzle client outside @facilis.dev/db; the Studio never reaches a database.
 - Views are code (db/views/**), applied after the artifact like today.
 - The AI validator stops requiring authored SQL and blocks AI-authored db/migrations DDL.
 
@@ -287,7 +287,7 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 - Exit: one tag pair produces a valid artifact; the example's digest round-trips on both drivers.
 
 ### P2 - Generator (release side, pure)
-- Done: @facilis/core planSchema(from, to) -> ordered batches (the §2.5 phases), per-batch risk,
+- Done: @facilis.dev/core planSchema(from, to) -> ordered batches (the §2.5 phases), per-batch risk,
   destructive ids, requires preconditions and machine problems; the D-109 renderer is ported
   here and the orphan deleted. The declared snapshot gained ordered PK, indexes, checks, unique
   constraints and enums (SPEC §7.3).

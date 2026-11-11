@@ -1,5 +1,5 @@
 /**
- * The DDL `@facilis/db`'s `fileLinks` expands to, expressed as analyzer facts (D-053).
+ * The DDL `@facilis.dev/db`'s `fileLinks` expands to, expressed as analyzer facts (D-053).
  *
  * Kept apart from the call-site scan: this module mirrors the framework's fixed table shape,
  * while `schema-file-links.ts` interprets the project's arguments.
@@ -91,7 +91,7 @@ export function linkPolicies(source: SourceRef): PolicyFact[] {
 
 /**
  * `facilis_files` as an FK target only. The link DDL references it, but a release-ref map
- * does not carry `@facilis/db`'s source, so this lookup-only draft lets the FK resolve; it is
+ * does not carry `@facilis.dev/db`'s source, so this lookup-only draft lets the FK resolve; it is
  * never emitted as one of the project's tables.
  */
 export function facilisFilesDraft(source: SourceRef): TableDraft {

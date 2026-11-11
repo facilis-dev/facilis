@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import type { TodoFile } from "../components/todo-files.tsx";
 import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
 import { TodoTable, type Todo } from "../components/todo-table.tsx";

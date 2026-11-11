@@ -38,7 +38,7 @@ describe("example project source", () => {
   it("reads the package.json the generated one is built from", () => {
     const pkg = JSON.parse(examplePackageJson()) as { dependencies: Record<string, string> };
     // Template v2 copies its UI primitives into src/components/ui: the v1 kit is gone.
-    expect(pkg.dependencies["@facilis/ui"]).toBeUndefined();
+    expect(pkg.dependencies["@facilis.dev/ui"]).toBeUndefined();
     expect(pkg.dependencies["@base-ui/react"]).toBeTruthy();
     expect(pkg.dependencies["react-router-dom"]).toBeTruthy();
   });
@@ -81,7 +81,7 @@ describe("generated template", () => {
     // the Tailwind v4 import, and the hint pins only the class name the smoke replaces.
     expect(files["src/styles.css"]).toContain('@import "tailwindcss";');
     expect(files["src/styles.css"]).toContain(".muted {");
-    // No v1 @facilis/ui tokens: the v2 template does not define them.
+    // No v1 @facilis.dev/ui tokens: the v2 template does not define them.
     expect(files["src/styles.css"]).not.toContain("var(--space-4)");
     expect(files["src/styles.css"]).not.toContain("var(--pad-page)");
     expect(files["src/styles.css"]).not.toContain("var(--color-base-content)");
@@ -89,20 +89,20 @@ describe("generated template", () => {
 
   it("keeps the run manifest pointing at the example's entry", () => {
     expect(template.manifest.entry).toBe("src/app.tsx");
-    // analyze, auth, core, db, nitro, storage, time — @facilis/ui is no longer shipped.
+    // analyze, auth, core, db, nitro, storage, time — @facilis.dev/ui is no longer shipped.
     expect((template.manifest as FacilisManifest).assets).toHaveLength(7);
   });
 
-  it("declares every @facilis package as a vendored tarball", () => {
+  it("declares every @facilis.dev package as a vendored tarball", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
     for (const name of ["analyze", "auth", "core", "db", "nitro", "storage", "time"]) {
-      expect(pkg.dependencies["@facilis/" + name]).toBe(
+      expect(pkg.dependencies["@facilis.dev/" + name]).toBe(
         "file:./vendor/facilis-" + name + "-0.0.0.tgz",
       );
     }
-    expect(pkg.dependencies["@facilis/ui"]).toBeUndefined();
+    expect(pkg.dependencies["@facilis.dev/ui"]).toBeUndefined();
     expect(JSON.stringify(pkg)).not.toContain("workspace:");
     const assets = (template.manifest as FacilisManifest).assets;
     expect(assets.some((asset) => asset.path.includes("facilis-ui-"))).toBe(false);

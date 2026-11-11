@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import * as nitro from "./index.ts";
 
-describe("@facilis/nitro public surface", () => {
+describe("@facilis.dev/nitro public surface", () => {
   it("exposes the Vite plugin, the Nitro module and the route metadata adapter", () => {
     expect(nitro.facilis).toBeTypeOf("function");
     expect(nitro.facilisNitroModule.name).toBe("facilis");

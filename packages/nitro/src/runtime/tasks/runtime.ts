@@ -6,7 +6,7 @@
 // request context bound by the route wrapper, never from the request body.
 import { randomUUID } from "node:crypto";
 
-import { TaskError, serializeTaskData } from "@facilis/core";
+import { TaskError, serializeTaskData } from "@facilis.dev/core";
 import type {
   RequestTaskInput,
   TaskActorContext,
@@ -15,8 +15,8 @@ import type {
   TaskListOptions,
   TaskRecord,
   TasksApi,
-} from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+} from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { NewStoredTask, TaskListFilters, TaskStore } from "./contracts.ts";
 import { toTaskRecord } from "./row-mapping.ts";

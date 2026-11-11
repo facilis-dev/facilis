@@ -1,4 +1,4 @@
-import { defineConfig } from "@facilis/core";
+import { defineConfig } from "@facilis.dev/core";
 
 // A config that throws while being imported: `defineConfig` validates at module evaluation,
 // so an invalid section fails the import before the loader can parse the export itself.

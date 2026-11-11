@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import type { CallModelInput } from "./client";
@@ -48,7 +48,7 @@ function fakeHost(): Harness {
   const read = async (path: string) => {
     if (path === "db/schema.ts") return "export {};\n";
     if (path === "package.json") {
-      return JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } });
+      return JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } });
     }
     return "";
   };
@@ -77,7 +77,7 @@ const ROUTE_PATCH: FilePatch = {
   path: "server/routes/api/ping.get.ts",
   action: "create",
   content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n',
 };
 
@@ -85,7 +85,7 @@ const ROUTE_PATCH: FilePatch = {
 const ROUTE_FIXED: FilePatch = {
   ...ROUTE_PATCH,
   content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     "export default defineAuthorizedHandler({ dbTables: [], permission: [] }, async () => null);\n",
 };
 

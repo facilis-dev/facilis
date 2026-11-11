@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { JobError } from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import { JobError } from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobCounts, JobEngine, StoredJob } from "./contracts.ts";
 import { createJobsApi, toJobRecord } from "./runtime.ts";

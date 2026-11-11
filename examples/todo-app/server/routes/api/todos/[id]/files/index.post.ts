@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
-import { storeUpload } from "@facilis/nitro/storage";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
+import { storeUpload } from "@facilis.dev/nitro/storage";
 import { todoFiles, todos } from "~/db/schema";
 
 // Upload one attachment for a todo (D-053). The todo select is the access check: RLS makes

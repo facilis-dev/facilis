@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { applyStatements, type FacilisDb } from "@facilis/db";
+import { applyStatements, type FacilisDb } from "@facilis.dev/db";
 
 import type { AuthConfig } from "./roles.ts";
 import { registerInitialAdmin, seedFromConfig, seedStatements } from "./seed.ts";

@@ -31,9 +31,15 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.edge.routeView": "Route → vista",
   "projectGraph.edge.viewBase": "Vista → base",
   "projectGraph.edge.elevated": "Route → tabella (elevata)",
+  "projectGraph.systemFilters": "Sistema",
+  "projectGraph.systemRoutes": "Rotte di sistema",
+  "projectGraph.systemTables": "Tabelle di sistema non usate",
+  "projectGraph.systemHint":
+    "Rotte fornite dal framework (auth, job, workflow, file) e tabelle del framework che nessuna delle tue rotte usa. Nascondile per rendere il grafo leggibile.",
   "projectGraph.stats":
     "{pages} pagine · {routes} route · {tables} tabelle · {views} viste · {workflows} workflow · {edges} archi",
   "projectGraph.hiddenEdges": "{count} nascosti",
+  "projectGraph.hiddenNodes": "{count} nodi nascosti",
   "projectGraph.matches": "{count} trovati",
   "projectGraph.noMatches": "Nessun nodo corrisponde alla ricerca.",
   "projectGraph.legend": "Legenda",

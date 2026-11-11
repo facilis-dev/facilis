@@ -1,5 +1,5 @@
 // Dev-only SQL console + live view creation: transport parsing for the two dev routes
-// (SPEC §11.2, D-097). The SQL itself lives in @facilis/db (security rule 5); this module
+// (SPEC §11.2, D-097). The SQL itself lives in @facilis.dev/db (security rule 5); this module
 // narrows the request bodies and maps database failures to the route's 400 codes.
 
 import {
@@ -8,7 +8,7 @@ import {
   runReadOnlyQuery,
   type FacilisDb,
   type QueryExecution,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 export const DEFAULT_QUERY_LIMIT = 100;
 export const MAX_QUERY_LIMIT = 500;

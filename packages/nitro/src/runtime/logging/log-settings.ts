@@ -1,6 +1,6 @@
 import { resolve as resolvePath } from "node:path";
 
-import { isLogLevel, type LogLevel } from "@facilis/core";
+import { isLogLevel, type LogLevel } from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "../env.ts";
 

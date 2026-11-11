@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/analyze",
+  "name": "@facilis.dev/analyze",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis AST analyzer: static facts for the project DSL (routes, schema, relations, pages) with an injected parser.",
@@ -39,5 +39,24 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/analyze"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/analyze#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

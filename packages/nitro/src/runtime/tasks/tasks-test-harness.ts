@@ -6,14 +6,14 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 import {
   createDb,
   ensureAppRole,
   facilisTasks,
   policyCreateSql,
   tenantDefaultSql,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import type { NewStoredTask } from "./contracts.ts";
 import { createDbTaskStore } from "./db-store.ts";

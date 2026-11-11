@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
-import { createSession, normalizeEmail, users, verifyPassword } from "@facilis/auth";
-import { setSessionCookie } from "@facilis/nitro/session";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
+import { createSession, normalizeEmail, users, verifyPassword } from "@facilis.dev/auth";
+import { setSessionCookie } from "@facilis.dev/nitro/session";
 import config from "~/facilis.config";
 
 // A valid PBKDF2 hash of a throwaway password (600k iterations, D-148). The route verifies it

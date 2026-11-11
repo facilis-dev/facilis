@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { AuditLogEntry } from "@facilis/core";
+import type { AuditLogEntry } from "@facilis.dev/core";
 
 /**
  * Tamper-evident audit chain (D-119, O-014).

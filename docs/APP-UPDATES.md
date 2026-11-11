@@ -13,7 +13,7 @@ The IDE runs projects that outlive the build that created them. Two different th
 
 | Layer | What moves | How it reaches the user |
 |---|---|---|
-| **Environment** | the Studio build, `@facilis/*`, the template, npm/Node, the kernel pin | a redeploy, then a page reload - invisible |
+| **Environment** | the Studio build, `@facilis.dev/*`, the template, npm/Node, the kernel pin | a redeploy, then a page reload - invisible |
 | **Project** | the generated app: framework packages, scaffold, dependencies, DB schema artifacts | the IDE tells the user, and the user applies it - this document |
 
 The environment layer is the deployment's problem ([MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md)
@@ -73,7 +73,7 @@ update.
 
 - a badge/dot in the status bar or Home (one number: how many items);
 - a panel grouping the work:
-  1. framework packages (`@facilis/*`, the runtime);
+  1. framework packages (`@facilis.dev/*`, the runtime);
   2. scaffold/template files (new example features, fixed defaults);
   3. dependencies (upgradeable versions inside the policy);
   4. the release schema artifact, when the update changes the DB;

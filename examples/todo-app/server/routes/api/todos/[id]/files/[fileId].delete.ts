@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
 import { facilisFiles, todoFiles } from "~/db/schema";
 
 // Remove one attachment link (D-053). The facilis_files metadata row is shared by the

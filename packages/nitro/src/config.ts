@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-// The /config subpath keeps the Vite config phase from loading @facilis/core's entry, which
+// The /config subpath keeps the Vite config phase from loading @facilis.dev/core's entry, which
 // re-exports the route/db runtime: the plugin only needs the schema and its types here.
 import {
   facilisConfigSchema,
   type FacilisConfig,
   type FacilisNitroOptions,
-} from "@facilis/core/config";
+} from "@facilis.dev/core/config";
 import type { NitroConfig } from "nitro/types";
 
 /**

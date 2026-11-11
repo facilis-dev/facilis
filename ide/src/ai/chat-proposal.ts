@@ -5,7 +5,7 @@
 // against what the model claimed. The same before-image is what Undo writes back.
 // No write happens here.
 
-import type { FilePatch, ValidationResult } from "@facilis/ai";
+import type { FilePatch, ValidationResult } from "@facilis.dev/ai";
 import { fileDiff } from "./diff";
 import { scanPatchWarnings } from "./patch-warnings";
 import type { ChatProposal, ProposedFile } from "./types";

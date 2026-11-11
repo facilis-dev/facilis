@@ -1,5 +1,5 @@
 // The generated project installs with the npm the IDE vendors (D-032), and it finds
-// its @facilis/* packages as file: dependencies inside ./vendor, inlined there by the
+// its @facilis.dev/* packages as file: dependencies inside ./vendor, inlined there by the
 // IDE from the template's manifest assets. Both halves are cross-file invariants
 // that fail at install time in a confusing place if they drift: a version bump in one
 // place only, or an asset path that no longer matches the spec that names it.
@@ -41,10 +41,10 @@ describe("generated project package manager", () => {
     expect(guard).not.toContain("pnpm/");
   });
 
-  it("declares @facilis/* as file: tarballs inside the project", () => {
+  it("declares @facilis.dev/* as file: tarballs inside the project", () => {
     const deps = generatedPackageJson().dependencies;
     for (const name of PACKAGES) {
-      expect(deps["@facilis/" + name]).toBe("file:./vendor/facilis-" + name + "-0.0.0.tgz");
+      expect(deps["@facilis.dev/" + name]).toBe("file:./vendor/facilis-" + name + "-0.0.0.tgz");
     }
   });
 
@@ -62,7 +62,7 @@ describe("generated project package manager", () => {
     const assets = (createFacilisTemplate().manifest as FacilisManifest).assets;
     for (const name of PACKAGES) {
       const asset = assets.find((a) => a.path === "vendor/facilis-" + name + "-0.0.0.tgz");
-      expect(asset, "missing asset for @facilis/" + name).toBeDefined();
+      expect(asset, "missing asset for @facilis.dev/" + name).toBeDefined();
       // Same basename, and the served file is the one the IDE publishes.
       expect(asset?.asset).toBe("vendor/facilis/facilis-" + name + "-0.0.0.tgz");
     }

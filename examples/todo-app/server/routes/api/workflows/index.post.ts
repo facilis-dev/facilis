@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 // The framework exposes ctx.workflows to server code only (D-135, WORKFLOWS §6); this route
 // is the app's own authenticated surface over it.

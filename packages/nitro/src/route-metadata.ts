@@ -1,17 +1,17 @@
 /**
  * Route facts -> manifest/OpenAPI metadata adapter (D-092).
  *
- * @facilis/analyze owns the route DSL: it parses the project with oxc and reports one
+ * @facilis.dev/analyze owns the route DSL: it parses the project with oxc and reports one
  * RouteFact per route file, including files that do not use the wrapper. This module is the
- * only place @facilis/nitro touches the analyzer; it maps that fact model onto the
+ * only place @facilis.dev/nitro touches the analyzer; it maps that fact model onto the
  * RouteMetadataMap contract the facade and manifest still consume.
  */
 import { existsSync } from "node:fs";
 
-import { analyzeProject } from "@facilis/analyze";
-import type { Analysis, Diagnostic, RouteFact } from "@facilis/analyze";
-import { loadProjectFiles } from "@facilis/analyze/fs";
-import type { ManifestWarning } from "@facilis/core";
+import { analyzeProject } from "@facilis.dev/analyze";
+import type { Analysis, Diagnostic, RouteFact } from "@facilis.dev/analyze";
+import { loadProjectFiles } from "@facilis.dev/analyze/fs";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 import { createRolldownParser } from "./rolldown-parser.ts";
 import type {
@@ -70,7 +70,7 @@ function isRouteFile(file: string): boolean {
  *
  * The analyzer's main entry is parser-injected: this adapter supplies rolldown's oxc parser so
  * the Vite plugin never loads the analyzer's native-node parser in the Studio's WebContainer
- * (D-092). The file walker is the parser-free `@facilis/analyze/fs` subpath.
+ * (D-092). The file walker is the parser-free `@facilis.dev/analyze/fs` subpath.
  */
 export function analyzeProjectRoutes(rootDir: string): Analysis | undefined {
   if (!existsSync(rootDir)) return undefined;

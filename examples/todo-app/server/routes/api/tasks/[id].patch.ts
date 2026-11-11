@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineAuthorizedHandler, fail, TaskError } from "@facilis/core";
+import { defineAuthorizedHandler, fail, TaskError } from "@facilis.dev/core";
 
 // The manual flag is this decision write (D-135): decided_by comes from the session, never
 // from the body, and a rejected task is the failure branch of the chain.

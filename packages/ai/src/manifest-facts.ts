@@ -3,7 +3,7 @@
  *
  * Only two things still come from the manifest: the registered blocks (reviewed supply
  * chain, not a source fact) and a locale-catalogue fallback. Config, schema and routes are
- * read from @facilis/analyze's source facts (D-092); the manifest is data from a running
+ * read from @facilis.dev/analyze's source facts (D-092); the manifest is data from a running
  * app, not a trusted compiler output, so an unexpected shape yields fewer facts and never
  * an exception.
  */

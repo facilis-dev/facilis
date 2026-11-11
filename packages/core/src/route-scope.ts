@@ -1,5 +1,5 @@
-import type { AuthContext } from "@facilis/auth";
-import type { PolicyScope } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { PolicyScope } from "@facilis.dev/db";
 
 import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 

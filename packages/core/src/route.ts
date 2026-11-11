@@ -1,5 +1,5 @@
-import { hasPermission, type AuthContext } from "@facilis/auth";
-import { guardDatabase, runWithPolicyScope, TableAccessError } from "@facilis/db";
+import { hasPermission, type AuthContext } from "@facilis.dev/auth";
+import { guardDatabase, runWithPolicyScope, TableAccessError } from "@facilis.dev/db";
 import type { z } from "zod";
 
 import { fail } from "./errors.ts";

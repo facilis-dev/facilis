@@ -5,8 +5,8 @@
 // of the hand-off exist or neither does.
 import { randomUUID } from "node:crypto";
 
-import type { WorkflowApprovalStep, WorkflowJobStep, WorkflowResolveContext } from "@facilis/core";
-import { runWithPolicyScope } from "@facilis/db";
+import type { WorkflowApprovalStep, WorkflowJobStep, WorkflowResolveContext } from "@facilis.dev/core";
+import { runWithPolicyScope } from "@facilis.dev/db";
 
 import type { StoredWorkflow, WorkflowRuntimeDeps } from "./contracts.ts";
 import { normalizeTitleParams, planMatches, resolveContext } from "./steps.ts";

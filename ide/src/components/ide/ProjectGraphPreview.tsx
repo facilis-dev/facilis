@@ -2,7 +2,7 @@
 // analyzer found, each one a jump to its source file. It is deliberately a structure view, not
 // a rendering: dynamic branches are marked and the analyzer caps the node count.
 
-import type { PagePreview, PagePreviewNode } from "@facilis/analyze";
+import type { PagePreview, PagePreviewNode } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 
 interface PreviewTree {

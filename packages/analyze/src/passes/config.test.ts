@@ -17,7 +17,7 @@ function fixtureConfig() {
   return buildConfigFacts(graph);
 }
 
-const HEADER = 'import { defineConfig } from "@facilis/core";\n';
+const HEADER = 'import { defineConfig } from "@facilis.dev/core";\n';
 
 describe("buildConfigFacts", () => {
   it("reads the fixture config without diagnostics", () => {
@@ -39,7 +39,7 @@ describe("buildConfigFacts", () => {
     expect(facts.unknown).toEqual([]);
   });
 
-  it("applies the @facilis/core defaults when sections are absent", () => {
+  it("applies the @facilis.dev/core defaults when sections are absent", () => {
     const { facts, diagnostics } = buildConfigFacts(
       graphOf({
         "facilis.config.ts":
@@ -76,7 +76,7 @@ describe("buildConfigFacts", () => {
     const { facts, diagnostics } = buildConfigFacts(
       graphOf({
         "facilis.config.ts":
-          'import { defineConfig as createConfig } from "@facilis/core";\n' +
+          'import { defineConfig as createConfig } from "@facilis.dev/core";\n' +
           'export default createConfig({ auth: { defaultRole: "user", roles: { user: [] } } });',
       }),
     );

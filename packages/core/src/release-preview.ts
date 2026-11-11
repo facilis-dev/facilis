@@ -21,7 +21,7 @@ import { classifyStatement } from "./release-classify.ts";
 import { collectWarnings, diffSecurity, dropPolicyStatements } from "./release-security.ts";
 import { splitSqlStatements } from "./release-sql.ts";
 
-// Self-sufficient browser-safe subpath (@facilis/core/release): the Studio needs the
+// Self-sufficient browser-safe subpath (@facilis.dev/core/release): the Studio needs the
 // output contract too, and importing it from the main entry would pull the Node-only
 // runtime packages in route.ts into the browser bundle.
 export type {

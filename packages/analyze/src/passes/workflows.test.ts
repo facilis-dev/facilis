@@ -10,7 +10,7 @@ function graphOf(files: Record<string, string>) {
   return createModuleGraph({ files: new Map(Object.entries(files)), parser });
 }
 
-const HEADER = 'import { defineWorkflow } from "@facilis/core";\n';
+const HEADER = 'import { defineWorkflow } from "@facilis.dev/core";\n';
 
 describe("buildWorkflowFacts", () => {
   it("reads the name, steps, assignment and reject branch", () => {

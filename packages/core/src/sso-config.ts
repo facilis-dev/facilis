@@ -6,7 +6,7 @@ import { z } from "zod";
  * SSO is configuration-in-code like the rest of auth: providers, endpoints and the ENV VAR
  * NAMES that hold secrets are committed and reviewable; the secret values never appear in
  * the project. `defineConfig` validates the shape eagerly so a broken provider fails at boot
- * instead of on the first login attempt. The protocol implementation lives in @facilis/auth.
+ * instead of on the first login attempt. The protocol implementation lives in @facilis.dev/auth.
  */
 
 export const SSO_PROVIDER_KINDS = ["oidc", "oauth2", "saml"] as const;

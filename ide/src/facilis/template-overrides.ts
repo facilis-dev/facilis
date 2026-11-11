@@ -19,7 +19,7 @@ import { exampleProjectFiles } from "./example-template";
 export const HMR_HINT = '<p className="muted">Edit src/app.tsx and save to test HMR.</p>';
 
 /** The liveness route the write smoke edits (A8 part 3). */
-export const PROBE_PING_ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+export const PROBE_PING_ROUTE = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 // Public liveness probe the IDE smoke test edits to prove a server-route change reloads
 // the in-VM handler (A8). It is an IDE addition to the example app (D-062).

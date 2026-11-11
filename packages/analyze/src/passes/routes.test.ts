@@ -7,7 +7,7 @@ import { routeLocationFromFile } from "./route-location.ts";
 import { buildRouteFacts } from "./routes.ts";
 import { loadFixtureProject } from "../../test-fixtures/load.ts";
 
-const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 
 function graphOf(files: Record<string, string>) {
   return createModuleGraph({ files: new Map(Object.entries(files)), parser: createOxcParser() });
@@ -221,12 +221,12 @@ describe("buildRouteFacts", () => {
     it("warns on the raw createDb import, including an aliased one", () => {
       const direct = routesOf({
         "server/routes/x.get.ts":
-          'import { createDb } from "@facilis/db";\n' + wrapped("async () => null"),
+          'import { createDb } from "@facilis.dev/db";\n' + wrapped("async () => null"),
       });
       expect(direct.diagnostics.filter((item) => item.code === "route-direct-db")).toHaveLength(1);
       const aliased = routesOf({
         "server/routes/x.get.ts":
-          'import { createDb as rawDb } from "@facilis/db";\n' + wrapped("async () => null"),
+          'import { createDb as rawDb } from "@facilis.dev/db";\n' + wrapped("async () => null"),
       });
       expect(aliased.diagnostics.filter((item) => item.code === "route-direct-db")).toHaveLength(1);
     });

@@ -94,7 +94,7 @@ async function startDevServer() {
     "pnpm",
     [
       "--filter",
-      "@facilis/ide",
+      "@facilis.dev/ide",
       "dev",
       // The dev script passes --host (all interfaces); a later flag wins, so this keeps
       // the test server on loopback and a CI run never exposes a port.

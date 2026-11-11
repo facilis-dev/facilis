@@ -77,7 +77,7 @@ describe("buildProjectContext", () => {
 
   it("derives packages and aliases from package.json and tsconfig.json", () => {
     const context = makeContext();
-    expect(context.packages).toContain("@facilis/core");
+    expect(context.packages).toContain("@facilis.dev/core");
     expect(context.packages).toContain("react");
     expect(context.aliases).toContainEqual({ prefix: "~/", target: "" });
   });

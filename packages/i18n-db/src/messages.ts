@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import { pgPolicy, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
-import { tenantColumn, tenantIsolationPolicy } from "@facilis/db";
+import { tenantColumn, tenantIsolationPolicy } from "@facilis.dev/db";
 
 /**
  * Tenant-scoped catalogue overlay (D-057): one row per locale/key, unique per tenant.
  *
- * The JSON catalogues of `@facilis/core/i18n` stay the base; these rows win key by key.
+ * The JSON catalogues of `@facilis.dev/core/i18n` stay the base; these rows win key by key.
  * A project re-exports this table from its `db/schema.ts` and lets drizzle-kit generate
  * the migration — the package intentionally ships no migration.
  */

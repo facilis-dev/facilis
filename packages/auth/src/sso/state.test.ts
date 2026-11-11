@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb } from "@facilis.dev/db";
 
 import type { SystemRunner } from "./contracts.ts";
 import { createAuthTestDb } from "../test-support.ts";

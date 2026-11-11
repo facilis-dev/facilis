@@ -1,5 +1,5 @@
-import { listApiClients } from "@facilis/auth";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { listApiClients } from "@facilis.dev/auth";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   {

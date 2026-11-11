@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { defineAuthorizedHandler, fail } from "@facilis/core";
-import { consumeEmailVerification, EMAIL_VERIFICATION_TABLES } from "@facilis/auth";
+import { defineAuthorizedHandler, fail } from "@facilis.dev/core";
+import { consumeEmailVerification, EMAIL_VERIFICATION_TABLES } from "@facilis.dev/auth";
 import config from "~/facilis.config";
 import { redirectWith } from "~/server/utils/email-verification";
 

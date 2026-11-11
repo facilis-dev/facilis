@@ -2,7 +2,7 @@
 // the saved layout could not be read, and the analyzer diagnostics. Split from the panel to
 // keep both files well under the 300-line source limit.
 
-import type { Diagnostic } from "@facilis/analyze";
+import type { Diagnostic } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
 import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";

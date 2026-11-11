@@ -1,4 +1,4 @@
-import type { FacilisConfig, ManifestWarning } from "@facilis/core";
+import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 import config, { configError } from "#facilis/config";
 
 import { isFacilisConfig } from "./config.ts";

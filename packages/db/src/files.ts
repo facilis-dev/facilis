@@ -1,6 +1,6 @@
 // File metadata and per-entity attachment links (D-053).
 //
-// The bytes live in content-addressed storage (`@facilis/storage`), never in Postgres:
+// The bytes live in content-addressed storage (`@facilis.dev/storage`), never in Postgres:
 // `facilis_files` is the metadata row (content hash, name, mime, size, owner), and a
 // generated link table attaches a file to one row of an application table. Bytes are
 // deduplicated by hash, so two uploads of the same content share one blob.

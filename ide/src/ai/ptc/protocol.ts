@@ -13,7 +13,7 @@
 //                  { type: "result", value }
 //                  { type: "error", kind, message }
 
-import type { ValidationError } from "@facilis/ai";
+import type { ValidationError } from "@facilis.dev/ai";
 
 export type PtcJson = null | boolean | number | string | PtcJson[] | { [key: string]: PtcJson };
 

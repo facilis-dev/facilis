@@ -203,7 +203,7 @@ export function buildColumnFact(input: ColumnInput): ColumnResult {
     tenant = chain.builder.pkg === "facilis-db" && chain.builder.name === "tenantColumn";
     const first = chain.args[0];
     if (first === undefined) {
-      // `tenantColumn()` defaults its SQL name to tenant_id in @facilis/db; other builders use the property key.
+      // `tenantColumn()` defaults its SQL name to tenant_id in @facilis.dev/db; other builders use the property key.
       name = tenant ? "tenant_id" : input.property;
     } else {
       const evaluated = staticString(first, context);

@@ -1,6 +1,6 @@
-import { JobError, serializeJobData } from "@facilis/core";
-import type { JobDefinition, JobJson, JobListOptions } from "@facilis/core";
-import { TableAccessError, type PolicyScopedDatabase } from "@facilis/db";
+import { JobError, serializeJobData } from "@facilis.dev/core";
+import type { JobDefinition, JobJson, JobListOptions } from "@facilis.dev/core";
+import { TableAccessError, type PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobCounts, JobEngine, JobEngineOptions, JobStore, StoredJob } from "./contracts.ts";
 import {

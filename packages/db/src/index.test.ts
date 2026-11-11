@@ -4,7 +4,7 @@ import { getTableConfig, pgTable, uuid } from "drizzle-orm/pg-core";
 import * as dbPackage from "./index.ts";
 import { rlsForTable } from "./rls.ts";
 
-describe("@facilis/db public surface", () => {
+describe("@facilis.dev/db public surface", () => {
   it("exports every Phase 1 contract member", () => {
     expect(typeof dbPackage.createDb).toBe("function");
     expect(typeof dbPackage.runWithPolicyScope).toBe("function");

@@ -5,9 +5,9 @@ import {
   type JobQueueStats,
   type JobRecord,
   type JobsApi,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobEngine, StoredJob } from "./contracts.ts";
 

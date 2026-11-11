@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/storage",
+  "name": "@facilis.dev/storage",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis binary storage: content-addressed blobs, local dev + S3-compatible drivers, signed URLs.",
@@ -26,5 +26,24 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/storage"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/storage#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

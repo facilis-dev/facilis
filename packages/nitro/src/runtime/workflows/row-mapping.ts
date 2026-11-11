@@ -8,8 +8,8 @@ import type {
   WorkflowRecord,
   WorkflowStatus,
   WorkflowStepIdentity,
-} from "@facilis/core";
-import type { FacilisWorkflowRow } from "@facilis/db";
+} from "@facilis.dev/core";
+import type { FacilisWorkflowRow } from "@facilis.dev/db";
 
 import type { StoredWorkflow } from "./contracts.ts";
 

@@ -5,8 +5,8 @@ import {
   NOOP_LOGGING_API,
   defineConfig,
   type FacilisConfig,
-} from "@facilis/core";
-import { applyStatements, createDb, runReadOnlyQuery, type FacilisDb } from "@facilis/db";
+} from "@facilis.dev/core";
+import { applyStatements, createDb, runReadOnlyQuery, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
 

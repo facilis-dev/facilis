@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { constantTimeEqual, sha256Hex } from "./crypto.ts";
 import { normalizeEmail } from "./email.ts";

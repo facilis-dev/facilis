@@ -1,9 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { applyStatements, applyViews, ensureAppRole, type FacilisDb } from "@facilis/db";
-import { seedStatements } from "@facilis/auth";
-import type { FacilisConfig, ManifestWarning } from "@facilis/core";
+import { applyStatements, applyViews, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
+import { seedStatements } from "@facilis.dev/auth";
+import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 import { projectRoot } from "#facilis/config";
 import dbViewModules from "#facilis/db-views";
 

@@ -1,12 +1,12 @@
-import { createDb, type FacilisDb } from "@facilis/db";
-import { sessionMiddleware, type SessionEvent } from "@facilis/auth";
+import { createDb, type FacilisDb } from "@facilis.dev/db";
+import { sessionMiddleware, type SessionEvent } from "@facilis.dev/auth";
 import {
   type FacilisConfig,
   type FacilisLoggingApi,
   type FacilisLoggingConfig,
   type ManifestWarning,
   type StorageApi,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 import { projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 import dbViewModules from "#facilis/db-views";

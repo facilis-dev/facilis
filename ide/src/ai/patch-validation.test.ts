@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 
-const CONFIG = `import { defineConfig } from "@facilis/core";
+const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: {
@@ -23,7 +23,7 @@ export const todos = pgTable("todos", { id: uuid("id").primaryKey(), title: text
 const SOURCES: Record<string, string> = {
   "facilis.config.ts": CONFIG,
   "db/schema.ts": SCHEMA,
-  "package.json": JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } }),
+  "package.json": JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } }),
   "locales/en.json": JSON.stringify({ "app.title": "Facilis" }),
   "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
 };
@@ -56,7 +56,7 @@ const ROUTE = "server/routes/api/ping.get.ts";
 
 function route(permission: string): string {
   return (
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     "export default defineAuthorizedHandler(\n" +
     '  { permission: ["' +
     permission +

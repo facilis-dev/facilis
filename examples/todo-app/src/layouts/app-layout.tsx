@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { IconList, IconLogOut } from "../components/icons.tsx";
 import { Avatar } from "../components/ui/avatar.tsx";
 import { Button } from "../components/ui/button.tsx";

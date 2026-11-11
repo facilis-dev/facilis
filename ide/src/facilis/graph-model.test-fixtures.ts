@@ -7,7 +7,7 @@ import type {
   ProjectGraph,
   RouteInputFact,
   SourceRef,
-} from "@facilis/analyze";
+} from "@facilis.dev/analyze";
 
 export const ref = (file: string): SourceRef => ({ file, line: 1 });
 
@@ -46,13 +46,15 @@ export function routeNode(
     input: RouteInputFact;
     description: string | null;
     unknown: boolean;
+    dbTables: readonly string[];
+    sourceFile: string;
   }> = {},
 ): GraphNode {
   return {
     id: "route:" + method + " " + path,
     kind: "route",
     label: method + " " + path,
-    sourceFile: "server/routes/api" + path + ".ts",
+    sourceFile: overrides.sourceFile ?? "server/routes/api" + path + ".ts",
     data: {
       kind: "route",
       method,
@@ -60,7 +62,7 @@ export function routeNode(
       permission: overrides.permission ?? ["todos:read"],
       wrapper: overrides.wrapper ?? "valid",
       input: overrides.input ?? { body: false, form: false, query: false, params: false },
-      dbTables: ["todos"],
+      dbTables: overrides.dbTables ?? ["todos"],
       dbColumns: [],
       description: overrides.description ?? null,
       unknown: overrides.unknown ?? false,
@@ -76,13 +78,14 @@ export function tableNode(
     framework?: boolean;
     scope?: { column: string; kind: "tenant" | "owner" } | null;
     unknown?: boolean;
+    sourceFile?: string;
   } = {},
 ): GraphNode {
   return {
     id: "table:" + name,
     kind: "table",
     label: name,
-    sourceFile: "db/schema.ts",
+    sourceFile: options.sourceFile ?? "db/schema.ts",
     data: {
       kind: "table",
       table: name,

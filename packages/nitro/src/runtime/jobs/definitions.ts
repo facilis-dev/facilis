@@ -1,4 +1,4 @@
-import { isJobDefinition, type JobDefinition, type ManifestWarning } from "@facilis/core";
+import { isJobDefinition, type JobDefinition, type ManifestWarning } from "@facilis.dev/core";
 
 import type { JobModule } from "./contracts.ts";
 

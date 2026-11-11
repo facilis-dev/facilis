@@ -4,7 +4,7 @@
 // lives here as plain data + guards: both boundaries validate, and the guards are testable
 // without booting the parser.
 
-import type { Analysis } from "@facilis/analyze";
+import type { Analysis } from "@facilis.dev/analyze";
 
 /** One `[project-relative path, source]` pair. Plain arrays survive structured clone. */
 export type AnalysisFileEntry = readonly [path: string, source: string];

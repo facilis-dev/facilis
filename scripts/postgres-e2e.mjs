@@ -7,7 +7,7 @@
 // client on the other side. What this cannot cover (password auth, TLS, the network path)
 // is the hosting provider's, and docs/POSTGRES.md §6 says so.
 //
-// Usage: pnpm pg:e2e            (builds @facilis/db and the example first)
+// Usage: pnpm pg:e2e            (builds @facilis.dev/db and the example first)
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import net from "node:net";
@@ -33,13 +33,13 @@ function freePort() {
 
 function build(target) {
   // The example bundles the workspace sources, but the provisioning step below imports
-  // the packed-style dist of @facilis/db, so both builds are prerequisites.
+  // the packed-style dist of @facilis.dev/db, so both builds are prerequisites.
   execFileSync("pnpm", ["--filter", target, "build"], { cwd: REPO, stdio: "inherit" });
 }
 
 async function main() {
-  build("@facilis/db");
-  build("@facilis/example-todo-app");
+  build("@facilis.dev/db");
+  build("@facilis.dev/example-todo-app");
 
   const { PGlite } = requireFromDb("@electric-sql/pglite");
   const { PGLiteSocketServer } = requireFromDb("@electric-sql/pglite-socket");

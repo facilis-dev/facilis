@@ -8,7 +8,7 @@ import { buildRouteFacts } from "./routes.ts";
 import { buildSchemaFacts } from "./schema.ts";
 import { buildViewFacts } from "./views.ts";
 
-const CORE = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 const SCHEMA =
   'import { pgTable, uuid } from "drizzle-orm/pg-core";\n' +
   'export const todos = pgTable("todos", { id: uuid("id").primaryKey() });\n' +
@@ -147,7 +147,7 @@ describe("route relation usage (D-157)", () => {
   it("suppresses the unused warning when a package helper receives the client", () => {
     const { relations } = scan(
       "server/routes/api/todos.post.ts",
-      'import { destroySession } from "@facilis/auth";\n' +
+      'import { destroySession } from "@facilis.dev/auth";\n' +
         handler(
           '{ permission: [], dbTables: ["todos"] }',
           'async (_event, { db }) => destroySession(db, "session-id")',
@@ -214,7 +214,7 @@ describe("route relation usage (D-157)", () => {
   it("resolves a view declared under db/views as a relation", () => {
     const view =
       'import { sql } from "drizzle-orm";\n' +
-      'import { defineView } from "@facilis/db";\n' +
+      'import { defineView } from "@facilis.dev/db";\n' +
       'import { text } from "drizzle-orm/pg-core";\n' +
       "export const activeTodos = defineView({\n" +
       '  name: "active_todos",\n' +

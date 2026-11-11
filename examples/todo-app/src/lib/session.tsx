@@ -15,7 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { Spinner } from "../components/ui/spinner.tsx";
 import { api } from "./api.ts";
 

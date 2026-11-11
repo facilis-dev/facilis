@@ -3,7 +3,7 @@ import {
   type FacilisLoggingConfig,
   type LogLevel,
   type ManifestWarning,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import { resolveLogSettings } from "./log-settings.ts";
 import { createLoggingRuntime, type LoggingRuntime } from "./runtime.ts";

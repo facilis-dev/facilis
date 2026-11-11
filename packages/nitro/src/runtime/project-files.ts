@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
-import type { LocaleCatalogs, SchemaFileRevisionSource } from "@facilis/core";
+import type { LocaleCatalogs, SchemaFileRevisionSource } from "@facilis.dev/core";
 
 /** SPEC §6.5 hashes db/schema.ts and the modules it imports (transitively). */
 const SCHEMA_ENTRY = "db/schema.ts";

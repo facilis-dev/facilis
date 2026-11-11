@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgPolicy, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-import { rlsForTable, tenantColumn } from "@facilis/db";
+import { rlsForTable, tenantColumn } from "@facilis.dev/db";
 
 import { users } from "../tables.ts";
 

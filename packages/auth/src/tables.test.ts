@@ -2,7 +2,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb, type PolicyScope } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb, type PolicyScope } from "@facilis.dev/db";
 
 import { users } from "./tables.ts";
 import { createAuthTestDb } from "./test-support.ts";

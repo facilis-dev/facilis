@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ROUTE_DESCRIPTION_MAX_CHARS } from "@facilis/analyze";
+import { ROUTE_DESCRIPTION_MAX_CHARS } from "@facilis.dev/analyze";
 
 import { rulesOf, update, validate } from "./testing/fixtures.ts";
 
@@ -21,7 +21,7 @@ function routeSource(options: RouteOptions = {}): string {
       ? ""
       : ",\n    description: " + JSON.stringify(options.description);
   return (
-    'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
     'import { todos } from "~/db/schema";\n\n' +
     "export default defineAuthorizedHandler(\n" +
     "  {\n" +

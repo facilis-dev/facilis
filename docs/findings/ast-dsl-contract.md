@@ -12,7 +12,7 @@ with **zero build-time execution**. Runtime endpoints remain only for genuinely 
   the column builder and exposed for display and SQL-facing comparisons.
 - Table links: **both** `.references(...)` (physical foreign key) and Drizzle `relations(...)`
   (logical relation) are interpreted, as **distinct edge kinds**.
-- Framework tables: parse the installed `@facilis/*` source (the packages ship `src/`); a
+- Framework tables: parse the installed `@facilis.dev/*` source (the packages ship `src/`); a
   bundled fact provider is only a fallback, not the primary source.
 - The graph is **one full-screen graph**, with edge-kind filters, draggable nodes and layout
   persistence to a project file (§7).
@@ -80,7 +80,7 @@ The analyzer is only as strong as this surface. Everything else is `unknown`.
 
 | Construct | Requirement | What the interpreter reads |
 |---|---|---|
-| `export default defineAuthorizedHandler(config, handler)` | every file under `server/routes/**` (and `server/api/**`, if enabled) | callee resolved to `@facilis/core`; config object; handler body only for input reads |
+| `export default defineAuthorizedHandler(config, handler)` | every file under `server/routes/**` (and `server/api/**`, if enabled) | callee resolved to `@facilis.dev/core`; config object; handler body only for input reads |
 | wrapper forms | direct, `const h = ...; export default h`, `as const`/`satisfies`/parens, config via same-file const or one-hop project import | same fact, no omission |
 | `permission` | required; string or string[]; declared in `config.auth.permissions` | literal/const |
 | `dbTables` | required; `string[]` (`[]` = explicit "no DB") | literal/const/import |
@@ -93,9 +93,9 @@ The analyzer is only as strong as this surface. Everything else is `unknown`.
 
 | Construct | Requirement | What the interpreter reads |
 |---|---|---|
-| `export default defineConfig({...})` in `facilis.config.ts` | mandatory | callee resolved to `@facilis/core`; object literal |
+| `export default defineConfig({...})` in `facilis.config.ts` | mandatory | callee resolved to `@facilis.dev/core`; object literal |
 | static subset | object/array/string/number/boolean/literal, same-file const, one-hop project import | resolved value |
-| defaults | `tenantColumns`, `ownerColumns`, `migrationsDir`, `i18n`, ... | applied from the same constants/schema as `@facilis/core` |
+| defaults | `tenantColumns`, `ownerColumns`, `migrationsDir`, `i18n`, ... | applied from the same constants/schema as `@facilis.dev/core` |
 | computed values | `process.env`, function calls, conditionals | `unknown` + diagnostic; gate decides error/warning |
 
 ### 3.3 Schema — mandatory DSL
@@ -104,12 +104,12 @@ The analyzer is only as strong as this surface. Everything else is `unknown`.
 |---|---|---|
 | `pgTable(name, columns, extras?)` from `drizzle-orm/pg-core` | whitelisted call; name is a literal/const string | table name |
 | `columns` | object literal; spread/computed keys `unknown` (or resolve spread of a local object literal) | column entries |
-| column builders | `uuid, text, varchar, boolean, timestamp, date, integer, bigint, numeric, jsonb, json, serial, bigserial, real, doublePrecision, pgEnum`; `tenantColumn` from `@facilis/db` | SQL name (first string arg or property key), display type (builder + args), scope |
+| column builders | `uuid, text, varchar, boolean, timestamp, date, integer, bigint, numeric, jsonb, json, serial, bigserial, real, doublePrecision, pgEnum`; `tenantColumn` from `@facilis.dev/db` | SQL name (first string arg or property key), display type (builder + args), scope |
 | column methods | `.notNull()`, `.primaryKey()`, `.unique()`, `.default(value)`, `.defaultRandom()`, `.defaultNow()`, `.references(() => table.column, opts)`, `.array()` | flags, default, FK |
 | policy helpers in the extras callback | `tenantIsolationPolicy`, `ownerIsolationPolicy`, `rolePolicy`, `rlsForTable`/`withRls`, `pgPolicy("name", opts)` | name, command, restrictive/permissive; SQL not rendered in v0 |
 | RLS | `.enableRLS()` on the table chain; required for scoped tables | boolean + diagnostic |
 | `relations(table, ({ one, many }) => ({...}))` | optional; may live in `db/schema.ts` or a separate `db/relations.ts`; `one(target, { fields, references })` and `many(target)` | logical `RelationFact`: target table, cardinality, optional column mapping — a **different edge kind** from FK |
-| re-exports | `export { users, ... } from "@facilis/auth"` | parse the installed framework package source (it ships `src/`); `unknown` + diagnostic if not found (bundled provider only as fallback) |
+| re-exports | `export { users, ... } from "@facilis.dev/auth"` | parse the installed framework package source (it ships `src/`); `unknown` + diagnostic if not found (bundled provider only as fallback) |
 | custom builders/wrappers | anything not in the whitelist | `unknown` + diagnostic, table/column still listed with partial facts if the name is known |
 
 ### 3.4 Pages / client consumers — one sanctioned transport
@@ -240,7 +240,7 @@ in the browser worker and in Node/CI.
 | `db-tables-known` | error | a declared table is not in the schema |
 | `db-columns-valid` | warning | malformed/unknown `table.column` |
 | `body-validated` | error | handler reads body/query/params without the matching schema |
-| `no-raw-db` | error | raw Drizzle import outside `@facilis/db` |
+| `no-raw-db` | error | raw Drizzle import outside `@facilis.dev/db` |
 | `schema-static` | error | table/column/policy uses a construct outside the DSL |
 | `rls-on-scoped-table` | error | scoped table lacks `.enableRLS()` or a policy |
 | `route-system-table` | warning | a route's `dbTables`/`dbColumns` names a system-only table outside an elevation |
@@ -256,22 +256,22 @@ The gate (CI/lint) fails on `error`. The IDE shows warnings live. Runtime auth s
 security boundary: the analyzer only guarantees that introspection is complete, it does not
 authorize requests.
 
-**Implementation status (2026-11-04).** `@facilis/analyze` implements the fact model and all
+**Implementation status (2026-11-04).** `@facilis.dev/analyze` implements the fact model and all
 passes (config, routes, i18n, schema/DSL, relations, clients, per-file module facts, graph).
 Package tests: 66, green; `typecheck`, `lint`, build and the 300-line check are green. Spike on
-`examples/todo-app`: 443 files, 8 routes, 6 tables (including the re-exported `@facilis/auth`
+`examples/todo-app`: 443 files, 8 routes, 6 tables (including the re-exported `@facilis.dev/auth`
 tables), 4 pages with calls, 18 graph nodes / 31 edges, 0 diagnostics. The IDE worker and the
 `project-graph` tab are implemented on the same facts (lazy wasm worker + fullscreen graph +
 `.facilis/graph/` state set); IDE tests/typecheck/lint/build and the browser smoke graph checks pass.
 
 **Cutover (D-093).** The old scanners `packages/nitro/src/ast/**`,
-`packages/ai/src/{scan,config-facts,schema-facts}.ts` are deleted. `@facilis/nitro` maps
+`packages/ai/src/{scan,config-facts,schema-facts}.ts` are deleted. `@facilis.dev/nitro` maps
 `RouteFact[]` to the manifest/OpenAPI contract (`route-metadata.ts`) with a parser injected from
 `rolldown/utils` (`rolldown-parser.ts`), because the generated project's Vite config runs in the
-WebContainer; `@facilis/analyze/fs` is the parser-free Node loader. `@facilis/ai`'s 19-rule
+WebContainer; `@facilis.dev/analyze/fs` is the parser-free Node loader. `@facilis.dev/ai`'s 19-rule
 validator consumes the effective post-patch `Analysis` plus the pre-patch one; the IDE builds
 both on its warm worker (`patch-analysis.ts`), caches the pre-patch analysis per VFS snapshot,
-and fails closed with `project-analysis` if the analyzer is unavailable. `@facilis/analyze` is
+and fails closed with `project-analysis` if the analyzer is unavailable. `@facilis.dev/analyze` is
 part of the generated project's vendored tarballs; its `oxc-parser` dependency is an optional
 peer so the VM never installs it.
 
@@ -310,7 +310,19 @@ panels.
 - **Fullscreen**: a button turns the graph into a full-viewport overlay (CSS overlay; Esc
   exits), with the toolbar (filters, save, reset, fit, search) kept on top.
 - **Filters**: show/hide each edge kind (and optionally each node kind); hidden state is
-  persisted.
+  persisted. Two persisted visibility filters remove the framework's own feature surface
+  (D-163): **System routes** (`hideSystemRoutes`) hides routes the project does not declare —
+  source under `node_modules/`, or (wrapper known) no `dbTables` entry naming a
+  project-declared relation (a non-framework table or any view); **Unused system tables**
+  (`hideSystemTables`) hides framework tables (declared by installed `@facilis.dev/*` packages,
+  source under `node_modules/`, the `sistema` badge) that no non-system route reaches with a
+  `route-table`/`route-view` edge, so a framework table the project's own routes use (e.g.
+  `facilis_files` from the todo routes) stays visible. Unknown/invalid routes are never
+  hidden: the graph is also the integrity view. Hidden nodes and every edge touching them are
+  removed from the drawn view, the automatic layout is computed from the visible nodes while
+  saved positions of the remaining nodes are kept, and `ProjectGraphStats.hiddenNodes` counts
+  them. Both filters default to **off**; the route filter is a heuristic (a project route that
+  touches no DB relation is classified as system) and can simply be left off.
 - **Drag**: nodes are draggable and follow the pointer live; the position is committed on drop.
   Initial positions come from a deterministic layered layout (pages → routes → tables, with views
   below the tables in the schema column; FK/relations among tables). "Reset layout" returns to it.
@@ -336,7 +348,8 @@ that git merges per element: one settings file, one small JSON file per position
 markdown file per note, and pan/zoom kept local.
 
 ```text
-.facilis/graph/layout.json             { "version": 3, "hiddenEdges": [...], "collapsed": {...} }
+.facilis/graph/layout.json             { "version": 3, "hiddenEdges": [...], "collapsed": {...},
+                                         "hideSystemRoutes": false, "hideSystemTables": false }
 .facilis/graph/positions/<key>.json    {"id":"table:todos","x":10,"y":20}     one per node/note
 .facilis/graph/bends/<key>.json        {"id":"fk:table:todos:…","x":24,"y":-40}   one per edge
 .facilis/graph/notes/<uuid>.md         # Annotazione   (one markdown file per note)
@@ -357,6 +370,10 @@ markdown file per note, and pan/zoom kept local.
 - `bends/<key>.json` are keyed by the stable edge id; a missing file is the automatic path.
   Schema version 1/2 files (the single `.facilis/graph.json`, no notes) are read once through
   migration and rewritten as v3; stale edge ids are ignored.
+- `hideSystemRoutes`/`hideSystemTables` are **additive** view preferences: default `false`,
+  version stays 3, and a layout written without them reads as show-everything. "Reset layout"
+  keeps them exactly like `hiddenEdges`; a hidden node keeps its saved position, so turning a
+  filter back on restores the arrangement instead of dropping the node.
 - IDs are the stable fact IDs (`page:<path>`, `route:<METHOD> <path>`, `table:<name>`); ids
   that no longer exist are ignored on load, new nodes get auto positions.
 - Missing/corrupt state → auto layout + warning; the state is never an input to validation.
@@ -375,8 +392,8 @@ testable without a dev server.
 - Project files: relative imports, `~`, tsconfig `paths`; `.ts/.tsx/.js/.jsx/.mts/.mjs`,
   `/index`.
 - Re-exports and barrel files: followed.
-- Framework packages: `@facilis/*` source is shipped in the package, so it can be parsed
-  when present (the Node loader walks `node_modules/@facilis`). The browser IDE's file map
+- Framework packages: `@facilis.dev/*` source is shipped in the package, so it can be parsed
+  when present (the Node loader walks `node_modules/@facilis.dev`). The browser IDE's file map
   comes from the VFS index, which skips `node_modules`, so it inlines the table-bearing
   packages (`auth`, `db`) at build time instead (D-130); a drift guard keeps that list in
   step with the template.
@@ -399,7 +416,7 @@ testable without a dev server.
 | 8 | raw `export default async function` | invalid | `route-wrapper` | red route node |
 | 9 | `pgTable("todos", {...})` + `.enableRLS()` + policies | table/columns/policies | none | table node |
 | 10 | `.references(() => projects.id, { onDelete: "cascade" })` | FK fact | none | FK edge |
-| 11 | re-exported `@facilis/auth` table | framework table | none if resolved | table node |
+| 11 | re-exported `@facilis.dev/auth` table | framework table | none if resolved | table node |
 | 12 | custom column builder | partial column | `schema-static` | column + unknown |
 | 13 | dynamic table name | no name | `schema-static` | table placeholder |
 | 14 | `api("/api/todos")` | page→route direct | none | edge |
@@ -423,7 +440,7 @@ dependency).
 ## 10. Open decisions
 
 Decided (2026-11-04): `dbColumns` = Drizzle property names; both FK and `relations()` edges;
-parse `@facilis/*` source; one full-screen graph with filters/drag/persistence; one sanctioned
+parse `@facilis.dev/*` source; one full-screen graph with filters/drag/persistence; one sanctioned
 client transport (`api()`) with everything else blocked; the graph state is committed team
 state under `.facilis/graph/` (D-126), with pan/zoom local.
 
@@ -438,14 +455,14 @@ Still open:
 4. **Column-level edges**: FK edges can be column→column; route→column edges from `dbColumns`
    can be column-level too. Decide whether the graph draws and filters at table or column
    granularity.
-5. **Package boundary and name** (`@facilis/analyze`), and whether the contract lives in SPEC
+5. **Package boundary and name** (`@facilis.dev/analyze`), and whether the contract lives in SPEC
    or in a dedicated doc (this one).
 
 ## 11. Next steps
 
 1. ~~Freeze this contract and write the fixture matrix as the acceptance test.~~ Done.
 2. ~~Spike the analyzer on `examples/todo-app`.~~ Done (see status).
-3. ~~Extract `@facilis/analyze` with the parser adapters; replace `nitro/src/ast` and
+3. ~~Extract `@facilis.dev/analyze` with the parser adapters; replace `nitro/src/ast` and
    `ai/src/{scan,config-facts,schema-facts}`.~~ Done (D-093).
 4. ~~Build the schema + API graph view from the facts.~~ Done (`project-graph` tab, D-092); the
    API Flow was then removed (D-095), so the graph is the only visualizer. The Data Explorer

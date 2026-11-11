@@ -13,7 +13,7 @@ import {
   type EdgeTypes,
   type InternalNode,
 } from "@xyflow/react";
-import type { GraphEdgeKind } from "@facilis/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import {
   EDGE_ENDPOINT_GAP,

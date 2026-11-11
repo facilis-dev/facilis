@@ -27,7 +27,7 @@ function packageOf(specifier: string): DslPackage | null {
     return "pg-core";
   }
   if (specifier === "drizzle-orm" || specifier.startsWith("drizzle-orm/")) return "drizzle-orm";
-  if (specifier === "@facilis/db" || specifier.startsWith("@facilis/db/")) return "facilis-db";
+  if (specifier === "@facilis.dev/db" || specifier.startsWith("@facilis.dev/db/")) return "facilis-db";
   return null;
 }
 
@@ -35,7 +35,7 @@ function packageOf(specifier: string): DslPackage | null {
 function packageOfResolved(path: string): DslPackage | null {
   if (path.includes("node_modules/drizzle-orm/pg-core/")) return "pg-core";
   if (path.includes("node_modules/drizzle-orm/")) return "drizzle-orm";
-  if (path.includes("node_modules/@facilis/db/")) return "facilis-db";
+  if (path.includes("node_modules/@facilis.dev/db/")) return "facilis-db";
   return null;
 }
 

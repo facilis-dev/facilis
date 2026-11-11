@@ -9,7 +9,7 @@
  * guard: a sudo/system call can never be nested inside another elevation.
  */
 
-import type { AuthContext } from "@facilis/auth";
+import type { AuthContext } from "@facilis.dev/auth";
 import {
   guardDatabase,
   runWithSystemRole,
@@ -17,7 +17,7 @@ import {
   writeSudoAudit,
   type PolicyScopedDatabase,
   type SudoAuditEvent,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
 import { fail } from "./errors.ts";

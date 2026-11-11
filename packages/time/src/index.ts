@@ -1,5 +1,5 @@
 /**
- * @facilis/time - zero-dependency date/time logic for generated projects.
+ * @facilis.dev/time - zero-dependency date/time logic for generated projects.
  *
  * A flat, named surface: formatting with an explicit locale and time zone, calendar days as
  * YYYY-MM-DD strings, and DST-aware day boundaries. There is nothing to configure - import the

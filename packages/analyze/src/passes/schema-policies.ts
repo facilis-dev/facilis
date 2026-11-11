@@ -108,7 +108,7 @@ function readPgPolicy(call: AstNode, context: StaticContext, file: ProjectFile):
   return scan([fixedPolicy(name, command, restrictive, source, unknowns)]);
 }
 
-/** `rlsForTable({...})` expands to the same policy set `@facilis/db` builds at runtime. */
+/** `rlsForTable({...})` expands to the same policy set `@facilis.dev/db` builds at runtime. */
 function expandRlsTable(call: AstNode, context: StaticContext, file: ProjectFile): PolicyScan {
   const source = nodeRef(file, call);
   const args = callArguments(call);

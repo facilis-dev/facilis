@@ -19,7 +19,7 @@ import {
   type FilePatch,
   type ValidationError,
   type ValidationResult,
-} from "@facilis/ai";
+} from "@facilis.dev/ai";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import { MAX_PROGRAM_CHARS } from "./ptc/protocol";
 import { isRecord, parseNotes, parsePatches } from "./response-shape";

@@ -1,4 +1,4 @@
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { TODO_TABLES } from "../../../lib/route-config";
 
 const config = {

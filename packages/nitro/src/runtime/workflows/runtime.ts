@@ -5,15 +5,15 @@
 // step inline, so a route's latency is independent of the chain (WORKFLOWS.md §4).
 import { randomUUID } from "node:crypto";
 
-import { serializeWorkflowData, WORKFLOW_STATUSES, WorkflowError } from "@facilis/core";
+import { serializeWorkflowData, WORKFLOW_STATUSES, WorkflowError } from "@facilis.dev/core";
 import type {
   WorkflowDefinition,
   WorkflowListOptions,
   WorkflowRecord,
   WorkflowsApi,
   WorkflowStatus,
-} from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+} from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { formatIssues } from "../jobs/engine-support.ts";
 import type { WorkflowListFilters, WorkflowRuntimeDeps } from "./contracts.ts";

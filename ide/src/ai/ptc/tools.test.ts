@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 
 import { analyzeHostFiles } from "../analysis-fixtures";
 import type { PatchValidationHost } from "../patch-validation";
 import { isPtcToolError } from "./protocol";
 import { createToolRouter } from "./tools";
 
-const CONFIG = `import { defineConfig } from "@facilis/core";
+const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: {
@@ -26,7 +26,7 @@ export const todos = pgTable("todos", {
 });
 `;
 
-const ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+const ROUTE = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { todos } from "~/db/schema";
 
 export default defineAuthorizedHandler(
@@ -39,7 +39,7 @@ export default defineAuthorizedHandler(
 );
 `;
 
-const PING_ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+const PING_ROUTE = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 export default defineAuthorizedHandler(
   {
@@ -67,7 +67,7 @@ const SOURCES: Record<string, string> = {
   "config/secrets.ts": SECRETS,
   ".env": "API_KEY=sk-live-123\n",
   "locales/en.json": JSON.stringify({ "app.title": "Facilis" }),
-  "package.json": JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } }),
+  "package.json": JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } }),
   "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
 };
 

@@ -24,7 +24,7 @@ import {
   sortDiagnostics,
 } from "./static-read.ts";
 
-const CORE_SPECIFIER = "@facilis/core";
+const CORE_SPECIFIER = "@facilis.dev/core";
 const ROUTE_DIRS = ["server/routes/", "server/api/"];
 
 export interface RouteResult {
@@ -72,7 +72,7 @@ function resolveWrapper(file: ProjectFile): WrapperResolution {
     return {
       state: "invalid",
       call: null,
-      reason: "the default export is not the defineAuthorizedHandler import from @facilis/core",
+      reason: "the default export is not the defineAuthorizedHandler import from @facilis.dev/core",
     };
   }
   return { state: "valid", call: expression, reason: "" };

@@ -11,7 +11,7 @@
 // Splitting it from ChatSession keeps the session under the 300-line limit and
 // makes the undo plan unit-testable.
 
-import type { FilePatch, PatchContext } from "@facilis/ai";
+import type { FilePatch, PatchContext } from "@facilis.dev/ai";
 import { applyPatch, type PatchBridge } from "@/facilis/apply-patch";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import type { ChatApplied, ChatProposal, ChatUndo } from "./types";

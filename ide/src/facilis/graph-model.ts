@@ -1,4 +1,4 @@
-// The project-graph view model: the analyzer's one ProjectGraph (`@facilis/analyze`) mapped
+// The project-graph view model: the analyzer's one ProjectGraph (`@facilis.dev/analyze`) mapped
 // to what React Flow draws, plus the deterministic layered auto-layout. Pure: no React, no
 // bridge, no IO, so the geometry and the filters are unit-testable and a refresh can rebuild
 // the view without touching the editor.
@@ -9,9 +9,10 @@
 // automatic one; edge kinds listed in the layout's `hiddenEdges` are dropped before the canvas
 // sees them.
 
-import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis/analyze";
+import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis.dev/analyze";
 import { pageData, routeData, tableData, viewData } from "./graph-model-data";
 import { matchesNodeQuery, workflowData } from "./graph-node-data";
+import { hiddenSystemNodeIds } from "./graph-system";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
 import {
   GRAPH_COLUMNS,
@@ -26,6 +27,7 @@ export type {
   ColumnMarker,
   GraphColumn,
   GraphScope,
+  GraphSystemNodeKind,
   PageGraphData,
   ProjectGraphEdge,
   ProjectGraphNode,
@@ -178,35 +180,51 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
     });
   }
 
-  const pages = nodes
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const allEdges = input.graph.edges
+    .map(edgeView)
+    .filter((edge) => byId.has(edge.source) && byId.has(edge.target));
+  // D-163: the system filters drop framework-feature nodes before layout, so the graph compacts
+  // instead of leaving holes where the hidden cards used to be.
+  const hiddenNodeIds = hiddenSystemNodeIds(nodes, allEdges, {
+    routes: input.hideSystemRoutes === true,
+    tables: input.hideSystemTables === true,
+  });
+  const visibleNodes =
+    hiddenNodeIds.size === 0 ? nodes : nodes.filter((node) => !hiddenNodeIds.has(node.id));
+  const visibleById =
+    hiddenNodeIds.size === 0 ? byId : new Map(visibleNodes.map((node) => [node.id, node]));
+  // A hidden node takes its edges with it: a half-visible edge would point at nothing.
+  const allVisibleEdges =
+    hiddenNodeIds.size === 0
+      ? allEdges
+      : allEdges.filter((edge) => visibleById.has(edge.source) && visibleById.has(edge.target));
+
+  const pages = visibleNodes
     .filter((node) => node.kind === "page")
     .toSorted((a, b) => a.id.localeCompare(b.id));
-  const routes = nodes
+  const routes = visibleNodes
     .filter((node) => node.kind === "route")
     .toSorted((a, b) => {
       if (a.data.kind !== "route" || b.data.kind !== "route") return a.id.localeCompare(b.id);
       return a.data.path.localeCompare(b.data.path) || a.data.method.localeCompare(b.data.method);
     });
-  const tables = nodes.filter((node) => node.kind === "table");
-  const tableOrder = orderTables(tables, input.graph.edges.map(edgeView).filter(isTableEdge));
+  const tables = visibleNodes.filter((node) => node.kind === "table");
+  const tableOrder = orderTables(tables, allVisibleEdges.filter(isTableEdge));
   const orderedTables = tableOrder
     .map((id) => tables.find((node) => node.id === id))
     .filter((node): node is ProjectGraphNode => node !== undefined);
-  const views = nodes
+  const views = visibleNodes
     .filter((node) => node.kind === "view")
     .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
-  const workflows = nodes
+  const workflows = visibleNodes
     .filter((node) => node.kind === "workflow")
     .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
   const auto = autoPositions(pages, routes, orderedTables, views, workflows);
 
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  const allEdges = input.graph.edges
-    .map(edgeView)
-    .filter((edge) => byId.has(edge.source) && byId.has(edge.target));
-  const users = routeUsers(allEdges, byId);
+  const users = routeUsers(allVisibleEdges, visibleById);
 
-  const positioned = nodes.map((node) => {
+  const positioned = visibleNodes.map((node) => {
     const data =
       node.data.kind === "view"
         ? { ...node.data, usedByRoutes: users.get(node.id) ?? [] }
@@ -220,8 +238,8 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
     return { ...base, matched: matchesNodeQuery(base, needle) };
   });
 
-  const visible = allEdges.filter((edge) => !hidden.has(edge.kind));
-  const hiddenCount = allEdges.length - visible.length;
+  const visible = allVisibleEdges.filter((edge) => !hidden.has(edge.kind));
+  const hiddenCount = allVisibleEdges.length - visible.length;
 
   return {
     nodes: positioned,
@@ -234,6 +252,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       workflows: workflows.length,
       edges: visible.length,
       hiddenEdges: hiddenCount,
+      hiddenNodes: hiddenNodeIds.size,
       matches: positioned.filter((node) => node.matched).length,
       unknownNodes: positioned.filter((node) => node.data.kind !== "page" && node.data.unknown)
         .length,

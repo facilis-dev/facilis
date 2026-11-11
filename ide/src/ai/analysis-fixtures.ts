@@ -1,12 +1,12 @@
 // Real analyzer facts for the IDE validator tests (task-10).
 //
 // The validator no longer parses the project itself, so test hosts must supply actual
-// @facilis/analyze facts. These helpers build them from small source maps with the same
+// @facilis.dev/analyze facts. These helpers build them from small source maps with the same
 // parser adapter the browser worker uses; under Vitest/Node the resolver picks oxc-parser's
 // native binding, so no wasm is booted. Test-only — nothing in the app imports this module.
 
-import type { FilePatch } from "@facilis/ai";
-import { analyzeProject, type Analysis } from "@facilis/analyze";
+import type { FilePatch } from "@facilis.dev/ai";
+import { analyzeProject, type Analysis } from "@facilis.dev/analyze";
 import { createBrowserOxcParser } from "@/facilis/oxc-browser";
 import { overlayPatches } from "@/facilis/patch-analysis";
 

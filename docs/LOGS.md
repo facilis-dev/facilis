@@ -4,7 +4,7 @@
 
 How Facilis records access, errors and security-relevant audit events, where the entries go,
 and how to verify them. This page is the operator contract behind D-119; the entry shapes are
-owned by `@facilis/core` (see `packages/core/src/logging.ts`), the sink by `@facilis/nitro`.
+owned by `@facilis.dev/core` (see `packages/core/src/logging.ts`), the sink by `@facilis.dev/nitro`.
 
 There is **no HTTP endpoint that serves logs**. Not in development, not behind a flag. A log
 endpoint would expose request paths, user ids, session hashes, client IPs and stack traces to
@@ -165,7 +165,7 @@ session (`user:<id>`, or `anonymous` when there is no session) and never supplie
 ## Verifying the implementation
 
 ```bash
-pnpm --filter @facilis/nitro test
+pnpm --filter @facilis.dev/nitro test
 ```
 
 The suites cover env resolution/defaults, redaction and caps (including the client-IP cap),

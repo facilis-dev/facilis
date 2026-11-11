@@ -3,7 +3,7 @@
 // graph-model-data.ts, which owns the other kinds) so every file stays under the 300-line
 // source limit. Pure data mapping: no layout, no React.
 
-import type { GraphNode } from "@facilis/analyze";
+import type { GraphNode } from "@facilis.dev/analyze";
 import { matchesQuery } from "./graph-model-data";
 import type { ProjectGraphNode, WorkflowGraphData } from "./graph-types";
 

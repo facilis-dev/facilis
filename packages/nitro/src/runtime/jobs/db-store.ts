@@ -8,9 +8,9 @@
 // only escalation is the job body itself, behind the executor.
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 
-import { facilisJobs, runWithPolicyScope } from "@facilis/db";
-import type { FacilisDb, PolicyScopedDatabase } from "@facilis/db";
-import type { JobStatus } from "@facilis/core";
+import { facilisJobs, runWithPolicyScope } from "@facilis.dev/db";
+import type { FacilisDb, PolicyScopedDatabase } from "@facilis.dev/db";
+import type { JobStatus } from "@facilis.dev/core";
 
 import type {
   JobCounts,

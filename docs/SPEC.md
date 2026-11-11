@@ -1,16 +1,23 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.31 (job table declarations, D-162)
+**Version:** 1.32 (published packages, D-164)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
-- v1.31 — Job table declarations (D-162). `defineJob` now requires `dbTables` (tables and views by SQL name, `[]` = no relation) and accepts the `rawSql` exception; the old `tables` field is gone. A job attempt runs through the same runtime guard the routes use: an undeclared relation fails closed with `table_not_declared`, `db.execute` without `rawSql: true` with `raw_sql_not_allowed`, and a violation is terminal (not retried, stable code). The sudo audit records the declared set and, on `succeeded`, the observed relations. `@facilis/analyze` reads `server/jobs/**` into `jobs`/`jobRelations` facts with `job-definition`/`job-definition-static` (warnings), `job-table-undeclared`/`job-table-unresolved`/`job-raw-sql` (errors) and `job-table-unused` (warning); `jobs-gate.test.ts` gates the examples (D-154 pattern) and the AI validator gains rule 19 `job-table-declared`. A workflow declares no tables: its surface is derived from the jobs its steps reference (`workflowTables`, `workflow-job-unknown`). §5.6/§7.9/§8.4.6/§9.3 follow.
-- v1.30 — Workflows and manual tasks (D-135, D-161). A workflow is a named, ordered chain of job and approval steps in `server/workflows/**/*.ts` (`defineWorkflow`), advanced by a runtime tick over `facilis_workflows` rows, never a job body that waits; a manual step inserts a durable `facilis_tasks` row and the chain suspends until the task's status/decision changes through the app's authorized route (`ctx.tasks.decide`); a rejection either fails the run or continues at a declared forward step (`onReject`), a step may assign its task to a permission, and every transition is a compare-and-set short transaction with boot recovery and cancellation. The server-only `ctx.workflows`/`ctx.tasks` surface has no HTTP endpoint of its own, exactly like `ctx.jobs`. Workflow definitions are also project-graph nodes (D-161): `@facilis/analyze` reads every default export of `server/workflows/**` (name, job/approval steps, assignment permission, forward reject target) into `WorkflowFact`s, and the graph gains a workflow node per definition with its own column and inspector; there is deliberately no Studio tasks inbox tab. §5.6/§7.1/§7.4/§7.10/§8.4.5/§10.2 follow.
+- v1.32 — Published packages (D-164). The framework packages publish to public npm under the
+  organization scope `@facilis.dev`; every `@facilis/*` name in this spec is now
+  `@facilis.dev/*` (imports, generated-project template, vendored tarballs, lockfile). Outside the
+  IDE a project installs them from the registry; inside it keeps installing the tarballs the IDE
+  serves (D-022). The manifest that reaches npm is staged (exports resolve to `dist/`, internal
+  deps are pinned to the release version, no devDependencies/scripts), and `starter/` is unblocked
+  (D-027). §4 and the package sections follow.
+- v1.31 — Job table declarations (D-162). `defineJob` now requires `dbTables` (tables and views by SQL name, `[]` = no relation) and accepts the `rawSql` exception; the old `tables` field is gone. A job attempt runs through the same runtime guard the routes use: an undeclared relation fails closed with `table_not_declared`, `db.execute` without `rawSql: true` with `raw_sql_not_allowed`, and a violation is terminal (not retried, stable code). The sudo audit records the declared set and, on `succeeded`, the observed relations. `@facilis.dev/analyze` reads `server/jobs/**` into `jobs`/`jobRelations` facts with `job-definition`/`job-definition-static` (warnings), `job-table-undeclared`/`job-table-unresolved`/`job-raw-sql` (errors) and `job-table-unused` (warning); `jobs-gate.test.ts` gates the examples (D-154 pattern) and the AI validator gains rule 19 `job-table-declared`. A workflow declares no tables: its surface is derived from the jobs its steps reference (`workflowTables`, `workflow-job-unknown`). §5.6/§7.9/§8.4.6/§9.3 follow.
+- v1.30 — Workflows and manual tasks (D-135, D-161). A workflow is a named, ordered chain of job and approval steps in `server/workflows/**/*.ts` (`defineWorkflow`), advanced by a runtime tick over `facilis_workflows` rows, never a job body that waits; a manual step inserts a durable `facilis_tasks` row and the chain suspends until the task's status/decision changes through the app's authorized route (`ctx.tasks.decide`); a rejection either fails the run or continues at a declared forward step (`onReject`), a step may assign its task to a permission, and every transition is a compare-and-set short transaction with boot recovery and cancellation. The server-only `ctx.workflows`/`ctx.tasks` surface has no HTTP endpoint of its own, exactly like `ctx.jobs`. Workflow definitions are also project-graph nodes (D-161): `@facilis.dev/analyze` reads every default export of `server/workflows/**` (name, job/approval steps, assignment permission, forward reject target) into `WorkflowFact`s, and the graph gains a workflow node per definition with its own column and inspector; there is deliberately no Studio tasks inbox tab. §5.6/§7.1/§7.4/§7.10/§8.4.5/§10.2 follow.
 - v1.29 — Docs consolidation: phase plans, resolved open questions and the Phase 0 ticket list leave the spec; no contract change.
-- v1.28 — Le viste entrano nel project graph (D-160). `@facilis/analyze` produce un nodo `view` per ogni `defineView` (`db/views/**`) con modalità invoker/definer, permesso e tabelle base dichiarate; una route che dichiara la vista in `dbTables` prende un arco `route-view` (marcato elevato dentro un'elevazione audited) e la vista è collegata alle tabelle base con `view-base`. L'IDE mostra le viste nella colonna dello schema sotto le tabelle, con badge e "usata da N rotte", e l'inspector elenca le rotte. Il contratto del grafo guadagna il nodo `view` e i due tipi di arco; i file di layout restano v3. §10.2/§11.2 follow.
-- v1.27 — Il generatore (P2, D-158). `@facilis/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
+- v1.28 — Le viste entrano nel project graph (D-160). `@facilis.dev/analyze` produce un nodo `view` per ogni `defineView` (`db/views/**`) con modalità invoker/definer, permesso e tabelle base dichiarate; una route che dichiara la vista in `dbTables` prende un arco `route-view` (marcato elevato dentro un'elevazione audited) e la vista è collegata alle tabelle base con `view-base`. L'IDE mostra le viste nella colonna dello schema sotto le tabelle, con badge e "usata da N rotte", e l'inspector elenca le rotte. Il contratto del grafo guadagna il nodo `view` e i due tipi di arco; i file di layout restano v3. §10.2/§11.2 follow.
+- v1.27 — Il generatore (P2, D-158). `@facilis.dev/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
 - v1.26 — Il DDL nasce al rilascio, non si scrive a mano (D-158/D-159). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
 - v1.25 — `dbTables` è una dichiarazione applicata (D-157): ogni route dichiara tutte le relazioni che tocca, **tabelle e viste**, e il framework la verifica staticamente (analyzer con follow delle chiamate locali, gate CI, nuova regola 18 `route-table-declared`) e a runtime (guard su `ctx.db` e sulle elevazioni: `table_not_declared`, `raw_sql_not_allowed`); `rawSql: true` è l'unica deroga per `db.execute`, e l'audit delle elevazioni registra le tabelle osservate. §7.4/§8.4.6/§9.3/§11.2 follow.
 - v1.24 — Email verification (D-156). `auth.verification` (default disabled) abilita il flusso: la registrazione crea l'account con `users.email_verified_at` NULL e un link monouso (token hashato in `auth_email_verifications`, TTL 24 h), il login del blueprint rifiuta `403 email_unverified` finché l'indirizzo non è verificato, e la route `GET /api/auth/verify-email` consuma il link con un redirect sicuro. La delivery è del deploy (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`); in `development`/`test` senza webhook il blueprint verifica subito (demo e smoke senza casella). Il link SSO a un account password ora si basa sulla verifica: un account verificato si collega, un account pendente viene reclamato dall'identità verificata con rimozione della password segnaposto (chiude SEC-02 alla radice). §5.1/§5.3/§8.4.4/§4.4/§12 follow.
@@ -122,7 +129,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 - Git credential — GitHub signs in with the OAuth device flow; other hosts take a PAT (or an account password where allowed). Per operation, never sent to the LLM
 - Migration ordering — derived from the release tag pair and the fixed statement phases; nothing is authored, so there is no ordering conflict to resolve (D-158)
 - Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed statements by the release artifact and applied by the deploy (D-158/D-159)
-- Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
+- Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis.dev/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
 
 ---
 
@@ -175,7 +182,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | **Nitro plugin** | Mounted inside Vite. Serves API routes, generates OpenAPI, runs the server code in an isolated worker. |
 | **`/__facilis/manifest`** | Runtime projection of the running project. Consumed by AI, visualizer, entity explorer. |
 | **`/_openapi.json`** | Nitro-generated OpenAPI 3.1.0 spec, enriched with `x-db-tables` / `x-db-columns` / `x-permission`. |
-| **`@facilis/*` packages** | The framework itself. Installed in every generated project. |
+| **`@facilis.dev/*` packages** | The framework itself. Installed in every generated project. |
 
 ### 3.3 Data Flow: AI Patch → Preview
 
@@ -216,7 +223,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 ```
 /
 ├── packages/
-│   ├── core/                 @facilis/core
+│   ├── core/                 @facilis.dev/core
 │   │   ├── src/
 │   │   │   ├── config.ts             defineConfig()
 │   │   │   ├── route.ts              defineAuthorizedHandler()
@@ -226,7 +233,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
-│   ├── db/                   @facilis/db
+│   ├── db/                   @facilis.dev/db
 │   │   ├── src/
 │   │   │   ├── client.ts             Drizzle + PGlite adapter
 │   │   │   ├── policy.ts             drizzle-policy wrapper
@@ -235,7 +242,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
-│   ├── auth/                 @facilis/auth
+│   ├── auth/                 @facilis.dev/auth
 │   │   ├── src/
 │   │   │   ├── middleware.ts         session middleware
 │   │   │   ├── session.ts            Lucia-style sessions
@@ -245,16 +252,16 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
-│   ├── storage/              @facilis/storage (D-053)
+│   ├── storage/              @facilis.dev/storage (D-053)
 │   │   └── src/              content-addressed blobs, local + S3-compatible drivers, signed tokens
 │   │
-│   ├── time/                 @facilis/time (D-056)
+│   ├── time/                 @facilis.dev/time (D-056)
 │   │   └── src/              Intl formatting, calendar days, DST-aware day bounds
 │   │
-│   ├── i18n-db/              @facilis/i18n-db (D-057)
+│   ├── i18n-db/              @facilis.dev/i18n-db (D-057)
 │   │   └── src/              translated content fields + optional catalogue overlay
 │   │
-│   ├── ai/                   @facilis/ai
+│   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
 │   │   │   ├── prompt.ts             system prompt builder
 │   │   │   ├── context.ts            context assembly (A vs B)
@@ -264,7 +271,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
-│   └── nitro/                @facilis/nitro (Vite plugin + Nitro module)
+│   └── nitro/                @facilis.dev/nitro (Vite plugin + Nitro module)
 │       ├── src/
 │       │   ├── vite.ts                exports facilis() Vite plugin
 │       │   ├── module.ts              Nitro module (setup hook)
@@ -302,9 +309,9 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       ├── scripts/          in-browser npm/pnpm vendoring harnesses
 │       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
 │
-├── starter/                  empty until @facilis/* has a publish target (D-027):
-│                             the template is generated from examples/todo-app at
-│                             IDE build time (D-062) — no second copy to drift
+├── starter/                  user-cloned template (D-027), unblocked now that the
+│                             packages publish by name (D-164); generated from
+│                             examples/todo-app at IDE build time (D-062) — no drift
 │
 ├── examples/
 │   ├── todo-app/             template source (v2: Tailwind + shadcn copy-in components, D-090)
@@ -345,7 +352,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 ├── tsconfig.json
 ├── package.json                  scripts.dev = "vite dev"
 ├── scripts/                      check-pm.mjs, vendor-paths.cjs
-├── vendor/                       @facilis/* tarballs, inlined by the IDE (D-032)
+├── vendor/                       @facilis.dev/* tarballs, inlined by the IDE (D-032)
 └── README.md
 ```
 
@@ -366,7 +373,7 @@ artifact generated from the tag pair, never a directory the app carries (D-158).
 
 ## 5. Facilis Packages
 
-### 5.1 `@facilis/core`
+### 5.1 `@facilis.dev/core`
 
 Public API:
 
@@ -458,7 +465,7 @@ export type {
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config"
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config"
 
-// Logging (D-119): entry shapes + ctx.log contract; sinks live in @facilis/nitro
+// Logging (D-119): entry shapes + ctx.log contract; sinks live in @facilis.dev/nitro
 export {
   LOG_KINDS, LOG_LEVELS, NOOP_LOGGER, NOOP_LOGGING_API,
   createAccessEntry, createErrorEntry,
@@ -471,7 +478,7 @@ export type {
 export { DEFAULT_LOGGING_CONFIG, facilisLoggingConfigSchema } from "./logging-config"
 export type { FacilisLoggingConfig, FacilisLoggingConfigInput } from "./logging-config"
 
-// SSO config (D-120); the protocol lives in @facilis/auth
+// SSO config (D-120); the protocol lives in @facilis.dev/auth
 export {
   DEFAULT_SSO_CONFIG, SSO_PROVIDER_KINDS, ssoConfigSchema, ssoProviderSchema,
 } from "./sso-config"
@@ -480,7 +487,7 @@ export type {
 } from "./sso-config"
 ```
 
-### 5.2 `@facilis/db`
+### 5.2 `@facilis.dev/db`
 
 Exports:
 
@@ -531,7 +538,7 @@ Exports:
   guards the elevated client with that declaration and audits the observed relations; `ctx.sudo`/
   `ctx.system` still require a non-empty subset of the route's `dbTables`
 
-### 5.3 `@facilis/auth`
+### 5.3 `@facilis.dev/auth`
 
 Exports:
 
@@ -551,15 +558,15 @@ Exports:
 - Email verification (D-156): `issueEmailVerification()`, `consumeEmailVerification()` and `markEmailVerified()` own the single-use token (`sha256(token)` in `auth_email_verifications`, TTL from `auth.verification.tokenTtlMs`) and the `users.email_verified_at` transition; delivery is the project's, never the framework's
 - Login/logout/register route blueprints (optional to install)
 - Role-assignment API blueprint (`POST /api/users/:id/roles`)
-- Single sign-on (D-120): `ssoProviderList()` (the public provider list), the start/callback orchestration for OIDC/OAuth2/SAML, the `auth_identities` and `auth_sso_states` tables, and the framework-owned routes `GET /api/auth/sso/providers`, `GET /api/auth/sso/:provider/start` and `GET|POST /api/auth/sso/:provider/callback` (implemented by `@facilis/nitro`)
+- Single sign-on (D-120): `ssoProviderList()` (the public provider list), the start/callback orchestration for OIDC/OAuth2/SAML, the `auth_identities` and `auth_sso_states` tables, and the framework-owned routes `GET /api/auth/sso/providers`, `GET /api/auth/sso/:provider/start` and `GET|POST /api/auth/sso/:provider/callback` (implemented by `@facilis.dev/nitro`)
 
-**Auth tables (from `@facilis/auth/db`):**
+**Auth tables (from `@facilis.dev/auth/db`):**
 
 ```typescript
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(), // stored canonical (lowercase); unique index on lower(email) (D-150)
-  tenantId: tenantColumn(), // @facilis/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
+  tenantId: tenantColumn(), // @facilis.dev/db: uuid NOT NULL DEFAULT app.tenant_id (D-040)
   passwordHash: text("password_hash"),
   isService: boolean("is_service").default(false).notNull(), // D-142: API service account, never loggable
   emailVerifiedAt: timestamp("email_verified_at"), // null = pending; set by the link or an SSO claim (D-156)
@@ -657,7 +664,7 @@ export const authEmailVerifications = pgTable("auth_email_verifications", {
 
 **Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. Email verification (D-156) decides the linking rule: a VERIFIED password account links (the mailbox is proven), while a pending one is claimed by the identity — its placeholder password is removed and the account marked verified — so an attacker who merely registered the address first cannot keep it. See `docs/SSO.md`.
 
-### 5.4 `@facilis/blocks` — removed (D-131)
+### 5.4 `@facilis.dev/blocks` — removed (D-131)
 
 The headless-blocks package never shipped and is retired: the template v2 frontend copies Base
 UI primitives into the project (`src/components/ui`, D-090/D-096) and the AI writes pages against
@@ -666,7 +673,7 @@ deleted (§12 keeps the Phase 5 number as a tombstone). The `BlockManifest` type
 manifest `blocks` section stay as a reserved, always-empty slot (§7.2/§7.3); dropping them is a
 manifest revision, not part of this retirement.
 
-### 5.5 `@facilis/ai`
+### 5.5 `@facilis.dev/ai`
 
 Exports:
 
@@ -680,11 +687,11 @@ Exports:
   parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
 
-### 5.6 `@facilis/nitro` — Vite plugin + Nitro module
+### 5.6 `@facilis.dev/nitro` — Vite plugin + Nitro module
 
 This package has **four entry points**: the Vite plugin (which also mounts Nitro), the Nitro module it carries, the route-facing session-cookie helpers, and the route-facing binary-storage helpers (D-116).
 
-**Entry 1 — `@facilis/nitro/vite` (Vite plugin + Nitro mount):**
+**Entry 1 — `@facilis.dev/nitro/vite` (Vite plugin + Nitro mount):**
 
 ```typescript
 // packages/nitro/src/vite.ts
@@ -718,11 +725,11 @@ export function facilis(): FacilisPlugins {
 ```
 
 The plugin also owns the route-metadata virtual module: it analyzes the project with
-`@facilis/analyze` (parser injected from `rolldown/utils`), maps the route facts to the
+`@facilis.dev/analyze` (parser injected from `rolldown/utils`), maps the route facts to the
 manifest/OpenAPI contract and invalidates on any project source edit. `facilis()` takes no
 options; the analyzer owns the DSL layout (`server/routes/**`, `server/api/**`).
 
-**Entry 2 — `@facilis/nitro` (Nitro module):**
+**Entry 2 — `@facilis.dev/nitro` (Nitro module):**
 
 ```typescript
 // packages/nitro/src/module.ts
@@ -758,7 +765,7 @@ export const facilisNitroModule: NitroModule = {
 > `facilis()` works. Virtual-module factories in `nitro.options.virtual` return module source
 > strings, evaluated on load.
 
-**Framework middleware, logging and SSO routes.** The module registers the `context` (db) and `session` (auth) middleware on `/**`, in that order. Its runtime also owns the logging pipeline (D-119): the `runtime/logging/` module resolves the sink from the environment, appends JSON Lines to `<project>/.facilis/logs/` or stdout, and is attached to every request by the context middleware, which also resolves/returns `x-request-id`. Access/error entries are produced by `defineAuthorizedHandler` in `@facilis/core`; the sudo trail is bridged in from `@facilis/db`. No route exposes the log files.
+**Framework middleware, logging and SSO routes.** The module registers the `context` (db) and `session` (auth) middleware on `/**`, in that order. Its runtime also owns the logging pipeline (D-119): the `runtime/logging/` module resolves the sink from the environment, appends JSON Lines to `<project>/.facilis/logs/` or stdout, and is attached to every request by the context middleware, which also resolves/returns `x-request-id`. Access/error entries are produced by `defineAuthorizedHandler` in `@facilis.dev/core`; the sudo trail is bridged in from `@facilis.dev/db`. No route exposes the log files.
 
 When `auth.sso.providers` is non-empty, the module also registers one handler for `/api/auth/sso/**` (D-120) in dev and production alike. The handler is a normal `defineAuthorizedHandler` with `permission: []`: it lists the public providers, starts a login (302 to the IdP) and completes the callback (302 back to `redirectTo`). SAML's ACS POST body is parsed and Zod-validated inside the handler, and `@node-saml/node-saml` is imported lazily so projects without SAML never load it.
 
@@ -766,7 +773,7 @@ When `auth.sso.providers` is non-empty, the module also registers one handler fo
 
 ```typescript
 import { defineConfig } from "vite"
-import { facilis } from "@facilis/nitro/vite"
+import { facilis } from "@facilis.dev/nitro/vite"
 import react from "@vitejs/plugin-react"
 
 export default defineConfig({
@@ -777,7 +784,7 @@ export default defineConfig({
 **Nitro options in `facilis.config.ts`:**
 
 ```typescript
-import { defineConfig } from "@facilis/core"
+import { defineConfig } from "@facilis.dev/core"
 
 export default defineConfig({
   // ...release, db, i18n, blocks, auth
@@ -790,12 +797,12 @@ export default defineConfig({
 
 `facilis.config.ts` is the only Nitro config a project has. The framework defaults it overlays are `serverDir: "./server"` and `experimental.openAPI: true`; a project that still keeps a `nitro.config.ts` keeps working (Nitro's c12 loader reads it) but `facilis.config.ts` wins, and new projects never create one.
 
-**Entry 3 — `@facilis/nitro/session` (session-cookie helpers for routes):**
+**Entry 3 — `@facilis.dev/nitro/session` (session-cookie helpers for routes):**
 
 ```typescript
 // packages/nitro/src/session-cookie.ts
-import { SESSION_COOKIE_NAME } from "@facilis/auth"
-import type { FacilisRequestEvent } from "@facilis/core"
+import { SESSION_COOKIE_NAME } from "@facilis.dev/auth"
+import type { FacilisRequestEvent } from "@facilis.dev/core"
 import { deleteCookie, getCookie, setCookie, type H3Event } from "nitro/h3"
 
 export interface SessionCookieOptions { ttlMs: number; secure?: boolean }
@@ -811,7 +818,7 @@ response headers — the surface this server merges into the response (a `Set-Co
 returned `Response` is dropped in the in-VM Nitro dev path, D-038). h3 also appends rather
 than replaces, so a cookie another handler staged on the same response survives.
 
-**Entry 4 — `@facilis/nitro/storage` (upload/download helpers for routes, D-116):**
+**Entry 4 — `@facilis.dev/nitro/storage` (upload/download helpers for routes, D-116):**
 
 ```typescript
 export interface StoredFile { id: string; name: string; mime: string; size: number; url: string }
@@ -847,7 +854,7 @@ has no presigned redirect); the response carries `x-content-type-options: nosnif
 attachment `content-disposition`. Both return a `Response` on rejection (e.g.
 `file_too_large` 413, `storage_unavailable` 503).
 
-**Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session and storage helpers are their own entry points because they are server-runtime code: the session helpers import h3 while core's route contract does not (contracts §4.1), so the single `FacilisRequestEvent` → `H3Event` narrowing lives there and a handler stays free of h3 imports; the storage helpers are where `@facilis/nitro` implements core's `StorageApi` over the Node-only `@facilis/storage` package, which core itself must not depend on.
+**Why separate entry points?** Vite plugins can extend Nitro programmatically by exposing a `nitro` key (a Nitro module) on the plugin object, and Nitro's own plugin mounts by returning `Plugin[]`. `facilis()` is both: it returns the Facilis plugin carrying the module, followed by `nitro()`'s plugins. The user writes one plugin in `vite.config.ts` and gets Nitro plus all `__facilis` routes, virtual modules, and collectors. The session and storage helpers are their own entry points because they are server-runtime code: the session helpers import h3 while core's route contract does not (contracts §4.1), so the single `FacilisRequestEvent` → `H3Event` narrowing lives there and a handler stays free of h3 imports; the storage helpers are where `@facilis.dev/nitro` implements core's `StorageApi` over the Node-only `@facilis.dev/storage` package, which core itself must not depend on.
 
 **Background jobs (D-107).** A project's server code can start an independent unit of work and
 schedule it for a future instant, then read, inspect or cancel it. The design reference is
@@ -880,7 +887,7 @@ schedule it for a future instant, then read, inspect or cancel it. The design re
 - **Audit and static checks.** The sudo trail records the declared `dbTables` on
   `started/succeeded/failed` and the relations actually observed on `succeeded`
   (`observedTables`); a failure entry carries the canonical code, never the relation name.
-  `@facilis/analyze` reads every definition into `jobs`/`jobRelations` facts and reports the job
+  `@facilis.dev/analyze` reads every definition into `jobs`/`jobRelations` facts and reports the job
   diagnostics (§8.4.6); `jobs-gate.test.ts` fails a project whose jobs break the declaration
   (D-154 pattern) and AI validator rule 19 covers patches (§9.3). Jobs are not project-graph
   nodes yet.
@@ -924,12 +931,12 @@ approval steps, advanced by the same server process that runs the jobs. The desi
   in-memory mode. An external signal is an app-owned webhook route deciding the pending task; a
   first-class signal step is out of scope.
 
-### 5.7 `@facilis/ui` — removed (D-096)
+### 5.7 `@facilis.dev/ui` — removed (D-096)
 
 The v1 plain-CSS kit and its example apps are gone. Template v2 ships Tailwind CSS v4 + Base UI
 with the shadcn-style components copied into the project (`src/components/ui`, §5.1).
 
-### 5.8 `@facilis/time`
+### 5.8 `@facilis.dev/time`
 
 Zero-dependency date/time logic (D-056), built on `Intl` only:
 
@@ -946,7 +953,7 @@ Invalid input throws (`TypeError` for wrong types, `RangeError` for bad dates/zo
 ISO date-times without an explicit offset are rejected rather than read in the runtime zone.
 There is nothing to configure.
 
-### 5.9 `@facilis/i18n-db`
+### 5.9 `@facilis.dev/i18n-db`
 
 Opt-in database i18n (D-057), in two independent pieces:
 
@@ -959,12 +966,12 @@ Opt-in database i18n (D-057), in two independent pieces:
 - **Catalogue overlay (optional)** — `i18nMessages` plus `loadCatalog`/`loadCatalogs`/
   `saveCatalog`, `catalogQuery`/`parseCatalogLocales` for the project's explicit
   `defineAuthorizedHandler` route, and `hydrateCatalogs` on the client
-  (`@facilis/i18n-db/client`, drizzle-free) merging database rows over `locales/*.json` per
+  (`@facilis.dev/i18n-db/client`, drizzle-free) merging database rows over `locales/*.json` per
   key.
 
 ---
 
-### 5.10 `@facilis/storage`
+### 5.10 `@facilis.dev/storage`
 
 Content-addressed binary storage for files uploaded by a generated app (D-053), wired into
 the request runtime in D-116; opt-in at-rest encryption is D-117. Bytes are addressed by the
@@ -1003,7 +1010,7 @@ storage: {
 | encryption rotation | set a new active key (`FACILIS_STORAGE_ENCRYPTION_KEY`/`_KEY_ID`) and move the previous one into `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS`: every blob names the key that wrapped its DEK, so retired keys keep decrypting old blobs while new uploads use the active key. Enabling encryption on a project that already holds plaintext blobs refuses them (the decrypt step throws and the download fails — there is no plaintext fallback), so they must be re-uploaded; there is no online re-encryption, and D-053/D-116's immutable-body/no-GC rule is unchanged |
 | streaming | the framework's storage/crypto/download path never buffers the file: `StorageApi.put` takes a byte stream and the drivers hash (and, when enabled, encrypt) while writing; `get` validates the hash and returns a byte stream. The platform multipart parser (`request.formData()`) materializes the uploaded form once, bounded by `maxUploadBytes`, before `storeUpload` streams the file into storage — uploading is not zero-copy for the whole request. `sendStoredFile` returns the plaintext stream as the response body with `content-length` from the plaintext size in `facilis_files`. The local driver hashes into a temp file and renames it into place; the S3 PUT stages the upload stream (ciphertext when encryption is on) to a `0600` temp file while hashing and counting it — SigV4 needs the payload hash and length — uploads from that file and deletes it. In encrypted mode the encryptor holds at most one 1 MiB chunk (one is held back to know whether it is final) |
 | handler surface | `ctx.storage: StorageApi` (`kind`, `available`, `maxUploadBytes`, `put(source)/get(hash)` as byte streams, `exists/delete`, `buildDownloadUrl`, `verifyDownloadToken`, optional `presignedGetUrl` — absent when encryption is on); a route that declares a `form` schema instead of a `body` gets the parsed multipart body as `ctx.form` |
-| helpers | `@facilis/nitro/storage` exports `storeUpload({ event, db, storage, auth, file })` — enforces `maxUploadBytes` from the file's size, streams the file into storage after the platform parsed the multipart form once, inserts the `facilis_files` row and returns `{ id, name, mime, size, url }` (or a `Response` rejection) — and `sendStoredFile({ db, storage, fileId, token, tenantId, responseName? })`, which verifies the token and returns the plaintext as a streamed response body with `content-length` from the stored plaintext size (dev, and any encrypted deployment) or redirects to a driver-presigned S3 GET (prod with encryption off) |
+| helpers | `@facilis.dev/nitro/storage` exports `storeUpload({ event, db, storage, auth, file })` — enforces `maxUploadBytes` from the file's size, streams the file into storage after the platform parsed the multipart form once, inserts the `facilis_files` row and returns `{ id, name, mime, size, url }` (or a `Response` rejection) — and `sendStoredFile({ db, storage, fileId, token, tenantId, responseName? })`, which verifies the token and returns the plaintext as a streamed response body with `content-length` from the stored plaintext size (dev, and any encrypted deployment) or redirects to a driver-presigned S3 GET (prod with encryption off) |
 | template routes | `POST /api/todos/:id/files` (session + `storeUpload`, then the route inserts the generated link row), `DELETE /api/todos/:id/files/:fileId`, and `GET /api/files/:id?token=…` (permission `[]`, token-only); `GET /api/todos` carries each todo's attachments with a freshly signed URL (`null` when no driver booted) |
 | access | the download route verifies a short-lived HMAC token carrying `fileId`, `tenantId`, `subject` and `expiresAt` (`buildDownloadUrl`, default 5 min). GET is token-only so `<img src>` and shared links work without a cookie; every mutation stays session-authenticated |
 | multipart contract | `form` and `body` are mutually exclusive on `defineAuthorizedHandler`; a multipart request is consumed once by the wrapper, and the route validates fields with Zod while `maxUploadBytes` is enforced before the body is stored. A rejected upload is `file_too_large` (413) or `invalid_input` (400) |
@@ -1012,7 +1019,7 @@ storage: {
 | metadata | `facilis_files` — RESTRICTIVE `tenant_isolation` plus the PERMISSIVE `facilis_files_tenant_access` insert gate (a restrictive policy alone denies `facilis_app` the insert, D-008) — and the generated `fileLinks(parent, …)` tables, each with a restrictive tenant policy and the permissive `parent_access` inheritance (§5.2) |
 | cleanup | no GC yet: bodies are immutable and deduplicated in plaintext mode (encrypted blobs are unique per upload), so orphans cost space only for content no longer referenced |
 
-### 5.11 `@facilis/analyze`
+### 5.11 `@facilis.dev/analyze`
 
 Zero-build static analysis of the project's declarative DSL (D-092). It reads a path → source
 map with an injected `Parser` and returns the fact model — routes, config,
@@ -1021,12 +1028,12 @@ tables/columns/policies, FK and `relations()` edges, pages/consumers, per-file m
 project graph, **without executing project code**. The main entry is browser-safe and has no
 runtime parser dependency; adapters live on subpaths: `./node` (oxc-parser native/wasm, CLI
 and CI) and `./fs` (the Node filesystem loader, no parser). The IDE worker supplies the browser
-wasm parser; `@facilis/nitro` supplies `rolldown/utils` because the generated project's Vite
+wasm parser; `@facilis.dev/nitro` supplies `rolldown/utils` because the generated project's Vite
 config runs inside the WebContainer, where only the bundler's oxc is proven to load. Unknown
 values are explicit (`null`/unknown entries, never defaults), the DSL is forced by the
 `defineAuthorizedHandler`/`defineConfig`/`pgTable`/`api()`/`t()` contract, and the runtime
 wrapper remains the security boundary. Used by the IDE project graph and patch validation, the
-AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the installed framework declarations it would otherwise lack by inlining `@facilis/auth` and `@facilis/db`'s source at build time (D-130), so re-exported framework tables and their edges reach the graph without a `node_modules` crawl.
+AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the installed framework declarations it would otherwise lack by inlining `@facilis.dev/auth` and `@facilis.dev/db`'s source at build time (D-130), so re-exported framework tables and their edges reach the graph without a `node_modules` crawl.
 
 ## 6. The `/__facilis/manifest` Endpoint
 
@@ -1131,14 +1138,14 @@ No file watchers required. Recomputed on every request; clients use ETag.
 
 `x-db-tables` and `x-db-columns` are emitted by `defineAuthorizedHandler` via `defineRouteMeta`.
 
-**Phase 0 result (verified, 2026-10-25): Nitro's scanner only accepts a *top-level* `defineRouteMeta` call. A call inside the wrapper is invisible to it, so the native path does not work (A16 = fail).** `@facilis/nitro` therefore ships a framework-owned static pass that reads the wrapper config into a virtual module, plus a facade that merges it into Nitro's generated spec and serves it at `/_openapi.json`. Nitro's own spec stays intact on an internal dev-only route (`/_facilis/openapi.json`).
+**Phase 0 result (verified, 2026-10-25): Nitro's scanner only accepts a *top-level* `defineRouteMeta` call. A call inside the wrapper is invisible to it, so the native path does not work (A16 = fail).** `@facilis.dev/nitro` therefore ships a framework-owned static pass that reads the wrapper config into a virtual module, plus a facade that merges it into Nitro's generated spec and serves it at `/_openapi.json`. Nitro's own spec stays intact on an internal dev-only route (`/_facilis/openapi.json`).
 
-**Implementation (2026-11-04, D-092/D-093).** The pass is `@facilis/analyze`'s route facts, not
+**Implementation (2026-11-04, D-092/D-093).** The pass is `@facilis.dev/analyze`'s route facts, not
 a Nitro-local scanner: `packages/nitro/src/route-metadata.ts` maps `RouteFact[]` to the
 manifest/OpenAPI contract and `packages/nitro/src/rolldown-parser.ts` injects `rolldown/utils`
 as the parser. That parser choice is deliberate: the generated project's Vite config is loaded
 inside the WebContainer with `--configLoader native`, where only the bundler's oxc is proven to
-load, so `@facilis/nitro` must not pull `@facilis/analyze/node` (oxc-parser) into the VM. The
+load, so `@facilis.dev/nitro` must not pull `@facilis.dev/analyze/node` (oxc-parser) into the VM. The
 same facts list route files even when the wrapper is missing (integrity view), update when any
 project source file changes (config and imported consts are analyzer input), and never guess:
 an unreadable field becomes `unresolved` and is omitted from the operation (plus an
@@ -1355,7 +1362,7 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   rateLimit?: { windowMs: number; maxRequests: number } // per-client, per-route fixed window (D-152); skipped when no client address
 }
 
-**`dbTables` is enforced (D-157).** The array declares **every** relation the handler may touch through `ctx.db`, `ctx.sudo` and `ctx.system`: tables and views, by SQL name (a view is declared by its own name, D-097/D-098; a definer view keeps its declared permission as the gate). It is not documentation: `@facilis/analyze` follows the handler's project-local helper calls and reports an undeclared relation as `route-table-undeclared` (error), a declared-but-unused one as `route-table-unused` (warning), an unresolvable/dynamic relation as `route-table-unresolved` (error) and `db.execute` without `rawSql: true` as `route-raw-sql` (error); the CI route gate (D-154) runs the pass on the shipped examples and the AI validator rule 18 `route-table-declared` rejects a patch that breaks it. At runtime the wrapper **guards** the scoped client and the elevation callbacks: a relation outside the declared set fails closed with `500 table_not_declared`, raw SQL without the flag with `500 raw_sql_not_allowed`, and the violation is audited (`route:table_access`); inside `ctx.sudo`/`ctx.system` the observed tables must also be within the elevation's `tables`, whose `succeeded` audit entry records the observed set. Package calls are opaque statically (the runtime is the authority).
+**`dbTables` is enforced (D-157).** The array declares **every** relation the handler may touch through `ctx.db`, `ctx.sudo` and `ctx.system`: tables and views, by SQL name (a view is declared by its own name, D-097/D-098; a definer view keeps its declared permission as the gate). It is not documentation: `@facilis.dev/analyze` follows the handler's project-local helper calls and reports an undeclared relation as `route-table-undeclared` (error), a declared-but-unused one as `route-table-unused` (warning), an unresolvable/dynamic relation as `route-table-unresolved` (error) and `db.execute` without `rawSql: true` as `route-raw-sql` (error); the CI route gate (D-154) runs the pass on the shipped examples and the AI validator rule 18 `route-table-declared` rejects a patch that breaks it. At runtime the wrapper **guards** the scoped client and the elevation callbacks: a relation outside the declared set fails closed with `500 table_not_declared`, raw SQL without the flag with `500 raw_sql_not_allowed`, and the violation is audited (`route:table_access`); inside `ctx.sudo`/`ctx.system` the observed tables must also be within the elevation's `tables`, whose `succeeded` audit entry records the observed set. Package calls are opaque statically (the runtime is the authority).
 
 interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   auth: AuthContext | null                    // null only on permission: [] routes
@@ -1455,7 +1462,7 @@ duration, request id and the session hash — never a header, a cookie or a body
 failure is recorded server-side (name/message/stack) while the client still gets only
 `{ code: "internal_error" }`. Routes add their own lines and audit events through
 `ctx.log`; audit entries are never level-filtered and the sudo trail is bridged into the same
-sink from `@facilis/db` (D-099). The output is JSON Lines files
+sink from `@facilis.dev/db` (D-099). The output is JSON Lines files
 (`<project>/.facilis/logs/`) or stdout — **there is no HTTP endpoint that serves logs**
 (D-119).
 
@@ -1473,7 +1480,7 @@ storage; the framework's storage/crypto path itself never buffers the whole file
 
 **Binary storage on the context (D-116).** `ctx.storage` is the ready `StorageApi` from
 §5.10 (`available: false` when the boot degraded). Routes never touch a driver directly: they
-call `storeUpload`/`sendStoredFile` from `@facilis/nitro/storage` (§5.10) or use
+call `storeUpload`/`sendStoredFile` from `@facilis.dev/nitro/storage` (§5.10) or use
 `ctx.storage.put/get` for lower-level work — `put` takes a byte stream and `get` returns one
 (D-117). Access control is the route's job; the generated `fileLinks` row is inserted by the
 route through `ctx.db`, never by the framework helper.
@@ -1990,7 +1997,7 @@ codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
 
 ### 8.3 RLS Declaration and Rendering
 
-RLS is **declared in `db/schema.ts`** with `.enableRLS()` and a `@facilis/db` policy helper
+RLS is **declared in `db/schema.ts`** with `.enableRLS()` and a `@facilis.dev/db` policy helper
 (`rlsForTable`, or `tenantIsolationPolicy`/`ownerIsolationPolicy`/`rolePolicy`). The release
 generator renders the declared policies into the artifact; there is no migration plugin and no
 implicit DDL (D-158). `config.db.tenantColumns`/`ownerColumns` are the columns the analyzer treats
@@ -2002,7 +2009,7 @@ CREATE POLICY tenant_isolation ON <t>
   USING (<scope_column> = current_setting('app.<scope_column>')::uuid);
 ```
 
-Declare the tenant column with `tenantColumn()` from `@facilis/db`: it is the same `uuid`, with
+Declare the tenant column with `tenantColumn()` from `@facilis.dev/db`: it is the same `uuid`, with
 the `DEFAULT` that reads the policy-scope GUC, so inserts never name the tenant (D-040).
 
 ### 8.4 Role Definition & Assignment
@@ -2015,7 +2022,7 @@ Roles and permissions are **declared in `facilis.config.ts`**. They are code: re
 
 ```typescript
 // facilis.config.ts
-import { defineConfig } from "@facilis/core"
+import { defineConfig } from "@facilis.dev/core"
 
 export default defineConfig({
   auth: {
@@ -2049,7 +2056,7 @@ export default defineConfig({
 
 #### 8.4.2 Phase 2 — Bootstrap (framework, release artifact, one-time)
 
-`@facilis/auth` declares the tables; the release generator renders their DDL from the declared
+`@facilis.dev/auth` declares the tables; the release generator renders their DDL from the declared
 schema **and** the role seed from the config into the tag's artifact. In order, it carries:
 
 ```sql
@@ -2114,7 +2121,7 @@ FACILIS_INITIAL_ADMIN=founder@azienda.it
 FACILIS_INITIAL_ADMIN_TOKEN=<one-time secret, e.g. openssl rand -base64 32>
 ```
 
-`@facilis/auth` promotes only when ALL of these hold: `FACILIS_INITIAL_ADMIN` is set, a
+`@facilis.dev/auth` promotes only when ALL of these hold: `FACILIS_INITIAL_ADMIN` is set, a
 non-empty `FACILIS_INITIAL_ADMIN_TOKEN` is set, the registration presents that token (constant-time
 comparison over SHA-256 digests), the canonical `lower(email)` equals the configured address, and no
 `admin` role exists yet. The registration route's response is generic (`{ accepted: true }`) and
@@ -2231,7 +2238,7 @@ reported by the analyzer as `route-direct-db` (warning, "not recommended").
 ```typescript
 // documents.ts (your schema)
 import { pgTable, pgPolicy, uuid, text, sql } from "drizzle-orm/pg-core"
-import { tenantColumn } from "@facilis/db"
+import { tenantColumn } from "@facilis.dev/db"
 
 export const documents = pgTable("documents", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -2434,7 +2441,7 @@ elevation is refused (D-099). A broken access/error/app destination is contained
 `console.error` fallback) and never fails a request.
 
 **Verification.** The core suite pins the access entry on 401/403/400/503/success/throw and the
-server-only error entry; `@facilis/nitro`'s logging suite pins env resolution, stream routing,
+server-only error entry; `@facilis.dev/nitro`'s logging suite pins env resolution, stream routing,
 redaction/caps, level filtering, rotation, chain verification (good/tampered), fail-closed audit,
 the request-id middleware and the bootstrap/sudo bridge; the IDE suite pins the log parser and
 filters. `docs/LOGS.md` is the operator contract.
@@ -2478,7 +2485,7 @@ Rules the AI must obey:
 | 6 | `permission-valid` | error | Every `permission` exists in `config.auth.permissions` |
 | 7 | `block-import-valid` | error | Every block import matches a `BlockManifest` |
 | 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required |
-| 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis/db` |
+| 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis.dev/db` |
 | 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
 | 11 | `file-path-allowed` | error | Files only in `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/`, plus `facilis.config.ts` (`AGENTS.md` only through the IDE writer's explicit `rootFiles`) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
@@ -2490,16 +2497,16 @@ Rules the AI must obey:
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 
-**Status (2026-11-04): implemented over AST facts** in `@facilis/ai` (D-084, D-092/D-093).
+**Status (2026-11-04): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles })` is synchronous and takes a typed `PatchContext` whose facts are the
-effective (post-patch) `Analysis` from `@facilis/analyze` plus the pre-patch one for inverse
+effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for inverse
 edits. The caller supplies them — the IDE analyzes the VFS snapshot and the patch overlay with
 its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
-`@facilis/ai/node` helper. Sources are read only for `package.json` (installed packages) and
+`@facilis.dev/ai/node` helper. Sources are read only for `package.json` (installed packages) and
 `tsconfig.json` (path aliases); the manifest's `blocks` section is reserved and always empty now
 that no block package ships (D-131). Rule 1 parses through an injected `SyntaxChecker` — the analyzer worker's oxc
-parser in the IDE (D-105), the `@facilis/ai/node` subpath (rolldown/oxc) outside it — and fails
+parser in the IDE (D-105), the `@facilis.dev/ai/node` subpath (rolldown/oxc) outside it — and fails
 closed when no checker answers. If the analyzer itself is unavailable the IDE fails the round
 closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
 an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
@@ -2538,7 +2545,7 @@ Turn 1 → AI responds → validate → (errors) → correct → validate → �
   correction tells the model to `read_file` every file it will re-emit and to `validate` the
   exact set it will return, so a `create`/`update` whole-file rewrite is repaired from the
   tools, not from prompt-stuffed content (D-101/D-102).
-- **The loop lives in the IDE**, not in `@facilis/ai` (D-100): the validator stays a pure
+- **The loop lives in the IDE**, not in `@facilis.dev/ai` (D-100): the validator stays a pure
   synchronous function, and `ide/src/ai/turn.ts` + `ide/src/ai/repair.ts` own the retries,
   the repair messages and the provider calls. `state.repair = { attempt }` exposes the progress
   to the UI (a number, not a budget).
@@ -2616,10 +2623,10 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis/analyze` (D-092): pages → routes → tables → views (D-160) and workflow definitions (D-161) plus FK/`relations()` edges, route→view `dbTables` edges and view→base-table edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126) |
+| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis.dev/analyze` (D-092): pages → routes → tables → views (D-160) and workflow definitions (D-161) plus FK/`relations()` edges, route→view `dbTables` edges and view→base-table edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126) |
 | Commit graph | `CommitGraphPanel.tsx` + `commit-graph` editor tab | React Flow over the local git log: lanes, merge edges, branch/HEAD cards, details inspector (D-088) |
 | Diff tab | `EditorPanes.tsx` + `diff-session.ts` | Every SCM change opens a side-by-side HEAD ↔ working-tree diff, first hunk revealed (D-089) |
-| Entity Explorer | `DataExplorerPanel.tsx` + activity view + `data-query` tab | Live code ↔ DB diff and a read-only SQL console with Create-view (optional declared view permission, D-098), through a kernel-mediated same-origin dev proxy (D-097); declared tables from `@facilis/analyze` still planned (O-011) |
+| Entity Explorer | `DataExplorerPanel.tsx` + activity view + `data-query` tab | Live code ↔ DB diff and a read-only SQL console with Create-view (optional declared view permission, D-098), through a kernel-mediated same-origin dev proxy (D-097); declared tables from `@facilis.dev/analyze` still planned (O-011) |
 | Release Preview | `ReleasePreviewPanel.tsx` + activity view | `buildReleasePreview(from, to)` (D-086) |
 | Project Switcher | Extend `Home.tsx` | Uses `ProjectRegistry` + git auth |
 | GitHub sign-in | Git dialogs + `GitHubSignIn.tsx` | OAuth device flow, token in tab memory (D-082) |
@@ -2629,7 +2636,7 @@ depends on (D-018, D-030).
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
 D-101/D-103); the 19-rule validator is applied at proposal, Apply and the first VFS write
-(D-084/D-100); the project graph is built from `@facilis/analyze` facts — pages, explicit page
+(D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,
 merge-friendly layout under `.facilis/graph/` (D-126/D-134/D-160); Source Control opens per-change
@@ -2748,14 +2755,14 @@ await waitForPort(vivari, 5173)
 - Click to jump to `db/schema.ts` or the route file in Monaco
 
 **Status (2026-11-06): implemented, kernel-mediated connection** (D-083, D-097, O-011).
-`@facilis/db` exposes `liveSchemaSnapshot` and `diffSchemaSnapshots`; `GET /__facilis/dev/schema`
+`@facilis.dev/db` exposes `liveSchemaSnapshot` and `diffSchemaSnapshots`; `GET /__facilis/dev/schema`
 is the dev-only transport (404 in production, origin-allowlisted) and the Studio renders it in
 the `data` activity view, next to the query console (§11.2). The panel builds every request from
 a same-origin `/preview/<port>/…` URL carrying the kernel token, which the Studio's Service
 Worker routes to the in-VM dev server; a popped-out preview therefore works, and no embedded
 iframe is required. The SW persists its per-frame routing in the `vv-config` cache (D-132), so a
 preview reload after an idle worker eviction still reaches the tab that served it. Remaining: the
-declared half can come from `@facilis/analyze` immediately (a project that is not running), and
+declared half can come from `@facilis.dev/analyze` immediately (a project that is not running), and
 preview mode C (wildcard origins, no same-origin SW) needs its own transport. O-011 tracks both.
 
 ### 11.2 Query Console + Declarative Views (implemented, D-097/D-098)
@@ -2774,7 +2781,7 @@ in the `data` activity view on the left.
   remains open (O-012).
 - **Create view**: the button validates the SQL, creates (or replaces) the view live, and
   stores one file per view in `db/views/<name>.ts`:
-  `defineView({ name, columns, query, permission? })` from `@facilis/db` (§5.2), written through
+  `defineView({ name, columns, query, permission? })` from `@facilis.dev/db` (§5.2), written through
   the VFS so a generated project keeps it. An optional permission is chosen from the config's
   declared permissions (the endpoint answers `invalid_permission` otherwise) and the file keeps
   the choice; with a permission the dialog says the underlying RLS does not apply. One file per
@@ -2787,10 +2794,10 @@ in the `data` activity view on the left.
   for table-like resources (statistics, projections) where the developer owns what the SQL
   exposes; the permission gate survives a route that forgot its `permission` but is not a
   boundary against deliberately hostile code (custom GUCs are settable). A plain view would
-  bypass RLS — `@facilis/db` proves both the leak and the invoker guarantee.
+  bypass RLS — `@facilis.dev/db` proves both the leak and the invoker guarantee.
 - **Route declaration (D-157).** A route that reads a view declares the view's **name** in `dbTables`, not its
   base tables: the view is the relation the handler touches, and for a definer view the declared `permission`
-  (not the base RLS) is the gate. `@facilis/analyze` parses `defineView` into `ViewFact`s (name, base tables,
+  (not the base RLS) is the gate. `@facilis.dev/analyze` parses `defineView` into `ViewFact`s (name, base tables,
   permission, access), so the validator accepts the view name and the usage pass resolves it; the runtime
   guard compares the Drizzle view object's name with the declaration. Base tables stay in the view's own
   metadata, never in the route declaration.
@@ -2830,7 +2837,7 @@ release pipeline runs: it reads `db/schema.ts` and `facilis.config.ts` out of th
 **no database access** and **fails closed** where the analyzer cannot resolve a declaration; the CI
 artifact for the tag is authoritative, so the preview never presents SQL that will not ship (the
 D-086 "never synthesize SQL" premise is superseded). Authored migration files are no longer part of
-the project or a lens; the declared schema comes from `@facilis/analyze` facts over the ref sources
+the project or a lens; the declared schema comes from `@facilis.dev/analyze` facts over the ref sources
 (columns as Drizzle property names, policies and RLS flags from the DSL), so a route derived at an
 old ref knows method+path only.
 
@@ -2877,7 +2884,7 @@ Acceptance criteria are in §14.
 |---|---|---|---|
 | 1 | **PGlite RLS incomplete** | Kills "unbypassable" guarantee | Phase 0 spike; fallback to `drizzle-policy` only |
 | 2 | **Nitro v3 churn** | Build breaks between upgrades | Pin exact version; upgrade deliberately with spike tests |
-| 3 | **`defineRouteMeta` in wrapper not scanned** — **confirmed in Phase 0** | No `x-db-tables` in OpenAPI | Framework-owned static pass + OpenAPI facade is **required**; prototype verified in Phase 0, replaced on 2026-11-04 by `@facilis/analyze` facts with a parser injected from `rolldown/utils` (`packages/nitro/src/route-metadata.ts`, §6.9). Any project source edit invalidates the virtual module. |
+| 3 | **`defineRouteMeta` in wrapper not scanned** — **confirmed in Phase 0** | No `x-db-tables` in OpenAPI | Framework-owned static pass + OpenAPI facade is **required**; prototype verified in Phase 0, replaced on 2026-11-04 by `@facilis.dev/analyze` facts with a parser injected from `rolldown/utils` (`packages/nitro/src/route-metadata.ts`, §6.9). Any project source edit invalidates the virtual module. |
 | 4 | **OpenAPI incomplete** | AI generates wrong code | Augment with `/__facilis/manifest` |
 | 5 | **Vivari memory/CPU limits** | Slow or crashes at ~50 routes | Lazy-load PGlite; measure; document limits |
 | 6 | **AI hallucinates unguarded routes** | Security regression | Patch validator rejects before write |
@@ -2982,7 +2989,7 @@ Resolved and open questions are tracked in the "Open" table of
 ## Appendix B — `facilis.config.ts` Reference
 
 ```typescript
-import { defineConfig } from "@facilis/core"
+import { defineConfig } from "@facilis.dev/core"
 
 export default defineConfig({
   release: {
@@ -3069,7 +3076,7 @@ export default defineConfig({
 ```typescript
 // server/routes/api/todos/index.post.ts
 import { z } from "zod"
-import { defineAuthorizedHandler } from "@facilis/core"
+import { defineAuthorizedHandler } from "@facilis.dev/core"
 import { todos } from "~/db/schema"
 
 export default defineAuthorizedHandler(
@@ -3093,7 +3100,7 @@ export default defineAuthorizedHandler(
 )
 ```
 
-**Nitro v3 has no auto-imports.** Route files must import every helper explicitly (`defineHandler`, `defineRouteMeta`, `HTTPError`, … from `"nitro"`). `defineAuthorizedHandler` is imported from `@facilis/core` and re-exports the types route authors need.
+**Nitro v3 has no auto-imports.** Route files must import every helper explicitly (`defineHandler`, `defineRouteMeta`, `HTTPError`, … from `"nitro"`). `defineAuthorizedHandler` is imported from `@facilis.dev/core` and re-exports the types route authors need.
 
 ---
 
@@ -3116,7 +3123,7 @@ auth: {
 ### Step 2 — Re-export auth tables in `db/schema.ts`
 
 ```typescript
-export * from "@facilis/auth/db"
+export * from "@facilis.dev/auth/db"
 export * from "./todos"
 export * from "./documents"
 ```
@@ -3166,7 +3173,7 @@ leaves the account pending and logs the delivery failure.
 
 ```typescript
 import { defineConfig } from "vite"
-import { facilis } from "@facilis/nitro/vite"
+import { facilis } from "@facilis.dev/nitro/vite"
 import react from "@vitejs/plugin-react"
 
 export default defineConfig({

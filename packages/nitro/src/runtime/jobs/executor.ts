@@ -1,5 +1,5 @@
-import type { FacilisDb } from "@facilis/db";
-import { runAsSystem } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
+import { runAsSystem } from "@facilis.dev/db";
 
 import type { JobExecutor } from "./contracts.ts";
 

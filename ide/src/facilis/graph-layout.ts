@@ -16,9 +16,19 @@ import {
   type GraphPosition,
   type GraphViewport,
 } from "./graph-layout-file";
-import { GRAPH_EDGE_KINDS, type GraphCurve, type GraphNote } from "./graph-types";
+import {
+  GRAPH_EDGE_KINDS,
+  type GraphCurve,
+  type GraphNote,
+  type GraphSystemNodeKind,
+} from "./graph-types";
 
-export { GRAPH_EDGE_KINDS, type GraphCurve, type GraphNote } from "./graph-types";
+export {
+  GRAPH_EDGE_KINDS,
+  type GraphCurve,
+  type GraphNote,
+  type GraphSystemNodeKind,
+} from "./graph-types";
 export {
   GRAPH_DIR,
   GRAPH_LAYOUT_PATH,
@@ -77,6 +87,20 @@ export function withHiddenEdgeKind(
     ...layout,
     hiddenEdges: GRAPH_EDGE_KINDS.filter((entry) => next.has(entry)),
   };
+}
+
+/** Toggle one system-node filter (D-163). Identity is preserved when the value is unchanged. */
+export function withHiddenSystemNodes(
+  layout: GraphLayoutFile,
+  kind: GraphSystemNodeKind,
+  hidden: boolean,
+): GraphLayoutFile {
+  if (kind === "routes") {
+    if (layout.hideSystemRoutes === hidden) return layout;
+    return { ...layout, hideSystemRoutes: hidden };
+  }
+  if (layout.hideSystemTables === hidden) return layout;
+  return { ...layout, hideSystemTables: hidden };
 }
 
 export function withCollapsed(

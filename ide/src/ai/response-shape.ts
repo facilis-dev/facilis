@@ -2,7 +2,7 @@
 // keep both files under the 300-line limit. Nothing here validates against the project:
 // these helpers only decide whether an untrusted value is shaped like a patch or a note.
 
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -61,7 +61,7 @@ function wallFormatterFor(timeZone: string | undefined): Intl.DateTimeFormat {
 export function assertTimeZone(timeZone: unknown): asserts timeZone is string {
   if (typeof timeZone !== "string") {
     throw new TypeError(
-      "@facilis/time: expected a time zone string, received " + describeValue(timeZone),
+      "@facilis.dev/time: expected a time zone string, received " + describeValue(timeZone),
     );
   }
 }
@@ -70,7 +70,7 @@ export function assertTimeZone(timeZone: unknown): asserts timeZone is string {
 export function assertOptionalTimeZone(timeZone: unknown): asserts timeZone is string | undefined {
   if (timeZone !== undefined && typeof timeZone !== "string") {
     throw new TypeError(
-      "@facilis/time: expected a time zone string, received " + describeValue(timeZone),
+      "@facilis.dev/time: expected a time zone string, received " + describeValue(timeZone),
     );
   }
 }
@@ -120,7 +120,7 @@ function readTextPart(values: Map<string, string>, type: string): string {
   const value = values.get(type);
   if (value === undefined) {
     // WALL_FORMAT_OPTIONS fixes the part set, so a missing part is an Intl contract violation.
-    throw new Error('@facilis/time: Intl.DateTimeFormat did not return the "' + type + '" part');
+    throw new Error('@facilis.dev/time: Intl.DateTimeFormat did not return the "' + type + '" part');
   }
   return value;
 }

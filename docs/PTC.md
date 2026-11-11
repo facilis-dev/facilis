@@ -74,7 +74,7 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
         │                 │                    │ postMessage RPC (lossless JSON only)
         │                 │                    ▼
         │                 │              ToolRouter ──► VFS read (kernel, project-root confined)
-        │                 │                    │      ├► @facilis/analyze facts (schema/routes/graph)
+        │                 │                    │      ├► @facilis.dev/analyze facts (schema/routes/graph)
         │                 │                    │      ├► /__facilis/manifest client
         │                 │                    │      └► (phase 3) MCP client
         │                 │                    │

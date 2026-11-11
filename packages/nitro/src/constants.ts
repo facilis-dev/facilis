@@ -1,4 +1,4 @@
-/** Paths served by @facilis/nitro; shared by the Nitro module and the runtime routes. */
+/** Paths served by @facilis.dev/nitro; shared by the Nitro module and the runtime routes. */
 export const OPENAPI_FACADE_ROUTE = "/_openapi.json";
 /** Where Nitro's own generated spec is kept intact (dev-only internal route). */
 export const NATIVE_OPENAPI_ROUTE = "/_facilis/openapi.json";

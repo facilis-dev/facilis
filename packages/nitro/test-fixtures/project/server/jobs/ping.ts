@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineJob } from "@facilis/core";
+import { defineJob } from "@facilis.dev/core";
 
 /**
  * Module-test fixture: a scanned job definition for `#facilis/jobs` (D-107).

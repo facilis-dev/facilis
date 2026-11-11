@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultLocale, setDefaultLocale, t } from "@facilis/core/i18n";
+import { getDefaultLocale, setDefaultLocale, t } from "@facilis.dev/core/i18n";
 
 import {
   hydrateCatalogs,
@@ -152,9 +152,9 @@ describe("browser boundary", () => {
 
   it("imports only the browser-safe i18n subpath and the pure helpers", () => {
     const source = readFileSync(new URL("./client.ts", import.meta.url), "utf8");
-    expect(source).toContain('from "@facilis/core/i18n"');
+    expect(source).toContain('from "@facilis.dev/core/i18n"');
     expect(source).toContain('from "./translations.ts"');
     // The column helper and Drizzle must never enter a client bundle through this subpath.
-    expect(source).not.toMatch(/@facilis\/db|drizzle-orm|columns\.ts/);
+    expect(source).not.toMatch(/@facilis.dev\/db|drizzle-orm|columns\.ts/);
   });
 });

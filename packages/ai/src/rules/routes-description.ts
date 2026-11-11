@@ -9,7 +9,7 @@
  * rule 2 already blocks it.
  */
 
-import { ROUTE_DESCRIPTION_MAX_CHARS } from "@facilis/analyze";
+import { ROUTE_DESCRIPTION_MAX_CHARS } from "@facilis.dev/analyze";
 
 import type { EffectiveState } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";

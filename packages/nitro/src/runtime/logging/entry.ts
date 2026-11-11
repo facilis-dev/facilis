@@ -4,7 +4,7 @@ import type {
   AuditLogEntry,
   ErrorLogEntry,
   LogEntry,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import { capString, redactRecord } from "./redact.ts";
 

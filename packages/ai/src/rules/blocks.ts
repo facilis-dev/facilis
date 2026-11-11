@@ -1,6 +1,6 @@
 /**
  * Rule 7 `block-import-valid` (SPEC §9.3): every block the patch imports must match a
- * registered `BlockManifest`. The block supply chain is retired (D-131, no `@facilis/blocks`
+ * registered `BlockManifest`. The block supply chain is retired (D-131, no `@facilis.dev/blocks`
  * package ships), so in practice the manifest registers none and the guard rejects every block
  * import; it stays in the rule set as the contract's reserved slot (§7.2/§7.3).
  *
@@ -11,7 +11,7 @@
 import type { EffectiveState } from "../overlay.ts";
 import type { ImportFact, PatchContext, ValidationError } from "../types.ts";
 
-const DEFAULT_BLOCKS_PACKAGE = "@facilis/blocks";
+const DEFAULT_BLOCKS_PACKAGE = "@facilis.dev/blocks";
 
 /** The import names a block import introduces: named imports and default-import locals. */
 function namesOf(imported: ImportFact): string[] {

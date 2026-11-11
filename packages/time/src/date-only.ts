@@ -47,19 +47,19 @@ export function isRealCalendarDate(year: number, month: number, day: number): bo
 export function parseDateOnly(value: unknown): DateOnlyParts {
   if (typeof value !== "string") {
     throw new TypeError(
-      "@facilis/time: expected a YYYY-MM-DD string, received " + describeValue(value),
+      "@facilis.dev/time: expected a YYYY-MM-DD string, received " + describeValue(value),
     );
   }
   const match = DATE_ONLY_PATTERN.exec(value);
   if (match === null) {
-    throw new RangeError('@facilis/time: "' + value + '" is not a YYYY-MM-DD calendar date');
+    throw new RangeError('@facilis.dev/time: "' + value + '" is not a YYYY-MM-DD calendar date');
   }
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   if (year < 1 || year > 9999 || !isRealCalendarDate(year, month, day)) {
     throw new RangeError(
-      '@facilis/time: "' +
+      '@facilis.dev/time: "' +
         value +
         '" is not a real calendar date between 0001-01-01 and 9999-12-31',
     );

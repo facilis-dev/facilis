@@ -452,7 +452,7 @@ D-136/D-137 proteggevano solo le tabelle system-only (nessun grant → `permissi
 
 **Esito (2026-11-11, D-157).** `dbTables` è ora una dichiarazione applicata, per tabelle **e viste**
 (una vista si dichiara con il proprio nome, D-097/D-098):
-- **statico** — `@facilis/analyze` risolve le `defineView` in `ViewFact` e un pass interprocedurale
+- **statico** — `@facilis.dev/analyze` risolve le `defineView` in `ViewFact` e un pass interprocedurale
   segue l'handler nelle funzioni del progetto (chiamate annidate), registrando `from/join`,
   `insert/update/delete(relazione)`, `db.query.<relazione>` e `db.execute`; produce
   `route-table-undeclared`, `route-table-unused`, `route-table-unresolved`, `route-raw-sql` e

@@ -30,7 +30,7 @@ describe("generated starter contract", () => {
     // D-038: the cookie goes through the framework helper, which calls h3's setCookie and so
     // stages it on the event's response headers. A Set-Cookie on a returned Response is lost
     // in the in-VM Nitro dev path and logs the user out on the next request.
-    expect(login).toContain('import { setSessionCookie } from "@facilis/nitro/session"');
+    expect(login).toContain('import { setSessionCookie } from "@facilis.dev/nitro/session"');
     expect(login).toContain("setSessionCookie(event, session.id");
     expect(login).not.toContain('headers.set("set-cookie"');
     const register = files["server/routes/api/auth/register.post.ts"];
@@ -72,7 +72,7 @@ describe("generated starter contract", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
-    expect(pkg.dependencies["@facilis/storage"]).toBe("file:./vendor/facilis-storage-0.0.0.tgz");
+    expect(pkg.dependencies["@facilis.dev/storage"]).toBe("file:./vendor/facilis-storage-0.0.0.tgz");
     expect(files["db/schema.ts"]).toContain("fileLinks(todos");
     const migration = Object.keys(files).find((path) => path.startsWith("db/migrations/0003_"));
     expect(migration, "missing the file-link migration").toBeDefined();

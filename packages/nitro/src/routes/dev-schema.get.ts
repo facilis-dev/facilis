@@ -1,5 +1,5 @@
 import { defineHandler } from "nitro";
-import { diffSchemaSnapshots, liveSchemaSnapshot, schemaSnapshot } from "@facilis/db";
+import { diffSchemaSnapshots, liveSchemaSnapshot, schemaSnapshot } from "@facilis.dev/db";
 
 import { getBootstrap } from "../runtime/bootstrap.ts";
 import { guardDevRequest } from "../runtime/http-guard.ts";

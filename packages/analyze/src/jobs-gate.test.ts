@@ -95,7 +95,7 @@ function writeSource(root: string, path: string, source: string): void {
   writeFileSync(full, source);
 }
 
-const CORE = 'import { defineJob } from "@facilis/core";\n';
+const CORE = 'import { defineJob } from "@facilis.dev/core";\n';
 const FIXTURE_SCHEMA =
   'import { pgTable, uuid } from "drizzle-orm/pg-core";\n' +
   'export const todos = pgTable("todos", { id: uuid("id").primaryKey() });\n' +

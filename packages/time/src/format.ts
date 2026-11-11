@@ -72,18 +72,18 @@ function readOptions(options: unknown): ResolvedOptions {
   // object turns a wrong call into a clear TypeError instead of a random crash.
   if (options === null || typeof options !== "object") {
     throw new TypeError(
-      "@facilis/time: options must be an object, received " + describeValue(options),
+      "@facilis.dev/time: options must be an object, received " + describeValue(options),
     );
   }
   const candidate = options as { locale?: unknown; timeZone?: unknown };
   if (candidate.locale !== undefined && typeof candidate.locale !== "string") {
     throw new TypeError(
-      '@facilis/time: "locale" must be a string, received ' + describeValue(candidate.locale),
+      '@facilis.dev/time: "locale" must be a string, received ' + describeValue(candidate.locale),
     );
   }
   if (candidate.timeZone !== undefined && typeof candidate.timeZone !== "string") {
     throw new TypeError(
-      '@facilis/time: "timeZone" must be a string, received ' + describeValue(candidate.timeZone),
+      '@facilis.dev/time: "timeZone" must be a string, received ' + describeValue(candidate.timeZone),
     );
   }
   return { locale: candidate.locale, timeZone: candidate.timeZone };

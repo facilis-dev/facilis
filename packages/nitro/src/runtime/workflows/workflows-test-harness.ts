@@ -6,8 +6,8 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 
-import type { JobDefinition, JobJson, JobStatus } from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+import type { JobDefinition, JobJson, JobStatus } from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 import {
   createDb,
   ensureAppRole,
@@ -15,7 +15,7 @@ import {
   facilisWorkflows,
   policyCreateSql,
   tenantDefaultSql,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import type { JobCounts, JobEngine } from "../jobs/contracts.ts";
 import { createDbTaskStore } from "../tasks/db-store.ts";

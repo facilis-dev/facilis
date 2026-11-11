@@ -1,6 +1,6 @@
 // Edge presentation shared by the project-graph canvas, its filters and its legend: one
 // stroke per edge kind, plus the catalogue key that names it. Role tokens only (D-043/044).
-import type { GraphEdgeKind } from "@facilis/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { MessageKey } from "@/i18n";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
 

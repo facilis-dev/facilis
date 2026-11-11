@@ -11,7 +11,7 @@ import type {
   ProjectGraph,
   RouteInputFact,
   WrapperState,
-} from "@facilis/analyze";
+} from "@facilis.dev/analyze";
 import type { GraphPosition } from "./graph-layout";
 
 /** A per-edge curve offset from the automatic path, in flow coordinates. */
@@ -67,6 +67,8 @@ export interface RouteGraphData {
   readonly input: RouteInputFact;
   /** Path parameters declared by the route template (`{id}` → `id`). */
   readonly pathParams: readonly string[];
+  /** Tables and views the handler declares (D-157); empty when the config could not be read. */
+  readonly dbTables: readonly string[];
   /** Audited elevation calls in the handler, for the card badge and tooltip. */
   readonly elevations: readonly ElevationFact[];
   readonly unknown: boolean;
@@ -93,7 +95,7 @@ export interface TableGraphData {
   readonly table: string;
   readonly columns: readonly GraphColumn[];
   readonly rlsEnabled: boolean;
-  /** Declared by an installed @facilis package and only re-exported by the project. */
+  /** Declared by an installed @facilis.dev package and only re-exported by the project. */
   readonly framework: boolean;
   readonly scope: GraphScope | null;
   readonly unknown: boolean;
@@ -123,6 +125,12 @@ export interface ViewGraphData {
 
 export type ProjectGraphNodeData =
   PageGraphData | RouteGraphData | TableGraphData | ViewGraphData | WorkflowGraphData;
+
+/**
+ * The node classes the graph's system filters can hide independently (D-163): the framework's
+ * own feature surface rather than the project's data surface.
+ */
+export type GraphSystemNodeKind = "routes" | "tables";
 
 export interface ProjectGraphNode {
   readonly id: string;
@@ -155,6 +163,8 @@ export interface ProjectGraphStats {
   readonly workflows: number;
   readonly edges: number;
   readonly hiddenEdges: number;
+  /** Nodes removed by the system filters (0 while both are off, D-163). */
+  readonly hiddenNodes: number;
   readonly matches: number;
   readonly unknownNodes: number;
   /** Page → page explicit navigation edges. */
@@ -169,6 +179,10 @@ export interface ProjectGraphViewInput {
   readonly positions?: Readonly<Record<string, GraphPosition>>;
   /** Edge kinds the layout hides. */
   readonly hiddenEdgeKinds?: readonly GraphEdgeKind[];
+  /** Hide routes the project does not declare (the framework's feature surface, D-163). */
+  readonly hideSystemRoutes?: boolean;
+  /** Hide framework tables that none of the project's own routes uses (D-163). */
+  readonly hideSystemTables?: boolean;
   readonly collapsed?: Readonly<Record<string, boolean>>;
   readonly query?: string;
 }

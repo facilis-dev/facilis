@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { defineAuthorizedHandler, type FacilisRequestEvent } from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+import { defineAuthorizedHandler, type FacilisRequestEvent } from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import { catalogQuery, loadCatalogs, parseCatalogLocales } from "./catalog.ts";
 import { i18nMessages } from "./messages.ts";

@@ -20,7 +20,7 @@ export interface AuthContext {
   readonly via?: "session" | "bearer";
 }
 
-/** Shape of `facilis.config.ts`'s `auth` block that @facilis/auth needs. */
+/** Shape of `facilis.config.ts`'s `auth` block that @facilis.dev/auth needs. */
 export interface AuthConfig {
   readonly permissions: readonly string[];
   readonly roles: Readonly<Record<string, readonly string[]>>;

@@ -2,9 +2,9 @@
 //
 // Kept apart from db-store.ts so each file stays well under the 300-line limit and the
 // mapping is the single place that knows the text status column and the JSONB columns.
-import { JOB_STATUSES } from "@facilis/core";
-import type { JobJson, JobStatus } from "@facilis/core";
-import type { FacilisJobRow } from "@facilis/db";
+import { JOB_STATUSES } from "@facilis.dev/core";
+import type { JobJson, JobStatus } from "@facilis.dev/core";
+import type { FacilisJobRow } from "@facilis.dev/db";
 
 import type { JobOutcome, StoredJob } from "./contracts.ts";
 

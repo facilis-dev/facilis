@@ -1,11 +1,11 @@
 /**
- * Project-level date helpers on top of @facilis/time (docs/FRONTEND.md section 7).
+ * Project-level date helpers on top of @facilis.dev/time (docs/FRONTEND.md section 7).
  *
  * API values are ISO instants; the app decides the user's zone once and formats calendar days
- * through @facilis/time, never through Date#toLocaleString (D-056).
+ * through @facilis.dev/time, never through Date#toLocaleString (D-056).
  */
 
-import { dateOnlyOf, formatDateOnly, startOfDay, today } from "@facilis/time";
+import { dateOnlyOf, formatDateOnly, startOfDay, today } from "@facilis.dev/time";
 
 export interface DateFormatOptions {
   locale?: string;

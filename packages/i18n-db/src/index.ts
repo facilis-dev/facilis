@@ -1,9 +1,9 @@
 /**
- * `@facilis/i18n-db` — database i18n for generated projects: translated content fields
+ * `@facilis.dev/i18n-db` — database i18n for generated projects: translated content fields
  * (a typed `jsonb` column + locale resolution) and the optional database catalogue overlay.
  *
  * The root entry point is server-only (Drizzle + policy-scoped DB). The browser half lives
- * behind the `@facilis/i18n-db/client` subpath so a client bundle never pulls drizzle.
+ * behind the `@facilis.dev/i18n-db/client` subpath so a client bundle never pulls drizzle.
  */
 
 export { translatedText } from "./columns.ts";

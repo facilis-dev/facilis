@@ -1,9 +1,9 @@
 /**
- * @facilis/nitro — the `facilis()` Vite plugin, its Nitro module, the framework route
+ * @facilis.dev/nitro — the `facilis()` Vite plugin, its Nitro module, the framework route
  * metadata pass and the OpenAPI facade (SPEC §5.6, §6.9, §13 risk 3).
  *
- * Entry points: `@facilis/nitro` (everything), `@facilis/nitro/vite` (plugin),
- * `@facilis/nitro/module` (Nitro module), `@facilis/nitro/session` (route-facing server
+ * Entry points: `@facilis.dev/nitro` (everything), `@facilis.dev/nitro/vite` (plugin),
+ * `@facilis.dev/nitro/module` (Nitro module), `@facilis.dev/nitro/session` (route-facing server
  * cookie helpers; imports h3, so it is a separate entry point).
  */
 

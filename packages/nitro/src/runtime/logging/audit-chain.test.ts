@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AuditLogEntry } from "@facilis/core";
+import type { AuditLogEntry } from "@facilis.dev/core";
 
 import {
   canonicalJson,

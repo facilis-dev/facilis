@@ -288,7 +288,7 @@ why the CSP is part of the product and not the deploy notes.
 > app is a git repo: Vite, Nitro, Drizzle, Postgres. Deploy it anywhere; the pipeline runs the
 > migration and the Studio only previews it.
 >
-> A framework is still a dependency — you'll keep importing `@facilis/*`. What you won't do is ask
+> A framework is still a dependency — you'll keep importing `@facilis.dev/*`. What you won't do is ask
 > permission to leave.
 
 ### 4.9 Status
@@ -429,8 +429,8 @@ facilis.ai agentic manufacturing, Facilisgroup). "Facilis" alone is not searchab
   domain to rank) until they outgrow it.
 - **Own coined terms, not the brand:** `defineAuthorizedHandler`, "the five layers", "the 20%", "zero
   install". These rank; "Facilis" competes with a storage vendor.
-- **Claim the handles now:** GitHub org (`facilis-dev` if `facilis` is taken), npm scope `@facilis`
-  (open question O-006 depends on it), X/Bluesky, `hello@facilis.dev`, LinkedIn.
+- **Claim the handles now:** GitHub org (`facilis-dev`), npm organization `facilis.dev` (claimed —
+  it is the package scope, O-006 → D-164), X/Bluesky, `hello@facilis.dev`, LinkedIn.
 - **Comparison pages** (`/vs/retool`, `/vs/lovable`, `/vs/nextjs`) only *after* launch, and only factual
   and fair — they convert and rank, but read as desperate before you have users.
 - Trademark: a quick opinion on "Facilis" in the software class before printing swag.

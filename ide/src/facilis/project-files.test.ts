@@ -72,7 +72,7 @@ describe("generated project config", () => {
     // Template v2 copies its shadcn-style primitives into src/components/ui, so the kit is
     // neither a dependency nor a vendored tarball: there is nothing to install or fetch.
     const pkg = parse<PackageJson>("package.json");
-    expect(pkg.dependencies["@facilis/ui"]).toBeUndefined();
+    expect(pkg.dependencies["@facilis.dev/ui"]).toBeUndefined();
     expect(JSON.stringify(pkg)).not.toContain("facilis-ui-");
     expect(Object.keys(pkg.dependencies)).toContain("@base-ui/react");
   });

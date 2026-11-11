@@ -1,5 +1,5 @@
 /**
- * The framework rate limiter lives in @facilis/core, where the authorized-handler wrapper uses
+ * The framework rate limiter lives in @facilis.dev/core, where the authorized-handler wrapper uses
  * it (D-152). This module keeps the framework-owned token endpoint's import path stable and
  * re-exports exactly the same implementation, so both surfaces share one bounded limiter type.
  */
@@ -9,4 +9,4 @@ export {
   type FixedWindowRateLimiter,
   type RateLimitDecision,
   type RateLimitWindow,
-} from "@facilis/core";
+} from "@facilis.dev/core";

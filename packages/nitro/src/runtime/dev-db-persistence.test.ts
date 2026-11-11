@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { applyStatements, createDb } from "@facilis/db";
+import { applyStatements, createDb } from "@facilis.dev/db";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -51,7 +51,7 @@ describe("dev database persistence", () => {
     const restored = await createDb({ loadSnapshot: bytes ?? undefined });
     try {
       // The row survived: re-inserting its primary key must violate the constraint. (No
-      // drizzle import here: @facilis/nitro consumes the db package, not drizzle directly.)
+      // drizzle import here: @facilis.dev/nitro consumes the db package, not drizzle directly.)
       const failure = await applyStatements(restored, [
         "INSERT INTO persisted (id, label) VALUES (1, 'dup')",
       ]).then(

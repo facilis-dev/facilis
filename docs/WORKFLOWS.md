@@ -3,7 +3,7 @@
 **Status:** accepted — design approved (D-135, 2026-11-10). W1 (manual tasks), W2
 (workflows) and W3 (reject branches, task assignment by permission, an example workflow with its
 start route, SPEC §7.10) are implemented. Workflows are shown in the project graph as definition
-nodes with their steps (D-161, `@facilis/analyze` pass); there is deliberately **no Studio task
+nodes with their steps (D-161, `@facilis.dev/analyze` pass); there is deliberately **no Studio task
 inbox tab** — the task inbox/decide routes are app UI and the graph is the only new IDE surface.
 SPEC §5.6/§7.9 describe the jobs surface (D-107) and §7.10 the workflow/task surface (SPEC v1.31);
 O-017 stays open for retention/pruning and the dev-only inspection endpoint. A workflow declares
@@ -46,9 +46,9 @@ flag changes. Derived requirements:
 
 | Layer | Owns |
 |---|---|
-| `@facilis/core` | Public contract: `defineWorkflow`, `WorkflowDefinition`, `WorkflowRecord`, `TaskRecord`, `WorkflowsApi`, `TasksApi`, statuses, error codes, serialization reuse. |
-| `@facilis/db` | `facilis_workflows` and `facilis_tasks` (schema + RLS), re-exported by the project's `db/schema.ts` so a Drizzle migration owns them. |
-| `@facilis/nitro` | Runtime: `#facilis/workflows` virtual module, definition registry, workflow store, runner tick, recovery, `ctx.workflows`/`ctx.tasks` injection. |
+| `@facilis.dev/core` | Public contract: `defineWorkflow`, `WorkflowDefinition`, `WorkflowRecord`, `TaskRecord`, `WorkflowsApi`, `TasksApi`, statuses, error codes, serialization reuse. |
+| `@facilis.dev/db` | `facilis_workflows` and `facilis_tasks` (schema + RLS), re-exported by the project's `db/schema.ts` so a Drizzle migration owns them. |
+| `@facilis.dev/nitro` | Runtime: `#facilis/workflows` virtual module, definition registry, workflow store, runner tick, recovery, `ctx.workflows`/`ctx.tasks` injection. |
 
 ## 4. Rejected alternatives
 
@@ -130,7 +130,7 @@ orphan reference — pruning is out of scope anyway.
 the way `server/jobs/**` reaches `#facilis/jobs`:
 
     import { z } from "zod";
-    import { defineWorkflow } from "@facilis/core";
+    import { defineWorkflow } from "@facilis.dev/core";
 
     export default defineWorkflow({
       name: "order-approval",
@@ -364,7 +364,7 @@ owns the inbox routes and the project graph shows the workflow definitions, D-16
 - **W3 — polish (landed).** Reject branches (`onReject`, a forward jump validated at load and
   against the plan snapshot), task assignment by permission (`assigned_permission`, filtered by
   the inbox and enforced by the example decide route), the example workflow definition with its
-  start route, the `@facilis/analyze` pass and the project-graph workflow nodes, and SPEC §7.10.
+  start route, the `@facilis.dev/analyze` pass and the project-graph workflow nodes, and SPEC §7.10.
   There is no Studio task inbox tab: the inbox/decide routes are app UI and the graph is the only
   new IDE surface (D-161).
 

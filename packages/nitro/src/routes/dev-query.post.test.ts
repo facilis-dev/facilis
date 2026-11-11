@@ -1,7 +1,7 @@
 import type { H3Event } from "nitro";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOGGING_CONFIG, NOOP_LOGGING_API } from "@facilis/core";
-import { applyStatements, createDb, type FacilisDb } from "@facilis/db";
+import { DEFAULT_LOGGING_CONFIG, NOOP_LOGGING_API } from "@facilis.dev/core";
+import { applyStatements, createDb, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
 

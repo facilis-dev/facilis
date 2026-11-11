@@ -10,7 +10,7 @@ import { buildSchemaFacts } from "./schema.ts";
 import { buildViewFacts } from "./views.ts";
 
 const parser = createOxcParser();
-const CORE = 'import { defineJob } from "@facilis/core";\n';
+const CORE = 'import { defineJob } from "@facilis.dev/core";\n';
 const SCHEMA =
   'import { pgTable, uuid } from "drizzle-orm/pg-core";\n' +
   'export const todos = pgTable("todos", { id: uuid("id").primaryKey() });\n' +
@@ -135,7 +135,7 @@ describe("job relation usage (D-157 applied to jobs)", () => {
   it("resolves a view declared under db/views as a relation", () => {
     const view =
       'import { sql } from "drizzle-orm";\n' +
-      'import { defineView } from "@facilis/db";\n' +
+      'import { defineView } from "@facilis.dev/db";\n' +
       'import { text } from "drizzle-orm/pg-core";\n' +
       "export const activeTodos = defineView({\n" +
       '  name: "active_todos",\n' +
@@ -158,7 +158,7 @@ describe("job relation usage (D-157 applied to jobs)", () => {
 
   it("keeps a package helper opaque so the unused warning is suppressed", () => {
     const { relations } = scan(
-      'import { destroySession } from "@facilis/auth";\n' +
+      'import { destroySession } from "@facilis.dev/auth";\n' +
         job('name: "purge", dbTables: ["todos"]', 'async ({ db }) => destroySession(db, "id")'),
     );
     expect(codes(relations.diagnostics)).toEqual([]);

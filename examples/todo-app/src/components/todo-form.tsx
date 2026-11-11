@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type RefObject } from "react";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 import { Button } from "./ui/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card.tsx";
 import { Field } from "./ui/field.tsx";

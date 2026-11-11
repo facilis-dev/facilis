@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import type { PtcRunner } from "./ptc/protocol";
@@ -71,14 +71,14 @@ function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): ChatSes
   });
 }
 
-const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis/core";
+const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
 });
 `;
 
-const EMPTY_CONFIG = `import { defineConfig } from "@facilis/core";
+const EMPTY_CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: [], roles: {}, defaultRole: "user" },
@@ -89,7 +89,7 @@ const ROUTE_PATCH: FilePatch = {
   path: "server/routes/api/ping.get.ts",
   action: "create",
   content:
-    'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
     'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [] }, async () => null);\n',
 };
 
@@ -99,9 +99,9 @@ function contextualHost(allowed: () => boolean): Harness {
   const read = async (path: string) => {
     if (path === "facilis.config.ts") return allowed() ? VALIDATOR_CONFIG : EMPTY_CONFIG;
     if (path === "db/schema.ts") return "export {};\n";
-    // Rule 12 resolves the route's "@facilis/core" import through this declaration.
+    // Rule 12 resolves the route's "@facilis.dev/core" import through this declaration.
     if (path === "package.json") {
-      return JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } });
+      return JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } });
     }
     return "";
   };
@@ -124,7 +124,7 @@ describe("ChatSession with live validation", () => {
     const fixed: FilePatch = {
       ...ROUTE_PATCH,
       content:
-        'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+        'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
         "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
     };
     const calls: { messages: readonly { role: string; content: string }[] }[] = [];
@@ -167,7 +167,7 @@ export const todos = pgTable("todos", { id: uuid("id").primaryKey(), title: text
 `;
 
 const TODOS_ROUTE =
-  'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+  'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
   'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: ["todos"] }, async () => null);\n';
 
 const ATTACHMENTS_ONLY = `import { pgTable, text, uuid } from "drizzle-orm/pg-core";
@@ -199,7 +199,7 @@ function todosHost(): ChatHost {
         return TODOS_SCHEMA;
       case "package.json":
         return JSON.stringify({
-          dependencies: { "@facilis/core": "workspace:*", "drizzle-orm": "0.44.0" },
+          dependencies: { "@facilis.dev/core": "workspace:*", "drizzle-orm": "0.44.0" },
         });
       case "locales/en.json":
         return "{}";

@@ -5,7 +5,7 @@ import type { Diagnostic, ConfigFacts } from "../types.ts";
 import { nodeRef } from "./schema-dsl.ts";
 import { collectTableDrafts, type TableDraft, type TableScan } from "./schema-tables.ts";
 
-/** Merge the tables of `export { users } from "@facilis/auth"` (framework source, recursively). */
+/** Merge the tables of `export { users } from "@facilis.dev/auth"` (framework source, recursively). */
 export function collectReExportedDrafts(
   graph: ModuleGraph,
   file: ProjectFile,
@@ -48,7 +48,7 @@ export function collectReExportedDrafts(
   }
 
   // The example project imports framework tables and re-exports the local bindings:
-  //   import { users } from "@facilis/auth"; export { users };
+  //   import { users } from "@facilis.dev/auth"; export { users };
   // Follow the import, keep only the tables whose binding was re-exported.
   for (const statement of nodeArray(file.program, "body")) {
     if (

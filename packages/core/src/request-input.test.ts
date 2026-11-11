@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
 import { DEFAULT_MAX_JSON_BODY_BYTES, parseRequestInput } from "./request-input.ts";

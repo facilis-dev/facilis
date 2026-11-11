@@ -2,9 +2,9 @@
 //
 // Kept apart from db-store.ts so each file stays well under the 300-line limit and the text
 // status/decision columns are decoded in exactly one place.
-import { TASK_DECISIONS, TASK_KINDS, TASK_STATUSES } from "@facilis/core";
-import type { JobJson, TaskDecision, TaskKind, TaskRecord, TaskStatus } from "@facilis/core";
-import type { FacilisTaskRow } from "@facilis/db";
+import { TASK_DECISIONS, TASK_KINDS, TASK_STATUSES } from "@facilis.dev/core";
+import type { JobJson, TaskDecision, TaskKind, TaskRecord, TaskStatus } from "@facilis.dev/core";
+import type { FacilisTaskRow } from "@facilis.dev/db";
 
 import type { StoredTask } from "./contracts.ts";
 

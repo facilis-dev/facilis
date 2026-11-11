@@ -13,8 +13,8 @@ import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
-import type { GraphEdgeKind } from "@facilis/analyze";
-import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import { GRAPH_EDGE_KINDS, type GraphSystemNodeKind } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { GRAPH_EDGE_LABEL_KEYS, GRAPH_EDGE_STYLES } from "./project-graph-edges";
 
@@ -38,6 +38,9 @@ export function ProjectGraphToolbar({
   errors,
   warnings,
   onToggleEdgeKind,
+  hideSystemRoutes,
+  hideSystemTables,
+  onToggleSystemNodes,
 }: {
   stats: ProjectGraphStats | null;
   hiddenEdgeKinds: readonly GraphEdgeKind[];
@@ -56,6 +59,9 @@ export function ProjectGraphToolbar({
   errors: number;
   warnings: number;
   onToggleEdgeKind: (kind: GraphEdgeKind, hidden: boolean) => void;
+  hideSystemRoutes: boolean;
+  hideSystemTables: boolean;
+  onToggleSystemNodes: (kind: GraphSystemNodeKind, hidden: boolean) => void;
 }) {
   return (
     <div className="flex shrink-0 flex-col gap-1 border-b px-2 py-1.5">
@@ -180,8 +186,36 @@ export function ProjectGraphToolbar({
             </label>
           );
         })}
+        <span>{t("projectGraph.systemFilters")}</span>
+        <label
+          title={t("projectGraph.systemHint")}
+          className="flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
+        >
+          <input
+            type="checkbox"
+            className="size-3 accent-primary"
+            checked={!hideSystemRoutes}
+            onChange={(event) => onToggleSystemNodes("routes", !event.target.checked)}
+          />
+          <span>{t("projectGraph.systemRoutes")}</span>
+        </label>
+        <label
+          title={t("projectGraph.systemHint")}
+          className="flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
+        >
+          <input
+            type="checkbox"
+            className="size-3 accent-primary"
+            checked={!hideSystemTables}
+            onChange={(event) => onToggleSystemNodes("tables", !event.target.checked)}
+          />
+          <span>{t("projectGraph.systemTables")}</span>
+        </label>
         {stats !== null && stats.hiddenEdges > 0 && (
           <span>{t("projectGraph.hiddenEdges", { count: stats.hiddenEdges })}</span>
+        )}
+        {stats !== null && stats.hiddenNodes > 0 && (
+          <span>{t("projectGraph.hiddenNodes", { count: stats.hiddenNodes })}</span>
         )}
         {stats !== null && query.trim().length > 0 && (
           <span>{t("projectGraph.matches", { count: stats.matches })}</span>

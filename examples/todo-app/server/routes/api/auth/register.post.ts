@@ -5,7 +5,7 @@ import {
   type FacilisHandlerEvent,
   type FacilisLogger,
   type SystemHandler,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 import {
   consumeEmailVerification,
   EMAIL_VERIFICATION_TABLES,
@@ -15,7 +15,7 @@ import {
   registerInitialAdmin,
   userRoles,
   users,
-} from "@facilis/auth";
+} from "@facilis.dev/auth";
 import config from "~/facilis.config";
 import { deliverVerificationEmail, verificationUrl } from "~/server/utils/email-verification";
 

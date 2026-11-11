@@ -3,7 +3,7 @@
  * `destructive-confirmed` (SPEC §9.3), read from the effective code schema.
  *
  * Only tables the project declares itself count (`source.file === db/schema.ts`): the
- * framework tables re-exported from `@facilis/auth` ship their own RLS and must not be
+ * framework tables re-exported from `@facilis.dev/auth` ship their own RLS and must not be
  * re-flagged here. Scope is the analyzer's ScopeFact or a tenant/owner column property.
  */
 

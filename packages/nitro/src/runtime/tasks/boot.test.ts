@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createDb } from "@facilis/db";
-import type { ManifestWarning } from "@facilis/core";
+import { createDb } from "@facilis.dev/db";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 import { bootTasks } from "./boot.ts";
 import { TENANT_ID, createTasksTestContext } from "./tasks-test-harness.ts";

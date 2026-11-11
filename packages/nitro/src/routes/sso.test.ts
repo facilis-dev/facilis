@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FacilisConfig, FacilisRequestEvent } from "@facilis/core";
-import { DEFAULT_LOGGING_CONFIG, defineConfig, NOOP_LOGGING_API } from "@facilis/core";
-import { createDb, ensureAppRole, type FacilisDb } from "@facilis/db";
+import type { FacilisConfig, FacilisRequestEvent } from "@facilis.dev/core";
+import { DEFAULT_LOGGING_CONFIG, defineConfig, NOOP_LOGGING_API } from "@facilis.dev/core";
+import { createDb, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
 vi.mock("../runtime/sso.ts", async (importOriginal) => {
@@ -12,8 +12,8 @@ vi.mock("../runtime/sso.ts", async (importOriginal) => {
     completeSsoLogin: vi.fn(),
   };
 });
-vi.mock("@facilis/auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/auth")>();
+vi.mock("@facilis.dev/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/auth")>();
   return {
     ...actual,
     createSession: vi.fn(async () => ({
@@ -23,7 +23,7 @@ vi.mock("@facilis/auth", async (importOriginal) => {
   };
 });
 
-import { SsoError } from "@facilis/auth";
+import { SsoError } from "@facilis.dev/auth";
 import { getBootstrap, type BootstrapState } from "../runtime/bootstrap.ts";
 import { startSsoLogin, completeSsoLogin } from "../runtime/sso.ts";
 import handler from "./sso.ts";

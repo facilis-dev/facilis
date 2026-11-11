@@ -4,7 +4,7 @@ import type { FacilisStorageConfig } from "./config.ts";
  * The server-side storage surface a route context carries (D-053, SPEC §5.10).
  *
  * Core declares the contract so the handler types never depend on the Node-only
- * @facilis/storage package: @facilis/nitro implements it over a local or S3-compatible
+ * @facilis.dev/storage package: @facilis.dev/nitro implements it over a local or S3-compatible
  * driver, exactly like JobsApi is declared here and implemented by the queue runtime.
  * Access control is not the storage's job: the app's routes decide who may read a blob and
  * build a short-lived signed URL (buildDownloadUrl).

@@ -1,4 +1,4 @@
-import type { ColumnSnapshot, PolicySnapshot, SchemaSnapshot, TableSnapshot } from "@facilis/db";
+import type { ColumnSnapshot, PolicySnapshot, SchemaSnapshot, TableSnapshot } from "@facilis.dev/db";
 import { describe, expect, it } from "vitest";
 
 import { planSchema } from "./plan.ts";

@@ -1,6 +1,6 @@
 // The IDE's i18n layer.
 //
-// The runtime is @facilis/core's (flat keys, {placeholder} interpolation, a
+// The runtime is @facilis.dev/core's (flat keys, {placeholder} interpolation, a
 // missing key returns the key and is reported once) — the IDE registers its own
 // catalogues and owns the locale choice. The package's i18n subpath is imported so
 // the static SPA bundle does not pull the framework's zod/db modules.
@@ -11,7 +11,7 @@ import {
   setMissingTranslationHandler,
   t as translate,
   type I18nParams,
-} from "@facilis/core/i18n";
+} from "@facilis.dev/core/i18n";
 import { en } from "./en";
 import { it } from "./it";
 

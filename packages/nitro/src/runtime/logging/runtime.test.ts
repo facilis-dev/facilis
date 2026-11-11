@@ -10,7 +10,7 @@ import {
   type ErrorLogEntry,
   type FacilisLoggingConfig,
   type FacilisLogRequestMeta,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import {
   DEFAULT_LOG_KEEP,

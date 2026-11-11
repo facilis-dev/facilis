@@ -8,7 +8,7 @@ import {
   ownerIsolationPolicy,
   tenantColumn,
   tenantIsolationPolicy,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 import {
   apiClients,
   apiTokens,
@@ -19,7 +19,7 @@ import {
   sessions,
   userRoles,
   users,
-} from "@facilis/auth";
+} from "@facilis.dev/auth";
 
 // Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
 // generates them together with the application tables. The job queue, the manual tasks, the

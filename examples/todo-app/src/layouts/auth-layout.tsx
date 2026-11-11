@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { t } from "@facilis/core/i18n";
+import { t } from "@facilis.dev/core/i18n";
 
 const POINTS = ["auth.brand.point1", "auth.brand.point2", "auth.brand.point3"] as const;
 

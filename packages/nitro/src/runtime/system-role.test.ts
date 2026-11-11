@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ensureSystemRole = vi.hoisted(() => vi.fn());
 
-vi.mock("@facilis/db", () => ({ ensureSystemRole }));
+vi.mock("@facilis.dev/db", () => ({ ensureSystemRole }));
 
-import type { FacilisDb } from "@facilis/db";
-import type { ManifestWarning } from "@facilis/core";
+import type { FacilisDb } from "@facilis.dev/db";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 import { provisionSystemRole } from "./system-role.ts";
 

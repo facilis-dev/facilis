@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { defineConfig } from "@facilis/core";
-import { contentHash } from "@facilis/storage";
+import { defineConfig } from "@facilis.dev/core";
+import { contentHash } from "@facilis.dev/storage";
 
 import { resolveStorage } from "./storage-target.ts";
 

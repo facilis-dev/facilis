@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createDb } from "@facilis/db";
-import type { FacilisDb } from "@facilis/db";
+import { createDb } from "@facilis.dev/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import { createDbTaskStore, isTasksTableAvailable } from "./db-store.ts";
 import {

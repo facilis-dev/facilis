@@ -93,7 +93,7 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
   "packages": {
     "registry": "https://npm.acme.example",
     "allow": [
-      "@facilis/*", "react", "react-dom", "react-router-dom", "zod",
+      "@facilis.dev/*", "react", "react-dom", "react-router-dom", "zod",
       "drizzle-orm", "drizzle-kit", "nitro", "vite", "@vitejs/plugin-react",
       "@electric-sql/pglite"
     ],
@@ -142,7 +142,7 @@ The build reads the path from `FACILIS_DEPLOY_CONFIG`, a **build-time** environm
 (the running app never reads it):
 
 ```
-FACILIS_DEPLOY_CONFIG=./deploy/acme.json pnpm --filter @facilis/ide build:app
+FACILIS_DEPLOY_CONFIG=./deploy/acme.json pnpm --filter @facilis.dev/ide build:app
 ```
 
 - unset: the build is `open`, exactly today's artifact;
@@ -302,7 +302,7 @@ The mirror is the L2 enforcement point for "which libraries". Requirements:
 
 The generated project's install is deterministic against the mirror: the registry is the only
 package host that can answer. The exact lockfile mechanics interact with D-032 (the
-`@facilis/*` packages are `file:` tarballs, which a committed lockfile cannot pin
+`@facilis.dev/*` packages are `file:` tarballs, which a committed lockfile cannot pin
 portably), so that detail is owned by the implementation spike in §12 and the open questions
 in §11.
 
@@ -378,8 +378,8 @@ storage is per-origin, so projects are exported and imported, not copied).
   refuse to run it.
 - Preview origin: dedicated hostname versus wildcard-per-port (`mode C`), and the auth
   impact of moving the app off the IDE origin.
-- Lockfile mechanics for the generated project while `@facilis/*` are `file:` tarballs
-  (D-032), and whether the mirror serves them once O-006 is resolved.
+- Lockfile mechanics for the generated project while `@facilis.dev/*` are `file:` tarballs
+  (D-032), and whether the mirror serves them now that O-006 is resolved as public npm (D-164).
 - Whether a managed deployment may use an internal LLM gateway while forbidding direct
   providers (AI-SKILLS.md §2).
 - Whether purely cosmetic fields (company name, logo) may come from a served file without a

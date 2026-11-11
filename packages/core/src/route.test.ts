@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod";
-import type { AuthContext } from "@facilis/auth";
-import type { FacilisDb } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import {
@@ -23,9 +23,9 @@ const dbMock = vi.hoisted(() => {
 });
 
 // Only the transaction runner is mocked: RBAC is a pure function exercised against the
-// real @facilis/auth implementation, and auth's tables need the real RLS helpers from db.
-vi.mock("@facilis/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/db")>();
+// real @facilis.dev/auth implementation, and auth's tables need the real RLS helpers from db.
+vi.mock("@facilis.dev/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/db")>();
   return { ...actual, runWithPolicyScope: dbMock.runWithPolicyScope };
 });
 

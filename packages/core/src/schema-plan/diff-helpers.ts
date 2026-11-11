@@ -1,4 +1,4 @@
-import type { ColumnSnapshot, EnumSnapshot, SchemaSnapshot, TableSnapshot } from "@facilis/db";
+import type { ColumnSnapshot, EnumSnapshot, SchemaSnapshot, TableSnapshot } from "@facilis.dev/db";
 
 import type { BatchDraft } from "./draft.ts";
 import { compareText } from "./render.ts";

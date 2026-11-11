@@ -1,5 +1,5 @@
-import type { JobDefinition, JobJson, JobListOptions, JobStatus } from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { JobDefinition, JobJson, JobListOptions, JobStatus } from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 /**
  * Internal contracts of the job runtime (D-107, docs/JOBS.md §9).

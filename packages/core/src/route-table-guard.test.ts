@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthContext } from "@facilis/auth";
-import type { FacilisDb } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
 import type { FacilisLoggingApi } from "./logging.ts";
@@ -16,12 +16,12 @@ const dbMock = vi.hoisted(() => {
 });
 
 // Only the transaction runner is mocked: the table guard and its error class stay real.
-vi.mock("@facilis/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/db")>();
+vi.mock("@facilis.dev/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/db")>();
   return { ...actual, runWithPolicyScope: dbMock.runWithPolicyScope };
 });
 
-import { TableAccessError } from "@facilis/db";
+import { TableAccessError } from "@facilis.dev/db";
 
 const AUTH: AuthContext = {
   userId: "00000000-0000-0000-0000-000000000001",

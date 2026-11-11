@@ -5,7 +5,7 @@
 // plain lossless JSON). Nothing here writes: the validated proposal + user Apply stay the
 // only write path (invariant 9).
 
-import type { Analysis, FilePatch } from "@facilis/ai";
+import type { Analysis, FilePatch } from "@facilis.dev/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
 
 import { validatePatchesWithHost, type PatchValidationHost } from "../patch-validation";

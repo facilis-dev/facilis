@@ -124,7 +124,7 @@ The [three-minute demo script](docs/DEMO.md) walks the same flow in the browser.
 
 The template the IDE scaffolds **is** [`examples/todo-app`](examples/todo-app) (D-062): one
 source for the starter, so editing the example changes what "New project" creates.
-`starter/` stays empty until `@facilis/*` has a publish target (D-027, D-062): the template is
+`starter/` stays empty until `@facilis.dev/*` has a publish target (D-027, D-062): the template is
 assembled from the example at build time, so there is no second copy to drift.
 
 ---

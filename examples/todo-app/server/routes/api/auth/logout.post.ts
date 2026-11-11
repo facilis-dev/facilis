@@ -1,6 +1,6 @@
-import { defineAuthorizedHandler } from "@facilis/core";
-import { destroySession } from "@facilis/auth";
-import { clearSessionCookie, sessionIdFromRequest } from "@facilis/nitro/session";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
+import { destroySession } from "@facilis.dev/auth";
+import { clearSessionCookie, sessionIdFromRequest } from "@facilis.dev/nitro/session";
 
 export default defineAuthorizedHandler(
   {

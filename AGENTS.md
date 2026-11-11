@@ -17,7 +17,7 @@ structural (compiler/framework), not optional lint rules.
 Repository layout (see spec §4):
 
 ```
-packages/    @facilis/core, db, auth, ai, nitro, analyze (AST facts, D-092)
+packages/    @facilis.dev/core, db, auth, ai, nitro, analyze (AST facts, D-092)
 ide/         Facilis IDE app (MIT fork of Vivari Studio)    [Phase 0+]
 vendor/vivari/  Vivari via our fork (git SUBMODULE, MIT), pinned to `facilis/main`
              [never edited here, never shipped, not in the pnpm workspace; see D-030]
@@ -37,6 +37,7 @@ brand/       logo + identity assets (black & white), see brand/README.md
 |---|---|
 | Runtime | **Node >= 22.15.0** (`.nvmrc` = 22) |
 | Package manager | **pnpm** workspace (v12) + **turbo** |
+| Package registry | **public npm, scope `@facilis.dev`** (D-164) |
 | Language | **TypeScript, strict**, ESM only (`"type": "module"`) |
 | Lint / format | **oxlint** + **Prettier** (root configs) |
 | Tests | **Vitest** |
@@ -64,7 +65,7 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
   for true module-level constants.
 - **Nitro file router naming is mandatory**: `index.get.ts`, `[id].patch.ts`,
   `manifest.get.ts` (spec §4.2).
-- Imports between packages use the package name (`@facilis/db`), never `../../packages/...`.
+- Imports between packages use the package name (`@facilis.dev/db`), never `../../packages/...`.
 - **Relative imports inside `packages/*/src` carry the `.ts` extension** (`from "./config.ts"`).
   Packages ship their `src` and a Vite config is loaded by Node's native ESM loader, which
   requires explicit extensions; `tsc` rewrites them to `.js` on emit
@@ -91,7 +92,7 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
    its `pgPolicy` set, which is what grants `facilis_app` access) or system-only (no RLS → no
    app-role privilege; reachable only through the audited system identity). App-level scoping uses
    `drizzle-policy`.
-5. No raw Drizzle client imports outside `@facilis/db`.
+5. No raw Drizzle client imports outside `@facilis.dev/db`.
 6. Dev-only endpoints are `404` in production and origin-allowlisted.
 7. Studio writes go through `kernel.writeFiles` (Vivari VFS); never touch OPFS directly.
 8. Roles/permissions are declared in `facilis.config.ts`; `role_permissions` is written

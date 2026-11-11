@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { facilis } from "@facilis/nitro/vite";
+import { facilis } from "@facilis.dev/nitro/vite";
 
 // One dev server: Vite serves the client and facilis() mounts Nitro on the same
 // origin (spec 10.6). Nitro's options are read from facilis.config.ts, so this file

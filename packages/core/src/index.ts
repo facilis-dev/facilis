@@ -1,5 +1,5 @@
 /**
- * `@facilis/core` — the framework contract (SPEC §5.1).
+ * `@facilis.dev/core` — the framework contract (SPEC §5.1).
  *
  * Named re-exports only: the public surface is a flat list so bundlers can tree-shake and
  * consumers never reach into internal modules.

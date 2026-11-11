@@ -12,7 +12,7 @@ import { projectFiles } from "./project-files";
 import { templateOverrides } from "./template-overrides";
 
 /**
- * The workspace-only @facilis packages, shipped as tarballs (O-006).
+ * The @facilis.dev packages, shipped as tarballs (D-022); npm publishes the same sources (D-164).
  *
  * They are inlined into the create request at create time (project-assets.ts) and declared
  * as file: dependencies in package.json, so the install never reaches the studio over HTTP
@@ -62,7 +62,7 @@ export function createFacilisTemplate(): ProjectTemplate {
     entry: "src/app.tsx",
     hmr: true,
     reload: false,
-    // The @facilis/* deps resolve from the vendored tarballs. npm re-derives the target of
+    // The @facilis.dev/* deps resolve from the vendored tarballs. npm re-derives the target of
     // a RELATIVE file: spec and, inside the VM, that derivation was measured producing
     // /user/projects/... instead of /home/user/projects/... (install dies with ENOENT on a
     // tarball that exists). scripts/vendor-paths.cjs pins them to absolute paths first —

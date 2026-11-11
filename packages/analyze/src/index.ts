@@ -1,9 +1,9 @@
 /**
- * @facilis/analyze — static facts for the Facilis project DSL.
+ * @facilis.dev/analyze — static facts for the Facilis project DSL.
  *
  * Zero build-time execution: the caller supplies a file map and an injected parser; the
  * analyzer interprets the declared DSL (routes, config, Drizzle schema, relations, pages).
- * The Node parser adapter lives on the `@facilis/analyze/node` subpath so the main entry
+ * The Node parser adapter lives on the `@facilis.dev/analyze/node` subpath so the main entry
  * stays browser-safe.
  */
 export { analyzeProject, DEFAULT_TRANSPORT } from "./analyze.ts";

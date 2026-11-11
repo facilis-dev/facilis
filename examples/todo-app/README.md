@@ -1,8 +1,8 @@
 # Facilis todo app (Phase 1 acceptance app)
 
 Hand-written app whose framework, server and data layers use **only** the Facilis public
-packages: `@facilis/core`, `@facilis/db`, `@facilis/auth`, `@facilis/nitro` (file
-attachments go through `@facilis/nitro/storage` over `@facilis/storage`); the UI is a plain
+packages: `@facilis.dev/core`, `@facilis.dev/db`, `@facilis.dev/auth`, `@facilis.dev/nitro` (file
+attachments go through `@facilis.dev/nitro/storage` over `@facilis.dev/storage`); the UI is a plain
 Tailwind CSS v4 + Base UI substrate. It is the Phase 1 exit criterion
 (spec §12, §14.2): every route is written with `defineAuthorizedHandler`, RLS policies are
 generated from the schema, auth tables and roles come from `facilis.config.ts`, and
@@ -85,7 +85,7 @@ surface over it:
 The `jobs` section of `facilis.config.ts` shows every key once: `maxConcurrent`,
 `maxAttempts`, `retryDelayMs`, `timeoutMs`, `pollIntervalMs`, `persist`. With
 `persist: true` the queue lives in `facilis_jobs`, which `db/schema.ts` re-exports from
-`@facilis/db`; its DDL is the checked-in migration `0002` (the queue table + its RLS policy; see
+`@facilis.dev/db`; its DDL is the checked-in migration `0002` (the queue table + its RLS policy; see
 the D-158 note below).
 Queue state survives the dev-server worker reload; a missing table degrades to the in-memory
 store with a `jobs_table_missing` manifest warning.
@@ -182,7 +182,7 @@ directly, so there is no component package to install and no `components.json`. 
 tokens (`--background`, `--primary`, the radii, the font) live in `src/styles.css` and
 components only name roles, so the `[data-theme="dark"]` block restyles everything.
 There is no UI kit package: the components live in the project. Dates go
-through `@facilis/time`, never `Date#toLocaleString`, and every user-facing string is a
+through `@facilis.dev/time`, never `Date#toLocaleString`, and every user-facing string is a
 `t()` key present in both catalogues. The full contract is
 [`docs/FRONTEND.md`](../../docs/FRONTEND.md) (D-058).
 

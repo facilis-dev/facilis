@@ -3,7 +3,7 @@
  * They have no on-disk counterpart, so TypeScript needs this contract.
  */
 declare module "#facilis/config" {
-  const config: import("@facilis/core").FacilisConfig;
+  const config: import("@facilis.dev/core").FacilisConfig;
   export default config;
   /** Absolute project root, used by runtime code that must read project files. */
   export const projectRoot: string;

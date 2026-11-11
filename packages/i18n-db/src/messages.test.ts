@@ -2,7 +2,7 @@ import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { policyCreateSql, tenantDefaultSql } from "@facilis/db";
+import { policyCreateSql, tenantDefaultSql } from "@facilis.dev/db";
 
 import { i18nMessages } from "./messages.ts";
 

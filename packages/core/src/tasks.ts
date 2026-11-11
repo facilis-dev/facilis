@@ -1,4 +1,4 @@
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobJson } from "./jobs.ts";
 

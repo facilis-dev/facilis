@@ -12,7 +12,7 @@
 // createRuntimeToolHandlers also lives here: the preview and graph families are the ones whose
 // runtime seam may be absent, and that composition has to sit outside the 300-line router.
 
-import type { GraphEdgeKind } from "@facilis/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
 
 import type { GraphAccess } from "../graph-access";

@@ -1,5 +1,5 @@
-import type { ManifestWarning, TasksApi } from "@facilis/core";
-import type { FacilisDb } from "@facilis/db";
+import type { ManifestWarning, TasksApi } from "@facilis.dev/core";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import { createDbTaskStore, isTasksTableAvailable } from "./db-store.ts";
 import { createTasksApi } from "./runtime.ts";

@@ -1,6 +1,6 @@
 import { pgTable, text } from "drizzle-orm/pg-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { JobDefinition } from "@facilis/core";
+import type { JobDefinition } from "@facilis.dev/core";
 import {
   applyStatements,
   createDb,
@@ -13,7 +13,7 @@ import {
   type FacilisDb,
   type PolicyScopedDatabase,
   type SudoAuditEvent,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 import type { StoredJob } from "./contracts.ts";
 import { createSystemJobExecutor } from "./executor.ts";

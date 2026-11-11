@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FacilisRequestEvent } from "@facilis/core";
+import type { FacilisRequestEvent } from "@facilis.dev/core";
 
 import { clearSessionCookie, sessionIdFromRequest, setSessionCookie } from "./session-cookie.ts";
 

@@ -6,7 +6,7 @@ import type { Diagnostic } from "../types.ts";
 import { buildJobFacts } from "./jobs.ts";
 
 const parser = createOxcParser();
-const CORE = 'import { defineJob } from "@facilis/core";\n';
+const CORE = 'import { defineJob } from "@facilis.dev/core";\n';
 
 function scan(files: Record<string, string>) {
   const graph = createModuleGraph({ files: new Map(Object.entries(files)), parser });

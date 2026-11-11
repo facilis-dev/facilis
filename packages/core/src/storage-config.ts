@@ -6,7 +6,7 @@ import { z } from "zod";
  * credentials, the download-token secret and the encryption key come from the environment.
  */
 
-/** Binary-storage drivers supported by `@facilis/storage`. */
+/** Binary-storage drivers supported by `@facilis.dev/storage`. */
 export const STORAGE_DRIVERS = ["local", "s3"] as const;
 export type StorageDriverKind = (typeof STORAGE_DRIVERS)[number];
 

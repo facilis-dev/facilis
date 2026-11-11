@@ -1,5 +1,5 @@
-import { computeRevision } from "@facilis/core";
-import type { LocaleCatalogs } from "@facilis/core";
+import { computeRevision } from "@facilis.dev/core";
+import type { LocaleCatalogs } from "@facilis.dev/core";
 import routeMetadata from "#facilis/openapi-meta";
 import { configPath, projectRoot } from "#facilis/config";
 

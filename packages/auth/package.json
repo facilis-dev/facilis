@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/auth",
+  "name": "@facilis.dev/auth",
   "version": "0.0.0",
   "type": "module",
   "description": "Facilis authentication and RBAC primitives: sessions, role expansion, permission checks.",
@@ -30,9 +30,28 @@
     "xml-crypto": "6.4.0"
   },
   "dependencies": {
-    "@facilis/db": "workspace:*",
+    "@facilis.dev/db": "workspace:*",
     "@node-saml/node-saml": "5.2.0",
     "drizzle-orm": "0.45.4",
     "jose": "6.2.13"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/auth"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/auth#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

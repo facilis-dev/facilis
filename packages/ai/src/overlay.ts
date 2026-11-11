@@ -8,7 +8,7 @@
  * tell "no keys" from "broken catalogue". Pure and browser-safe.
  */
 
-import type { Analysis, ConfigFacts, FileFacts, TableFact } from "@facilis/analyze";
+import type { Analysis, ConfigFacts, FileFacts, TableFact } from "@facilis.dev/analyze";
 
 import { LOCALES_PATH, normalizeProjectPath, SCHEMA_PATH } from "./paths.ts";
 import type { FilePatch, PatchContext } from "./types.ts";

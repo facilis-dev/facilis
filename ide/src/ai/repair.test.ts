@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ValidationError } from "@facilis/ai";
+import type { ValidationError } from "@facilis.dev/ai";
 import type { AiParseFailure } from "./response";
 import {
   buildRepairMessages,

@@ -1,4 +1,4 @@
-import type { ColumnSnapshot, PolicySnapshot, SchemaSnapshot, TableSnapshot } from "@facilis/db";
+import type { ColumnSnapshot, PolicySnapshot, SchemaSnapshot, TableSnapshot } from "@facilis.dev/db";
 
 /**
  * Hand-built declared snapshots for the planner tests. The PGlite round-trip in

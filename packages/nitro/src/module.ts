@@ -200,7 +200,7 @@ interface FrameworkVersions {
 function readFrameworkVersions(): FrameworkVersions {
   const require = createRequire(import.meta.url);
   return {
-    coreVersion: readPackageVersion(require, "@facilis/core/package.json"),
+    coreVersion: readPackageVersion(require, "@facilis.dev/core/package.json"),
     nitroVersion: readPackageVersion(require, "nitro/package.json"),
   };
 }

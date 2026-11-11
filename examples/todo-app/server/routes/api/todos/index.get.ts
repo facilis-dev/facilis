@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { facilisFiles, todoFiles, todos } from "~/db/schema";
 
 interface TodoFile {

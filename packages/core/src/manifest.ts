@@ -1,13 +1,13 @@
-import type { SchemaSnapshot } from "@facilis/db";
+import type { SchemaSnapshot } from "@facilis.dev/db";
 
 import type { DbMode, FacilisConfig } from "./config.ts";
 
 /**
  * Manifest contract (SPEC §6.1, §6.2, §7.2, §7.3).
  *
- * Types are declared in core so `@facilis/nitro`, the Studio and the AI layer share one
- * shape; schema snapshot types are re-exported from `@facilis/db` so consumers only ever
- * import the public surface from `@facilis/core` (SPEC §5.1).
+ * Types are declared in core so `@facilis.dev/nitro`, the Studio and the AI layer share one
+ * shape; schema snapshot types are re-exported from `@facilis.dev/db` so consumers only ever
+ * import the public surface from `@facilis.dev/core` (SPEC §5.1).
  */
 
 export type {
@@ -16,7 +16,7 @@ export type {
   PolicySnapshot,
   SchemaSnapshot,
   TableSnapshot,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

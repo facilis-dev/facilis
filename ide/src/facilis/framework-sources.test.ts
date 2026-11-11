@@ -29,8 +29,8 @@ describe("framework project files", () => {
     expect(paths.length).toBeGreaterThan(0);
     for (const path of paths) {
       const installed =
-        path.startsWith("node_modules/@facilis/auth/") ||
-        path.startsWith("node_modules/@facilis/db/");
+        path.startsWith("node_modules/@facilis.dev/auth/") ||
+        path.startsWith("node_modules/@facilis.dev/db/");
       expect(installed, path).toBe(true);
     }
   });
@@ -42,13 +42,13 @@ describe("framework project files", () => {
 
   it("carries the manifests and the table modules the analyzer resolves through", () => {
     for (const packageName of FRAMEWORK_TABLE_PACKAGES) {
-      const prefix = "node_modules/@facilis/" + packageName;
+      const prefix = "node_modules/@facilis.dev/" + packageName;
       // package.json is what resolvePackage() reads for the package's exports entry.
       expect(files.has(prefix + "/package.json"), packageName).toBe(true);
       expect(files.has(prefix + "/src/index.ts"), packageName).toBe(true);
     }
-    expect(files.has("node_modules/@facilis/auth/src/tables.ts")).toBe(true);
-    expect(files.has("node_modules/@facilis/db/src/files.ts")).toBe(true);
+    expect(files.has("node_modules/@facilis.dev/auth/src/tables.ts")).toBe(true);
+    expect(files.has("node_modules/@facilis.dev/db/src/files.ts")).toBe(true);
   });
 
   it("is deterministic and sorted", () => {

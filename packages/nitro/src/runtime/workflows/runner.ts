@@ -3,7 +3,7 @@
 // The tick scans active rows and applies one transition each; a start or a decision only
 // wakes it. Nothing here waits for a human or keeps a transaction open across steps, which is
 // what makes an approval survive the dev-server worker reload (WORKFLOWS.md §2).
-import type { WorkflowsApi } from "@facilis/core";
+import type { WorkflowsApi } from "@facilis.dev/core";
 
 import type { JobTimers } from "../jobs/contracts.ts";
 import { SYSTEM_TIMERS } from "../jobs/engine-support.ts";

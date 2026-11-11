@@ -6,8 +6,8 @@
 // runner (W2) reuses this store; only the actor differs.
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
-import { facilisTasks, runWithPolicyScope } from "@facilis/db";
-import type { FacilisDb, PolicyScopedDatabase } from "@facilis/db";
+import { facilisTasks, runWithPolicyScope } from "@facilis.dev/db";
+import type { FacilisDb, PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type {
   NewStoredTask,

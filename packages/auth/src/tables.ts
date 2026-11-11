@@ -13,7 +13,7 @@ import {
   type PgPolicy,
 } from "drizzle-orm/pg-core";
 
-import { rlsForTable, tenantColumn } from "@facilis/db";
+import { rlsForTable, tenantColumn } from "@facilis.dev/db";
 
 const usersRls = rlsForTable({ tenantColumn: "tenant_id" });
 
@@ -210,5 +210,5 @@ export type ApiTokenRow = typeof apiTokens.$inferSelect;
 export type EmailVerificationRow = typeof authEmailVerifications.$inferSelect;
 export type NewEmailVerificationRow = typeof authEmailVerifications.$inferInsert;
 
-/** Public projection of a user row: the password hash never leaves @facilis/auth. */
+/** Public projection of a user row: the password hash never leaves @facilis.dev/auth. */
 export type AuthUser = Pick<UserRow, "id" | "email" | "tenantId" | "createdAt">;

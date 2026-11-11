@@ -7,7 +7,7 @@
  * own diagnostic lines and audit events through `ctx.log`.
  *
  * Core owns the SHAPES only. The sink (stdout/file), redaction, rotation, retention and the
- * dev buffer live in @facilis/nitro's runtime, because they are deployment concerns (D-119):
+ * dev buffer live in @facilis.dev/nitro's runtime, because they are deployment concerns (D-119):
  * a generated project must not be able to widen what an operator's log platform receives.
  */
 

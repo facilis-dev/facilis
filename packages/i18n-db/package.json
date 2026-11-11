@@ -1,5 +1,5 @@
 {
-  "name": "@facilis/i18n-db",
+  "name": "@facilis.dev/i18n-db",
   "version": "0.0.0",
   "type": "module",
   "description": "database i18n: translated content fields plus an optional catalogue overlay",
@@ -24,8 +24,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@facilis/core": "workspace:*",
-    "@facilis/db": "workspace:*",
+    "@facilis.dev/core": "workspace:*",
+    "@facilis.dev/db": "workspace:*",
     "drizzle-orm": "0.45.4",
     "zod": "4.6.7"
   },
@@ -34,5 +34,24 @@
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/i18n-db"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/i18n-db#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
 }

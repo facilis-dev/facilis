@@ -181,7 +181,7 @@ The handler context gains `sudo`. The callback receives the elevated DB client:
 ```ts
 // server/routes/api/order-requests/index.post.ts
 import { z } from "zod";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { orderRequests } from "~/db/schema";
 
 export default defineAuthorizedHandler(
@@ -318,15 +318,15 @@ must survive the rollback it describes.
 
 ## 5. Verification (2026-11-07)
 
-Views — `@facilis/db` 17 files / **127 tests**, including the 8 permission-view tests: invoker
+Views — `@facilis.dev/db` 17 files / **127 tests**, including the 8 permission-view tests: invoker
 unchanged; a definer permission view returns cross-owner aggregates through `facilis_app`; zero
 rows without `app.permissions`, rows with it; invalid and undeclared permissions fail as data;
-the existing plain-view leak test still proves the invoker rule. `@facilis/nitro` 20 files / 143
+the existing plain-view leak test still proves the invoker rule. `@facilis.dev/nitro` 20 files / 143
 tests (endpoint accepts a declared permission, 400 `invalid_permission` otherwise, boot
 validation). IDE 83 files / **654 tests** (selector, exact codegen with/without `permission`,
 client payload).
 
-Sudo — `@facilis/db` 8 sudo tests + 4 audit tests; `@facilis/core` 14 files / **109 tests**
+Sudo — `@facilis.dev/db` 8 sudo tests + 4 audit tests; `@facilis.dev/core` 14 files / **109 tests**
 (8 `ctx.sudo`, 8 `ctx.system`, handler-event safety): role attributes and app-role membership;
 an insert the app role cannot perform succeeds inside the block; after the call the identity is
 `facilis_app` again; savepoint rollback on throw undoes only the elevated block; audit
@@ -335,7 +335,7 @@ permission, operation, reason, tables, request id; fail-closed when the sink thr
 required for sudo (401, no audit, no role switch); `ctx.system` works with no session and
 records the `system:<job>` actor; shared nesting guard across both; handler event carries no
 `facilis.db` while `ctx.db` is the real request transaction; tables outside `dbTables`
-rejected; `sessionHash` in the auth test; `runAsSystem` audit ids. `@facilis/auth` 6 files /
+rejected; `sessionHash` in the auth test; `runAsSystem` audit ids. `@facilis.dev/auth` 6 files /
 41 tests. Example: 5 files / 33 tests (registration read on `ctx.db`, writes through
 `ctx.system`), template contract assertions updated. Analyzer: 10 files / **71 tests**, including
 the `route-direct-db` warning for raw `facilis.db`/`createDb` use.

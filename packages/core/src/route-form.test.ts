@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { FacilisDb } from "@facilis/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
 import { defineAuthorizedHandler } from "./route.ts";
@@ -13,8 +13,8 @@ const dbMock = vi.hoisted(() => {
   return { runWithPolicyScope };
 });
 
-vi.mock("@facilis/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@facilis/db")>();
+vi.mock("@facilis.dev/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@facilis.dev/db")>();
   return { ...actual, runWithPolicyScope: dbMock.runWithPolicyScope };
 });
 

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_JOBS_CONFIG, type ManifestWarning } from "@facilis/core";
-import { createDb, type FacilisDb } from "@facilis/db";
+import { DEFAULT_JOBS_CONFIG, type ManifestWarning } from "@facilis.dev/core";
+import { createDb, type FacilisDb } from "@facilis.dev/db";
 
 import type { JobModule } from "./contracts.ts";
 import { bootJobs } from "./boot.ts";

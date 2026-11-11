@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { runWithPolicyScope, type FacilisDb } from "@facilis/db";
+import { runWithPolicyScope, type FacilisDb } from "@facilis.dev/db";
 
 import type { IdentityClaims, SsoAudit, SsoAuditInput, SystemRunner } from "./contracts.ts";
 import { resolveIdentity, type ResolveIdentityOptions } from "./identity.ts";

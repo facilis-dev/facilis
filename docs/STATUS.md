@@ -51,7 +51,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 - **Phase 4:** the eval corpus and the browser matrix.
 - **Skills runtime** and MCP servers on the PTC seam ([AI-SKILLS.md](./AI-SKILLS.md) §7–8).
 - **Workflow retention/pruning and a dev inspection endpoint** ([WORKFLOWS.md](./WORKFLOWS.md), O-017).
-- **Open decisions:** O-005/O-006 (publish target), O-010 (auth schema reconcile), O-011
+- **Open decisions:** O-005 (starter repo count), O-010 (auth schema reconcile), O-011
   (declared-AST + preview mode C), O-012 (console RLS mode), O-013 (Entity Explorer views and
   reverse lookup), O-015 (definer-view provenance), O-017 (job workflows/retention), O-018
   (project-file picker), O-019 (log WORM/sinks), O-020 (SSO depth).
@@ -61,9 +61,9 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 ## Retired / superseded
 
 - The OpenAPI-driven **API Flow** was replaced by the AST project graph (D-092/D-095).
-- **`@facilis/blocks`** and Phase 5 are retired (D-131).
+- **`@facilis.dev/blocks`** and Phase 5 are retired (D-131).
 - The **v1 plain-CSS kit** is gone; template v2 ships Tailwind CSS v4 + Base UI source (D-090/D-096).
-- **`starter/`** stays empty until `@facilis/*` has a publish target (D-027/D-062); the template is `examples/todo-app`.
+- **`starter/`** was waiting on a publish target; the packages now publish to npm (D-164), so the starter is the next Phase 6 step (D-027/D-062); the template is `examples/todo-app`.
 - The **Model A / Model B** split is retired; the chat only uses the PTC runtime (D-101/D-103).
 - The gitignored **`.facilis/graph.json`** layout became per-element files (D-126).
 

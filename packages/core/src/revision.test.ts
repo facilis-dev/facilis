@@ -17,7 +17,7 @@ function baseInput(): RevisionInput {
     },
     blockManifests: [
       {
-        path: "node_modules/@facilis/blocks/DataTable/manifest.ts",
+        path: "node_modules/@facilis.dev/blocks/DataTable/manifest.ts",
         manifest: {
           name: "DataTable",
           version: "0.0.0",

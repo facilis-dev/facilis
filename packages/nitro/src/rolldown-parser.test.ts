@@ -6,7 +6,7 @@ import { analyzeProjectRoutes } from "./route-metadata.ts";
 
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
 
-const TS_ROUTE = `import { defineAuthorizedHandler } from "@facilis/core";
+const TS_ROUTE = `import { defineAuthorizedHandler } from "@facilis.dev/core";
 
 const tables = ["todos"] as const;
 

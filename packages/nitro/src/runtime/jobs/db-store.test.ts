@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createDb, runWithPolicyScope } from "@facilis/db";
-import type { FacilisDb } from "@facilis/db";
+import { createDb, runWithPolicyScope } from "@facilis.dev/db";
+import type { FacilisDb } from "@facilis.dev/db";
 
 import { createDbJobStore, isJobsTableAvailable } from "./db-store.ts";
 import {

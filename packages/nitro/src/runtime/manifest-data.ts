@@ -1,4 +1,4 @@
-import { buildManifest } from "@facilis/core";
+import { buildManifest } from "@facilis.dev/core";
 import type {
   BlockManifest,
   FacilisConfig,
@@ -7,7 +7,7 @@ import type {
   ManifestWarning,
   RouteMeta,
   SchemaSnapshot,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 
 import type { RouteMetadata, RouteMetadataMap } from "../types.ts";
 

@@ -1,14 +1,15 @@
 // End-to-end regression for the framework tables in the project graph.
 //
 // The IDE's VFS snapshot never lists node_modules, so the analyzer only sees the tables
-// declared in project source unless framework-sources.ts inlines the installed @facilis
-// source. db/schema.ts re-exports framework state from @facilis/auth and @facilis/db: with
+// declared in project source unless framework-sources.ts inlines the installed @facilis.dev
+// source. db/schema.ts re-exports framework state from @facilis.dev/auth and @facilis.dev/db: with
 // that source missing the analyzer silently drops those tables (and the FK/route edges to
 // them) and the graph shows only the two application tables.
-import { analyzeProject, type Analysis } from "@facilis/analyze";
+import { analyzeProject, type Analysis } from "@facilis.dev/analyze";
 import { describe, expect, it } from "vitest";
 import { exampleProjectFiles } from "./example-template";
 import { frameworkProjectFiles } from "./framework-sources";
+import { buildProjectGraphView } from "./graph-model";
 import { createBrowserOxcParser } from "./oxc-browser";
 
 const parser = createBrowserOxcParser();
@@ -82,6 +83,40 @@ describe("project analysis with framework sources", () => {
 
   it("reports no error diagnostics for the analyzed project", () => {
     expect(analysis.diagnostics.filter((entry) => entry.severity === "error")).toEqual([]);
+  });
+
+  // D-163 end to end: the two system filters leave the starter's own surface (the todo routes and
+  // the tables they declare), so the declutter is pinned against the real analyzed project.
+  it("filters the framework feature surface out of the drawn graph", () => {
+    const view = buildProjectGraphView({
+      graph: analysis.graph,
+      hideSystemRoutes: true,
+      hideSystemTables: true,
+    });
+    expect(view.nodes).toHaveLength(14);
+    expect(view.edges).toHaveLength(25);
+    expect(view.stats.hiddenNodes).toBe(28);
+    expect(view.stats.routes).toBe(6);
+    expect(view.stats.tables).toBe(3);
+    expect(
+      view.nodes
+        .filter((node) => node.kind === "route")
+        .map((node) => node.label)
+        .toSorted((left, right) => left.localeCompare(right)),
+    ).toEqual([
+      "DELETE /api/todos/{id}",
+      "DELETE /api/todos/{id}/files/{fileId}",
+      "GET /api/todos",
+      "PATCH /api/todos/{id}",
+      "POST /api/todos",
+      "POST /api/todos/{id}/files",
+    ]);
+    expect(
+      view.nodes
+        .filter((node) => node.kind === "table")
+        .map((node) => node.label)
+        .toSorted((left, right) => left.localeCompare(right)),
+    ).toEqual(["facilis_files", "todo_files", "todos"]);
   });
 });
 

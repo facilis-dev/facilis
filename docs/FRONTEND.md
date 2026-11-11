@@ -3,10 +3,10 @@
 How a Facilis project's client is organised. This is the **generated app's** frontend (the
 thing a developer builds in the IDE), not the IDE itself. The UI layer is template v2 (D-090):
 Tailwind CSS v4 + Base UI, with shadcn-style primitives copied into the project and owned by it.
-The v1 `@facilis/ui` kit (D-055) was removed (D-096); projects created before D-090 are not
+The v1 `@facilis.dev/ui` kit (D-055) was removed (D-096); projects created before D-090 are not
 supported. The stack builds on
-the date logic (`@facilis/time`, D-056) and the i18n runtime (`@facilis/core/i18n`, plus the
-optional `@facilis/i18n-db/client`, D-057).
+the date logic (`@facilis.dev/time`, D-056) and the i18n runtime (`@facilis.dev/core/i18n`, plus the
+optional `@facilis.dev/i18n-db/client`, D-057).
 
 Reference implementation: `examples/todo-app/src` (real Nitro/PGlite backend: auth, todos).
 It is the acceptance app for this organisation, so the pattern is runnable, not a sketch.
@@ -37,7 +37,7 @@ src/
 │   ├── session.tsx       session provider/hooks + guards
 │   ├── theme.ts          data-theme persistence + hook
 │   ├── i18n.tsx          catalogue boot + locale state + hook
-│   ├── dates.ts          project-level date formatting on top of @facilis/time
+│   ├── dates.ts          project-level date formatting on top of @facilis.dev/time
 │   └── utils.ts          cn() — clsx + tailwind-merge
 ├── styles.css            Tailwind entry: @import "tailwindcss" + @theme + theme blocks
 └── styles/               optional app-specific layout CSS
@@ -170,17 +170,17 @@ export function resolveTheme(stored: string | null, prefersDark: boolean): Theme
   first render. `document.documentElement.lang` follows.
 - **User language is managed**: `useLocale()` exposes the current locale and a setter; the
   header renders a `LocaleSwitch`; the choice is persisted (`facilis.locale`). `t()` from
-  `@facilis/core/i18n` is what pages use — no second translation system.
+  `@facilis.dev/core/i18n` is what pages use — no second translation system.
 - **Optional database overlay** (D-057): if the project mounts `GET /api/i18n`, `initI18n`
   may call `hydrateCatalogs({ locales, base, defaultLocale })` from
-  `@facilis/i18n-db/client` inside a `try/catch` (a missing overlay must not break boot).
+  `@facilis.dev/i18n-db/client` inside a `try/catch` (a missing overlay must not break boot).
   The reference app uses files only and documents the seam.
 - Translated **content** (D-057) is a server concern: the API resolves
   `resolveTranslation(row.title, userLocale)`; the client just renders the string.
 
 ## 7. Dates — `lib/dates.ts`
 
-API values are ISO instants; the app formats them in the user's zone with `@facilis/time`.
+API values are ISO instants; the app formats them in the user's zone with `@facilis.dev/time`.
 
 ```ts
 export function localTimeZone(): string;                     // Intl resolved zone
@@ -221,12 +221,12 @@ they never replace the page with an error blob.
 | `/todos` | TodosPage | `Page`, create form with a native date input, `Table`, checkbox toggle, delete through `Dialog`, `Badge` for overdue, loading/empty/error, sonner toasts |
 | `*` | NotFoundPage | `EmptyState` |
 
-Run: `pnpm --filter @facilis/example-todo-app dev` (Vite + Nitro on one origin).
+Run: `pnpm --filter @facilis.dev/example-todo-app dev` (Vite + Nitro on one origin).
 Gates: `typecheck`, `lint`, `test` (pure lib helpers), `build`.
 
 ## 10. Done criteria
 
-- `pnpm --filter @facilis/example-todo-app typecheck | lint | test | build` green; files ≤300
+- `pnpm --filter @facilis.dev/example-todo-app typecheck | lint | test | build` green; files ≤300
   lines; every user-facing string via `t()` with en+it entries.
 - No colour literals in the app (variables only); no direct `fetch` outside `lib/api.ts`;
   no date formatting outside `lib/dates.ts`.

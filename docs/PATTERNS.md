@@ -64,11 +64,11 @@ GET /api/projects/a1b2.../stats?weeks=8
 - `weeks` is clamped (1–26, default 8).
 - Exactly `weeks` buckets, oldest → newest, **zeros included**: the server fills the gaps, the
   chart never does date math.
-- `weekStart` is an ISO date (Monday) rendered with `formatDateOnly` from `@facilis/time`.
+- `weekStart` is an ISO date (Monday) rendered with `formatDateOnly` from `@facilis.dev/time`.
 
 ### 2.4 Errors
 
-Codes only, via `fail("not_found" | "invalid_input" | …)` from `@facilis/core`; the client
+Codes only, via `fail("not_found" | "invalid_input" | …)` from `@facilis.dev/core`; the client
 maps the code to `errors.<code>` through `errorMessageKey` in `src/lib/api.ts`. No prose.
 
 ## 3. Server route shape (list)
@@ -76,7 +76,7 @@ maps the code to `errors.<code>` through `errorMessageKey` in `src/lib/api.ts`. 
 ```ts
 import { z } from "zod";
 import { and, asc, count, desc, eq, ilike } from "drizzle-orm";
-import { defineAuthorizedHandler } from "@facilis/core";
+import { defineAuthorizedHandler } from "@facilis.dev/core";
 import { projects } from "~/db/schema";
 
 const listQuery = z.object({

@@ -1,5 +1,5 @@
 import type { H3Event } from "nitro";
-import type { FacilisEventContext } from "@facilis/core";
+import type { FacilisEventContext } from "@facilis.dev/core";
 
 import { getBootstrap, getSessionHandler } from "../runtime/bootstrap.ts";
 

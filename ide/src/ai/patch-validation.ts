@@ -18,7 +18,7 @@ import {
   type SyntaxCheck,
   type SyntaxChecker,
   type ValidationResult,
-} from "@facilis/ai";
+} from "@facilis.dev/ai";
 import { loadProjectContext, type PatchContextHost } from "./patch-context";
 
 export type PatchValidationHost = PatchContextHost;

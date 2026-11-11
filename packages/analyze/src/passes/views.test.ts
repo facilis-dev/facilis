@@ -7,7 +7,7 @@ import { buildViewFacts } from "./views.ts";
 
 const HEADER =
   'import { sql } from "drizzle-orm";\n' +
-  'import { defineView } from "@facilis/db";\n' +
+  'import { defineView } from "@facilis.dev/db";\n' +
   'import { boolean, text } from "drizzle-orm/pg-core";\n';
 
 const QUERY_A = "sql`select id, done from todos where not done`";
@@ -139,7 +139,7 @@ describe("defineView facts (D-157)", () => {
         ],
         [
           "server/routes/api/active-todos.get.ts",
-          'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+          'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
             'import { activeTodos } from "~/db/views/active-todos";\n' +
             "export default defineAuthorizedHandler(\n" +
             '  { permission: [], dbTables: ["active_todos"] },\n' +

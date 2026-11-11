@@ -20,7 +20,7 @@ export const roles = pgTable("roles", {
 });
 `;
 
-const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 
 function diagnosticsOf(routeFile: string) {
   const graph = createModuleGraph({

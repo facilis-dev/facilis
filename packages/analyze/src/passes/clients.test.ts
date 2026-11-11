@@ -8,7 +8,7 @@ import { buildRouteFacts } from "./routes.ts";
 import { buildPageFacts, type TransportSpec } from "./clients.ts";
 import { loadFixtureProject } from "../../test-fixtures/load.ts";
 
-const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE_IMPORT = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 const API_STUB =
   "export async function api(path: string, init: RequestInit = {}): Promise<unknown> {\n" +
   "  return fetch(path, init);\n}\n";

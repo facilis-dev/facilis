@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DEFAULT_TENANT_ID, defineConfig, type AuthContext } from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
-import { contentHash } from "@facilis/storage";
+import { DEFAULT_TENANT_ID, defineConfig, type AuthContext } from "@facilis.dev/core";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
+import { contentHash } from "@facilis.dev/storage";
 
 import { resolveStorage } from "./runtime/storage-target.ts";
 import { sendStoredFile, storeUpload, type StoredFile } from "./storage.ts";

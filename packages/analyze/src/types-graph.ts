@@ -50,7 +50,7 @@ export interface TableNodeData {
   readonly rlsEnabled: boolean;
   readonly scope: ScopeFact | null;
   /**
-   * True when an installed @facilis package declares the table and the project only
+   * True when an installed @facilis.dev package declares the table and the project only
    * re-exports it: its source file lives under `node_modules/`.
    */
   readonly framework: boolean;

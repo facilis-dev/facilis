@@ -87,9 +87,9 @@ export interface ApiDiff {
 }
 
 /**
- * Structural copy of `@facilis/db`'s `PolicySnapshot` (SPEC §7.3). It is declared here
- * instead of imported: the browser-safe `@facilis/core/release` subpath must not pull
- * `@facilis/db`'s declarations, which reach `@types/pg` and, through it, `@types/node`
+ * Structural copy of `@facilis.dev/db`'s `PolicySnapshot` (SPEC §7.3). It is declared here
+ * instead of imported: the browser-safe `@facilis.dev/core/release` subpath must not pull
+ * `@facilis.dev/db`'s declarations, which reach `@types/pg` and, through it, `@types/node`
  * into the Studio's browser program — the Node and DOM `ReadableStream` typings then
  * clash (D-086). The shapes are identical, so a db snapshot value stays assignable.
  */

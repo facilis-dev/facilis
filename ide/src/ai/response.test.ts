@@ -211,7 +211,7 @@ describe("parseAiResponse", () => {
   });
 });
 
-const CONFIG = `import { defineConfig } from "@facilis/core";
+const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },
@@ -221,7 +221,7 @@ export default defineConfig({
 const SOURCES: Record<string, string> = {
   "facilis.config.ts": CONFIG,
   "db/schema.ts": "export {};\n",
-  "package.json": JSON.stringify({ dependencies: { "@facilis/core": "workspace:*" } }),
+  "package.json": JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } }),
   "locales/en.json": JSON.stringify({}),
   "tsconfig.json": JSON.stringify({}),
 };
@@ -258,7 +258,7 @@ describe("parseTurn", () => {
 
   it("returns the validation result for a valid answer", async () => {
     const content =
-      'import { defineAuthorizedHandler } from "@facilis/core";\n\n' +
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
       'export default defineAuthorizedHandler({ permission: ["todos:read"], dbTables: [], ' +
       'description: "List todos visible to the current user." }, async () => null);\n';
     const raw = json({

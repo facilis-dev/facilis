@@ -1,4 +1,4 @@
-import type { FacilisHandlerEvent } from "@facilis/core";
+import type { FacilisHandlerEvent } from "@facilis.dev/core";
 
 /**
  * Delivery of the email-verification link (D-156) for the example app.

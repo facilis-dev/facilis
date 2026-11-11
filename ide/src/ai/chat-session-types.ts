@@ -3,7 +3,7 @@
 // Split out of chat-session.ts, which is at the 300-line limit: the session class
 // owns behaviour, these are the shapes the host, the tests and the UI agree on.
 
-import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
+import type { Analysis, FilePatch, SyntaxChecker } from "@facilis.dev/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { PreviewAccess } from "./preview-access";
 import type { CallModelInput, CallModelResult } from "./client";

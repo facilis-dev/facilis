@@ -1,4 +1,4 @@
-import type { TableSnapshot } from "@facilis/db";
+import type { TableSnapshot } from "@facilis.dev/db";
 
 import { addDraft, columnsByName, isScoped, tableList, type PlanContext } from "./diff-helpers.ts";
 import { slug } from "./draft.ts";

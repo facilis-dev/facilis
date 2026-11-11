@@ -6,7 +6,7 @@ import type {
   PolicySnapshot,
   TableSnapshot,
   UniqueConstraintSnapshot,
-} from "@facilis/db";
+} from "@facilis.dev/db";
 
 /**
  * SQL rendering for the planned batches, ported from the orphaned D-109 renderer

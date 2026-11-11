@@ -6,7 +6,7 @@ const ROUTE = "server/routes/api/";
 const QUERY = "sql`select id, done from todos`";
 const VIEW_SOURCE =
   'import { sql } from "drizzle-orm";\n' +
-  'import { defineView } from "@facilis/db";\n' +
+  'import { defineView } from "@facilis.dev/db";\n' +
   'import { text } from "drizzle-orm/pg-core";\n' +
   "export const activeTodos = defineView({\n" +
   '  name: "active_todos",\n' +
@@ -17,7 +17,7 @@ const VIEW_SOURCE =
   "});\n";
 
 const VIEW_ROUTE =
-  'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+  'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
   'import { activeTodos } from "~/db/views/active-todos";\n' +
   "export default defineAuthorizedHandler(\n" +
   '  { permission: ["todos:read"], dbTables: ["active_todos"] },\n' +
@@ -32,7 +32,7 @@ function findings(result: { errors: readonly { rule: string; message: string }[]
 
 function rawRoute(config: string): string {
   return (
-    'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
     "export default defineAuthorizedHandler(\n" +
     "  { permission: [], dbTables: [], " +
     config +
@@ -55,7 +55,7 @@ describe("rule 4 db-tables-valid accepts a view (D-157)", () => {
 describe("rule 18 route-table-declared", () => {
   it("rejects a used relation that dbTables does not declare", () => {
     const route =
-      'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
       'import { notes } from "~/db/schema";\n' +
       "export default defineAuthorizedHandler(\n" +
       '  { permission: ["todos:read"], dbTables: ["todos"] },\n' +
@@ -73,7 +73,7 @@ describe("rule 18 route-table-declared", () => {
 
   it("warns about a declared relation the handler never uses", () => {
     const route =
-      'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
       "export default defineAuthorizedHandler(\n" +
       '  { permission: ["todos:read"], dbTables: ["todos"], description: "Unused declaration." },\n' +
       "  async () => null,\n" +
@@ -94,7 +94,7 @@ describe("rule 18 route-table-declared", () => {
 
   it("rejects a relation used inside an elevation outside its tables option", () => {
     const route =
-      'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
       'import { notes } from "~/db/schema";\n' +
       "export default defineAuthorizedHandler(\n" +
       '  { permission: [], dbTables: ["todos", "notes"] },\n' +
@@ -118,7 +118,7 @@ describe("rule 18 route-table-declared", () => {
       "  return db.select().from(todos);\n" +
       "}\n";
     const route =
-      'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
       'import { listTodos } from "~/server/utils/db";\n' +
       "export default defineAuthorizedHandler(\n" +
       '  { permission: ["todos:read"], dbTables: ["todos"] },\n' +

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilePatch } from "@facilis/ai";
+import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import { applyAccepted, applyUndo, type ActionHost } from "./chat-actions";
 import type { PatchValidationHost } from "./patch-validation";
@@ -101,7 +101,7 @@ describe("chat actions", () => {
   });
 });
 
-const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis/core";
+const VALIDATOR_CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   auth: { permissions: ["todos:read"], roles: { admin: ["*"] }, defaultRole: "admin" },

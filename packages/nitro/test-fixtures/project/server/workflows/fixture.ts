@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineWorkflow } from "@facilis/core";
+import { defineWorkflow } from "@facilis.dev/core";
 
 /**
  * Module-test fixture: a scanned workflow definition for `#facilis/workflows` (D-135).

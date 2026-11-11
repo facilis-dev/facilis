@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import { randomToken, sha256Hex } from "./crypto.ts";
 import { authEmailVerifications, users } from "./tables.ts";
@@ -8,7 +8,7 @@ import { authEmailVerifications, users } from "./tables.ts";
 /**
  * Email verification for password accounts (D-156).
  *
- * The primitive is split from delivery on purpose: `@facilis/auth` owns the single-use token and
+ * The primitive is split from delivery on purpose: `@facilis.dev/auth` owns the single-use token and
  * the `users.email_verified_at` transition, while the project (or the blueprint) owns how the
  * link reaches the mailbox. Every call runs inside the caller's audited `ctx.system` elevation,
  * because the verification route is reached before a session exists (same D-099 shape as

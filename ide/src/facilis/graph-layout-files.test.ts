@@ -55,6 +55,8 @@ describe("decodeGraphLayout", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: { "table:todos": { x: 10, y: 20 } },
       hiddenEdges: ["relation"],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: { "table:todos": true },
       edgeCurves: { "fk:1": { x: 2, y: -3 } },
       notes: { [NOTE]: note },
@@ -95,6 +97,12 @@ describe("decodeGraphLayout", () => {
     expect(decodeGraphLayout({ layout: JSON.stringify({ version: 3 }) }).source).toBe("ok");
   });
 
+  it("reads a layout written before the system filters as show-everything", () => {
+    const decoded = decodeGraphLayout({ layout: JSON.stringify({ version: 3 }) });
+    expect(decoded.layout.hideSystemRoutes).toBe(false);
+    expect(decoded.layout.hideSystemTables).toBe(false);
+  });
+
   it("skips one corrupt element file instead of losing the rest", () => {
     const decoded = decodeGraphLayout({
       positions: {
@@ -128,6 +136,8 @@ describe("encodeGraphLayout", () => {
         nodes: { "table:todos": { x: 7, y: 8 } },
         edgeCurves: { "fk:1": { x: 1, y: 2 } },
         hiddenEdges: ["relation", "fk"],
+        hideSystemRoutes: true,
+        hideSystemTables: false,
         collapsed: { "table:todos": true },
         notes: { [NOTE]: note },
         viewport: { x: 1, y: 2, zoom: 0.5 },
@@ -136,6 +146,8 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: ["fk", "relation"],
+      hideSystemRoutes: true,
+      hideSystemTables: false,
       collapsed: { "table:todos": true },
     });
     expect(files.get(GRAPH_POSITIONS_DIR + "/table%3Atodos.json")).toBe(
@@ -152,6 +164,8 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: ["route-view", "view-base"],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: {},
     });
   });
@@ -169,6 +183,8 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: [],
+      hideSystemRoutes: false,
+      hideSystemTables: false,
       collapsed: {},
     });
     expect(files.get(GRAPH_VIEWPORT_PATH)).toBe("");
@@ -183,6 +199,8 @@ describe("encodeGraphLayout", () => {
       nodes: { "table:todos": { x: 7, y: 8 } },
       edgeCurves: { "fk:1": { x: 2, y: -3 } },
       hiddenEdges: ["fk"],
+      hideSystemRoutes: true,
+      hideSystemTables: true,
       collapsed: { "table:todos": true },
       notes: { [NOTE]: note },
       viewport: { x: 1, y: 2, zoom: 1 },

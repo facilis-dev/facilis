@@ -1,5 +1,5 @@
-import { JobError, type JobDefinition } from "@facilis/core";
-import { TableAccessError } from "@facilis/db";
+import { JobError, type JobDefinition } from "@facilis.dev/core";
+import { TableAccessError } from "@facilis.dev/db";
 import { describe, expect, it } from "vitest";
 import type { JobEngineConfig, JobExecutor, JobTimers } from "./contracts.ts";
 import { createJobEngine } from "./engine.ts";

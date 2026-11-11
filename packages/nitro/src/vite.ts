@@ -3,7 +3,7 @@ import type { Plugin } from "vite";
 import type { NitroModule } from "nitro/types";
 import { nitro } from "nitro/vite";
 
-import type { Analysis } from "@facilis/analyze";
+import type { Analysis } from "@facilis.dev/analyze";
 
 import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";

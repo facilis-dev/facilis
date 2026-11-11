@@ -1,6 +1,6 @@
 /**
  * SEC-12 gate: a handwritten route must satisfy security invariants 1-2 — its default export
- * is the `@facilis/core` `defineAuthorizedHandler` call, its config carries a statically
+ * is the `@facilis.dev/core` `defineAuthorizedHandler` call, its config carries a statically
  * readable `dbTables` array, and (D-157) every relation it uses through `ctx.db` /
  * `ctx.sudo` / `ctx.system` is declared there. The AI validator already blocks patches that
  * miss this (packages/ai/src/rules/); handwritten code had no enforcement, so `pnpm test`
@@ -8,8 +8,8 @@
  *
  * The gate runs the real analyzer instead of matching source text, so it agrees with the IDE
  * and the AI validator on what "valid" means. Framework sources are loaded (the default
- * `@facilis` node_modules scope) so workspace package bindings resolve: a table imported from
- * `@facilis/auth` is a known relation, and a helper call into a package is opaque (the
+ * `@facilis.dev` node_modules scope) so workspace package bindings resolve: a table imported from
+ * `@facilis.dev/auth` is a known relation, and a helper call into a package is opaque (the
  * runtime guard is the authority), never a false error.
  */
 
@@ -125,7 +125,7 @@ function writeSource(root: string, path: string, source: string): void {
   writeFileSync(full, source);
 }
 
-const CORE = 'import { defineAuthorizedHandler } from "@facilis/core";\n';
+const CORE = 'import { defineAuthorizedHandler } from "@facilis.dev/core";\n';
 const FIXTURE_SCHEMA =
   'import { pgTable, uuid } from "drizzle-orm/pg-core";\n' +
   'export const todos = pgTable("todos", { id: uuid("id").primaryKey() });\n' +

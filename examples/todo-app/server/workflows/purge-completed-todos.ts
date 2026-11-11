@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineWorkflow } from "@facilis/core";
+import { defineWorkflow } from "@facilis.dev/core";
 
 // One default export per file: the #facilis/workflows virtual module imports it by path.
 // The approval step suspends the chain on a manual task; a rejection fails the run (the

@@ -1,5 +1,5 @@
-import { ensureSystemRole, type FacilisDb } from "@facilis/db";
-import type { ManifestWarning } from "@facilis/core";
+import { ensureSystemRole, type FacilisDb } from "@facilis.dev/db";
+import type { ManifestWarning } from "@facilis.dev/core";
 
 /**
  * Boot step: provision `facilis_system` after the app role (D-099).

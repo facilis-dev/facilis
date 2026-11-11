@@ -1,5 +1,5 @@
-import type { AuthContext } from "@facilis/auth";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import type { AuthContext } from "@facilis.dev/auth";
+import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobsApi } from "./jobs.ts";
 import type { FacilisLogger } from "./logging.ts";

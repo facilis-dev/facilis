@@ -1,4 +1,4 @@
-import { isValidEncryptionKeyId, type StorageEncryptionKeys } from "@facilis/storage";
+import { isValidEncryptionKeyId, type StorageEncryptionKeys } from "@facilis.dev/storage";
 
 /**
  * Resolve the optional at-rest encryption keys from the environment (D-117).

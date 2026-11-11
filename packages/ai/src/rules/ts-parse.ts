@@ -2,7 +2,7 @@
  * Rule 1 `ts-parse` (SPEC §9.3): every script file the patch writes must parse.
  *
  * The parser itself is injected — the IDE passes the analyzer worker's oxc parser, Node
- * tooling passes `@facilis/ai/node` — so `@facilis/ai` never imports TypeScript. When the
+ * tooling passes `@facilis.dev/ai/node` — so `@facilis.dev/ai` never imports TypeScript. When the
  * injected checker is unavailable the rule fails closed: a patch is never written with
  * rule 1 silently skipped.
  */

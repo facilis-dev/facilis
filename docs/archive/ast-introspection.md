@@ -36,7 +36,7 @@ Zod/Drizzle behaviour).
   keeps rolldown's oxc 0.155, the browser/host use oxc-parser, and the AST contract is
   normalized to the repo's structural node shape. The two `@oxc-project/types` versions have
   byte-identical type definitions today.
-- **Architecture:** one new browser-safe package (working name `@facilis/analyze`) with an
+- **Architecture:** one new browser-safe package (working name `@facilis.dev/analyze`) with an
   injected parser, consumed by the IDE, the AI validator, the Nitro plugin and the release
   preview. The runtime endpoints stay, but become thin transports over the same facts plus
   the live data only they can supply.
@@ -64,15 +64,15 @@ and three virtual modules; the Studio and the AI layer read the JSON.
 
 | # | Surface | Registered | Producer | Static vs executed vs live |
 |---|---|---|---|---|
-| 1 | `GET /__facilis/manifest` (`packages/nitro/src/routes/manifest.get.ts:35`) | dev only (`module.ts:149`) | `@facilis/nitro` | mixed: config from executed module, routes from AST pass, schema from executed Drizzle namespace, i18n from fs |
-| 2 | `GET /__facilis/manifest/revision` | dev only | `@facilis/nitro` | fs bytes + AST metadata (`runtime/revision-service.ts`) |
-| 3 | `GET /__facilis/health` | dev only | `@facilis/nitro` | boot timestamp + revision |
-| 4 | `GET /__facilis/dev/schema` | dev only | `@facilis/nitro` + `@facilis/db` | code = executed `getTableConfig`; live = `pg_catalog`; drift = pure diff |
-| 5 | `GET /_openapi.json` facade | dev unless `openAPI.production` | `@facilis/nitro` | Nitro's generated spec (executes routes) + AST metadata |
+| 1 | `GET /__facilis/manifest` (`packages/nitro/src/routes/manifest.get.ts:35`) | dev only (`module.ts:149`) | `@facilis.dev/nitro` | mixed: config from executed module, routes from AST pass, schema from executed Drizzle namespace, i18n from fs |
+| 2 | `GET /__facilis/manifest/revision` | dev only | `@facilis.dev/nitro` | fs bytes + AST metadata (`runtime/revision-service.ts`) |
+| 3 | `GET /__facilis/health` | dev only | `@facilis.dev/nitro` | boot timestamp + revision |
+| 4 | `GET /__facilis/dev/schema` | dev only | `@facilis.dev/nitro` + `@facilis.dev/db` | code = executed `getTableConfig`; live = `pg_catalog`; drift = pure diff |
+| 5 | `GET /_openapi.json` facade | dev unless `openAPI.production` | `@facilis.dev/nitro` | Nitro's generated spec (executes routes) + AST metadata |
 | 6 | `GET /_facilis/openapi.json` | internal | Nitro | executed route modules |
-| 7 | virtual `#facilis/config` | server | `@facilis/nitro` | executes `facilis.config.ts` |
-| 8 | virtual `#facilis/db-schema` | server | `@facilis/nitro` | imports/executes `db/schema.ts` (Drizzle definitions) |
-| 9 | virtual `#facilis/openapi-meta` | Vite plugin | `@facilis/nitro` AST pass | static scan of `server/routes/**` |
+| 7 | virtual `#facilis/config` | server | `@facilis.dev/nitro` | executes `facilis.config.ts` |
+| 8 | virtual `#facilis/db-schema` | server | `@facilis.dev/nitro` | imports/executes `db/schema.ts` (Drizzle definitions) |
+| 9 | virtual `#facilis/openapi-meta` | Vite plugin | `@facilis.dev/nitro` AST pass | static scan of `server/routes/**` |
 
 SPEC §6.3/§11.4 also names `POST /__facilis/dev/query`; there was no route when this audit was
 written. It now exists (D-097), together with `POST /__facilis/dev/view`, and both are dev-only
@@ -146,7 +146,7 @@ Concrete failures found in the current tree (line references are to HEAD):
    (`packages/core/src/release-breaking.ts:60-69`). References to camelCase properties can
    never lift a drop to "breaking". SPEC §7.3 does not pin the domain.
 10. **Blocks can never satisfy rule 7.** The only fact source is the manifest's `blocks`
-    section, which the runtime never populates; every `@facilis/blocks` import therefore fails
+    section, which the runtime never populates; every `@facilis.dev/blocks` import therefore fails
     in the validator (`packages/ai/src/rules/blocks.ts`). Phase 5 is now retired and the package
     deleted (D-131), so the rule is permanently a guard against a supply chain that does not exist.
 11. **Boot timing is not retried by panels.** A first request during boot renders the error
@@ -207,7 +207,7 @@ Concrete examples:
 - `const tableName = process.env.TABLE ?? "todos"; pgTable(tableName, columns())` — the AST sees
   identifiers; the table name and the columns are values produced by evaluation, possibly
   different per environment.
-- `export { users } from "@facilis/auth"` — the AST sees the re-export; the table definition
+- `export { users } from "@facilis.dev/auth"` — the AST sees the re-export; the table definition
   lives in a package, possibly as built output. Parsing into `node_modules` is possible;
   evaluating the package is more faithful.
 - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in a migration is code; whether the running
@@ -289,7 +289,7 @@ are available, but the production CSP (`wasm-unsafe-eval`) is still to verify. M
 ### 4.3 Node / WebContainer: keep the current parser for now
 
 The generated project's Node runtime already runs **oxc 0.155 through `rolldown/utils`**
-(`@facilis/nitro`'s AST pass and `@facilis/ai/node`). Do **not** add oxc-parser to the VM as a
+(`@facilis.dev/nitro`'s AST pass and `@facilis.dev/ai/node`). Do **not** add oxc-parser to the VM as a
 new dependency yet: its WebContainer path relies on an upstream best-effort fallback that
 `pnpm install`s the WASI binding at runtime into `/tmp` and on `node:wasi` support inside the
 WebContainer, and neither is verified here. The generated project would also pay another
@@ -304,7 +304,7 @@ can disappear.
 
 Also worth fixing while there: the current scanner transforms TS first "because `parseSync`
 parses JS only" (`packages/nitro/src/ast/scanner.ts:83-89`). A probe shows rolldown 1.2.15's
-`parseSync` parses TS/TSX directly (`as const` → `TSAsExpression`), and `@facilis/ai/node`
+`parseSync` parses TS/TSX directly (`as const` → `TSAsExpression`), and `@facilis.dev/ai/node`
 already parses TS directly, so that transform step (and its comment) is likely unnecessary.
 
 ### 4.4 Version alignment
@@ -346,14 +346,14 @@ single-engine future open.
 
 ### 5.1 One fact package, layered producers
 
-Create `@facilis/analyze` (name TBD; it must not import `@facilis/db` or `@facilis/auth`, even
+Create `@facilis.dev/analyze` (name TBD; it must not import `@facilis.dev/db` or `@facilis.dev/auth`, even
 type-only — D-086 shows how that pulls Node types into the browser program):
 
 ```
-@facilis/analyze            pure types + orchestration, zero runtime deps
-@facilis/analyze/rolldown   VM adapter over rolldown/utils (oxc 0.155, today)
-@facilis/analyze/oxc        browser wasm / host native adapter (oxc-parser)
-@facilis/analyze/evaluate   Node-only build-time evaluation of project modules (no DB)
+@facilis.dev/analyze            pure types + orchestration, zero runtime deps
+@facilis.dev/analyze/rolldown   VM adapter over rolldown/utils (oxc 0.155, today)
+@facilis.dev/analyze/oxc        browser wasm / host native adapter (oxc-parser)
+@facilis.dev/analyze/evaluate   Node-only build-time evaluation of project modules (no DB)
 ```
 
 The `evaluate` adapter is the answer to "but everything is code": it executes the project's own
@@ -634,7 +634,7 @@ parity test matrix, not oxc.
 - WebContainer: `src-js/webcontainer-fallback.cjs` and upstream PR #10049 ("auto download wasm
   binding on webcontainer"); the VM currently runs oxc 0.155 via rolldown 1.2.15.
 - Repo precedent: `@rolldown/binding-wasm32-wasi` + `@emnapi/*` overrides in
-  `ide/src/facilis/project-files.ts`; `@facilis/ai/node` already parses TS directly with
+  `ide/src/facilis/project-files.ts`; `@facilis.dev/ai/node` already parses TS directly with
   rolldown's `parseSync`.
 - AI text-rule bypass: re-ran the current `maskSource`/matcher logic on a file containing only
   string literals + a raw exported handler; rules 2 and 3 passed as "satisfied".

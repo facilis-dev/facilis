@@ -97,7 +97,7 @@ async function startDevServer() {
     "pnpm",
     [
       "--filter",
-      "@facilis/ide",
+      "@facilis.dev/ide",
       "dev",
       "--host",
       "127.0.0.1",

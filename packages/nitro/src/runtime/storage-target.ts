@@ -6,7 +6,7 @@ import {
   type FacilisConfig,
   type ManifestWarning,
   type StorageApi,
-} from "@facilis/core";
+} from "@facilis.dev/core";
 import {
   buildSignedDownloadUrl,
   createEncryptedStorage,
@@ -16,7 +16,7 @@ import {
   type SigningStorageDriver,
   type StorageDriver,
   type StorageEncryptionKeys,
-} from "@facilis/storage";
+} from "@facilis.dev/storage";
 
 import { isProductionEnvironment } from "./env.ts";
 import { resolveEncryptionKeys } from "./storage-keys.ts";

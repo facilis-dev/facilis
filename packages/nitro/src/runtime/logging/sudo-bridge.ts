@@ -1,5 +1,5 @@
-import { setSudoAuditSink, type SudoAuditEvent } from "@facilis/db";
-import type { AuditLogEntry, FacilisLoggingApi } from "@facilis/core";
+import { setSudoAuditSink, type SudoAuditEvent } from "@facilis.dev/db";
+import type { AuditLogEntry, FacilisLoggingApi } from "@facilis.dev/core";
 
 /**
  * Bridge the db package's sudo trail into the audit stream (D-099, D-119).

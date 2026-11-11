@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defineConfig, summarizeManifest } from "@facilis/core";
+import { defineConfig, summarizeManifest } from "@facilis.dev/core";
 
 import type { RouteMetadata, RouteMetadataMap } from "../types.ts";
 import { buildManifestData, flattenRouteMetadata, toRouteMeta } from "./manifest-data.ts";

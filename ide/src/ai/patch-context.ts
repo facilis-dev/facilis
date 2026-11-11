@@ -1,12 +1,12 @@
 // Project material for the patch validator (SPEC §9.3 wiring; task-10).
 //
-// After the analyzer cutover the validator's facts come from @facilis/analyze, not from
+// After the analyzer cutover the validator's facts come from @facilis.dev/analyze, not from
 // sources this module reads. Only two files still need their bytes here: package.json
 // (installed packages) and tsconfig.json (path aliases) — the analyzer does not model them.
 // The live manifest is still fetched best-effort; it only contributes blocks and a locale
 // fallback. The pre/post analyses themselves arrive through the host's analyze() seam.
 
-import type { Analysis, FilePatch, SyntaxChecker } from "@facilis/ai";
+import type { Analysis, FilePatch, SyntaxChecker } from "@facilis.dev/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
 import type { GitAccess } from "./git-access";
 import type { GraphAccess } from "./graph-access";

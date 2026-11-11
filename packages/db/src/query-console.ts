@@ -1,7 +1,7 @@
 // Read-only SQL execution and live view creation for the Studio's dev console
 // (SPEC §11.2, D-097).
 //
-// This lives in @facilis/db because it is SQL: AGENTS.md security rule 5 keeps raw Drizzle
+// This lives in @facilis.dev/db because it is SQL: AGENTS.md security rule 5 keeps raw Drizzle
 // imports inside this package. The Nitro route owns transport and validation; this module
 // owns the read-only transaction and the JSON-safe result shape.
 

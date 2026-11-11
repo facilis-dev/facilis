@@ -4,7 +4,7 @@ import { create, rulesOf, SCHEMA, update, validate } from "./testing/fixtures.ts
 
 const JOBS = "server/jobs/";
 const RULE = "job-table-declared";
-const CORE = 'import { defineJob } from "@facilis/core";\n';
+const CORE = 'import { defineJob } from "@facilis.dev/core";\n';
 
 const NOTES_SCHEMA =
   SCHEMA + '\nexport const notes = pgTable("notes", { id: uuid("id").primaryKey() });\n';
@@ -120,7 +120,7 @@ describe("rule 19 job-table-declared", () => {
   it("suppresses the unused warning when a package helper receives the client", () => {
     const content =
       CORE +
-      'import { runAsSystem } from "@facilis/db";\n' +
+      'import { runAsSystem } from "@facilis.dev/db";\n' +
       "export default defineJob({\n" +
       '  name: "delegated",\n' +
       '  dbTables: ["todos"],\n' +
