@@ -5,6 +5,7 @@ import { buildProjectGraph, type GraphInput } from "./graph.ts";
 import { createModuleGraph } from "./module-graph.ts";
 import { createOxcParser } from "./node.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
+import { EMPTY_ROUTE_RELATIONS } from "./types-relations.ts";
 import type { ConfigFacts, PageFact, RouteFact, SourceRef, TableFact } from "./types.ts";
 
 const parser = createOxcParser();
@@ -38,6 +39,8 @@ function route(overrides: Partial<RouteFact> & Pick<RouteFact, "method" | "path"
     crossSite: false,
     dbTables: ["todos"],
     dbColumns: null,
+    rawSql: false,
+    relations: EMPTY_ROUTE_RELATIONS,
     description: null,
     input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,

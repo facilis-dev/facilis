@@ -5608,6 +5608,418 @@ chiavi indipendenti, clock iniettabile), `token.post.test.ts` (429 + `retry-afte
 negato non arriva al database + audit), config tests (default e validazione di windowMs/
 maxRequests), errors test (429 nella registry), root gates lint/typecheck/test/build.
 
+### D-144 — Session id hashato a riposo: la riga `sessions` non contiene più la credenziale
+**Status:** accepted (2026-11-10)
+
+L'audit di sicurezza (SEC-06) ha mostrato che le policy RLS padre di `sessions`, `user_roles`,
+`api_clients`, `api_tokens` e `auth_identities` sono tenant-wide per necessità: il middleware di
+sessione valida il cookie **prima** di conoscere l'utente, quindi la sua transazione ha solo
+`{ tenantId }` e non può usare `app.user_id`. Il problema specifico di `sessions` era però che la
+colonna chiave **era il valore del cookie**: una lettura della tabella (consentita al ruolo app nel
+tenant) restituiva credenziali vive.
+
+**Decision.** La riga memorizza `sha256(cookie id)`; il valore grezzo (32 byte casuali, base64url)
+esiste solo nel cookie. `createSession` calcola l'hash prima della INSERT e restituisce il valore
+grezzo al chiamante che imposta il cookie; `validateSession` e `destroySession` hashato il valore
+presentato prima della query. Nessuna modifica di schema (la colonna resta `text`), quindi nessuna
+migrazione; `AuthContext.sessionHash` (D-099) coincide già con la chiave di riga, e il trail di audit
+continua a non contenere il cookie.
+
+**Rejected.** Policy per-utente su `sessions`: bloccherebbe il lookup pre-auth (l'utente non è noto);
+`sessions` system-only con lettura in elevazione: richiede un `SET LOCAL ROLE` per richiesta e
+sposta il filtro `tenant_id` nelle query (rimandato: è la stessa scelta dei job, e può essere
+rivalutato insieme). La revoca del grant al ruolo app non è praticabile senza una delle due.
+
+**Consequences.** Le sessioni esistenti al momento dell'aggiornamento diventano irraggiungibili
+(righe con id grezzo): gli utenti rifanno il login, accettabile perché le sessioni sono effimere e
+scadono comunque. La tabella `sessions` resta RLS-scoped e tenant-wide: una lettura non espone più
+credenziali riutilizzabili, ma resta visibile la mappa utente→sessioni (id hashati). Se in futuro si
+vorrà nascondere anche quella, la strada è `sessions` system-only (stessa decisione dei job).
+
+**Verification.** `session.test.ts` (la riga è `sha256(cookie)` e l'id grezzo non compare nella
+tabella; lifecycle, scadenza, distruzione, middleware, Bearer che non fa fallback al cookie),
+suite `@facilis/auth` (135 test) e typecheck del pacchetto.
+
+### D-145 — Coda: accesso gated da `jobs:read`/`jobs:exec`, non da un ruolo system
+**Status:** accepted (2026-11-10)
+
+L'audit SEC-13 aveva proposto di rendere `facilis_jobs` system-only, ma la coda non è isolata:
+engine, runner dei workflow e task store girano oggi come `facilis_app` sotto il tenant, quindi il
+cambio avrebbe trascinato in system anche workflow e task, con elevazione/audit su ogni consumer.
+L'owner ha scelto l'alternativa: la coda resta RLS-scoped e l'accesso è governato da **permessi**;
+la visibilità per-utente dei job è responsabilità dell'endpoint che li espone (nessuna colonna
+owner finché non serve).
+
+**Decision.**
+
+- **Policy per comando su `app.permissions`.** `facilis_jobs` mantiene la
+  `tenant_isolation` restrictiva (D-008) e sostituisce la vecchia
+  `facilis_jobs_tenant_access` (permissiva `for all`, che avrebbe OR-abilitato tutto) con quattro
+  policy permissive: `SELECT` richiede `jobs:read`; `INSERT`/`UPDATE`/`DELETE` richiedono
+  `jobs:exec`. Il predicato è
+  `nullif(current_setting('app.permissions', true), '')::jsonb ? '...'`, lo stesso meccanismo
+  delle viste con permesso (D-098): un ruolo app che tocca la coda senza il permesso prende
+  `permission denied` dal database, non solo un check nel wrapper.
+- **Scope del motore.** Il worker del motore passa `permissions: ["jobs:read","jobs:exec"]` nella
+  propria transazione (`runWithPolicyScope`): sono permessi di framework, non di un utente. Le
+  operazioni fatte da una route usano la transazione della richiesta, quindi i permessi della
+  sessione (o del client Bearer); il *body* del job resta `runAsSystem` audited, invariato.
+- **Blueprint e config.** `facilis.config.ts` dichiara `jobs:read`/`jobs:exec` e li assegna ai
+  ruoli (l'esempio li dà a `user` e `manager`; `admin` ha il wildcard). Le route dei job usano
+  quei permessi al posto di `todos:read`/`todos:write`. Un progetto che abilita la coda senza
+  dichiararli fallisce chiuso (RLS), non silenziosamente aperto.
+- **Workflow e task.** Stesso schema quando W2/W3 atterrano: `tasks:read`/`tasks:decide`,
+  `workflows:read`/`workflows:exec`; niente system-only, niente cascata di elevazioni. Il
+  requisito "everything runs in a system context like jobs" di WORKFLOWS.md diventa "engine
+  app-role sotto il tenant con i permessi di framework; solo i body dei job sono system".
+- **Migrazione.** Una migrazione hand-written (le migrazioni dell'esempio sono scritte a mano, non
+  generate in CI): `0007_jobs_permissions.sql` droppa la policy vecchia e crea le quattro nuove.
+
+**Rejected.** `facilis_jobs` system-only (cascata su workflow/task, elevazione e audit su ogni
+lettura di coda, più "tutto system"); colonna `owner_id` (la visibilità per-utente non è un
+requisito: la decide l'endpoint, e resta additiva se servirà); ruoli Postgres per permesso
+(`jobs_read`/`jobs_exec` come `ROLE`: le app role non sono Postgres role, SPEC §8.4.5).
+
+**Consequences.** I nomi `jobs:read`/`jobs:exec` entrano nel contratto della config quando un
+progetto espone la coda; un client API Bearer ha bisogno di un ruolo con quei permessi; una route
+anonima che vuole accodare deve passare da `ctx.system` (audited). Il costo è un predicato jsonb
+per riga, come per le viste con permesso. Il modello si estende a `facilis_tasks`/`facilis_workflows`
+senza cambiare la classe delle tabelle.
+
+**Verification.** `examples/todo-app/db/migrations.test.ts` (le quattro policy + la vecchia
+assente), `packages/nitro/src/runtime/jobs/db-store.test.ts` (scope con permessi: passa; scope
+senza: INSERT negato e SELECT invisibile), suite jobs di `@facilis/nitro`, suite
+`@facilis/db`, gates root.
+
+### D-146 — Rilevamento produzione fail-closed: solo `development`/`test` sono dev
+**Status:** accepted (2026-11-10)
+
+L'audit SEC-03 ha mostrato che `isProductionEnvironment` era `NODE_ENV === "production"`: un deploy
+che ometteva la variabile otteneva i dev endpoint (manifest, dev/query, dev/schema, dev/view), il
+cookie senza `Secure`, i log su file e il fallback PGlite. Il default ora è **fail-closed**: solo
+`NODE_ENV=development` o `NODE_ENV=test` sono dev; qualunque altro valore (incluso l'assenza) è
+produzione. Lo stesso helper governa cookie, storage, logging, dev guard e rifiuto di PGlite in
+produzione, quindi non restano controlli con default diversi. Docs e test aggiornati: i test che
+simulavano "dev" con `{}` ora passano `NODE_ENV: "development"`.
+
+### D-147 — SAML: `validateInResponseTo: "always"`, nessuna risposta non sollecitata
+**Status:** accepted (2026-11-10)
+
+SEC-07: `"ifPresent"` lega l'asserzione alla AuthnRequest solo quando l'asserzione porta
+`InResponseTo`; una risposta IdP-initiated o una replay senza quel campo passava la validazione
+(restava solo il RelayState, che l'attaccante può creare). Ora node-saml richiede sempre
+`InResponseTo` e lo confronta con il request id dello state monouso; il commento del modulo e il
+test SAML sono allineati a "sempre", non "se presente".
+
+### D-148 — PBKDF2 a 600k iterazioni e login a tempo costante
+**Status:** accepted (2026-11-10)
+
+SEC-11: PBKDF2-SHA256 era a 210.000 iterazioni (sotto la raccomandazione OWASP di 600.000) e il
+blueprint di login usciva **prima** di `verifyPassword` quando l'email non esisteva (o l'account
+era SSO/service), creando un timing oracle per l'enumerazione. Default portato a 600.000 (gli hash
+esistenti restano validi: le iterazioni sono nel formato versionato) e il blueprint verifica un
+hash dummy valido quando l'account non ha password, così il costo PBKDF2 — e il tempo di risposta —
+è lo stesso in tutti i casi. Il rate limiting resta aperto (SEC-04).
+
+### D-149 — Rate limiter del token endpoint con mappa limitata (FIFO, 4096 chiavi)
+**Status:** accepted (2026-11-10)
+
+SEC-08: il limiter creava una finestra per ogni `client_id` distinto e potava la mappa solo oltre
+1024 chiavi, pagando uno sweep O(n) per ogni chiave nuova (memoria e CPU controllate
+dall'attaccante, che sceglie il client id prima dell'autenticazione). Ora la mappa ha un cap fisso
+(FIFO: si evince la finestra più vecchia) e il costo per chiave nuova è O(1); la quota resta per
+client id (l'eventuale lockout di un client altrui è accettato: senza store condiviso non c'è
+un'alternativa migliore, e il token dura un'ora). Il test copre l'eviction.
+
+### D-150 — Bootstrap a token monouso e email canonica: l'indirizzo non è una credenziale (SEC-01)
+**Status:** accepted (2026-11-10)
+
+SEC-01: la registrazione è pubblica e non verifica l'email, ma `registerInitialAdmin` promuoveva ad
+`admin` chi registrava per primo l'indirizzo di `FACILIS_INITIAL_ADMIN` (confronto case-insensitive,
+mentre `users.email` era unico case-sensitive: una variante di maiuscole passava). Chi conosce
+l'indirizzo poteva diventare admin senza possedere la casella.
+
+**Decision.**
+
+- **L'indirizzo non è una credenziale.** La promozione richiede anche
+  `FACILIS_INITIAL_ADMIN_TOKEN`: entrambe le env var devono essere impostate, il token si confronta in
+  tempo costante (hash SHA-256 di entrambi i valori e confronto dei byte) e manca il token → nessuna
+  promozione (fail closed). La promozione avviene solo se non esiste già un `admin`: è monouso, quindi
+  tenere la variabile configurata dopo il bootstrap non permette una seconda promozione.
+- **Email canonica.** `normalizeEmail` (trim + minuscolo) è usata in registrazione, login, linking SSO
+  e confronto di bootstrap; la tabella `users` guadagna l'indice unico `users_email_lower_idx`
+  (`lower(email)`, migrazione `0008`), così il database rifiuta le varianti quanto l'applicazione.
+- **Risposta generica.** La route di registrazione del blueprint risponde `{ accepted: true }` sia al
+  successo sia all'email già registrata, senza ruolo né id: non è più un oracolo per l'esistenza di un
+  account né per la promozione; l'esito reale (ruolo) resta nell'audit server-side.
+- **Il token viaggia nel body** della registrazione, mai loggato (il redact di D-119 copre i body: non
+  vengono registrati) e protetto dal throttle della route (D-152).
+
+**Rejected.** Verifica email vera (richiede trasporto email e token: feature separata, vedi SEC-02);
+promozione solo CLI/migrazione (il blueprint ha bisogno di un bootstrap dalla sua stessa superficie);
+fidarsi dell'indirizzo con `emailVerified` assente (è proprio il difetto); allowlist di IP.
+
+**Consequences.** Il deploy documentato ha una seconda variabile; un token perso richiede di
+rigenerarlo prima del primo bootstrap. La migrazione `0008` fallisce su un database che contiene già
+varianti di maiuscole dello stesso indirizzo (pre-rilascio: si azzera il DB di sviluppo). SPEC
+§5.1/§5.3/§8.4.3 e la quickstart sono aggiornate.
+
+**Verification.** `seed.test.ts` copre env mancanti, token errato, variante di maiuscole, promozione
+unica e blocco dopo il primo admin; `migrations.test.ts` verifica l'indice; suite auth/core/examples.
+
+### D-151 — Link SSO verso un account password: opt-in esplicito (SEC-02)
+**Status:** superseded by D-156 (2026-11-10) — l'opt-in è stato sostituito dal claim basato sulla
+verifica email; l'analisi del problema resta valida.
+
+SEC-02 (pre-hijacking): D-120 assume che un'email verificata basti a collegare un'identità SSO a un
+utente esistente, ma un account creato dalla registrazione password non ha alcuna prova di possesso
+dell'indirizzo. Chi registra per primo l'email della vittima ottiene un account con una password che
+conosce; al primo login SSO della vittima il flusso lo collegherebbe a quell'account, consegnandolo
+all'attaccante.
+
+**Decision.** `auth.sso.linkPasswordAccounts` (default `false`) abilita il link a un account con
+`password_hash` non-null; senza opt-in `resolveIdentity` rifiuta con il nuovo codice sicuro
+`sso_email_conflict` (redirect, nessun dettaglio). Gli account provisionati da SSO (password null)
+continuano a collegarsi per email verificata, e le email di utenti/identità sono salvate canoniche
+(D-150).
+
+**Rejected.** Implementare ora la verifica email (nuova feature: campo, token, trasporto, template);
+rifiutare sempre il link per email (romperebbe l'unione di identità SSO multiple sullo stesso
+account); creare un secondo utente con lo stesso indirizzo (l'indice unico lo impedisce).
+
+**Consequences.** Una migrazione password→SSO richiede di impostare il flag (rischio documentato)
+oppure di aspettare la verifica email; l'errore è un redirect sicuro, non un 500. La decisione
+D-120 resta valida per il claim del provider. Sorveglianza futura: verifica email vera, linking
+con notifica all'utente, e la stessa guardia per inviti/admin.
+
+**Verification.** `identity-guard.test.ts`: rifiuto con password, link con opt-in, email canonica;
+login OIDC/SAML esistenti verdi; `sso-config` validation test.
+
+### D-152 — Throttle per route nel wrapper, con chiave client + route (SEC-04)
+**Status:** accepted (2026-11-10)
+
+SEC-04: l'unico rate limit del framework era il token endpoint; login e registrazione del blueprint
+non avevano alcun limite (credential stuffing illimitato, creazione massiva di account). Il login
+aveva già il tempo costante (D-148), mancava il volume.
+
+**Decision.**
+
+- **Capacità del wrapper.** `defineAuthorizedHandler({ rateLimit: { windowMs, maxRequests } })`
+  consuma un tentativo dopo l'origin gate e prima di permessi e parsing del body: `429
+  too_many_requests` con `retry-after`, e un audit `http:rate_limit` fallito. La chiave è
+  `METHOD path clientAddress`: stessa finestra per client e route, mai condivisa fra route.
+- **Address dal middleware.** `event.context.facilis.clientAddress` è risolto con `getRequestIP`
+  (socket; `x-forwarded-for` solo con `logging.trustProxy`). Senza un address fidato non si applica
+  il throttle: meglio nessun limite che una finestra condivisa che un attaccante può esaurire per
+  bloccare tutti (fail open esplicito, documentato).
+- **Limiter condiviso e limitato.** Riusa la finestra fissa in-process di D-149 (cap 4096 chiavi,
+  eviction FIFO), una sola istanza per processo.
+- **Blueprint.** Login 10/minuto per client, registrazione 5/minuto; il token endpoint mantiene la
+  sua quota per `client_id` (D-143).
+
+**Rejected.** Chiave basata su `x-forwarded-for` senza trust (spoofabile: si ruota l'header e il
+limite sparisce); fallback a una finestra globale (DoS di login a costo zero); lockout per account
+(richiede stato per account, crea un DoS mirato e non copre il credential stuffing distribuito);
+store condiviso (nessuno in questa fase, D-143).
+
+**Consequences.** In deploy dietro proxy va configurato il trust (srvx `trustProxy` o un proxy che
+sovrascrive `x-forwarded-for`), altrimenti il throttle non parte; in sviluppo senza address il
+limite è inerte. Lo stato è per processo e si azzera al riavvio. SPEC §7.4/§8.2 e contracts aggiornati.
+
+**Verification.** `route-rate-limit.test.ts` (429 + retry-after, chiavi per client, route separate,
+nessun address → nessun throttle), `context.test.ts` (clientAddress solo da fonte fidata),
+`rate-limit.test.ts` invariato, blueprint con i due limiti.
+
+### D-153 — Cap dei byte del body prima del parsing e codice `payload_too_large` (SEC-09)
+**Status:** accepted (2026-11-10)
+
+SEC-09: il wrapper leggeva `req.json()`/`req.formData()` senza alcun limite; `storage.maxUploadBytes`
+era controllato dopo che il body multipart era già bufferizzato. Un body enorme su una route pubblica
+(login, registrazione) esauriva memoria senza che nulla lo fermasse.
+
+**Decision.**
+
+- **Cap nel wrapper.** JSON 1 MiB; multipart `storage.maxUploadBytes + 1 MiB` (1 MiB se lo storage non
+  è configurato). Prima il `content-length`, se numerico e oltre il cap, rifiuta senza leggere; altrimenti
+  un contatore sullo stream interrompe (e cancella il reader) appena supera il cap. Il parser riceve
+  solo i byte entro il limite.
+- **Nuovo codice chiuso.** `payload_too_large` = 413 con `details.maxBytes`, in
+  `FACILIS_ERROR_CODES`/registry, nelle locale `en`/`it` e in `KNOWN_ERROR_CODES` del template.
+- **Il test dei fake event resta com'era**: se non c'è stream (unit test, runtime non-Request) si usa il
+  path precedente, così il wrapper resta usabile in ogni runtime Fetch.
+
+**Rejected.** Fidarsi del solo `content-length` (assente in chunked e falsificabile); lasciare il
+controllo a `storage.maxUploadBytes` (la memoria è già stata consumata); reimplementare il multipart
+parser (si bufferizza una volta, ma entro il cap, e il parser standard resta valido).
+
+**Consequences.** Un body JSON oltre 1 MiB è rifiutato (documentato: alzare il cap significa
+cambiare il wrapper, non la config); un multipart può ancora bufferizzare fino a `maxUploadBytes + 1
+MiB`, e un singolo file oltre `maxUploadBytes` resta rifiutato dal path storage con
+`file_too_large`. SPEC §7.4/§8.2 e O-002 aggiornati.
+
+**Verification.** `request-input.test.ts` (content-length, chunked, JSON/multipart sotto e sopra il
+cap, errori esistenti invariati), suite core/nitro verdi, file-length e lint.
+
+### D-154 — Gate CI sulle invarianti 1-2 per le route scritte a mano (SEC-12)
+**Status:** accepted (2026-11-10)
+
+SEC-12: l'analyzer produceva `wrapper: "invalid"` ma solo l'IDE e il validatore AI lo usavano; niente
+in CI impediva di aggiungere a mano una route senza `defineAuthorizedHandler` o senza `dbTables`.
+
+**Decision.** Un test Vitest in `@facilis/analyze` (`routes-gate.test.ts`) carica le app con
+`server/routes`/`server/api` sotto `examples/` (e `starter/` quando esiste), esegue l'analyzer reale e
+fallisce se una route non ha un `RouteFact`, se `wrapper !== "valid"` o se `dbTables` è assente/non
+leggibile staticamente. Un fixture temporaneo dimostra che il gate scatta (default export non-wrapper,
+`dbTables` assente, `dbTables` dinamico). Gira in `pnpm test` (la CI esegue già turbo test): nessun
+nuovo script né modifica del lint root.
+
+**Rejected.** `scripts/check-routes.mjs` (nuovo wiring e secondo entry point dell'analyzer, mentre la
+pipeline test esiste già); regola oxlint (non può verificare l'accuratezza di `dbTables` rispetto
+all'AST, solo la presenza del token).
+
+**Consequences.** Il gate copre le route del blueprint (quelle che gli utenti copiano); una directory
+applicativa nuova va aggiunta all'elenco del test. L'accuratezza semantica di `dbTables` resta una
+responsabilità del validatore AI per i patch e dell'analyzer per il resto.
+
+**Verification.** Analyze suite 102 test (prima 100), il probe sull'esempio riporta 17/17 route valide,
+typecheck/lint/prettier verdi.
+
+### D-155 — Isolamento della preview "open" (SEC-10) rimandato a una feature IDE dedicata
+**Status:** accepted (2026-11-10)
+
+SEC-10: nel profilo open la preview gira same-origin con l'IDE (`allow-same-origin`), quindi il codice
+del progetto può leggere la AI key/MCP token da `localStorage` e l'OPFS. La chiusura richiede o
+un'origine di preview separata di default o la rimozione di `allow-same-origin`, entrambe scelte di
+prodotto che cambiano cookie/storage/Service Worker della preview (D-063, D-132) e vanno verificate
+con `pnpm ide:smoke` in un browser.
+
+**Decision.** Non toccare il sandbox in questo PR di hardening: il rischio residuo resta documentato in
+D-063 e nel finding SEC-10, che resta aperto. La feature IDE dedicata sceglierà fra origine separata di
+default, preview senza `allow-same-origin`, o chiave AI non estraibile (worker/crypto), e aggiornerà il
+threat model.
+
+**Rejected.** Rimuovere `allow-same-origin` ora (rompe storage e cookie della preview, e la pipeline
+`ide:smoke` non è eseguibile in questa sessione); dichiarare il profilo open "sicuro" senza modifiche.
+
+**Consequences.** SEC-10 resta un finding aperto con priorità P2, tracciato nell'audit; nessuna regressione
+nelle preview attuali.
+
+### D-156 — Verifica email degli account password e claim SSO dell'account pendente (SEC-02)
+**Status:** accepted (2026-11-10)
+
+SEC-02 alla radice: il framework non aveva alcun modo di provare che un indirizzo appartenesse a chi
+registrava. D-150 aveva chiuso il bootstrap e D-151 aveva bloccato il linking SSO a un account
+password, ma restavano due problemi: un account password non era mai verificato (quindi il linking
+restava disabilitato per sempre) e la registrazione pubblica poteva creare un account "segnaposto"
+sull'indirizzo della vittima.
+
+**Decision.**
+
+- **Schema.** `users.email_verified_at` (timestamp nullable) è la prova; `auth_email_verifications`
+  custodisce i link: chiave `sha256(token)`, `user_id` con `ON DELETE CASCADE`, `expires_at`,
+  `tenant_id` e policy RLS come le altre tabelle auth (D-136). Un solo link attivo per utente: emettere
+  un nuovo token cancella il precedente.
+- **Primitive.** `issueEmailVerification` (TTL, rotazione), `consumeEmailVerification` (single-use:
+  la riga viene cancellata prima del controllo di scadenza; token sconosciuto/scaduto → `null`) e
+  `markEmailVerified` (fallback dev). Scrivono solo dentro l'elevazione audita `ctx.system`, come la
+  registrazione: la route di verifica non ha sessione (D-099).
+- **Config.** `auth.verification: { enabled (false), tokenTtlMs (24 h, max 30 giorni), successRedirect,
+  failureRedirect }`; ogni chiave ha un default, `enabled: false` non cambia il comportamento di un
+  progetto esistente.
+- **Blueprint.** La registrazione crea l'utente con `email_verified_at` NULL, emette il link e risponde
+  `{ accepted: true }` (mai il token, mai un oracolo di esistenza). Con la verifica attiva il login
+  risponde `403 email_unverified` **dopo** la verifica della password, quindi non è un oracolo.
+  `GET /api/auth/verify-email?token=…` consuma il link e redirige a
+  `successRedirect?verified=1` / `failureRedirect?verify_error=invalid_token`, con audit
+  `auth:email:verify`. Ri-registrare un'email con account PENDENTE reclama l'account (password
+  sostituita, link ruotato): chi controlla la casella lo dimostra, chi ha solo registrato per primo no.
+- **Delivery del progetto.** Il framework non spedisce email: il blueprint posta
+  `{ to, subject, text }` a `FACILIS_EMAIL_WEBHOOK_URL` (opzionale `FACILIS_EMAIL_WEBHOOK_TOKEN`
+  come Bearer). In `development`/`test`, se il webhook non è configurato, il link viene loggato e
+  l'account verificato subito: demo e `ide:smoke` non richiedono una casella; la produzione senza
+  webhook fallisce in modo visibile (log server-side) ma la risposta resta generica.
+- **SSO (sostituisce D-151).** Il claim di un'identità verificata su un account PENDENTE rimuove la
+  password segnaposto e marca l'account verificato prima di collegare l'identità (audit
+  `auth:sso:link` con `claimed: "unverified_password"`); un account VERIFICATO si collega senza
+  toccare la password. Il claim vale solo con la verifica email attiva: se è disabilitata
+  l'identità non può distinguere un account pendente della vittima da uno reale del proprietario,
+  quindi il linking è rifiutato con `sso_email_conflict` invece di azzerare una password in uso.
+  `auth.sso.linkPasswordAccounts` viene rimosso: la verifica è la prova, non un interruttore.
+
+**Rejected.** Registrazione "deferred" (creare l'utente solo dopo la verifica): eliminerebbe anche
+l'ultimo canale di enumerazione, ma richiede una tabella di pending separata e cambia il contratto di
+registrazione/bootstrap in un colpo solo; rimandato come possibile evoluzione. Link con HMAC stateless
+(nessuna revoca/rotazione né single-use). Provider SMTP nel framework (segreti e deliverability sono
+del deploy, come log e storage). Auto-verifica in produzione quando il webhook manca (fail-open).
+
+**Consequences.** Un deploy che abilita la verifica deve impostare il webhook (documentato in README e
+SPEC); la migrazione `0009` riempie `email_verified_at` per gli account esistenti, così un deploy già
+in uso non si blocca. Resta un canale indiretto di enumerazione (registrazione → login: un account
+verificato risponde `unauthorized`, uno pendente `email_unverified`), mitigato dal rate limit (D-152)
+e chiudibile con la registrazione deferred. SSO.md, SPEC §5.1/§5.3/§8.4.4/§4.4 e i contratti Phase 1
+sono aggiornati.
+
+**Verification.** `email-verification.test.ts` (single-use, TTL, rotazione, token altrui, fallback
+dev, scoped client), `identity-guard.test.ts` (claim che azzera la password e verifica, account
+verificato che mantiene la password, claim non verificato rifiutato), `migrations.test.ts` (colonna,
+tabella, RLS, indice), `starter-contract.test.ts` (route verify + primitive nel template), suite
+auth/core/examples/analyze verdi.
+
+### D-157 — `dbTables` è una dichiarazione di accesso applicata (tabelle e viste, statica + runtime)
+**Status:** accepted (2026-11-11)
+
+Il security review (audit SEC-02 e seguito) ha mostrato che `dbTables` è metadato autocertificato: una route
+può interrogare qualsiasi tabella RLS, e dentro un'elevazione `facilis_system` bypassa la RLS mentre l'audit
+registra solo le tabelle dichiarate. Le viste non sono fatti dell'analyzer (O-013), quindi oggi una route che
+usa una vista dichiara le tabelle base. L'owner ha chiesto una dichiarazione applicata: ciò che una route
+dichiara è ciò a cui può accedere, così è semplice capire quale route fa cosa.
+
+**Decision.**
+
+- **Cosa dichiara `dbTables`.** L'insieme completo delle relazioni che l'handler può toccare tramite
+  `ctx.db`, `ctx.sudo` e `ctx.system`: **tabelle e viste**, con i nomi SQL. Una vista si dichiara con il
+  proprio nome (D-097/D-098), invoker o definer: le tabelle base non si dichiarano, perché l'accesso alla
+  vista non è un accesso diretto e per una definer il gate resta il permesso dichiarato nella `defineView`.
+  Questo sostituisce la convenzione di O-013 ("dichiara le tabelle base").
+- **Statico.** `@facilis/analyze` impara `defineView` (`db/views/**`) in `ViewFact` (nome, tabelle,
+  permesso, access). Un nuovo pass per route parte dall'handler, **segue le chiamate a funzioni del
+  progetto** (stessi server module, con mappatura degli argomenti; profondità limitata, cicli chiusi; le
+  chiamate nei pacchetti restano opache) e registra le relazioni lette/scritte: `select().from(...)` e join,
+  `insert`/`update`/`delete(relazione)`, `db.query.<relazione>`. Confronto con `dbTables`:
+  - usata e non dichiarata → **errore** `route-table-undeclared`;
+  - dichiarata e non usata → **warning** `route-table-unused` (soppresso quando la route delega a helper
+    opachi, dove il runtime resta l'autorità);
+  - relazione non risolvibile o dinamica → **errore** `route-table-unresolved`;
+  - `db.execute(sql)` senza flag → **errore** `route-raw-sql`;
+  - dentro `ctx.sudo`/`ctx.system`, uso fuori da `options.tables` → **errore**
+    `route-elevation-undeclared`.
+  Il gate CI delle route (SEC-12, `routes-gate.test.ts`) esegue il pass su `examples/` e `starter/`; il
+  validator AI riceve la nuova **regola 18 `route-table-declared`** per i patch.
+- **`rawSql`.** Nuovo campo opzionale della config di route (`rawSql?: boolean`, default `false`),
+  estratto staticamente come gli altri campi (manifest/OpenAPI `x-raw-sql`, release diff). Con
+  `rawSql: true` la route può usare `db.execute`: l'SQL non è ispezionabile e la dichiarazione resta
+  autorevole; senza, l'uso è un errore. È l'unica deroga, esplicita e visibile.
+- **Runtime.** Il client passato come `ctx.db` e quello passato alle callback di elevazione sono
+  **guarded**: ogni relazione toccata deve essere nel set dichiarato prima che la query parta; violazione →
+  fail-closed `table_not_declared` (500); `db.execute` senza flag → `raw_sql_not_allowed` (500). Le
+  violazioni producono un evento di audit (`route:table_access`, outcome failed) con route, request id e
+  relazioni; il client non vede i nomi delle relazioni. L'elevazione continua a richiedere `tables` non
+  vuoto e sottoinsieme di `dbTables`, ora verificato sull'accesso osservato; l'evento `succeeded`
+  dell'audit aggiunge le tabelle **osservate** accanto a quelle dichiarate. I job in background,
+  `ctx.jobs` e il loro store restano sul client non guarded (framework) e fuori scope.
+- **Nessun interruttore globale.** L'enforcement è parte dell'invariante 2 ("dbTables presente e accurato"):
+  nessuna modalità warn/off; l'unica deroga è `rawSql: true`. Le route del framework e dell'esempio vengono
+  allineate, non escluse.
+
+**Rejected.** Modalità warn/off (un invariante di sicurezza disattivabile non è strutturale). Inferire le
+tabelle dall'SQL raw (fragile e aggirabile). Un ruolo Postgres per route (esplosione di ruoli, PGlite). Nodi
+vista nel grafo (resta Phase 4 di O-013: qui le viste entrano in analyzer e validator, non ancora nel grafo).
+
+**Consequences.** Cambiamento breaking per le route con `dbTables` incompleto: il gate CI blocca il merge e
+il runtime fallisce chiuso; le route del framework e dell'esempio sono aggiornate. Una vista in `dbTables`
+supera la regola 4; O-013 si aggiorna (fatti analyzer, validator e dichiarazione della vista; grafo ancora
+no). SPEC 1.25 §7.4/§8.4/§9.3/§11.2, PHASE1-CONTRACTS e AGENTS.md (18 regole) seguono.
+
 ### D-158 — Il DDL dello schema nasce al rilascio dal diff dei tag, mai scritto a mano
 **Status:** accepted (2026-11-10)
 
@@ -5716,7 +6128,7 @@ pipeline per la stessa coppia di tag.
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
 | O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
-| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-141, `internal_error`), serialized as `{ code, details? }` — no prose | done |
+| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-141, `too_many_requests` — D-143, `payload_too_large` — D-153, `email_unverified` — D-156, `internal_error`), serialized as `{ code, details? }` — no prose | done |
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
 | O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis/blocks` deleted; nothing to discover | done |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |
@@ -5727,7 +6139,7 @@ pipeline per la stessa coppia di tag.
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
 | O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
-| O-013 | Views are not in the analyzer facts, project graph or reverse lookup; a route using one declares its base tables in `dbTables` | parse `defineView` (`db/views/**`) into `ViewFact`s and expand a route's `dbTables` through the views it selects; add their edges to the graph and the AI validator's table namespace. With D-098 carry `permission`/`access` and check that a route using a permission view declares that permission | Phase 4 |
+| O-013 | Views in analyzer facts, graph and reverse lookup | **partly resolved by D-157:** `defineView` (`db/views/**`) becomes a `ViewFact` (name, base tables, `permission`/`access`), the validator accepts a view name in `dbTables` and the relation pass resolves routes that use views; the project graph/Data Explorer still have no view nodes or edges (kept Phase 4 to avoid a graph-contract change) | Phase 4 |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) — design approved in D-135 ([WORKFLOWS.md](./WORKFLOWS.md)), implementation W1–W3 | Phase 7+ |

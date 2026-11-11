@@ -3,7 +3,9 @@
 // Every operation runs through `runWithPolicyScope`, i.e. as facilis_app with
 // `app.tenant_id` set: a new row's tenant_id comes from the tenantColumn default (the same
 // GUC the restrictive policy reads), and a query cannot reach another tenant's queue. The
-// engine writes this way; the only escalation is the job body itself, behind the executor.
+// engine adds the framework queue permissions to its scope (D-145); a request scope carries
+// the user's permissions, which is what makes the RLS policies a second, DB-level gate. The
+// only escalation is the job body itself, behind the executor.
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
 
 import { facilisJobs, runWithPolicyScope } from "@facilis/db";
@@ -22,6 +24,13 @@ import { completionValues, toJobStatus, toStoredJob } from "./row-mapping.ts";
 
 /** Recovery marker; the memory store writes the same phrase so a fallback is indistinguishable. */
 const INTERRUPTED_ERROR = "interrupted (recovered after restart)";
+
+/**
+ * The queue permissions the framework engine uses for its own transactions (D-145). A request
+ * transaction carries the session's permissions instead: a route whose user lacks jobs:read/
+ * jobs:exec is denied by the RLS policies, not merely by its own wrapper check.
+ */
+const FRAMEWORK_QUEUE_PERMISSIONS = ["jobs:read", "jobs:exec"] as const;
 
 /**
  * The persistent JobStore over `facilis_jobs`.
@@ -47,7 +56,9 @@ export function createDbJobStore(options: {
    * request that is waiting for the queue call to return (D-107, docs/JOBS.md §8).
    */
   function run<T>(fn: (tx: PolicyScopedDatabase) => Promise<T>): Promise<T> {
-    return scope === undefined ? runWithPolicyScope(db, { tenantId }, fn) : fn(scope);
+    return scope === undefined
+      ? runWithPolicyScope(db, { tenantId, permissions: [...FRAMEWORK_QUEUE_PERMISSIONS] }, fn)
+      : fn(scope);
   }
 
   return {

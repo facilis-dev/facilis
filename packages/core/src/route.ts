@@ -1,5 +1,10 @@
 import { hasPermission, type AuthContext } from "@facilis/auth";
-import { runWithPolicyScope, type PolicyScope, type PolicyScopedDatabase } from "@facilis/db";
+import {
+  guardDatabase,
+  runWithPolicyScope,
+  TableAccessError,
+  type PolicyScopedDatabase,
+} from "@facilis/db";
 import type { z } from "zod";
 
 import { fail } from "./errors.ts";
@@ -7,11 +12,12 @@ import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import type { FacilisLogger } from "./logging.ts";
 import { startRequestLogging } from "./route-logging.ts";
 import { unavailableJobs, type JobsApi } from "./jobs.ts";
+import { throttleRouteRequest, type RateLimitWindow } from "./rate-limit.ts";
 import { parseRequestInput } from "./request-input.ts";
 import { isRequestOriginAllowed } from "./request-security.ts";
+import { resolveScope } from "./route-scope.ts";
 import { unavailableStorage, type StorageApi } from "./storage.ts";
 import { createElevationContext, type SudoHandler, type SystemHandler } from "./sudo.ts";
-import { DEFAULT_TENANT_ID } from "./tenancy.ts";
 
 /**
  * The route security contract (SPEC §7.4, §8.2; contracts §7).
@@ -48,6 +54,18 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   dbTables: readonly string[];
   /** `"table.column"` references, used by the release diff and entity explorer. */
   dbColumns?: readonly string[];
+  /**
+   * Per-route fixed-window throttle, keyed by the client address and the route path (D-152).
+   * Evaluated by the wrapper before permissions and body parsing, so a brute-force loop cannot
+   * reach the PBKDF2 comparison; a deployment that resolves no client address skips it rather
+   * than throttling every caller through one shared window.
+   */
+  rateLimit?: RateLimitWindow;
+  /**
+   * Explicit exception for `ctx.db.execute(sql)` (D-157): the SQL is not inspectable, so the
+   * declaration stays authoritative; without this flag raw execution is refused. Default false.
+   */
+  rawSql?: boolean;
   description?: string;
 }
 
@@ -137,29 +155,6 @@ function toHandlerEvent(
   };
 }
 
-/** The request scope: tenant is always resolved, unlike the general PolicyScope contract. */
-interface ResolvedScope extends PolicyScope {
-  readonly tenantId: string;
-}
-
-function resolveScope(
-  auth: AuthContext | null,
-  facilis: { defaultTenantId?: string } | undefined,
-): ResolvedScope {
-  // The tenant is the deployment's, never the session's (D-040): this is the only value RLS
-  // will accept, so a session cannot widen or change the scope. Anonymous routes
-  // (registration/login) get the same value, which is what makes the tenant column default
-  // and the RLS WITH CHECK agree. The framework constant is the fallback so an app that
-  // forgets FACILIS_TENANT_ID behaves like the Nitro middleware.
-  const tenantId = facilis?.defaultTenantId ?? DEFAULT_TENANT_ID;
-  // Permissions travel in app.permissions for permission views (D-098); they are the
-  // session's expanded set, never the route's required list.
-  const permissions = auth?.permissions ?? [];
-  return auth === null
-    ? { tenantId, permissions }
-    : { tenantId, permissions, userId: auth.userId, roles: auth.roles };
-}
-
 export function defineAuthorizedHandler<
   B = void,
   Q = void,
@@ -204,6 +199,23 @@ export function defineAuthorizedHandler<
       });
       if (!originAllowed) return respond(fail("forbidden"));
 
+      // Throttle before permissions and body parsing: every route passes through this wrapper,
+      // and a login brute-force loop must be stopped before it reaches the password hash
+      // (SEC-04, D-152). The address comes from the middleware's proxy-trust decision; without
+      // one there is no honest per-client key, so the route is not globally throttled.
+      const rateLimit = config.rateLimit;
+      if (rateLimit !== undefined) {
+        const denied = throttleRouteRequest(event, rateLimit, facilis?.clientAddress);
+        if (denied !== undefined) {
+          requestLog.log.audit({
+            operation: "http:rate_limit",
+            outcome: "failed",
+            errorCode: "too_many_requests",
+          });
+          return respond(denied);
+        }
+      }
+
       if (requiredPermissions.length > 0) {
         if (auth === null) return respond(fail("unauthorized"));
         if (!hasPermission(auth, requiredPermissions)) return respond(fail("forbidden"));
@@ -227,6 +239,7 @@ export function defineAuthorizedHandler<
         // Queue calls made by the handler must run in this transaction: opening a second one
         // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
+        const rawSql = config.rawSql === true;
         const elevations = createElevationContext({
           event,
           db,
@@ -234,14 +247,16 @@ export function defineAuthorizedHandler<
           permissions: requiredPermissions,
           dbTables: config.dbTables,
           tenantId: scope.tenantId,
+          rawSql,
         });
+        // The handler gets the guarded client; elevations keep the unguarded tx (D-157).
         const ctx: AuthorizedHandlerContext<B, Q, P, AuthContext | null, F> = {
           auth,
           body: input.body,
           form: input.form,
           query: input.query,
           params: input.params,
-          db,
+          db: guardDatabase(db, { declared: config.dbTables, allowRawSql: rawSql }),
           sudo: elevations.sudo,
           system: elevations.system,
           jobs: requestJobs,
@@ -260,6 +275,16 @@ export function defineAuthorizedHandler<
       return result;
     } catch (error) {
       if (error instanceof Response) return respond(error);
+      // A declaration violation is audited by code, never by relation name (D-157).
+      if (error instanceof TableAccessError) {
+        requestLog.log.audit({
+          operation: "route:table_access",
+          outcome: "failed",
+          errorCode: error.code,
+        });
+        requestLog.recordError(error, error.code);
+        return respond(fail(error.code));
+      }
       // Without a logging runtime (standalone wrapper) keep the server-side trace here.
       if (facilis?.logging === undefined) {
         console.error("facilis: authorized handler failed", error);

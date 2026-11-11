@@ -178,6 +178,7 @@ The browser only sees a code in `?sso_error=`; the app translates it with
 | `sso_exchange_failed` | token/userinfo/SAML exchange failed, or the IdP reported an error |
 | `sso_identity_invalid` | the IdP returned no usable subject/email, or a token/signature check failed |
 | `sso_email_unverified` | linking/provisioning needs a verified email the provider did not assert |
+| `sso_email_conflict` | the verified email matches a PASSWORD account that is still pending, in a deployment with email verification disabled |
 | `sso_account_not_found` | `autoProvision: false` and no user matches the verified email |
 | `sso_internal_error` | unexpected server failure (details are server-side only) |
 
@@ -193,8 +194,16 @@ A sign-in resolves as follows, entirely inside the audited `ctx.system` elevatio
 
 1. **Existing link** - the identity row's user signs in; the row's email and `last_login_at`
    are refreshed. A later unverified email does not break an existing link.
-2. **No link, verified email** - the email is matched to `users` case-insensitively. A match
-   gets a new identity row (audit `auth:sso:link`).
+2. **No link, verified email** - the email is matched to `users` canonically (lowercase,
+   D-150). A match on an SSO-provisioned user (no password) gets a new identity row (audit
+   `auth:sso:link`). A match on a **password** account depends on its verification state (D-156):
+   a VERIFIED account belongs to the same proven mailbox and links normally; a PENDING account
+   (never verified) is **claimed** - the placeholder password set by whoever registered the
+   address first is removed, the account is marked verified and the identity is linked (audit
+   `auth:sso:link` with `claimed: "unverified_password"`). An attacker who only registered the
+   address therefore loses the account to the mailbox owner, and cannot keep a password to it.
+   With `auth.verification.enabled` false the claim would silently reset a password the owner may
+   still use, so the login is refused with `sso_email_conflict` instead.
 3. **No link, no user** - with `autoProvision` the framework creates a user with a **null
    password hash**, assigns `provider.defaultRole ?? auth.defaultRole`, and writes the identity
    (audit `auth:sso:provision`). Without `autoProvision`, the login fails with
@@ -227,8 +236,9 @@ and the assigned role only - never tokens, codes, SAML payloads or email address
   ACS is not an open assertion endpoint. `@node-saml/node-saml` is imported **lazily** inside
   the SAML path (a non-SAML project never loads it; a production server build may emit it as a
   separate on-demand chunk), validates signatures,
-  recipient/audience and time windows with 5 s clock skew, and checks `InResponseTo` when the
-  response carries it, bound to the stored request id through a single-use cache provider.
+  recipient/audience and time windows with 5 s clock skew, and requires `InResponseTo` on every
+  response (`validateInResponseTo: "always"`, D-147), bound to the stored request id through a
+  single-use cache provider.
 - **No second factor**: SSO is the credential; TOTP/WebAuthn are out of scope until a second
   credential table exists (O-020).
 - **Framing**: SSO is top-level navigation. Inside the IDE preview iframe an IdP that sends

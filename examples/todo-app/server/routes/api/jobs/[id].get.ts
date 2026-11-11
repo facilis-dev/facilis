@@ -3,9 +3,9 @@ import { defineAuthorizedHandler, fail } from "@facilis/core";
 
 export default defineAuthorizedHandler(
   {
-    permission: ["todos:read"],
+    permission: ["jobs:read"],
     params: z.object({ id: z.uuid() }),
-    dbTables: ["facilis_jobs"],
+    dbTables: [],
     description: "Read one background job by id (queue state is server-side).",
   },
   async (_event, { params, jobs }) => {

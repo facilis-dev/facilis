@@ -5,6 +5,7 @@ import type { PolicyScopedDatabase } from "@facilis/db";
 import type { IdentityClaims, SsoAudit, SystemRunner } from "./contracts.ts";
 import { SsoError } from "./errors.ts";
 import { authIdentities } from "./tables.ts";
+import { normalizeEmail } from "../email.ts";
 import { users, userRoles } from "../tables.ts";
 
 /**
@@ -37,6 +38,12 @@ export interface IdentityProviderPolicy {
 export interface ResolveIdentityOptions {
   /** `config.auth.defaultRole`, used when the provider has no `defaultRole`. */
   readonly defaultRole: string;
+  /**
+   * `config.auth.verification.enabled` (D-156): with email verification on, a pending password
+   * account is claimed (the IdP just proved the mailbox). With it off, the account was never
+   * meant to be verified, so the link is refused instead of silently resetting its password.
+   */
+  readonly claimUnverifiedPasswordAccount: boolean;
   readonly audit: SsoAudit;
 }
 
@@ -64,13 +71,20 @@ async function findIdentityUserId(
   return rows[0]?.userId ?? null;
 }
 
-async function findUserIdByEmail(db: PolicyScopedDatabase, email: string): Promise<string | null> {
+async function findUserByEmail(
+  db: PolicyScopedDatabase,
+  email: string,
+): Promise<{ id: string; passwordHash: string | null; emailVerifiedAt: Date | null } | null> {
   const rows = await db
-    .select({ id: users.id })
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+      emailVerifiedAt: users.emailVerifiedAt,
+    })
     .from(users)
-    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
+    .where(sql`lower(${users.email}) = ${normalizeEmail(email)}`)
     .limit(1);
-  return rows[0]?.id ?? null;
+  return rows[0] ?? null;
 }
 
 /**
@@ -94,7 +108,7 @@ async function touchIdentity(
 ): Promise<void> {
   await db
     .update(authIdentities)
-    .set({ email: claims.email, lastLoginAt: now })
+    .set({ email: normalizeEmail(claims.email), lastLoginAt: now })
     .where(
       and(eq(authIdentities.provider, claims.provider), eq(authIdentities.subject, claims.subject)),
     );
@@ -124,16 +138,32 @@ export async function resolveIdentity(
     // An unverified email must never link to (or provision) an account: that is account takeover.
     if (!claims.emailVerified) throw new SsoError("sso_email_unverified");
 
-    const existingUser = await findUserIdByEmail(db, claims.email);
+    const existingUser = await findUserByEmail(db, claims.email);
     if (existingUser !== null) {
-      await assertLoginable(db, existingUser);
+      await assertLoginable(db, existingUser.id);
+      // Account pre-hijacking (SEC-02): a pending password account was registered by someone
+      // who never proved they own the address, and with email verification enabled it cannot
+      // even log in. The verified IdP email IS that proof now, so the identity claims the
+      // account and the placeholder password is removed before linking (D-156): whoever
+      // registered the address first loses it, the mailbox owner keeps it. A verified password
+      // account belongs to the same proven mailbox and links without clearing anything.
+      const claimed = existingUser.passwordHash !== null && existingUser.emailVerifiedAt === null;
+      if (claimed) {
+        // With verification disabled the account was never meant to prove its mailbox: refuse
+        // rather than silently reset a password its owner may still use (D-156).
+        if (!options.claimUnverifiedPasswordAccount) throw new SsoError("sso_email_conflict");
+        await db
+          .update(users)
+          .set({ passwordHash: null, emailVerifiedAt: now })
+          .where(eq(users.id, existingUser.id));
+      }
       const inserted = await db
         .insert(authIdentities)
         .values({
           provider: claims.provider,
           subject: claims.subject,
-          userId: existingUser,
-          email: claims.email,
+          userId: existingUser.id,
+          email: normalizeEmail(claims.email),
         })
         .onConflictDoNothing()
         .returning({ userId: authIdentities.userId });
@@ -144,8 +174,11 @@ export async function resolveIdentity(
       options.audit({
         operation: "auth:sso:link",
         outcome: "succeeded",
-        tables: ["auth_identities"],
-        details: { provider: claims.provider },
+        tables: claimed ? ["auth_identities", "users"] : ["auth_identities"],
+        details: {
+          provider: claims.provider,
+          ...(claimed ? { claimed: "unverified_password" } : {}),
+        },
       });
       return { userId: raced, outcome: "linked" };
     }
@@ -155,16 +188,21 @@ export async function resolveIdentity(
     const role = roleFor(provider, options);
     const created = await db
       .insert(users)
-      .values({ email: claims.email, passwordHash: null })
+      .values({ email: normalizeEmail(claims.email), passwordHash: null })
       .onConflictDoNothing()
       .returning({ id: users.id });
-    const userId = created[0]?.id ?? (await findUserIdByEmail(db, claims.email));
+    const userId = created[0]?.id ?? (await findUserByEmail(db, claims.email))?.id ?? null;
     if (userId === null) throw new SsoError("sso_internal_error", "user provision race");
 
     await db.insert(userRoles).values({ userId, role }).onConflictDoNothing();
     const identity = await db
       .insert(authIdentities)
-      .values({ provider: claims.provider, subject: claims.subject, userId, email: claims.email })
+      .values({
+        provider: claims.provider,
+        subject: claims.subject,
+        userId,
+        email: normalizeEmail(claims.email),
+      })
       .onConflictDoNothing()
       .returning({ userId: authIdentities.userId });
     const resolved =

@@ -137,6 +137,12 @@ export {
   stripTrailingSemicolon,
 } from "./read-only-sql.ts";
 export {
+  guardDatabase,
+  TableAccessError,
+  type TableAccessErrorCode,
+  type TableGuardOptions,
+} from "./table-guard.ts";
+export {
   createLiveView,
   DEFAULT_QUERY_LIMIT,
   MAX_QUERY_LIMIT,

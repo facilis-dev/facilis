@@ -57,9 +57,9 @@ export interface SchemaDiff {
 /**
  * SPEC §7.7 `ApiRouteRef`.
  *
- * `dbTables` and `permission` are optional because a release snapshot built from a git
- * ref can only derive method + path from the route filename: the handler config lives in
- * the source, and only the working-copy manifest can read it. Omitting the field means
+ * `dbTables`, `permission` and `rawSql` are optional because a release snapshot built from
+ * a git ref can only derive method + path from the route filename: the handler config lives
+ * in the source, and only the working-copy manifest can read it. Omitting the field means
  * "not known at this ref", never "no tables" (D-086).
  */
 export interface ApiRouteRef {
@@ -67,6 +67,8 @@ export interface ApiRouteRef {
   readonly path: string;
   readonly permission?: string | readonly string[];
   readonly dbTables?: readonly string[];
+  /** Additive (SPEC §7.7 does not list it): the route's `rawSql` derogation (D-157). */
+  readonly rawSql?: boolean;
   /** Additive (SPEC §7.7 does not list it): route source file for jump-to, as RouteMeta. */
   readonly sourceFile?: string;
 }

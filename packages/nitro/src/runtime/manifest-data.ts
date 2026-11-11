@@ -77,6 +77,8 @@ export function toRouteMeta(route: RouteMetadata): RouteMeta {
     description: route.description,
     permission: route.permission,
     ...(route.crossSite === true ? { crossSite: true } : {}),
+    // A resolved false is published (the derogation is off); an unreadable flag stays unknown.
+    ...(route.unresolved.includes("rawSql") ? {} : { rawSql: route.rawSql === true }),
     dbTables: route.dbTables,
     dbColumns: route.dbColumns,
     security: deriveSecurity(route),

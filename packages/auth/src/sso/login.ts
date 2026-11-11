@@ -13,6 +13,7 @@ import { buildOauth2AuthorizeUrl, resolveOauth2IdentityFromCode } from "./oauth2
 import { createPkcePair } from "./pkce.ts";
 import { postLoginPath, ssoCallbackUrl } from "./paths.ts";
 import {
+  identityPolicy,
   missingCredentialEnv,
   resolveProvider,
   type ResolvedSsoProvider,
@@ -35,6 +36,8 @@ export interface SsoFlowDeps {
   readonly sso: SsoConfigLike;
   /** `config.auth.defaultRole`: the role a provisioned user gets without a provider override. */
   readonly defaultRole: string;
+  /** `config.auth.verification.enabled`: allows the SSO identity to claim a pending account. */
+  readonly verificationEnabled: boolean;
   /** Deployment origin (`FACILIS_PUBLIC_ORIGIN` or the request origin), no trailing slash. */
   readonly publicOrigin: string;
   readonly system: SystemRunner;
@@ -81,13 +84,6 @@ function tokenClient(config: SsoProviderConfig, secret: string | undefined) {
     clientId: config.clientId,
     tokenAuth: config.tokenAuth,
     ...(secret === undefined ? {} : { clientSecret: secret }),
-  };
-}
-function identityPolicy(config: SsoProviderConfig) {
-  return {
-    id: config.id,
-    autoProvision: config.autoProvision,
-    ...(config.defaultRole === undefined ? {} : { defaultRole: config.defaultRole }),
   };
 }
 async function startRedirect(
@@ -230,6 +226,7 @@ async function completeGet(
   const claims = await claimsFromCode(deps, provider, input.code, state);
   const resolution = await resolveIdentity(deps.system, claims, identityPolicy(provider.config), {
     defaultRole: deps.defaultRole,
+    claimUnverifiedPasswordAccount: deps.verificationEnabled,
     audit: deps.audit,
   });
   return { userId: resolution.userId, redirectTo: postLoginPath(state), resolution };
@@ -255,6 +252,7 @@ async function completePost(
   });
   const resolution = await resolveIdentity(deps.system, claims, identityPolicy(config), {
     defaultRole: deps.defaultRole,
+    claimUnverifiedPasswordAccount: deps.verificationEnabled,
     audit: deps.audit,
   });
   return { userId: resolution.userId, redirectTo: postLoginPath(state), resolution };

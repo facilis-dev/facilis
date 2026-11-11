@@ -1,7 +1,7 @@
 import { constantTimeEqual, decodeBase64, encodeBase64, randomBytes, webcrypto } from "./crypto.ts";
 
 const ALGORITHM = "pbkdf2-sha256";
-const DEFAULT_ITERATIONS = 210_000;
+const DEFAULT_ITERATIONS = 600_000;
 const MAX_ITERATIONS = 1_000_000;
 const SALT_BYTES = 16;
 const KEY_BITS = 256;

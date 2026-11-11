@@ -66,6 +66,7 @@ function deps(overrides: Partial<SsoFlowDeps> = {}): SsoFlowDeps {
   return {
     sso: { providers: [PROVIDER], failureRedirect: "/login", stateTtlMs: 600_000 },
     defaultRole: "user",
+    verificationEnabled: false,
     publicOrigin: PUBLIC_ORIGIN,
     system,
     audit,

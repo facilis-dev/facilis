@@ -7,7 +7,7 @@ describe("hashPassword / verifyPassword", () => {
     const hash = await hashPassword("correct horse battery staple");
     expect(hash).toMatch(/^pbkdf2-sha256\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/);
     const [, iterations] = hash.split("$");
-    expect(Number(iterations)).toBeGreaterThanOrEqual(100_000);
+    expect(Number(iterations)).toBeGreaterThanOrEqual(600_000);
   });
 
   it("verifies the right password and rejects the wrong one", async () => {

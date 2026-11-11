@@ -24,8 +24,12 @@ export type {
   FileFacts,
   ImportFact,
   LocaleCatalogs,
+  RouteElevationUsage,
+  RouteRelationUse,
+  RouteRelationsFact,
   SourceRef,
   TranslationCallFact,
+  ViewFact,
 } from "@facilis/analyze";
 
 /** Readable aliases for the analyzer facts the rules consume. */

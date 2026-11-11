@@ -1,3 +1,4 @@
+import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
 
 /**
@@ -166,6 +167,10 @@ export interface RouteFact {
   readonly dbTables: readonly string[] | null;
   /** null = unknown; [] = explicitly no columns. */
   readonly dbColumns: readonly string[] | null;
+  /** rawSql: true allows `db.execute` (D-157); false when absent; null when unreadable. */
+  readonly rawSql: boolean | null;
+  /** Static db usage of the handler, project-local helper calls followed (D-157). */
+  readonly relations: RouteRelationsFact;
   readonly description: string | null;
   readonly input: RouteInputFact;
   /** True when the handler body reads the request body (SPEC §9.3 rule 8). */
@@ -255,6 +260,12 @@ export type {
   ScreenFacts,
   TableNodeData,
 } from "./types-graph.ts";
+export type {
+  RouteElevationUsage,
+  RouteRelationUse,
+  RouteRelationsFact,
+  ViewFact,
+} from "./types-relations.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
 
@@ -265,6 +276,8 @@ export interface Analysis {
   readonly routes: readonly RouteFact[];
   readonly tables: readonly TableFact[];
   readonly relations: readonly RelationFact[];
+  /** Declarative views (D-157); facts only — views stay out of the project graph. */
+  readonly views: readonly ViewFact[];
   readonly pages: readonly PageFact[];
   /** Module facts for every parsed source file, in path order. */
   readonly fileFacts: readonly FileFacts[];

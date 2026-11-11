@@ -10,6 +10,8 @@ import { z } from "zod";
 export const FACILIS_ERROR_CODES = [
   "unauthorized",
   "forbidden",
+  // 403: the password was correct but the account has not verified its email yet (D-156).
+  "email_unverified",
   "invalid_input",
   // 429: a caller exceeded a framework rate limit (D-143); the response carries `retry-after`.
   "too_many_requests",
@@ -19,7 +21,13 @@ export const FACILIS_ERROR_CODES = [
   "db_unavailable",
   "not_found",
   "storage_unavailable",
+  // 413: the request body exceeds the wrapper cap before parsing (SEC-09).
+  "payload_too_large",
   "file_too_large",
+  // 500: the runtime guard refused a relation outside the route's dbTables (D-157).
+  "table_not_declared",
+  // 500: db.execute was used without rawSql: true on the route (D-157).
+  "raw_sql_not_allowed",
   "internal_error",
 ] as const;
 
@@ -29,6 +37,7 @@ export type FacilisErrorCode = (typeof FACILIS_ERROR_CODES)[number];
 export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = {
   unauthorized: 401,
   forbidden: 403,
+  email_unverified: 403,
   invalid_input: 400,
   too_many_requests: 429,
   unsupported_media_type: 415,
@@ -36,8 +45,13 @@ export const FACILIS_ERROR_STATUS: Readonly<Record<FacilisErrorCode, number>> = 
   db_unavailable: 500,
   not_found: 404,
   storage_unavailable: 503,
+  // 413: the request body exceeds the wrapper cap before parsing (SEC-09).
+  payload_too_large: 413,
   // 413: the upload is a valid form, but the file exceeds storage.maxUploadBytes.
   file_too_large: 413,
+  // 500: a route reached an undeclared relation or raw SQL without the flag (D-157).
+  table_not_declared: 500,
+  raw_sql_not_allowed: 500,
   internal_error: 500,
 };
 

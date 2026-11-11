@@ -39,14 +39,38 @@ describe("createDbJobStore", () => {
     // Regression: PGlite is single-connection, so a store call opening its own transaction
     // while the request transaction is open deadlocks the request (the bug ctx.jobs hit).
     const job = newJob();
-    await runWithPolicyScope(db, { tenantId: TENANT_ID }, async (requestTx) => {
-      const requestStore = store.scoped?.(requestTx);
-      expect(requestStore).toBeDefined();
-      await requestStore?.insert(job);
-      await expect(requestStore?.get(job.id)).resolves.toMatchObject({ id: job.id, status: "queued" });
-    });
+    await runWithPolicyScope(
+      db,
+      { tenantId: TENANT_ID, permissions: ["jobs:read", "jobs:exec"] },
+      async (requestTx) => {
+        const requestStore = store.scoped?.(requestTx);
+        expect(requestStore).toBeDefined();
+        await requestStore?.insert(job);
+        await expect(requestStore?.get(job.id)).resolves.toMatchObject({
+          id: job.id,
+          status: "queued",
+        });
+      },
+    );
     // The queue row committed with the request transaction and the base store sees it.
     await expect(store.get(job.id)).resolves.toMatchObject({ id: job.id, status: "queued" });
+  }, 30_000);
+
+  it("denies a request scope that lacks jobs:read/jobs:exec (D-145)", async () => {
+    const seeded = newJob();
+    await store.insert(seeded);
+
+    // INSERT: the WITH CHECK policy refuses the row (drizzle wraps the driver error, so the
+    // message is "Failed query" and the RLS error is the cause).
+    await runWithPolicyScope(db, { tenantId: TENANT_ID }, async (requestTx) => {
+      await expect(store.scoped?.(requestTx).insert(newJob())).rejects.toThrow();
+    });
+
+    // SELECT: USING hides the row (a separate transaction, because the failed INSERT aborted
+    // the previous one); the queue is invisible, not an error.
+    await runWithPolicyScope(db, { tenantId: TENANT_ID }, async (requestTx) => {
+      await expect(store.scoped?.(requestTx).get(seeded.id)).resolves.toBeNull();
+    });
   }, 30_000);
 
   it("detects the queue table without throwing when it is missing", async () => {

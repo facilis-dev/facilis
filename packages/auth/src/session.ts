@@ -7,7 +7,8 @@ import { randomToken, sha256Hex } from "./crypto.ts";
 import { expandRoles, type AuthConfig } from "./roles.ts";
 import { sessions, userRoles, users, type AuthUser, type SessionRow } from "./tables.ts";
 
-/** Cookie name fixed by contract §4.4; HttpOnly/Path=/SameSite=Lax/Secure-in-prod. */
+/** Cookie name fixed by contract §4.4; HttpOnly/Path=/SameSite=Lax/Secure-in-prod. The cookie
+ * carries the raw 32-byte token; the sessions row stores only its SHA-256 (D-144). */
 export const SESSION_COOKIE_NAME = "facilis_session";
 
 const DEFAULT_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -40,7 +41,10 @@ export async function createSession(
 
   const id = randomToken(32);
   const expiresAt = new Date(Date.now() + (options.ttlMs ?? DEFAULT_SESSION_TTL_MS));
-  await db.insert(sessions).values({ id, userId, expiresAt });
+  // The row key is the SHA-256 of the cookie value: the raw id is the credential and never
+  // reaches the database, so a SELECT on sessions (RLS-scoped, tenant-visible) cannot be
+  // replayed as a session. The cookie keeps the raw value; lookups hash it again.
+  await db.insert(sessions).values({ id: await sha256Hex(id), userId, expiresAt });
   return { id, expiresAt };
 }
 
@@ -55,6 +59,7 @@ export async function validateSession(
   db: PolicyScopedDatabase,
   sessionId: string,
 ): Promise<ValidatedSession | null> {
+  // Rows hold sha256(cookie id): the caller passes the raw cookie and the lookup hashes it.
   const rows = await db
     .select({
       session: sessions,
@@ -68,7 +73,7 @@ export async function validateSession(
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.id, sessionId))
+    .where(eq(sessions.id, await sha256Hex(sessionId)))
     .limit(1);
 
   const found = rows[0];
@@ -82,7 +87,8 @@ export async function validateSession(
 
 /** Deletes a session row; deleting an unknown id is a no-op. */
 export async function destroySession(db: PolicyScopedDatabase, sessionId: string): Promise<void> {
-  await db.delete(sessions).where(eq(sessions.id, sessionId));
+  // Deleting an unknown id stays a no-op; the stored key is the hash of the cookie value.
+  await db.delete(sessions).where(eq(sessions.id, await sha256Hex(sessionId)));
 }
 
 /**

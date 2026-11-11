@@ -145,14 +145,24 @@ insert does not name the tenant either.
   body is `{ code: string, details?: unknown }` — codes only, no prose.
 - Codes in Phase 1: `unauthorized` (401), `forbidden` (403), `invalid_input` (400, `details` =
   flatten of Zod issues), `conflict` (409), `db_unavailable` (500), `not_found` (404),
-  `storage_unavailable` (503), `file_too_large` (413), `unsupported_media_type` (415, D-141),
-  `too_many_requests` (429, D-143), `internal_error` (500).
+  `storage_unavailable` (503), `file_too_large` (413), `payload_too_large` (413, D-153),
+  `unsupported_media_type` (415, D-141), `too_many_requests` (429, D-143),
+  `email_unverified` (403, D-156), `internal_error` (500).
 - CSRF (D-141): on unsafe methods the wrapper rejects a cross-site request with `403 forbidden`
   before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback, a missing
   `Origin` means a non-browser client); `body` routes accept only `application/json` and `form`
   routes only `multipart/form-data` (`415 unsupported_media_type`); with `permission: []` a
   `crossSite` route is anonymous, with a permission it is reachable only with a Bearer token
   (D-142); `originCheck: "skip"` is the protocol-only exemption (SAML ACS).
+- Body caps (D-153): the wrapper checks `content-length` and counts the streamed bytes before
+  parsing — JSON 1 MiB; multipart `storage.maxUploadBytes + 1 MiB` (1 MiB when storage is
+  unconfigured). Over the cap → `413 payload_too_large` with `details.maxBytes`; a route's Zod
+  schema never sees an unbounded body.
+- Per-route throttle (D-152): `defineAuthorizedHandler({ rateLimit: { windowMs, maxRequests } })`
+  consumes one attempt keyed by the middleware's `clientAddress` + route path before permissions
+  and body parsing; over budget → `429 too_many_requests` with `retry-after`. The limiter is the
+  same bounded in-process window as the token endpoint (D-149); no resolved client address means
+  no throttle (one shared window would let one caller lock everyone out).
 - API clients (D-142): `POST /api/auth/token` is the framework-owned `client_credentials`
   endpoint (`application/json`, `{ grant_type, client_id, client_secret }`) and answers
   `{ access_token, token_type: "Bearer", expires_in }` with `cache-control: no-store`; there is no
@@ -176,7 +186,7 @@ insert does not name the tenant either.
 - Permission semantics: `permission: []` = public (no session required); non-empty array =
   session required **and** at least one permission must match; `*` in a role expands to all
   permissions from `config.auth.permissions`.
-- Dev-only `/__facilis/*`: `404` when `NODE_ENV === "production"`; origin must match the request
+- Dev-only `/__facilis/*`: `404` unless `NODE_ENV` is `development`/`test` (D-146); origin must match the request
   host (allow `http://localhost:*` and `http://127.0.0.1:*` / `[::1]`); `Cache-Control: no-cache`.
 
 ## 5. `@facilis/db` (data-auth)
@@ -230,7 +240,7 @@ export function schemaSnapshot(db: FacilisDb): Promise<SchemaSnapshot>; // drizz
   instead of failing on the first request. `snapshot()` rejects with `snapshot_unavailable`.
   `pg` is an optional capability of the package: the deployment installs it.
 - The environment chooses the target (D-068): `FACILIS_DATABASE_URL` else `DATABASE_URL` means
-  postgres whatever `db.mode` says (blank counts as unset); pglite under `NODE_ENV=production`
+  postgres whatever `db.mode` says (blank counts as unset); pglite outside `development`/`test`
   is refused. The runtime connects as the least-privileged `facilis_app` role, so the session
   middleware scopes its lookups with `runWithPolicyScope` and needs no privileged client.
 - `runWithPolicyScope` opens a transaction, then in this order: `SET LOCAL ROLE facilis_app`
@@ -260,21 +270,32 @@ export interface AuthConfig { permissions: readonly string[]; roles: Readonly<Re
   defaultRole: string; sessionDurationMs: number }
 export function expandRoles(roles: readonly string[], config: AuthConfig): string[];
 export function hasPermission(subject: Pick<AuthContext, "permissions"> | null, permission: string | readonly string[]): boolean;
+export function normalizeEmail(email: string): string; // canonical (trim + lowercase), D-150
+export function issueEmailVerification(db: PolicyScopedDatabase, userId: string, options: { ttlMs: number; now?: Date }): Promise<{ token: string; expiresAt: Date }>; // D-156
+export function consumeEmailVerification(db: PolicyScopedDatabase, token: string, now?: Date): Promise<{ userId: string } | null>; // D-156
+export function markEmailVerified(db: PolicyScopedDatabase, userId: string, now?: Date): Promise<boolean>; // dev fallback, D-156
 export const users, sessions, roles, rolePermissions, userRoles;  // Drizzle pgTable, SPEC §5.3
-export function hashPassword(password: string): Promise<string>;    // PBKDF2-SHA256, WebCrypto
+export function hashPassword(password: string): Promise<string>;    // PBKDF2-SHA256 600k, WebCrypto (D-148)
 export function verifyPassword(hash: string, password: string): Promise<boolean>;
 export function createSession(db: PolicyScopedDatabase, userId: string, opts?: { ttlMs?: number }): Promise<{ id: string; expiresAt: Date }>;
 export function validateSession(db: PolicyScopedDatabase, sessionId: string): Promise<{ user: AuthUser; session: SessionRow } | null>;
 export function destroySession(db: PolicyScopedDatabase, sessionId: string): Promise<void>;
 export function seedFromConfig(config: AuthConfig): Array<{ role: string; permission: string }>;
-export function registerInitialAdmin(db: PolicyScopedDatabase, userId: string): Promise<boolean>; // FACILIS_INITIAL_ADMIN
+export function registerInitialAdmin(
+  db: PolicyScopedDatabase,
+  userIdOrEmail: string,
+  bootstrapToken?: string,
+): Promise<boolean>; // FACILIS_INITIAL_ADMIN + FACILIS_INITIAL_ADMIN_TOKEN, one-time (D-150)
 export function sessionMiddleware(...): SessionEvent => Promise<void>  // reads cookie, sets event.context.auth
 ```
 
 - Tables must use `pgPolicy`/`enableRLS` where the spec requires it (tenancy on `users`).
 - `seedFromConfig` is a **pure projection** of the config (SPEC §5.3): no runtime writes to
   `role_permissions`; the generated seed is consumed by the migration/seed step.
-- `registerInitialAdmin` compares against `process.env.FACILIS_INITIAL_ADMIN` (email), grants `admin`.
+- `registerInitialAdmin` grants `admin` only when the canonical `lower(email)` equals
+  `FACILIS_INITIAL_ADMIN`, the caller presents `FACILIS_INITIAL_ADMIN_TOKEN` (constant-time,
+  missing token fails closed) and no `admin` exists yet (one-time, D-150). Emails are stored
+  canonical (`normalizeEmail`); the `users` table carries a unique `lower(email)` index.
 - `sessionMiddleware` also takes the deployment `tenantId`; a session whose user row names another
   tenant is refused, and the auth context it writes carries no tenant (D-040).
 
@@ -290,7 +311,10 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
   permission: string | readonly string[];
   body?: z.ZodType<B>; form?: z.ZodType<F>; // form XOR body (D-116)
   query?: z.ZodType<Q>; params?: z.ZodType<P>;
-  dbTables: readonly string[];       // REQUIRED, may be empty
+  // REQUIRED (may be empty): every table/view reached through ctx.db/ctx.sudo/ctx.system,
+  // enforced statically and at runtime (D-157).
+  dbTables: readonly string[];
+  rawSql?: boolean;                  // allow db.execute (raw SQL); default false (D-157)
   dbColumns?: readonly string[];      // "table.column"
   description?: string;
 }
@@ -324,6 +348,14 @@ export function registerCatalog(locale: string, messages: Record<string, string>
 - `defineAuthorizedHandler` semantics: session → permission → Zod parse → scoped DB → handler.
   It must **not** call `defineRouteMeta` at runtime (it is a Nitro build macro; Phase 0 A16).
   Static metadata extraction is the route-facts adapter over `@facilis/analyze` in `@facilis/nitro`.
+- `dbTables` is an enforced declaration (D-157): it lists **every** table and view the handler may
+  reach through `ctx.db`/`ctx.sudo`/`ctx.system`, by SQL name — a view is declared by its own name
+  (invoker or definer), never by its base tables. `@facilis/analyze` parses `defineView` into
+  `ViewFact`s and checks the declaration against the code (following project-local helper calls);
+  the CI gate runs the pass and validator rule 18 `route-table-declared` covers AI patches. At
+  runtime the guarded client fails closed with `table_not_declared`, `db.execute` requires
+  `rawSql: true` (otherwise `raw_sql_not_allowed`), violations audit `route:table_access`, and an
+  elevation's `succeeded` audit entry records `observedTables`.
 - Config validation must cross-check roles/permissions (unknown permission in a role → error),
   and `defaultRole` must exist (SPEC §8.4.1).
 - Logging (D-119): the wrapper records one access entry per request exit path and an error entry
@@ -331,7 +363,11 @@ export function registerCatalog(locale: string, messages: Record<string, string>
   (`FACILIS_LOG_SINK`/DIR/MAX_BYTES/KEEP/LEVEL), never an HTTP endpoint; audit is fail-closed
   and the sudo trail is bridged in. `sso` (D-120): `auth.sso.providers` (oidc | oauth2 | saml,
   secrets by env var name only) plus `failureRedirect` and `stateTtlMs`, cross-checked by
-  `defineConfig`; the framework owns `/api/auth/sso/**`.
+  `defineConfig`; the framework owns `/api/auth/sso/**`. `verification` (D-156): `enabled`
+  (false by default), `tokenTtlMs` (24 h, max 30 days), `successRedirect`/`failureRedirect`
+  (same-origin paths); delivery is env-owned (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`). SSO links a
+  verified PASSWORD account; a pending one is claimed (placeholder password removed, account
+  verified) — SEC-02.
 - `storage` (D-116/D-117): every key defaults (`driver: "local"`, `maxUploadBytes` 10 MiB / cap
   100 MiB, `tokenTtlSeconds` 300 / max 24 h, `encryption.enabled` false) and `driver: "s3"`
   requires `bucket` + `region`; secrets stay in `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET`,

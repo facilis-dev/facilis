@@ -66,19 +66,24 @@ function warning(
   };
 }
 
-/** Rule 4: every declared `dbTables` entry must be a table the effective schema has. */
+/** Rule 4: every declared `dbTables` entry must be a table or view the project declares. */
 export function routeDbTablesErrors(state: EffectiveState): ValidationError[] {
-  const lookup = tableLookup(state.schemaTables);
+  // D-157: a view is declared by its own SQL name (the base tables stay in the view).
+  const known = new Set(tableLookup(state.schemaTables).keys());
+  for (const view of state.analysis.views ?? []) {
+    known.add(view.name);
+    if (view.binding !== null) known.add(view.binding);
+  }
   const errors: ValidationError[] = [];
   for (const route of patchedRoutes(state)) {
     for (const table of route.dbTables ?? []) {
-      if (lookup.has(table)) continue;
+      if (known.has(table)) continue;
       errors.push(
         error(
           "db-tables-valid",
           route.sourceFile,
-          'dbTables references table "' + table + '", which is not in the schema.',
-          "Use a table declared in db/schema.ts (or added by this patch), or drop the reference.",
+          'dbTables references relation "' + table + '", which is not in the schema.',
+          "Use a table or view declared in db/ (or added by this patch), or drop the reference.",
           route.source.line,
         ),
       );

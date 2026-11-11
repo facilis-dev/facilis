@@ -23,6 +23,7 @@ describe("generated starter contract", () => {
       "server/routes/api/auth/logout.post.ts",
       "server/routes/api/auth/register.post.ts",
       "server/routes/api/auth/session.get.ts",
+      "server/routes/api/auth/verify-email.get.ts",
     ]);
     const login = files["server/routes/api/auth/login.post.ts"];
     expect(login).toContain("createSession(");
@@ -40,6 +41,13 @@ describe("generated starter contract", () => {
     expect(register).toContain('actor: "system:auth"');
     expect(register).toContain('operation: "user:register"');
     expect(register).not.toContain("facilis.db");
+    // D-156: registration issues the single-use link through the framework primitive and the
+    // verify route consumes it; both replace a direct write to the verification table.
+    expect(register).toContain("issueEmailVerification(");
+    expect(register).toContain("EMAIL_VERIFICATION_TABLES");
+    const verify = files["server/routes/api/auth/verify-email.get.ts"];
+    expect(verify).toContain("consumeEmailVerification(");
+    expect(verify).toContain("permission: []");
   });
 
   it("inserts through an authorized handler without naming the tenant", () => {
@@ -87,8 +95,11 @@ describe("generated starter contract", () => {
   });
 
   it("gives the registration default role the write permission and seeds it", () => {
-    expect(config).toMatch(/user: \["todos:read", "todos:write"\]/);
+    // The queue is RLS-gated by permissions (D-145), so the starter's default role carries
+    // them too: the template config and the seed migration must stay in lockstep.
+    expect(config).toMatch(/user: \["todos:read", "todos:write", "jobs:read", "jobs:exec"\]/);
     expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'todos:write')");
+    expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'jobs:read')");
   });
 
   it("keeps the starter free of test instrumentation", () => {

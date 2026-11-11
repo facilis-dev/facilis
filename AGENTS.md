@@ -77,7 +77,9 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 ## Security invariants (non-negotiable, spec §8)
 
 1. Every API route is written with `defineAuthorizedHandler` — no exceptions.
-2. `dbTables` is always present (empty array allowed) and accurate.
+2. `dbTables` is always present (empty array allowed) and accurate: every table **and view** the route
+   touches through `ctx.db`/`ctx.sudo`/`ctx.system`, checked statically (analyzer, CI gate, AI rule 18) and
+   enforced at runtime (D-157); `db.execute` only with `rawSql: true`.
 3. Input is validated with Zod; invalid input → `400`.
 4. Every table is exactly one of two classes (D-136): RLS-scoped (`ENABLE ROW LEVEL SECURITY` +
    its `pgPolicy` set, which is what grants `facilis_app` access) or system-only (no RLS → no
@@ -88,7 +90,7 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 7. Studio writes go through `kernel.writeFiles` (Vivari VFS); never touch OPFS directly.
 8. Roles/permissions are declared in `facilis.config.ts`; `role_permissions` is written
    only by migrations.
-9. AI patches pass the 17-rule validator before touching disk.
+9. AI patches pass the 18-rule validator before touching disk.
 
 If a change cannot satisfy an invariant, stop and raise it — do not weaken the invariant.
 

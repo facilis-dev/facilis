@@ -87,6 +87,8 @@ export interface AuditLogEntry extends LogEntryMeta {
   readonly method?: string;
   readonly path?: string;
   readonly tables?: readonly string[];
+  /** Succeeded sudo entries: the declared tables the elevated callback actually reached. */
+  readonly observedTables?: readonly string[];
   readonly roles?: readonly string[];
   readonly reason?: string;
   readonly details?: Record<string, unknown>;

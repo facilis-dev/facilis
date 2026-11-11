@@ -11,12 +11,12 @@ browser WebContainer (D-119). Logs are files, and the IDE reads them through the
 
 ## Quick start
 
-- **Development** needs no setup. With `FACILIS_LOG_SINK` unset, `NODE_ENV !== "production"`
+- **Development** needs no setup. With `FACILIS_LOG_SINK` unset, `NODE_ENV` is `development`/`test`
   selects the file sink: entries are appended to
   `<projectRoot>/.facilis/logs/{access,error,app,audit}.jsonl`.
   Open them in the IDE's editor (or the Logs panel, which renders the same files) and read one
   JSON object per line. `.facilis/` is in a generated project's `.gitignore`.
-- **Production** defaults to stdout (`FACILIS_LOG_SINK` unset, `NODE_ENV=production`): one JSON
+- **Production** defaults to stdout (`FACILIS_LOG_SINK` unset; anything but `development`/`test`, D-146): one JSON
   object per line on the process' stdout, so the deploy's log platform can ship it. A deploy
   that wants files instead sets `FACILIS_LOG_SINK=file` (or `both`).
 
@@ -74,7 +74,7 @@ storage credentials: a project must not be able to redirect an operator's trail.
 
 | Variable | Values | Default | Meaning |
 |---|---|---|---|
-| `FACILIS_LOG_SINK` | `auto`, `stdout`, `file`, `both` | `auto` | `auto` = files when `NODE_ENV !== "production"`, stdout in production |
+| `FACILIS_LOG_SINK` | `auto`, `stdout`, `file`, `both` | `auto` | `auto` = files when `NODE_ENV` is `development`/`test`, stdout otherwise (D-146) |
 | `FACILIS_LOG_DIR` | path | `<projectRoot>/.facilis/logs` | File sink directory (relative paths resolve against the project root) |
 | `FACILIS_LOG_MAX_BYTES` | integer | `10485760` (10 MiB) | Rotate the active file before an append would pass this size |
 | `FACILIS_LOG_KEEP` | integer | `5` | Rotated files kept per stream (`0` discards on rotation) |

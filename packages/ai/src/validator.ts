@@ -1,5 +1,5 @@
 /**
- * The SPEC §9.3 patch validator: 17 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 18 rules, grouped by the part of the project they read.
  *
  * Without a context only the two context-free structural checks run (the parser gate);
  * with a context the full rule set runs. Rules 5, 13, 14 and 17 are warnings (they never
@@ -16,6 +16,7 @@ import { roleConfigSyncErrors } from "./rules/config-sync.ts";
 import { destructiveErrors, migrationWarnings, rlsErrors } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
+import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
 import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
   permissionErrors,
@@ -56,6 +57,10 @@ export function validatePatch(
     errors.push(...destructiveErrors(state, options.requiresConfirmation === true));
     errors.push(...roleConfigSyncErrors(patches, state));
     warnings.push(...routeDescriptionWarnings(state));
+    // D-157 rule 18: dbTables is applied over every effective route, not only patched ones.
+    const routeTables = routeTableDeclaredFindings(state);
+    errors.push(...routeTables.errors);
+    warnings.push(...routeTables.warnings);
   }
   return { ok: errors.length === 0, errors, warnings };
 }

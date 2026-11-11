@@ -65,6 +65,22 @@ export interface SamlProviderConfig extends SsoProviderBase {
 
 export type SsoProviderConfig = OidcProviderConfig | Oauth2ProviderConfig | SamlProviderConfig;
 
+/**
+ * The identity-policy projection of a provider: exactly the fields identity resolution needs,
+ * so the flow never hands the whole config (and its secrets) to the linking code.
+ */
+export function identityPolicy(config: SsoProviderConfig): {
+  readonly id: string;
+  readonly autoProvision: boolean;
+  readonly defaultRole?: string;
+} {
+  return {
+    id: config.id,
+    autoProvision: config.autoProvision,
+    ...(config.defaultRole === undefined ? {} : { defaultRole: config.defaultRole }),
+  };
+}
+
 /** Structural shape of `config.auth.sso` after defineConfig applied its defaults. */
 export interface SsoConfigLike {
   readonly providers: readonly SsoProviderConfig[];

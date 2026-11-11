@@ -38,6 +38,7 @@ describe("scanRouteMetadata", () => {
     expect(metadata["/health"]?.["get"]).toMatchObject({
       method: "GET",
       permission: [],
+      rawSql: false,
       dbTables: [],
       dbColumns: [],
       description: "Health probe.",
@@ -88,7 +89,9 @@ describe("scanRouteMetadata", () => {
       dbTables: ["todos"],
       dbColumns: [],
       unresolved: [],
-      warnings: [],
+      // The handler returns the const instead of touching ctx.db, so the new relation pass
+      // reports the declared-but-unused table (D-157).
+      warnings: [expect.objectContaining({ code: "route-table-unused" })],
       description: "Same-file const table list, read statically by the analyzer.",
     });
   });
@@ -113,7 +116,7 @@ describe("scanRouteMetadata", () => {
         method: "GET",
         dbTables: [],
         dbColumns: [],
-        unresolved: ["permission", "dbTables", "dbColumns", "crossSite"],
+        unresolved: ["permission", "dbTables", "dbColumns", "crossSite", "rawSql"],
       });
       expect(metadata[path]?.["get"]?.permission).toBeUndefined();
       expect(metadata[path]?.["get"]?.description).toBeUndefined();
@@ -181,6 +184,33 @@ describe("scanRouteMetadata", () => {
       section: "routes",
       sourceFile: "server/routes/cache.head.ts",
     });
+  });
+
+  it("maps rawSql and reports an unreadable value as unresolved, never as false", () => {
+    const metadata = routeMetadataFromAnalysis(
+      emptyAnalysis({
+        routes: [
+          routeFact({
+            method: "POST",
+            path: "/raw",
+            sourceFile: "server/routes/raw.post.ts",
+            rawSql: true,
+          }),
+          routeFact({
+            method: "GET",
+            path: "/opaque",
+            sourceFile: "server/routes/opaque.get.ts",
+            rawSql: null,
+          }),
+        ],
+      }),
+    );
+
+    expect(metadata["/raw"]?.post?.rawSql).toBe(true);
+    expect(metadata["/raw"]?.post?.unresolved).toEqual([]);
+    // null is "could not read" (fail closed): the flag is unresolved, not a silent false.
+    expect(metadata["/opaque"]?.get?.rawSql).toBe(false);
+    expect(metadata["/opaque"]?.get?.unresolved).toContain("rawSql");
   });
 
   it("returns an empty map for a project root that does not exist", () => {

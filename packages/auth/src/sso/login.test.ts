@@ -79,6 +79,7 @@ function deps(overrides: Partial<SsoFlowDeps> = {}): SsoFlowDeps {
   return {
     sso: ssoConfig([OIDC, SAML]),
     defaultRole: "user",
+    verificationEnabled: false,
     publicOrigin: PUBLIC_ORIGIN,
     system,
     audit,

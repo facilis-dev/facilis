@@ -21,6 +21,7 @@ describe("analyzeProject (fixture)", () => {
       "sessions",
     ]);
     expect(analysis.relations).toHaveLength(2);
+    expect(analysis.views).toEqual([]);
     expect(analysis.pages.filter((page) => page.calls.length > 0)).toHaveLength(3);
   });
 
@@ -28,8 +29,13 @@ describe("analyzeProject (fixture)", () => {
     const analysis = analyzeFixture();
     const unsafe = analysis.routes.find((route) => route.path === "/api/unsafe");
     expect(unsafe?.wrapper).toBe("invalid");
+    // D-157: the fixture routes declare `todos` but never query it, so each one is an
+    // explicit "declared and unused" warning; the invalid wrapper remains an error.
     expect(analysis.diagnostics.map((entry) => entry.code).toSorted()).toEqual([
       "client-transport",
+      "route-table-unused",
+      "route-table-unused",
+      "route-table-unused",
       "route-wrapper",
     ]);
   });

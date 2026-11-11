@@ -18,7 +18,17 @@ const SPEC_AUTH = {
   },
   defaultRole: "user",
   sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
-  sso: { providers: [], failureRedirect: "/login", stateTtlMs: 10 * 60 * 1000 },
+  sso: {
+    providers: [],
+    failureRedirect: "/login",
+    stateTtlMs: 10 * 60 * 1000,
+  },
+  verification: {
+    enabled: false,
+    tokenTtlMs: 1000 * 60 * 60 * 24,
+    successRedirect: "/login",
+    failureRedirect: "/login",
+  },
 } as const;
 
 const FULL_CONFIG: FacilisConfig = {

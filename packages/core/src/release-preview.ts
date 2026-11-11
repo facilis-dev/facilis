@@ -60,7 +60,8 @@ export interface ReleaseTableFact {
 
 /**
  * One route at a ref. A route derived from a filename knows method and path only; a route
- * read from a manifest also knows `permission`, `dbTables` and `sourceFile`.
+ * read from a manifest also knows `permission`, `dbTables`, `dbColumns`, `rawSql` and
+ * `sourceFile`.
  */
 export interface ReleaseRouteFact {
   readonly method: string;
@@ -69,6 +70,8 @@ export interface ReleaseRouteFact {
   readonly permission?: string | readonly string[];
   readonly dbTables?: readonly string[];
   readonly dbColumns?: readonly string[];
+  /** `rawSql: true` allows `db.execute` (D-157); absent means not known at this ref. */
+  readonly rawSql?: boolean;
 }
 
 /** One migration file as it exists at a ref. */

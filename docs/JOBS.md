@@ -146,6 +146,14 @@ interface JobsApi {
   the coded error and answer with its own failure code. The framework never turns a broken queue
   into a framework-wide 500. `unavailableJobs()` is internal — only the code is public through
   `JobError`.
+- **Permissions (D-145).** The queue's RLS policies are permission-gated: `SELECT` needs
+  `jobs:read`, `INSERT`/`UPDATE`/`DELETE` need `jobs:exec`. The route must therefore declare one of
+  those permissions (`permission: ["jobs:read"]` / `["jobs:exec"]`) and the role must carry it;
+  a handler that calls `ctx.jobs` without the permission is denied by the database, not just by
+  the wrapper's own check. Both permissions are declared in `facilis.config.ts` like any other.
+  There is no owner column: **which jobs a user sees is the endpoint's decision** (filter in the
+  handler if the app needs per-user visibility). An anonymous route that must enqueue goes
+  through `ctx.system` with `tables: ["facilis_jobs"]` (audited).
 - `ctx.jobs` is bound to the request's policy-scoped transaction (`bindScope`):
   queue calls join the transaction the handler already runs in, because PGlite has a single
   connection and a nested `BEGIN` would deadlock the request (see §8). This is framework
@@ -179,11 +187,13 @@ interface JobsApi {
 
 ## 8. Persistence and recovery
 
-`facilis_jobs` (table in `@facilis/db`, tenant-scoped with `tenantIsolationPolicy`,
-`enableRLS`) is re-exported by the project's `db/schema.ts` and therefore created by a
-Drizzle migration like the auth tables. The queue's own reads/writes run as `facilis_app`
-under the deployment tenant (`runWithPolicyScope`), so RLS applies and the sudo audit stays
-for job bodies only.
+`facilis_jobs` (table in `@facilis/db`, tenant-scoped with the restrictive
+`tenantIsolationPolicy`, `enableRLS`, plus the per-command `jobs:read`/`jobs:exec` policies of
+D-145) is re-exported by the project's `db/schema.ts` and therefore created by a Drizzle
+migration like the auth tables. The engine's own reads/writes run as `facilis_app` under the
+deployment tenant with the framework permissions in scope (`runWithPolicyScope`); a request
+carries the session's permissions. RLS applies in both cases and the sudo audit stays for job
+bodies only.
 
 The store is transaction-aware: `JobStore.scoped(requestTx)` returns a view whose operations
 join that transaction. The route wrapper binds `ctx.jobs` to it through `JobsApi.bindScope`,

@@ -35,6 +35,7 @@ describe("fail", () => {
     expect(FACILIS_ERROR_STATUS).toEqual({
       unauthorized: 401,
       forbidden: 403,
+      email_unverified: 403,
       invalid_input: 400,
       too_many_requests: 429,
       unsupported_media_type: 415,
@@ -42,7 +43,10 @@ describe("fail", () => {
       db_unavailable: 500,
       not_found: 404,
       storage_unavailable: 503,
+      payload_too_large: 413,
       file_too_large: 413,
+      table_not_declared: 500,
+      raw_sql_not_allowed: 500,
       internal_error: 500,
     });
   });

@@ -145,6 +145,21 @@ describe("facilis-context middleware", () => {
     expect(harness.context.facilis?.client).toEqual({ ip: "203.0.113.7" });
   });
 
+  it("resolves the wrapper's rate-limit address independently of the logging opt-ins", async () => {
+    // Without proxy trust the header is client input: it is not logged and must not key a window.
+    bootstrapMock.getBootstrap.mockResolvedValue(state());
+    const untrusted = makeEvent({ "x-forwarded-for": "203.0.113.7" });
+    await handler(untrusted.event);
+    expect(untrusted.context.facilis?.clientAddress).toBeUndefined();
+
+    bootstrapMock.getBootstrap.mockResolvedValue(
+      state({ loggingConfig: { ...DEFAULT_LOGGING_CONFIG, trustProxy: true } }),
+    );
+    const trusted = makeEvent({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" });
+    await handler(trusted.event);
+    expect(trusted.context.facilis?.clientAddress).toBe("203.0.113.7");
+  });
+
   it("caps a 10 000-character x-forwarded-for before the log line is written", async () => {
     const lines: string[] = [];
     const logging = createLoggingRuntime({

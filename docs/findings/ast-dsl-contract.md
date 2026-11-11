@@ -268,7 +268,7 @@ tables), 4 pages with calls, 18 graph nodes / 31 edges, 0 diagnostics. The IDE w
 `packages/ai/src/{scan,config-facts,schema-facts}.ts` are deleted. `@facilis/nitro` maps
 `RouteFact[]` to the manifest/OpenAPI contract (`route-metadata.ts`) with a parser injected from
 `rolldown/utils` (`rolldown-parser.ts`), because the generated project's Vite config runs in the
-WebContainer; `@facilis/analyze/fs` is the parser-free Node loader. `@facilis/ai`'s 17-rule
+WebContainer; `@facilis/analyze/fs` is the parser-free Node loader. `@facilis/ai`'s 18-rule
 validator consumes the effective post-patch `Analysis` plus the pre-patch one; the IDE builds
 both on its warm worker (`patch-analysis.ts`), caches the pre-patch analysis per VFS snapshot,
 and fails closed with `project-analysis` if the analyzer is unavailable. `@facilis/analyze` is
