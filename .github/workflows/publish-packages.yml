@@ -62,6 +62,8 @@ jobs:
           pnpm exec turbo run test --concurrency=2 --filter='./packages/*' -- --fsModuleCachePath=node_modules/.vitest-cache
           node scripts/check-file-length.mjs
 
+      # Publishing a brand-new scoped package answers 404 (not 403) when the token may not
+      # write that scope, so log who the token is and whether it can see the organization.
       - name: Check the npm credentials
         if: ${{ !inputs.dry_run }}
         env:
@@ -70,6 +72,10 @@ jobs:
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::the NPM_TOKEN repository secret is missing: add a granular npm token with read/write on @facilis.dev (docs/DEV.md section 13)"
             exit 1
+          fi
+          echo "npm token belongs to: $(npm whoami)"
+          if ! npm org ls facilis.dev --json; then
+            echo "::warning::this token cannot list the facilis.dev organization: give it Organizations: Read and write (docs/DEV.md section 13)"
           fi
 
       - name: Publish
