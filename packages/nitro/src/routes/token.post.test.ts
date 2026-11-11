@@ -72,6 +72,8 @@ function state(projectConfig: FacilisConfig | null): BootstrapState {
     warnings: [],
     startedAt: "2026-11-10T00:00:00.000Z",
     jobs: null,
+    tasks: null,
+    workflows: null,
     storage: null,
     logging: loggingApi,
     loggingConfig: DEFAULT_LOGGING_CONFIG,

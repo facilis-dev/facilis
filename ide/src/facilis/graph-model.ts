@@ -3,13 +3,15 @@
 // bridge, no IO, so the geometry and the filters are unit-testable and a refresh can rebuild
 // the view without touching the editor.
 //
-// Layout is three columns — pages, routes, tables — with FK/relation edges staying inside the
-// tables column. Views are schema objects too, so they sit in the tables column below it behind
-// a gap instead of opening a fourth column. A saved position overrides the automatic one; edge
-// kinds listed in the layout's `hiddenEdges` are dropped before the canvas sees them.
+// Layout is four columns — pages, routes, tables, workflows — with FK/relation edges staying
+// inside the tables column. Views are schema objects too, so they sit in the tables column
+// below it behind a gap instead of opening another column. A saved position overrides the
+// automatic one; edge kinds listed in the layout's `hiddenEdges` are dropped before the canvas
+// sees them.
 
-import type { GraphEdgeKind, ProjectGraph } from "@facilis/analyze";
-import { matchesQuery, pageData, routeData, tableData, viewData } from "./graph-model-data";
+import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis/analyze";
+import { pageData, routeData, tableData, viewData } from "./graph-model-data";
+import { matchesNodeQuery, workflowData } from "./graph-node-data";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
 import {
   GRAPH_COLUMNS,
@@ -35,6 +37,8 @@ export type {
   TableGraphData,
   UsedByRoute,
   ViewGraphData,
+  WorkflowGraphData,
+  WorkflowStepGraphData,
 } from "./graph-types";
 export { GRAPH_COLUMNS } from "./graph-types";
 
@@ -42,7 +46,7 @@ export { GRAPH_COLUMNS } from "./graph-types";
  * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
  * the tallest of the fixed rows because they carry the input flags and path-parameter row.
  */
-const ROW_PITCH = { page: 88, route: 112, table: 190, view: 150 } as const;
+const ROW_PITCH = { page: 88, route: 112, table: 190, view: 150, workflow: 150 } as const;
 
 /** Blank space between the last table row and the first view row in the schema column. */
 const VIEW_GAP = 56;
@@ -94,16 +98,18 @@ function autoPositions(
   routes: readonly ProjectGraphNode[],
   tables: readonly ProjectGraphNode[],
   views: readonly ProjectGraphNode[],
+  workflows: readonly ProjectGraphNode[],
 ): Map<string, GraphPosition> {
   const positions = new Map<string, GraphPosition>();
-  const place = (x: number, pitch: number, ordered: readonly ProjectGraphNode[]): void => {
+  const place = (kind: GraphNodeKind, ordered: readonly ProjectGraphNode[]): void => {
     ordered.forEach((node, index) => {
-      positions.set(node.id, { x, y: index * pitch });
+      positions.set(node.id, { x: GRAPH_COLUMNS[kind], y: index * ROW_PITCH[kind] });
     });
   };
-  place(GRAPH_COLUMNS.page, ROW_PITCH.page, pages);
-  place(GRAPH_COLUMNS.route, ROW_PITCH.route, routes);
-  place(GRAPH_COLUMNS.table, ROW_PITCH.table, tables);
+  place("page", pages);
+  place("route", routes);
+  place("table", tables);
+  place("workflow", workflows);
   // Tables first, then views, in the same schema column: the gap keeps a view visibly a
   // relation over its base tables rather than another table row.
   const viewsY = tables.length === 0 ? 0 : tables.length * ROW_PITCH.table + VIEW_GAP;
@@ -156,7 +162,9 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
           ? routeData(node)
           : node.data.kind === "table"
             ? tableData(node)
-            : viewData(node);
+            : node.data.kind === "view"
+              ? viewData(node)
+              : workflowData(node);
     if (data === null) continue;
     nodes.push({
       id: node.id,
@@ -187,7 +195,10 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   const views = nodes
     .filter((node) => node.kind === "view")
     .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
-  const auto = autoPositions(pages, routes, orderedTables, views);
+  const workflows = nodes
+    .filter((node) => node.kind === "workflow")
+    .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  const auto = autoPositions(pages, routes, orderedTables, views, workflows);
 
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const allEdges = input.graph.edges
@@ -206,7 +217,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
         ? { x: saved.x, y: saved.y }
         : (auto.get(node.id) ?? { x: 0, y: 0 });
     const base = { ...node, data, position };
-    return { ...base, matched: matchesQuery(base, needle) };
+    return { ...base, matched: matchesNodeQuery(base, needle) };
   });
 
   const visible = allEdges.filter((edge) => !hidden.has(edge.kind));
@@ -220,6 +231,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       routes: routes.length,
       tables: tables.length,
       views: views.length,
+      workflows: workflows.length,
       edges: visible.length,
       hiddenEdges: hiddenCount,
       matches: positioned.filter((node) => node.matched).length,

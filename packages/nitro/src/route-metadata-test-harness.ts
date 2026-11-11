@@ -49,6 +49,7 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     relations: [],
     views: [],
     pages: [],
+    workflows: [],
     fileFacts: [],
     locales: {},
     diagnostics: [],

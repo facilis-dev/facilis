@@ -11,6 +11,11 @@ import {
   type FacilisJobsConfigInput,
 } from "./jobs-config.ts";
 import {
+  facilisWorkflowsConfigSchema,
+  type FacilisWorkflowsConfig,
+  type FacilisWorkflowsConfigInput,
+} from "./workflows-config.ts";
+import {
   facilisLoggingConfigSchema,
   type FacilisLoggingConfig,
   type FacilisLoggingConfigInput,
@@ -56,6 +61,8 @@ export type {
 } from "./verification-config.ts";
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+export { DEFAULT_WORKFLOWS_CONFIG, facilisWorkflowsConfigSchema } from "./workflows-config.ts";
+export type { FacilisWorkflowsConfig, FacilisWorkflowsConfigInput } from "./workflows-config.ts";
 export { DEFAULT_STORAGE_CONFIG, STORAGE_DRIVERS } from "./storage-config.ts";
 export type {
   FacilisStorageConfig,
@@ -128,6 +135,8 @@ export interface FacilisConfig {
   readonly auth: FacilisAuthConfig;
   /** Background-job queue settings (D-107, docs/JOBS.md §4). */
   readonly jobs: FacilisJobsConfig;
+  /** Workflow runner settings (D-135, docs/WORKFLOWS.md §10). */
+  readonly workflows: FacilisWorkflowsConfig;
   /** Binary uploads (D-053): driver, bucket and the framework limits. */
   readonly storage: FacilisStorageConfig;
   /** Request-origin policy; always present so the wrapper never guesses (SPEC §8). */
@@ -166,6 +175,8 @@ export interface FacilisConfigInput {
   };
   /** Background-job queue settings; every key has a default (D-107). */
   readonly jobs?: FacilisJobsConfigInput;
+  /** Workflow runner settings (D-135); every key has a default. */
+  readonly workflows?: FacilisWorkflowsConfigInput;
   /** Binary uploads (D-053, D-117); every key has a default. */
   readonly storage?: FacilisStorageConfigInput;
   /** Logging defaults (D-119); every key has a default and the environment overrides them. */
@@ -262,6 +273,7 @@ const baseConfigSchema = z.strictObject({
   i18n: i18nSchema,
   auth: authSchema,
   jobs: facilisJobsConfigSchema,
+  workflows: facilisWorkflowsConfigSchema,
   storage: facilisStorageConfigSchema,
   security: securitySchema,
   logging: facilisLoggingConfigSchema,

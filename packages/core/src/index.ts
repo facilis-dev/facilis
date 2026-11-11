@@ -89,6 +89,8 @@ export type {
 
 export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
+export { DEFAULT_WORKFLOWS_CONFIG, facilisWorkflowsConfigSchema } from "./workflows-config.ts";
+export type { FacilisWorkflowsConfig, FacilisWorkflowsConfigInput } from "./workflows-config.ts";
 export {
   defineJob,
   isJobDefinition,
@@ -110,6 +112,52 @@ export type {
   JobStatus,
   JobsApi,
 } from "./jobs.ts";
+export {
+  serializeTaskData,
+  TASK_DECISIONS,
+  TASK_ERROR_CODES,
+  TASK_KINDS,
+  TASK_STATUSES,
+  TaskError,
+} from "./tasks.ts";
+export type {
+  RequestTaskInput,
+  TaskActorContext,
+  TaskDecision,
+  TaskDecisionInput,
+  TaskErrorCode,
+  TaskJson,
+  TaskKind,
+  TaskListOptions,
+  TaskRecord,
+  TasksApi,
+  TaskStatus,
+} from "./tasks.ts";
+export {
+  defineWorkflow,
+  isWorkflowDefinition,
+  serializeWorkflowData,
+  WORKFLOW_ERROR_CODES,
+  WORKFLOW_STATUSES,
+  WORKFLOW_STEP_KINDS,
+  WorkflowError,
+} from "./workflows.ts";
+export type {
+  WorkflowApprovalStep,
+  WorkflowDefinition,
+  WorkflowErrorCode,
+  WorkflowJobStep,
+  WorkflowJson,
+  WorkflowListOptions,
+  WorkflowProgressEntry,
+  WorkflowRecord,
+  WorkflowResolveContext,
+  WorkflowsApi,
+  WorkflowStatus,
+  WorkflowStep,
+  WorkflowStepIdentity,
+  WorkflowStepKind,
+} from "./workflows.ts";
 
 export { createFixedWindowRateLimiter, MAX_WINDOWS } from "./rate-limit.ts";
 export type { FixedWindowRateLimiter, RateLimitDecision, RateLimitWindow } from "./rate-limit.ts";

@@ -8,6 +8,7 @@ import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
 import { buildViewFacts } from "./passes/views.ts";
+import { buildWorkflowFacts } from "./passes/workflows.ts";
 import { buildProjectGraph } from "./graph.ts";
 import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
@@ -47,6 +48,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
   // D-157: the declaration check runs after the schema and the views, because a route's
   // `dbTables` and its usage are compared against both (tables and views).
   const routeRelations = buildRouteRelationFacts(graph, routes.routes, schema.tables, views.views);
+  const workflows = buildWorkflowFacts(graph);
   const locales = readLocaleCatalogs(graph);
   const pages = buildPageFacts(graph, routes.routes, input.transport ?? DEFAULT_TRANSPORT);
   const screens = buildScreens(graph, pages.pages);
@@ -68,6 +70,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...locales.diagnostics,
       ...pages.diagnostics,
       ...routeSystemTableDiagnostics(routes.routes, schema.tables),
+      ...workflows.diagnostics,
     ].filter(
       // Framework sources are shipped code: their facts stay, but their lint-style
       // diagnostics are not the project's. Project files start outside node_modules/.
@@ -84,6 +87,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     relations: schema.relations,
     views: views.views,
     pages: pages.pages,
+    workflows: workflows.workflows,
     fileFacts,
     locales: locales.locales,
     diagnostics,
@@ -94,6 +98,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       pages: pages.pages,
       views: views.views,
       screens,
+      workflows: workflows.workflows,
     }),
   };
 }

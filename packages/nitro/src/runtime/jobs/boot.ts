@@ -58,6 +58,8 @@ export async function bootJobs(options: BootJobsOptions): Promise<JobsRuntime | 
 
     const runtime: JobsRuntime = {
       api: createJobsApi(engine, jobsConfig.maxConcurrent),
+      engine,
+      definitions: registry.definitions,
       start: () => engine.start(),
       stop: () => engine.stop(),
     };

@@ -72,6 +72,22 @@ export interface RouteGraphData {
   readonly unknown: boolean;
 }
 
+export interface WorkflowStepGraphData {
+  readonly index: number;
+  readonly kind: "job" | "approval";
+  /** Job name or approval title key; null when the definition could not be read. */
+  readonly name: string | null;
+  readonly permission: string | null;
+  readonly onRejectStep: number | null;
+}
+
+export interface WorkflowGraphData {
+  readonly kind: "workflow";
+  readonly name: string;
+  readonly steps: readonly WorkflowStepGraphData[];
+  readonly unknown: boolean;
+}
+
 export interface TableGraphData {
   readonly kind: "table";
   readonly table: string;
@@ -105,7 +121,8 @@ export interface ViewGraphData {
   readonly usedByRoutes: readonly UsedByRoute[];
 }
 
-export type ProjectGraphNodeData = PageGraphData | RouteGraphData | TableGraphData | ViewGraphData;
+export type ProjectGraphNodeData =
+  PageGraphData | RouteGraphData | TableGraphData | ViewGraphData | WorkflowGraphData;
 
 export interface ProjectGraphNode {
   readonly id: string;
@@ -135,6 +152,7 @@ export interface ProjectGraphStats {
   readonly routes: number;
   readonly tables: number;
   readonly views: number;
+  readonly workflows: number;
   readonly edges: number;
   readonly hiddenEdges: number;
   readonly matches: number;
@@ -174,5 +192,14 @@ export const GRAPH_EDGE_KINDS = [
   "view-base",
 ] as const satisfies readonly GraphEdgeKind[];
 
-/** The layout columns, in CSS pixels. Views share the schema column, below the tables. */
-export const GRAPH_COLUMNS = { page: 0, route: 344, table: 680, view: 680 } as const;
+/**
+ * The layout columns, in CSS pixels. Views are schema objects too, so they share the tables
+ * column (below it, behind a gap); workflows get the fourth column on the right.
+ */
+export const GRAPH_COLUMNS = {
+  page: 0,
+  route: 344,
+  table: 680,
+  view: 680,
+  workflow: 1016,
+} as const;

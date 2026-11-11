@@ -60,6 +60,12 @@ const handler = async (event: H3Event): Promise<void> => {
     // ctx.jobs is required by the handler contract: attach it whenever the runtime
     // booted. Without it the wrapper substitutes a job_unavailable fallback (D-107).
     ...(state.jobs === null ? {} : { jobs: state.jobs.api }),
+    // Same contract for ctx.tasks (D-135): a missing runtime becomes a task_unavailable
+    // fallback in the wrapper, never a broken route.
+    ...(state.tasks === null ? {} : { tasks: state.tasks.api }),
+    // Same contract for ctx.workflows (D-135): a missing runtime becomes a
+    // workflow_unavailable fallback in the wrapper, never a broken route.
+    ...(state.workflows === null ? {} : { workflows: state.workflows.api }),
     // Same contract for ctx.storage (D-053): missing runtime => route-level fallback.
     ...(state.storage === null ? {} : { storage: state.storage }),
   };

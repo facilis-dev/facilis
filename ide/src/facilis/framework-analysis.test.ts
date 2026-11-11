@@ -52,6 +52,8 @@ describe("project analysis with framework sources", () => {
       "auth_sso_states",
       "facilis_files",
       "facilis_jobs",
+      "facilis_tasks",
+      "facilis_workflows",
       "role_permissions",
       "roles",
       "sessions",
@@ -60,9 +62,10 @@ describe("project analysis with framework sources", () => {
       "user_roles",
       "users",
     ]);
-    expect(analysis.graph.nodes).toHaveLength(36);
-    // 59 after D-157: session/jobs routes no longer declare tables they do not touch.
-    expect(analysis.graph.edges).toHaveLength(59);
+    expect(analysis.graph.nodes).toHaveLength(42);
+    // 63 after D-157 and the W1/W3 routes: session/jobs routes no longer declare tables they
+    // do not touch, while the task and workflow routes add their own route-table edges.
+    expect(analysis.graph.edges).toHaveLength(63);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {
@@ -89,7 +92,7 @@ describe("project analysis without framework sources", () => {
 
   it("keeps only the locally declared tables", () => {
     expect(tableNames(analysis)).toEqual(["todo_files", "todos"]);
-    expect(analysis.graph.nodes).toHaveLength(24);
+    expect(analysis.graph.nodes).toHaveLength(28);
     expect(analysis.graph.edges).toHaveLength(23);
   });
 

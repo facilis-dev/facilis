@@ -11,8 +11,10 @@ import type {
   TableNodeData,
   ViewFact,
   ViewNodeData,
+  WorkflowFact,
+  WorkflowNodeData,
 } from "./types.ts";
-import { pageId, routeId, tableId, viewId } from "./graph-ids.ts";
+import { pageId, routeId, tableId, viewId, workflowId } from "./graph-ids.ts";
 import { collectEdges } from "./graph-edges.ts";
 
 export interface GraphInput {
@@ -24,6 +26,8 @@ export interface GraphInput {
   readonly views: readonly ViewFact[];
   /** Route paths, bounded page previews and explicit page links. */
   readonly screens?: ScreenFacts;
+  /** Workflow definitions read from `server/workflows/**` (D-135 W3). */
+  readonly workflows?: readonly WorkflowFact[];
 }
 
 function tableNode(table: TableFact): GraphNode {
@@ -62,6 +66,28 @@ function viewNode(view: ViewFact): GraphNode {
     kind: "view",
     label: view.name,
     sourceFile: view.source.file,
+    data,
+  };
+}
+
+function workflowNode(workflow: WorkflowFact): GraphNode {
+  const data: WorkflowNodeData = {
+    kind: "workflow",
+    name: workflow.name,
+    steps: workflow.steps.map((step) => ({
+      index: step.index,
+      kind: step.kind,
+      name: step.name,
+      permission: step.permission,
+      onRejectStep: step.onRejectStep,
+    })),
+    unknown: workflow.unknown.length > 0 || workflow.steps.some((step) => step.name === null),
+  };
+  return {
+    id: workflowId(workflow.name),
+    kind: "workflow",
+    label: workflow.name,
+    sourceFile: workflow.sourceFile,
     data,
   };
 }
@@ -142,6 +168,13 @@ function collectNodes(input: GraphInput): GraphNode[] {
     if (pageIds.has(id)) continue;
     pageIds.add(id);
     nodes.push(pageNode(page, id, screens));
+  }
+  const workflowIds = new Set<string>();
+  for (const workflow of input.workflows ?? []) {
+    const id = workflowId(workflow.name);
+    if (workflowIds.has(id)) continue;
+    workflowIds.add(id);
+    nodes.push(workflowNode(workflow));
   }
   return nodes;
 }

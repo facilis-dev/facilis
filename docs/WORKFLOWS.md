@@ -1,10 +1,14 @@
 # Workflows and manual tasks — design
 
-**Status:** proposed — design approved (D-135, 2026-11-10). W1 (manual tasks) is implemented;
-the workflow layer (W2–W3) is not started. SPEC §5.6/§7.9 still describe the jobs surface
-(D-107) while O-017 stays open until W3 lands. This document is the design reference behind
-the approved direction: contract, runtime semantics, tables, rejected alternatives and the
-phased plan.
+**Status:** accepted — design approved (D-135, 2026-11-10). W1 (manual tasks), W2
+(workflows) and W3 (reject branches, task assignment by permission, an example workflow with its
+start route, SPEC §7.10) are implemented. Workflows are shown in the project graph as definition
+nodes with their steps (D-161, `@facilis/analyze` pass); there is deliberately **no Studio task
+inbox tab** — the task inbox/decide routes are app UI and the graph is the only new IDE surface.
+SPEC §5.6/§7.9 describe the jobs surface (D-107) and §7.10 the workflow/task surface (SPEC v1.30); O-017
+stays open for retention/pruning and the dev-only inspection endpoint. This document is the
+design reference behind the approved direction: contract, runtime semantics, tables, rejected
+alternatives and the phased plan.
 
 ## 1. What the feature must do
 
@@ -18,10 +22,10 @@ flag changes. Derived requirements:
    it; no in-memory wait, no open transaction, no timer held in a job body.
 3. State survives the dev-server worker reload / process restart (PGlite snapshot) and never
    blocks the single PGlite connection.
-4. The runtime runs as `facilis_app` under the tenant (like the queue); step bodies run as
-   `facilis_system` through the jobs executor. Access to the workflow/task rows is gated by
-   permissions (`workflows:read`/`workflows:exec`, `tasks:read`/`tasks:decide`), and the decision
-   is an app-scoped, authorized write — no system-only tables, no elevation cascade (D-145).
+4. The runtime writes as `facilis_app` under the tenant (like the queue); step bodies run as
+   `facilis_system` through the jobs executor. Both tables are RLS-scoped (D-136), so there are
+   no system-only tables and no elevation cascade; the app-owned routes enforce the session
+   permissions (`tasks:read`/`tasks:decide`) on every decision.
 5. Minimal surface: two tables, one runtime tick, no new package, no HTTP endpoint owned by the
    framework.
 
@@ -71,14 +75,16 @@ flag changes. Derived requirements:
 | `name` | text not null | definition key |
 | `status` | text not null | `running`, `waiting`, `succeeded`, `failed`, `cancelled` — text like `facilis_jobs`, so a new state is a code change, not a migration |
 | `input` | jsonb not null | validated by the definition's input schema |
-| `progress` | jsonb not null default `'[]'` | completed steps: `{ index, kind, jobId?, taskId?, output? }`; the plan snapshot lives here |
+| `progress` | jsonb not null default `'[]'` | completed steps: `{ index, kind, jobId?, taskId?, output?, decision? }` |
+| `plan` | jsonb not null default `'[]'` | step identities captured at start: `{ index, kind, name }`; resume compares them (§6) |
 | `current_step` | integer not null default 0 | index into the definition's steps |
 | `current_job_id` | uuid null | the in-flight job step |
 | `waiting_task_id` | uuid null | the pending manual step |
 | `attempts` | integer not null default 0 | consecutive dispatches of the current step; reset on advance; boot recovery stops at `jobs.maxAttempts` |
 | `output` | jsonb null | last step's output on success |
 | `error` | text null | coded failure or last error message (server-only) |
-| `started_at` / `finished_at` / `created_at` | timestamptz | |
+| `started_at` / `created_at` | timestamptz not null default now | |
+| `finished_at` | timestamptz null | set on every terminal transition |
 | `tenant_id` | uuid not null | `tenantColumn()` |
 
 Indexes: `(status, created_at)` for the tick scan, `(name)` for listing. The tick reads only
@@ -97,19 +103,22 @@ Indexes: `(status, created_at)` for the tick scan, `(name)` for listing. The tic
 | `title_key` / `title_params` | text not null / jsonb not null default `'{}'` | i18n: the UI calls `t()` |
 | `payload` | jsonb null | data shown to the decider (order snapshot, …) |
 | `requested_by` | text null | actor (`system:workflow:<name>` or a user id) |
+| `assigned_permission` | text null | assignment: the permission a decider needs (W3); the app route enforces it |
 | `expires_at` | timestamptz null | |
 | `decided_by` / `decided_at` | text null / timestamptz null | from the authenticated context, never caller-provided |
 | `comment` | text null | optional, capped (1 000 chars) |
 | `created_at` | timestamptz not null default now | |
 | `tenant_id` | uuid not null | `tenantColumn()` |
 
-Indexes: `(status, created_at)` for the inbox, `(workflow_id)` for the runner.
+Indexes: `(status, created_at)` for the inbox, `(workflow_id)` for the runner,
+`(assigned_permission, status)` for an approver's filtered inbox.
 
 Both tables use the `facilis_jobs` pattern: `tenantIsolationPolicy()` + `enableRLS()` (the D-008
-rationale), plus per-command policies keyed on `app.permissions` (`tasks:read`/`tasks:decide`,
-`workflows:read`/`workflows:exec`, D-145). The framework's own writes run as `facilis_app` under
-the deployment tenant (`runWithPolicyScope`) with the framework permissions in scope, exactly
-like the queue; there are no system-only tables. Statuses stay `text`; there are no foreign keys
+rationale), and the framework's own writes run as `facilis_app` under the deployment tenant
+(`runWithPolicyScope`), exactly like the queue: every row is RLS-scoped (D-136), so neither table
+is system-only and no elevation is involved. The task permissions (`tasks:read`/`tasks:decide`)
+live in the session, so the app-owned routes enforce them and the tables add only the tenant
+policy. Statuses stay `text`; there are no foreign keys
 between framework tables (the queue has none), so retention/pruning cannot be blocked by an
 orphan reference — pruning is out of scope anyway.
 
@@ -132,6 +141,7 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
             titleKey: "workflow.order.approve",
             params: ({ input }) => ({ orderId: input.orderId }),
             ttlMs: 86_400_000,
+            permission: "orders:approve",
           },
         },
         { job: "ship-order" },
@@ -142,14 +152,20 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
   JSON-round-tripped (reuse `serializeJobData`); a workflow whose output is needed takes an
   `output` schema too (the last step's output is validated before `succeeded`).
 - Step kinds in v1: `{ job: "<name>", input?: resolver }` and `{ approval: { titleKey, params?,
-  ttlMs? } }`. The job name must exist in the jobs registry; a dangling name is a
-  `workflow_definition_invalid` manifest warning, never a boot failure (jobs behaviour).
+  ttlMs?, permission?, onReject? } }`. The job name must exist in the jobs registry; a dangling
+  name is a `workflow_definition_invalid` manifest warning, never a boot failure (jobs
+  behaviour). `permission` stores the permission a decider needs on the task row (assignment,
+  §7). `onReject: { step }` must be a later step index: a rejection jumps forward past the
+  skipped steps instead of failing; omitted, the rejection fails the run with
+  `workflow_task_rejected`.
 - A job step's optional `input` resolver runs in the runner's system context when the step is
   reached, receiving `{ input, steps }` where `steps[i]` is the output of a completed step. The
   resolved value is validated by `enqueue` (existing `job_invalid_input` → workflow
   `workflow_step_failed`).
-- **Plan snapshot.** At start the runner stores the step identities `(index, kind, name)` in the
-  row; a step's resolved input/output is materialised before its side effect. On resume the
+- A job step without an `input` resolver receives the chain input unchanged (the common
+  first-step case); a resolver is only needed when a step reads a previous output.
+- **Plan snapshot.** At start the runner stores the step identities `(index, kind, name)` in
+  `plan`; a step's resolved input/output is materialised before its side effect. On resume the
   current step's identity is compared with the definition: a mismatch fails the workflow with
   `workflow_definition_changed` instead of guessing after a project edit.
 - Invalid or duplicate definitions become manifest warnings and are skipped (jobs behaviour).
@@ -168,9 +184,17 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
     }
 
     interface TasksApi {
+      request(input: {
+        titleKey: string;
+        titleParams?: Record<string, string | number>;
+        payload?: unknown;
+        expiresAt?: string | Date;
+        assignedPermission?: string;
+      }): Promise<TaskRecord>;
       list(options?: {
         status?: TaskStatus | TaskStatus[];
         workflowId?: string;
+        assignedPermission?: string;
         limit?: number;
       }): Promise<TaskRecord[]>;
       get(id: string): Promise<TaskRecord | null>;
@@ -190,10 +214,15 @@ the way `server/jobs/**` reaches `#facilis/jobs`:
   `decided_at = now()`, optional comment) and wakes the tick; it never advances the workflow
   directly.
 - **No HTTP endpoint in the framework** (JOBS.md §6): a project writes its own
-  `defineAuthorizedHandler` routes. The starter ships `server/api/tasks/index.get.ts` (pending
-  inbox) and `server/api/tasks/[id].patch.ts` (decide), with permission `tasks:decide` declared
-  in `facilis.config.ts` roles. The Studio `Attività` panel lists and decides through those
-  routes.
+  `defineAuthorizedHandler` routes; the example project ships `server/routes/api/tasks/index.get.ts`
+  (pending inbox, optional `permission` filter) and `server/routes/api/tasks/[id].patch.ts`
+  (decide, assignment enforced against the session), plus `server/routes/api/workflows/index.post.ts`
+  to start the example chain, with permissions `tasks:read`/`tasks:decide` declared in
+  `facilis.config.ts` roles. There is no Studio task inbox tab: the inbox/decide routes are the app's own UI and the project graph is the only workflow surface the Studio adds (D-161).
+- `assigned_permission` is stored by the approval step and filtered by
+  `ctx.tasks.list({ assignedPermission })`; the framework does not evaluate it, because
+  permissions live in the session — the app's decide route loads the task and compares it with
+  `ctx.auth.permissions` (the example does), so the decision surface stays app-owned.
 - If the runtime is unavailable (tables missing or boot failure) `ctx.workflows`/`ctx.tasks`
   reject with coded `workflow_unavailable`/`task_unavailable` errors — never a framework-wide
   500 (jobs behaviour).
@@ -206,8 +235,11 @@ Every transition is a short transaction with a CAS guard:
 1. **Expire** — pending tasks with `expires_at <= now()` become `expired`; a workflow waiting on
    one fails with `workflow_task_expired`.
 2. **Resume decided** — a `decided` task whose workflow is `waiting` on it turns the workflow
-   `running` and clears `waiting_task_id`; `reject` fails it with `workflow_task_rejected`
-   (explicit branches are W3).
+   `running`, clears `waiting_task_id` and appends an approval progress entry carrying its
+   `decision`; `approve` continues at the next step. `reject` either jumps forward to the
+   step's declared `onReject.step` (skipped steps contribute `null` outputs) or fails the run
+   with `workflow_task_rejected`; the target is checked against the plan snapshot too, so a
+   mid-run definition edit cannot redirect a branch.
 3. **Advance** — a `running` workflow with `current_job_id` reads that job: `succeeded` appends
    its output to `progress`, advances `current_step`; `failed` → `workflow_step_failed` (job id
    and error retained); `cancelled` → `cancelled`.
@@ -229,13 +261,14 @@ pending task; completed steps are not compensated.
 
 ## 9. Security, audit, logging, i18n
 
-- Both tables are tenant-scoped with RLS, plus permission-gated policies (D-145); the runner
-  writes as `facilis_app` under the deployment tenant with the framework permissions, like the
-  queue. Step bodies run as `facilis_system` through the jobs executor with the sudo audit
-  (D-107) — workflows add no new system surface.
-- `decide` is an app-scoped write behind an authorized route **and** the `tasks:decide` RLS
-  policy (a route that forgets the permission check is still denied by the database);
-  `decided_by` comes from the context. The UI never writes the workflow row.
+- Both tables are tenant-scoped with RLS (D-136: RLS is the app-role grant boundary); the runner
+  writes as `facilis_app` under the deployment tenant, like the queue. Step bodies run as
+  `facilis_system` through the jobs executor with the sudo audit (D-107) — workflows add no new
+  system surface.
+- `decide` is an app-scoped write behind an authorized route **and** the session's `tasks:decide`
+  permission; RLS confines it to the tenant and `decided_by` comes from the context. An assigned
+  task (`assigned_permission`) is filtered by the inbox and checked by the route against
+  `ctx.auth.permissions`. The UI never writes the workflow row.
 - Route handlers still list their own tables in `dbTables` (invariant 2); the framework tables
   are reached only through `ctx.workflows`/`ctx.tasks`, like `ctx.jobs`.
 - Failures degrade like jobs: `workflows_boot_failed` / `workflows_table_missing` manifest
@@ -257,49 +290,73 @@ pending task; completed steps are not compensated.
 `jobs.maxConcurrent`/`maxAttempts`/`timeoutMs` apply to the step jobs themselves — the workflow
 adds no second scheduler.
 
-## 11. File layout (planned)
+## 11. File layout
 
     packages/core/src/workflows.ts             defineWorkflow, records, APIs, error codes
     packages/core/src/workflows-config.ts      FacilisWorkflowsConfig schema + defaults
-    packages/db/src/workflows.ts               facilis_workflows + facilis_tasks (split at the
-                                               300-line gate if needed)
+    packages/core/src/workflows-validation.ts  authoring-time definition guards
+    packages/core/src/tasks.ts                 TaskRecord, TasksApi, task error codes
+    packages/db/src/workflows.ts               facilis_workflows (schema + RLS)
+    packages/db/src/tasks.ts                   facilis_tasks (schema + RLS)
     packages/nitro/src/runtime/workflows/
-      contracts.ts                            StoredWorkflow/Task, store interfaces
+      contracts.ts                            StoredWorkflow/Store interfaces, runner deps
       definitions.ts                          registry from #facilis/workflows
-      store.ts                                Drizzle-backed store
-      runner.ts                               the tick (expire/resume/advance/dispatch)
-      recovery.ts                             boot reconciliation
-      row-mapping.ts                          row <-> record mapping
+      db-store.ts                             Drizzle-backed store, CAS updates
+      row-mapping.ts                          row <-> record mapping shared with db-store
+      runtime.ts                              ctx.workflows API (start/get/list/cancel/bindScope)
+      steps.ts                                step identity, plan comparison, resolver context
+      dispatch.ts                             job enqueue / approval insert (one transaction)
+      transitions.ts                          expire / resume / advance
+      support.ts                              CAS guard, failure settling, helpers
+      runner.ts                               the tick (start/stop/tick)
+      boot.ts                                 table probes, registry, runner start
+    packages/nitro/src/runtime/boot-runtimes.ts  jobs + tasks + workflows boot together
     packages/nitro/src/module.ts              registers #facilis/workflows
-    starter/server/api/tasks/index.get.ts     inbox route (W1)
-    starter/server/api/tasks/[id].patch.ts    decide route (W1)
-    starter/facilis.config.ts                 permission tasks:decide (W1)
-    ide/src/components/ide/TasksPanel.tsx     Studio inbox (W1)
+    packages/nitro/src/middleware/context.ts  exposes ctx.tasks / ctx.workflows
+    examples/todo-app/server/routes/api/tasks/  inbox + decide routes (assignment enforced)
+    examples/todo-app/server/workflows/purge-completed-todos.ts  example definition
+    examples/todo-app/server/routes/api/workflows/index.post.ts  start route
+    examples/todo-app/facilis.config.ts       permissions tasks:read/tasks:decide
+    packages/analyze/src/passes/workflows.ts  definition facts -> project-graph workflow nodes
+    ide/src/facilis/graph-model.ts            workflow column/card/inspector
+    (not planned)                              Studio task inbox tab: app-owned routes + graph (D-161)
 
 ## 12. Out of scope (v1)
 
-Branches/conditions/loops/fan-out/parallel steps, dynamic step graphs, sub-workflows, cron or
-scheduled workflows, compensation/rollback, exactly-once step execution, task assignment to a
-user/role (permission only), notifications, external-signal (webhook) tasks, retention/pruning
-of the two tables, multi-instance workers (one process per database, as jobs).
+Branches beyond a forward rejection jump, conditions/loops/fan-out/parallel steps, dynamic
+step graphs, sub-workflows, cron or scheduled workflows, compensation/rollback, exactly-once
+step execution, assignment to a user or role (only a permission is stored; the app enforces it),
+notifications, first-class external-signal (webhook) steps — an app-owned public route can decide
+a pending task, but the framework models no signal outcome — retention/pruning of the two tables,
+multi-instance workers (one process per database, as jobs), a Studio task inbox tab (the app
+owns the inbox routes and the project graph shows the workflow definitions, D-161).
 
 ## 13. Phased plan
 
 - **W1 — manual tasks slice (landed).** `facilis_tasks` + core `TaskRecord`/`TasksApi` + nitro store
-  with list/decide + starter routes + tests. Tasks exist standalone (`workflow_id` null); the
-  approval primitive is useful on its own and W2 needs no migration. The Studio `Attività` inbox
-  panel is deferred to W3: it needs the preview transport decision (open question below).
-- **W2 — workflows.** `facilis_workflows` + `defineWorkflow` + registry + runner tick + boot
-  recovery + `ctx.workflows` + tests; approval steps reuse W1's tasks.
-- **W3 — polish.** Reject branches, task assignment, expiry tick, external-signal tasks, an
-  `@facilis/analyze` pass mapping `server/workflows/**` definitions to project-graph nodes, and
-  the final SPEC §7.10 + DECISIONS entry.
+  with list/decide + example routes + tests. Tasks exist standalone (`workflow_id` null); the
+  approval primitive is useful on its own and W2 needs no migration. There is no Studio `Attività` inbox
+  tab: the app owns the inbox routes and the graph shows the workflow definitions (D-161).
+- **W2 — workflows (landed).** `facilis_workflows` + `defineWorkflow` + registry + runner tick
+  + boot recovery + `ctx.workflows` + tests; approval steps reuse W1's tasks. Dispatch enqueues
+  the step job (or inserts the task) in the same transaction as the workflow update, every
+  transition is a CAS on the row, expiry is part of the tick, and cancel stops the current
+  job/task before settling the row.
+- **W3 — polish (landed).** Reject branches (`onReject`, a forward jump validated at load and
+  against the plan snapshot), task assignment by permission (`assigned_permission`, filtered by
+  the inbox and enforced by the example decide route), the example workflow definition with its
+  start route, the `@facilis/analyze` pass and the project-graph workflow nodes, and SPEC §7.10.
+  There is no Studio task inbox tab: the inbox/decide routes are app UI and the graph is the only
+  new IDE surface (D-161).
 
 ## 14. Open questions
 
-- Default task TTL (`null` vs a week) and whether expiry fails or auto-cancels the workflow.
-- Reject semantics: fail now, branch in W3 — and whether a decided task can be reopened.
+- Default task TTL remains `null` (per-step `ttlMs` only); W2 implements expiry as a tick
+  transition and a `workflow_task_expired` failure — whether a deployment wants a week-long
+  default is still open.
+- Reject semantics: resolved in W3 — a declared forward step or failure; a decided task never
+  reopens (the CAS makes it terminal).
 - Decision audit: route `ctx.log` line vs a dedicated event.
-- Studio inbox placement (bottom panel vs editor tab) and whether it can call the project's
-  routes generically.
+- Studio inbox: resolved in D-161 — none. The app owns the task routes; the Studio adds only the
+  workflow definition nodes to the project graph.
 

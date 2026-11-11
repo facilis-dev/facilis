@@ -16,6 +16,10 @@ export default defineConfig({
       "todos:read",
       "todos:write",
       "users:read",
+      // tasks:read/tasks:decide back the manual-task routes (D-135): reading the inbox is a
+      // normal permission, recording the decision is the manager's.
+      "tasks:read",
+      "tasks:decide",
       "api-clients:read",
       "api-clients:write",
       // The queue is RLS-gated by these two permissions (D-145): SELECT needs jobs:read,
@@ -25,7 +29,15 @@ export default defineConfig({
     ],
     roles: {
       admin: ["*"],
-      manager: ["todos:read", "todos:write", "users:read", "jobs:read", "jobs:exec"],
+      manager: [
+        "todos:read",
+        "todos:write",
+        "users:read",
+        "tasks:read",
+        "tasks:decide",
+        "jobs:read",
+        "jobs:exec",
+      ],
       user: ["todos:read", "todos:write", "jobs:read", "jobs:exec"],
     },
     defaultRole: "user",
@@ -47,6 +59,13 @@ export default defineConfig({
     timeoutMs: 10_000,
     pollIntervalMs: 500,
     persist: true,
+  },
+  // Workflows (D-135): a chain is durable rows advanced by this tick; an approval step
+  // reuses the manual tasks and waits on a task row, never on a job body.
+  workflows: {
+    tickIntervalMs: 500,
+    persist: true,
+    defaultTaskTtlMs: null,
   },
   // Operator logging (D-119): every key is shown once. Entries are JSON Lines files under
   // <project>/.facilis/logs in development (open them in the IDE editor) and stdout in

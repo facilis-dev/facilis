@@ -120,5 +120,6 @@
   "todos.filtered.description": "Prova con un'altra ricerca o un altro filtro.",
   "todos.filtered.action": "Azzera i filtri",
   "todos.delete.title": "Eliminare questo todo?",
-  "todos.delete.description": "“{title}” verrà rimosso definitivamente."
+  "todos.delete.description": "“{title}” verrà rimosso definitivamente.",
+  "workflows.purge.approval": "Eliminare i todo completati più vecchi di {days} giorni?"
 }

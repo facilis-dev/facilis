@@ -6,6 +6,7 @@ import {
   PAGE,
   PROJECTS,
   TODOS,
+  WORKFLOW,
   graphOf,
   routeNode,
   tableNode,
@@ -13,9 +14,9 @@ import {
 } from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView layout", () => {
-  it("puts pages left, routes in the middle and tables right", () => {
+  it("puts pages left, routes in the middle, schema objects right and workflows last", () => {
     const view = buildProjectGraphView({
-      graph: graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS]),
+      graph: graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS, WORKFLOW]),
     });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
     expect(byId.get(PAGE.id)?.position).toEqual({ x: GRAPH_COLUMNS.page, y: 0 });
@@ -24,6 +25,7 @@ describe("buildProjectGraphView layout", () => {
     expect(byId.get(PROJECTS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
     expect(byId.get(ACTIVE_TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
     expect(GRAPH_COLUMNS.view).toBe(GRAPH_COLUMNS.table);
+    expect(byId.get(WORKFLOW.id)?.position).toEqual({ x: GRAPH_COLUMNS.workflow, y: 0 });
   });
 
   it("lays views in the schema column below the tables, behind a gap", () => {
@@ -43,6 +45,15 @@ describe("buildProjectGraphView layout", () => {
     const byName = new Map(view.nodes.map((node) => [node.label, node.position]));
     expect(byName.get("alpha")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 });
     expect(byName.get("beta")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 + 150 });
+  });
+
+  it("orders the workflow column deterministically by name", () => {
+    const alpha = { ...WORKFLOW, id: "workflow:alpha", label: "alpha" };
+    const beta = { ...WORKFLOW, id: "workflow:beta", label: "beta" };
+    const view = buildProjectGraphView({ graph: graphOf([beta, alpha]) });
+    const byName = new Map(view.nodes.map((node) => [node.label, node.position]));
+    expect(byName.get("alpha")).toEqual({ x: GRAPH_COLUMNS.workflow, y: 0 });
+    expect(byName.get("beta")).toEqual({ x: GRAPH_COLUMNS.workflow, y: 150 });
   });
 
   it("leaves room for the taller route card in the route column", () => {
@@ -108,10 +119,19 @@ describe("buildProjectGraphView layout", () => {
 });
 
 describe("buildProjectGraphView search", () => {
-  const graph = graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS], []);
+  const graph = graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS, WORKFLOW], []);
 
-  it("matches labels, paths, permissions, column names and view facts", () => {
-    for (const query of ["todos", "GET", "todos:read", "created_at", "active_todos", "definer"]) {
+  it("matches labels, paths, permissions, column names, view and workflow facts", () => {
+    for (const query of [
+      "todos",
+      "GET",
+      "todos:read",
+      "created_at",
+      "active_todos",
+      "definer",
+      "purge",
+      "tasks:decide",
+    ]) {
       const view = buildProjectGraphView({ graph, query });
       expect(view.stats.matches, query).toBeGreaterThan(0);
     }

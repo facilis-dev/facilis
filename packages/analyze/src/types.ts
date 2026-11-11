@@ -1,5 +1,6 @@
 import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
+import type { WorkflowFact } from "./types-workflows.ts";
 
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
@@ -260,6 +261,8 @@ export type {
   ScreenFacts,
   TableNodeData,
   ViewNodeData,
+  WorkflowNodeData,
+  WorkflowStepNodeData,
 } from "./types-graph.ts";
 export type {
   RouteElevationUsage,
@@ -267,6 +270,9 @@ export type {
   RouteRelationsFact,
   ViewFact,
 } from "./types-relations.ts";
+// Workflow facts live in types-workflows.ts (the 300-line split) and are re-exported here so
+// every existing `from "./types.ts"` import keeps working.
+export type { WorkflowFact, WorkflowStepFact } from "./types-workflows.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
 
@@ -280,6 +286,7 @@ export interface Analysis {
   /** Declarative views (D-157): facts, and graph nodes since D-160. */
   readonly views: readonly ViewFact[];
   readonly pages: readonly PageFact[];
+  readonly workflows: readonly WorkflowFact[];
   /** Module facts for every parsed source file, in path order. */
   readonly fileFacts: readonly FileFacts[];
   readonly locales: LocaleCatalogs;

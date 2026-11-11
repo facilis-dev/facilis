@@ -21,6 +21,7 @@ import {
   VIRTUAL_DB_VIEWS_ID,
   VIRTUAL_JOBS_ID,
   VIRTUAL_OPENAPI_META_ID,
+  VIRTUAL_WORKFLOWS_ID,
 } from "./virtual-ids.ts";
 
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
@@ -199,6 +200,23 @@ describe("createFacilisNitroModule", () => {
     setup(mock);
 
     expect(await render(mock.options.virtual[VIRTUAL_JOBS_ID])).toBe("export default [];");
+  });
+
+  it("exports the project's server/workflows definitions as the workflows virtual module", async () => {
+    const mock = createMockNitro();
+    setup(mock);
+
+    const code = await render(mock.options.virtual[VIRTUAL_WORKFLOWS_ID]);
+    expect(code).toContain("import workflow0 from");
+    expect(code).toContain('file: "server/workflows/fixture.ts"');
+    expect(code).toContain("definition: workflow0");
+  });
+
+  it("exports an empty workflows module when the project declares none", async () => {
+    const mock = createMockNitro({ rootDir: `${projectRoot}/does-not-exist/` });
+    setup(mock);
+
+    expect(await render(mock.options.virtual[VIRTUAL_WORKFLOWS_ID])).toBe("export default [];");
   });
 
   it("recurses into nested job directories, sorted, ignoring tests", () => {

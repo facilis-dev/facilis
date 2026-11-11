@@ -13,7 +13,7 @@ import type {
   WrapperState,
 } from "./types.ts";
 
-export type GraphNodeKind = "page" | "route" | "table" | "view";
+export type GraphNodeKind = "page" | "route" | "table" | "view" | "workflow";
 
 export interface PageNodeData {
   readonly kind: "page";
@@ -71,7 +71,27 @@ export interface ViewNodeData {
   readonly unknown: boolean;
 }
 
-export type GraphNodeData = PageNodeData | RouteNodeData | TableNodeData | ViewNodeData;
+/** One step of a workflow definition, as the graph inspector shows it. */
+export interface WorkflowStepNodeData {
+  readonly index: number;
+  readonly kind: "job" | "approval";
+  /** Job name or approval title key; null when the definition could not be read. */
+  readonly name: string | null;
+  readonly permission: string | null;
+  /** Forward step index declared by `onReject.step`, when present. */
+  readonly onRejectStep: number | null;
+}
+
+/** A workflow definition read from `server/workflows/**` (D-135 W3). */
+export interface WorkflowNodeData {
+  readonly kind: "workflow";
+  readonly name: string;
+  readonly steps: readonly WorkflowStepNodeData[];
+  readonly unknown: boolean;
+}
+
+export type GraphNodeData =
+  PageNodeData | RouteNodeData | TableNodeData | ViewNodeData | WorkflowNodeData;
 
 export interface GraphNode {
   readonly id: string;

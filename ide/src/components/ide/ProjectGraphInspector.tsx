@@ -1,7 +1,8 @@
 // The project-graph inspector: page structure preview plus the page's incident links; view
-// details (access mode, permission, base tables, the routes that use it); route and table nodes
-// get a compact source summary. The page preview is the part that makes the page cards more than
-// a filename, and the view section is what makes "which route reads this view" answerable.
+// details (access mode, permission, base tables, the routes that use it); workflow steps and
+// their placement; route and table nodes get a compact source summary. The page preview is the
+// part that makes the page cards more than a filename, the view section answers "which route
+// reads this view", and the workflow section shows what runs in what order.
 
 import X from "~icons/lucide/x";
 import { Button } from "@/components/ui/button";
@@ -168,6 +169,57 @@ function ViewDetails({
   );
 }
 
+function WorkflowDetails({
+  node,
+  onOpenFile,
+}: {
+  node: ProjectGraphNode;
+  onOpenFile: (file: string) => void;
+}) {
+  const workflow = node.data.kind === "workflow" ? node.data : null;
+  if (workflow === null) return null;
+  const source = node.sourceFile;
+  return (
+    <>
+      <p className="truncate font-mono text-[11px]">{workflow.name}</p>
+      {source !== null && <SourceButton source={source} onOpenFile={onOpenFile} />}
+      <section className="space-y-1">
+        <h3 className={SECTION_TITLE}>{t("projectGraph.workflow.title")}</h3>
+        {workflow.steps.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground">{t("projectGraph.workflow.empty")}</p>
+        ) : (
+          <ol className="space-y-1">
+            {workflow.steps.map((step) => (
+              <li key={step.index} className="rounded border px-1.5 py-0.5">
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0 text-[9px] text-muted-foreground">
+                    {step.index + 1}.
+                  </span>
+                  <span className="shrink-0 rounded border px-1 text-[9px] text-muted-foreground">
+                    {t(("projectGraph.workflow." + step.kind) as MessageKey)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
+                    {step.name ?? "?"}
+                  </span>
+                </div>
+                {(step.permission !== null || step.onRejectStep !== null) && (
+                  <p className="mt-0.5 text-[9px] text-muted-foreground">
+                    {step.permission !== null &&
+                      t("projectGraph.workflow.permission", { permission: step.permission })}
+                    {step.permission !== null && step.onRejectStep !== null ? " · " : ""}
+                    {step.onRejectStep !== null &&
+                      t("projectGraph.workflow.onReject", { step: step.onRejectStep + 1 })}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </>
+  );
+}
+
 function OtherDetails({
   node,
   onOpenFile,
@@ -219,6 +271,8 @@ export function ProjectGraphInspector({
           <PageDetails node={node} edges={edges} onOpenFile={onOpenFile} />
         ) : node.data.kind === "view" ? (
           <ViewDetails node={node} onOpenFile={onOpenFile} />
+        ) : node.data.kind === "workflow" ? (
+          <WorkflowDetails node={node} onOpenFile={onOpenFile} />
         ) : (
           <OtherDetails node={node} onOpenFile={onOpenFile} />
         )}

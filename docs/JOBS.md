@@ -15,7 +15,8 @@ From the request:
 4. Creating a job returns an **id** usable to check it or force it to stop.
 5. Jobs are launched and managed **only in a system context**.
 6. Functions exist to read the running jobs, the queue, and the rest of the state.
-7. Jobs are independent: chaining is a future "workflow" construct, out of scope.
+7. Jobs are independent: chaining lives in the workflow layer above the queue
+   ([WORKFLOWS.md](./WORKFLOWS.md), D-135), never inside a job body.
 
 ## 2. Placement — no new package
 
@@ -242,5 +243,5 @@ Workflows/chains, retention & pruning policies for `facilis_jobs`, exponential b
 multi-instance/distributed workers (the engine assumes one process per database), a dev-only
 inspection endpoint, and serverless scheduling guarantees. The durable parts (a persisted
 queue, an explicit claim/attempt counter) are the seam the workflow construct reuses. A
-workflow is now designed in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, design approved, not
-implemented); this section remains the jobs' own scope.
+workflow is implemented above the queue in [WORKFLOWS.md](./WORKFLOWS.md) (D-135, W1–W3 landed;
+SPEC §7.10); this section remains the jobs' own scope.

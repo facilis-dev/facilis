@@ -1,5 +1,5 @@
-// The project-graph node cards: page and table, plus the registration of the analysis and note
-// node types (the route card lives in ProjectGraphRouteNode.tsx, the view card in
+// The project-graph node cards: page, table and workflow, plus the registration of the analysis
+// and note node types (the route card lives in ProjectGraphRouteNode.tsx, the view card in
 // ProjectGraphViewNode.tsx, the note card in ProjectGraphNote.tsx, the shared chrome in
 // ProjectGraphNodeChrome.tsx). Each card names only theme role tokens (D-043/D-044); the
 // geometry lives in graph-model.ts and the canvas only places them.
@@ -9,6 +9,7 @@ import ChevronDown from "~icons/lucide/chevron-down";
 import ChevronRight from "~icons/lucide/chevron-right";
 import FileCode from "~icons/lucide/file-code";
 import Table2 from "~icons/lucide/table-2";
+import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
@@ -23,7 +24,10 @@ export type ProjectFlowData = {
   onToggleCollapse: (id: string) => void;
 };
 
-export type ProjectAnalysisFlowNode = Node<ProjectFlowData, "page" | "route" | "table" | "view">;
+export type ProjectAnalysisFlowNode = Node<
+  ProjectFlowData,
+  "page" | "route" | "table" | "view" | "workflow"
+>;
 
 /** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
 export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
@@ -181,10 +185,62 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   );
 }
 
+const MAX_VISIBLE_WORKFLOW_STEPS = 4;
+
+export function WorkflowGraphNode({
+  data,
+  selected,
+  dragging,
+}: NodeProps<ProjectAnalysisFlowNode>) {
+  const node = data.node;
+  const workflow = node.data.kind === "workflow" ? node.data : null;
+  if (workflow === null) return null;
+  const shown = workflow.steps.slice(0, MAX_VISIBLE_WORKFLOW_STEPS);
+  const more = workflow.steps.length - shown.length;
+  return (
+    <div
+      data-testid="project-graph-workflow"
+      title={sourceTitle(node)}
+      className={nodeClass(selected, node.matched, dragging) + " w-64"}
+    >
+      <div className="flex items-center gap-1.5">
+        <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
+          {workflow.name}
+        </span>
+        {workflow.unknown && <UnknownBadge />}
+        <span className="shrink-0 text-[9px] text-muted-foreground">
+          {t("projectGraph.workflow.steps", { count: workflow.steps.length })}
+        </span>
+      </div>
+      {shown.length > 0 && (
+        <ul className="mt-1 space-y-0.5 border-t pt-1">
+          {shown.map((step) => (
+            <li key={step.index} className="flex items-center gap-1 text-[9px]">
+              <span className="shrink-0 text-muted-foreground">{step.index + 1}.</span>
+              <span className="shrink-0 rounded border px-1 text-muted-foreground">
+                {t(("projectGraph.workflow." + step.kind) as MessageKey)}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-mono">{step.name ?? "?"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {more > 0 && (
+        <p className="mt-0.5 text-[9px] text-muted-foreground">
+          {t("projectGraph.workflow.more", { count: more })}
+        </p>
+      )}
+      <LinkHandles />
+    </div>
+  );
+}
+
 export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   page: PageGraphNode,
   route: RouteGraphNode,
   table: TableGraphNode,
   view: ViewGraphNode,
+  workflow: WorkflowGraphNode,
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
 };

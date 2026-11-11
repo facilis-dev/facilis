@@ -21,6 +21,7 @@ import {
   VIRTUAL_DB_SCHEMA_ID,
   VIRTUAL_DB_VIEWS_ID,
   VIRTUAL_JOBS_ID,
+  VIRTUAL_WORKFLOWS_ID,
 } from "./virtual-ids.ts";
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
@@ -72,6 +73,7 @@ function registerVirtualModules(nitro: Nitro, rootDir: string): void {
   nitro.options.virtual[VIRTUAL_DB_SCHEMA_ID] = () => renderDbSchemaModule(rootDir);
   nitro.options.virtual[VIRTUAL_DB_VIEWS_ID] = () => renderDbViewsModule(rootDir);
   nitro.options.virtual[VIRTUAL_JOBS_ID] = () => renderJobsModule(rootDir);
+  nitro.options.virtual[VIRTUAL_WORKFLOWS_ID] = () => renderWorkflowsModule(rootDir);
   // `#facilis/openapi-meta` is deliberately NOT registered here: Nitro's virtual plugin
   // runs before user Vite plugins inside the nitro environment, so a Nitro virtual would
   // shadow the `facilis()` plugin's module and route-file edits would never invalidate it
@@ -129,6 +131,7 @@ function renderDbViewsModule(rootDir: string): string {
 }
 
 const JOBS_ENTRY = join("server", "jobs");
+const WORKFLOWS_ENTRY = join("server", "workflows");
 
 /**
  * server/jobs/**\/*.ts as `JobModule` entries (D-107, docs/JOBS.md §5): one default export
@@ -136,18 +139,33 @@ const JOBS_ENTRY = join("server", "jobs");
  * jobs is valid, so a missing directory renders as an empty array.
  */
 function renderJobsModule(rootDir: string): string {
-  const files = collectJobDefinitionFiles(join(rootDir, JOBS_ENTRY));
+  return renderDefinitionModule(rootDir, JOBS_ENTRY, "job");
+}
+
+/**
+ * server/workflows/**\/*.ts as `WorkflowModule` entries (D-135): same shape as jobs, one
+ * default export per file; a project without workflows renders an empty array.
+ */
+function renderWorkflowsModule(rootDir: string): string {
+  return renderDefinitionModule(rootDir, WORKFLOWS_ENTRY, "workflow");
+}
+
+/** Shared renderer for a definition directory; `prefix` names the generated bindings. */
+function renderDefinitionModule(rootDir: string, entry: string, prefix: string): string {
+  const files = collectDefinitionFiles(join(rootDir, entry));
   if (files.length === 0) return "export default [];";
-  const imports = files.map((file, index) => `import job${index} from ${JSON.stringify(file)};`);
+  const imports = files.map(
+    (file, index) => `import ${prefix}${index} from ${JSON.stringify(file)};`,
+  );
   const entries = files.map((file, index) => {
     const projectPath = relative(rootDir, file).split(sep).join("/");
-    return `{ file: ${JSON.stringify(projectPath)}, definition: job${index} }`;
+    return `{ file: ${JSON.stringify(projectPath)}, definition: ${prefix}${index} }`;
   });
   return [...imports, `export default [${entries.join(", ")}];`].join("\n");
 }
 
 /** Depth-first, explicitly sorted so the registry (and its warnings) is deterministic. */
-function collectJobDefinitionFiles(directory: string): string[] {
+function collectDefinitionFiles(directory: string): string[] {
   let entries: Dirent[];
   try {
     entries = readdirSync(directory, { withFileTypes: true });
@@ -158,7 +176,7 @@ function collectJobDefinitionFiles(directory: string): string[] {
   for (const entry of entries.toSorted((a, b) => a.name.localeCompare(b.name))) {
     const filePath = join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...collectJobDefinitionFiles(filePath));
+      files.push(...collectDefinitionFiles(filePath));
     } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
       files.push(filePath);
     }
