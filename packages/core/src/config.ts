@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import {
+  apiClientsSchema,
+  type FacilisApiClientsConfig,
+  type FacilisApiClientsConfigInput,
+} from "./api-clients-config.ts";
+import {
   facilisJobsConfigSchema,
   type FacilisJobsConfig,
   type FacilisJobsConfigInput,
@@ -81,6 +86,8 @@ export interface FacilisAuthConfig {
   readonly sessionDurationMs: number;
   /** External identity providers (D-120); `providers: []` when the app uses passwords only. */
   readonly sso: FacilisSsoConfig;
+  /** Bearer-token API clients (V3a): opt-in, with a token lifetime. */
+  readonly apiClients: FacilisApiClientsConfig;
 }
 
 /** Request-origin policy for the CSRF gate (SPEC §8); the framework default is same-origin only. */
@@ -137,6 +144,8 @@ export interface FacilisConfigInput {
     readonly sessionDurationMs?: number;
     /** External identity providers (D-120); every key has a default. */
     readonly sso?: FacilisSsoConfigInput;
+    /** Bearer-token API clients (V3a); optional, disabled by default. */
+    readonly apiClients?: FacilisApiClientsConfigInput;
   };
   /** Background-job queue settings; every key has a default (D-107). */
   readonly jobs?: FacilisJobsConfigInput;
@@ -201,6 +210,7 @@ const authSchema = z.strictObject({
   defaultRole: z.string().min(1),
   sessionDurationMs: z.number().int().positive().default(DEFAULT_SESSION_DURATION_MS),
   sso: ssoConfigSchema,
+  apiClients: apiClientsSchema,
 });
 
 /**

@@ -13,6 +13,7 @@ import {
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
   SSO_ROUTE,
+  TOKEN_ROUTE,
 } from "./constants.ts";
 import {
   VIRTUAL_CONFIG_ID,
@@ -239,8 +240,9 @@ describe("createFacilisNitroModule", () => {
     setup(mock);
 
     const routes = mock.options.handlers.filter((handler) => handler["middleware"] !== true);
-    // The SSO namespace is framework auth in production too (D-120); nothing dev-only ships.
-    expect(routes.map((handler) => handler["route"])).toEqual([SSO_ROUTE]);
+    // The SSO namespace and the token endpoint are framework auth in production too
+    // (D-120, v3a); nothing dev-only ships.
+    expect(routes.map((handler) => handler["route"])).toEqual([SSO_ROUTE, TOKEN_ROUTE]);
     // Auth still works in production: middleware is environment-agnostic.
     expect(mock.options.handlers.filter((handler) => handler["middleware"] === true)).toHaveLength(
       3,

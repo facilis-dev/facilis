@@ -160,6 +160,9 @@ export default defineAuthorizedHandler(
   {
     permission: [],
     dbTables: [...SSO_ROUTE_TABLES],
+    // A SAML ACS is a cross-site POST from the IdP by design; the signed assertion is the
+    // protocol's own authenticity check, so the generic CSRF gate must not refuse it.
+    originCheck: "skip",
     description: "Framework-owned SSO endpoints: provider list, start and callback.",
   },
   async (event, ctx) => {

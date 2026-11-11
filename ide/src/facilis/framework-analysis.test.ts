@@ -45,6 +45,8 @@ describe("project analysis with framework sources", () => {
 
   it("resolves every table db/schema.ts re-exports from the framework packages", () => {
     expect(tableNames(analysis)).toEqual([
+      "api_clients",
+      "api_tokens",
       "auth_identities",
       "auth_sso_states",
       "facilis_files",
@@ -57,8 +59,8 @@ describe("project analysis with framework sources", () => {
       "user_roles",
       "users",
     ]);
-    expect(analysis.graph.nodes).toHaveLength(29);
-    expect(analysis.graph.edges).toHaveLength(47);
+    expect(analysis.graph.nodes).toHaveLength(34);
+    expect(analysis.graph.edges).toHaveLength(57);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {
@@ -85,7 +87,7 @@ describe("project analysis without framework sources", () => {
 
   it("keeps only the locally declared tables", () => {
     expect(tableNames(analysis)).toEqual(["todo_files", "todos"]);
-    expect(analysis.graph.nodes).toHaveLength(20);
+    expect(analysis.graph.nodes).toHaveLength(23);
     expect(analysis.graph.edges).toHaveLength(22);
   });
 

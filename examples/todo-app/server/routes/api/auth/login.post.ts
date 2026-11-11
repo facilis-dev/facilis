@@ -10,18 +10,20 @@ export default defineAuthorizedHandler(
     permission: [],
     body: z.object({ email: z.email(), password: z.string().min(1) }),
     dbTables: ["users", "sessions"],
-    dbColumns: ["users.email", "sessions.userId"],
+    dbColumns: ["users.email", "users.isService", "sessions.userId"],
     description: "Log in and start a session.",
   },
   async (event, { body, db, log }) => {
     const [user] = await db
-      .select({ id: users.id, passwordHash: users.passwordHash })
+      .select({ id: users.id, passwordHash: users.passwordHash, isService: users.isService })
       .from(users)
       .where(eq(users.email, body.email))
       .limit(1);
 
-    // Same response for unknown email and wrong password: no account enumeration.
-    if (user === undefined || user.passwordHash === null) {
+    // Same response for an unknown email, a wrong password and a service account (which has
+    // no interactive credential): no account enumeration, and a client secret is only ever
+    // exchanged at the token endpoint.
+    if (user === undefined || user.passwordHash === null || user.isService) {
       log.audit({ operation: "auth:login", outcome: "failed", errorCode: "unauthorized" });
       return fail("unauthorized");
     }

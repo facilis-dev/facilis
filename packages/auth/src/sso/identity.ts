@@ -73,6 +73,20 @@ async function findUserIdByEmail(db: PolicyScopedDatabase, email: string): Promi
   return rows[0]?.id ?? null;
 }
 
+/**
+ * A service account exists only to back an API client: it must never complete an interactive
+ * login. The generic `sso_account_not_found` is deliberate — the flow must not become a probe
+ * for which addresses belong to a service identity.
+ */
+async function assertLoginable(db: PolicyScopedDatabase, userId: string): Promise<void> {
+  const rows = await db
+    .select({ isService: users.isService })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (rows[0]?.isService === true) throw new SsoError("sso_account_not_found");
+}
+
 async function touchIdentity(
   db: PolicyScopedDatabase,
   claims: IdentityClaims,
@@ -102,6 +116,7 @@ export async function resolveIdentity(
   return system(IDENTITY_ELEVATION, async (db) => {
     const linked = await findIdentityUserId(db, claims.provider, claims.subject);
     if (linked !== null) {
+      await assertLoginable(db, linked);
       await touchIdentity(db, claims, now);
       return { userId: linked, outcome: "existing" };
     }
@@ -111,6 +126,7 @@ export async function resolveIdentity(
 
     const existingUser = await findUserIdByEmail(db, claims.email);
     if (existingUser !== null) {
+      await assertLoginable(db, existingUser);
       const inserted = await db
         .insert(authIdentities)
         .values({

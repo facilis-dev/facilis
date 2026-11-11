@@ -18,6 +18,11 @@ export {
   STORAGE_DRIVERS,
 } from "./config.ts";
 export type {
+  FacilisApiClientsConfig,
+  FacilisApiClientsConfigInput,
+  FacilisApiClientsRateLimitConfig,
+} from "./api-clients-config.ts";
+export type {
   DbMode,
   FacilisAuthConfig,
   FacilisConfig,

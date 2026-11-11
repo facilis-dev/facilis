@@ -13,6 +13,11 @@ export interface AuthContext {
    * the session it ran under without ever storing the value of the cookie.
    */
   readonly sessionHash?: string;
+  /**
+   * Which credential produced this context (V3a): a browser session or a programmatic API
+   * bearer token. Audit/logging code reads it to separate machine traffic from human sessions.
+   */
+  readonly via?: "session" | "bearer";
 }
 
 /** Shape of `facilis.config.ts`'s `auth` block that @facilis/auth needs. */

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   pgPolicy,
   pgTable,
   primaryKey,
@@ -38,6 +39,9 @@ export const users = pgTable(
     // from the policy-scope GUC (D-040). Postgres fills it before the RLS check runs.
     tenantId: tenantColumn(),
     passwordHash: text("password_hash"),
+    // Service accounts exist only to back an API client. They have no password and every
+    // login path rejects them, so the flag is a stored fact the session/SSO code can check.
+    isService: boolean("is_service").notNull().default(false),
     createdAt: timestamp("created_at").defaultNow(),
   },
   () => [
@@ -107,12 +111,62 @@ export const userRoles = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * Programmatic API clients (V3a). A client is a service user plus a hashed secret and a fixed
+ * role; both new tables are app-scoped through the parent user (D-136), so the RLS boundary
+ * stays the `users` table and a client row is reachable exactly when its service user is.
+ */
+export const apiClients = pgTable(
+  "api_clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: text("client_id").notNull().unique(),
+    // Only the SHA-256 of the secret is stored; the plaintext leaves the process once, in
+    // the createApiClient result, and can never be recovered from the database.
+    secretHash: text("secret_hash").notNull(),
+    name: text("name").notNull(),
+    // The client's fixed role: an issued token carries exactly this role, never the user's
+    // interactive roles (a service account has none worth expanding).
+    role: text("role").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdBy: uuid("created_by"),
+    createdAt: timestamp("created_at").defaultNow(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (table) => [parentUserAccessPolicy("api_clients_user_access", table.userId)],
+).enableRLS();
+
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Lookup key for a presented bearer token: SHA-256 of the raw value, never the value.
+    tokenHash: text("token_hash").notNull().unique(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => apiClients.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+  },
+  (table) => [parentUserAccessPolicy("api_tokens_user_access", table.userId)],
+).enableRLS();
+
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type RoleRow = typeof roles.$inferSelect;
 export type RolePermissionRow = typeof rolePermissions.$inferSelect;
 export type UserRoleRow = typeof userRoles.$inferSelect;
+export type ApiClientRow = typeof apiClients.$inferSelect;
+export type ApiTokenRow = typeof apiTokens.$inferSelect;
 
 /** Public projection of a user row: the password hash never leaves @facilis/auth. */
 export type AuthUser = Pick<UserRow, "id" | "email" | "tenantId" | "createdAt">;

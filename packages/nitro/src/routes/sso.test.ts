@@ -235,6 +235,29 @@ describe("SSO route dispatch", () => {
     expect(resHeaders.getSetCookie()[0]).toContain("facilis_session=session-1");
   });
 
+  it("does not 403 the SAML ACS when the browser marks it cross-site", async () => {
+    // The ACS is a cross-site POST by protocol; originCheck: "skip" is what keeps the v1
+    // CSRF gate from refusing it before the assertion is validated.
+    vi.mocked(completeSsoLogin).mockResolvedValue({
+      userId: "user-1",
+      redirectTo: "/todos",
+      resolution: { userId: "user-1", outcome: "linked" },
+    });
+    const { event } = makeEvent("/api/auth/sso/acme/callback", {
+      method: "POST",
+      body: "SAMLResponse=ZmFrZQ%3D%3D&RelayState=state-1",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    const response = (await handler(event)) as Response;
+
+    expect(response.status).not.toBe(403);
+    expect(response.status).toBe(302);
+    expect(location(response)).toBe("/todos");
+  });
+
   it("redirects a malformed SAML POST instead of parsing it", async () => {
     const bodies = ["", "RelayState=state-1", "SAMLResponse=x"];
     const responses = await Promise.all(

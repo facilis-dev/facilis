@@ -16,6 +16,9 @@ const authRoutes = Object.keys(files)
 describe("generated starter contract", () => {
   it("ships the example's auth routes", () => {
     expect(authRoutes).toEqual([
+      "server/routes/api/auth/clients/[id].delete.ts",
+      "server/routes/api/auth/clients/index.get.ts",
+      "server/routes/api/auth/clients/index.post.ts",
       "server/routes/api/auth/login.post.ts",
       "server/routes/api/auth/logout.post.ts",
       "server/routes/api/auth/register.post.ts",

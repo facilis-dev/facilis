@@ -50,6 +50,15 @@ async function insertUser(email: string): Promise<string> {
   return row.id;
 }
 
+async function insertServiceUser(email: string): Promise<string> {
+  const [row] = await db.db
+    .insert(users)
+    .values({ email, tenantId: TENANT_ID, passwordHash: null, isService: true })
+    .returning({ id: users.id });
+  if (row === undefined) throw new Error("failed to insert service user fixture");
+  return row.id;
+}
+
 async function identityRow(providerId: string, subject: string) {
   const rows = await db.db
     .select()
@@ -201,6 +210,40 @@ describe("resolveIdentity", () => {
       ),
     ).rejects.toMatchObject({ code: "sso_email_unverified" });
     expect(await identityRow("corp", "unverified")).toBeNull();
+  });
+
+  it("refuses an existing identity link that points at a service account", async () => {
+    const serviceUserId = await insertServiceUser("service-linked@example.com");
+    await db.db.insert(authIdentities).values({
+      provider: "corp",
+      subject: "service-linked",
+      userId: serviceUserId,
+      email: "service-linked@example.com",
+      tenantId: TENANT_ID,
+    });
+
+    await expect(
+      resolveIdentity(
+        system,
+        claims({ subject: "service-linked", email: "service-linked@example.com" }),
+        provider(),
+        options,
+      ),
+    ).rejects.toMatchObject({ code: "sso_account_not_found" });
+  });
+
+  it("never links a verified email that belongs to a service account", async () => {
+    await insertServiceUser("service-email@example.com");
+
+    await expect(
+      resolveIdentity(
+        system,
+        claims({ subject: "service-email", email: "service-email@example.com" }),
+        provider(),
+        options,
+      ),
+    ).rejects.toMatchObject({ code: "sso_account_not_found" });
+    expect(await identityRow("corp", "service-email")).toBeNull();
   });
 
   it("keeps audit entries free of the email address", () => {

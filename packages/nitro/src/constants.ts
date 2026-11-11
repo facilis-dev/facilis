@@ -17,3 +17,8 @@ export const DEV_VIEW_ROUTE = "/__facilis/dev/view";
  * keeps its own login/register routes.
  */
 export const SSO_ROUTE = "/api/auth/sso/**";
+/**
+ * Framework-owned OAuth2 client-credentials token endpoint (v3a), registered in every
+ * environment; it answers not_found when auth.apiClients is disabled.
+ */
+export const TOKEN_ROUTE = "/api/auth/token";

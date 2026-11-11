@@ -5384,7 +5384,45 @@ token absent, dirty-tree refusals, provider gate), `git-sync.test.ts`, `ptc/git-
 (dispatch, argument validation, availability as data), prompt tests (the section appears only with
 `git_*`), focused IDE vitest, typecheck, file-length and lint gates.
 
-### D-140 — CSRF: origin gate di default, Content-Type strict, e `crossSite` come dichiarazione di esposizione
+### D-140 — A git operation that rewrites the working tree reloads the open editor buffers
+**Status:** accepted (2026-11-10)
+
+`ScmSession` already fired `onWorkdirChanged` after a checkout or discard, so the controller
+reloaded the Explorer and the open Monaco models. A remote **pull** took the other path
+(`GitRemoteSession`) and never told the controller: after a pull the Source Control list and every
+open tab still showed the pre-pull bytes, and saving one of them would have written stale content
+over the files git had just merged. D-139 made this easy to hit — `git_sync({ action: "pull" })`
+can succeed while the user is looking at an editor that did not change.
+
+**Decision.**
+
+- `GitRemoteSession` gets the same `onWorkdirChanged` callback as `ScmSession`, fired only after
+  a successful **pull** (fetch and push leave the file bytes alone).
+- The controller wires both sessions to one reload callback (`ide/src/vv/workdir-reload.ts`,
+  created in the constructor): it refreshes the SCM change list and the Explorer tree, and reloads
+  every open text buffer whose bytes changed on disk. Checkout, discard, pull, the Remote git
+  dialog and the AI git tools therefore converge on the same refresh.
+- **A dirty buffer is never clobbered.** A path in `snap.dirty` (unsaved edits) keeps its Monaco
+  model and `localFiles` cache untouched, and the count is reported with `toast.warning` under
+  the new `editor.workdir.unsavedKept` key (en/it). When every buffer is clean the reload is
+  silent. Saving a kept buffer over the pulled file stays the user's explicit action.
+- The reload logic lives in its own module because `controller.ts` is pinned by the file-length
+  ratchet: the controller keeps only the narrow host closures, and the module is unit-tested
+  without Monaco.
+
+**Rejected.** Reloading dirty buffers and discarding the edits (silent data loss); refusing the
+pull while any buffer is dirty (unsaved bytes are not in the repository, and the pull itself is
+safe); polling the VFS (the git RPC is the only writer that bypasses `vv-fs-changed`).
+
+**Consequences.** After any git worktree change the editor matches the repository and the SCM list
+is current; the only way to lose unsaved work is the user's own deliberate save. Diff tabs and
+non-text tabs are skipped, as before.
+
+**Verification.** `workdir-reload.test.ts` (clean reload, dirty kept + reported, all-dirty, deleted
+file skipped), `git-remote-session.test.ts` (the callback fires after a successful pull, never for
+fetch/push or a failed pull), i18n parity, IDE typecheck and the full gate set.
+
+### D-141 — CSRF: origin gate di default, Content-Type strict, e `crossSite` come dichiarazione di esposizione
 **Status:** accepted (2026-11-10)
 
 L'owner ha chiesto se con i cookie SameSite un token CSRF sia ancora necessario e se un flag
@@ -5427,8 +5465,9 @@ dell'app generata e' fuori scope (SPEC §2.2).
   introduce `SameSite=None`/embed di terze parti, un allowlist cross-site con credenziali, o
   un'auth a token; login-CSRF non si risolve con un token legato alla sessione (non esiste ancora)
   ma con il gate, che copre anche login/logout/register.
-- **Il POST cross-site dell'ACS SAML** e' una route framework-owned fuori dal wrapper: non e'
-  toccata dal gate (lo state e' server-side, §8.6) e resta l'unica eccezione legittima.
+- **Il POST cross-site dell'ACS SAML** e' una route framework-owned che passa dal wrapper (e'
+  un defineAuthorizedHandler), quindi il gate la rifiuterebbe: la decisione D-142 aggiunge
+  originCheck: 'skip' al suo config. Resta l'unico endpoint di protocollo con l'eccezione.
 
 **Rejected.** Solo CORS (non ferma le scritture simple/form e non protegge nulla lato server);
 token CSRF adesso (ridondante, richiede binding di sessione e un trattamento pre-login);
@@ -5445,55 +5484,136 @@ e' governato da SameSite. Il registry errori resta chiuso: aggiungere un codice 
 non un refactor.
 
 **Verification.** `request-security.test.ts` (cross-site/same-site/trusted/Origin/Host/assenti),
-route tests (`403` cross-site, `415` media type, throw `crossSite`+permission), config tests
+route tests (`403` cross-site, `415` media type; il throw `crossSite`+permission e' rimosso da
+D-142), config tests
 (default e validazione origini), analyzer tests (`route-cross-site-authenticated`, null
 fail-closed), `cors-policy.test.ts` (match `{id}`/`{*rest}`, preflight, trusted), manifest/OpenAPI
 tests (`crossSite`, `x-cross-site`), typecheck/test/lint/build root.
 
-### D-140 — A git operation that rewrites the working tree reloads the open editor buffers
+### D-142 — API esterne: OAuth2 client-credentials, service account e crossSite autenticato
 **Status:** accepted (2026-11-10)
 
-`ScmSession` already fired `onWorkdirChanged` after a checkout or discard, so the controller
-reloaded the Explorer and the open Monaco models. A remote **pull** took the other path
-(`GitRemoteSession`) and never told the controller: after a pull the Source Control list and every
-open tab still showed the pre-pull bytes, and saving one of them would have written stale content
-over the files git had just merged. D-139 made this easy to hit — `git_sync({ action: "pull" })`
-can succeed while the user is looking at an editor that did not change.
+L'owner vuole esporre API ad altri sistemi. Il modello scelto: un endpoint OAuth2
+client_credentials (client id + secret) che rilascia un access token, API taggate come esposte, e
+il ruolo scelto sulla credenziale. D-141 aveva reso crossSite sinonimo di route pubblica
+(permission: []); questa decisione lo estende al caso autenticato e corregge l'assunzione — errata
+— che l'ACS SAML restasse fuori dal wrapper.
 
 **Decision.**
 
-- `GitRemoteSession` gets the same `onWorkdirChanged` callback as `ScmSession`, fired only after
-  a successful **pull** (fetch and push leave the file bytes alone).
-- The controller wires both sessions to one reload callback (`ide/src/vv/workdir-reload.ts`,
-  created in the constructor): it refreshes the SCM change list and the Explorer tree, and reloads
-  every open text buffer whose bytes changed on disk. Checkout, discard, pull, the Remote git
-  dialog and the AI git tools therefore converge on the same refresh.
-- **A dirty buffer is never clobbered.** A path in `snap.dirty` (unsaved edits) keeps its Monaco
-  model and `localFiles` cache untouched, and the count is reported with `toast.warning` under
-  the new `editor.workdir.unsavedKept` key (en/it). When every buffer is clean the reload is
-  silent. Saving a kept buffer over the pulled file stays the user's explicit action.
-- The reload logic lives in its own module because `controller.ts` is pinned by the file-length
-  ratchet: the controller keeps only the narrow host closures, and the module is unit-tested
-  without Monaco.
+- **Service account nella tabella users.** users.is_service (boolean, default false) e' l'unico
+  marcatore. Un service account non puo' mai fare login: validateSession lo rifiuta, createSession
+  lancia, il flusso SSO non lo linka ne' lo provisiona, la route di login del template lo rifiuta.
+  Non ha password (password_hash null) e non e' un utente persona; resta la riga per RLS, audit e
+  ownership (ownerId = il suo id).
+- **Tabelle app-scoped (D-136).** api_clients (client_id pubblico unico, secret hashato, nome,
+  ruolo, service user, createdBy, revokedAt, lastUsedAt) e api_tokens (token hashato unico, client,
+  service user, expiresAt, revokedAt, lastUsedAt) hanno RLS con la policy parent-user-access
+  (ereditano la visibilita' del service user nella tenant scope): sono raggiungibili dal ruolo
+  applicativo, come sessions, senza un secondo meccanismo di elevation. Nessuna FK verso roles
+  (system-only): il ruolo e' validato contro config.auth.roles.
+- **Endpoint framework POST /api/auth/token.** Body JSON { grant_type: "client_credentials",
+  client_id, client_secret } (deviazione documentata da RFC 6749, che usa form-urlencoded: la
+  route e' coerente con il contratto JSON del framework). Risposta { access_token,
+  token_type: "Bearer", expires_in } con cache-control: no-store. Nessun refresh token: RFC 6749
+  §4.4 non lo prevede per client_credentials; il rinnovo e' un nuovo grant. 404 quando
+  auth.apiClients.enabled e' false; 401 generico per client/secret errati o revocati (nessuna
+  enumerazione); audit di emissione e fallimenti senza mai loggare il secret. Access token opachi
+  (32 byte random, solo hash SHA-256 a riposo), TTL auth.apiClients.tokenTtlMs.
+- **Bearer nel middleware di sessione.** Con Authorization: Bearer <token> il middleware valida il
+  token nella stessa tenant policy scope del cookie e popola context.auth con il service user e il
+  ruolo del client espanso dalla config (via: "bearer", sessionHash = hash del token per l'audit).
+  Un Bearer invalido non fa fallback al cookie. Le route cookie restano SameSite=Lax + gate D-141:
+  il gate non e' toccato dal Bearer perche' un client server-to-server non manda Origin; un browser
+  cross-site con Bearer deve comunque usare una route crossSite.
+- **crossSite = esposta, con permessi.** Il throw di D-141 (crossSite solo con permission: [])
+  sparisce: una route crossSite con permessi e' valida ed e' raggiungibile solo con un'identita'
+  Bearer. Resta nel manifest (RouteMeta.crossSite) e in OpenAPI (x-cross-site + security:
+  [{ bearerAuth: [] }] con lo scheme dichiarato); il preflight CORS consente l'header
+  authorization. Le route pubbliche (permission: []) non cambiano.
+- **originCheck: "skip" per i protocolli.** L'ACS SAML e' un POST cross-site e la route SSO e' un
+  defineAuthorizedHandler: senza eccezione il gate D-141 la rifiuterebbe. Il config del wrapper
+  guadagna originCheck?: "enforce" | "skip" (default enforce), usato solo dagli endpoint di
+  protocollo framework-owned; un'app non deve usarlo.
+- **Gestione dei client nel template.** Helper in @facilis/auth (createApiClient, listApiClients,
+  revokeApiClient) e route del template starter protette da permessi dell'app
+  (api-clients:read/api-clients:write): il secret e' mostrato una sola volta, il ruolo e' scelto
+  tra config.auth.roles, la revoca invalida i token esistenti, la lista non restituisce mai hash.
+  Un supporto Studio/UI arrivera' solo se serve.
 
-**Rejected.** Reloading dirty buffers and discarding the edits (silent data loss); refusing the
-pull while any buffer is dirty (unsaved bytes are not in the repository, and the pull itself is
-safe); polling the VFS (the git RPC is the only writer that bypasses `vv-fs-changed`).
+**Rejected.** Refresh token (non esiste in client_credentials; sarebbe un secondo segreto a vita
+lunga), JWT (revoca immediata piu' difficile dei token opachi), tabella service_accounts separata
+(FK e policy custom per un caso che users.is_service copre), ruolo fotografato nel token (un
+cambio/revoca del client deve valere subito), API key non-OAuth (l'owner ha chiesto client id +
+secret + token).
 
-**Consequences.** After any git worktree change the editor matches the repository and the SCM list
-is current; the only way to lose unsaved work is the user's own deliberate save. Diff tabs and
-non-text tabs are skipped, as before.
+**Consequences.** auth.apiClients.enabled e' false di default: nessun endpoint nuovo finche' l'app
+non lo attiva. I service account compaiono in users e vanno filtrati con is_service. crossSite non
+significa piu' "pubblica": permission decide se serve un Bearer. L'ACS SAML torna a funzionare
+cross-site. Docs: SPEC §5.3/§6.9/§7.1/§7.4/§8.4.4/§8.6, contracts §4.4.
 
-**Verification.** `workdir-reload.test.ts` (clean reload, dirty kept + reported, all-dirty, deleted
-file skipped), `git-remote-session.test.ts` (the callback fires after a successful pull, never for
-fetch/push or a failed pull), i18n parity, IDE typecheck and the full gate set.
+**Verification.** api-clients.test.ts (creazione service user, secret mai in chiaro, grant, secret
+errato, revoca, scadenza, ruolo), session tests (Bearer, no fallback, service user rifiutato,
+createSession throw), SSO guard test, route tests (originCheck skip, crossSite + permission
+definibile), token route test (404/401/200/400), analyzer warning, OpenAPI bearerAuth, manifest,
+typecheck/test/lint/build root.
+
+### D-143 — Rate limit del token endpoint per client, revoca per client confermata
+**Status:** accepted (2026-11-10)
+
+`POST /api/auth/token` accettava tentativi illimitati: un loop con il secret sbagliato arrivava a
+un confronto SHA-256 (costante nel tempo) per ogni richiesta e nulla lo rallentava. D-142 aveva
+gia' scelto la revoca per client (client + ogni token emesso); l'owner ha chiesto il rate limit e
+confermato che la revoca per client e' la granularita' giusta.
+
+**Decision.**
+
+- **Finestra fissa in-process per client id.** Il token endpoint consuma un tentativo prima di
+  toccare il database, sia che il secret sia corretto sia che non lo sia; a budget esaurito
+  risponde `429 too_many_requests` con `retry-after` in secondi interi. La chiave e' il
+  `client_id` della richiesta (le richieste malformate restano un 400 senza costo DB e non
+  consumano budget). Il limiter e' un Map con finestre per chiave, potata oltre 1024 chiavi, cosi'
+  un attaccante che ruota `client_id` non fa crescere la memoria senza limite.
+- **Config.** `auth.apiClients.rateLimit: { windowMs, maxRequests }` (default 60000/30): trenta
+  scambi al minuto sono molto sopra il fabbisogno di un client legittimo (il token dura un'ora) e
+  abbastanza sotto per rendere inutile un brute force. Entrambe le chiavi sono interi positivi;
+  configurarle e' indipendente dall'abilitare gli API client.
+- **Nuovo codice di errore.** `too_many_requests` = `429` entra nella registry chiusa (O-002);
+  il template registra `errors.too_many_requests` in `locales/en.json`/`it.json` e in
+  `KNOWN_ERROR_CODES`, cosi' il client traduce il codice come gli altri. Il tentativo bloccato e'
+  auditato come `auth:token:issue` fallito con `errorCode: "too_many_requests"`; il client id non
+  viene loggato in quel ramo (non serve a correlare e non e' un dato utile).
+- **Nessuno store condiviso.** Un deploy Facilis esegue un solo processo Nitro, quindi lo stato in
+  memoria e' coerente; piu' istanze richiederebbero uno store condiviso (Redis o DB) che il
+  framework non spedisce, e il limite dichiara questo confine invece di fingere di averlo risolto.
+  Un riavvio azzera le finestre.
+- **Revoca per client, confermata.** `revokeApiClient` marca il client e ogni suo token nella
+  stessa operazione, e' idempotente e un token di un client revocato non autentica piu'. Non c'e'
+  revoca per singolo token: la superficie di gestione e' il client, la rotazione e' revoca +
+  ricreazione, e un token ha gia' una vita breve. Una tabella `api_tokens` revocabile a mano
+  sarebbe un secondo pannello di amministrazione senza un caso d'uso.
+
+**Rejected.** Rate limit in banca dati (una scrittura per tentativo, e lo stato di throttle non
+appartiene alle tabelle app-scoped), limiter globale invece che per client (un client rumoroso
+affamerebbe gli altri), revoca per singolo token (superficie di gestione senza un caso d'uso),
+refresh token (gia' rifiutato in D-142).
+
+**Consequences.** Il token endpoint e' throttled di default anche se nessuno lo configura; il
+blocco e' per processo e si azzera al riavvio. La config `auth.apiClients` guadagna un terzo
+blocco con default, quindi le app esistenti non cambiano comportamento finche' non abilitano gli
+API client. Docs: SPEC §7.1/§7.4/§8.6, contracts §4.4.
+
+**Verification.** `rate-limit.test.ts` (budget, deny con retry-after, finestra che si riapre,
+chiavi indipendenti, clock iniettabile), `token.post.test.ts` (429 + `retry-after` + lo scambio
+negato non arriva al database + audit), config tests (default e validazione di windowMs/
+maxRequests), errors test (429 nella registry), root gates lint/typecheck/test/build.
 
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
 | O-001 | i18n key format: flat (`todos.title`) vs nested (`todos.form.title`) | **resolved in Phase 1: flat keys** (`t()` in `@facilis/core`, `locales/en.json`) | done |
-| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-140, `internal_error`), serialized as `{ code, details? }` — no prose | done |
+| O-002 | Canonical API error-code registry | **resolved in Phase 1:** `FacilisErrorCode` union in `@facilis/core` (`unauthorized`, `forbidden`, `invalid_input`, `conflict`, `db_unavailable`, `not_found`, `storage_unavailable`, `file_too_large`, `unsupported_media_type` — D-141, `internal_error`), serialized as `{ code, details? }` — no prose | done |
 | O-003 | Tenancy: `users.tenantId` exists but no `tenants` table (spec §5.3 vs §8.4.2) | **resolved in Phase 1:** single-tenant deployment; tenant comes from `FACILIS_TENANT_ID` (`defaultTenantId` in the event context). A `tenants` table arrives only with multi-tenant | done |
 | O-004 | Block discovery: `node_modules` scan vs explicit registration | **resolved by D-131:** no block supply chain — Phase 5 retired and `@facilis/blocks` deleted; nothing to discover | done |
 | O-005 | Starter repo count (one todo template vs several) | one `starter/` todo template for MVP | Phase 6 |

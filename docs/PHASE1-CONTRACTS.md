@@ -145,15 +145,31 @@ insert does not name the tenant either.
   body is `{ code: string, details?: unknown }` — codes only, no prose.
 - Codes in Phase 1: `unauthorized` (401), `forbidden` (403), `invalid_input` (400, `details` =
   flatten of Zod issues), `conflict` (409), `db_unavailable` (500), `not_found` (404),
-  `storage_unavailable` (503), `file_too_large` (413), `unsupported_media_type` (415, D-140),
-  `internal_error` (500).
-- CSRF (D-140): on unsafe methods the wrapper rejects a cross-site request with `403 forbidden`
+  `storage_unavailable` (503), `file_too_large` (413), `unsupported_media_type` (415, D-141),
+  `too_many_requests` (429, D-143), `internal_error` (500).
+- CSRF (D-141): on unsafe methods the wrapper rejects a cross-site request with `403 forbidden`
   before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback, a missing
   `Origin` means a non-browser client); `body` routes accept only `application/json` and `form`
-  routes only `multipart/form-data` (`415 unsupported_media_type`); `crossSite: true` is allowed
-  only with `permission: []`.
+  routes only `multipart/form-data` (`415 unsupported_media_type`); with `permission: []` a
+  `crossSite` route is anonymous, with a permission it is reachable only with a Bearer token
+  (D-142); `originCheck: "skip"` is the protocol-only exemption (SAML ACS).
+- API clients (D-142): `POST /api/auth/token` is the framework-owned `client_credentials`
+  endpoint (`application/json`, `{ grant_type, client_id, client_secret }`) and answers
+  `{ access_token, token_type: "Bearer", expires_in }` with `cache-control: no-store`; there is no
+  refresh token (renewal is a new grant). Tokens are opaque and stored as hashes; the session
+  middleware resolves `Authorization: Bearer` before the cookie, and a service account
+  (`users.is_service`) can never log in (`createSession` throws, `validateSession` refuses, SSO
+  never links it). A `crossSite` route with a permission declares
+  `security: [{ bearerAuth: [] }]` in OpenAPI.
+- Token rate limit (D-143): the endpoint counts one exchange per `client_id` in a fixed window
+  (`auth.apiClients.rateLimit`, default 60 s / 30 exchanges) before touching the database and
+  answers `429 too_many_requests` with `retry-after` when the budget is spent; the blocked
+  attempt is audited. The window is in-process and resets on restart. Revocation is per client
+  (client + every token it issued, idempotent); there is no per-token revocation.
 - `defineAuthorizedHandler` returns a web `Response` for errors (no `h3` import); success values
   are returned as plain data.
+- `AuthContext` carries `via?: "session" | "bearer"` so a request can be correlated with the
+  credential channel (D-142).
 - `permission: []` handlers may run without a session: their `ctx.auth` must be typed
   `AuthContext | null` (overloaded `defineAuthorizedHandler`), everything else gets the
   non-null `AuthContext`.
