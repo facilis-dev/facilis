@@ -1,7 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import type { PolicyScopedDatabase } from "@facilis/db";
 
+import { constantTimeEqual, sha256Hex } from "./crypto.ts";
+import { normalizeEmail } from "./email.ts";
 import type { AuthConfig } from "./roles.ts";
 import { userRoles, users } from "./tables.ts";
 
@@ -56,19 +58,32 @@ export function seedStatements(config: AuthConfig): string[] {
 
 /**
  * Grants `admin` to the user whose email matches FACILIS_INITIAL_ADMIN (SPEC §8.4.3).
- * Accepts a user id or email; returns false when the env var is unset, the user does not
- * exist, or the email differs. Emails compare case-insensitively.
+ *
+ * The email alone is not a credential: it is public and the registration route is public, so
+ * the promotion ALSO requires the operator's one-time FACILIS_INITIAL_ADMIN_TOKEN (D-150).
+ * Both variables must be set; a missing token fails closed, the token is compared in constant
+ * time, and the promotion happens only while no admin exists yet, so a deploy that keeps the
+ * token configured after bootstrap cannot be re-triggered. Accepts a user id or email; returns
+ * false when any condition fails.
  */
 export async function registerInitialAdmin(
   db: PolicyScopedDatabase,
   userIdOrEmail: string,
+  bootstrapToken?: string,
 ): Promise<boolean> {
   const expected = readInitialAdminEmail();
   if (expected === null) return false;
+  const expectedToken = readInitialAdminToken();
+  if (expectedToken === null || bootstrapToken === undefined) return false;
+  if (!(await tokenMatches(bootstrapToken, expectedToken))) return false;
+  // One-time: an admin already assigned means bootstrap is over, even if the env stays set.
+  if (await hasAdmin(db)) return false;
 
   const user = await findUser(db, userIdOrEmail.trim());
   if (user === null) return false;
-  if (user.email.trim().toLowerCase() !== expected) return false;
+  // Emails compare in canonical form: a case variant of the configured address is not the
+  // configured address (the unique lower(email) index makes the two the same account, D-150).
+  if (normalizeEmail(user.email) !== expected) return false;
 
   await db
     .insert(userRoles)
@@ -79,7 +94,30 @@ export async function registerInitialAdmin(
 
 function readInitialAdminEmail(): string | null {
   const configured = process.env.FACILIS_INITIAL_ADMIN?.trim();
-  return configured === undefined || configured.length === 0 ? null : configured.toLowerCase();
+  return configured === undefined || configured.length === 0 ? null : normalizeEmail(configured);
+}
+
+function readInitialAdminToken(): string | null {
+  const configured = process.env.FACILIS_INITIAL_ADMIN_TOKEN?.trim();
+  return configured === undefined || configured.length === 0 ? null : configured;
+}
+
+/**
+ * Hash-then-compare keeps the comparison independent of the two input lengths, so a wrong
+ * token leaks neither its length nor the index of the first wrong character.
+ */
+async function tokenMatches(provided: string, expected: string): Promise<boolean> {
+  const [left, right] = await Promise.all([sha256Hex(provided), sha256Hex(expected)]);
+  return constantTimeEqual(new TextEncoder().encode(left), new TextEncoder().encode(right));
+}
+
+async function hasAdmin(db: PolicyScopedDatabase): Promise<boolean> {
+  const rows = await db
+    .select({ role: userRoles.role })
+    .from(userRoles)
+    .where(eq(userRoles.role, INITIAL_ADMIN_ROLE))
+    .limit(1);
+  return rows.length > 0;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -97,7 +135,7 @@ async function findUser(
     : await db
         .select({ id: users.id, email: users.email })
         .from(users)
-        .where(eq(users.email, userIdOrEmail))
+        .where(sql`lower(${users.email}) = ${normalizeEmail(userIdOrEmail)}`)
         .limit(1);
 
   return rows[0] ?? null;

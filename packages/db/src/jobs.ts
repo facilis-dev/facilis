@@ -48,14 +48,26 @@ export const facilisJobs = pgTable(
   },
   () => [
     tenantIsolationPolicy(),
-    // A RESTRICTIVE policy only narrows what a permissive policy already allows; with no
-    // permissive policy Postgres denies every row (D-008). The queue reads/writes run as
-    // facilis_app, so the scoped tenant needs this gate — exactly like auth users and
-    // i18n_messages.
-    pgPolicy("facilis_jobs_tenant_access", {
-      for: "all",
-      using: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
-      withCheck: sql`nullif(current_setting('app.tenant_id', true), '') IS NOT NULL`,
+    // RLS is tenant-only (D-008); the queue is additionally gated by app permissions, so a
+    // route that touches facilis_jobs without jobs:read/jobs:exec fails at the database, not
+    // only in its own wrapper check. The framework engine's scope passes both permissions
+    // explicitly (db-store); a request scope carries the session's expanded permissions.
+    pgPolicy("facilis_jobs_read", {
+      for: "select",
+      using: sql`nullif(current_setting('app.permissions', true), '')::jsonb ? 'jobs:read'`,
+    }),
+    pgPolicy("facilis_jobs_insert", {
+      for: "insert",
+      withCheck: sql`nullif(current_setting('app.permissions', true), '')::jsonb ? 'jobs:exec'`,
+    }),
+    pgPolicy("facilis_jobs_update", {
+      for: "update",
+      using: sql`nullif(current_setting('app.permissions', true), '')::jsonb ? 'jobs:exec'`,
+      withCheck: sql`nullif(current_setting('app.permissions', true), '')::jsonb ? 'jobs:exec'`,
+    }),
+    pgPolicy("facilis_jobs_delete", {
+      for: "delete",
+      using: sql`nullif(current_setting('app.permissions', true), '')::jsonb ? 'jobs:exec'`,
     }),
   ],
 ).enableRLS();

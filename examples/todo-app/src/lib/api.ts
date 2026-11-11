@@ -17,6 +17,7 @@ const KNOWN_ERROR_CODES = new Set([
   "internal_error",
   "network_error",
   "file_too_large",
+  "payload_too_large",
   "storage_unavailable",
   "unsupported_media_type",
   "too_many_requests",

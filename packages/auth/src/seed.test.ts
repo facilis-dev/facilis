@@ -89,24 +89,30 @@ describe("seedStatements", () => {
   });
 });
 
-async function withInitialAdmin(
-  value: string | undefined,
-  run: () => Promise<void>,
-): Promise<void> {
-  const previous = process.env.FACILIS_INITIAL_ADMIN;
-  if (value === undefined) {
-    delete process.env.FACILIS_INITIAL_ADMIN;
-  } else {
-    process.env.FACILIS_INITIAL_ADMIN = value;
-  }
+interface InitialAdminEnv {
+  readonly email?: string;
+  readonly token?: string;
+}
+
+/** Runs with exactly the given bootstrap env; both variables are restored afterwards. */
+async function withInitialAdmin(env: InitialAdminEnv, run: () => Promise<void>): Promise<void> {
+  const previousEmail = process.env.FACILIS_INITIAL_ADMIN;
+  const previousToken = process.env.FACILIS_INITIAL_ADMIN_TOKEN;
+  setEnv("FACILIS_INITIAL_ADMIN", env.email);
+  setEnv("FACILIS_INITIAL_ADMIN_TOKEN", env.token);
   try {
     await run();
   } finally {
-    if (previous === undefined) {
-      delete process.env.FACILIS_INITIAL_ADMIN;
-    } else {
-      process.env.FACILIS_INITIAL_ADMIN = previous;
-    }
+    setEnv("FACILIS_INITIAL_ADMIN", previousEmail);
+    setEnv("FACILIS_INITIAL_ADMIN_TOKEN", previousToken);
+  }
+}
+
+function setEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
   }
 }
 
@@ -144,38 +150,72 @@ describe("registerInitialAdmin", () => {
     return rows.map((row) => row.role);
   }
 
-  it("returns false when FACILIS_INITIAL_ADMIN is unset", async () => {
-    await withInitialAdmin(undefined, async () => {
+  it("fails closed when FACILIS_INITIAL_ADMIN is unset", async () => {
+    await withInitialAdmin({ token: "bootstrap-secret" }, async () => {
+      await expect(registerInitialAdmin(db.db, matchingId, "bootstrap-secret")).resolves.toBe(
+        false,
+      );
+    });
+    await expect(rolesOf(matchingId)).resolves.toEqual([]);
+  });
+
+  it("fails closed when the bootstrap token is unset, so the email alone is not a credential", async () => {
+    await withInitialAdmin({ email: "founder@example.com" }, async () => {
+      await expect(registerInitialAdmin(db.db, matchingId, "bootstrap-secret")).resolves.toBe(
+        false,
+      );
       await expect(registerInitialAdmin(db.db, matchingId)).resolves.toBe(false);
     });
     await expect(rolesOf(matchingId)).resolves.toEqual([]);
   });
 
-  it("grants admin when the email matches and is idempotent", async () => {
-    await withInitialAdmin(" FOUNDER@example.com ", async () => {
-      await expect(registerInitialAdmin(db.db, matchingId)).resolves.toBe(true);
-      await expect(registerInitialAdmin(db.db, matchingId)).resolves.toBe(true);
+  it("refuses a wrong bootstrap token without touching the role", async () => {
+    await withInitialAdmin(
+      { email: "founder@example.com", token: "bootstrap-secret" },
+      async () => {
+        await expect(registerInitialAdmin(db.db, matchingId, "guess")).resolves.toBe(false);
+        await expect(registerInitialAdmin(db.db, matchingId)).resolves.toBe(false);
+      },
+    );
+    await expect(rolesOf(matchingId)).resolves.toEqual([]);
+  });
+
+  it("does not promote a case variant of the configured email without the token", async () => {
+    await withInitialAdmin({ email: "founder@example.com" }, async () => {
+      await expect(registerInitialAdmin(db.db, "FOUNDER@example.com")).resolves.toBe(false);
     });
+    await expect(rolesOf(matchingId)).resolves.toEqual([]);
+  });
+
+  it("grants admin once when both email and token match, resolved by email", async () => {
+    await withInitialAdmin(
+      { email: " FOUNDER@example.com ", token: "bootstrap-secret" },
+      async () => {
+        await expect(
+          registerInitialAdmin(db.db, "Founder@Example.com", "bootstrap-secret"),
+        ).resolves.toBe(true);
+        // One-time: the promotion cannot be replayed even while the env stays configured.
+        await expect(
+          registerInitialAdmin(db.db, "founder@example.com", "bootstrap-secret"),
+        ).resolves.toBe(false);
+      },
+    );
     await expect(rolesOf(matchingId)).resolves.toEqual(["admin"]);
   });
 
-  it("returns false and grants nothing when the email does not match", async () => {
-    await withInitialAdmin("founder@example.com", async () => {
-      await expect(registerInitialAdmin(db.db, otherId)).resolves.toBe(false);
+  it("does not promote another user after the admin exists, even with a valid token", async () => {
+    await withInitialAdmin({ email: "other@example.com", token: "bootstrap-secret" }, async () => {
+      await expect(registerInitialAdmin(db.db, otherId, "bootstrap-secret")).resolves.toBe(false);
     });
     await expect(rolesOf(otherId)).resolves.toEqual([]);
   });
 
-  it("resolves the user by id as well as by email", async () => {
-    await withInitialAdmin("founder@example.com", async () => {
-      await expect(registerInitialAdmin(db.db, matchingId)).resolves.toBe(true);
+  it("returns false for an unknown user and an email mismatch", async () => {
+    await withInitialAdmin({ email: "nobody@example.com", token: "bootstrap-secret" }, async () => {
+      await expect(
+        registerInitialAdmin(db.db, "nobody@example.com", "bootstrap-secret"),
+      ).resolves.toBe(false);
     });
-    await expect(rolesOf(matchingId)).resolves.toEqual(["admin"]);
-  });
-
-  it("returns false for an unknown user", async () => {
-    await withInitialAdmin("nobody@example.com", async () => {
-      await expect(registerInitialAdmin(db.db, "nobody@example.com")).resolves.toBe(false);
-    });
+    await expect(rolesOf(otherId)).resolves.toEqual([]);
   });
 });

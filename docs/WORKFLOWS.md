@@ -18,8 +18,10 @@ flag changes. Derived requirements:
    it; no in-memory wait, no open transaction, no timer held in a job body.
 3. State survives the dev-server worker reload / process restart (PGlite snapshot) and never
    blocks the single PGlite connection.
-4. Everything runs in a system context like jobs; the decision is an app-scoped, authorized
-   write.
+4. The runtime runs as `facilis_app` under the tenant (like the queue); step bodies run as
+   `facilis_system` through the jobs executor. Access to the workflow/task rows is gated by
+   permissions (`workflows:read`/`workflows:exec`, `tasks:read`/`tasks:decide`), and the decision
+   is an app-scoped, authorized write — no system-only tables, no elevation cascade (D-145).
 5. Minimal surface: two tables, one runtime tick, no new package, no HTTP endpoint owned by the
    framework.
 
@@ -104,8 +106,10 @@ Indexes: `(status, created_at)` for the tick scan, `(name)` for listing. The tic
 Indexes: `(status, created_at)` for the inbox, `(workflow_id)` for the runner.
 
 Both tables use the `facilis_jobs` pattern: `tenantIsolationPolicy()` + `enableRLS()` (the D-008
-rationale), and the framework's own writes run as `facilis_app` under the deployment tenant
-(`runWithPolicyScope`), exactly like the queue. Statuses stay `text`; there are no foreign keys
+rationale), plus per-command policies keyed on `app.permissions` (`tasks:read`/`tasks:decide`,
+`workflows:read`/`workflows:exec`, D-145). The framework's own writes run as `facilis_app` under
+the deployment tenant (`runWithPolicyScope`) with the framework permissions in scope, exactly
+like the queue; there are no system-only tables. Statuses stay `text`; there are no foreign keys
 between framework tables (the queue has none), so retention/pruning cannot be blocked by an
 orphan reference — pruning is out of scope anyway.
 
@@ -225,12 +229,13 @@ pending task; completed steps are not compensated.
 
 ## 9. Security, audit, logging, i18n
 
-- Both tables are tenant-scoped with RLS; the runner writes as `facilis_app` under the deployment
-  tenant, like the queue. Step bodies run as `facilis_system` through the jobs executor with the
-  sudo audit (D-107) — workflows add no new system surface.
-- `decide` is an app-scoped write behind an authorized route + permission `tasks:decide`; RLS
-  confines it to the tenant and `decided_by` comes from the context. The UI never writes the
-  workflow row.
+- Both tables are tenant-scoped with RLS, plus permission-gated policies (D-145); the runner
+  writes as `facilis_app` under the deployment tenant with the framework permissions, like the
+  queue. Step bodies run as `facilis_system` through the jobs executor with the sudo audit
+  (D-107) — workflows add no new system surface.
+- `decide` is an app-scoped write behind an authorized route **and** the `tasks:decide` RLS
+  policy (a route that forgets the permission check is still denied by the database);
+  `decided_by` comes from the context. The UI never writes the workflow row.
 - Route handlers still list their own tables in `dbTables` (invariant 2); the framework tables
   are reached only through `ctx.workflows`/`ctx.tasks`, like `ctx.jobs`.
 - Failures degrade like jobs: `workflows_boot_failed` / `workflows_table_missing` manifest

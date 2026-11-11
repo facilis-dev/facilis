@@ -230,6 +230,7 @@ async function completeGet(
   const claims = await claimsFromCode(deps, provider, input.code, state);
   const resolution = await resolveIdentity(deps.system, claims, identityPolicy(provider.config), {
     defaultRole: deps.defaultRole,
+    linkPasswordAccounts: deps.sso.linkPasswordAccounts === true,
     audit: deps.audit,
   });
   return { userId: resolution.userId, redirectTo: postLoginPath(state), resolution };
@@ -255,6 +256,7 @@ async function completePost(
   });
   const resolution = await resolveIdentity(deps.system, claims, identityPolicy(config), {
     defaultRole: deps.defaultRole,
+    linkPasswordAccounts: deps.sso.linkPasswordAccounts === true,
     audit: deps.audit,
   });
   return { userId: resolution.userId, redirectTo: postLoginPath(state), resolution };

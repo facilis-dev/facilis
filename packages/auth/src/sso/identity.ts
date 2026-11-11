@@ -5,6 +5,7 @@ import type { PolicyScopedDatabase } from "@facilis/db";
 import type { IdentityClaims, SsoAudit, SystemRunner } from "./contracts.ts";
 import { SsoError } from "./errors.ts";
 import { authIdentities } from "./tables.ts";
+import { normalizeEmail } from "../email.ts";
 import { users, userRoles } from "../tables.ts";
 
 /**
@@ -37,6 +38,11 @@ export interface IdentityProviderPolicy {
 export interface ResolveIdentityOptions {
   /** `config.auth.defaultRole`, used when the provider has no `defaultRole`. */
   readonly defaultRole: string;
+  /**
+   * `config.auth.sso.linkPasswordAccounts`: linking to a PASSWORD account is opt-in because that
+   * account was never email-verified (SEC-02, D-151).
+   */
+  readonly linkPasswordAccounts: boolean;
   readonly audit: SsoAudit;
 }
 
@@ -64,13 +70,16 @@ async function findIdentityUserId(
   return rows[0]?.userId ?? null;
 }
 
-async function findUserIdByEmail(db: PolicyScopedDatabase, email: string): Promise<string | null> {
+async function findUserByEmail(
+  db: PolicyScopedDatabase,
+  email: string,
+): Promise<{ id: string; passwordHash: string | null } | null> {
   const rows = await db
-    .select({ id: users.id })
+    .select({ id: users.id, passwordHash: users.passwordHash })
     .from(users)
-    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
+    .where(sql`lower(${users.email}) = ${normalizeEmail(email)}`)
     .limit(1);
-  return rows[0]?.id ?? null;
+  return rows[0] ?? null;
 }
 
 /**
@@ -94,7 +103,7 @@ async function touchIdentity(
 ): Promise<void> {
   await db
     .update(authIdentities)
-    .set({ email: claims.email, lastLoginAt: now })
+    .set({ email: normalizeEmail(claims.email), lastLoginAt: now })
     .where(
       and(eq(authIdentities.provider, claims.provider), eq(authIdentities.subject, claims.subject)),
     );
@@ -124,16 +133,22 @@ export async function resolveIdentity(
     // An unverified email must never link to (or provision) an account: that is account takeover.
     if (!claims.emailVerified) throw new SsoError("sso_email_unverified");
 
-    const existingUser = await findUserIdByEmail(db, claims.email);
+    const existingUser = await findUserByEmail(db, claims.email);
     if (existingUser !== null) {
-      await assertLoginable(db, existingUser);
+      await assertLoginable(db, existingUser.id);
+      // A password account carries no proof that its email belongs to the caller: linking the
+      // IdP identity to it would hand the account to whoever registered the address first
+      // (account pre-hijacking, SEC-02). SSO-provisioned accounts (no password) still link.
+      if (existingUser.passwordHash !== null && !options.linkPasswordAccounts) {
+        throw new SsoError("sso_email_conflict");
+      }
       const inserted = await db
         .insert(authIdentities)
         .values({
           provider: claims.provider,
           subject: claims.subject,
-          userId: existingUser,
-          email: claims.email,
+          userId: existingUser.id,
+          email: normalizeEmail(claims.email),
         })
         .onConflictDoNothing()
         .returning({ userId: authIdentities.userId });
@@ -155,16 +170,21 @@ export async function resolveIdentity(
     const role = roleFor(provider, options);
     const created = await db
       .insert(users)
-      .values({ email: claims.email, passwordHash: null })
+      .values({ email: normalizeEmail(claims.email), passwordHash: null })
       .onConflictDoNothing()
       .returning({ id: users.id });
-    const userId = created[0]?.id ?? (await findUserIdByEmail(db, claims.email));
+    const userId = created[0]?.id ?? (await findUserByEmail(db, claims.email))?.id ?? null;
     if (userId === null) throw new SsoError("sso_internal_error", "user provision race");
 
     await db.insert(userRoles).values({ userId, role }).onConflictDoNothing();
     const identity = await db
       .insert(authIdentities)
-      .values({ provider: claims.provider, subject: claims.subject, userId, email: claims.email })
+      .values({
+        provider: claims.provider,
+        subject: claims.subject,
+        userId,
+        email: normalizeEmail(claims.email),
+      })
       .onConflictDoNothing()
       .returning({ userId: authIdentities.userId });
     const resolved =

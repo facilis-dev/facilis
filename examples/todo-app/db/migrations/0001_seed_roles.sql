@@ -7,5 +7,9 @@ INSERT INTO role_permissions (role, permission) VALUES ('admin', '*') ON CONFLIC
 INSERT INTO role_permissions (role, permission) VALUES ('manager', 'todos:read') ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role, permission) VALUES ('manager', 'todos:write') ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role, permission) VALUES ('manager', 'users:read') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role, permission) VALUES ('manager', 'jobs:read') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role, permission) VALUES ('manager', 'jobs:exec') ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role, permission) VALUES ('user', 'todos:read') ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role, permission) VALUES ('user', 'todos:write') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role, permission) VALUES ('user', 'jobs:read') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role, permission) VALUES ('user', 'jobs:exec') ON CONFLICT DO NOTHING;

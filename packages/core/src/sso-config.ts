@@ -128,6 +128,13 @@ export const ssoConfigSchema = z
       .positive()
       .max(60 * 60 * 1000)
       .default(10 * 60 * 1000),
+    /**
+     * Link a verified SSO email to an existing PASSWORD account (D-151). Off by default: such an
+     * account was created without email verification, so matching its address would let whoever
+     * registered the address first inherit the victim's SSO login (pre-hijacking, SEC-02).
+     * SSO-provisioned accounts (no password) still link by email.
+     */
+    linkPasswordAccounts: z.boolean().default(false),
   })
   .default(() => DEFAULT_SSO_CONFIG);
 
@@ -139,6 +146,7 @@ export const DEFAULT_SSO_CONFIG: FacilisSsoConfig = {
   providers: [],
   failureRedirect: "/login",
   stateTtlMs: 10 * 60 * 1000,
+  linkPasswordAccounts: false,
 };
 
 export interface SsoValidationContext {

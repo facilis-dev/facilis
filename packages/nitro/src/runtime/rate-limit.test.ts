@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createFixedWindowRateLimiter, type RateLimitWindow } from "./rate-limit.ts";
+import { createFixedWindowRateLimiter, MAX_WINDOWS, type RateLimitWindow } from "./rate-limit.ts";
 
 const WINDOW: RateLimitWindow = { windowMs: 60_000, maxRequests: 3 };
 
@@ -37,6 +37,21 @@ describe("createFixedWindowRateLimiter", () => {
       retryAfterSeconds: 60,
     });
     expect(limiter.consume("client-2", WINDOW, 0)).toEqual({ allowed: true });
+  });
+
+  it("bounds the tracked keys, evicting the oldest window (SEC-08)", () => {
+    const limiter = createFixedWindowRateLimiter();
+    const now = 0;
+    // Fill the first key's budget, then overflow the map with fresh keys.
+    for (let attempt = 0; attempt < WINDOW.maxRequests; attempt += 1) {
+      limiter.consume("client-0", WINDOW, now);
+    }
+    expect(limiter.consume("client-0", WINDOW, now).allowed).toBe(false);
+    for (let index = 1; index <= MAX_WINDOWS; index += 1) {
+      limiter.consume("client-" + index, WINDOW, now);
+    }
+    // client-0 was the oldest entry: its window is gone, so it gets a fresh budget.
+    expect(limiter.consume("client-0", WINDOW, now).allowed).toBe(true);
   });
 
   it("never reports a zero-second wait and defaults to the wall clock", () => {

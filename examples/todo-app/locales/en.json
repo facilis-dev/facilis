@@ -87,6 +87,7 @@
   "errors.internal_error": "Something went wrong. Try again.",
   "errors.network_error": "Network error. Check your connection.",
   "errors.file_too_large": "That file is too large.",
+  "errors.payload_too_large": "That request is too large.",
   "errors.storage_unavailable": "File storage is temporarily unavailable.",
   "errors.unsupported_media_type": "This request format is not supported.",
   "errors.too_many_requests": "Too many requests. Wait a moment and try again.",

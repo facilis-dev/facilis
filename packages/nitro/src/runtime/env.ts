@@ -1,12 +1,13 @@
 /**
  * Environment access is centralised so the dev-only guards have one definition.
  *
- * SPEC §6.1/§8.5 define dev endpoints as available when NODE_ENV is not
- * "production"; an unset NODE_ENV therefore counts as development, matching
- * `vite dev`.
+ * The default is **fail-closed** (D-146): only an explicit `development` or `test` counts as
+ * non-production, so a deploy that forgets NODE_ENV still gets the production guards (404 dev
+ * endpoints, Secure cookies, no in-memory PGlite) instead of exposing them.
  */
 export function isProductionEnvironment(environment: NodeJS.ProcessEnv = process.env): boolean {
-  return environment["NODE_ENV"] === "production";
+  const nodeEnv = environment["NODE_ENV"];
+  return nodeEnv !== "development" && nodeEnv !== "test";
 }
 
 export function readEnvironment(

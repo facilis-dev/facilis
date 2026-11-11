@@ -107,6 +107,8 @@ export type {
   JobsApi,
 } from "./jobs.ts";
 
+export { createFixedWindowRateLimiter, MAX_WINDOWS } from "./rate-limit.ts";
+export type { FixedWindowRateLimiter, RateLimitDecision, RateLimitWindow } from "./rate-limit.ts";
 export { defineAuthorizedHandler } from "./route.ts";
 export type {
   AuthContext,

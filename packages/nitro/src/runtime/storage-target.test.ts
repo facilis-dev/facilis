@@ -57,7 +57,9 @@ function sourceOf(bytes: Uint8Array): AsyncIterable<Uint8Array> {
 
 describe("resolveStorage", () => {
   it("boots the local driver in development and signs round-tripping URLs", () => {
-    const resolved = resolveStorage(CONFIG, {}, "/project", { secret: "dev-secret" });
+    const resolved = resolveStorage(CONFIG, { NODE_ENV: "development" }, "/project", {
+      secret: "dev-secret",
+    });
 
     expect(resolved.warnings).toEqual([]);
     const storage = resolved.storage;
@@ -102,7 +104,7 @@ describe("resolveStorage", () => {
   it("reports missing S3 credentials as a dedicated warning", () => {
     const resolved = resolveStorage(
       configWith({ driver: "s3", bucket: "bucket", region: "auto" }),
-      {},
+      { NODE_ENV: "development" },
       "/project",
       { secret: "dev-secret" },
     );
@@ -136,7 +138,7 @@ describe("resolveStorage", () => {
   });
 
   it("degrades to a warning when the driver cannot be constructed", () => {
-    const resolved = resolveStorage(CONFIG, {}, "/project", {
+    const resolved = resolveStorage(CONFIG, { NODE_ENV: "development" }, "/project", {
       secret: "dev-secret",
       createDriver: () => {
         throw new Error("boom");
@@ -152,7 +154,7 @@ describe("resolveStorage encryption", () => {
   it("reports a missing encryption key as a dedicated warning", () => {
     const resolved = resolveStorage(
       configWith({ driver: "local", encryption: { enabled: true } }),
-      {},
+      { NODE_ENV: "development" },
       "/project",
       { secret: "dev-secret" },
     );
@@ -166,7 +168,7 @@ describe("resolveStorage encryption", () => {
   it("reports a malformed encryption key as a dedicated warning", () => {
     const resolved = resolveStorage(
       configWith({ driver: "local", encryption: { enabled: true } }),
-      { FACILIS_STORAGE_ENCRYPTION_KEY: "not-a-key" },
+      { NODE_ENV: "development", FACILIS_STORAGE_ENCRYPTION_KEY: "not-a-key" },
       "/project",
       { secret: "dev-secret" },
     );
@@ -181,7 +183,7 @@ describe("resolveStorage encryption", () => {
     const project = tempProject();
     const resolved = resolveStorage(
       configWith({ driver: "local", encryption: { enabled: true } }),
-      ENCRYPTION_ENV,
+      { NODE_ENV: "development", ...ENCRYPTION_ENV },
       project,
       { secret: "dev-secret" },
     );

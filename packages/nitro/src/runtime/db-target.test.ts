@@ -14,7 +14,7 @@ const PRODUCTION: NodeJS.ProcessEnv = { NODE_ENV: "production" };
 
 describe("resolveDbTarget", () => {
   it("defaults to in-memory pglite in development", () => {
-    expect(resolveDbTarget(projectConfig("pglite"), {})).toEqual({
+    expect(resolveDbTarget(projectConfig("pglite"), { NODE_ENV: "development" })).toEqual({
       target: { driver: "pglite" },
       warnings: [],
     });
@@ -47,7 +47,9 @@ describe("resolveDbTarget", () => {
   it("treats a blank connection string as not configured", () => {
     // A platform panel can define the variable with an empty value; that must behave like
     // "unset" instead of failing later with an opaque connection error.
-    expect(resolveDbTarget(projectConfig("pglite"), { DATABASE_URL: "   " })).toEqual({
+    expect(
+      resolveDbTarget(projectConfig("pglite"), { NODE_ENV: "development", DATABASE_URL: "   " }),
+    ).toEqual({
       target: { driver: "pglite" },
       warnings: [],
     });

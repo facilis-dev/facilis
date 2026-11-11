@@ -18,11 +18,15 @@ export default defineConfig({
       "users:read",
       "api-clients:read",
       "api-clients:write",
+      // The queue is RLS-gated by these two permissions (D-145): SELECT needs jobs:read,
+      // INSERT/UPDATE/DELETE need jobs:exec.
+      "jobs:read",
+      "jobs:exec",
     ],
     roles: {
       admin: ["*"],
-      manager: ["todos:read", "todos:write", "users:read"],
-      user: ["todos:read", "todos:write"],
+      manager: ["todos:read", "todos:write", "users:read", "jobs:read", "jobs:exec"],
+      user: ["todos:read", "todos:write", "jobs:read", "jobs:exec"],
     },
     defaultRole: "user",
     sessionDurationMs: 1000 * 60 * 60 * 24 * 7,
