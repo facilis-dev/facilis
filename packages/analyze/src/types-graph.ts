@@ -13,7 +13,7 @@ import type {
   WrapperState,
 } from "./types.ts";
 
-export type GraphNodeKind = "page" | "route" | "table";
+export type GraphNodeKind = "page" | "route" | "table" | "view";
 
 export interface PageNodeData {
   readonly kind: "page";
@@ -57,7 +57,21 @@ export interface TableNodeData {
   readonly unknown: boolean;
 }
 
-export type GraphNodeData = PageNodeData | RouteNodeData | TableNodeData;
+/** A declarative view declared with defineView under db/views (D-097/D-098, D-160). */
+export interface ViewNodeData {
+  readonly kind: "view";
+  /** The view's SQL name: what a route declares in `dbTables` (D-157). */
+  readonly view: string;
+  /** Base tables named by the declaration (metadata only, D-097); [] when absent. */
+  readonly tables: readonly string[];
+  /** The view's own permission; null keeps the invoker behaviour (D-098). */
+  readonly permission: string | null;
+  /** null when a declared permission could not be read, so the mode is unknown. */
+  readonly access: "invoker" | "definer" | null;
+  readonly unknown: boolean;
+}
+
+export type GraphNodeData = PageNodeData | RouteNodeData | TableNodeData | ViewNodeData;
 
 export interface GraphNode {
   readonly id: string;
@@ -67,7 +81,8 @@ export interface GraphNode {
   readonly data: GraphNodeData;
 }
 
-export type GraphEdgeKind = "fk" | "relation" | "route-table" | "page-route" | "page-link";
+export type GraphEdgeKind =
+  "fk" | "relation" | "route-table" | "page-route" | "page-link" | "route-view" | "view-base";
 
 export interface GraphEdge {
   readonly id: string;
@@ -75,7 +90,7 @@ export interface GraphEdge {
   readonly source: string;
   readonly target: string;
   readonly label: string | null;
-  /** A route-table edge whose table is reached through audited sudo/system elevation. */
+  /** A route-table/route-view edge reached through audited sudo/system elevation. */
   readonly access?: "elevated";
 }
 

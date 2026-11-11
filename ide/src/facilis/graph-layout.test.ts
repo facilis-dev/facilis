@@ -119,6 +119,14 @@ describe("mutations", () => {
     expect(withHiddenEdgeKind(value, "fk", false).hiddenEdges).toEqual(["relation"]);
   });
 
+  it("keeps the view edge kinds at the end of the canonical order", () => {
+    let value = withHiddenEdgeKind(layout(), "view-base", true);
+    value = withHiddenEdgeKind(value, "route-view", true);
+    value = withHiddenEdgeKind(value, "fk", true);
+    expect(value.hiddenEdges).toEqual(["fk", "route-view", "view-base"]);
+    expect(withHiddenEdgeKind(value, "route-view", false).hiddenEdges).toEqual(["fk", "view-base"]);
+  });
+
   it("stores the viewport but ignores an invalid zoom", () => {
     const value = withViewport(layout(), { x: 4, y: 5, zoom: 0.5 });
     expect(value.viewport).toEqual({ x: 4, y: 5, zoom: 0.5 });

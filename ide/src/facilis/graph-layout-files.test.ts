@@ -147,6 +147,15 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_VIEWPORT_PATH) ?? "")).toEqual({ x: 1, y: 2, zoom: 0.5 });
   });
 
+  it("serialises the view edge kinds in the canonical appended order", () => {
+    const files = filesOf(layout({ hiddenEdges: ["view-base", "route-view"] }));
+    expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
+      version: GRAPH_LAYOUT_VERSION,
+      hiddenEdges: ["route-view", "view-base"],
+      collapsed: {},
+    });
+  });
+
   it("rounds positions to two decimals", () => {
     const files = filesOf(
       layout({ nodes: { a: { x: 1.234, y: -1.5 } }, edgeCurves: { b: { x: 0.555, y: -1 } } }),

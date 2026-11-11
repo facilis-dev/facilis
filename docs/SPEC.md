@@ -1,11 +1,12 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.27 (generatore `planSchema`, snapshot dichiarato esteso, D-158)
+**Version:** 1.28 (viste nel project graph, D-160)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 18-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.28 — Le viste entrano nel project graph (D-160). `@facilis/analyze` produce un nodo `view` per ogni `defineView` (`db/views/**`) con modalità invoker/definer, permesso e tabelle base dichiarate; una route che dichiara la vista in `dbTables` prende un arco `route-view` (marcato elevato dentro un'elevazione audited) e la vista è collegata alle tabelle base con `view-base`. L'IDE mostra le viste nella colonna dello schema sotto le tabelle, con badge e "usata da N rotte", e l'inspector elenca le rotte. Il contratto del grafo guadagna il nodo `view` e i due tipi di arco; i file di layout restano v3. §10.2/§11.2 follow.
 - v1.27 — Il generatore (P2, D-158). `@facilis/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
 - v1.26 — Il DDL nasce al rilascio, non si scrive a mano (D-158/D-159). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
 - v1.25 — `dbTables` è una dichiarazione applicata (D-157): ogni route dichiara tutte le relazioni che tocca, **tabelle e viste**, e il framework la verifica staticamente (analyzer con follow delle chiamate locali, gate CI, nuova regola 18 `route-table-declared`) e a runtime (guard su `ctx.db` e sulle elevazioni: `table_not_declared`, `raw_sql_not_allowed`); `rawSql: true` è l'unica deroga per `db.execute`, e l'audit delle elevazioni registra le tabelle osservate. §7.4/§8.4.6/§9.3/§11.2 follow.
@@ -2478,7 +2479,7 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis/analyze` (D-092): pages → routes → tables plus FK/`relations()` edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126) |
+| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis/analyze` (D-092): pages → routes → tables → views (D-160) plus FK/`relations()` edges, route→view `dbTables` edges and view→base-table edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126) |
 | Commit graph | `CommitGraphPanel.tsx` + `commit-graph` editor tab | React Flow over the local git log: lanes, merge edges, branch/HEAD cards, details inspector (D-088) |
 | Diff tab | `EditorPanes.tsx` + `diff-session.ts` | Every SCM change opens a side-by-side HEAD ↔ working-tree diff, first hunk revealed (D-089) |
 | Entity Explorer | `DataExplorerPanel.tsx` + activity view + `data-query` tab | Live code ↔ DB diff and a read-only SQL console with Create-view (optional declared view permission, D-098), through a kernel-mediated same-origin dev proxy (D-097); declared tables from `@facilis/analyze` still planned (O-011) |
@@ -2507,6 +2508,8 @@ tools; nothing is inlined); a provider error, the user's Stop or a validator out
 and nothing is written. A parser/analyzer outage is reported as a validator
 outage instead of a model repair (D-105). The PTC tool runtime from §9.5 is the chat's only mode
 (D-103); the eval corpus and browser matrix remain.
+
+**Status (2026-11-11): the project graph shows declarative views and the routes that use them (D-160).** Each `defineView` under `db/views/` is a node in the schema column below the tables, with its invoker/definer mode, declared permission and base tables; a route that declares the view in `dbTables` gets a `route-view` edge (marked elevated inside an audited `ctx.sudo`/`ctx.system`), and `view-base` edges connect the view to the base relations its declaration names. The view card and inspector answer "which route uses this view", so the graph's route-to-schema map covers views exactly as it covers tables.
 
 **Status (2026-11-10): the graph shows every real page, page navigation and audited elevation (D-134).** Page nodes are `src/pages/**` files (including pages with no API calls and unrouted pages), with URL paths from the explicit route table; components/lib files are no longer page nodes. `page-link` edges follow explicit `Link`/`NavLink`/`navigate` targets, and a route→table edge reached through `ctx.sudo`/`ctx.system` is marked with one warning colour plus a route-card chip. Selecting a page opens a bounded static structure inspector (nested components/sections, `Outlet` composition, dynamic branches marked), not a rendering.
 
@@ -2721,6 +2724,11 @@ in the `data` activity view on the left.
   permission, access), so the validator accepts the view name and the usage pass resolves it; the runtime
   guard compares the Drizzle view object's name with the declaration. Base tables stay in the view's own
   metadata, never in the route declaration.
+- **Project graph (D-160).** Each view is a `view:<name>` node carrying its invoker/definer mode,
+  permission and declared base tables; a route that declares the view in `dbTables` gets a
+  `route-view` edge (elevated inside an audited `ctx.sudo`/`ctx.system`) and the declared base tables
+  get `view-base` edges, so "which route uses which view" is visible in the graph. The declaration,
+  not the observed AST use, is the source: D-157 makes it verified and enforced at runtime.
 - **Provisioning**: dev boot re-applies `db/views/**` after the PGlite reconcile (a broken view
   becomes a manifest warning, never a failed boot). A Postgres deployment provisions views as a
   deploy post-step after the artifacts are applied, and boot reports `view_ddl_skipped`.

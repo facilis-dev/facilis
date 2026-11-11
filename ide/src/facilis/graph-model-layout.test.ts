@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GRAPH_COLUMNS, buildProjectGraphView } from "./graph-model";
 import {
+  ACTIVE_TODOS,
   GET,
   PAGE,
   PROJECTS,
@@ -8,16 +9,40 @@ import {
   graphOf,
   routeNode,
   tableNode,
+  viewNode,
 } from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView layout", () => {
   it("puts pages left, routes in the middle and tables right", () => {
-    const view = buildProjectGraphView({ graph: graphOf([PAGE, GET, TODOS, PROJECTS]) });
+    const view = buildProjectGraphView({
+      graph: graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS]),
+    });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
     expect(byId.get(PAGE.id)?.position).toEqual({ x: GRAPH_COLUMNS.page, y: 0 });
     expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
     expect(byId.get(TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
     expect(byId.get(PROJECTS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
+    expect(byId.get(ACTIVE_TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
+    expect(GRAPH_COLUMNS.view).toBe(GRAPH_COLUMNS.table);
+  });
+
+  it("lays views in the schema column below the tables, behind a gap", () => {
+    const graph = graphOf([TODOS, ACTIVE_TODOS]);
+    const view = buildProjectGraphView({ graph });
+    const byId = new Map(view.nodes.map((node) => [node.id, node]));
+    // The table row pitch is 190; the first view row starts after it plus the 56px gap.
+    expect(byId.get(TODOS.id)?.position).toEqual({ x: GRAPH_COLUMNS.table, y: 0 });
+    expect(byId.get(ACTIVE_TODOS.id)?.position).toEqual({ x: GRAPH_COLUMNS.view, y: 246 });
+    expect(buildProjectGraphView({ graph })).toEqual(view);
+  });
+
+  it("orders the view rows deterministically by name, after the tables", () => {
+    const alpha = viewNode("alpha");
+    const beta = viewNode("beta");
+    const view = buildProjectGraphView({ graph: graphOf([TODOS, beta, alpha]) });
+    const byName = new Map(view.nodes.map((node) => [node.label, node.position]));
+    expect(byName.get("alpha")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 });
+    expect(byName.get("beta")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 + 150 });
   });
 
   it("leaves room for the taller route card in the route column", () => {
@@ -70,21 +95,23 @@ describe("buildProjectGraphView layout", () => {
     expect(byId.has("table:stale")).toBe(false);
   });
 
-  it("marks only tables as collapsed", () => {
+  it("collapses tables and views, never pages or routes", () => {
     const view = buildProjectGraphView({
-      graph: graphOf([PAGE, TODOS]),
-      collapsed: { [PAGE.id]: true, [TODOS.id]: true },
+      graph: graphOf([PAGE, GET, TODOS, ACTIVE_TODOS]),
+      collapsed: { [PAGE.id]: true, [GET.id]: true, [TODOS.id]: true, [ACTIVE_TODOS.id]: true },
     });
     expect(view.nodes.find((node) => node.id === PAGE.id)?.collapsed).toBe(false);
+    expect(view.nodes.find((node) => node.id === GET.id)?.collapsed).toBe(false);
     expect(view.nodes.find((node) => node.id === TODOS.id)?.collapsed).toBe(true);
+    expect(view.nodes.find((node) => node.id === ACTIVE_TODOS.id)?.collapsed).toBe(true);
   });
 });
 
 describe("buildProjectGraphView search", () => {
-  const graph = graphOf([PAGE, GET, TODOS, PROJECTS], []);
+  const graph = graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS], []);
 
-  it("matches labels, paths, permissions and column names", () => {
-    for (const query of ["todos", "GET", "todos:read", "created_at"]) {
+  it("matches labels, paths, permissions, column names and view facts", () => {
+    for (const query of ["todos", "GET", "todos:read", "created_at", "active_todos", "definer"]) {
       const view = buildProjectGraphView({ graph, query });
       expect(view.stats.matches, query).toBeGreaterThan(0);
     }

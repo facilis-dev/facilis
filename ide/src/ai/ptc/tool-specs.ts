@@ -62,12 +62,12 @@ export const GRAPH_TOOL_SPECS: readonly PtcToolSpec[] = [
   spec(
     "graph_state",
     "graph_state()",
-    "Project graph: nodes with positions, edges, notes, hidden edge kinds and collapsed tables.",
+    "Project graph: nodes with positions, edges, notes, hidden edge kinds and collapsed tables and views.",
   ),
   spec(
     "graph_arrange",
     "graph_arrange({ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? })",
-    "Arrange the project graph and write .facilis/graph immediately: move nodes, bend or reset edges (0,0), create/edit/delete notes (id absent = create), replace the hidden edge-kind set, collapse tables.",
+    "Arrange the project graph and write .facilis/graph immediately: move nodes, bend or reset edges (0,0), create/edit/delete notes (id absent = create), replace the hidden edge-kind set, collapse tables and views.",
   ),
 ];
 

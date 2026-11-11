@@ -95,6 +95,33 @@ export function tableNode(
   };
 }
 
+export function viewNode(
+  name: string,
+  options: {
+    tables?: readonly string[];
+    permission?: string | null;
+    access?: "invoker" | "definer" | null;
+    unknown?: boolean;
+  } = {},
+): GraphNode {
+  // An explicit `null` means "mode unknown", so it must survive the default.
+  const access = options.access === undefined ? "invoker" : options.access;
+  return {
+    id: "view:" + name,
+    kind: "view",
+    label: name,
+    sourceFile: "db/views/" + name + ".ts",
+    data: {
+      kind: "view",
+      view: name,
+      tables: options.tables ?? [],
+      permission: options.permission ?? null,
+      access,
+      unknown: options.unknown ?? false,
+    },
+  };
+}
+
 export function graphOf(
   nodes: readonly GraphNode[],
   edges: ProjectGraph["edges"] = [],
@@ -115,3 +142,9 @@ export const TODOS = tableNode("todos", {
   ],
 });
 export const PROJECTS = tableNode("projects");
+/** A definer view over two tables; a route and the view-base edges are added per test. */
+export const ACTIVE_TODOS = viewNode("active_todos", {
+  tables: ["todos", "projects"],
+  permission: "todos:read",
+  access: "definer",
+});

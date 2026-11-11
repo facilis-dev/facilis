@@ -97,7 +97,7 @@ describe("defineView facts (D-157)", () => {
     expect(scan.diagnostics).toEqual([]);
   });
 
-  it("exposes views in the analysis without adding graph nodes", () => {
+  it("exposes views in the analysis and as project-graph nodes", () => {
     const analysis = analyzeProject({
       files: new Map([
         [
@@ -115,7 +115,58 @@ describe("defineView facts (D-157)", () => {
       parser: createOxcParser(),
     });
     expect(analysis.views.map((view) => view.name)).toEqual(["active_todos"]);
-    expect(analysis.graph.nodes).toEqual([]);
+    expect(analysis.graph.nodes).toMatchObject([
+      { id: "view:active_todos", kind: "view", label: "active_todos" },
+    ]);
     expect(analysis.graph.edges).toEqual([]);
+  });
+
+  it("feeds the project graph: a route that declares a view gets a route-view edge", () => {
+    const analysis = analyzeProject({
+      files: new Map([
+        [
+          "db/views/active-todos.ts",
+          HEADER +
+            "export const activeTodos = defineView({\n" +
+            '  name: "active_todos",\n' +
+            '  columns: { id: text("id") },\n' +
+            "  query: " +
+            QUERY_A +
+            ",\n" +
+            '  tables: ["todos"],\n' +
+            '  permission: "todos:read",\n' +
+            "});\n",
+        ],
+        [
+          "server/routes/api/active-todos.get.ts",
+          'import { defineAuthorizedHandler } from "@facilis/core";\n' +
+            'import { activeTodos } from "~/db/views/active-todos";\n' +
+            "export default defineAuthorizedHandler(\n" +
+            '  { permission: [], dbTables: ["active_todos"] },\n' +
+            "  async (_event, { db }) => db.select().from(activeTodos),\n" +
+            ");\n",
+        ],
+      ]),
+      parser: createOxcParser(),
+    });
+    expect(
+      analysis.graph.nodes.find((node) => node.id === "view:active_todos")?.data,
+    ).toMatchObject({
+      kind: "view",
+      view: "active_todos",
+      tables: ["todos"],
+      permission: "todos:read",
+      access: "definer",
+    });
+    expect(analysis.graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "route-view",
+          source: "route:GET /api/active-todos",
+          target: "view:active_todos",
+          label: "dbTables",
+        }),
+      ]),
+    );
   });
 });

@@ -4,30 +4,20 @@
 // the view without touching the editor.
 //
 // Layout is three columns — pages, routes, tables — with FK/relation edges staying inside the
-// tables column. A saved position overrides the automatic one; edge kinds listed in the
-// layout's `hiddenEdges` are dropped before the canvas sees them.
+// tables column. Views are schema objects too, so they sit in the tables column below it behind
+// a gap instead of opening a fourth column. A saved position overrides the automatic one; edge
+// kinds listed in the layout's `hiddenEdges` are dropped before the canvas sees them.
 
-import type {
-  ColumnFact,
-  GraphEdgeKind,
-  GraphNode,
-  GraphNodeKind,
-  ProjectGraph,
-  RouteInputFact,
-} from "@facilis/analyze";
+import type { GraphEdgeKind, ProjectGraph } from "@facilis/analyze";
+import { matchesQuery, pageData, routeData, tableData, viewData } from "./graph-model-data";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
-import { pathParamsOf } from "./graph-path-params";
 import {
   GRAPH_COLUMNS,
-  type ColumnMarker,
-  type GraphColumn,
-  type PageGraphData,
   type ProjectGraphEdge,
   type ProjectGraphNode,
   type ProjectGraphView,
   type ProjectGraphViewInput,
-  type RouteGraphData,
-  type TableGraphData,
+  type UsedByRoute,
 } from "./graph-types";
 
 export type {
@@ -43,6 +33,8 @@ export type {
   ProjectGraphViewInput,
   RouteGraphData,
   TableGraphData,
+  UsedByRoute,
+  ViewGraphData,
 } from "./graph-types";
 export { GRAPH_COLUMNS } from "./graph-types";
 
@@ -50,69 +42,10 @@ export { GRAPH_COLUMNS } from "./graph-types";
  * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
  * the tallest of the fixed rows because they carry the input flags and path-parameter row.
  */
-const ROW_PITCH = { page: 88, route: 112, table: 190 } as const;
+const ROW_PITCH = { page: 88, route: 112, table: 190, view: 150 } as const;
 
-function columnView(column: ColumnFact): GraphColumn {
-  const markers: ColumnMarker[] = [];
-  if (column.primaryKey) markers.push("primaryKey");
-  if (column.notNull) markers.push("notNull");
-  if (column.unique) markers.push("unique");
-  if (column.default !== null) markers.push("default");
-  if (column.unknown.length > 0) markers.push("unknown");
-  return {
-    property: column.property,
-    name: column.name,
-    type: column.type,
-    markers,
-  };
-}
-
-function pageData(node: GraphNode): PageGraphData | null {
-  if (node.data.kind !== "page") return null;
-  return {
-    kind: "page",
-    pagePath: node.data.pagePath,
-    pageKind: node.data.pageKind,
-    callCount: node.data.callCount,
-    routePaths: node.data.routePaths ?? [],
-    preview: node.data.preview ?? null,
-  };
-}
-
-/** An analyzer bundled before the input facts (or a still-running old worker) omits the field. */
-const NO_ROUTE_INPUT: RouteInputFact = { body: false, form: false, query: false, params: false };
-
-function routeData(node: GraphNode): RouteGraphData | null {
-  if (node.data.kind !== "route") return null;
-  return {
-    kind: "route",
-    method: node.data.method,
-    path: node.data.path,
-    permission: node.data.permission,
-    wrapper: node.data.wrapper,
-    description: node.data.description ?? null,
-    input: node.data.input ?? NO_ROUTE_INPUT,
-    pathParams: pathParamsOf(node.data.path),
-    elevations: node.data.elevations ?? [],
-    unknown: node.data.unknown,
-  };
-}
-
-function tableData(node: GraphNode): TableGraphData | null {
-  if (node.data.kind !== "table") return null;
-  return {
-    kind: "table",
-    table: node.data.table,
-    columns: node.data.columns.map(columnView),
-    rlsEnabled: node.data.rlsEnabled,
-    framework: node.data.framework,
-    scope:
-      node.data.scope === null
-        ? null
-        : { column: node.data.scope.column, kind: node.data.scope.kind },
-    unknown: node.data.unknown,
-  };
-}
+/** Blank space between the last table row and the first view row in the schema column. */
+const VIEW_GAP = 56;
 
 function isTableEdge(edge: ProjectGraphEdge): boolean {
   return edge.kind === "fk" || edge.kind === "relation";
@@ -160,34 +93,46 @@ function autoPositions(
   pages: readonly ProjectGraphNode[],
   routes: readonly ProjectGraphNode[],
   tables: readonly ProjectGraphNode[],
+  views: readonly ProjectGraphNode[],
 ): Map<string, GraphPosition> {
   const positions = new Map<string, GraphPosition>();
-  const place = (kind: GraphNodeKind, ordered: readonly ProjectGraphNode[]): void => {
+  const place = (x: number, pitch: number, ordered: readonly ProjectGraphNode[]): void => {
     ordered.forEach((node, index) => {
-      positions.set(node.id, { x: GRAPH_COLUMNS[kind], y: index * ROW_PITCH[kind] });
+      positions.set(node.id, { x, y: index * pitch });
     });
   };
-  place("page", pages);
-  place("route", routes);
-  place("table", tables);
+  place(GRAPH_COLUMNS.page, ROW_PITCH.page, pages);
+  place(GRAPH_COLUMNS.route, ROW_PITCH.route, routes);
+  place(GRAPH_COLUMNS.table, ROW_PITCH.table, tables);
+  // Tables first, then views, in the same schema column: the gap keeps a view visibly a
+  // relation over its base tables rather than another table row.
+  const viewsY = tables.length === 0 ? 0 : tables.length * ROW_PITCH.table + VIEW_GAP;
+  views.forEach((node, index) => {
+    positions.set(node.id, { x: GRAPH_COLUMNS.view, y: viewsY + index * ROW_PITCH.view });
+  });
   return positions;
 }
 
-function matchesQuery(node: ProjectGraphNode, needle: string): boolean {
-  if (needle.length === 0) return true;
-  const values: string[] = [node.label, node.id, node.sourceFile ?? ""];
-  const data = node.data;
-  if (data.kind === "page") {
-    values.push(data.pagePath, data.pageKind, ...data.routePaths);
-  } else if (data.kind === "route") {
-    values.push(data.method, data.path, data.wrapper, ...data.permission);
-    for (const elevation of data.elevations) {
-      values.push(elevation.kind, ...elevation.tables);
-    }
-  } else {
-    for (const column of data.columns) values.push(column.property, column.name, column.type);
+/** Incoming route-view edges grouped per view, sorted, for the card chip and the inspector. */
+function routeUsers(
+  edges: readonly ProjectGraphEdge[],
+  byId: ReadonlyMap<string, ProjectGraphNode>,
+): Map<string, UsedByRoute[]> {
+  const users = new Map<string, UsedByRoute[]>();
+  for (const edge of edges) {
+    if (edge.kind !== "route-view") continue;
+    const source = byId.get(edge.source);
+    const target = byId.get(edge.target);
+    if (source?.data.kind !== "route" || target?.data.kind !== "view") continue;
+    const list = users.get(target.id) ?? [];
+    if (list.some((entry) => entry.id === source.id)) continue;
+    list.push({ id: source.id, label: source.label });
+    users.set(target.id, list);
   }
-  return values.some((value) => value.toLowerCase().includes(needle));
+  for (const list of users.values()) {
+    list.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  }
+  return users;
 }
 
 /** Map the analyzer graph to the canvas model. Deterministic and free of side effects. */
@@ -209,7 +154,9 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
         ? pageData(node)
         : node.data.kind === "route"
           ? routeData(node)
-          : tableData(node);
+          : node.data.kind === "table"
+            ? tableData(node)
+            : viewData(node);
     if (data === null) continue;
     nodes.push({
       id: node.id,
@@ -219,7 +166,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       position: { x: 0, y: 0 },
       data,
       matched: true,
-      collapsed: node.kind === "table" && collapsed[node.id] === true,
+      collapsed: (node.kind === "table" || node.kind === "view") && collapsed[node.id] === true,
     });
   }
 
@@ -237,21 +184,31 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   const orderedTables = tableOrder
     .map((id) => tables.find((node) => node.id === id))
     .filter((node): node is ProjectGraphNode => node !== undefined);
-  const auto = autoPositions(pages, routes, orderedTables);
+  const views = nodes
+    .filter((node) => node.kind === "view")
+    .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  const auto = autoPositions(pages, routes, orderedTables, views);
 
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  const allEdges = input.graph.edges
+    .map(edgeView)
+    .filter((edge) => byId.has(edge.source) && byId.has(edge.target));
+  const users = routeUsers(allEdges, byId);
+
   const positioned = nodes.map((node) => {
+    const data =
+      node.data.kind === "view"
+        ? { ...node.data, usedByRoutes: users.get(node.id) ?? [] }
+        : node.data;
     const saved = positions[node.id];
     const position =
       saved !== undefined && Number.isFinite(saved.x) && Number.isFinite(saved.y)
         ? { x: saved.x, y: saved.y }
         : (auto.get(node.id) ?? { x: 0, y: 0 });
-    return { ...node, position, matched: matchesQuery(node, needle) };
+    const base = { ...node, data, position };
+    return { ...base, matched: matchesQuery(base, needle) };
   });
 
-  const allEdges = input.graph.edges
-    .map(edgeView)
-    .filter((edge) => byId.has(edge.source) && byId.has(edge.target));
   const visible = allEdges.filter((edge) => !hidden.has(edge.kind));
   const hiddenCount = allEdges.length - visible.length;
 
@@ -262,6 +219,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       pages: pages.length,
       routes: routes.length,
       tables: tables.length,
+      views: views.length,
       edges: visible.length,
       hiddenEdges: hiddenCount,
       matches: positioned.filter((node) => node.matched).length,

@@ -13,7 +13,7 @@ export const tourIt: Partial<Record<MessageKey, string>> = {
 
   "tour.step.graph.title": "Il progetto, al centro",
   "tour.step.graph.body":
-    "Un progetto Facilis si apre qui: pagine, rotte e tabelle in un unico grafo. Trascina un nodo per sistemarlo, doppio click per aprire il sorgente.",
+    "Un progetto Facilis si apre qui: pagine, rotte, tabelle e viste in un unico grafo. Trascina un nodo per sistemarlo, doppio click per aprire il sorgente.",
   "tour.step.activity.title": "La barra delle viste",
   "tour.step.activity.body":
     "Da qui cambi superficie di lavoro: area di lavoro, ricerca, git, esegui e debug, dati, release, log e chat AI. Il grafo resta a un click.",

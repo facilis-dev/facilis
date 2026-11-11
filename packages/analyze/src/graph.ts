@@ -1,5 +1,4 @@
 import type {
-  GraphEdge,
   GraphNode,
   PageFact,
   PageNodeData,
@@ -10,29 +9,21 @@ import type {
   ScreenFacts,
   TableFact,
   TableNodeData,
+  ViewFact,
+  ViewNodeData,
 } from "./types.ts";
+import { pageId, routeId, tableId, viewId } from "./graph-ids.ts";
+import { collectEdges } from "./graph-edges.ts";
 
 export interface GraphInput {
   readonly routes: readonly RouteFact[];
   readonly tables: readonly TableFact[];
   readonly relations: readonly RelationFact[];
   readonly pages: readonly PageFact[];
+  /** Declarative views (D-097/D-098): nodes plus view-base edges since D-160. */
+  readonly views: readonly ViewFact[];
   /** Route paths, bounded page previews and explicit page links. */
   readonly screens?: ScreenFacts;
-}
-
-const NODE_PREFIX = { page: "page:", route: "route:", table: "table:" } as const;
-
-function tableId(name: string): string {
-  return NODE_PREFIX.table + name;
-}
-
-function routeId(route: RouteFact): string {
-  return NODE_PREFIX.route + route.method + " " + route.path;
-}
-
-function pageId(path: string): string {
-  return NODE_PREFIX.page + path;
 }
 
 function tableNode(table: TableFact): GraphNode {
@@ -53,6 +44,24 @@ function tableNode(table: TableFact): GraphNode {
     kind: "table",
     label: table.name,
     sourceFile: table.source.file,
+    data,
+  };
+}
+
+function viewNode(view: ViewFact): GraphNode {
+  const data: ViewNodeData = {
+    kind: "view",
+    view: view.name,
+    tables: view.tables,
+    permission: view.permission,
+    access: view.access,
+    unknown: view.unknown.length > 0 || view.access === null,
+  };
+  return {
+    id: viewId(view.name),
+    kind: "view",
+    label: view.name,
+    sourceFile: view.source.file,
     data,
   };
 }
@@ -102,29 +111,6 @@ function pageNode(page: PageFact, id: string, screens: ScreenFacts): GraphNode {
   };
 }
 
-function fkLabel(
-  table: TableFact,
-  targetTable: string,
-  targetColumns: readonly string[],
-  onDelete: string | null,
-): string {
-  let label = table.name + " -> " + targetTable + "." + targetColumns.join(", ");
-  if (onDelete !== null) label += " on delete " + onDelete;
-  return label;
-}
-
-function relationLabel(cardinality: "one" | "many"): string {
-  return cardinality;
-}
-
-function buildTableLookupMap(tables: readonly TableFact[]): Map<string, TableFact> {
-  const byName = new Map<string, TableFact>();
-  for (const table of tables) {
-    if (!byName.has(table.name)) byName.set(table.name, table);
-  }
-  return byName;
-}
-
 function collectNodes(input: GraphInput): GraphNode[] {
   const nodes: GraphNode[] = [];
   const tableNames = new Set<string>();
@@ -132,6 +118,12 @@ function collectNodes(input: GraphInput): GraphNode[] {
     if (tableNames.has(table.name)) continue;
     tableNames.add(table.name);
     nodes.push(tableNode(table));
+  }
+  const viewNames = new Set<string>();
+  for (const view of input.views) {
+    if (viewNames.has(view.name)) continue;
+    viewNames.add(view.name);
+    nodes.push(viewNode(view));
   }
   const routeIds = new Set<string>();
   for (const route of input.routes) {
@@ -152,121 +144,6 @@ function collectNodes(input: GraphInput): GraphNode[] {
     nodes.push(pageNode(page, id, screens));
   }
   return nodes;
-}
-
-function elevatedTables(route: RouteFact): ReadonlySet<string> {
-  const tables = new Set<string>();
-  for (const elevation of route.elevations) {
-    for (const table of elevation.tables) tables.add(table);
-  }
-  return tables;
-}
-
-function collectEdges(input: GraphInput, nodeIds: ReadonlySet<string>): GraphEdge[] {
-  const edges = new Map<string, GraphEdge>();
-  const tablesByName = buildTableLookupMap(input.tables);
-  const add = (edge: GraphEdge): void => {
-    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) return;
-    if (edges.has(edge.id)) return;
-    edges.set(edge.id, edge);
-  };
-
-  for (const table of input.tables) {
-    for (const foreignKey of table.foreignKeys) {
-      add({
-        id:
-          "fk:" +
-          table.name +
-          ":" +
-          foreignKey.columns.join(",") +
-          ":" +
-          foreignKey.targetTable +
-          ":" +
-          foreignKey.targetColumns.join(","),
-        kind: "fk",
-        source: tableId(table.name),
-        target: tableId(foreignKey.targetTable),
-        label: fkLabel(
-          table,
-          foreignKey.targetTable,
-          foreignKey.targetColumns,
-          foreignKey.onDelete,
-        ),
-      });
-    }
-  }
-
-  for (const relation of input.relations) {
-    const id = ["relation", relation.from, relation.to, relation.cardinality];
-    if (relation.fields.length > 0) id.push(relation.fields.join(","));
-    if (relation.references.length > 0) id.push(relation.references.join(","));
-    add({
-      id: id.join(":"),
-      kind: "relation",
-      source: tableId(relation.from),
-      target: tableId(relation.to),
-      label: relationLabel(relation.cardinality),
-    });
-  }
-
-  for (const route of input.routes) {
-    const routeNodeId = routeId(route);
-    const elevated = elevatedTables(route);
-    for (const tableName of route.dbTables ?? []) {
-      add({
-        id: "route-table:" + routeNodeId + ":dbTables:" + tableName,
-        kind: "route-table",
-        source: routeNodeId,
-        target: tableId(tableName),
-        label: "dbTables",
-        ...(elevated.has(tableName) ? { access: "elevated" as const } : {}),
-      });
-    }
-    for (const entry of route.dbColumns ?? []) {
-      const separator = entry.indexOf(".");
-      if (separator <= 0) continue;
-      const tableName = entry.slice(0, separator);
-      const columnName = entry.slice(separator + 1);
-      const table = tablesByName.get(tableName);
-      const knownColumn = table?.columns.some((column) => column.property === columnName);
-      if (knownColumn !== true) continue;
-      add({
-        id: "route-table:" + routeNodeId + ":dbColumns:" + tableName,
-        kind: "route-table",
-        source: routeNodeId,
-        target: tableId(tableName),
-        label: "dbColumns",
-        ...(elevated.has(tableName) ? { access: "elevated" as const } : {}),
-      });
-    }
-  }
-
-  for (const page of input.pages) {
-    const source = pageId(page.path);
-    for (const call of page.calls) {
-      for (const matchedRouteId of call.matchedRouteIds) {
-        add({
-          id: "page-route:" + page.path + ":" + matchedRouteId,
-          kind: "page-route",
-          source,
-          target: matchedRouteId,
-          label: null,
-        });
-      }
-    }
-  }
-
-  for (const link of input.screens?.links ?? []) {
-    add({
-      id: "page-link:" + link.from + ":" + link.to + ":" + link.kind + ":" + link.toPath,
-      kind: "page-link",
-      source: pageId(link.from),
-      target: pageId(link.to),
-      label: link.toPath,
-    });
-  }
-
-  return [...edges.values()];
 }
 
 /** Build the single project graph from facts. Ids and ordering are stable across runs. */

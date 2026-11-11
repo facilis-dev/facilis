@@ -1,8 +1,8 @@
 // The project-graph node cards: page and table, plus the registration of the analysis and note
-// node types (the route card lives in ProjectGraphRouteNode.tsx, the note card in
-// ProjectGraphNote.tsx, the shared chrome in ProjectGraphNodeChrome.tsx). Each card names only
-// theme role tokens (D-043/D-044); the geometry lives in graph-model.ts and the canvas only
-// places them.
+// node types (the route card lives in ProjectGraphRouteNode.tsx, the view card in
+// ProjectGraphViewNode.tsx, the note card in ProjectGraphNote.tsx, the shared chrome in
+// ProjectGraphNodeChrome.tsx). Each card names only theme role tokens (D-043/D-044); the
+// geometry lives in graph-model.ts and the canvas only places them.
 
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
 import ChevronDown from "~icons/lucide/chevron-down";
@@ -14,6 +14,7 @@ import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
+import { ViewGraphNode } from "./ProjectGraphViewNode";
 
 /** React Flow's data bound wants an object alias, not an interface. */
 export type ProjectFlowData = {
@@ -22,7 +23,7 @@ export type ProjectFlowData = {
   onToggleCollapse: (id: string) => void;
 };
 
-export type ProjectAnalysisFlowNode = Node<ProjectFlowData, "page" | "route" | "table">;
+export type ProjectAnalysisFlowNode = Node<ProjectFlowData, "page" | "route" | "table" | "view">;
 
 /** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
 export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
@@ -184,5 +185,6 @@ export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   page: PageGraphNode,
   route: RouteGraphNode,
   table: TableGraphNode,
+  view: ViewGraphNode,
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
 };

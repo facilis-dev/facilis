@@ -11,7 +11,7 @@ export const tourEn = {
 
   "tour.step.graph.title": "The project, at the center",
   "tour.step.graph.body":
-    "A Facilis project opens here: pages, routes and tables as one graph. Drag a node to arrange it, double-click to open its source.",
+    "A Facilis project opens here: pages, routes, tables and views as one graph. Drag a node to arrange it, double-click to open its source.",
   "tour.step.activity.title": "The activity bar",
   "tour.step.activity.body":
     "This is how you change surface: workspace, search, git, run and debug, data, release, logs and AI chat. The graph stays one click away.",

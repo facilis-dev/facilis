@@ -4,8 +4,8 @@
  * A view is declared one per file with `defineView({ name, columns, query, tables?,
  * permission? })` from @facilis/db (D-097/D-098). The route-relations pass resolves a view
  * object used in `from(...)` to this fact, so a route declares the view's SQL name in
- * `dbTables` instead of its base tables. Views stay out of the project graph: D-157 keeps
- * graph nodes for a later phase (O-013).
+ * `dbTables` instead of its base tables. D-160 adds the view nodes and their edges to the
+ * project graph; this pass stays facts-only.
  *
  * The declaration is read through the bounded static subset; an unreadable name/tables/
  * permission is an explicit unknown, never a guessed value.

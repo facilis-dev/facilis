@@ -6123,6 +6123,56 @@ docs/MIGRATION-PLAN.md §2.3-§2.5.
 statement, deploy interrotto, rifiuti tipizzati, e2e PGlite + Postgres. P4: lo stesso piano in IDE e
 pipeline per la stessa coppia di tag.
 
+### D-160 — Le viste sono nodi del project graph, con le rotte che le usano
+**Status:** accepted (2026-11-11)
+
+**Context.** D-157 ha reso `dbTables` una dichiarazione applicata: una route elenca le relazioni che
+può toccare, **tabelle e viste**, e per una vista dichiara il nome SQL della `defineView` (non le tabelle
+base). Il grafo del progetto però mostrava solo pagine, route e tabelle: il "quale route fa cosa" era
+visibile per le tabelle e invisibile per le viste, e O-013 lo teneva aperto. D-157 aveva rinviato
+esplicitamente i nodi vista. L'owner ha chiesto di vedere le viste sul grafo e di capire quando le usano
+le rotte.
+
+**Decision.**
+
+- **Fatti.** `@facilis/analyze` aggiunge un nodo `view` al `ProjectGraph` per ogni `ViewFact`:
+  id `view:<nome SQL>`, sorgente il file `db/views/**`, dati `ViewNodeData` (nome, tabelle base
+  dichiarate, `permission`, `access` invoker/definer/ignoto, unknown). `analysis.views` resta la
+  fonte dei fatti; il grafo ne è la proiezione.
+- **Archi dalle rotte.** Una voce di `dbTables` che denota una vista produce un arco `route-view`
+  (label `dbTables`, id `route-view:<route>:dbTables:<view>`), marcato `elevated` quando la vista è
+  in `options.tables` di un'elevazione `ctx.sudo`/`ctx.system`, come già per le tabelle. La fonte è la
+  **dichiarazione**, non l'uso osservato dal pass delle relazioni: D-157 rende la dichiarazione
+  verificata e garantita a runtime, quindi dichiarazione e accesso non possono divergere senza un
+  errore. I `dbColumns` restano solo delle tabelle (le viste non hanno fatti colonna).
+- **Archi delle viste.** Le tabelle base dichiarate in `defineView.tables` (metadata informativa,
+  D-097) producono archi `view-base` (id `view-base:<view>:<base>`), con target il nodo tabella o
+  l'altra vista che esiste; una base non dichiarata staticamente non produce arco, e
+  l'autoreferenza è ignorata.
+- **IDE.** La vista è il quarto tipo di nodo e sta nella **colonna dello schema, sotto le tabelle**
+  (non una colonna nuova: gli archi route→vista attraverserebbero la colonna delle tabelle). Il nodo
+  mostra badge vista, modalità invoker/definer + permesso, tabelle base (collassabili) e "usata da N
+  rotte"; l'inspector elenca le rotte che la usano; filtri/legenda/conteggi coprono i due nuovi tipi di
+  arco. I nuovi tipi sono **in coda** a `GRAPH_EDGE_KINDS`, così l'ordine persistito di
+  `hiddenEdges` non cambia per i layout esistenti (il formato file resta v3: un progetto senza viste
+  produce un layout identico a prima).
+- **Contratto.** `GraphNodeKind` guadagna `view` e `GraphEdgeKind` `route-view`/`view-base`:
+  i consumer con switch esaustivi smettono di compilare, che è il comportamento voluto.
+
+**Rejected.** Un flag "isView" sul nodo tabella (filtri, ricerca e inspector dovrebbero comunque
+specializzarlo, e il contratto del grafo resterebbe ambiguo). Derivare route→vista dall'uso del pass AST
+invece che da `dbTables` (seconda fonte di verità contro una dichiarazione già applicata). Una quarta
+colonna di layout (gli archi route→vista passerebbero sopra le tabelle). Trattare le tabelle base di una
+vista come accesso della route (D-157: sono metadata della vista, non accesso diretto).
+
+**Consequences.** SPEC v1.28 §10.2/§11.2 e O-013 si aggiornano; il bullet "nodi vista" di D-157 resta
+superato **solo per il grafo** (analyzer e validator invariati). Test: `graph.test.ts` (nodi e archi
+vista) e i test del modello/layout del grafo IDE.
+
+**Verification.** `pnpm --filter @facilis/analyze test` (nodi, route-view, view-base, determinismo),
+`pnpm --filter @facilis/ide test` (dati, used-by-routes, posizionamento nella colonna schema, ricerca,
+filtri), typecheck dei due pacchetti.
+
 ## Open (do not block Phase 0/1; resolve before the noted phase)
 
 | ID | Question | Proposed default | Needed by |
@@ -6139,7 +6189,7 @@ pipeline per la stessa coppia di tag.
 | O-010 | Auth schema drift: Drizzle (`tenantId` notNull) vs SQL seed PK/NOT NULL | reconcile in `@facilis/auth/db`; one source (Drizzle schema) generates the SQL | Phase 1 (auth) |
 | O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
-| O-013 | Views in analyzer facts, graph and reverse lookup | **partly resolved by D-157:** `defineView` (`db/views/**`) becomes a `ViewFact` (name, base tables, `permission`/`access`), the validator accepts a view name in `dbTables` and the relation pass resolves routes that use views; the project graph/Data Explorer still have no view nodes or edges (kept Phase 4 to avoid a graph-contract change) | Phase 4 |
+| O-013 | Views in analyzer facts, graph and reverse lookup | **resolved for the project graph by D-160:** `ViewFact` becomes a `view:<name>` node (invoker/definer, permission, base tables), a route that declares a view in `dbTables` gets a `route-view` edge and the declared base tables get `view-base` edges; `defineView` facts and the validator were D-157. Still open: the Entity Explorer's declared views and its reverse lookup | Phase 4 (Entity Explorer half) |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) — design approved in D-135 ([WORKFLOWS.md](./WORKFLOWS.md)), implementation W1–W3 | Phase 7+ |

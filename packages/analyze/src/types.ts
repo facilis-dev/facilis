@@ -259,6 +259,7 @@ export type {
   RouteNodeData,
   ScreenFacts,
   TableNodeData,
+  ViewNodeData,
 } from "./types-graph.ts";
 export type {
   RouteElevationUsage,
@@ -276,7 +277,7 @@ export interface Analysis {
   readonly routes: readonly RouteFact[];
   readonly tables: readonly TableFact[];
   readonly relations: readonly RelationFact[];
-  /** Declarative views (D-157); facts only — views stay out of the project graph. */
+  /** Declarative views (D-157): facts, and graph nodes since D-160. */
   readonly views: readonly ViewFact[];
   readonly pages: readonly PageFact[];
   /** Module facts for every parsed source file, in path order. */

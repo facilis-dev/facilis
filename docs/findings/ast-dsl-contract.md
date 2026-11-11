@@ -277,7 +277,7 @@ peer so the VM never installs it.
 
 ## 7. Graph model and UI
 
-One graph over the whole fact set — tables, routes and pages together — not two separate
+One graph over the whole fact set — tables, views, routes and pages together — not two separate
 panels.
 
 **Nodes**
@@ -287,7 +287,8 @@ panels.
 - **route**: method + path, the wrapper config's one-sentence description (clamped to two
   lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
   input flags (`body | form | query | params`), path parameters from the route template, source;
-- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections); pages with no API calls are shown too.
+- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections); pages with no API calls are shown too;
+- **view** (D-160, `db/views/**`): name, invoker/definer mode and declared permission, the base tables its `defineView` declares (collapsible), and the routes that use it.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.
 
@@ -300,6 +301,8 @@ panels.
 | `route-table` | route → table | solid for `dbTables`, dashed for `dbColumns`; `access: "elevated"` (one warning colour) when the table is in a `ctx.sudo`/`ctx.system` call |
 | `page-route` | page → route | direct/indirect; dynamic links dashed/unknown |
 | `page-link` | page → page | explicit `Link`/`NavLink`/`navigate` target resolved through the route table |
+| `route-view` | route → view | a view named in the route's `dbTables` declaration (D-157); solid, `access: "elevated"` inside a `ctx.sudo`/`ctx.system` whose `tables` name it |
+| `view-base` | view → table/view | base tables declared by `defineView.tables` (metadata only, D-097) |
 | `route-permission` | route → permission | optional, later |
 
 **Interactions**
@@ -309,8 +312,8 @@ panels.
 - **Filters**: show/hide each edge kind (and optionally each node kind); hidden state is
   persisted.
 - **Drag**: nodes are draggable and follow the pointer live; the position is committed on drop.
-  Initial positions come from a deterministic layered layout (pages → routes → tables;
-  FK/relations among tables). "Reset layout" returns to it.
+  Initial positions come from a deterministic layered layout (pages → routes → tables, with views
+  below the tables in the schema column; FK/relations among tables). "Reset layout" returns to it.
 - **Free attachment**: edges are floating — an endpoint is the intersection of the node
   rectangle with the centre-to-centre line, recomputed from measured bounds while dragging, so an
   edge can leave/enter any side; a self-reference loops.

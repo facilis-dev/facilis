@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { buildProjectGraphView, sourcePathFor } from "./graph-model";
 import {
+  ACTIVE_TODOS,
   GET,
   PAGE,
-  PROJECTS,
   TODOS,
   graphOf,
-  pageNode,
   ref,
   routeNode,
   tableNode,
 } from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView data", () => {
-  it("maps the three node kinds and their fact data", () => {
-    const view = buildProjectGraphView({ graph: graphOf([PAGE, GET, TODOS]) });
+  it("maps the four node kinds and their fact data", () => {
+    const view = buildProjectGraphView({ graph: graphOf([PAGE, GET, TODOS, ACTIVE_TODOS]) });
     expect(view.nodes.map((node) => [node.id, node.kind])).toEqual([
       ["page:src/pages/todos.tsx", "page"],
       ["route:GET /api/todos", "route"],
       ["table:todos", "table"],
+      ["view:active_todos", "view"],
     ]);
     const page = view.nodes.find((node) => node.kind === "page");
     expect(page?.data).toEqual({
@@ -39,6 +39,11 @@ describe("buildProjectGraphView data", () => {
       input: { body: false, form: false, query: false, params: false },
       pathParams: [],
       unknown: false,
+    });
+    expect(view.nodes.find((node) => node.kind === "view")?.data).toMatchObject({
+      kind: "view",
+      view: "active_todos",
+      access: "definer",
     });
   });
 
@@ -157,103 +162,6 @@ describe("buildProjectGraphView data", () => {
       input: { body: false, form: false, query: false, params: false },
       pathParams: [],
     });
-  });
-});
-
-describe("buildProjectGraphView edges and filters", () => {
-  const graph = graphOf(
-    [PAGE, GET, TODOS, PROJECTS],
-    [
-      { id: "page-route:1", kind: "page-route", source: PAGE.id, target: GET.id, label: null },
-      {
-        id: "route-table:1",
-        kind: "route-table",
-        source: GET.id,
-        target: TODOS.id,
-        label: "dbTables",
-      },
-      {
-        id: "fk:1",
-        kind: "fk",
-        source: TODOS.id,
-        target: PROJECTS.id,
-        label: "todos -> projects.id",
-      },
-      { id: "relation:1", kind: "relation", source: TODOS.id, target: PROJECTS.id, label: "one" },
-    ],
-  );
-
-  it("passes every edge through when nothing is hidden", () => {
-    const view = buildProjectGraphView({ graph });
-    expect(view.edges.map((edge) => edge.kind)).toEqual([
-      "page-route",
-      "route-table",
-      "fk",
-      "relation",
-    ]);
-    expect(view.stats).toMatchObject({ edges: 4, hiddenEdges: 0, pages: 1, routes: 1, tables: 2 });
-  });
-
-  it("drops hidden edge kinds and counts them", () => {
-    const view = buildProjectGraphView({ graph, hiddenEdgeKinds: ["fk", "relation"] });
-    expect(view.edges.map((edge) => edge.kind)).toEqual(["page-route", "route-table"]);
-    expect(view.stats.hiddenEdges).toBe(2);
-    expect(view.stats.edges).toBe(2);
-  });
-
-  it("drops edges whose endpoints the graph does not contain", () => {
-    const view = buildProjectGraphView({
-      graph: graphOf(
-        [GET],
-        [
-          {
-            id: "page-route:ghost",
-            kind: "page-route",
-            source: "page:gone.tsx",
-            target: GET.id,
-            label: null,
-          },
-        ],
-      ),
-    });
-    expect(view.edges).toEqual([]);
-    expect(view.nodes.map((node) => node.id)).toEqual([GET.id]);
-  });
-
-  it("keeps explicit page-link edges and counts them", () => {
-    const about = pageNode("src/pages/about.tsx", 0);
-    const link = {
-      id: "page-link:about",
-      kind: "page-link" as const,
-      source: PAGE.id,
-      target: about.id,
-      label: "/about",
-    };
-    const view = buildProjectGraphView({ graph: graphOf([PAGE, about, GET], [link]) });
-    expect(view.edges).toEqual([link]);
-    expect(view.stats.pageLinks).toBe(1);
-    expect(view.stats.pages).toBe(2);
-  });
-
-  it("keeps a real page even when it calls no API", () => {
-    const empty = pageNode("src/pages/empty.tsx", 0);
-    const view = buildProjectGraphView({
-      graph: graphOf(
-        [empty, GET],
-        [
-          {
-            id: "page-route:empty",
-            kind: "page-route",
-            source: empty.id,
-            target: GET.id,
-            label: null,
-          },
-        ],
-      ),
-    });
-    expect(view.nodes.map((node) => node.id)).toEqual([empty.id, GET.id]);
-    expect(view.edges.map((edge) => edge.id)).toEqual(["page-route:empty"]);
-    expect(view.stats.pages).toBe(1);
   });
 });
 

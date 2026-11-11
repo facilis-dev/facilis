@@ -92,6 +92,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       tables: schema.tables,
       relations: schema.relations,
       pages: pages.pages,
+      views: views.views,
       screens,
     }),
   };

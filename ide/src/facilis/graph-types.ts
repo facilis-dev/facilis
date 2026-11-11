@@ -83,7 +83,29 @@ export interface TableGraphData {
   readonly unknown: boolean;
 }
 
-export type ProjectGraphNodeData = PageGraphData | RouteGraphData | TableGraphData;
+/** A route that names this view in its `dbTables` (an incoming route-view edge). */
+export interface UsedByRoute {
+  readonly id: string;
+  readonly label: string;
+}
+
+/** A declarative view declared with defineView under db/views (D-097/D-098, D-160). */
+export interface ViewGraphData {
+  readonly kind: "view";
+  /** The view's SQL name: what a route declares in `dbTables` (D-157). */
+  readonly view: string;
+  /** Base tables named by the declaration (metadata only, D-097). */
+  readonly tables: readonly string[];
+  /** The view's own permission; null keeps the invoker behaviour (D-098). */
+  readonly permission: string | null;
+  /** null when a declared permission could not be read, so the mode is unknown. */
+  readonly access: "invoker" | "definer" | null;
+  readonly unknown: boolean;
+  /** Routes whose dbTables name this view, sorted by label; computed from route-view edges. */
+  readonly usedByRoutes: readonly UsedByRoute[];
+}
+
+export type ProjectGraphNodeData = PageGraphData | RouteGraphData | TableGraphData | ViewGraphData;
 
 export interface ProjectGraphNode {
   readonly id: string;
@@ -94,7 +116,7 @@ export interface ProjectGraphNode {
   readonly data: ProjectGraphNodeData;
   /** False when a search query excludes this node (it is drawn dimmed). */
   readonly matched: boolean;
-  /** Table columns are hidden when the node was collapsed in an earlier session. */
+  /** Table columns or view base tables are hidden when the node was collapsed earlier. */
   readonly collapsed: boolean;
 }
 
@@ -104,7 +126,7 @@ export interface ProjectGraphEdge {
   readonly source: string;
   readonly target: string;
   readonly label: string | null;
-  /** A route-table edge reached through audited sudo/system elevation. */
+  /** A route-table or route-view edge reached through audited elevation. */
   readonly access?: "elevated";
 }
 
@@ -112,6 +134,7 @@ export interface ProjectGraphStats {
   readonly pages: number;
   readonly routes: number;
   readonly tables: number;
+  readonly views: number;
   readonly edges: number;
   readonly hiddenEdges: number;
   readonly matches: number;
@@ -145,7 +168,11 @@ export const GRAPH_EDGE_KINDS = [
   "route-table",
   "page-route",
   "page-link",
+  // Appended, never inserted: the persisted hiddenEdges list is ordered by this array, so a new
+  // kind in the middle would churn every saved layout (and the AI's plan diffs).
+  "route-view",
+  "view-base",
 ] as const satisfies readonly GraphEdgeKind[];
 
-/** The three layout columns, in CSS pixels. */
-export const GRAPH_COLUMNS = { page: 0, route: 344, table: 680 } as const;
+/** The layout columns, in CSS pixels. Views share the schema column, below the tables. */
+export const GRAPH_COLUMNS = { page: 0, route: 344, table: 680, view: 680 } as const;

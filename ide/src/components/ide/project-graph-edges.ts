@@ -15,6 +15,8 @@ export const GRAPH_EDGE_STYLES: Record<GraphEdgeKind, GraphEdgeStyle> = {
   "route-table": { stroke: "var(--muted-foreground)", dashed: false },
   "page-route": { stroke: "var(--success)", dashed: false },
   "page-link": { stroke: "var(--brand)", dashed: false },
+  "route-view": { stroke: "var(--info)", dashed: true },
+  "view-base": { stroke: "var(--muted-foreground)", dashed: true },
 };
 
 /** One colour for every audited elevation, whatever the sudo/system mix. */
@@ -33,4 +35,6 @@ export const GRAPH_EDGE_LABEL_KEYS: Record<GraphEdgeKind, MessageKey> = {
   "route-table": "projectGraph.edge.routeTable",
   "page-route": "projectGraph.edge.pageRoute",
   "page-link": "projectGraph.edge.pageLink",
+  "route-view": "projectGraph.edge.routeView",
+  "view-base": "projectGraph.edge.viewBase",
 };

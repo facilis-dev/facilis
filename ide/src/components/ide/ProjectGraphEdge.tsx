@@ -48,6 +48,7 @@ const FALLBACK_SIZE: Record<string, { readonly width: number; readonly height: n
   page: { width: 224, height: 44 },
   route: { width: 256, height: 60 },
   table: { width: 240, height: 80 },
+  view: { width: 240, height: 80 },
 };
 const DEFAULT_SIZE = { width: 220, height: 48 };
 

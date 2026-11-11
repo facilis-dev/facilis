@@ -103,8 +103,12 @@ export function ProjectGraphPanel() {
   };
   const openNode = (node: ProjectGraphNode) => openSource(node.sourceFile);
   const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  const selectedLinks =
-    view?.edges.filter((edge) => edge.kind === "page-link" && edge.source === selectedNodeId) ?? [];
+  // Incident edges, both directions: the page inspector lists page links and the view inspector
+  // reads the routes that use it (incoming route-view edges).
+  const selectedEdges =
+    view?.edges.filter(
+      (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
+    ) ?? [];
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.
   // Notes are content too: a graph with only annotations is not "empty" (D-126).
@@ -178,7 +182,7 @@ export function ProjectGraphPanel() {
         {selectedNode !== null && (
           <ProjectGraphInspector
             node={selectedNode}
-            links={selectedLinks}
+            edges={selectedEdges}
             onClose={() => setSelectedNodeId(null)}
             onOpenFile={(file) => openSource(file)}
           />
