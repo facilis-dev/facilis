@@ -1,13 +1,13 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.23 (generatore `planSchema`, snapshot dichiarato esteso, D-145)
+**Version:** 1.27 (generatore `planSchema`, snapshot dichiarato esteso, D-158)
 **Status:** Phases 0–3 complete and verified (headless + the browser harness, `pnpm ide:smoke`); the Studio (Phase 2) ships at <https://ide.facilis.dev> (D-077). Phase 4 has the AI chat, the 17-rule validator, the apply path, the §9.4 repair loop and the PTC tool runtime (the chat's only mode, D-103); the eval corpus and browser matrix remain. The live per-phase state is in [`README.md`](../README.md#status).
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
-- v1.23 — Il generatore (P2, D-145). `@facilis/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
-- v1.22 — Il DDL nasce al rilascio, non si scrive a mano (D-145/D-146). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
+- v1.27 — Il generatore (P2, D-158). `@facilis/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
+- v1.26 — Il DDL nasce al rilascio, non si scrive a mano (D-158/D-159). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
 - v1.21 — Il token endpoint e' rate-limited (D-143). `auth.apiClients.rateLimit` (default `windowMs: 60000`, `maxRequests: 30`) limita gli scambi per client id in una finestra fissa in-process; oltre il budget la route risponde `429 too_many_requests` (nuovo codice della registry chiusa O-002) con `retry-after`, prima di toccare il database, e audita il tentativo. La revoca resta per client: un client revocato invalida client e token in una transazione e non esiste revoca per singolo token. §7.1/§7.4/§8.6 follow.
 - v1.20 — External APIs (D-142). `auth.apiClients` (default disabled) exposes the framework-owned `POST /api/auth/token` (OAuth2 `client_credentials`, JSON body, no refresh token: renewal is a new grant); the access token is opaque and stored as a SHA-256 hash, and `Authorization: Bearer` resolves to a **service account** (`users.isService`, a role fixed on the client) in the session middleware. A service account can never log in: `validateSession` refuses it, `createSession` throws, SSO does not link it and the template login route rejects it. `crossSite: true` with a non-empty `permission` is now legal (it is reachable only with a Bearer token) and publishes `x-cross-site` + OpenAPI `security: [{ bearerAuth: [] }]`; `originCheck: "skip"` is the protocol-only exemption (SAML ACS). §5.3/§6.9/§7.1/§7.3/§7.4/§8.2/§8.4.4/§8.6 follow.
 - v1.19 — CSRF is structural (D-141). `defineAuthorizedHandler` rejects an unsafe cross-site request with `403 forbidden` before the permission check (`Sec-Fetch-Site` authoritative, `Origin`/`Host` fallback; a missing `Origin` is a non-browser client) and a `body`/`form` route accepts only `application/json`/`multipart/form-data` (`415 unsupported_media_type`, a new code in the closed registry), so `SameSite=Lax` is defense in depth rather than the only barrier. `config.security.trustedOrigins` (default `[]`) allow-lists a same-site SPA/API split; `crossSite: true` declares a public route exposed to other origins and is propagated as `RouteMeta.crossSite`/`x-cross-site`, with a Nitro middleware answering CORS preflight — it is an exposure declaration, not a CSRF defense. §7.1/§7.3/§7.4/§8.2/§8.6 follow.
@@ -124,8 +124,8 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | **Multi-project** | First-class: switch projects like any IDE |
 | **Multi-tenancy** | Full RBAC per generated app |
 | **Role model** | App roles only (defined in config, expanded to permissions). **No Postgres roles.** |
-| **Schema DDL** | Never authored (no AI, no user). The release pipeline generates an immutable artifact from the previous-release-tag → new-tag diff, with no database access (D-145); the deploy applies the pending artifacts through a ledger and a schema fingerprint (D-146). |
-| **Deploy** | `facilis db deploy --release <tag> --backup-ref <ref>` applies the release artifacts; hosting and the backup stay the environment's job (D-146). |
+| **Schema DDL** | Never authored (no AI, no user). The release pipeline generates an immutable artifact from the previous-release-tag → new-tag diff, with no database access (D-158); the deploy applies the pending artifacts through a ledger and a schema fingerprint (D-159). |
+| **Deploy** | `facilis db deploy --release <tag> --backup-ref <ref>` applies the release artifacts; hosting and the backup stay the environment's job (D-159). |
 | **i18n** | From day one. Message keys everywhere. API returns codes. |
 
 ### 2.3 Framework Config Decisions
@@ -134,8 +134,8 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 - `facilis.config.ts` — lives at repo root, committed; the **only** project config (framework sections plus optional Nitro options)
 - Blocks — code files: `index.tsx` + `manifest.ts`, published to NPM
 - Git credential — GitHub signs in with the OAuth device flow; other hosts take a PAT (or an account password where allowed). Per operation, never sent to the LLM
-- Migration ordering — derived from the release tag pair and the fixed statement phases; nothing is authored, so there is no ordering conflict to resolve (D-145)
-- Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed statements by the release artifact and applied by the deploy (D-145/D-146)
+- Migration ordering — derived from the release tag pair and the fixed statement phases; nothing is authored, so there is no ordering conflict to resolve (D-158)
+- Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed statements by the release artifact and applied by the deploy (D-158/D-159)
 - Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
 
 ---
@@ -374,7 +374,7 @@ optional `nitro` section. Route files live under `server/routes/`, not `routes/`
 root.
 
 `db/migrations/` and its `meta/` journal are not part of the generated project: DDL is a release
-artifact generated from the tag pair, never a directory the app carries (D-145).
+artifact generated from the tag pair, never a directory the app carries (D-158).
 
 ---
 
@@ -505,7 +505,7 @@ Exports:
   `snapshot()` rejects), and is reached with the deployment's least-privileged
   `facilis_app` role, so RLS is enforced by the database rather than by a privileged client
 - `policyContext` — `drizzle-policy` wrapper for tenant/role scoping
-- `rlsForTable`, `tenantIsolationPolicy`, `ownerIsolationPolicy`, `rolePolicy` — RLS policy helpers declared in `db/schema.ts`; the release generator renders them into the artifact (D-145)
+- `rlsForTable`, `tenantIsolationPolicy`, `ownerIsolationPolicy`, `rolePolicy` — RLS policy helpers declared in `db/schema.ts`; the release generator renders them into the artifact (D-158)
 - `PolicyScopedDatabase` — type of the db object passed to handlers
 - `facilisFiles` — file metadata table (content hash, name, mime, size, owner, tenant) with
   a restrictive `tenant_isolation` policy plus the permissive `facilis_files_tenant_access`
@@ -528,7 +528,7 @@ Exports:
 - `facilisJobs` — the persistent job-queue table (name, status, JSONB input/output, attempts,
   maxAttempts, timeoutMs, runAt/startedAt/finishedAt, tenant): tenant-scoped with the framework RLS
   policy, re-exported by the project's `db/schema.ts` so the generated release artifact owns its DDL
-  (D-107, D-145).
+  (D-107, D-158).
   The engine's own queue reads/writes run as `facilis_app` under the deployment tenant; only a job
   *body* runs as `facilis_system` (see the audited-sudo bullet)
 - `ensureAppRole(db)` — provisions the non-superuser `facilis_app` role and reconciles its
@@ -553,7 +553,7 @@ Exports:
 - `hasPermission(user, permission)` — RBAC check helper
 - `expandRoles(roles, roleMap)` — expands roles to permission set (pure function, reads config)
 - `db` — re-export of the auth tables (`users`, `sessions`, `roles`, `role_permissions`, `user_roles`, `api_clients`, `api_tokens`)
-- `seedFromConfig(config)` — renders the `roles`/`role_permissions` seed statements from `FacilisConfig.auth`; the deploy applies them as a post-step (D-146)
+- `seedFromConfig(config)` — renders the `roles`/`role_permissions` seed statements from `FacilisConfig.auth`; the deploy applies them as a post-step (D-159)
 - `registerInitialAdmin()` — reads `FACILIS_INITIAL_ADMIN` env var and grants admin role on registration
 - Login/logout/register route blueprints (optional to install)
 - Role-assignment API blueprint (`POST /api/users/:id/roles`)
@@ -648,7 +648,7 @@ export const authSsoStates = pgTable("auth_sso_states", {
 }, () => [...rlsForTable({ tenantColumn: "tenant_id" }).policies])
 ```
 
-**Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded by the deploy's seed post-step and never written at runtime (D-146).
+**Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded by the deploy's seed post-step and never written at runtime (D-159).
 
 **Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. See `docs/SSO.md`.
 
@@ -1170,7 +1170,7 @@ interface FacilisConfig {
   release: { ref: string }
   db: {
     mode: "pglite" | "postgres" | "json"   // D-068: an env URL wins over this; "json" not implemented
-    migrationsDir: string   // legacy dev-replay directory; release DDL is a generated artifact (D-145)
+    migrationsDir: string   // legacy dev-replay directory; release DDL is a generated artifact (D-158)
     tenantColumns: string[]
     ownerColumns: string[]
   }
@@ -1282,7 +1282,7 @@ interface RouteMeta {
 
 interface SchemaSnapshot {
   tables: TableSnapshot[]
-  enums?: EnumSnapshot[]                       // enum types referenced by columns (D-145)
+  enums?: EnumSnapshot[]                       // enum types referenced by columns (D-158)
 }
 
 interface TableSnapshot {
@@ -1304,7 +1304,7 @@ interface ColumnSnapshot {
   type: string
   notNull: boolean
   default: string | null
-  isPrimaryKey: boolean                        // also true for a composite PK member (D-145)
+  isPrimaryKey: boolean                        // also true for a composite PK member (D-158)
   isUnique: boolean
   identity?: "always" | "byDefault"            // not renderable in v1: the generator refuses
   generated?: true                             // computed columns: same fail-closed treatment
@@ -1619,7 +1619,7 @@ The schema lens is the **generated tag → HEAD plan**: the same `planSchema` re
 pipeline runs produces SQL batches and risk from the two declared snapshots, with **no database
 access**. It **fails closed** wherever the analyzer cannot resolve a declaration, and the CI
 artifact for the tag is authoritative; the preview never presents SQL that will not ship. This
-supersedes the D-086 premise that the preview could not synthesize SQL (D-145/D-146).
+supersedes the D-086 premise that the preview could not synthesize SQL (D-158/D-159).
 
 ### 7.8 Studio-Only Types
 
@@ -1815,7 +1815,7 @@ possibly `[]` — so the job body always sees a system-scoped transaction (§8.4
 RLS is **declared in `db/schema.ts`** with `.enableRLS()` and a `@facilis/db` policy helper
 (`rlsForTable`, or `tenantIsolationPolicy`/`ownerIsolationPolicy`/`rolePolicy`). The release
 generator renders the declared policies into the artifact; there is no migration plugin and no
-implicit DDL (D-145). `config.db.tenantColumns`/`ownerColumns` are the columns the analyzer treats
+implicit DDL (D-158). `config.db.tenantColumns`/`ownerColumns` are the columns the analyzer treats
 as a table's scoping columns, and the schema ships the matching policy in the same patch (rule 10):
 
 ```sql
@@ -1916,14 +1916,14 @@ INSERT INTO role_permissions (role, permission) VALUES
   ('viewer', 'todos:read');
 ```
 
-**Key invariant:** `role_permissions` is a **projection** of `facilis.config.ts`. It is written **only** by the deploy's seed post-step (D-146).
+**Key invariant:** `role_permissions` is a **projection** of `facilis.config.ts`. It is written **only** by the deploy's seed post-step (D-159).
 
 **Deploy.** `facilis db deploy --release <tag> --backup-ref <ref>` applies the pending artifacts in
 tag order through the `_facilis_deploy_runs` ledger: preflight `digest(live) == fromDigest`, one
 transaction per artifact, approval and `backup_ref` for destructive ones, then the post-steps
 (seed, `ensureAppRole`, `ensureSystemRole`, views). `facilis db status` reports the ledger state;
 `facilis db adopt`/`repair` are the explicit one-time legacy/drift operations. drizzle-kit is not
-a deploy step (D-146).
+a deploy step (D-159).
 
 #### 8.4.3 Phase 3 — Assignment (admin, runtime, data)
 
@@ -2163,7 +2163,7 @@ write path; an application route must not add another one (D-141).
 - A permission view is definer and bypasses the base tables' RLS: its SQL and its declared
   permission are the whole surface, and the permission gate is defense-in-depth (a custom GUC is
   settable by any role), not a boundary against deliberately hostile code (D-098)
-- `role_permissions` is written **only** by the deploy's seed post-step (D-146)
+- `role_permissions` is written **only** by the deploy's seed post-step (D-159)
 - Logging is structural, not a per-route courtesy (D-119): `defineAuthorizedHandler` writes
   exactly one access entry per request, unexpected failures are recorded server-side and never
   returned to the client, and the sudo trail joins the same append-only sink. Logs are JSON
@@ -2274,7 +2274,7 @@ Rules the AI must obey:
 | 11 | `file-path-allowed` | error | Files only in `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/`, plus `facilis.config.ts` (`AGENTS.md` only through the IDE writer's explicit `rootFiles`) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
 | 13 | `i18n-keys-registered` | warning | All `t("key")` calls have keys in `locales/en.json` |
-| 14 | `migration-generated` | error | No authored `.sql`: DDL is generated into the release artifact (D-145); the schema must stay renderable |
+| 14 | `migration-generated` | error | No authored `.sql`: DDL is generated into the release artifact (D-158); the schema must stay renderable |
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, the schema must stay renderable and consistent: the seed is generated at release, never authored |
 | 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
@@ -2667,7 +2667,7 @@ Four diff lenses, one engine:
 
 | Lens | Compares | Answers |
 |---|---|---|
-| Tag ↔ HEAD | generated `planSchema` snapshots from the git tree | The SQL and risk that ship in the next release, no DB (D-145/D-146) |
+| Tag ↔ HEAD | generated `planSchema` snapshots from the git tree | The SQL and risk that ship in the next release, no DB (D-158/D-159) |
 | Working copy ↔ HEAD | OPFS vs last commit | What am I about to commit? |
 | HEAD ↔ origin/main | Local vs remote | What ships on next deploy? |
 | origin/main ↔ Tag | Remote vs release ref | What changed since last release? |
@@ -2680,7 +2680,7 @@ Four diff lenses, one engine:
 - 🟠 Destructive: drop column/table, narrow type, tighten RLS
 - 🔴 Breaking: drops referenced by routes (cross-checked with `x-db-columns`)
 
-**Status (2026-11-05; amended to the generated-plan model 2026-11-10, D-145/D-146).** The schema
+**Status (2026-11-05; amended to the generated-plan model 2026-11-10, D-158/D-159).** The schema
 lens computes the **tag → HEAD generated plan** with the same pure `planSchema` renderer the
 release pipeline runs: it reads `db/schema.ts` and `facilis.config.ts` out of the git tree
 (isomorphic-git, no boot, O-008 resolved) and shows the SQL batches plus their risk. The plan uses
@@ -3109,8 +3109,8 @@ export * from "./documents"
 ### Step 3 — Generate and apply the release artifact
 
 There is no migration file to write. Commit `db/schema.ts` and `facilis.config.ts`, tag the release,
-and let the release pipeline generate the artifact from the previous tag and this one (D-145); the
-deploy applies it (D-146):
+and let the release pipeline generate the artifact from the previous tag and this one (D-158); the
+deploy applies it (D-159):
 
 ```bash
 facilis db deploy --release v1.0.0

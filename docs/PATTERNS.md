@@ -179,8 +179,8 @@ projectId: uuid("project_id").references(() => projects.id, { onDelete: "set nul
 
 The schema DDL is **generated, never authored**: no human and no AI writes `.sql`. The release
 pipeline reads `db/schema.ts` + `facilis.config.ts` at the previous release tag and at the new tag
-and generates the artifact from the diff, with no database access (D-145);
-`facilis db deploy --release <tag>` applies the pending artifacts through the ledger (D-146). In
+and generates the artifact from the diff, with no database access (D-158);
+`facilis db deploy --release <tag>` applies the pending artifacts through the ledger (D-159). In
 dev, boot reconciles the live PGlite schema to the declared one with the same planner on disposable
 data; that is the only exception and never a release path.
 

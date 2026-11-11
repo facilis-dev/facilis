@@ -1,7 +1,7 @@
 import type { RiskClass } from "../release.ts";
 
 /**
- * Pure release-side schema planner (docs/MIGRATION-PLAN.md §2.2, §2.5; ADR D-145).
+ * Pure release-side schema planner (docs/MIGRATION-PLAN.md §2.2, §2.5; ADR D-158).
  *
  * `planSchema(from, to)` turns two declared schema snapshots into the ordered SQL batches
  * of a release artifact. It never touches a database: the deploy side applies the plan
@@ -14,7 +14,7 @@ export type SchemaPlanProblemCode =
   | "policy_unsafe";
 
 export interface SchemaPlanProblem {
-  /** Machine code; the release fails on any problem, it never degrades (D-145). */
+  /** Machine code; the release fails on any problem, it never degrades (D-158). */
   code: SchemaPlanProblemCode;
   table?: string;
   column?: string;

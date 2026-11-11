@@ -1,7 +1,7 @@
 # Migration generation in the release and deploy pipeline
 
 **Status:** proposed, v2.3 (a plan, not a contract). 2026-11-10. Decisions 1-6 taken in §7 (7-8 open).
-ADRs D-145/D-146 accepted; P0, P1 and P2 implemented (branches feat/schema-artifacts, feat/schema-plan).
+ADRs D-158/D-159 accepted; P0, P1 and P2 implemented (branches feat/schema-artifacts, feat/schema-plan).
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
 tags** (in the release pipeline, no database access) and **applied as an immutable artifact** by the
 deploy job. The live database is used for **verification**, and only exceptionally for adoption or
@@ -270,7 +270,7 @@ and non-public schemas. A digest mismatch is always fail-closed.
 A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before the rest.
 
 ### P0 - Contracts (docs only)
-- ADRs: D-145 *generated migrations* (completes D-109) and D-146 *release artifacts + ledger, live
+- ADRs: D-158 *generated migrations* (completes D-109) and D-159 *release artifacts + ledger, live
   catalog as verification only* (supersedes D-086's schema-lens premise); note rule-14/config-sync
   retirement.
 - Amend SPEC §2/§7.7/§8.3/§8.4.2/§9.3/§11.3/Appendix D; PATTERNS §5; APP-UPDATES §5; POSTGRES §4;
@@ -389,9 +389,9 @@ Still open (owner defaults, not blocking P0-P2):
 
 ## 9. ADRs and docs to change
 
-- **D-145** (ADR A): *Schema DDL is generated at release time from the tag diff, never authored*
+- **D-158** (ADR A): *Schema DDL is generated at release time from the tag diff, never authored*
   (completes D-109; supersedes rule 14/config-sync; PATTERNS §5).
-- **D-146** (ADR B): *A release is a tag plus an immutable artifact; deploys apply artifacts with a
+- **D-159** (ADR B): *A release is a tag plus an immutable artifact; deploys apply artifacts with a
   ledger and schema fingerprints; the live catalog is verification and repair only* (supersedes
   D-086's "show the SQL that ships" premise and the SPEC drizzle-kit migrate line).
 - Amend D-109, D-086, D-065/D-070 (upgrade DB step), D-136 (RLS in artifacts), D-052 (PGlite

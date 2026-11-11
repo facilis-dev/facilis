@@ -1,6 +1,6 @@
 # Running a Facilis app on Postgres
 
-**Status:** implemented (2026-11-01); the deploy step follows the accepted D-145/D-146 model.
+**Status:** implemented (2026-11-01); the deploy step follows the accepted D-158/D-159 model.
 Decision: **D-068**. Contract: SPEC §5.2, §7.1; [PHASE1-CONTRACTS.md](./PHASE1-CONTRACTS.md) §5;
 RLS composition: SPEC §8.4.5 and D-008.
 
@@ -71,8 +71,8 @@ a privileged connection to read `users`/`user_roles`.
 
 The schema, the role seed and the `facilis_app` grants are applied by the deploy job, over the
 **owner/admin** connection — never by the runtime, and never on every boot. The deploy does not
-generate DDL (D-145): it applies the immutable artifacts the release pipeline produced for the
-release tags, in order, behind a ledger (D-146). From the project root, with the package installed:
+generate DDL (D-158): it applies the immutable artifacts the release pipeline produced for the
+release tags, in order, behind a ledger (D-159). From the project root, with the package installed:
 
 ```bash
 FACILIS_MIGRATION_DATABASE_URL='postgres://owner:...@host:5432/db?sslmode=require' \
@@ -89,7 +89,7 @@ facilis db deploy --release <tag> --backup-ref <ref>
 - **Approval and backup.** A destructive artifact needs an approval bound to its `planHash` and an
   environment policy that permits destructive DDL (`destroy: "deny" | "approval" | "allow"`); the
   deploy requires and records `--backup-ref` and **never runs a backup itself**: the backup is the
-  release environment's/operator's job, passed as a pointer (D-146).
+  release environment's/operator's job, passed as a pointer (D-159).
 - **Atomicity and lock.** One transaction per artifact, an advisory lock on the deploy connection
   (a concurrent deploy exits `deploy_locked`), and a post-check `digest(live) == artifact.toDigest`
   that rolls back on mismatch.
@@ -185,6 +185,6 @@ server installed.
 - `db.mode: "json"` remains a declared-but-unimplemented mode.
 - The deploy CLI (`facilis db deploy/status/adopt/repair`) is specified in
   [MIGRATION-PLAN.md](./MIGRATION-PLAN.md) §2.3-§2.4; drizzle-kit migrates nothing at deploy time
-  (D-146).
+  (D-159).
 - The generated starter's dependency list does not include `pg` yet, so a deployment adds it
   (`pnpm add pg`) until the IDE template ships it (D-062).

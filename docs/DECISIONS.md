@@ -5608,7 +5608,7 @@ chiavi indipendenti, clock iniettabile), `token.post.test.ts` (429 + `retry-afte
 negato non arriva al database + audit), config tests (default e validazione di windowMs/
 maxRequests), errors test (429 nella registry), root gates lint/typecheck/test/build.
 
-### D-145 — Il DDL dello schema nasce al rilascio dal diff dei tag, mai scritto a mano
+### D-158 — Il DDL dello schema nasce al rilascio dal diff dei tag, mai scritto a mano
 **Status:** accepted (2026-11-10)
 
 **Context.** Il DDL oggi si scrive a mano. Nell'esempio e' hand-written (0001_seed_roles,
@@ -5628,7 +5628,7 @@ del rilascio precedente e il tag nuovo, senza accesso al database.
   irrappresentabile, sicurezza delle policy) fa fallire il rilascio, non degrada.
 - **Nessun database al momento della generazione.** L'IDE e la CI non raggiungono test/prod: il
   confronto live e' impossibile per costruzione, quindi il tag e' l'unica sorgente. Il catalogo
-  live resta una verifica del deploy e un attrezzo di adozione/riparazione (D-146).
+  live resta una verifica del deploy e un attrezzo di adozione/riparazione (D-159).
 - **Nessun AI e nessun utente scrivono DDL.** La regola 14 del validator e la regola config-sync
   smettono di chiedere un file .sql e diventano un blocco: un DDL scritto a mano in una patch viene
   rifiutato. db/migrations/ e meta/ escono dal template.
@@ -5653,7 +5653,7 @@ piano operativo e' docs/MIGRATION-PLAN.md.
 drizzle-kit generateDrizzleJson + generateMigration come oracolo; una dichiarazione non supportata
 fallisce il rilascio. Gate finali: pnpm lint/typecheck/test/build.
 
-### D-146 — Un rilascio e' un tag piu' un artefatto immutabile; il deploy applica artefatti con un ledger e un fingerprint
+### D-159 — Un rilascio e' un tag piu' un artefatto immutabile; il deploy applica artefatti con un ledger e un fingerprint
 **Status:** accepted (2026-11-10)
 
 **Context.** SPEC §2 dice che la pipeline esegue drizzle-kit migrate e POSTGRES §4 documenta uno
@@ -5666,7 +5666,7 @@ confronto live non e' disponibile ne' dall'IDE ne' dalla CI.
 **Decision.** Un rilascio e' un tag piu' un artefatto: il tag e' la release, l'artefatto e' il suo
 schema diff immutabile, e il deploy applica artefatti con un ledger.
 
-- **Artefatto.** Prodotto dal pipeline di D-145: release/from/to (tag + oid), fromDigest/toDigest,
+- **Artefatto.** Prodotto dal pipeline di D-158: release/from/to (tag + oid), fromDigest/toDigest,
   planHash (sha256 del corpo), risk, batch ordinati, destructive (gli id dei batch che perdono
   dati), approved? (autore, data, hash), problems. E' conservato come artifact CI chiave tag, non
   committato, e il deploy ne registra l'hash nel ledger.
@@ -5702,7 +5702,7 @@ momento del rilascio (l'IDE/CI non hanno il DB).
 
 **Consequences.** facilis db deploy/status/adopt/repair prende il posto dello snippet di POSTGRES
 §4; SPEC §2/§7.7/§11.3 e APP-UPDATES §5 cambiano; da emendare anche D-086 (premessa schema-lens),
-D-109 (completato da D-145), D-065/D-070 (step DB dell'upgrade), D-136 (RLS dentro gli artefatti),
+D-109 (completato da D-158), D-065/D-070 (step DB dell'upgrade), D-136 (RLS dentro gli artefatti),
 D-052 (snapshot PGlite dev), D-078 (publish + tag). Matrice di stati e flussi:
 docs/MIGRATION-PLAN.md §2.3-§2.5.
 

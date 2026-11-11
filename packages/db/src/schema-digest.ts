@@ -10,7 +10,7 @@ import { canonicalColumnType, isRestrictivePolicy, normalizePolicySql } from "./
 import type { ColumnSnapshot, PolicySnapshot, SchemaSnapshot, TableSnapshot } from "./snapshot.ts";
 
 /**
- * Canonical schema digest (docs/MIGRATION-PLAN.md §3.1, ADR D-146).
+ * Canonical schema digest (docs/MIGRATION-PLAN.md §3.1, ADR D-159).
  *
  * The declared snapshot (`schemaSnapshot`, from `db/schema.ts`) and the live snapshot
  * (`liveSchemaSnapshot`, from the Postgres catalogs) are projected onto one canonical

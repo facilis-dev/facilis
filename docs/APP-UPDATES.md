@@ -4,8 +4,8 @@
 version comparison, the status-bar indicator and the upgrade engine (plan + apply with
 rollback) landed. Still pending: the upgrade action in the UI (controller facade and
 postflight) and the first shipped recipe; hand-written data batches are out of scope in v1
-(D-146).
-Decision: D-065, D-145/D-146 for the DB artifact. Related:
+(D-159).
+Decision: D-065, D-158/D-159 for the DB artifact. Related:
 [MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md), SPEC §8 and §10.5, D-032, D-036, D-037, D-042, D-052.
 
 The IDE runs projects that outlive the build that created them. Two different things can be
@@ -143,9 +143,9 @@ Two data stores can be affected, and both need care:
 
 - **app DB** - there is no authored migration to run: an upgrade applies the release artifact for
   the target version through the `_facilis_deploy_runs` ledger (preflight schema fingerprint,
-  `backup_ref` for destructive artifacts, D-146). The backup belongs to the release environment -
+  `backup_ref` for destructive artifacts, D-159). The backup belongs to the release environment -
   the framework records the pointer and never runs one. In the IDE the only schema path is the
-  dev-only PGlite reconcile over disposable data (D-145);
+  dev-only PGlite reconcile over disposable data (D-158);
 - **browser state** - the project lives in OPFS (D-036/D-037). A recipe that changes the
   project layout must take the snapshot first, then write; it must not rely on the
   write-behind mirror.

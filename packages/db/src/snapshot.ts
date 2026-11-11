@@ -68,7 +68,7 @@ export interface EnumSnapshot {
  * A declaration the snapshot can read but the v1 shapes above cannot represent (expression,
  * partial or method-specific indexes; `ON DELETE SET DEFAULT`). It is carried, never
  * dropped, so the P2 generator can fail the release closed instead of silently ignoring it
- * (D-145: an unsupported declaration fails the release, never degrades silently).
+ * (D-158: an unsupported declaration fails the release, never degrades silently).
  */
 export interface UnsupportedDeclarationSnapshot {
   construct: "index" | "foreign_key";
