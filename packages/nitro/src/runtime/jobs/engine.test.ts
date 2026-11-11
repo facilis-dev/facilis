@@ -1,4 +1,5 @@
 import { JobError, type JobDefinition } from "@facilis/core";
+import { TableAccessError } from "@facilis/db";
 import { describe, expect, it } from "vitest";
 import type { JobEngineConfig, JobExecutor, JobTimers } from "./contracts.ts";
 import { createJobEngine } from "./engine.ts";
@@ -40,7 +41,13 @@ function jobDefinition(
     timeoutMs?: number;
   } = {},
 ): Def {
-  const definition = { name, input: acceptAnything, output: acceptAnything, run: async () => null };
+  const definition = {
+    name,
+    input: acceptAnything,
+    output: acceptAnything,
+    dbTables: [],
+    run: async () => null,
+  };
   return { ...definition, ...overrides } as unknown as Def;
 }
 
@@ -207,6 +214,25 @@ describe("createJobEngine", () => {
     await timers.advance(100);
     expect(seen).toEqual([1, 2, 3]);
     expect(await store.get(id)).toMatchObject({ status: "failed", attempts: 3, error: "boom" });
+  });
+  it("fails a declaration violation without retrying and stores only the code", async () => {
+    let calls = 0;
+    const { engine, store, timers } = fixture({
+      // Retries are configured but must not be used: the declaration cannot change at runtime.
+      config: { maxAttempts: 3, retryDelayMs: 100 },
+      executor: async () => {
+        calls += 1;
+        throw new TableAccessError("table_not_declared", "secret_table");
+      },
+    });
+    const { id } = await engine.enqueue("work", {});
+    await engine.start();
+    await timers.advance(0);
+
+    expect(calls).toBe(1);
+    const job = await store.get(id);
+    expect(job).toMatchObject({ status: "failed", attempts: 1, error: "table_not_declared" });
+    expect(job?.error).not.toContain("secret_table");
   });
   it("aborts an attempt that outlives timeoutMs", async () => {
     let signal: AbortSignal | undefined;

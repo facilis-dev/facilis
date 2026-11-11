@@ -7,6 +7,7 @@ const VALID = {
   name: "purge-completed-todos",
   input: z.object({ olderThanDays: z.number().int().positive() }),
   output: z.object({ deleted: z.number().int() }),
+  dbTables: ["todos"],
   run: () => ({ deleted: 0 }),
 };
 
@@ -30,10 +31,21 @@ describe("defineJob", () => {
     expect(() => defineJob({ ...VALID, run: undefined as never })).toThrow(/run/);
   });
 
-  it("rejects non-positive overrides and non-string tables", () => {
+  it("rejects non-positive overrides and invalid dbTables", () => {
     expect(() => defineJob({ ...VALID, maxAttempts: 0 })).toThrow(/maxAttempts/);
     expect(() => defineJob({ ...VALID, timeoutMs: -1 })).toThrow(/timeoutMs/);
-    expect(() => defineJob({ ...VALID, tables: [""] })).toThrow(/tables/);
+    expect(() => defineJob({ ...VALID, dbTables: [""] })).toThrow(/dbTables/);
+    expect(() => defineJob({ ...VALID, dbTables: "todos" as never })).toThrow(/dbTables/);
+  });
+
+  it("requires dbTables, accepting an empty declaration", () => {
+    expect(() => defineJob({ ...VALID, dbTables: undefined as never })).toThrow(/dbTables/);
+    expect(defineJob({ ...VALID, dbTables: [] }).dbTables).toEqual([]);
+  });
+
+  it("rejects a non-boolean rawSql flag", () => {
+    expect(() => defineJob({ ...VALID, rawSql: "yes" as never })).toThrow(/rawSql/);
+    expect(defineJob({ ...VALID, rawSql: true }).rawSql).toBe(true);
   });
 });
 
@@ -42,6 +54,8 @@ describe("isJobDefinition", () => {
     expect(isJobDefinition(defineJob(VALID))).toBe(true);
     expect(isJobDefinition({ name: "x" })).toBe(false);
     expect(isJobDefinition(null)).toBe(false);
+    // The declaration is enforced at runtime, so a definition without dbTables is not one.
+    expect(isJobDefinition({ ...VALID, dbTables: undefined })).toBe(false);
     // A default export that is a bare run function is not a definition.
     expect(isJobDefinition(() => undefined)).toBe(false);
   });

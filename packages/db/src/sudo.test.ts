@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { pgTable, text } from "drizzle-orm/pg-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createDb, type FacilisDb } from "./client.ts";
@@ -11,6 +12,12 @@ import {
   SudoAuditUnavailableError,
   type SudoAuditEvent,
 } from "./sudo-audit.ts";
+import { TableAccessError } from "./table-guard.ts";
+
+const documents = pgTable("documents", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+});
 
 const OWNER_A = "11111111-1111-1111-1111-111111111111";
 const OWNER_B = "22222222-2222-2222-2222-222222222222";
@@ -160,7 +167,8 @@ describe("audited sudo", () => {
         actor: "system:nightly",
         operation: "documents:archive",
         reason: "nightly archive job",
-        tables: ["documents"],
+        dbTables: ["documents"],
+        rawSql: true,
         requestId: "job-1",
       },
       async (systemDb) => {
@@ -192,6 +200,8 @@ describe("audited sudo", () => {
       id: started?.id,
       event: "succeeded",
       outcome: "succeeded",
+      // Raw SQL is uninspectable: the declaration is authoritative and the audit says so.
+      observedTables: [],
       durationMs: expect.any(Number),
     });
     await expect(countRows(" where id = 'e-job'")).resolves.toBe(1);
@@ -206,7 +216,8 @@ describe("audited sudo", () => {
           actor: "system:nightly",
           operation: "documents:import",
           reason: "import job",
-          tables: ["documents"],
+          dbTables: ["documents"],
+          rawSql: true,
         },
         async (systemDb) => {
           await systemDb.execute(
@@ -240,7 +251,7 @@ describe("audited sudo", () => {
           actor: "system:nightly",
           operation: "documents:prune",
           reason: "prune",
-          tables: ["documents"],
+          dbTables: ["documents"],
         },
         fn,
       ),
@@ -248,11 +259,11 @@ describe("audited sudo", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it("accepts an empty tables list for a job that declares no audit table (D-107)", async () => {
+  it("accepts an empty dbTables list for a job that declares no relation (D-107)", async () => {
     captureAudit();
     const result = await runAsSystem(
       db,
-      { actor: "system:nightly", operation: "documents:prune", reason: "prune", tables: [] },
+      { actor: "system:nightly", operation: "documents:prune", reason: "prune", dbTables: [] },
       async () => "done",
     );
 
@@ -260,21 +271,93 @@ describe("audited sudo", () => {
     expect(audit.map((entry) => entry.event)).toEqual(["started", "succeeded"]);
     // The audit entry stays complete and explicitly says "no tables", never omits the field.
     expect(audit[0]).toMatchObject({ tables: [] });
-    expect(audit[1]).toMatchObject({ tables: [] });
+    expect(audit[1]).toMatchObject({ tables: [], observedTables: [] });
   });
 
-  it("still rejects tables that are not non-empty strings", async () => {
+  it("rejects dbTables that are not non-empty strings and a non-boolean rawSql", async () => {
+    captureAudit();
+    const fn = vi.fn();
+    const base = { actor: "system:nightly", operation: "documents:prune", reason: "prune" } as const;
+
+    await expect(runAsSystem(db, { ...base, dbTables: [""] }, fn)).rejects.toThrow(
+      /sudo_invalid_dbTables/,
+    );
+    await expect(
+      runAsSystem(db, { ...base, dbTables: [], rawSql: "yes" as never }, fn),
+    ).rejects.toThrow(/sudo_invalid_rawSql/);
+    expect(fn).not.toHaveBeenCalled();
+    expect(audit).toEqual([]);
+  });
+
+  it("records the observed declared relation on the succeeded audit entry", async () => {
+    captureAudit();
+    const rows = await runAsSystem(
+      db,
+      {
+        actor: "system:nightly",
+        operation: "documents:list",
+        reason: "list documents",
+        dbTables: ["documents"],
+      },
+      async (systemDb) => systemDb.select().from(documents),
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "succeeded"]);
+    expect(audit[1]).toMatchObject({
+      event: "succeeded",
+      outcome: "succeeded",
+      observedTables: ["documents"],
+    });
+  });
+
+  it("fails closed on an undeclared relation and audits the stable code, never the name", async () => {
     captureAudit();
     const fn = vi.fn();
 
     await expect(
       runAsSystem(
         db,
-        { actor: "system:nightly", operation: "documents:prune", reason: "prune", tables: [""] },
-        fn,
+        {
+          actor: "system:nightly",
+          operation: "purge",
+          reason: "purge job",
+          dbTables: [],
+        },
+        async (systemDb) => {
+          fn();
+          return systemDb.select().from(documents);
+        },
       ),
-    ).rejects.toThrow(/sudo_invalid_tables/);
-    expect(fn).not.toHaveBeenCalled();
-    expect(audit).toEqual([]);
+    ).rejects.toBeInstanceOf(TableAccessError);
+
+    // The callback DID run: the guard refuses the query, it does not pre-screen the body.
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "failed"]);
+    expect(audit[1]).toMatchObject({
+      event: "failed",
+      outcome: "failed",
+      errorCode: "table_not_declared",
+    });
+    expect(JSON.stringify(audit)).not.toContain("documents");
+  });
+
+  it("refuses raw SQL unless the job declares rawSql: true", async () => {
+    captureAudit();
+    await expect(
+      runAsSystem(
+        db,
+        {
+          actor: "system:nightly",
+          operation: "documents:count",
+          reason: "count",
+          dbTables: ["documents"],
+        },
+        async (systemDb) => systemDb.execute(sql.raw("select count(*)::int as count from documents")),
+      ),
+    ).rejects.toBeInstanceOf(TableAccessError);
+
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "failed"]);
+    expect(audit[1]).toMatchObject({ errorCode: "raw_sql_not_allowed" });
   });
 });

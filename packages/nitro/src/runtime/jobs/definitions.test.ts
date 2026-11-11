@@ -12,6 +12,7 @@ function validDefinition(name: string) {
     name,
     input: { safeParse: () => ({ success: true, data: {} }) },
     output: { safeParse: () => ({ success: true, data: {} }) },
+    dbTables: [],
     run: async () => ({}),
   };
 }

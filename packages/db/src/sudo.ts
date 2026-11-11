@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 import type { FacilisDb } from "./client.ts";
 import { APP_ROLE, type PolicyScopedDatabase } from "./policy.ts";
 import { newSudoId, writeSudoAudit } from "./sudo-audit.ts";
+import { guardDatabase, TableAccessError } from "./table-guard.ts";
 
 /** The elevated Postgres role; provisioned by `ensureSystemRole` (dev) or the deploy step. */
 export const SYSTEM_ROLE = "facilis_system";
@@ -88,7 +89,13 @@ export interface RunAsSystemOptions {
   readonly actor: `system:${string}`;
   readonly operation: string;
   readonly reason: string;
-  readonly tables: readonly string[];
+  /**
+   * The job's declared tables and views (SQL names), possibly empty. The elevated client is
+   * guarded by this declaration, not by whatever the system role happens to reach (D-157).
+   */
+  readonly dbTables: readonly string[];
+  /** Explicit exception for raw SQL inside the job (D-157); default false. */
+  readonly rawSql?: boolean;
   /** Correlation id when the job was triggered by a request. */
   readonly requestId?: string;
 }
@@ -105,36 +112,48 @@ export async function runAsSystem<T>(
   assertSystemRunOptions(options);
   const id = newSudoId();
   const startedAt = Date.now();
+  // Relations the guarded client actually reached; only declared ones can get this far.
+  const observed = new Set<string>();
   const base = {
     id,
     actor: options.actor,
     roles: [] as readonly string[],
     operation: options.operation,
     reason: options.reason,
-    tables: options.tables,
+    tables: options.dbTables,
     ...(options.requestId === undefined ? {} : { requestId: options.requestId }),
   };
   writeSudoAudit({ ...base, event: "started", at: new Date().toISOString() });
 
   try {
     const result = await db.db.transaction((tx) =>
-      runWithSystemRole(tx, { sudoId: id }, (systemDb) => fn(systemDb)),
+      runWithSystemRole(tx, { sudoId: id }, (systemDb) =>
+        fn(
+          guardDatabase(systemDb, {
+            declared: options.dbTables,
+            allowRawSql: options.rawSql === true,
+            onRelation: (relation) => observed.add(relation),
+          }),
+        ),
+      ),
     );
     writeSudoAudit({
       ...base,
       event: "succeeded",
       outcome: "succeeded",
+      observedTables: [...observed],
       at: new Date().toISOString(),
       durationMs: Date.now() - startedAt,
     });
     return result;
   } catch (error) {
+    // Canonical code only: the internal message may name the relation, which is not audited.
     writeSudoAudit({
       ...base,
       event: "failed",
       outcome: "failed",
       at: new Date().toISOString(),
-      errorCode: "handler_failed",
+      errorCode: error instanceof TableAccessError ? error.code : "handler_failed",
       durationMs: Date.now() - startedAt,
     });
     throw error;
@@ -144,9 +163,9 @@ export async function runAsSystem<T>(
 /**
  * Rejects a job call that could not produce a meaningful audit entry.
  *
- * An empty `tables` list is deliberately allowed here (D-107): a job may declare that it
- * touches no audit-relevant table, and it is the only caller permitted to do so —
- * `ctx.sudo`/`ctx.system` still reject an empty subset in @facilis/core.
+ * An empty `dbTables` list is deliberately allowed here (D-107): a job may declare that it
+ * touches no relation, and it is the only caller permitted to do so — `ctx.sudo`/`ctx.system`
+ * still reject an empty subset in @facilis/core. The declaration is enforced by the guard.
  */
 function assertSystemRunOptions(options: RunAsSystemOptions): void {
   if (typeof options.actor !== "string" || !options.actor.startsWith("system:")) {
@@ -158,15 +177,18 @@ function assertSystemRunOptions(options: RunAsSystemOptions): void {
   if (typeof options.reason !== "string" || options.reason.trim().length === 0) {
     throw new Error("sudo_invalid_reason: reason must be a non-empty string.");
   }
-  if (!isStringList(options.tables)) {
+  if (!isStringList(options.dbTables)) {
     throw new Error(
-      "sudo_invalid_tables: tables must be an array of non-empty strings (possibly empty).",
+      "sudo_invalid_dbTables: dbTables must be an array of non-empty strings (possibly empty).",
     );
+  }
+  if (options.rawSql !== undefined && typeof options.rawSql !== "boolean") {
+    throw new Error("sudo_invalid_rawSql: rawSql must be a boolean when present.");
   }
 }
 
 /**
- * An array of non-empty strings, possibly empty: a job that declares no audit table still
+ * An array of non-empty strings, possibly empty: a job that declares no relation still
  * produces a valid audit entry (D-107). The empty case is left to the caller's policy, so
  * runAsSystem can accept it while the route-scoped sudo keeps its non-empty subset rule.
  */

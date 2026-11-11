@@ -8,7 +8,8 @@ import type { JobExecutor } from "./contracts.ts";
  *
  * The engine owns scheduling and input/output validation; this adapter owns the security
  * boundary: each attempt is its own transaction as `facilis_system`, audited like a route's
- * sudo, so a job body never sees a policy-free client and the trail names the job.
+ * sudo and guarded by the job's `dbTables` declaration (D-157), so a job body never sees a
+ * policy-free client, the declaration is enforced and the trail names the job.
  */
 export function createSystemJobExecutor(db: FacilisDb): JobExecutor {
   return async ({ definition, data, job, signal }) =>
@@ -18,9 +19,10 @@ export function createSystemJobExecutor(db: FacilisDb): JobExecutor {
         actor: `system:job:${definition.name}`,
         operation: `jobs:${definition.name}`,
         reason: `Background job "${definition.name}" (attempt ${job.attempts})`,
-        // A job may declare no audit tables ([]), unlike a route's sudo, which must escalate
-        // over an explicit subset of its dbTables (D-107).
-        tables: definition.tables ?? [],
+        // The declaration is required (possibly empty) and enforced inside the elevation: an
+        // undeclared relation fails closed instead of being audited after the fact (D-157).
+        dbTables: definition.dbTables,
+        rawSql: definition.rawSql === true,
       },
       async (systemDb) =>
         definition.run({

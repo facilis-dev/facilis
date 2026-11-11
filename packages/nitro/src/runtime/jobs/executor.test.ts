@@ -1,3 +1,4 @@
+import { pgTable, text } from "drizzle-orm/pg-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { JobDefinition } from "@facilis/core";
 import {
@@ -8,6 +9,7 @@ import {
   resetSudoAuditSink,
   runWithPolicyScope,
   setSudoAuditSink,
+  TableAccessError,
   type FacilisDb,
   type PolicyScopedDatabase,
   type SudoAuditEvent,
@@ -27,6 +29,16 @@ interface TestRunContext {
 
 const schema = { safeParse: (value: unknown) => ({ success: true as const, data: value }) };
 
+const documents = pgTable("documents", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+});
+
+interface DefinitionOptions {
+  readonly dbTables?: readonly string[];
+  readonly rawSql?: boolean;
+}
+
 /**
  * The executor contract only calls `run`; the engine owns input/output validation (covered
  * by its own suite), so a structural definition keeps zod out of this package's tests.
@@ -34,12 +46,16 @@ const schema = { safeParse: (value: unknown) => ({ success: true as const, data:
 function jobDefinition(
   name: string,
   run: (ctx: TestRunContext) => Promise<unknown>,
-  tables?: readonly string[],
+  options: DefinitionOptions = {},
 ): JobDefinition<unknown, unknown> {
-  return { name, input: schema, output: schema, tables, run } as unknown as JobDefinition<
-    unknown,
-    unknown
-  >;
+  return {
+    name,
+    input: schema,
+    output: schema,
+    dbTables: options.dbTables ?? [],
+    ...(options.rawSql === true ? { rawSql: true } : {}),
+    run,
+  } as unknown as JobDefinition<unknown, unknown>;
 }
 
 function storedJob(name: string, attempts = 1): StoredJob {
@@ -98,7 +114,7 @@ describe("createSystemJobExecutor", () => {
         const identity = await systemDb.execute("select current_user as role");
         return { rows: rows.rows, role: identity.rows[0] };
       },
-      ["documents"],
+      { dbTables: ["documents"], rawSql: true },
     );
 
     const result = await createSystemJobExecutor(db)({
@@ -145,6 +161,7 @@ describe("createSystemJobExecutor", () => {
         observed.push({ attempt, jobId, sameSignal: signal === aborter.signal });
         return { ok: true };
       },
+      { rawSql: true },
     );
 
     await expect(
@@ -152,7 +169,8 @@ describe("createSystemJobExecutor", () => {
     ).resolves.toEqual({ ok: true });
     expect(observed).toEqual([{ attempt: 2, jobId: job.id, sameSignal: true }]);
 
-    // A job may declare no audit tables (unlike a route's sudo): the entry records [].
+    // A job may declare no relations (unlike a route's sudo) and pair that with the rawSql
+    // exception: raw SQL is uninspectable, so the entry records the empty declaration.
     expect(audit[0]).toMatchObject({ tables: [] });
     const persisted = await db.db.execute("select title from documents where id = 'doc-2'");
     expect(persisted.rows).toEqual([{ title: "written" }]);
@@ -166,7 +184,7 @@ describe("createSystemJobExecutor", () => {
         await systemDb.execute("insert into documents (id, title) values ('doc-3', 'rolled-back')");
         throw new Error("boom");
       },
-      ["documents"],
+      { dbTables: ["documents"], rawSql: true },
     );
 
     await expect(
@@ -186,5 +204,95 @@ describe("createSystemJobExecutor", () => {
     });
     const rolledBack = await db.db.execute("select id from documents where id = 'doc-3'");
     expect(rolledBack.rows).toEqual([]);
+  });
+
+  it("records the observed declared relation on success", async () => {
+    captureAudit();
+    const definition = jobDefinition(
+      "list-documents",
+      async ({ db: systemDb }) => {
+        const rows = await systemDb.select().from(documents);
+        return { count: rows.length };
+      },
+      { dbTables: ["documents"] },
+    );
+
+    const result = await createSystemJobExecutor(db)({
+      definition,
+      data: {},
+      job: storedJob("list-documents"),
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toEqual({ count: expect.any(Number) });
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "succeeded"]);
+    expect(audit[1]).toMatchObject({
+      event: "succeeded",
+      outcome: "succeeded",
+      observedTables: ["documents"],
+    });
+  });
+
+  it("fails closed on an undeclared relation and audits the stable code, never the name", async () => {
+    captureAudit();
+    const definition = jobDefinition("purge", async ({ db: systemDb }) =>
+      systemDb.select().from(documents),
+    );
+
+    await expect(
+      createSystemJobExecutor(db)({
+        definition,
+        data: {},
+        job: storedJob("purge"),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBeInstanceOf(TableAccessError);
+
+    expect(audit.map((entry) => entry.event)).toEqual(["started", "failed"]);
+    expect(audit[1]).toMatchObject({
+      event: "failed",
+      outcome: "failed",
+      errorCode: "table_not_declared",
+    });
+    expect(JSON.stringify(audit)).not.toContain("documents");
+  });
+
+  it("refuses raw SQL unless the definition declares the rawSql exception", async () => {
+    captureAudit();
+    const denied = jobDefinition(
+      "count-denied",
+      async ({ db: systemDb }) => systemDb.execute("select count(*)::int as count from documents"),
+      { dbTables: ["documents"] },
+    );
+
+    await expect(
+      createSystemJobExecutor(db)({
+        definition: denied,
+        data: {},
+        job: storedJob("count-denied"),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toBeInstanceOf(TableAccessError);
+    expect(audit[1]).toMatchObject({ event: "failed", errorCode: "raw_sql_not_allowed" });
+
+    captureAudit();
+    const allowed = jobDefinition(
+      "count-allowed",
+      async ({ db: systemDb }) => {
+        const result = await systemDb.execute("select count(*)::int as count from documents");
+        return result.rows[0];
+      },
+      { dbTables: ["documents"], rawSql: true },
+    );
+
+    await expect(
+      createSystemJobExecutor(db)({
+        definition: allowed,
+        data: {},
+        job: storedJob("count-allowed"),
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ count: expect.any(Number) });
+    expect(audit[1]).toMatchObject({ event: "succeeded", observedTables: [] });
   });
 });

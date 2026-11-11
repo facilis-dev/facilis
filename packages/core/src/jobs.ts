@@ -68,8 +68,17 @@ export interface JobDefinition<Input = unknown, Output = unknown> extends JobOve
   readonly input: z.ZodType<Input>;
   /** Result contract: validated before the result is persisted. */
   readonly output: z.ZodType<Output>;
-  /** Tables the sudo audit records for this job; `[]` when the job reads none. */
-  readonly tables?: readonly string[];
+  /**
+   * REQUIRED (possibly empty): tables and views the job reaches through `ctx.db` (SQL names).
+   * `[]` declares that the job touches no relation; the system elevation enforces the
+   * declaration at runtime and audits what it observed (D-157).
+   */
+  readonly dbTables: readonly string[];
+  /**
+   * Explicit exception for `ctx.db.execute(sql)` (D-157): raw SQL is not inspectable, so the
+   * declaration stays authoritative and without this flag raw execution is refused.
+   */
+  readonly rawSql?: boolean;
   readonly run: (ctx: JobRunContext<Input>) => Promise<Output> | Output;
 }
 
@@ -90,13 +99,8 @@ export function defineJob<Input = unknown, Output = unknown>(
   if (typeof definition.run !== "function") {
     throw new TypeError(`Job "${definition.name}": run must be a function.`);
   }
-  if (definition.tables !== undefined) {
-    for (const table of definition.tables) {
-      if (typeof table !== "string" || table.length === 0) {
-        throw new TypeError(`Job "${definition.name}": tables must be non-empty strings.`);
-      }
-    }
-  }
+  assertDbTables(definition.dbTables, definition.name);
+  assertRawSql(definition.rawSql, definition.name);
   return definition;
 }
 
@@ -109,8 +113,31 @@ export function isJobDefinition(value: unknown): value is JobDefinition {
     JOB_NAME_PATTERN.test(candidate.name) &&
     isSchema(candidate.input) &&
     isSchema(candidate.output) &&
+    isDbTables(candidate.dbTables) &&
     typeof candidate.run === "function"
   );
+}
+
+/** The declaration is enforced at runtime, so the registry guard validates its shape too. */
+function isDbTables(value: unknown): value is readonly string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((entry): entry is string => typeof entry === "string" && entry.length > 0)
+  );
+}
+
+function assertDbTables(value: unknown, name: string): asserts value is readonly string[] {
+  if (!isDbTables(value)) {
+    throw new TypeError(
+      `Job "${name}": dbTables must be an array of non-empty strings (possibly empty).`,
+    );
+  }
+}
+
+function assertRawSql(value: unknown, name: string): void {
+  if (value !== undefined && typeof value !== "boolean") {
+    throw new TypeError(`Job "${name}": rawSql must be a boolean when present.`);
+  }
 }
 
 function assertJobName(name: unknown): asserts name is string {

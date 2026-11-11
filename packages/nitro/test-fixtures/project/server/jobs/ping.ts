@@ -9,6 +9,6 @@ export default defineJob({
   name: "ping",
   input: z.object({ message: z.string().default("pong") }),
   output: z.object({ ok: z.boolean() }),
-  tables: [],
+  dbTables: [],
   run: () => ({ ok: true }),
 });

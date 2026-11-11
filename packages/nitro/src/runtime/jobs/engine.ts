@@ -1,6 +1,6 @@
 import { JobError, serializeJobData } from "@facilis/core";
 import type { JobDefinition, JobJson, JobListOptions } from "@facilis/core";
-import type { PolicyScopedDatabase } from "@facilis/db";
+import { TableAccessError, type PolicyScopedDatabase } from "@facilis/db";
 
 import type { JobCounts, JobEngine, JobEngineOptions, JobStore, StoredJob } from "./contracts.ts";
 import {
@@ -18,7 +18,13 @@ interface RunningAttempt {
 }
 
 type AttemptOutcome =
-  { readonly ok: true; readonly output: JobJson } | { readonly ok: false; readonly error: string };
+  | { readonly ok: true; readonly output: JobJson }
+  | {
+      readonly ok: false;
+      readonly error: string;
+      /** A declaration violation is deterministic: never requeued (D-157). */
+      readonly terminal?: boolean;
+    };
 
 /**
  * The scheduler (docs/JOBS.md §7): claims due jobs, runs at most `maxConcurrent` attempts,
@@ -128,6 +134,12 @@ export function createJobEngine(options: JobEngineOptions): JobEngine {
       });
       return;
     }
+    if (outcome.terminal === true) {
+      // Retrying cannot fix a declaration the definition does not carry: store the stable
+      // code as the error and never the relation name the guard refused (D-157).
+      await store.complete(job.id, { status: "failed", error: outcome.error, finishedAt: now() });
+      return;
+    }
     if (stopping) return interrupt(job);
     const error =
       outcome.error.length > MAX_STORED_ERROR
@@ -180,6 +192,9 @@ export function createJobEngine(options: JobEngineOptions): JobEngine {
       return { ok: true, output: serializeJobData(parsedOutput.data, "job_invalid_output") };
     } catch (error) {
       if (timedOut) return { ok: false, error: `timeout after ${job.timeoutMs}ms` };
+      if (error instanceof TableAccessError) {
+        return { ok: false, error: error.code, terminal: true };
+      }
       return { ok: false, error: errorMessage(error) };
     } finally {
       if (timeoutHandle !== null) timers.clearTimeout(timeoutHandle);

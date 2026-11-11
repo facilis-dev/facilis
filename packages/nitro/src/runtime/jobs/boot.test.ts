@@ -13,7 +13,7 @@ const schema = { safeParse: (value: unknown) => ({ success: true as const, data:
 function validModule(name: string): JobModule {
   return {
     file: `server/jobs/${name}.ts`,
-    definition: { name, input: schema, output: schema, run: async () => ({}) },
+    definition: { name, input: schema, output: schema, dbTables: [], run: async () => ({}) },
   };
 }
 
