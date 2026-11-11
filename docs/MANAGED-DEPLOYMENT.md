@@ -130,10 +130,12 @@ GitHub users can sign in instead of pasting a token (D-082):
 "projects": { "gitOAuth": { "github": { "clientId": "Iv1.0123456789abcdef" } } }
 ```
 
-Only the public client id is configured — the device flow uses no secret. Register the OAuth
-app once with **device flow enabled** and no callback URL; the id is accepted only when
-`gitProxy` and a direction (`imports.git` or `exports.git`) are enabled, and it needs no extra
-`network.connect` origin because the flow travels through the same proxy. Without this key the
+Only the public client id is configured — the device flow uses no secret. Register the client
+once with **device flow enabled** and no callback URL: an OAuth app, or a **GitHub App** with
+`Contents: read and write` (fine-grained; it must also be installed on the accounts whose
+repositories it pushes to — D-165). The id is accepted only when `gitProxy` and a direction
+(`imports.git` or `exports.git`) are enabled, and it needs no extra `network.connect` origin
+because the flow travels through the same proxy. Without this key the
 dialogs keep asking for a token.
 
 ### Where the config comes from

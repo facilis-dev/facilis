@@ -503,9 +503,16 @@ The git dialogs offer "Sign in with GitHub" when the deployment configures an OA
 flow needs github.com through the same proxy, so the dev server is enough; there is no
 callback URL and no secret.
 
-1. Register an OAuth app once: GitHub → Settings → Developer settings → OAuth Apps → **New
-   OAuth App**. Any name and homepage work; enable **Enable Device Flow** and leave the
-   callback URL empty. Copy the client id (public, `Iv1.…`).
+1. Register the client once — either a **GitHub App** (this is what the hosted IDE uses,
+   D-165) or an **OAuth App**. Both need **Enable Device Flow** and an empty callback URL:
+   - **GitHub App**: Settings → Developer settings → GitHub Apps → **New GitHub App**;
+     repository permissions `Contents: Read and write` (`Metadata: Read-only` comes for
+     free), no webhook. Install it on the account whose repositories you push to — a user
+     access token only reaches accounts where the app is installed — then copy the **client
+     id** (`Iv23…`).
+   - **OAuth App**: Settings → Developer settings → OAuth Apps → **New OAuth App**; any name
+     and homepage work. Copy the client id (`Iv1.…`). No installation step, but the token
+     carries the blanket `repo` scope.
 2. Point the build at a config that carries it:
 
    ```json
@@ -517,9 +524,10 @@ callback URL and no secret.
    FACILIS_DEPLOY_CONFIG=/tmp/facilis-oauth.json pnpm ide:dev
    ```
 
-3. For the hosted build, the same key goes into the deployment config the CI uses; the id is
-   public, so it is not a secret. Without the key the button is absent and the dialogs keep
-   asking for a token.
+3. For the hosted build, the same key goes into the deployment config the CI uses:
+   `deploy/ide.facilis.dev.json` carries the client id and the deploy workflow passes the file
+   through `FACILIS_DEPLOY_CONFIG` (D-077/D-165). The id is public, so it is not a secret.
+   Without the key the button is absent and the dialogs keep asking for a token.
 
 The token lives in the tab's memory only: a reload asks for a new sign-in, and **Sign out**
 drops it. The device code is shown in the dialog, never logged; the OAuth calls are
