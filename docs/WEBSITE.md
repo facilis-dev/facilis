@@ -1,6 +1,6 @@
 # Facilis — website brief
 
-**Status:** v3 — two pillars + the browser-as-sandbox · **Site:** https://facilis.dev
+**Status:** v3 copy source, updated 2026-11-11 (Phases 0–4 implemented; Phase 5 retired; Phase 6 in progress — see [STATUS.md](./STATUS.md)). **Site:** https://facilis.dev
 **Contract:** the product contract is `docs/SPEC.md`; this brief is *around* it, like `docs/DECISIONS.md`.
 If the site claims something the spec can't back, the spec wins — rewrite the copy.
 
@@ -245,10 +245,11 @@ Studio and the app still runs.*
 > a second one — a container, a microVM, a cloud box with a timeout — because their agent has a
 > shell, a filesystem, your credentials and your network.
 >
-> Facilis's agent has none of those. It emits file patches. The patches are validated against 16
-> rules before they touch disk [planned — Phase 4], then written into a virtual filesystem that
-> exists only inside the page. No shell to reach, no host to escape to, no ambient credentials to
-> find, no local network to scan. The blast radius isn't a container — it's a tab.
+> Facilis's agent has none of those. It writes small programs the IDE runs in a locked sandbox,
+> and every source change is validated against 18 rules before it touches disk (D-084), then
+> written into a virtual filesystem that exists only inside the page. No shell to reach, no host
+> to escape to, no ambient credentials to find, no local network to scan. The blast radius isn't
+> a container — it's a tab.
 
 **H2: We didn't harden a sandbox. We removed the need for one.**
 
@@ -296,10 +297,11 @@ why the CSP is part of the product and not the deploy notes.
 
 | Phase | State |
 |---|---|
-| 0 — feasibility spike | headless done; browser items open |
+| 0 — feasibility spike | done — headless and the browser harness |
 | 1 — core packages | done — verified headlessly against `examples/todo-app` |
-| 2–5 — Studio, visualizers, AI, blocks | not started |
-| 6 — MVP demo | not started |
+| 2–4 — Studio, visualizers, AI | done |
+| 5 — blocks | retired (D-131) |
+| 6 — MVP demo | in progress — script and `pnpm ide:smoke` green |
 
 > This site has a status page because a framework arguing for structure should be honest about
 > its own. Every non-obvious choice is in the [decision log](../docs/DECISIONS.md) — including
@@ -324,7 +326,7 @@ Footer: MIT · GitHub · Spec · Decisions · Status · *No cookies, no accounts
    lose the app.
 5. **Where does my code live?** In your git host and in your browser tab. Nowhere else.
 6. **Do I need an API key?** Yes — any provider. There's no Facilis inference bill.
-7. **Is it production ready?** No. Phase 6 is the MVP. That's what the status page is for.
+7. **Is it production ready?** It is MVP-grade today; Phase 6 is the polish/demo pass, and the open work is in the status page and the decision log.
 8. **Why "Facilis"?** Latin, *easy* — same root as *facile*. See `/manifesto`.
 
 ---

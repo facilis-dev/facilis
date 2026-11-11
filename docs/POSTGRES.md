@@ -1,7 +1,7 @@
 # Running a Facilis app on Postgres
 
 **Status:** implemented (2026-11-01); the deploy step follows the accepted D-158/D-159 model.
-Decision: **D-068**. Contract: SPEC §5.2, §7.1; [PHASE1-CONTRACTS.md](./PHASE1-CONTRACTS.md) §5;
+Decision: **D-068**. Contract: SPEC §5.2, §7.1; [PHASE1-CONTRACTS.md](./archive/PHASE1-CONTRACTS.md) §5;
 RLS composition: SPEC §8.4.5 and D-008.
 
 An app runs on **PGlite** (WASM Postgres) inside the browser VM in development and on a **real

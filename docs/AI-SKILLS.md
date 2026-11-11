@@ -1,11 +1,9 @@
 # AI and skills
 
-**Status:** accepted and partially implemented (2026-11-01): the provider/gateway policy
-and the "AI off by default in managed" behaviour landed. Still pending: blocking validator
-rules, Model B tools and the skills runtime. Model B is a PTC tool runtime and the chat's only
-mode (D-101/D-103): the model writes JavaScript programs the IDE executes against a read-only tool
-registry, with MCP servers and skill capabilities on the same seam (design:
-[`PTC.md`](./PTC.md), O-016).
+**Status:** accepted and implemented (2026-11-11) except the skills runtime: the provider/gateway
+policy, the "AI off by default in managed" behaviour, the 18-rule blocking validator (D-084) and
+the PTC tool runtime — the chat's only mode (D-101/D-103) — landed. Still pending: the skills
+runtime and MCP servers on the same PTC seam (design: [`PTC.md`](./PTC.md), O-016).
 Decisions: D-066 (AI security boundary), D-067 (skills as a reviewed supply chain).
 Related: [MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md), [APP-UPDATES.md](./APP-UPDATES.md),
 SPEC §8 and §9, D-045, D-046, D-047, D-048.
@@ -98,27 +96,22 @@ Notes:
 
 ## 6. Context
 
-- sources: file list, active buffer, `facilis.config.ts`, `AGENTS.md`, the live manifest
-  (D-045/D-048). Nothing else.
+The chat reads the project through the PTC tool registry (D-101/D-103) instead of preloading it,
+so the boundary is the registry, not a context window.
+
+- sources: the tools return files, analyzer facts, config, manifest and catalogs on request
+  (D-045/D-048); the preloaded summary is context, never the whole project.
 - never: secrets, other projects, IDE internals, `node_modules` beyond the `.d.ts` it
   already feeds to IntelliSense.
-- caps: files, bytes and tokens, with a "what will be sent" report before a long turn.
 - secret scan before send: redact and tell the user, never send silently.
 
-## 7. Tools (Model B)
+## 7. Tools
 
-A primitive set, each one validated and logged; no shell, no network:
-
-| Tool | Restriction |
-|---|---|
-| `read-file` | project-root confined, glob-scoped by the skill/project |
-| `list-files` | same |
-| `apply-patch` | through the validator; still requires the user's Apply |
-| `run-check` | a fixed command allowlist (`typecheck`, `test`), no arguments |
-| no dependency install | installs go through the project's install path and the deployment policy |
-
-Tool output is data. A tool call is never a capability grant; it is checked against what the
-skill declared and what the build allows.
+The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_file`, `search`,
+`get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the preview family
+(D-111), the project-graph family (D-126) and the git family (D-139). Tool output is data. A tool
+call is never a capability grant: source writes still go through the validator and the user's
+Apply, and every call is logged.
 
 ## 8. Skills
 

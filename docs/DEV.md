@@ -3,6 +3,8 @@
 How to build, run and verify Facilis (including the browser IDE) on a bare machine.
 Everything here is one command, reproducible, and needs **no root**.
 
+**Status:** current (2026-11-11); this page is the only supported setup recipe.
+
 The IDE runs the vendored Vivari kernel, which means four build artifacts that are
 gitignored by upstream and therefore absent from a fresh checkout. `scripts/dev/` produces
 them; this page is the contract for those scripts.

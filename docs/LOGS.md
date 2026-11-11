@@ -1,5 +1,7 @@
 # Logs
 
+**Status:** implemented (D-119).
+
 How Facilis records access, errors and security-relevant audit events, where the entries go,
 and how to verify them. This page is the operator contract behind D-119; the entry shapes are
 owned by `@facilis/core` (see `packages/core/src/logging.ts`), the sink by `@facilis/nitro`.

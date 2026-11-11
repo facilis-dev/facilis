@@ -43,7 +43,7 @@ minimumReleaseAgeExclude:
 # wasm32-wasip1 binding. That binding declares @emnapi/core/@emnapi/runtime at
 # 2.0.0-alpha.6, while @napi-rs/wasm-runtime peer-resolves its own copy (^1.7.1 ||
 # 2.0.0-beta.2): two emnapi copies break the wasm bridge in the browser with
-# "this.bridge.setLastError is not a function" (docs/findings/ast-introspection.md §4.2).
+# "this.bridge.setLastError is not a function" (docs/archive/ast-introspection.md §4.2).
 # pnpm only reads overrides from the workspace root, so the single verified pair is pinned
 # here; alpha.6/beta.2/beta.3 all passed the probe, beta.2 is the one the generated project
 # already uses (ide/src/facilis/project-files.ts).

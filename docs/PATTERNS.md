@@ -1,13 +1,13 @@
 # Resource pages — the standard for a list → detail → chart section
 
-Status: draft. This is the contract both the AI and a human follow to add a section to a
-generated Facilis project. The reference implementation lives in
-`scripts/dev/fixtures/section-standard/project/` (typechecked by
-`scripts/dev/fixtures-check.mjs`); the probe evidence is in §8.
+Status: draft (2026-11-11). This is the contract both the AI and a human follow to add a section
+to a generated Facilis project. The reference implementation and the checker are **not in the
+tree yet** (`scripts/dev/fixtures/` is absent), so §8 has no evidence; the checklist and the
+anti-patterns are the part in force.
 
 Why a standard: at section scale the model stops failing on syntax and starts failing on
 **plumbing** — it invents an envelope, forgets a permission, filters client-side, adds no
-route or no i18n key. The 16-rule validator cannot see any of that. A short, exact contract
+route or no i18n key. The 18-rule validator cannot see any of that. A short, exact contract
 plus one reference file per surface removes most of the degrees of freedom.
 
 ## 1. What a section is
@@ -152,7 +152,7 @@ No React, no fetch in this file; the path builder keeps `URLSearchParams` in one
 ### 4.4 Chart component
 
 - No chart dependency (the generated app ships none): one `<svg role="img" aria-label>` with
-  rects, `fill="var(--color-primary)"`, axis in `var(--color-base-300)`, labels through
+  rects, `fill="var(--color-primary)"`, axis in a role token, labels through
   `formatDateOnly` — tokens only, no colour literals.
 - Empty/zero data still renders the axis and a translated "no data" line.
 
@@ -198,21 +198,13 @@ data; that is the only exception and never a release path.
 
 ## 7. Reference implementation
 
-`scripts/dev/fixtures/section-standard/project/` mirrors this contract with the Projects
-resource (projects list/detail/stats + todos link). It is a **fixture**, not part of
-`examples/todo-app` yet; validate it with:
-
-```sh
-node --experimental-strip-types scripts/dev/fixtures-check.mjs section-standard
-```
-
-When it is promoted into `examples/todo-app` (and therefore into the IDE template), the section
-becomes the few-shot bundle the chat prompt ships.
+The section-standard fixture (`scripts/dev/fixtures/section-standard/project/`) and its checker
+are not in the tree yet. When they return, the section becomes the few-shot bundle the chat ships.
 
 ## 8. Evidence (probe)
 
-To be filled by the section probe: validator vs typecheck vs wiring, baseline prompt vs
-standard-prompt, token/speed cost, and the observed failure taxonomy.
+Not collected: the probe needs the fixture above. It should compare the validator, typecheck and
+wiring, the baseline prompt against the standard prompt, and the token/speed cost.
 
 ## 9. Anti-patterns
 
@@ -222,4 +214,4 @@ standard-prompt, token/speed cost, and the observed failure taxonomy.
 - `total` left as the driver's bigint/string.
 - One 600-line page file (split page / table / chart).
 - A chart library (recharts & co.) — not in the template dependencies; use SVG.
-- Invented components or invented kit props: read `docs/BASE-KIT-CONTRACTS.md` §3.1.
+- Invented components or invented kit props: read [`FRONTEND.md`](./FRONTEND.md) for the template v2 component layer.

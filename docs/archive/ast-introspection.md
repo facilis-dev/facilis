@@ -2,14 +2,14 @@
 
 Status: **historical feasibility analysis, 2026-11-04**. This is the evidence and options
 analysis that led to D-092; the implemented contract is
-[ast-dsl-contract.md](<docs/findings/ast-dsl-contract.md>) and the cutover is D-093. Paths to
+[ast-dsl-contract.md](<../findings/ast-dsl-contract.md>) and the cutover is D-093. Paths to
 scanners below describe the pre-cutover tree and are kept as the record of what was replaced.
 
 **Direction chosen in review (2026-11-04):** interpret the framework's declarative DSL
 ourselves, with **zero build-time execution**; runtime endpoints remain only for live state
 (applied catalog, drift, boot). The concrete contract — constructs to force, static subset,
 fact model, diagnostics, graph model and fixture matrix — is in
-[ast-dsl-contract.md](<docs/findings/ast-dsl-contract.md>). This document remains the
+[ast-dsl-contract.md](<../findings/ast-dsl-contract.md>). This document remains the
 feasibility evidence and the options analysis behind that choice.
 
 The question: today the Studio (and the AI layer) learn about the schema and the API surface

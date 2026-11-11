@@ -1,7 +1,8 @@
 # Migration generation in the release and deploy pipeline
 
-**Status:** proposed, v2.3 (a plan, not a contract). 2026-11-10. Decisions 1-6 taken in §7 (7-8 open).
-ADRs D-158/D-159 accepted; P0, P1 and P2 implemented (branches feat/schema-artifacts, feat/schema-plan).
+**Status:** implemented in part (2026-11-11): P0, P1 and P2 landed with D-158/D-159; P3 (the
+upgrade-action/UI side) is pending. §2–§3 are the design reference behind SPEC §2/§7.7/§11.3;
+§8–§9 are historical checklists.
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
 tags** (in the release pipeline, no database access) and **applied as an immutable artifact** by the
 deploy job. The live database is used for **verification**, and only exceptionally for adoption or

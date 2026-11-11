@@ -6,6 +6,12 @@ so they are not re-litigated or lost.
 
 Format: `D-0NN — title` · **status** (accepted / open) · context · decision · consequences.
 
+**Reading guide.** Start with the newest entries (D-142…D-160); the rest is history that still
+explains the current code. A handful of decisions are superseded by a later one — D-017
+(→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
+(→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149. The "Open
+items" table at the end lists what is still undecided.
+
 ---
 
 ## Accepted
@@ -140,7 +146,7 @@ WebContainer-capable browser harness exists.
 
 Phase 1 is split into four disjoint write scopes (one shared task each): `@facilis/core`,
 `@facilis/db` + `@facilis/auth`, `@facilis/nitro`, and the `studio/` fork. Module boundaries
-and exact public APIs are fixed in `docs/PHASE1-CONTRACTS.md` so the packages can be built in
+and exact public APIs are fixed in `docs/archive/PHASE1-CONTRACTS.md` so the packages can be built in
 parallel without import cycles: `db` (leaf) <- `auth` <- `core` <- `nitro`; `core`, `auth`
 and `db` never import `nitro`/`vite`/`h3` (they type handlers against a structural event).
 
@@ -641,7 +647,7 @@ proposed upstream as a PR from the fork. `.gitmodules` records the fork URL and
 worktree is never edited, so `git -C vendor/vivari status` is clean by construction.
 
 Workflow (branch map in the fork's `FORK.md`, dev recipe in
-[`vendor/README.md`](./vendor/README.md)):
+[`vendor/README.md`](../vendor/README.md)):
 
 - **bump the engine:** rebase the fix branches onto the new upstream tag in the fork, push
   `facilis/main`, then `git -C vendor/vivari fetch origin && git -C vendor/vivari checkout <sha>`
@@ -6173,7 +6179,10 @@ vista) e i test del modello/layout del grafo IDE.
 `pnpm --filter @facilis/ide test` (dati, used-by-routes, posizionamento nella colonna schema, ricerca,
 filtri), typecheck dei due pacchetti.
 
-## Open (do not block Phase 0/1; resolve before the noted phase)
+## Open items (post-MVP)
+
+Rows marked `done` are kept so their O-IDs stay resolvable; only the rows without a resolution are
+live. The resolving ADR is in the row.
 
 | ID | Question | Proposed default | Needed by |
 |---|---|---|---|
@@ -6190,6 +6199,7 @@ filtri), typecheck dei due pacchetti.
 | O-011 | Data Explorer connection when the app runs in its own preview tab and in the isolated preview modes | **partly resolved by D-097:** the live transport is kernel-mediated (same-origin `/preview/<port>/…` through the Studio's SW), so a popped-out preview works in modes A/B. Still open: declared tables from `@facilis/analyze` for a project that is not running, and preview mode C (wildcard origins register no same-origin SW) | Phase 3.5 follow-up |
 | O-012 | Query console RLS mode: the console runs as the connecting superuser (developer preview), so it does not show what a user sees | add the SPEC §11.2 selector — run the statement as `facilis_app` with a chosen `app.*` scope, next to the developer mode | Phase 3.5 follow-up |
 | O-013 | Views in analyzer facts, graph and reverse lookup | **resolved for the project graph by D-160:** `ViewFact` becomes a `view:<name>` node (invoker/definer, permission, base tables), a route that declares a view in `dbTables` gets a `route-view` edge and the declared base tables get `view-base` edges; `defineView` facts and the validator were D-157. Still open: the Entity Explorer's declared views and its reverse lookup | Phase 4 (Entity Explorer half) |
+| O-014 | Log pipeline and retention beyond the local file | **resolved by D-119:** one JSONL pipeline, redaction/rotation/hash chain and env-owned sinks; WORM/external sinks remain O-019 | done |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
 | O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) — design approved in D-135 ([WORKFLOWS.md](./WORKFLOWS.md)), implementation W1–W3 | Phase 7+ |
@@ -6197,5 +6207,5 @@ filtri), typecheck dei due pacchetti.
 | O-019 | Log retention and tamper evidence beyond a local file: WORM storage, an HMAC-keyed chain, and external sinks (S3/Syslog/OTLP) | D-119 gives the file/stdout pipeline with a SHA-256 `seq`/`prevHash` chain and delegates WORM/retention to the deploy's log platform. Add an optional HMAC key per deployment (`FACILIS_LOG_HMAC_KEY`) and a `committed`/`rolled_back` entry for the request transaction before this is called tamper-proof | Phase 7+ |
 | O-020 | SSO depth: IdP-initiated SAML, SCIM provisioning, refresh tokens/session sync, TOTP/WebAuthn as a second factor | keep SP-initiated SAML, JIT linking/provisioning and password+SSO only; each of the four is a separate contract (and 2FA needs a second credential table, not a provider flag) | Phase 7+ |
 
-When an item is decided, move it to **Accepted** with a `D-0NN` entry and update
+When an item is decided, add the resolving `D-0NN` and mark the row done; update
 `docs/SPEC.md` if a contract changes.

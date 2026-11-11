@@ -57,7 +57,7 @@ let bootstrapPromise: Promise<BootstrapState> | undefined;
 /**
  * Boot the framework runtime once per process (lazily, on the first request).
  *
- * Contract (docs/PHASE1-CONTRACTS.md §8): never crash the request. Each failure is
+ * Contract (docs/archive/PHASE1-CONTRACTS.md §8): never crash the request. Each failure is
  * recorded as a manifest warning and the remaining steps still run, so a broken
  * migration yields a 200 partial manifest instead of a 500.
  */

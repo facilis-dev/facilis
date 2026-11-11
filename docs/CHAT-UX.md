@@ -1,4 +1,4 @@
-# Chat UX direction (planned)
+# Chat UX direction
 
 **Status:** **partly implemented (2026-11-08/09)** — the lighter transcript (D-114), pasted
 screenshots (D-113) and context compaction (D-133) landed; the project-file picker remains

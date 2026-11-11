@@ -30,13 +30,13 @@ overlay appears. The same harness with a **single-file** change (`spikes/ide-aud
 no new import) shows the new page within 4 s, so the write path and HMR are fine on their own: the
 failure needs a module that the importer introduces in the same step.
 
-**Evidence:** `docs/findings/f1-preview-template.png` (before: login card),
+**Evidence:** `docs/archive/f1-preview-template.png` (before: login card),
 `f1-preview-after-write.png` (after: hint only), `f1-diagnose-applied.png` (control: single-file
 change applied).
 
 **Update 2026-11-03 (second repro, `spikes/ide-audit/land-home.mjs`).** The same two files were
 then built and served on the host: `npm run build` passes and the page renders exactly as written
-(`docs/findings/f1-site-home-host.png`). So the source is good, and the preview is not merely
+(`docs/archive/f1-site-home-host.png`). So the source is good, and the preview is not merely
 behind: reloading the preview frame from the parent did **not** apply the change either. That
 points at the preview's own reload/HMR recovery rather than at the content — the next step needs
 the preview's console and network trail (the outer console only shows the unrelated React
@@ -56,7 +56,7 @@ status line or a "reload preview" affordance) instead of leaving a half-rendered
 patch and automation use). The terminal HMR line proves the file changed; the tab still shows the
 old source with no dirty/changed marker. Saving the tab writes the old content back.
 
-**Evidence:** the editor pane in `docs/findings/f1-preview-after-write.png`.
+**Evidence:** the editor pane in `docs/archive/f1-preview-after-write.png`.
 
 **Suggested direction:** the editor should receive the same "file changed on disk" event the
 preview gets (reload if clean, conflict prompt if dirty). VS Code has the same contract.

@@ -1,5 +1,7 @@
 # Single sign-on (SSO)
 
+**Status:** implemented (D-120; hardened by D-146/D-147/D-150/D-156).
+
 Facilis owns single sign-on as framework auth (D-120, SPEC §5.3): a project declares its
 providers in `facilis.config.ts`, `@facilis/auth` implements OIDC, generic OAuth2 and SAML,
 and `@facilis/nitro` serves one reserved route namespace. Generated apps never reimplement

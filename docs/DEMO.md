@@ -44,7 +44,8 @@ timings below are honest.
   `applyPatch()` (D-084). If the proposal card shows a blocking error, the demo stops there —
   nothing was written.
 - The **entity explorer** compares `db/schema.ts` with the live catalog (D-083): after a schema
-  patch the Data view shows the drift disappear once the migration runs.
+  patch the Data view shows the drift disappear once the dev boot reconciles the declared schema
+  (no migration file to run; D-158).
 - The **Studio is static**: the only network calls are the git host (only when pushing) and the
   AI provider the user configured (D-066).
 
