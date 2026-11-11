@@ -1,6 +1,7 @@
+import type { JobFact, JobRelationsFact } from "./types-jobs.ts";
 import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
-import type { WorkflowFact } from "./types-workflows.ts";
+import type { WorkflowFact, WorkflowTablesFact } from "./types-workflows.ts";
 
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
@@ -270,9 +271,7 @@ export type {
   RouteRelationsFact,
   ViewFact,
 } from "./types-relations.ts";
-// Workflow facts live in types-workflows.ts (the 300-line split) and are re-exported here so
-// every existing `from "./types.ts"` import keeps working.
-export type { WorkflowFact, WorkflowStepFact } from "./types-workflows.ts";
+export type { WorkflowFact, WorkflowStepFact, WorkflowTablesFact } from "./types-workflows.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
 
@@ -287,6 +286,11 @@ export interface Analysis {
   readonly views: readonly ViewFact[];
   readonly pages: readonly PageFact[];
   readonly workflows: readonly WorkflowFact[];
+  /** Job definitions, with D-157 applied to the db client their `run` body sees. */
+  readonly jobs: readonly JobFact[];
+  readonly jobRelations: Readonly<Record<string, JobRelationsFact>>;
+  /** Each workflow's table surface, derived from the jobs its steps reference. */
+  readonly workflowTables: readonly WorkflowTablesFact[];
   /** Module facts for every parsed source file, in path order. */
   readonly fileFacts: readonly FileFacts[];
   readonly locales: LocaleCatalogs;

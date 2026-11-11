@@ -24,3 +24,19 @@ export interface WorkflowFact {
   readonly steps: readonly WorkflowStepFact[];
   readonly unknown: readonly UnknownFact[];
 }
+
+/**
+ * Table surface of a workflow, derived from the jobs its steps reference (never declared):
+ * the sorted union of the referenced jobs' own `dbTables` (tables and views alike).
+ */
+export interface WorkflowTablesFact {
+  readonly name: string;
+  readonly sourceFile: string;
+  readonly source: SourceRef;
+  /** Sorted unique union of the referenced jobs' declared dbTables. */
+  readonly tables: readonly string[];
+  /** Job-step names with no definition under `server/jobs/**`; [] when all resolve. */
+  readonly unknownJobs: readonly string[];
+  /** True when a referenced job's dbTables is unreadable, so the union is incomplete. */
+  readonly unknown: boolean;
+}

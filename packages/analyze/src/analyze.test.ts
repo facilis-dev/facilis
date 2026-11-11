@@ -22,6 +22,8 @@ describe("analyzeProject (fixture)", () => {
     ]);
     expect(analysis.relations).toHaveLength(2);
     expect(analysis.views).toEqual([]);
+    expect(analysis.jobs).toEqual([]);
+    expect(analysis.workflowTables).toEqual([]);
     expect(analysis.pages.filter((page) => page.calls.length > 0)).toHaveLength(3);
   });
 

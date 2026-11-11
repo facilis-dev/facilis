@@ -2,6 +2,8 @@ import { buildPageFacts, type TransportSpec } from "./passes/clients.ts";
 import { buildConfigFacts } from "./passes/config.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
+import { buildJobFacts } from "./passes/jobs.ts";
+import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
 import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
@@ -9,6 +11,7 @@ import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import { buildWorkflowFacts } from "./passes/workflows.ts";
+import { buildWorkflowTableFacts } from "./passes/workflow-tables.ts";
 import { buildProjectGraph } from "./graph.ts";
 import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
@@ -48,7 +51,13 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
   // D-157: the declaration check runs after the schema and the views, because a route's
   // `dbTables` and its usage are compared against both (tables and views).
   const routeRelations = buildRouteRelationFacts(graph, routes.routes, schema.tables, views.views);
+  // D-157 applies to jobs too: their `run` sees the system-scoped db client, tables and
+  // views alike, and the relation index is the same one the route pass builds its cases on.
+  const jobs = buildJobFacts(graph);
+  const jobRelations = buildJobRelationFacts(graph, jobs.jobs, schema.tables, views.views);
   const workflows = buildWorkflowFacts(graph);
+  // A workflow declares no tables: its surface is derived from the jobs its steps reference.
+  const workflowTables = buildWorkflowTableFacts(workflows.workflows, jobs.jobs);
   const locales = readLocaleCatalogs(graph);
   const pages = buildPageFacts(graph, routes.routes, input.transport ?? DEFAULT_TRANSPORT);
   const screens = buildScreens(graph, pages.pages);
@@ -67,10 +76,13 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...schema.diagnostics,
       ...views.diagnostics,
       ...routeRelations.diagnostics,
+      ...jobs.diagnostics,
+      ...jobRelations.diagnostics,
       ...locales.diagnostics,
       ...pages.diagnostics,
       ...routeSystemTableDiagnostics(routes.routes, schema.tables),
       ...workflows.diagnostics,
+      ...workflowTables.diagnostics,
     ].filter(
       // Framework sources are shipped code: their facts stay, but their lint-style
       // diagnostics are not the project's. Project files start outside node_modules/.
@@ -88,6 +100,9 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     views: views.views,
     pages: pages.pages,
     workflows: workflows.workflows,
+    jobs: jobs.jobs,
+    jobRelations: jobRelations.relations,
+    workflowTables: workflowTables.facts,
     fileFacts,
     locales: locales.locales,
     diagnostics,

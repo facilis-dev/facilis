@@ -47,6 +47,19 @@ const RELATION_METHODS = new Set(["from", "innerJoin", "leftJoin", "rightJoin", 
 const WRITE_METHODS = new Set(["insert", "update", "delete"]);
 const SKIPPED_KEYS = new Set(["type", "start", "end", "range"]);
 
+/**
+ * How a scanned function receives its db client. Route handlers are `(event, ctx)` and may
+ * elevate; a job's `run` is `(ctx)` and already runs system-scoped, so it has no elevations.
+ */
+export interface UsageSeed {
+  /** Index of the parameter that carries the db context (route: 1, job run: 0). */
+  readonly contextParam: number;
+  /** Route handlers may call ctx.sudo/ctx.system; jobs may not (D-157). */
+  readonly elevations: boolean;
+}
+
+const ROUTE_SEED: UsageSeed = { contextParam: 1, elevations: true };
+
 function elevationKind(name: string | undefined): ElevationKind | null {
   return name === "sudo" || name === "system" ? name : null;
 }
@@ -64,6 +77,7 @@ function calleeElevationKind(
   callee: AstNode | undefined,
   scope: RelationScope,
 ): ElevationKind | null {
+  if (!scope.elevations) return null;
   const expression = unwrapExpression(callee);
   if (expression === undefined) return null;
   if (expression.type === "Identifier") {
@@ -172,17 +186,18 @@ function visit(node: AstNode, scope: RelationScope): void {
   }
 }
 
-function handlerScope(
+function functionScope(
   graph: ModuleGraph,
   file: ProjectFile,
-  handler: AstNode,
+  fn: AstNode,
   index: RelationIndex,
   usage: MutableUsage,
+  seed: UsageSeed,
 ): RelationScope {
   const env = new Map<string, DbClient>();
   const elevationFns = new Map<string, ElevationKind>();
   let contextName: string | null = null;
-  const context = unwrapExpression(nodeArray(handler, "params")[1]);
+  const context = unwrapExpression(nodeArray(fn, "params")[seed.contextParam]);
   if (context?.type === "Identifier") contextName = identifierName(context) ?? null;
   else if (context?.type === "ObjectPattern") {
     for (const entry of objectEntries(context)) {
@@ -191,10 +206,12 @@ function handlerScope(
       let value = propertyValue(entry);
       if (value?.type === "AssignmentPattern") value = unwrapExpression(value.left);
       const local = identifierName(unwrapExpression(value));
-      const kind = elevationKind(name);
       if (local === undefined) continue;
       if (name === "db") env.set(local, ROUTE_CLIENT);
-      else if (kind !== null) elevationFns.set(local, kind);
+      else if (seed.elevations) {
+        const kind = elevationKind(name);
+        if (kind !== null) elevationFns.set(local, kind);
+      }
     }
   }
   return {
@@ -205,11 +222,26 @@ function handlerScope(
     aliases: new Map(),
     elevationFns,
     contextName,
+    elevations: seed.elevations,
     elevation: null,
     depth: 0,
     stack: new Set(),
     usage,
   };
+}
+
+/** Scan one route handler or job run function into its relation-usage fact. */
+export function scanFunctionUsage(
+  graph: ModuleGraph,
+  file: ProjectFile,
+  fn: AstNode,
+  index: RelationIndex,
+  seed: UsageSeed,
+): RouteRelationsFact {
+  const body = asNode(fn.body);
+  const usage = createUsage();
+  if (body !== undefined) visit(body, functionScope(graph, file, fn, index, usage, seed));
+  return freezeUsage(usage);
 }
 
 /** Scan one valid route handler into its relation-usage fact. */
@@ -219,8 +251,5 @@ export function scanHandlerUsage(
   handler: AstNode,
   index: RelationIndex,
 ): RouteRelationsFact {
-  const body = asNode(handler.body);
-  const usage = createUsage();
-  if (body !== undefined) visit(body, handlerScope(graph, file, handler, index, usage));
-  return freezeUsage(usage);
+  return scanFunctionUsage(graph, file, handler, index, ROUTE_SEED);
 }

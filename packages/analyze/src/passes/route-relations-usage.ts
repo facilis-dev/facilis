@@ -40,6 +40,11 @@ export interface RelationScope {
   readonly aliases: Map<string, string>;
   readonly elevationFns: Map<string, ElevationKind>;
   readonly contextName: string | null;
+  /**
+   * Whether the scanned body can elevate (`ctx.sudo`/`ctx.system`). Jobs already run
+   * system-scoped, so their pass has no elevation dimension (D-157).
+   */
+  readonly elevations: boolean;
   /** Elevation bucket of the current callback; null is the route's own ctx.db. */
   readonly elevation: number | null;
   readonly depth: number;
