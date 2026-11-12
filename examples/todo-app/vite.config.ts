@@ -8,6 +8,11 @@ import { facilis } from "@facilis.dev/nitro/vite";
 // never names Nitro itself. tailwindcss() is the v2 styling layer.
 export default defineConfig({
   plugins: [tailwindcss(), facilis(), react()],
+  // The dependency optimizer's cache must NOT live in node_modules: the VM never mirrors
+  // node_modules to OPFS (it is restored from the lockfile-keyed dep cache), so the default
+  // node_modules/.vite is discarded on every boot and rolldown re-bundles every dependency
+  // each time — measured as seconds of wasm CPU per boot. A project-root path is mirrored.
+  cacheDir: ".vite-cache",
   // "~" is the project root: server routes import "~/facilis.config" and "~/db/schema".
   // src/ code uses relative imports (they carry explicit .ts/.tsx extensions).
   resolve: {
