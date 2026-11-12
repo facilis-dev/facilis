@@ -17,11 +17,25 @@ type Listener = (request: GraphFocusRequest) => void;
 const listeners = new Set<Listener>();
 let pending: GraphFocusRequest | null = null;
 
+function deliver(request: GraphFocusRequest): void {
+  // Snapshot: a listener that unsubscribes mid-notify must not disturb the loop.
+  for (const listener of Array.from(listeners)) listener(request);
+}
+
 /** Ask the panel to focus these ids; the IDE opens the graph tab before calling this. */
 export function notifyGraphFocus(request: GraphFocusRequest): void {
   pending = request;
-  // Snapshot: a listener that unsubscribes mid-notify must not disturb the loop.
-  for (const listener of Array.from(listeners)) listener(request);
+  deliver(request);
+}
+
+/**
+ * Clear the canvas focus: an empty request is how the panel learns to stop dimming, and it
+ * resolves to null in focusStateFrom. The pending request is dropped instead of replaced, so a
+ * focus announced while the graph tab was closed cannot replay after the user dismissed it.
+ */
+export function clearGraphFocus(): void {
+  pending = null;
+  deliver({ nodes: [], edges: [], zoom: false });
 }
 
 /**

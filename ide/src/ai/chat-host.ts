@@ -1,6 +1,6 @@
-// The controller-backed ChatHost (D-045): the glue between ChatSession and the
-// editor. It owns the one-per-controller session, so a sidebar view switch keeps
-// the conversation and the proposal, and reloading the page starts clean.
+// The controller-backed ChatHost (D-045): the glue between ChatSession and the editor.
+// It owns the one-per-controller conversation store (chat-store.ts), so a sidebar view switch
+// keeps the conversation and a new chat keeps the previous one; reloading starts clean.
 //
 // Paths cross the boundary project-relative (the prompt and the patches are
 // root-relative, SPEC §9.2); the editor speaks absolute VFS paths. Do the
@@ -11,6 +11,7 @@ import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { ChatSession, type ChatHost } from "./chat-session";
+import { ChatStore } from "./chat-store";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
 import { createGitAccess } from "./git-access";
 import { createGraphAccess } from "./graph-access";
@@ -22,15 +23,27 @@ import { createToolRouter } from "./ptc/tools";
 import { withMcpTools } from "./mcp/mcp-executor";
 import { McpSession } from "./mcp/mcp-session";
 
-const sessions = new WeakMap<IdeController, ChatSession>();
+const stores = new WeakMap<IdeController, ChatStore>();
 
-/** The chat session for an IDE instance (created on first use). */
-export function chatFor(controller: IdeController): ChatSession {
-  const existing = sessions.get(controller);
+/** The conversations of an IDE instance (created on first use). */
+export function chatStoreFor(controller: IdeController): ChatStore {
+  const existing = stores.get(controller);
   if (existing) return existing;
-  // D-118: the project's MCP servers live with the chat session; their tools merge into the
-  // existing router, so every local tool keeps its own policy and write protection.
+  // D-118: the project's MCP servers are discovered once per controller and shared by every
+  // conversation; their tools merge into the existing router, so every local tool keeps its
+  // own policy and write protection.
   const mcp = new McpSession({ root: () => controller.activeFolder?.rootPath ?? null });
+  const store = new ChatStore(() => createSession(controller, mcp));
+  stores.set(controller, store);
+  return store;
+}
+
+/** The active conversation's session, for view consumers such as the ActivityBar. */
+export function chatFor(controller: IdeController): ChatSession {
+  return chatStoreFor(controller).active();
+}
+
+function createSession(controller: IdeController, mcp: McpSession): ChatSession {
   const host = chatHost(controller, mcp);
   // D-126: the graph's committed team state; D-139: the project's git repository and remotes.
   // Only the PTC router reads them, so they join the PatchValidationHost view here and the
@@ -42,14 +55,12 @@ export function chatFor(controller: IdeController): ChatSession {
   };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
-  const session = new ChatSession(host, {
+  return new ChatSession(host, {
     runner: createPtcRunner({
       childFactory: createRunnerFrameChild(),
       executorFactory: () => withMcpTools(createToolRouter(toolHost), mcp),
     }),
   });
-  sessions.set(controller, session);
-  return session;
 }
 
 function chatHost(controller: IdeController, mcp: McpSession): ChatHost {

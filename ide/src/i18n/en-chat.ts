@@ -117,4 +117,13 @@ export const chatEn = {
   "chat.error.validator": "The validator is temporarily unavailable — try again in a moment.",
   "chat.streaming": "Writing the answer…",
   "chat.busy.elapsed": "{seconds}s",
+  "chat.queue.title": "Queued messages",
+  "chat.queue.add": "Queue the message",
+  "chat.queue.remove": "Remove queued message",
+  "chat.queue.imageOnly": "Screenshot",
+  "chat.conversations.menu": "Conversations",
+  "chat.conversations.title": "Conversations",
+  "chat.conversations.untitled": "New conversation",
+  "chat.conversations.imageOnly": "Screenshot",
+  "chat.conversations.remove": "Delete this conversation",
 } as const;

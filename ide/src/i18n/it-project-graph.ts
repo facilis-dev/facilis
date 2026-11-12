@@ -15,6 +15,9 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.emptyHint": "Pagine, route, tabelle e viste compaiono qui dopo l'analisi.",
   "projectGraph.fullscreen": "Schermo intero",
   "projectGraph.exitFullscreen": "Esci dallo schermo intero",
+  "projectGraph.clearFocus": "Rimuovi focus",
+  "projectGraph.clearFocusHint":
+    "L'AI ha evidenziato una parte del grafo: rimuovi il focus per vedere di nuovo tutto (Esc).",
   "projectGraph.fit": "Adatta alla vista",
   "projectGraph.resetLayout": "Reimposta il layout",
   "projectGraph.save": "Salva il layout",

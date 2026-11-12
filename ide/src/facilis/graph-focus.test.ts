@@ -74,6 +74,31 @@ describe("graph focus requests", () => {
   });
 });
 
+describe("clearGraphFocus", () => {
+  it("delivers an empty request that focusStateFrom maps to no focus", async () => {
+    const { notifyGraphFocus, subscribeGraphFocus, clearGraphFocus } = await loadFocusModule();
+    const received: GraphFocusRequest[] = [];
+    subscribeGraphFocus((next) => received.push(next));
+    notifyGraphFocus(request(["page-a"], ["edge-1"]));
+    received.length = 0;
+    clearGraphFocus();
+    expect(received).toEqual([{ nodes: [], edges: [], zoom: false }]);
+    const cleared = received[0];
+    if (cleared === undefined) throw new Error("clearGraphFocus delivered no request");
+    expect(focusStateFrom(cleared)).toBeNull();
+  });
+
+  it("discards a pending focus so it does not replay on the next mount", async () => {
+    const { notifyGraphFocus, subscribeGraphFocus, clearGraphFocus } = await loadFocusModule();
+    // The tool focused while the graph tab was closed; the user then dismissed it.
+    notifyGraphFocus(request(["page-a"], []));
+    clearGraphFocus();
+    const listener = vi.fn<(request: GraphFocusRequest) => void>();
+    subscribeGraphFocus(listener);
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
 describe("focusStateFrom", () => {
   it("clears the focus when both id lists are empty", () => {
     expect(focusStateFrom(request([], [], true))).toBeNull();

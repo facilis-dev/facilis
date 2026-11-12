@@ -1,8 +1,9 @@
 # Chat UX direction
 
-**Status:** **partly implemented (2026-11-08/09)** — the lighter transcript (D-114), pasted
-screenshots (D-113) and context compaction (D-133) landed; the project-file picker remains
-planned. Tracked as O-018 in [DECISIONS.md](./DECISIONS.md); this file is the sketch to act on.
+**Status:** **partly implemented (2026-11-08/09, extended 2026-11-12)** — the lighter
+transcript (D-114), pasted screenshots (D-113) and context compaction (D-133) landed, and the
+2026-11-12 owner review added Markdown prose, the queued-message inbox and multiple
+conversations (D-172); the project-file picker remains planned. Tracked as O-018 in [DECISIONS.md](./DECISIONS.md); this file is the sketch to act on.
 
 The owner's reference is the harness's own session view (DeepSeek Harness): the same chat content
 we already have, but **much lighter** — a dense, chronological transcript instead of a stack of

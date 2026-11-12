@@ -9,6 +9,7 @@ import RefreshCw from "~icons/lucide/refresh-cw";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import Save from "~icons/lucide/save";
 import Scan from "~icons/lucide/scan";
+import ScanEye from "~icons/lucide/scan-eye";
 import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ export function ProjectGraphToolbar({
   saveError,
   errors,
   warnings,
+  focusActive,
+  onClearFocus,
   onToggleEdgeKind,
   hideSystemRoutes,
   hideSystemTables,
@@ -58,6 +61,8 @@ export function ProjectGraphToolbar({
   saveError: string | null;
   errors: number;
   warnings: number;
+  focusActive: boolean;
+  onClearFocus: () => void;
   onToggleEdgeKind: (kind: GraphEdgeKind, hidden: boolean) => void;
   hideSystemRoutes: boolean;
   hideSystemTables: boolean;
@@ -78,6 +83,21 @@ export function ProjectGraphToolbar({
           aria-label={t("projectGraph.search")}
           className="mx-1 h-6 min-w-32 flex-1 rounded border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
         />
+        {/* Only the AI tools create a focus (D-171), and without this the dimmed canvas had no
+            way back, so the escape hatch is visible next to the title while it is active. */}
+        {focusActive && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="border border-brand/50 bg-brand/10 text-brand hover:bg-brand/20 hover:text-brand"
+            aria-label={t("projectGraph.clearFocus")}
+            title={t("projectGraph.clearFocusHint")}
+            onClick={onClearFocus}
+          >
+            <ScanEye />
+            <span>{t("projectGraph.clearFocus")}</span>
+          </Button>
+        )}
         {(errors > 0 || warnings > 0) && (
           <span
             title={t("projectGraph.diagnostics")}

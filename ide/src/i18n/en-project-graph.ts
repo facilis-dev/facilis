@@ -14,6 +14,9 @@ export const projectGraphEn = {
   "projectGraph.emptyHint": "Pages, routes, tables and views appear here after the analysis runs.",
   "projectGraph.fullscreen": "Fullscreen",
   "projectGraph.exitFullscreen": "Exit fullscreen",
+  "projectGraph.clearFocus": "Clear focus",
+  "projectGraph.clearFocusHint":
+    "The AI highlighted part of the graph: clear the focus to see everything again (Esc).",
   "projectGraph.fit": "Fit to view",
   "projectGraph.resetLayout": "Reset layout",
   "projectGraph.save": "Save layout",

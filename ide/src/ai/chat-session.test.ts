@@ -261,3 +261,106 @@ describe("ChatSession", () => {
     expect(calls[0]?.reasoning).toBe("first thought");
   });
 });
+
+/** Lets the async turn chain (context, model call, finally) settle before asserting. */
+const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** A session whose FIRST model call blocks until released; later calls answer at once. */
+function gatedSession() {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const turns: string[] = [];
+  const chat = sessionWith(async (input) => {
+    turns.push(input.messages.at(-1)?.content ?? "");
+    if (turns.length === 1) await gate;
+    return { ok: true, text: answer() };
+  });
+  return { chat, turns, release: () => release() };
+}
+
+describe("queued messages", () => {
+  it("queues a message typed while a turn runs and sends it when the turn ends", async () => {
+    const { chat, turns, release } = gatedSession();
+    const first = chat.send("first");
+    expect(chat.getSnapshot().phase).toBe("sending");
+
+    // Sending while busy must keep the text, not drop it.
+    await chat.send("second");
+    expect(chat.getSnapshot().queued.map((item) => item.text)).toEqual(["second"]);
+    expect(turns).not.toContain("second");
+
+    release();
+    await first;
+    await flush();
+    expect(turns).toEqual(["first", "second"]);
+    expect(chat.getSnapshot().queued).toEqual([]);
+    expect(chat.getSnapshot().phase).toBe("idle");
+    expect(chat.getSnapshot().messages.map((message) => message.content)).toEqual([
+      "first",
+      "Here is the change.",
+      "second",
+      "Here is the change.",
+    ]);
+  });
+
+  it("removes one queued message and keeps the rest in FIFO order", async () => {
+    const { chat, turns, release } = gatedSession();
+    const first = chat.send("first");
+    await chat.send("one");
+    await chat.send("two");
+    const [one] = chat.getSnapshot().queued;
+    if (one === undefined) throw new Error("expected a queued message");
+    expect(one.text).toBe("one");
+
+    chat.removeQueued(one.id);
+    expect(chat.getSnapshot().queued.map((item) => item.text)).toEqual(["two"]);
+
+    release();
+    await first;
+    await flush();
+    expect(turns).toEqual(["first", "two"]);
+  });
+
+  it("drops the queue when a new chat starts", async () => {
+    const { chat, turns, release } = gatedSession();
+    const first = chat.send("first");
+    // Let the turn reach the blocked model call, then queue a message behind it.
+    await flush();
+    await chat.send("queued");
+    expect(chat.getSnapshot().queued).toHaveLength(1);
+
+    chat.newChat();
+    expect(chat.getSnapshot().queued).toEqual([]);
+
+    release();
+    await first;
+    await flush();
+    expect(turns).toEqual(["first"]);
+  });
+
+  it("keeps the queue across a failed turn", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    const chat = sessionWith(async () => {
+      calls += 1;
+      if (calls === 1) {
+        await gate;
+        return { ok: false, failure: { kind: "http", status: 500, message: "boom" } };
+      }
+      return { ok: true, text: answer() };
+    });
+
+    const first = chat.send("first");
+    await chat.send("second");
+    release();
+    await first;
+    await flush();
+    expect(calls).toBe(2);
+    expect(chat.getSnapshot().messages.at(-1)?.content).toBe("Here is the change.");
+  });
+});

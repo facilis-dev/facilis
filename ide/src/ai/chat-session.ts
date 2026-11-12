@@ -1,12 +1,12 @@
 // The AI chat session: conversation state, streaming, proposal review and apply
 // (D-045/D-046/D-047).
-// One instance per controller (chat-host.ts keeps it in a WeakMap), so switching sidebar
-// views keeps the conversation. Editor access is ChatHost, model access the injected call,
+// One instance per conversation (chat-host.ts keeps the per-controller ChatStore), so
+// switching sidebar views keeps the conversation and a new chat keeps the previous one. Editor access is ChatHost, model access the injected call,
 // and the VFS is reached only through chat-actions.ts — the validated applyPatch() path.
 // Safety rule (invariant 9): the model never touches disk. A turn produces a reviewable
 // proposal; only the user's Apply reaches applyPatch(), and a clean Apply can be undone.
 
-import { applyAccepted, applyUndo } from "./chat-actions";
+import { applyProposal, undoProposal } from "./chat-apply";
 import { buildChatContext } from "./chat-context";
 import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
@@ -19,6 +19,7 @@ import { ChatStreamWriter } from "./chat-stream";
 import type { PtcRunner } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
+import { ChatQueue } from "./chat-queue";
 import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
 
 export type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
@@ -33,6 +34,7 @@ export class ChatSession {
   private readonly now: () => number;
   private readonly runner: PtcRunner;
   private readonly stream: ChatStreamWriter;
+  private readonly queue: ChatQueue;
   private listeners = new Set<() => void>();
   private state: ChatState;
   private controller: AbortController | null = null;
@@ -50,6 +52,7 @@ export class ChatSession {
       next: (role, content) => this.nextMessage(role, content),
       emit: (patch) => this.emit(patch),
     });
+    this.queue = new ChatQueue((queued) => this.emit({ queued }), this.now);
     this.state = initialState(this.load());
   }
 
@@ -73,6 +76,13 @@ export class ChatSession {
     return { id: role + "-" + this.seq, role, content, at: this.now() };
   }
 
+  /** A turn can end on its own (or be aborted), so the session drains the queue, not the UI. */
+  private drainQueued(): void {
+    if (this.state.phase !== "idle") return;
+    const next = this.queue.shift();
+    if (next !== null) void this.send(next.text, next.images);
+  }
+
   private fail(failure: ChatFailure): void {
     this.emit({ error: failure });
   }
@@ -87,12 +97,18 @@ export class ChatSession {
     this.controller = null;
     this.cancelled = false;
     this.stream.reset();
+    this.queue.clear();
     this.emit(initialState(this.state.settings));
   }
 
   cancel(): void {
     this.cancelled = true;
     this.controller?.abort();
+  }
+
+  /** Drop one queued message; the rest keep their FIFO order. */
+  removeQueued(id: string): void {
+    this.queue.remove(id);
   }
 
   /**
@@ -136,6 +152,8 @@ export class ChatSession {
     if (cancelled) return;
     if ("failure" in outcome) this.fail(outcome.failure);
     else this.emit({ summary: outcome.summary });
+    // Settle the compaction first; a message queued while it ran starts only then.
+    this.drainQueued();
   }
 
   openFile = (path: string): void => this.host.openFile(path);
@@ -165,7 +183,12 @@ export class ChatSession {
 
   async send(text: string, images: readonly string[] = []): Promise<void> {
     const content = text.trim();
-    if ((content.length === 0 && images.length === 0) || this.state.phase !== "idle") return;
+    if (content.length === 0 && images.length === 0) return;
+    // A message typed mid-turn is queued instead of dropped; drainQueued() sends it on idle.
+    if (this.state.phase !== "idle") {
+      this.queue.push(content, images);
+      return;
+    }
     const settings = this.state.settings;
     if (!settings || !this.state.configured) {
       this.fail({ kind: "unsupported", message: "No AI provider configured." });
@@ -258,42 +281,20 @@ export class ChatSession {
         ...turnEnded(this.state.messages, user.id, this.state.trace),
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });
+      // An error or abort must not lose the rest of the queue (only a new chat clears it).
+      this.drainQueued();
     }
   }
 
-  /** Write the accepted files through the validated path. */
+  /** Write the accepted files through the validated path (chat-apply.ts). */
   async apply(): Promise<void> {
-    const proposal = this.state.proposal;
-    const root = this.host.root();
-    if (!proposal || !root || this.state.phase !== "idle") return;
-    if (!proposal.files.some((file) => file.accepted)) return;
-    this.emit({ phase: "applying", error: null });
-    try {
-      const { applied, undo } = await applyAccepted(
-        { bridge: this.host.bridge, root, manifestBase: this.host.manifestBase() },
-        proposal,
-        this.host,
-      );
-      this.emit({ phase: "idle", applied, undo, ...(applied.ok ? { proposal: null } : {}) });
-    } catch (error) {
-      this.emit({ phase: "idle", error: { kind: "stream", message: errorText(error) } });
-    }
+    await applyProposal(this.host, this.state, (patch) => this.emit(patch));
+    this.drainQueued();
   }
 
-  /** Put the last clean Apply back the way it was. */
+  /** Put the last clean Apply back the way it was (chat-apply.ts). */
   async undo(): Promise<void> {
-    const undo = this.state.undo;
-    const root = this.host.root();
-    if (!undo || !root || this.state.phase !== "idle") return;
-    this.emit({ phase: "applying", error: null });
-    try {
-      const applied = await applyUndo(
-        { bridge: this.host.bridge, root, manifestBase: this.host.manifestBase() },
-        undo,
-      );
-      this.emit({ phase: "idle", applied, undo: applied.ok ? null : undo });
-    } catch (error) {
-      this.emit({ phase: "idle", error: { kind: "stream", message: errorText(error) } });
-    }
+    await undoProposal(this.host, this.state, (patch) => this.emit(patch));
+    this.drainQueued();
   }
 }

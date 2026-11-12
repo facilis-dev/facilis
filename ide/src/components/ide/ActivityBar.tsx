@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { t, type MessageKey } from "@/i18n";
-import { chatFor } from "@/ai/chat-host";
+import { chatStoreFor } from "@/ai/chat-host";
 import { useIde } from "./useIde";
 
 function ActBtn({
@@ -67,7 +67,9 @@ export function ActivityBar() {
   const scmCount = scm.repos.reduce((n, r) => n + r.staged.length + r.changes.length, 0);
   // A turn can run while the user is looking at another view: keep a quiet activity mark
   // on the chat icon so it never looks frozen (D-101 PTC runs can take a few seconds).
-  const chat = chatFor(c);
+  // Follow whichever conversation is active: switching chats must move this subscription too.
+  const store = chatStoreFor(c);
+  const chat = useSyncExternalStore(store.subscribe, () => store.active());
   const chatBusy = useSyncExternalStore(chat.subscribe, chat.getSnapshot).phase !== "idle";
   // Clicking the active view toggles the sidebar (VS Code behaviour); otherwise
   // switch to it.

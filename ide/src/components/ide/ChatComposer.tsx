@@ -2,7 +2,8 @@
 //
 // Extracted from ChatPanel, which sits at the 300-line limit. The composer owns its local
 // state — the draft, the pending images and the paste notice — and a new chat remounts it, so
-// nothing stale carries over into the next conversation.
+// nothing stale carries over into the next conversation. Sending while a turn runs queues the
+// message (ChatQueueView); it is never dropped.
 
 import { useState, type ClipboardEvent } from "react";
 import X from "~icons/lucide/x";
@@ -46,7 +47,7 @@ export function ChatComposer({ chat, state }: { chat: ChatSession; state: ChatSt
 
   const submit = (): void => {
     const text = draft.trim();
-    if (busy || (text.length === 0 && images.length === 0)) return;
+    if (text.length === 0 && images.length === 0) return;
     const attached = images;
     setDraft("");
     setImages([]);
@@ -89,7 +90,6 @@ export function ChatComposer({ chat, state }: { chat: ChatSession; state: ChatSt
         placeholder={t("chat.placeholder")}
         aria-label={t("chat.placeholder")}
         value={draft}
-        disabled={busy}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
@@ -101,27 +101,28 @@ export function ChatComposer({ chat, state }: { chat: ChatSession; state: ChatSt
         <p className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
           {t("chat.footer")}
         </p>
-        {busy ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("chat.stop")}
-            title={t("chat.stop")}
-            onClick={() => chat.cancel()}
-          >
-            <Square />
-          </Button>
-        ) : (
+        <div className="flex shrink-0 items-center">
+          {busy && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("chat.stop")}
+              title={t("chat.stop")}
+              onClick={() => chat.cancel()}
+            >
+              <Square />
+            </Button>
+          )}
           <Button
             size="icon-sm"
             aria-label={t("chat.send")}
-            title={t("chat.send")}
+            title={busy ? t("chat.queue.add") : t("chat.send")}
             disabled={draft.trim().length === 0 && images.length === 0}
             onClick={submit}
           >
             <SendHorizontal />
           </Button>
-        )}
+        </div>
       </div>
       <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
         {state.context
