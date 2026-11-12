@@ -136,16 +136,12 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
         </button>
       </div>
       <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-        <span
-          className={
-            "rounded border px-1 " +
-            (table.rlsEnabled
-              ? "border-success/50 text-success"
-              : "border-border text-muted-foreground")
-          }
-        >
-          {table.rlsEnabled ? t("projectGraph.rls") : t("projectGraph.systemOnly")}
-        </span>
+        {/* RLS is the default class (D-136): the card names only the system-only exception. */}
+        {!table.rlsEnabled && (
+          <span className="rounded border border-border px-1 text-muted-foreground">
+            {t("projectGraph.systemOnly")}
+          </span>
+        )}
         {table.framework && (
           <span
             className="rounded border border-border px-1 text-muted-foreground"
