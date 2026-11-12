@@ -208,6 +208,12 @@ export const it: Partial<Record<MessageKey, string>> = {
   "status.warnings": "avvisi",
   "status.selections": "({count} selezioni)",
   "status.selected": "({count} selezionati)",
+  "status.device.memoryPressure": "Memoria sotto pressione",
+  "status.device.lowMemory": "Poca RAM",
+  "status.device.slowBoot": "Avvio lento",
+  "status.device.lowStorage": "Spazio quasi esaurito",
+  "status.device.hint":
+    "Questa scheda esegue l'intera VM. Chiudere altre schede e app libera la memoria che le serve.",
 
   // ── pannello anteprima ───────────────────────────────────────────────────
   ...previewIt,

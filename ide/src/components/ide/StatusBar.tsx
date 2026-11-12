@@ -11,18 +11,32 @@
 // a cursor move or a line of dev-server output doesn't re-render every useIde()
 // consumer in the IDE.
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import CircleX from "~icons/lucide/circle-x";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
+import {
+  type DeviceIssue,
+  getDeviceHealth,
+  startDeviceHealth,
+  subscribeDeviceHealth,
+} from "@/vv/device-health";
 import { languageLabel } from "@/vv/editor-languages";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
 import { StatusBarPanels, StatusBarRun } from "./StatusBarRuntime";
 import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
 import { useIde } from "./useIde";
+
+/** One status-bar label per device issue; the tooltip says what to do about it. */
+const DEVICE_LABELS: Record<DeviceIssue, MessageKey> = {
+  "memory-pressure": "status.device.memoryPressure",
+  "low-memory": "status.device.lowMemory",
+  "slow-boot": "status.device.slowBoot",
+  "low-storage": "status.device.lowStorage",
+};
 
 export function StatusBar() {
   const { c, snap } = useIde();
@@ -31,6 +45,13 @@ export function StatusBar() {
   const editor = useSyncExternalStore(c.editorStatus.subscribe, c.editorStatus.getSnapshot);
   const message = useSyncExternalStore(c.statusMessage.subscribe, c.statusMessage.getSnapshot);
   const [picker, setPicker] = useState<StatusPicker>(null);
+  const device = useSyncExternalStore(subscribeDeviceHealth, getDeviceHealth);
+  // Sampled once per session, then again when the first preview paints: the boot time is
+  // only known afterwards, and it is the signal that says "this device is the problem".
+  useEffect(() => {
+    startDeviceHealth();
+  }, []);
+  const deviceIssue = device?.issues[0];
 
   // VS Code shows one repository at a time: the one owning the active file, else
   // the focused workspace folder, else the only repo there is.
@@ -69,6 +90,12 @@ export function StatusBar() {
           </StatusItem>
         )}
         <ProjectUpdateBadge root={activeRoot ?? null} />
+        {deviceIssue && (
+          <StatusItem label={t(DEVICE_LABELS[deviceIssue]) + ". " + t("status.device.hint")}>
+            <TriangleAlert className="size-3.5" />
+            <span>{t(DEVICE_LABELS[deviceIssue])}</span>
+          </StatusItem>
+        )}
         {/* Live TS/JS diagnostics from the language-service worker. Not clickable:
             there's no Problems panel to open (markers surface in the editor). */}
         <StatusItem label={problemsLabel}>

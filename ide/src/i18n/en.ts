@@ -215,6 +215,13 @@ export const en = {
   "status.warnings": "warnings",
   "status.selections": "({count} selections)",
   "status.selected": "({count} selected)",
+  // Device health (device-health.ts): one readout per issue the signals warrant.
+  "status.device.memoryPressure": "Memory pressure",
+  "status.device.lowMemory": "Low RAM",
+  "status.device.slowBoot": "Slow start",
+  "status.device.lowStorage": "Storage nearly full",
+  "status.device.hint":
+    "This tab runs the whole VM. Closing other tabs and apps frees the memory it needs.",
 
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
