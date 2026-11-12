@@ -12,6 +12,7 @@ import { type FileTree, treeFromDrop, treeFromFileList } from "./file-tree";
 import { fetchGitRepo, type GitImportOptions } from "./git-import";
 import { parseGitRepo } from "./git-provider";
 import { cloneIntoProject, type CloneOptions } from "./project-clone";
+import type { TemplateKey } from "../facilis/templates";
 import { scaffoldFacilisProject } from "./project-scaffold";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
@@ -269,9 +270,10 @@ export class ProjectImport {
   }
 
   // Populate an empty (or README-only) folder with the Facilis project (D-080): the
-  // clone-an-empty-repository flow and the palette command land here.
-  scaffoldFolder(root: string): Promise<boolean> {
-    return scaffoldFacilisProject(this.bridge, this.host, root);
+  // template picker's confirm lands here. `template` is the user's choice; the loader
+  // stays undefined so production reads the registry's lazy chunk.
+  scaffoldFolder(root: string, template?: TemplateKey): Promise<boolean> {
+    return scaffoldFacilisProject(this.bridge, this.host, root, undefined, template);
   }
 
   // Import from GitHub, GitLab or Gitea/Forgejo (D-073); a private repository takes a

@@ -21,6 +21,7 @@ import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
 import { runEn } from "./en-run";
 import { previewEn } from "./en-preview";
+import { scaffoldEn } from "./en-scaffold";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -143,10 +144,6 @@ export const en = {
   "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, or a repository URL",
   "import.repositoryHint":
     "Public by default; a private repository needs a token below. A self-hosted server must allow CORS on its API.",
-  "import.token": "Access token (optional)",
-  "import.tokenPlaceholder": "ghp_…, glpat-…, …",
-  "import.tokenHint":
-    "For private repositories: a token with read access. It is used for this import and never stored.",
   "import.tokenInvalid": "That does not look like a valid token.",
   "import.starting": "Starting…",
   "import.submit": "Import",
@@ -192,6 +189,7 @@ export const en = {
   "push.kernelStarting": "The runtime is still starting — try again in a moment.",
   "push.disabled": "This deployment does not allow publishing to a git host.",
   ...gitRemoteEn,
+  ...scaffoldEn,
   ...sourceControlEn,
   ...commitGraphEn,
   ...projectGraphEn,

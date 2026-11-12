@@ -13,6 +13,7 @@ import {
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import {
+  gitAuthTarget,
   hostOfGitInput,
   normalizeGitSecret,
   parseGitRepo,
@@ -22,8 +23,7 @@ import {
 import { proxyBase } from "@/vv/git-remote";
 import { gitAvailable } from "@/vv/project-clone";
 import { githubSessionToken } from "@/vv/github-oauth";
-import { GitHubSignIn } from "./GitHubSignIn";
-import { TokenHelp } from "./TokenHelp";
+import { GitAuthPanel, GitProviderLine } from "./GitAuthPanel";
 
 /** The hosted service's host for a provider; a pasted URL overrides it. */
 const PROVIDER_HOSTS: Record<GitProvider, string> = {
@@ -75,6 +75,8 @@ export function ImportRemoteDialog() {
   // so the CORS sentence is only true for the fallback (D-073/D-079).
   const realGit = proxyBase() !== null;
   const canSubmit = !!repo.trim() && !busy && snap.kernelReady;
+  // Auth follows the URL: GitHub takes the device flow, every other host a token.
+  const authTarget = gitAuthTarget(repo);
 
   const onProgress = (done: number, total: number, phase: string) => {
     setProgress(total > 0 ? t("import.progress", { phase, done, total }) : phase);
@@ -171,54 +173,16 @@ export function ImportRemoteDialog() {
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t(realGit ? "import.tokenOrPassword" : "import.token")}
-            </span>
-            <Input
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              placeholder={t("import.tokenPlaceholder")}
-              disabled={busy}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") void submit();
-              }}
-            />
-            <span className="text-xs text-muted-foreground">
-              {t(realGit ? "import.tokenOrPasswordHint" : "import.tokenHint")}
-            </span>
-            <TokenHelp />
-          </label>
+          <GitProviderLine target={authTarget} host={hostOfGitInput(repo)} />
 
-          <GitHubSignIn
-            onToken={(value) => {
-              setToken(value ?? "");
-              if (value !== null) setUsername("");
-            }}
+          <GitAuthPanel
+            target={authTarget}
+            token={token}
+            username={username}
+            busy={busy}
+            onToken={setToken}
+            onUsername={setUsername}
           />
-
-          {realGit && (
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">
-                {t("import.username")}
-              </span>
-              <Input
-                autoComplete="off"
-                spellCheck={false}
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder={t("import.usernamePlaceholder")}
-                disabled={busy}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void submit();
-                }}
-              />
-              <span className="text-xs text-muted-foreground">{t("import.usernameHint")}</span>
-            </label>
-          )}
         </div>
 
         {progress && (

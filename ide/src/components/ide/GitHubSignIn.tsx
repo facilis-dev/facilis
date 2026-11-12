@@ -26,7 +26,12 @@ const ERROR_KEYS: Record<string, MessageKey> = {
  * resulting token is kept in this tab's memory only. Renders nothing unless the
  * deployment configured an OAuth app and the proxy exists.
  */
-export function GitHubSignIn(props: { onToken: (token: string | null) => void }) {
+export function GitHubSignIn(props: {
+  onToken: (token: string | null) => void;
+  /** The main call to action of the dialog (the git auth panel); secondary elsewhere. */
+  prominent?: boolean;
+}) {
+  const prominent = props.prominent === true;
   const clientId = githubOAuthClientId(deployment);
   const base = proxyBase();
   const [phase, setPhase] = useState<"idle" | "starting" | "waiting" | "error">("idle");
@@ -149,7 +154,12 @@ export function GitHubSignIn(props: { onToken: (token: string | null) => void })
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Button variant="outline" size="sm" onClick={() => void start()}>
+      <Button
+        variant={prominent ? "default" : "outline"}
+        size={prominent ? "lg" : "sm"}
+        className={prominent ? "w-full" : undefined}
+        onClick={() => void start()}
+      >
         {t("github.signIn")}
       </Button>
       <span className="text-xs text-muted-foreground">{t("github.hint")}</span>

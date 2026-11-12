@@ -82,6 +82,23 @@ export function providerForInput(input: string): GitProvider {
   return detected ?? "github";
 }
 
+/** How the auth UI offers credentials: the GitHub device flow, or a token. */
+export type GitAuthTarget = { kind: "github" } | { kind: "token"; provider: GitProvider | null };
+
+/**
+ * Classify a pasted reference for the auth UI (D-079/D-082): a GitHub shorthand or
+ * github.com URL takes the device flow, every other host takes a token — with the
+ * provider named when the editor knows it, so the UI can label GitLab/Gitea hosts and
+ * say "other host" for a self-hosted one. Null before the user typed anything.
+ */
+export function gitAuthTarget(input: string): GitAuthTarget | null {
+  const value = input.trim();
+  if (value === "") return null;
+  const host = hostOfGitInput(value);
+  const provider = host === null ? "github" : detectGitProvider(host);
+  return provider === "github" ? { kind: "github" } : { kind: "token", provider };
+}
+
 /** Auth header per host: GitHub/Gitea take a bearer, GitLab its own header. */
 export function gitAuthHeaders(
   provider: GitProvider,

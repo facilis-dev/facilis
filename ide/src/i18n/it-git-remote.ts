@@ -9,14 +9,6 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "gitRemote.remotePlaceholder": "https://github.com/owner/repo.git",
   "gitRemote.save": "Salva remote",
   "gitRemote.saved": "Remote salvato",
-  "gitRemote.token": "Token di accesso o password (opzionale)",
-  "gitRemote.tokenPlaceholder": "ghp_…, glpat-…, …",
-  "gitRemote.tokenHint":
-    "Serve per i repository privati e per il push. GitHub: accedi qui sopra o incolla un token; GitLab e Gitea/Forgejo accettano anche la password dell'account. Usato per questa operazione e mai salvato.",
-  "gitRemote.username": "Username (opzionale)",
-  "gitRemote.usernamePlaceholder": "git",
-  "gitRemote.usernameHint":
-    "Solo con la password dell'account (GitLab, Gitea/Forgejo), o quando l'host lo richiede insieme al token.",
   "gitRemote.branch": "Branch",
   "gitRemote.aheadBehind": "↑{ahead} ↓{behind}",
   "gitRemote.upToDate": "Allineato al remote.",
@@ -45,15 +37,8 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "import.repositoryHintGit":
     "owner/repo (GitHub per impostazione predefinita) oppure l'URL del repository; per GitLab e Gitea/Forgejo serve l'URL. Un repository privato richiede il token o la password qui sotto.",
 
-  // ── import con git reale: token o password dell'account (D-081) ─────────
+  // ── import con git reale: token o password non validi (D-081) ────────────
   "import.secretInvalid": "Non sembra un token o una password validi.",
-  "import.tokenOrPassword": "Token di accesso o password (opzionale)",
-  "import.tokenOrPasswordHint":
-    "Per un repository privato. GitHub: accedi qui sopra o incolla un token; GitLab e Gitea/Forgejo accettano anche la password dell'account con l'username qui sotto. Usata per questo import e mai salvata.",
-  "import.username": "Username (opzionale)",
-  "import.usernamePlaceholder": "il tuo username",
-  "import.usernameHint":
-    "Solo con la password dell'account (GitLab, Gitea/Forgejo) — GitHub richiede un token.",
 
   // ── accesso con GitHub via device flow (D-082) ───────────────────────────
   "github.signIn": "Accedi con GitHub",
@@ -72,6 +57,30 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "github.network": "Impossibile raggiungere GitHub attraverso il proxy di questa installazione.",
   "github.invalid": "Accesso con GitHub non riuscito. Riprova o incolla un token qui sotto.",
   "github.unavailable": "L'accesso con GitHub non è disponibile in questa installazione.",
+
+  // ── pannello auth condiviso: provider, token o username/password (D-081) ──
+  "gitAuth.provider": "Provider:",
+  "gitAuth.otherHost": "altro host",
+  "gitAuth.host": "({host})",
+  "gitAuth.hintEmpty": "Incolla l'URL del repository per scegliere come accedere.",
+  "gitAuth.githubUnavailable":
+    "L'accesso con GitHub non è configurato in questa installazione — usa un token di accesso.",
+  "gitAuth.tokenLabel": "Token di accesso",
+  "gitAuth.tokenPlaceholder": "ghp_…, glpat-…, …",
+  "gitAuth.tokenHint":
+    "Serve per un repository privato. Usato per questa operazione e mai salvato.",
+  "gitAuth.tokenHintWrite":
+    "Serve per un repository privato e per il push. Usato per questa operazione e mai salvato.",
+  "gitAuth.tokenInstead": "Usa un token di accesso",
+  "gitAuth.githubInstead": "Usa l'accesso con GitHub",
+  "gitAuth.passwordInstead": "Usa username e password",
+  "gitAuth.passwordLabel": "Password",
+  "gitAuth.passwordPlaceholder": "la password dell'account",
+  "gitAuth.passwordHint":
+    "Solo per gli host che accettano la password dell'account (GitLab, Gitea/Forgejo).",
+  "gitAuth.usernameLabel": "Username",
+  "gitAuth.usernamePlaceholder": "il tuo username",
+  "gitAuth.usernameHint": "Usato con la password dell'account.",
 
   // ── token help (shown by the import, publish and remote dialogs) ─────────
   "token.helpSummary": "Come creare un token",

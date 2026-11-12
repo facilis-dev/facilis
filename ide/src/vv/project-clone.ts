@@ -11,7 +11,6 @@
 
 import { toast } from "sonner";
 import { t } from "@/i18n";
-import { scaffoldFacilisProject } from "./project-scaffold";
 import type { ProjectImportHost } from "./project-import";
 import { synthesizeManifest } from "./project-import";
 import { errText } from "./errors";
@@ -21,6 +20,7 @@ import { cloneRepo, probeProxy, proxyBase, type Credentials } from "./git-remote
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
 import { projectName } from "./project-name";
+import { scaffoldUi } from "./scaffold-ui";
 
 export interface CloneOptions {
   /** Token for a private repository: per clone, never stored (D-073's rule). */
@@ -99,14 +99,14 @@ export async function cloneIntoProject(
   });
   if (manifest === null) {
     // An empty or README-only repository: the clone is fine, there is just no project in
-    // it yet. Offer to scaffold a template instead of leaving the user with an empty
-    // editor (D-080); the .git and the remote stay, so the publish is a normal push.
+    // it yet. Open the template picker instead of leaving the user with an empty editor
+    // (D-080); the .git and the remote stay, so the publish is a normal push.
     toast.info(t("clone.emptyTitle"), {
       description: t("clone.emptyDescription"),
       duration: 15000,
       action: {
         label: t("clone.emptyAction"),
-        onClick: () => void scaffoldFacilisProject(bridge, host, root),
+        onClick: () => scaffoldUi.open(root),
       },
     });
   }
