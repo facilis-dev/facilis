@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { analyzeProject } from "../analyze.ts";
 import { createOxcParser } from "../node.ts";
-import type { PagePreviewNode } from "../types-graph.ts";
+import type { PagePreview, PagePreviewNode } from "../types-graph.ts";
 
 const FILES: Record<string, string> = {
   "src/app.tsx": `
@@ -226,5 +226,155 @@ describe("page preview text", () => {
     const mapped = nodes.filter((node) => node.name === "section" && node.dynamic);
     expect(mapped).toHaveLength(1);
     expect("text" in (mapped[0] ?? {})).toBe(false);
+  });
+});
+
+// 35 paragraphs: five more than the content budget, so the cap is observable.
+const BUDGET_ROWS = Array.from({ length: 35 }, (_, index) => `      <p>Row ${index}</p>`).join(
+  "\n",
+);
+
+// 61 sections: one more than the structural budget, which content nodes must not consume.
+const STRUCTURE_ROWS = Array.from(
+  { length: 61 },
+  (_, index) => `      <section>Block ${index}</section>`,
+).join("\n");
+
+const CONTENT_FILES: Record<string, string> = {
+  "src/app.tsx": `
+import { Route, Routes } from "react-router-dom";
+import { BudgetPage } from "./pages/budget.tsx";
+import { ContentPage } from "./pages/content.tsx";
+import { StructurePage } from "./pages/structure.tsx";
+export function App() {
+  return (
+    <Routes>
+      <Route path="/content" element={<ContentPage />} />
+      <Route path="/budget" element={<BudgetPage />} />
+      <Route path="/structure" element={<StructurePage />} />
+    </Routes>
+  );
+}
+`,
+  "src/pages/content.tsx": `
+export function ContentPage() {
+  return (
+    <main>
+      <h4>Filters</h4>
+      <p>No items yet.</p>
+      <span>Inline note</span>
+      <span><strong>Nested copy</strong></span>
+      <button>Add item</button>
+      <button>{t("save")}</button>
+      <input placeholder="Search" />
+      <input aria-label="Search field" />
+      <input placeholder={query} />
+      <img alt="Project logo" />
+    </main>
+  );
+}
+`,
+  "src/pages/budget.tsx": `
+export function BudgetPage() {
+  return (
+    <main>
+      <section>
+${BUDGET_ROWS}
+      </section>
+      <footer>End</footer>
+    </main>
+  );
+}
+`,
+  "src/pages/structure.tsx": `
+export function StructurePage() {
+  return (
+    <main>
+      <section>
+${BUDGET_ROWS}
+      </section>
+${STRUCTURE_ROWS}
+    </main>
+  );
+}
+`,
+};
+
+function previewOfPage(pagePath: string): PagePreview {
+  const analysis = analyzeProject({
+    files: new Map(Object.entries(CONTENT_FILES)),
+    parser: createOxcParser(),
+  });
+  const page = analysis.graph.nodes.find((node) => node.id === "page:" + pagePath);
+  if (page === undefined || page.data.kind !== "page" || page.data.preview === undefined) {
+    throw new Error("missing content page preview: " + pagePath);
+  }
+  return page.data.preview;
+}
+
+function inputNodes(pagePath: string): readonly PagePreviewNode[] {
+  return previewOfPage(pagePath).nodes.filter((node) => node.name === "input");
+}
+
+describe("page preview content intrinsics", () => {
+  it("draws a heading and a paragraph with their copy", () => {
+    const nodes = previewOfPage("src/pages/content.tsx").nodes;
+    expect(nodeNamed(nodes, "h4").text).toBe("Filters");
+    expect(nodeNamed(nodes, "p").text).toBe("No items yet.");
+  });
+
+  it("draws inline text with copy and promotes a copy-less wrapper's child", () => {
+    const nodes = previewOfPage("src/pages/content.tsx").nodes;
+    const span = nodeNamed(nodes, "span");
+    expect(span.kind).toBe("intrinsic");
+    expect(span.text).toBe("Inline note");
+    const strong = nodeNamed(nodes, "strong");
+    expect(strong.text).toBe("Nested copy");
+    // The wrapper <span> flattened away, so its child sits where the span would have been.
+    expect(strong.parentId).toBe(span.parentId);
+  });
+
+  it("turns a button's t() key into tKey and keeps a plain button's text", () => {
+    const nodes = previewOfPage("src/pages/content.tsx").nodes;
+    expect(nodeNamed(nodes, "button").text).toBe("Add item");
+    const translated = nodes.find((node) => node.name === "button" && node.tKey === "save");
+    expect(translated?.text).toBeUndefined();
+  });
+
+  it("reads input copy from the placeholder attribute", () => {
+    expect(inputNodes("src/pages/content.tsx")[0]?.text).toBe("Search");
+  });
+
+  it("falls back to aria-label when the placeholder is absent", () => {
+    expect(inputNodes("src/pages/content.tsx")[1]?.text).toBe("Search field");
+  });
+
+  it("draws a control whose only copy is dynamic, without guessing its text", () => {
+    const inputs = inputNodes("src/pages/content.tsx");
+    expect(inputs).toHaveLength(3);
+    expect(inputs[2]?.kind).toBe("intrinsic");
+    expect("text" in (inputs[2] ?? {})).toBe(false);
+  });
+
+  it("reads img copy from the alt attribute", () => {
+    const nodes = previewOfPage("src/pages/content.tsx").nodes;
+    expect(nodeNamed(nodes, "img").text).toBe("Project logo");
+  });
+
+  it("caps content nodes and still draws a later structural section", () => {
+    const preview = previewOfPage("src/pages/budget.tsx");
+    expect(preview.nodes.filter((node) => node.name === "p")).toHaveLength(30);
+    expect(preview.truncated).toBe(true);
+    // The content budget is separate: the footer after the 35 paragraphs is still emitted.
+    const footer = nodeNamed(preview.nodes, "footer");
+    expect(footer.text).toBe("End");
+  });
+
+  it("keeps the structural budget independent from the content budget", () => {
+    const preview = previewOfPage("src/pages/structure.tsx");
+    expect(preview.nodes.filter((node) => node.name === "p")).toHaveLength(30);
+    // 60 structural nodes plus 30 content nodes: copy never takes a structural slot.
+    expect(preview.nodes).toHaveLength(90);
+    expect(preview.truncated).toBe(true);
   });
 });

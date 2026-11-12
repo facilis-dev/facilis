@@ -4,11 +4,13 @@
  * The preview is schematic, not a render: reading only an element's own JSX children keeps a
  * section's label without pulling in what nested elements render. A `t("key")` child becomes
  * `tKey` (D-043) and literal text stays alongside it as the UI's fallback, because the UI
- * prefers the translated key. Dynamic expressions are skipped rather than guessed.
+ * prefers the translated key. Dynamic expressions are skipped rather than guessed. Content
+ * intrinsics (<input>, <img>, ...) carry their copy in an attribute instead of a child, so
+ * `jsxContentFields` falls back to that attribute.
  */
 
 import { asNode, memberName, nodeArray, unwrapExpression, type AstNode } from "../ast/node.ts";
-import { jsxChildren } from "./jsx.ts";
+import { jsxAttribute, jsxAttributeValue, jsxChildren } from "./jsx.ts";
 
 /** The optional `PagePreviewNode` text fields; a field is omitted, never empty. */
 export interface JsxTextFields {
@@ -84,4 +86,41 @@ export function jsxTextFields(node: AstNode): JsxTextFields | undefined {
   }
   if (text === undefined && tKey === undefined) return undefined;
   return { ...(text === undefined ? {} : { text }), ...(tKey === undefined ? {} : { tKey }) };
+}
+
+/** The attributes that stand in for missing JSX copy, in reading order per intrinsic. */
+const COPY_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
+  input: ["placeholder", "aria-label", "value"],
+  textarea: ["placeholder", "aria-label"],
+  select: ["aria-label"],
+  button: ["aria-label"],
+  a: ["aria-label"],
+  img: ["alt"],
+};
+
+const DEFAULT_COPY_ATTRIBUTES: readonly string[] = ["aria-label"];
+
+/** An attribute value as static text: a string literal or a substitution-free template. */
+function attributeText(attribute: AstNode | undefined): string | undefined {
+  const expression = jsxAttributeValue(attribute);
+  if (expression === undefined) return undefined;
+  const value =
+    expression.type === "TemplateLiteral" ? templateText(expression) : literalText(expression);
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * The copy a content intrinsic renders: its direct JSX text first (where `t("key")` becomes
+ * `tKey`), then the first static placeholder/alt/aria-label attribute it carries. A dynamic
+ * attribute never becomes copy, but does not hide a later static fallback either.
+ */
+export function jsxContentFields(node: AstNode, name: string): JsxTextFields | undefined {
+  const fields = jsxTextFields(node);
+  if (fields !== undefined) return fields;
+  for (const attributeName of COPY_ATTRIBUTES[name] ?? DEFAULT_COPY_ATTRIBUTES) {
+    const text = attributeText(jsxAttribute(node, attributeName));
+    if (text !== undefined) return { text };
+  }
+  return undefined;
 }
