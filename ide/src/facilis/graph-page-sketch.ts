@@ -1,25 +1,41 @@
-// Pure model for the page miniature drawn on a page card and in the inspector (D-176).
+// Pure model for the page miniature drawn on a page card and in the inspector (D-176, D-178).
 //
 // D-170 drew the analyzer's bounded component tree as nested labelled boxes; the owner rejected
 // that as the component structure it is ("inutile e troppo dispersiva"). This model instead reads
-// the same bounded tree for what a screenshot shows at a glance — the page's shell (a top bar, a
-// side rail) and the coarse visual regions its facts can prove (a form, a list, media, copy,
-// component cards, conditional branches) — and returns a handful of blocks to lay out as a fixed
-// two-pane page. It is a miniature, never a hierarchy: labels are dropped at this size, which is
-// exactly what keeps it from becoming the tree again.
+// the same bounded tree for what a screenshot shows at a glance — the page kind (a split auth
+// screen, an app shell, a bare page), the shell and the coarse visual regions its facts can prove
+// (a form, a list, media, copy, component cards, conditional branches) — and returns a handful of
+// blocks to lay out as that kind of page. It is a miniature, never a hierarchy: labels are dropped
+// at this size, which is exactly what keeps it from becoming the tree again.
 
 import type { PagePreview, PagePreviewNode } from "@facilis.dev/analyze";
+import { classifyPageLayout, type SketchLayout } from "./graph-page-layout";
+import {
+  countFields,
+  hasFooterSlot,
+  isChrome,
+  isDecoration,
+  isOverlay,
+  nameOf,
+  treeOf,
+  type SketchNode,
+} from "./graph-page-nodes";
 
 /** One drawable region of the miniature. */
-export type SketchBlockKind = "action" | "board" | "branch" | "form" | "list" | "media" | "text";
+export type SketchBlockKind =
+  "action" | "board" | "branch" | "form" | "heading" | "list" | "media" | "text";
 
 export interface SketchBlock {
   readonly kind: SketchBlockKind;
-  /** Relative height: the renderer grows each block by this weight inside the content area. */
+  /** Relative height: the renderer grows each block by this weight inside its layout. */
   readonly weight: number;
+  /** Form regions only: the control rows the preview proves, already capped for the miniature. */
+  readonly fields?: number;
 }
 
 export interface PageSketch {
+  /** The page kind the miniature draws; the shell flags only apply to an app page. */
+  readonly layout: SketchLayout;
   /** The page renders a header bar (header/footer intrinsics or slots). */
   readonly header: boolean;
   /** The page has a side rail (an aside, or a nav outside the header). */
@@ -31,6 +47,9 @@ export interface PageSketch {
 
 /** A region is capped so the thumbnail keeps reading at card size, not just in the inspector. */
 const MAX_BLOCKS = 4;
+
+/** Enough rows to tell "email, password, submit" from a single search field. */
+const MAX_FORM_ROWS = 3;
 
 /**
  * Shell detection only trusts the outer part of the tree: a card header deep inside the content
@@ -44,6 +63,7 @@ const MAX_CONTENT_DEPTH = 6;
 
 const WEIGHT: Readonly<Record<SketchBlockKind, number>> = {
   action: 1,
+  heading: 2,
   text: 2,
   branch: 3,
   form: 3,
@@ -51,25 +71,6 @@ const WEIGHT: Readonly<Record<SketchBlockKind, number>> = {
   board: 4,
   list: 4,
 };
-
-/** Elements that are page chrome rather than content: the shell draws them, the content skips them. */
-const CHROME_NAMES = new Set(["header", "nav", "aside", "footer"]);
-
-/**
- * Overlays are part of the page only once opened, so a resting page screenshot never shows them.
- * Matched by component name because the analyzer reports a component, not its behavior.
- */
-const OVERLAY_NAMES = new Set([
-  "alertdialog",
-  "dialog",
-  "drawer",
-  "modal",
-  "popover",
-  "sheet",
-  "sonner",
-  "toast",
-  "tooltip",
-]);
 
 /** Copy-bearing intrinsics; the analyzer only emits them when they carry readable copy (D-170). */
 const COPY_NAMES = new Set([
@@ -85,55 +86,14 @@ const COPY_NAMES = new Set([
   "blockquote",
 ]);
 
-interface SketchNode {
-  readonly node: PagePreviewNode;
-  readonly children: readonly SketchNode[];
-}
-
 /** A content signal before grouping: field is not a region of its own, it joins its action. */
 type SignalKind = SketchBlockKind | "field";
 
 interface Signal {
   readonly kind: SignalKind;
   readonly dynamic: boolean;
-}
-
-function nameOf(node: PagePreviewNode): string {
-  return node.name.toLowerCase();
-}
-
-function isChrome(node: PagePreviewNode): boolean {
-  return (node.kind === "intrinsic" || node.kind === "slot") && CHROME_NAMES.has(nameOf(node));
-}
-
-function isOverlay(node: PagePreviewNode): boolean {
-  return node.kind === "component" && OVERLAY_NAMES.has(nameOf(node));
-}
-
-/** Components are drawn as blocks, but icons are decoration: drawing each one adds noise. */
-function isDecoration(node: PagePreviewNode): boolean {
-  return node.kind === "component" && nameOf(node).startsWith("icon");
-}
-
-/** Parented flat list to tree. Orphans (a cut-off parent) are promoted to roots, never dropped. */
-function treeOf(nodes: readonly PagePreviewNode[]): readonly SketchNode[] {
-  const ids = new Set(nodes.map((node) => node.id));
-  const childrenOf = new Map<string, PagePreviewNode[]>();
-  const roots: PagePreviewNode[] = [];
-  for (const node of nodes) {
-    if (node.parentId === null || !ids.has(node.parentId)) {
-      roots.push(node);
-      continue;
-    }
-    const siblings = childrenOf.get(node.parentId);
-    if (siblings === undefined) childrenOf.set(node.parentId, [node]);
-    else siblings.push(node);
-  }
-  const build = (node: PagePreviewNode): SketchNode => ({
-    node,
-    children: (childrenOf.get(node.id) ?? []).map(build),
-  });
-  return roots.map(build);
+  /** Form signals only: rows proven inside the form. */
+  readonly fields?: number;
 }
 
 function shellOf(roots: readonly SketchNode[]): { header: boolean; rail: boolean } {
@@ -178,7 +138,11 @@ function collect(tree: SketchNode, dynamic: boolean, out: Signal[], depth: numbe
   const inherited = dynamic || node.dynamic;
   const signal = signalOf(node);
   if (signal !== null) {
-    out.push({ kind: signal, dynamic: inherited });
+    if (signal === "form") {
+      out.push({ kind: signal, dynamic: inherited, fields: rowsOf(tree) });
+    } else {
+      out.push({ kind: signal, dynamic: inherited });
+    }
     return;
   }
   const children = tree.children.filter(
@@ -197,8 +161,17 @@ function collect(tree: SketchNode, dynamic: boolean, out: Signal[], depth: numbe
   for (const child of children) collect(child, inherited, out, depth + 1);
 }
 
+/** One control row minimum: the analyzer may have cut a form before its children. */
+function rowsOf(form: SketchNode): number {
+  return Math.min(Math.max(countFields(form), 1), MAX_FORM_ROWS);
+}
+
 function blockOf(kind: SketchBlockKind): SketchBlock {
   return { kind, weight: WEIGHT[kind] };
+}
+
+function formBlockOf(fields: number | undefined): SketchBlock {
+  return { kind: "form", weight: WEIGHT.form, fields };
 }
 
 /** Signals to at most MAX_BLOCKS drawable regions, merging what belongs together. */
@@ -221,13 +194,16 @@ function blocksOf(signals: readonly Signal[]): readonly SketchBlock[] {
     if (signal.kind === "field") {
       // Inputs and the submit/action that follows them are one visual region.
       let end = index;
+      let fields = 0;
       while (
         end < signals.length &&
         !signals[end].dynamic &&
         (signals[end].kind === "field" || signals[end].kind === "action")
-      )
+      ) {
+        if (signals[end].kind === "field") fields += 1;
         end += 1;
-      blocks.push(blockOf("form"));
+      }
+      blocks.push(formBlockOf(Math.min(Math.max(fields, 1), MAX_FORM_ROWS)));
       index = end;
       continue;
     }
@@ -244,6 +220,11 @@ function blocksOf(signals: readonly Signal[]): readonly SketchBlock[] {
       index = end;
       continue;
     }
+    if (signal.kind === "form") {
+      blocks.push(formBlockOf(signal.fields));
+      index += 1;
+      continue;
+    }
     blocks.push(blockOf(signal.kind));
     index += 1;
   }
@@ -253,11 +234,33 @@ function blocksOf(signals: readonly Signal[]): readonly SketchBlock[] {
   return [blockOf("text")];
 }
 
+/**
+ * An auth screen is not an app page: the template splits it into a brand panel and a centred card
+ * holding a heading, the form and a footer link. The heading is structural (every auth card opens
+ * with one) even though its text arrives through props; the footer is the link to the sibling
+ * screen, so it reads as one small action rather than as copy.
+ */
+function authBlocksOf(preview: PagePreview, signals: readonly Signal[]): readonly SketchBlock[] {
+  const form = signals.find((signal) => signal.kind === "form");
+  const blocks: SketchBlock[] = [blockOf("heading")];
+  if (form === undefined) blocks.push(...blocksOf(signals));
+  else blocks.push(formBlockOf(form.fields));
+  if (hasFooterSlot(preview.nodes)) blocks.push(blockOf("action"));
+  return blocks.slice(0, MAX_BLOCKS);
+}
+
 /** Build the miniature for one page preview. Pure and deterministic. */
 export function buildPageSketch(preview: PagePreview): PageSketch {
   const roots = treeOf(preview.nodes);
-  const { header, rail } = shellOf(roots);
+  const shell = shellOf(roots);
+  const layout = classifyPageLayout(preview, shell);
   const signals: Signal[] = [];
   for (const root of roots) collect(root, false, signals, 0);
-  return { header, rail, blocks: blocksOf(signals), truncated: preview.truncated };
+  return {
+    layout,
+    header: layout === "app" && shell.header,
+    rail: layout === "app" && shell.rail,
+    blocks: layout === "auth" ? authBlocksOf(preview, signals) : blocksOf(signals),
+    truncated: preview.truncated,
+  };
 }
