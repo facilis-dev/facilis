@@ -70,7 +70,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.diagnosticSource": "{file}:{line}",
   "projectGraph.unknown": "sconosciuto",
   "projectGraph.unknownNodes": "{count} sconosciuti",
-  "projectGraph.rls": "RLS",
   "projectGraph.systemOnly": "solo sistema",
   "projectGraph.framework": "sistema",
   "projectGraph.scope": "{column} ({kind})",

@@ -80,11 +80,10 @@ export function ProjectGraphTableDetails({
   const usedBy = edges.filter((edge) => edge.kind === "route-table" && edge.target === node.id);
   const scopeKind =
     table.scope === null ? null : t(("projectGraph.scopeKind." + table.scope.kind) as MessageKey);
-  const badges: { key: string; label: string; tone: ChipTone }[] = [
-    table.rlsEnabled
-      ? { key: "rls", label: t("projectGraph.rls"), tone: "info" }
-      : { key: "system", label: t("projectGraph.systemOnly"), tone: "warning" },
-  ];
+  const badges: { key: string; label: string; tone: ChipTone }[] = [];
+  if (!table.rlsEnabled) {
+    badges.push({ key: "system", label: t("projectGraph.systemOnly"), tone: "warning" });
+  }
   if (table.scope !== null && scopeKind !== null) {
     badges.push({
       key: "scope",

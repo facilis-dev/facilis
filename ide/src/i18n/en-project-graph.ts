@@ -69,7 +69,6 @@ export const projectGraphEn = {
   "projectGraph.diagnosticSource": "{file}:{line}",
   "projectGraph.unknown": "unknown",
   "projectGraph.unknownNodes": "{count} unknown",
-  "projectGraph.rls": "RLS",
   "projectGraph.systemOnly": "system-only",
   "projectGraph.framework": "framework",
   "projectGraph.scope": "{column} ({kind})",
