@@ -18,6 +18,8 @@ export type { PathAlias } from "./path-resolver.ts";
 export type { Parser, ParseError, ParsedModule } from "./parser.ts";
 export { diagnostic, error, info, warning } from "./diagnostics.ts";
 export { computeRevision } from "./revision.ts";
+// The one id spelling shared by graph nodes and edges (D-092), for UI joins by node id.
+export { pageId, routeId, tableId, viewId, workflowId } from "./graph-ids.ts";
 export type { TransportSpec } from "./passes/clients.ts";
 // Job facts live in types-jobs.ts (the 300-line split of types.ts), so export them here.
 export type { JobFact, JobRelationsFact } from "./types-jobs.ts";

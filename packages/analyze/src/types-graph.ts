@@ -131,6 +131,10 @@ export interface PagePreviewNode {
   readonly source: SourceRef;
   /** True when the node sits under a conditional/map branch. */
   readonly dynamic: boolean;
+  /** Direct literal text child, trimmed and whitespace-collapsed; absent when none. */
+  readonly text?: string;
+  /** i18n key when that text child is a `t("key")` call (D-043); absent otherwise. */
+  readonly tKey?: string;
 }
 
 /** Static component structure of one page, capped by the analyzer. */

@@ -10,9 +10,9 @@
 import { asNode, nodeArray, unwrapExpression, type AstNode } from "../ast/node.ts";
 import type { ModuleGraph } from "../module-graph.ts";
 import type { PagePreview, PagePreviewNode } from "../types-graph.ts";
+import { jsxTextFields, type JsxTextFields } from "./jsx-text.ts";
 import {
   elementName,
-  isSectionIntrinsic,
   jsxAttributeValue,
   jsxAttributes,
   jsxChildren,
@@ -26,8 +26,14 @@ import {
   resolveComponent,
   returnedExpression,
 } from "./screen-components.ts";
+import { planIntrinsic } from "./screen-intrinsics.ts";
 
 const MAX_NODES = 60;
+/**
+ * Content intrinsics spend their own smaller budget, so a copy-heavy page cannot displace the
+ * structural nodes (sections/components) the preview already drew before content facts existed.
+ */
+const MAX_CONTENT_NODES = 30;
 const MAX_DEPTH = 4;
 
 /** A route element, its source file and the child route that replaces its <Outlet>. */
@@ -53,6 +59,8 @@ export function buildPagePreview(input: PagePreviewInput): PagePreview {
   const nodes: PagePreviewNode[] = [];
   const active = new Set<string>();
   let truncated = false;
+  let structuralNodes = 0;
+  let contentNodes = 0;
 
   const addNode = (
     parentId: string | null,
@@ -61,13 +69,17 @@ export function buildPagePreview(input: PagePreviewInput): PagePreview {
     file: string | null,
     source: PagePreviewNode["source"],
     dynamic: boolean,
+    text?: JsxTextFields,
+    content = false,
   ): string | null => {
-    if (nodes.length >= MAX_NODES) {
+    if (content ? contentNodes >= MAX_CONTENT_NODES : structuralNodes >= MAX_NODES) {
       truncated = true;
       return null;
     }
+    if (content) contentNodes += 1;
+    else structuralNodes += 1;
     const id = "p" + nodes.length;
-    nodes.push({ id, parentId, name, kind, file, source, dynamic });
+    nodes.push({ id, parentId, name, kind, file, source, dynamic, ...text });
     return id;
   };
 
@@ -110,13 +122,25 @@ export function buildPagePreview(input: PagePreviewInput): PagePreview {
     const name = elementName(node);
     if (name === null) return;
     if (name === "Outlet") {
-      if (outletChild !== null) appendRoot(outletChild, parentId, depth, dynamic);
-      else addNode(parentId, "Outlet", "slot", null, lineRef(graph, originFile, node), dynamic);
+      if (outletChild !== null) {
+        appendRoot(outletChild, parentId, depth, dynamic);
+        return;
+      }
+      addNode(
+        parentId,
+        "Outlet",
+        "slot",
+        null,
+        lineRef(graph, originFile, node),
+        dynamic,
+        jsxTextFields(node),
+      );
       return;
     }
     const intrinsic = name[0] !== undefined && name[0] === name[0].toLowerCase();
     if (intrinsic) {
-      if (!isSectionIntrinsic(name)) {
+      const plan = planIntrinsic(node, name);
+      if (plan === null) {
         appendChildren(node, originFile, parentId, depth, dynamic, outletChild);
         return;
       }
@@ -127,6 +151,8 @@ export function buildPagePreview(input: PagePreviewInput): PagePreview {
         null,
         lineRef(graph, originFile, node),
         dynamic,
+        plan.fields,
+        plan.content,
       );
       if (id !== null) appendChildren(node, originFile, id, depth + 1, dynamic, outletChild);
       return;
@@ -139,6 +165,7 @@ export function buildPagePreview(input: PagePreviewInput): PagePreview {
       ref?.file ?? null,
       lineRef(graph, originFile, node),
       dynamic,
+      jsxTextFields(node),
     );
     if (id === null) return;
     // JSX-valued props are real sections too (AuthShell footer, Page actions, ...).

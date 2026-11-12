@@ -71,7 +71,7 @@ export function isJsxElement(node: AstNode | undefined): node is AstNode {
   return node !== undefined && (node.type === "JSXElement" || node.type === "JSXFragment");
 }
 
-/** JSX elements that carry a page section (`<div>`/`<span>` are flattened away). */
+/** JSX elements that carry a page section (layout-only `<div>` stays flattened away). */
 const SECTION_INTRINSICS = new Set([
   "header",
   "main",
@@ -87,6 +87,56 @@ const SECTION_INTRINSICS = new Set([
   "h3",
 ]);
 
+/**
+ * Text-bearing intrinsics: they get a preview node when they carry copy, so the copy is not
+ * lost inside a flattened layout wrapper.
+ */
+const CONTENT_INTRINSICS = new Set([
+  "p",
+  "span",
+  "strong",
+  "em",
+  "small",
+  "b",
+  "i",
+  "code",
+  "pre",
+  "blockquote",
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "img",
+  "video",
+  "audio",
+  "h4",
+  "h5",
+  "h6",
+]);
+
+/** Content intrinsics with a control role: drawn even without readable copy (a bare input, media). */
+const ROLE_INTRINSICS = new Set([
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "img",
+  "video",
+  "audio",
+]);
+
 export function isSectionIntrinsic(name: string): boolean {
   return SECTION_INTRINSICS.has(name);
+}
+
+export function isContentIntrinsic(name: string): boolean {
+  return CONTENT_INTRINSICS.has(name);
+}
+
+export function isRoleIntrinsic(name: string): boolean {
+  return ROLE_INTRINSICS.has(name);
 }

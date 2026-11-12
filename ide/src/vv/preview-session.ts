@@ -7,7 +7,7 @@ import type { KernelBridge } from "./kernel";
 import { markBoot } from "./boot-marks";
 import { PreviewCdp } from "./preview-cdp";
 import { openPreviewWindow } from "./preview-popout";
-import { closedOtherTabs, closedTab, closedTabsToRight } from "./preview-tabs";
+import { closedOtherTabs, closedTab, closedTabsToRight, previewTabForPort } from "./preview-tabs";
 import { parsePreviewAddress, previewPathSuffix, previewSrcFor } from "./preview-url";
 import { PreviewDevtools } from "./preview-devtools";
 
@@ -140,8 +140,6 @@ export class PreviewSession {
     });
   }
 
-  // A demo's dev server is up — reuse the tab that already mirrors this port, or
-  // open one, and make it active.
   /** A demo/project dev server came up: mirror it in a preview tab. */
   pointPreview(port: number) {
     markBoot("preview-open");
@@ -151,17 +149,11 @@ export class PreviewSession {
       this.host.update({ activeId: existing.id });
       return;
     }
-    const id = "pv" + ++this.seq;
-    const tab: PreviewTab = { id, url: `localhost:${port}`, port, path: "/", nonce: 1 };
-    // Reveal the preview the way spawning a terminal reveals the bottom panel: this
-    // is the one path that can add a tab while the panel is hidden, and a dev server
-    // coming up with nothing to show for it is a dead end. Only for a genuinely new
-    // port — a restart on a port we already mirror takes the branch above.
-    this.host.update({
-      tabs: [...this.state.tabs, tab],
-      activeId: id,
-      previewCollapsed: false,
-    });
+    // Reveal the preview the way spawning a terminal reveals the bottom panel: this is the one
+    // path that can add a tab while the panel is hidden, and a dev server coming up with nothing
+    // to show for it is a dead end. A tab already waiting for a server is bound, not duplicated.
+    const next = previewTabForPort(this.state.tabs, port, () => "pv" + ++this.seq);
+    this.host.update({ tabs: next.tabs, activeId: next.activeId, previewCollapsed: false });
   }
 
   /** Reload every tab mirroring `port` (a dev server restarted). */
@@ -178,10 +170,12 @@ export class PreviewSession {
     this.bridge.setKeepPrefixPorts(this.host.keepPrefixPorts());
   }
 
-  addPreviewTab(url = "") {
+  /** Open a tab on an address and in-server path; returns the new id. */
+  addPreviewTab(url = "", path = "/"): string {
     const id = "pv" + ++this.seq;
-    const tab: PreviewTab = { id, url, port: null, path: "/", nonce: 1 };
+    const tab: PreviewTab = { id, url, port: null, path, nonce: 1 };
     this.host.update({ tabs: [...this.state.tabs, tab], activeId: id });
+    return id;
   }
   activatePreviewTab(id: string) {
     this.host.update({ activeId: id });

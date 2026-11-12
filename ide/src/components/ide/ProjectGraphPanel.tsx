@@ -8,10 +8,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
-import { loadProjectAnalysis } from "@/facilis/analyze-client";
+import { loadProjectAnalysis, loadProjectSources } from "@/facilis/analyze-client";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
 import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
+import { openPageInPreview } from "@/facilis/graph-open-preview";
 import { errText } from "@/vv/errors";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphFooter } from "./ProjectGraphFooter";
@@ -34,6 +36,9 @@ export function ProjectGraphPanel() {
   const [fullscreen, setFullscreen] = useState(false);
   const [fitNonce, setFitNonce] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // The sources the analyzer already read for this snapshot, so code previews never re-read
+  // files one node at a time (loadProjectSources is cached per controller snapshot).
+  const [sources, setSources] = useState<ReadonlyMap<string, string>>(new Map());
   const graph = useProjectGraphLayout(c, root);
   const layout = graph.layout;
 
@@ -94,6 +99,23 @@ export function ProjectGraphPanel() {
           }),
     [analysis, layout, query],
   );
+  useEffect(() => {
+    // Drop the previous project's map first: the keys are project-relative, so a stale
+    // `src/app.tsx` would otherwise render the other project's source while this one loads.
+    setSources(new Map());
+    if (analysis === null) return;
+    let cancelled = false;
+    void loadProjectSources(c)
+      .then((loaded) => {
+        if (!cancelled && loaded.ok) setSources(loaded.files);
+      })
+      .catch(() => {
+        // A transient bridge failure leaves the snippets empty; the next analysis retries.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [c, analysis]);
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -122,6 +144,26 @@ export function ProjectGraphPanel() {
     view?.edges.filter(
       (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
     ) ?? [];
+  // The inspector's detail facts (security flags, db columns, policies, foreign keys, page
+  // calls, source lines) live on the Analysis the panel already holds, not on the drawn graph.
+  const details = useMemo<ReadonlyMap<string, NodeDetails>>(
+    () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
+    [analysis],
+  );
+  const nodeLabels = useMemo(
+    () => new Map((view?.nodes ?? []).map((node) => [node.id, node.label] as const)),
+    [view],
+  );
+  const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
+  const openFileAt = (file: string, line: number) => {
+    const path = sourcePathFor(root, file);
+    if (path !== null) void c.openFileAt(path, line);
+  };
+  // A detail list may name a relation the graph did not draw (system filters, unresolved
+  // names): selecting an id that has no node would close the inspector for no reason.
+  const selectNode = (id: string) => {
+    if (nodeLabels.has(id)) setSelectedNodeId(id);
+  };
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.
   // Notes are content too: a graph with only annotations is not "empty" (D-126).
@@ -202,8 +244,15 @@ export function ProjectGraphPanel() {
           <ProjectGraphInspector
             node={selectedNode}
             edges={selectedEdges}
+            details={details.get(selectedNode.id) ?? null}
+            sources={sources}
+            locales={analysis?.locales ?? {}}
+            defaultLocale={analysis?.config.defaultLocale ?? null}
+            nodeLabel={nodeLabel}
             onClose={() => setSelectedNodeId(null)}
-            onOpenFile={(file) => openSource(file)}
+            onOpenFileAt={openFileAt}
+            onOpenPreview={(path) => openPageInPreview(c, path)}
+            onSelectNode={selectNode}
           />
         )}
       </div>

@@ -1,256 +1,50 @@
-// The project-graph inspector: page structure preview plus the page's incident links; view
-// details (access mode, permission, base tables, the routes that use it); workflow steps and
-// their placement; route and table nodes get a compact source summary. The page preview is the
-// part that makes the page cards more than a filename, the view section answers "which route
-// reads this view", and the workflow section shows what runs in what order.
+// The project-graph inspector: the selected node's details panel. This file is only the
+// layout and the kind switch; the facts, the source snippet and the styling primitives live in
+// the per-kind section modules, so no one file grows past the limit as sections are added.
 
 import X from "~icons/lucide/x";
 import { Button } from "@/components/ui/button";
-import { t, type MessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
-import { ProjectGraphPreview } from "./ProjectGraphPreview";
+import type { NodeDetails } from "@/facilis/graph-details";
+import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
+import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
+import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
+import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
+import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
 
-const SECTION_TITLE = "text-[10px] font-semibold tracking-wide text-muted-foreground uppercase";
-
-function SourceButton({
-  source,
-  onOpenFile,
-}: {
-  source: string;
-  onOpenFile: (file: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      title={t("projectGraph.openSource", { source })}
-      className="block w-full truncate text-left font-mono text-[10px] text-muted-foreground hover:text-foreground"
-      onClick={() => onOpenFile(source)}
-    >
-      {source}
-    </button>
-  );
-}
-
-function PageDetails({
-  node,
-  edges,
-  onOpenFile,
-}: {
+export interface ProjectGraphInspectorProps {
   node: ProjectGraphNode;
   edges: readonly ProjectGraphEdge[];
-  onOpenFile: (file: string) => void;
-}) {
-  const page = node.data.kind === "page" ? node.data : null;
-  if (page === null) return null;
-  const links = edges.filter((edge) => edge.kind === "page-link");
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="rounded border px-1 text-[9px] text-muted-foreground">
-          {t(("projectGraph.pageKind." + page.pageKind) as MessageKey)}
-        </span>
-        {page.routePaths.length === 0 ? (
-          <span className="rounded border border-warning/50 px-1 text-[9px] text-warning">
-            {t("projectGraph.pageUnrouted")}
-          </span>
-        ) : (
-          page.routePaths.map((path) => (
-            <span
-              key={path}
-              className="rounded border border-brand/40 bg-brand/10 px-1 font-mono text-[9px] text-brand"
-            >
-              {path}
-            </span>
-          ))
-        )}
-      </div>
-      <SourceButton source={page.pagePath} onOpenFile={onOpenFile} />
-      <section className="space-y-1">
-        <h3 className={SECTION_TITLE}>{t("projectGraph.preview.title")}</h3>
-        {page.preview === null ? (
-          <p className="text-[10px] text-muted-foreground">{t("projectGraph.preview.empty")}</p>
-        ) : (
-          <ProjectGraphPreview preview={page.preview} onOpenFile={onOpenFile} />
-        )}
-      </section>
-      <section className="space-y-1">
-        <h3 className={SECTION_TITLE}>{t("projectGraph.links")}</h3>
-        {links.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground">{t("projectGraph.noLinks")}</p>
-        ) : (
-          <ul className="space-y-0.5">
-            {links.map((edge) => (
-              <li
-                key={edge.id}
-                className="truncate rounded border px-1.5 py-0.5 font-mono text-[9px]"
-              >
-                {edge.label ?? edge.target}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </>
-  );
-}
-
-function ViewDetails({
-  node,
-  onOpenFile,
-}: {
-  node: ProjectGraphNode;
-  onOpenFile: (file: string) => void;
-}) {
-  const view = node.data.kind === "view" ? node.data : null;
-  if (view === null) return null;
-  const source = node.sourceFile;
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="rounded border px-1 text-[9px] text-muted-foreground">
-          {t("projectGraph.node.view")}
-        </span>
-        {view.access !== null && (
-          <span
-            className={
-              "rounded border px-1 text-[9px] " +
-              (view.access === "definer"
-                ? "border-warning/50 bg-warning/10 text-warning"
-                : "border-border text-muted-foreground")
-            }
-          >
-            {t(("projectGraph.access." + view.access) as MessageKey)}
-          </span>
-        )}
-        <span className="rounded border px-1 font-mono text-[9px] text-info">
-          {view.permission ?? t("projectGraph.public")}
-        </span>
-        {view.unknown && (
-          <span className="rounded border border-warning/50 px-1 text-[9px] text-warning">
-            {t("projectGraph.unknown")}
-          </span>
-        )}
-      </div>
-      {source !== null && <SourceButton source={source} onOpenFile={onOpenFile} />}
-      <section className="space-y-1">
-        <h3 className={SECTION_TITLE}>{t("projectGraph.baseTables")}</h3>
-        {view.tables.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground">{t("projectGraph.noBaseTables")}</p>
-        ) : (
-          <ul className="flex flex-wrap gap-1">
-            {view.tables.map((table) => (
-              <li key={table} className="rounded border px-1 font-mono text-[9px]">
-                {table}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section className="space-y-1">
-        <h3 className={SECTION_TITLE}>{t("projectGraph.usedByRoutes")}</h3>
-        {view.usedByRoutes.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground">{t("projectGraph.noUsedByRoutes")}</p>
-        ) : (
-          // The route's source file is not part of the view's incident data, so the label is
-          // what identifies the route here; double-clicking its card on the canvas opens it.
-          <ul className="space-y-0.5">
-            {view.usedByRoutes.map((route) => (
-              <li
-                key={route.id}
-                className="truncate rounded border px-1.5 py-0.5 font-mono text-[9px]"
-              >
-                {route.label}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </>
-  );
-}
-
-function WorkflowDetails({
-  node,
-  onOpenFile,
-}: {
-  node: ProjectGraphNode;
-  onOpenFile: (file: string) => void;
-}) {
-  const workflow = node.data.kind === "workflow" ? node.data : null;
-  if (workflow === null) return null;
-  const source = node.sourceFile;
-  return (
-    <>
-      <p className="truncate font-mono text-[11px]">{workflow.name}</p>
-      {source !== null && <SourceButton source={source} onOpenFile={onOpenFile} />}
-      <section className="space-y-1">
-        <h3 className={SECTION_TITLE}>{t("projectGraph.workflow.title")}</h3>
-        {workflow.steps.length === 0 ? (
-          <p className="text-[10px] text-muted-foreground">{t("projectGraph.workflow.empty")}</p>
-        ) : (
-          <ol className="space-y-1">
-            {workflow.steps.map((step) => (
-              <li key={step.index} className="rounded border px-1.5 py-0.5">
-                <div className="flex items-center gap-1">
-                  <span className="shrink-0 text-[9px] text-muted-foreground">
-                    {step.index + 1}.
-                  </span>
-                  <span className="shrink-0 rounded border px-1 text-[9px] text-muted-foreground">
-                    {t(("projectGraph.workflow." + step.kind) as MessageKey)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px]">
-                    {step.name ?? "?"}
-                  </span>
-                </div>
-                {(step.permission !== null || step.onRejectStep !== null) && (
-                  <p className="mt-0.5 text-[9px] text-muted-foreground">
-                    {step.permission !== null &&
-                      t("projectGraph.workflow.permission", { permission: step.permission })}
-                    {step.permission !== null && step.onRejectStep !== null ? " · " : ""}
-                    {step.onRejectStep !== null &&
-                      t("projectGraph.workflow.onReject", { step: step.onRejectStep + 1 })}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </>
-  );
-}
-
-function OtherDetails({
-  node,
-  onOpenFile,
-}: {
-  node: ProjectGraphNode;
-  onOpenFile: (file: string) => void;
-}) {
-  const source = node.sourceFile;
-  return (
-    <>
-      <p className="truncate font-mono text-[11px]">{node.label}</p>
-      {source !== null && <SourceButton source={source} onOpenFile={onOpenFile} />}
-    </>
-  );
+  details: NodeDetails | null;
+  sources: ReadonlyMap<string, string>;
+  locales: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  defaultLocale: string | null;
+  nodeLabel: (id: string) => string | null;
+  onClose: () => void;
+  onOpenFileAt: (file: string, line: number) => void;
+  onOpenPreview: (path: string) => void;
+  onSelectNode: (id: string) => void;
 }
 
 export function ProjectGraphInspector({
   node,
   edges,
+  details,
+  sources,
+  locales,
+  defaultLocale,
+  nodeLabel,
   onClose,
-  onOpenFile,
-}: {
-  node: ProjectGraphNode;
-  edges: readonly ProjectGraphEdge[];
-  onClose: () => void;
-  onOpenFile: (file: string) => void;
-}) {
+  onOpenFileAt,
+  onOpenPreview,
+  onSelectNode,
+}: ProjectGraphInspectorProps) {
+  const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
   return (
     <aside
       data-testid="project-graph-inspector"
-      className="flex w-72 shrink-0 flex-col border-l bg-sidebar text-xs"
+      className="flex w-80 shrink-0 flex-col border-l bg-sidebar text-xs"
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -267,14 +61,40 @@ export function ProjectGraphInspector({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
-        {node.data.kind === "page" ? (
-          <PageDetails node={node} edges={edges} onOpenFile={onOpenFile} />
-        ) : node.data.kind === "view" ? (
-          <ViewDetails node={node} onOpenFile={onOpenFile} />
-        ) : node.data.kind === "workflow" ? (
-          <WorkflowDetails node={node} onOpenFile={onOpenFile} />
-        ) : (
-          <OtherDetails node={node} onOpenFile={onOpenFile} />
+        {node.data.kind === "route" && (
+          <ProjectGraphRouteDetails
+            {...shared}
+            details={details?.kind === "route" ? details.route : null}
+          />
+        )}
+        {node.data.kind === "table" && (
+          <ProjectGraphTableDetails
+            {...shared}
+            edges={edges}
+            details={details?.kind === "table" ? details.table : null}
+          />
+        )}
+        {node.data.kind === "page" && (
+          <ProjectGraphPageDetails
+            {...shared}
+            edges={edges}
+            details={details?.kind === "page" ? details.page : null}
+            locales={locales}
+            defaultLocale={defaultLocale}
+            onOpenPreview={onOpenPreview}
+          />
+        )}
+        {node.data.kind === "view" && (
+          <ProjectGraphViewDetails
+            {...shared}
+            details={details?.kind === "view" ? details.view : null}
+          />
+        )}
+        {node.data.kind === "workflow" && (
+          <ProjectGraphWorkflowDetails
+            {...shared}
+            details={details?.kind === "workflow" ? details.workflow : null}
+          />
         )}
       </div>
     </aside>
