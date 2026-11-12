@@ -353,7 +353,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | `window.__vv` | installed unconditionally (`vendor/vivari/packages/core/src/bridge.ts`) | gate on `import.meta.env.DEV` (a vendor bump, D-030) | L0 |
 | Preview origin / sandbox | same-origin default, `allow-same-origin` (`ide/src/components/ide/PreviewPanel.tsx`) | `VITE_PREVIEW_ORIGIN` / `VITE_PREVIEW_WILDCARD_DOMAIN`, drop `allow-same-origin` | L0 |
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |
-| Generated `.npmrc` | fixed: audit/fund/progress/update-notifier off (`ide/src/facilis/project-files.ts`) | generated from `packages` (registry, scripts, no fallback) | L0 |
+| Generated `.npmrc` | fixed: audit/fund/update-notifier off, progress on (`ide/src/facilis/project-files.ts`) | generated from `packages` (registry, scripts, no fallback) | L0 |
 | Registry fetch | hardcoded public registry through the fetcher worker | `REGISTRY_PROXY` seam (`vendor/vivari/packages/core/src/workers/fetcher-worker.ts`) -> mirror | L2 |
 | Admission | none (a registry flag only chooses the run manifest) | `.facilis/facilis.app.json` check before open/Run | L1 |
 | Dependency allowlist | none | `preinstall` check in the template + AI validator rule on `package.json` | L1 |

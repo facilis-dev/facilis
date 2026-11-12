@@ -30,7 +30,8 @@ import { deleteProject } from "./project-delete";
 import { withTemplateAssets } from "../facilis/project-assets";
 import { StatusMessage } from "./status-message";
 import type { ProjectManifest } from "./project-manifest";
-import { loadFacilisTemplate } from "../facilis/template-loader";
+import { templateForCreate, templateForStoredId } from "../facilis/templates";
+import type { CreateProjectOptions } from "../facilis/templates";
 import { projectAdmitted } from "../facilis/admission";
 import { markBoot } from "./boot-marks";
 import {
@@ -310,9 +311,6 @@ export interface IdeSnapshot {
   problems: { errors: number; warnings: number }; // live TS/JS diagnostics (status bar)
   memInfo: MemInfo | null; // last "Measure Memory" result (StatusBar readout)
 }
-
-/** The id of the one project template the IDE creates (D-051). */
-export const FACILIS_TEMPLATE_ID = "facilis";
 
 // Drag-and-drop wire format: an internal Explorer drag carries the source's
 // absolute path under this MIME type; an OS drag carries File entries instead.
@@ -1588,16 +1586,16 @@ export class IdeController {
   }
 
   /**
-   * Create a project from the one template this IDE ships (D-051). A Facilis app is
-   * Nitro + PGlite + React: there is no blank project and no second framework, so there is
-   * no template chooser to route through either.
+   * Create a project from the template registry (D-168); the default is the full-stack
+   * template. There is still no blank project and no second framework.
    */
-  async createProject({ dir, runInit }: { dir: string; runInit: boolean }) {
-    const root = normDir(dir);
+  async createProject(input: CreateProjectOptions) {
+    const root = normDir(input.dir);
     // One name, the folder's (D-035): the kernel is told where the project is, not a
     // display title the Explorer and the browser title would then have to reconcile.
     const title = projectName(root);
-    const template = await loadFacilisTemplate();
+    const descriptor = templateForCreate(input.template);
+    const template = await descriptor.load();
     const files = await withTemplateAssets(template, template.files);
     const res = await this.bridge.request("vv-create-project", {
       dir: root,
@@ -1614,7 +1612,7 @@ export class IdeController {
     this.openFolder(root);
     void this.scm.init(root);
     this.openProjectGraph();
-    if (runInit) {
+    if (input.runInit) {
       this.runProject(root);
     } else {
       this.status(
@@ -1648,11 +1646,12 @@ export class IdeController {
       this.removeProjectMeta(root);
       return;
     }
-    // Only a Facilis project gets the Facilis manifest - and, in a managed build, only one
+    // Only a Facilis project gets a registered manifest - and, in a managed build, only one
     // that carries a valid .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
     // opens, but Run drops into a shell rather than executing an unvetted project.
-    if (meta.template === FACILIS_TEMPLATE_ID && (await projectAdmitted(this.bridge, root))) {
-      const template = await loadFacilisTemplate();
+    const descriptor = templateForStoredId(meta.template);
+    if (descriptor !== undefined && (await projectAdmitted(this.bridge, root))) {
+      const template = await descriptor.load();
       this.folderManifests.set(root, template.manifest);
       this.bridge.post("vv-register-project", {
         dir: root,

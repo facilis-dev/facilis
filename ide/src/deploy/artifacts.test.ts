@@ -104,8 +104,11 @@ describe("deployment artifacts", () => {
     expect(parsed.packages).toEqual(["react"]);
   });
 
-  it("the generated .npmrc points at the mirror", () => {
-    expect(renderProjectNpmrc(managed())).toContain("registry=https://npm.acme.example");
+  it("the generated .npmrc points at the mirror and keeps progress on", () => {
+    const npmrc = renderProjectNpmrc(managed());
+    expect(npmrc).toContain("registry=https://npm.acme.example");
+    expect(npmrc).toContain("progress=true");
+    expect(npmrc).not.toContain("progress=false");
   });
 
   it("the environment manifest records policy and artifacts", () => {

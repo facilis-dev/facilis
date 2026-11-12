@@ -82,7 +82,7 @@ describe("generated project config", () => {
     // are registry calls the container pays for and fund/progress are noise the IDE
     // mirrors into the browser.
     const open = projectFiles()[".npmrc"];
-    for (const flag of ["audit=false", "fund=false", "progress=false", "update-notifier=false"]) {
+    for (const flag of ["audit=false", "fund=false", "progress=true", "update-notifier=false"]) {
       expect(open).toContain(flag);
     }
     expect(open).not.toContain("registry=");
@@ -97,7 +97,7 @@ describe("generated project config", () => {
     });
     const npmrc = projectFiles(managed)[".npmrc"];
     expect(npmrc).toContain("registry=https://npm.acme.example");
-    for (const flag of ["audit=false", "fund=false", "progress=false", "update-notifier=false"]) {
+    for (const flag of ["audit=false", "fund=false", "progress=true", "update-notifier=false"]) {
       expect(npmrc).toContain(flag);
     }
   });

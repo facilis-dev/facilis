@@ -333,8 +333,11 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │                             examples/todo-app at IDE build time (D-062) — no drift
 │
 ├── examples/
-│   ├── todo-app/             template source (v2: Tailwind + shadcn copy-in components, D-090)
-│   │                         + Phase 1 acceptance app
+│   ├── todo-app/             full-stack template source (v2: Tailwind + shadcn copy-in
+│   │                         components, D-090) + Phase 1 acceptance app
+│   ├── showcase-app/         static template source (Vite + React + Tailwind, no backend,
+│   │                         D-168)
+│   └── starter-app/          empty full-stack template source (standard login only, D-168)
 │
 ├── pnpm-workspace.yaml
 └── turbo.json
@@ -374,15 +377,24 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 └── README.md
 ```
 
-**Note:** the generated tree **is** the reference app `examples/todo-app` (D-062), not a
-separate scaffold: the IDE inlines that source at build time and adds only the npm wrapper,
-the liveness `ping` route, the HMR hint/style and the in-process Nitro runner. The
-acceptance probe runs from the IDE page, not inside the app. Nitro v3 in Vite mode requires
-the server directory to be declared via `serverDir`. `facilis()` mounts Nitro and supplies
-it from `facilis.config.ts`: the framework defaults are `serverDir: "./server"` and
-`experimental.openAPI: true`, and a project overrides only what it changes in the config's
-optional `nitro` section. Route files live under `server/routes/`, not `routes/` at project
-root.
+**Note:** the generated tree **is** the template's example app (D-062), not a separate
+scaffold: the IDE inlines that source at build time and adds only the files the IDE owns —
+`.facilis/facilis.app.json`, the generated `package.json`, the standalone `tsconfig.json`,
+`.npmrc`, `README.md` and `scripts/check-pm.mjs` (D-168). The layout above is the full-stack
+template (`examples/todo-app`), which also gets the liveness `ping` route, the HMR hint/style
+and the in-process Nitro runner. The static template (`examples/showcase-app`) is the same
+IDE-owned files over a plain Vite + React + Tailwind tree — no `server/`, `db/` or
+`facilis.config.ts`, and its `package.json` carries no `@facilis.dev/*` dependency. The empty full-stack
+template (`examples/starter-app`) has the same layout and wrappers with the login-only
+surface — auth routes, pages, schema and migrations, no todo/file/job route or page — and gets
+the in-VM Nitro runner override. New
+projects pick a template in Home's New project dialog (D-168); the run manifest comes from the
+template registry, not from the files. The acceptance probe runs from the IDE page, not inside
+the app. Nitro v3 in Vite mode requires the server directory to be declared via `serverDir`.
+`facilis()` mounts Nitro and supplies it from `facilis.config.ts`: the framework defaults are
+`serverDir: "./server"` and `experimental.openAPI: true`, and a project overrides only what it
+changes in the config's optional `nitro` section. Route files live under `server/routes/`, not
+`routes/` at project root.
 
 Every `@facilis.dev/*` dependency in `package.json` is an **exact version installed from npm**,
 like any other dependency (D-166): the IDE build injects the release version through

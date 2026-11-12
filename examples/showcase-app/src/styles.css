@@ -1,0 +1,125 @@
+/*
+ * Style entry for the showcase template: Tailwind CSS v4 utilities over a small set of semantic
+ * role tokens. Colour literals exist only in the theme blocks below, so a theme is a complete
+ * variable set and no component names a colour.
+ */
+@import "tailwindcss";
+
+/* lib/theme.ts writes data-theme="light"|"dark" on <html>, so the dark variant keys off that
+   attribute. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-2xl: calc(var(--radius) + 0.5rem);
+  --radius-3xl: calc(var(--radius) + 1rem);
+}
+
+/* Warm paper and ink for the light theme; the accent is the studio's terracotta. */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #faf7f2;
+  --foreground: #171412;
+  --card: #ffffff;
+  --card-foreground: #171412;
+  --primary: #1b1714;
+  --primary-foreground: #faf7f2;
+  --secondary: #f0eae1;
+  --secondary-foreground: #3a332d;
+  --muted: #f1ece4;
+  --muted-foreground: #6f655b;
+  --accent: #c8441f;
+  --accent-foreground: #fff8f3;
+  --destructive: #b91c1c;
+  --border: #e5ddd2;
+  --input: #e5ddd2;
+  --ring: #c8441f;
+  --radius: 0.75rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #121010;
+  --foreground: #f5efe7;
+  --card: #1a1716;
+  --card-foreground: #f5efe7;
+  --primary: #f5efe7;
+  --primary-foreground: #171412;
+  --secondary: #242020;
+  --secondary-foreground: #f5efe7;
+  --muted: #221e1d;
+  --muted-foreground: #a89c90;
+  --accent: #ef6a45;
+  --accent-foreground: #1b0f0a;
+  --destructive: #f87171;
+  --border: #322c29;
+  --input: #322c29;
+  --ring: #ef6a45;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  /* Tailwind v4's preflight drops v3's pointer cursor on buttons; restore it once. */
+  button:not(:disabled, [aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+}
+
+/* A quiet dotted-paper texture for the hero poster and other branded surfaces. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+}

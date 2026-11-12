@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
 import { loadProjectAnalysis } from "@/facilis/analyze-client";
+import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
 import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
 import { errText } from "@/vv/errors";
@@ -21,8 +22,11 @@ import { useIde } from "./useIde";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
 
 export function ProjectGraphPanel() {
-  const { c } = useIde();
+  const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
+  // openFolder() publishes the file index asynchronously, so at cold boot this is false while
+  // the graph tab is already open; the analysis must wait, not read the empty snapshot.
+  const indexReady = isProjectIndexReady(snap.files, root);
   const [result, setResult] = useState<ProjectAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -33,11 +37,18 @@ export function ProjectGraphPanel() {
   const graph = useProjectGraphLayout(c, root);
   const layout = graph.layout;
 
-  // Analysis: on mount, on refresh, and whenever the active project changes.
+  // Analysis: on mount, on refresh, and whenever the active project changes. The index gate
+  // is one-shot: after it opens, a later edit/import does not re-run the analysis per keystroke.
   useEffect(() => {
     if (root === null) {
       setResult(null);
       setLoading(false);
+      return;
+    }
+    if (!indexReady) {
+      // Still indexing: analyzing now would report an empty project (missing-config error).
+      setResult(null);
+      setLoading(true);
       return;
     }
     let cancelled = false;
@@ -57,7 +68,7 @@ export function ProjectGraphPanel() {
     return () => {
       cancelled = true;
     };
-  }, [c, root, nonce]);
+  }, [c, root, nonce, indexReady]);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -116,6 +127,9 @@ export function ProjectGraphPanel() {
   // Notes are content too: a graph with only annotations is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
+  // While the index is still landing there is no result for this project yet: loading outranks
+  // a stale error/empty from the previous project or the empty-snapshot analysis.
+  else if (!indexReady) state = { kind: "loading" };
   else if (result !== null && !result.ok) state = { kind: "error", error: result.error };
   else if (view === null || !layoutLoaded) state = { kind: "loading" };
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
