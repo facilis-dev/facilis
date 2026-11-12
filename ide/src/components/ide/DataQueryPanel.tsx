@@ -14,10 +14,14 @@ import SquareTerminal from "~icons/lucide/square-terminal";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { devBase, devEndpointUrl } from "@/facilis/dev-base";
+import { fetchDataExplorer } from "@/facilis/data-explorer-client";
+import { buildExplorerView } from "@/facilis/data-explorer-model";
 import { runDevQuery, type DevQueryColumn, type DevQueryResult } from "@/facilis/dev-query-client";
 import { fetchManifestAt, MANIFEST_PATH, readDeclaredPermissions } from "@/facilis/manifest-client";
+import type { SqlTable } from "@/facilis/sql-completion";
 import { DataQueryCreateViewDialog } from "./DataQueryCreateViewDialog";
 import { DataQueryResults } from "./DataQueryResults";
+import { SqlQueryEditor } from "./SqlQueryEditor";
 import { useIde } from "./useIde";
 
 /** The config-section manifest URL, keeping the preview's kernel token. */
@@ -37,6 +41,7 @@ export function DataQueryPanel() {
   const [running, setRunning] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [permissions, setPermissions] = useState<readonly string[]>([]);
+  const [schemaTables, setSchemaTables] = useState<readonly SqlTable[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   // Abort an in-flight query when the tab closes; the response has nowhere to go.
@@ -45,6 +50,33 @@ export function DataQueryPanel() {
   // A different preview (or none) invalidates the rows shown for the previous one.
   useEffect(() => {
     setResult(null);
+  }, [base]);
+
+  // Completion needs the live schema; a project that is not running (or an endpoint that
+  // fails) leaves the list empty, which degrades completion to keywords instead of
+  // breaking the console.
+  useEffect(() => {
+    if (base === null) {
+      setSchemaTables([]);
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    void fetchDataExplorer(base, { signal: controller.signal }).then((schema) => {
+      if (cancelled) return;
+      setSchemaTables(
+        schema.ok
+          ? buildExplorerView(schema.data).tables.map((table) => ({
+              name: table.name,
+              columns: table.columns.map((column) => column.name),
+            }))
+          : [],
+      );
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [base]);
 
   // The create-view dialog offers only permissions declared in facilis.config.ts. Refetch
@@ -136,20 +168,11 @@ export function DataQueryPanel() {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <textarea
-          data-testid="data-query-editor"
-          aria-label={t("dataQuery.editorLabel")}
+        <SqlQueryEditor
           value={sql}
-          spellCheck={false}
-          placeholder={t("dataQuery.placeholder")}
-          onChange={(event) => setSql(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault();
-              void run();
-            }
-          }}
-          className="h-36 shrink-0 resize-y border-b bg-editor px-3 py-2 font-mono text-xs text-editor-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-inset focus:ring-ring"
+          onChange={setSql}
+          onRun={() => void run()}
+          schemaTables={schemaTables}
         />
         <div className="min-h-0 flex-1 overflow-hidden">
           {base === null ? (
