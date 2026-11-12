@@ -43,12 +43,23 @@ export interface RouteNodeData {
   readonly unknown: boolean;
 }
 
+/**
+ * One policy as the graph names it (D-177): the card needs the grant/gate distinction, while the
+ * command and source stay in the inspector's facts.
+ */
+export interface TablePolicyNodeFact {
+  readonly name: string;
+  readonly restrictive: boolean;
+}
+
 export interface TableNodeData {
   readonly kind: "table";
   readonly table: string;
   readonly columns: readonly ColumnFact[];
   readonly rlsEnabled: boolean;
   readonly scope: ScopeFact | null;
+  /** The declared policy set, in declaration order (D-177). */
+  readonly policies: readonly TablePolicyNodeFact[];
   /**
    * True when an installed @facilis.dev package declares the table and the project only
    * re-exports it: its source file lives under `node_modules/`.

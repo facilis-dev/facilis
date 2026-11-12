@@ -74,6 +74,10 @@ export function tableData(node: GraphNode): TableGraphData | null {
       node.data.scope === null
         ? null
         : { column: node.data.scope.column, kind: node.data.scope.kind },
+    policies: node.data.policies.map((policy) => ({
+      name: policy.name,
+      restrictive: policy.restrictive,
+    })),
     unknown: node.data.unknown,
   };
 }

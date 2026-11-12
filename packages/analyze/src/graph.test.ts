@@ -64,6 +64,10 @@ describe("buildProjectGraph", () => {
       kind: "table",
       table: "todos",
       rlsEnabled: true,
+      policies: [
+        { name: "tenant_isolation", restrictive: true },
+        { name: "owner_isolation", restrictive: false },
+      ],
       framework: false,
       unknown: false,
     });

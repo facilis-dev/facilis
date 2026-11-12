@@ -77,6 +77,7 @@ export function tableNode(
     rlsEnabled?: boolean;
     framework?: boolean;
     scope?: { column: string; kind: "tenant" | "owner" } | null;
+    policies?: readonly { name: string; restrictive: boolean }[];
     unknown?: boolean;
     sourceFile?: string;
   } = {},
@@ -93,6 +94,7 @@ export function tableNode(
       rlsEnabled: options.rlsEnabled ?? true,
       framework: options.framework ?? false,
       scope: options.scope ?? null,
+      policies: options.policies ?? [],
       unknown: options.unknown ?? false,
     },
   };

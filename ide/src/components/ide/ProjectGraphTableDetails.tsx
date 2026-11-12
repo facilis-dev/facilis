@@ -74,7 +74,11 @@ export function ProjectGraphTableDetails({
   if (node.data.kind !== "table") return null;
   const table = node.data;
   const columns = details?.columns ?? [];
-  const policies = details?.policies ?? [];
+  // Grants first, gates last (D-177): the tenant gate every scoped table has must not outrank the
+  // policy that actually distinguishes this table.
+  const policies = [...(details?.policies ?? [])].sort(
+    (left, right) => Number(left.restrictive) - Number(right.restrictive),
+  );
   const foreignKeys = details?.foreignKeys ?? [];
   const relations = details?.relations ?? [];
   const usedBy = edges.filter((edge) => edge.kind === "route-table" && edge.target === node.id);
