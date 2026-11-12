@@ -1,10 +1,10 @@
 // The run manifest the IDE hands the kernel for a project it creates or opens.
 //
 // This is the runtime contract with `vv-create-project` / `vv-register-project` and the
-// preview proxy — not a picker's metadata. Before D-051 it lived in `templates.ts` next to
-// the 55-template catalog (icon, category, language, description), which is gone: the IDE
-// creates exactly one kind of project (Facilis) and imported projects get a manifest
-// synthesized from their `package.json` (project-import.ts).
+// preview proxy — not a picker's metadata. The picker's descriptors (label, description,
+// loader) live in `facilis/templates.ts` (D-168); what a template IS here is only how it
+// runs. Imported projects get a manifest synthesized from their `package.json`
+// (project-import.ts).
 export interface ProjectManifest {
   /** Stable id. The kernel uses it to look up a shipped dependency lock, if any. */
   id: string;

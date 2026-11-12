@@ -46,6 +46,19 @@ function replaceOnce(source: string, needle: string, next: string, what: string)
   return source.replace(needle, next);
 }
 
+function replaceOnceIn(
+  source: string,
+  needle: string,
+  next: string,
+  what: string,
+  exampleDir: string,
+): string {
+  if (!source.includes(needle)) {
+    throw new Error("template: " + what + " anchor missing in " + exampleDir);
+  }
+  return source.replace(needle, next);
+}
+
 /** Append the HMR hint the write smoke test replaces, after the app's Toaster. */
 export function injectHmrHint(appSource: string): string {
   return replaceOnce(
@@ -84,16 +97,24 @@ const VM_NITRO_RUNNER = `  // Nitro options are project config too (D-034). The 
   nitro: { devServer: { runner: "self" } },
 `;
 
-/** Point the project at "main" and give Nitro the runner the VM can execute. */
-export function addVmNitro(configSource: string): string {
-  const config = replaceOnce(
+/**
+ * Point the project at "main" and give Nitro the runner the VM can execute.
+ *
+ * Shared by every full-stack template: the anchors are the same shape in any
+ * `facilis.config.ts` (`release: { ref: "origin/main" }` and the closing `});`), and the
+ * error message names the example so a refactor fails loudly instead of generating a
+ * different app.
+ */
+export function addVmNitro(configSource: string, exampleDir = "examples/todo-app"): string {
+  const config = replaceOnceIn(
     configSource,
     'release: { ref: "origin/main" }',
     'release: { ref: "main" }',
     "release ref",
+    exampleDir,
   );
   if (!/\n\}\);\s*$/.test(config)) {
-    throw new Error("template: facilis.config.ts tail anchor missing in examples/todo-app");
+    throw new Error("template: facilis.config.ts tail anchor missing in " + exampleDir);
   }
   return config.replace(/\n\}\);\s*$/, "\n" + VM_NITRO_RUNNER + "});\n");
 }

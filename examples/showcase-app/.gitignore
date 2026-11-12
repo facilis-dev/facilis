@@ -1,0 +1,10 @@
+# Dependencies, build output and local state for a standalone static template.
+node_modules/
+dist/
+.turbo/
+.vite-cache/
+coverage/
+*.log
+*.tsbuildinfo
+.env*
+.DS_Store

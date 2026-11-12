@@ -1,0 +1,37 @@
+{
+  "name": "@facilis.dev/example-showcase-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static showcase template (frontend only): React 19 + Vite + Tailwind v4, no backend.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "oxlint src"
+  },
+  "dependencies": {
+    "clsx": "2.1.1",
+    "lucide-react": "1.66.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.5",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "oxlint": "catalog:",
+    "tailwindcss": "4.3.5",
+    "typescript": "catalog:",
+    "vite": "8.3.5",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}

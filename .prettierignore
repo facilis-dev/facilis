@@ -4,6 +4,7 @@ dist/
 coverage/
 .turbo/
 .vite/
+.vite-cache/
 # Generated files owned by tooling
 .agents/
 pnpm-lock.yaml

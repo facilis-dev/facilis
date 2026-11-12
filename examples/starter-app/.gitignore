@@ -1,0 +1,15 @@
+# Dependencies, build output and local state. examples/starter-app is the empty template the
+# IDE scaffolds, so a standalone copy installs with npm and builds with "vite build".
+node_modules/
+.output/
+dist/
+.turbo/
+# Vite's dep-optimizer cache (cacheDir at the project root so the VM mirrors it).
+.vite-cache/
+# Studio layout/editor state (docs/findings/ast-dsl-contract.md §7).
+.facilis/
+coverage/
+*.log
+*.tsbuildinfo
+.env*
+.DS_Store

@@ -99,8 +99,8 @@ export async function cloneIntoProject(
   });
   if (manifest === null) {
     // An empty or README-only repository: the clone is fine, there is just no project in
-    // it yet. Offer the one template instead of leaving the user with an empty editor
-    // (D-080); the .git and the remote stay, so the publish is a normal push.
+    // it yet. Offer to scaffold a template instead of leaving the user with an empty
+    // editor (D-080); the .git and the remote stay, so the publish is a normal push.
     toast.info(t("clone.emptyTitle"), {
       description: t("clone.emptyDescription"),
       duration: 15000,
