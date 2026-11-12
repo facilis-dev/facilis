@@ -47,7 +47,7 @@ type InternalProjectNode = InternalNode<ProjectFlowNode>;
 
 /** Card widths from the Tailwind classes, used before React Flow reports a measurement. */
 const FALLBACK_SIZE: Record<string, { readonly width: number; readonly height: number }> = {
-  page: { width: 224, height: 44 },
+  page: { width: 224, height: 157 },
   route: { width: 256, height: 60 },
   table: { width: 240, height: 80 },
   view: { width: 240, height: 80 },

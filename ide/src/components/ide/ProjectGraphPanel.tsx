@@ -273,8 +273,6 @@ export function ProjectGraphPanel() {
             edges={selectedEdges}
             details={details.get(selectedNode.id) ?? null}
             sources={sources}
-            locales={analysis?.locales ?? {}}
-            defaultLocale={analysis?.config.defaultLocale ?? null}
             nodeLabel={nodeLabel}
             onClose={() => setSelectedNodeId(null)}
             onOpenFileAt={openFileAt}
