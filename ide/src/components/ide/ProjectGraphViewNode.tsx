@@ -31,7 +31,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-view"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging) + " w-60"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-60"}
     >
       <div className="flex items-center gap-1.5">
         <Eye className="size-3 shrink-0 text-muted-foreground" />

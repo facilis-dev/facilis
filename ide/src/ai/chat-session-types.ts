@@ -5,6 +5,7 @@
 
 import type { Analysis, FilePatch, SyntaxChecker } from "@facilis.dev/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
+import type { GraphViewAccess } from "./graph-view-access";
 import type { PreviewAccess } from "./preview-access";
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
@@ -28,6 +29,8 @@ export interface ChatHost {
   syntaxChecker?(): SyntaxChecker | null;
   /** The running preview, when the IDE has one (D-111): the preview tools drive the app. */
   preview?: PreviewAccess;
+  /** The visible project graph (D-171): highlight/paths/screenshot act on the panel's ids. */
+  graphView?: GraphViewAccess;
   /** Runs before the context is assembled (MCP discovery, D-118); must not throw. */
   prepare?(): Promise<void>;
   /**

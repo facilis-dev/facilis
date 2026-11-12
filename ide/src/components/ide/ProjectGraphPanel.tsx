@@ -21,6 +21,7 @@ import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { ProjectGraphToolbar } from "./ProjectGraphToolbar";
 import { useIde } from "./useIde";
+import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
 
 export function ProjectGraphPanel() {
@@ -41,6 +42,8 @@ export function ProjectGraphPanel() {
   const [sources, setSources] = useState<ReadonlyMap<string, string>>(new Map());
   const graph = useProjectGraphLayout(c, root);
   const layout = graph.layout;
+  // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
+  const focus = useProjectGraphFocus();
 
   // Analysis: on mount, on refresh, and whenever the active project changes. The index gate
   // is one-shot: after it opens, a later edit/import does not re-run the analysis per keystroke.
@@ -186,6 +189,7 @@ export function ProjectGraphPanel() {
         viewport={layout.viewport ?? null}
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
+        focus={focus}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}

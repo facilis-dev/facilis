@@ -227,9 +227,13 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       }
       scripts = turnNumber;
       trace.push(...run.trace);
-      // D-112: screenshots the program took travel with its result turn (the activity row
-      // shows them to the user; a vision preset also sends them to the model).
-      const images = input.host.preview?.takeImages() ?? [];
+      // D-112/D-171: preview and project-graph screenshots the program took travel with its
+      // result turn (the activity row shows them to the user; a vision preset also sends them
+      // to the model).
+      const images = [
+        ...(input.host.preview?.takeImages() ?? []),
+        ...(input.host.graphView?.takeImages() ?? []),
+      ];
       input.onScript?.(run, program, images);
       appendTurn(turns, { role: "assistant", content: result.text });
       appendTurn(turns, {
