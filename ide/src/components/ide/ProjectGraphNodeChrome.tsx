@@ -11,14 +11,25 @@ import type { ProjectGraphNode } from "@/facilis/graph-model";
 const NODE_BASE =
   "cursor-pointer select-none rounded-md border bg-card px-2 py-1.5 text-card-foreground ";
 
-export function nodeClass(selected: boolean, matched: boolean, dragging: boolean): string {
+/**
+ * The card frame classes. A card recedes when the search excludes it or when an AI focus (D-171)
+ * names other nodes; a single opacity class keeps the two dims from stacking into an unreadable
+ * card.
+ */
+export function nodeClass(
+  selected: boolean,
+  matched: boolean,
+  dragging: boolean,
+  focused: boolean,
+): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
     : dragging
       ? "border-primary ring-1 ring-ring"
       : "hover:border-ring";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
-  return NODE_BASE + elevation + " " + border + (matched ? "" : " opacity-40");
+  const dimmed = !matched || !focused;
+  return NODE_BASE + elevation + " " + border + (dimmed ? " opacity-40" : "");
 }
 
 /**

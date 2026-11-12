@@ -35,6 +35,8 @@ export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
 export type ProjectGraphEdgeData = {
   readonly kind: GraphEdgeKind;
   readonly access?: "elevated";
+  /** False when an AI focus request (D-171) names other edges: the edge is drawn faint. */
+  readonly focused?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -151,6 +153,9 @@ export function ProjectGraphEdge({
     strokeWidth: highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
+    // Focus dims the edges it does not name with opacity, not a colour: the theme still owns
+    // the stroke (D-043).
+    ...(data?.focused === false ? { opacity: 0.25 } : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
   };
 

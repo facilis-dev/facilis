@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CallModelInput } from "./client";
+import type { GraphViewAccess } from "./graph-view-access";
 import type { PtcRunResult } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import type { ChatTraceCall } from "./types";
@@ -159,6 +160,38 @@ describe("runTurn with PTC exploration", () => {
     const resultTurn = calls[1]?.messages.at(-1);
     expect(resultTurn?.role).toBe("user");
     expect(resultTurn?.images).toEqual(images);
+  });
+
+  it("attaches preview and project-graph screenshots to the tool result (D-171)", async () => {
+    const calls: CallModelInput[] = [];
+    const preview = "data:image/jpeg;base64,UFJFVg==";
+    const graph = "data:image/jpeg;base64,R1JBUEg=";
+    const seen: (readonly string[])[] = [];
+    const graphView: GraphViewAccess = {
+      highlight: async () => ({}),
+      paths: async () => ({}),
+      capture: async () => ({}),
+      takeImages: () => [graph],
+    };
+    const outcome = await runTurn({
+      call: capture([script("return 1"), answer([NEW_FILE])], calls),
+      settings,
+      system: "system",
+      messages: [{ role: "user", content: "inspect the graph" }],
+      host: {
+        ...host(),
+        preview: previewAccess({ takeImages: () => [preview] }),
+        graphView,
+      },
+      signal: SIGNAL,
+      onText: () => {},
+      onRepair: () => {},
+      runner: runner(okRun(1)),
+      onScript: (_result, _program, captured) => seen.push(captured),
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual([[preview, graph]]);
+    expect(calls[1]?.messages.at(-1)?.images).toEqual([preview, graph]);
   });
 
   it("does not inline file content in a repair when the tools are available", async () => {

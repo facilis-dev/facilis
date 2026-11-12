@@ -21,6 +21,8 @@ import { ViewGraphNode } from "./ProjectGraphViewNode";
 export type ProjectFlowData = {
   node: ProjectGraphNode;
   collapsed: boolean;
+  /** False when an AI focus request (D-171) names other nodes: the card is drawn dimmed. */
+  focused: boolean;
   onToggleCollapse: (id: string) => void;
 };
 
@@ -44,7 +46,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-page"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging) + " w-56"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-56"}
     >
       <div className="flex items-center gap-1.5">
         <FileCode className="size-3 shrink-0 text-muted-foreground" />
@@ -108,7 +110,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
     <div
       data-testid="project-graph-table"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging) + " w-60"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-60"}
     >
       <div className="flex items-center gap-1.5">
         <Table2 className="size-3 shrink-0 text-muted-foreground" />
@@ -201,7 +203,7 @@ export function WorkflowGraphNode({
     <div
       data-testid="project-graph-workflow"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging) + " w-64"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-64"}
     >
       <div className="flex items-center gap-1.5">
         <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />

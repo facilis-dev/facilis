@@ -39,11 +39,12 @@ import {
   LINK_SOURCE_HANDLE_ID,
   LINK_TARGET_HANDLE_ID,
   PROJECT_GRAPH_NODE_TYPES,
-  type ProjectAnalysisFlowNode,
   type ProjectFlowNode,
 } from "./ProjectGraphNodes";
-import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
+import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
 import { edgeStyleFor } from "./project-graph-edges";
+import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export function ProjectGraphCanvas({
@@ -53,6 +54,7 @@ export function ProjectGraphCanvas({
   viewport,
   fitNonce,
   edgeCurves,
+  focus,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -71,6 +73,7 @@ export function ProjectGraphCanvas({
   viewport: GraphViewport | null;
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
+  focus: ProjectGraphFocusState | null;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -117,52 +120,24 @@ export function ProjectGraphCanvas({
     noteActions.current.onDeleteNote(id);
   }, []);
 
+  // The mapping itself lives in project-graph-flow-nodes: this file keeps the React Flow wiring.
   const buildNodes = useCallback(
     (
       next: ProjectGraphView,
       nextNotes: readonly GraphNote[],
       previous: readonly ProjectFlowNode[],
-    ): ProjectFlowNode[] => {
-      const existing = new Map(previous.map((node) => [node.id, node]));
-      const analysis = next.nodes.map((node) => {
-        const current = existing.get(node.id);
-        const base: ProjectAnalysisFlowNode = {
-          id: node.id,
-          type: node.kind,
-          position: { x: node.position.x, y: node.position.y },
-          data: { node, collapsed: node.collapsed, onToggleCollapse: toggleCollapse },
-          draggable: true,
-          selected: node.id === selectedNodeId,
-        };
-        if (current === undefined || current.type === NOTE_NODE_TYPE) return base;
-        // A drag in flight wins over the saved layout: only the stop commits the position.
-        return {
-          ...current,
-          ...base,
-          position: current.dragging === true ? current.position : base.position,
-        };
-      });
-      // Notes are never filtered by the search: an annotation stays put when the analysis is
-      // narrowed. They carry no handles, so no edge can end on one.
-      const noteNodes = nextNotes.map((note) => {
-        const current = existing.get(note.id);
-        const base: ProjectNoteFlowNode = {
-          id: note.id,
-          type: NOTE_NODE_TYPE,
-          position: { x: note.x, y: note.y },
-          data: { note, onEditNote: editNote, onDeleteNote: deleteNote },
-          draggable: true,
-        };
-        if (current === undefined || current.type !== NOTE_NODE_TYPE) return base;
-        return {
-          ...current,
-          ...base,
-          position: current.dragging === true ? current.position : base.position,
-        };
-      });
-      return [...analysis, ...noteNodes];
-    },
-    [toggleCollapse, editNote, deleteNote, selectedNodeId],
+    ): ProjectFlowNode[] =>
+      buildProjectGraphFlowNodes({
+        view: next,
+        notes: nextNotes,
+        previous,
+        selectedNodeId,
+        focus,
+        onToggleCollapse: toggleCollapse,
+        onEditNote: editNote,
+        onDeleteNote: deleteNote,
+      }),
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -182,6 +157,22 @@ export function ProjectGraphCanvas({
     if (instance === null || fitNonce <= 0) return;
     instance.fitView({ padding: 0.15, duration: 200 });
   }, [fitNonce, instance]);
+
+  // A focus request names nodes that must exist in state before fitView can frame them, so the
+  // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
+  // from refitting: `nodes` is a dependency only so a request made mid-build lands on a later
+  // pass, not on every pointer move.
+  const fittedFocus = useRef<ProjectGraphFocusState | null>(null);
+  useEffect(() => {
+    if (instance === null || focus === null || !focus.zoom) return;
+    if (fittedFocus.current === focus) return;
+    const targets = nodes
+      .filter((node) => focus.nodeIds.has(node.id))
+      .map((node) => ({ id: node.id }));
+    if (targets.length === 0) return;
+    fittedFocus.current = focus;
+    void instance.fitView({ nodes: targets, padding: 0.15, duration: 200 });
+  }, [focus, instance, nodes]);
 
   // Adding a note is an event, not state: only a nonce change creates one, so a click made
   // while the canvas is not rendered cannot materialize a note on the next mount. The panel
@@ -217,13 +208,15 @@ export function ProjectGraphCanvas({
           data: {
             kind: edge.kind,
             ...(edge.access === undefined ? {} : { access: edge.access }),
+            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
+            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
             curve: edgeCurves[edge.id] ?? null,
             onCurveChange: onEdgeCurveChange,
           },
           markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
         };
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange],
+    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
@@ -245,7 +238,11 @@ export function ProjectGraphCanvas({
     const target = view.nodes.find((entry) => entry.id === node.id);
     if (target !== undefined) onOpenNode(target);
   };
-  const onMoveStart: OnMoveStart = () => {
+  const onMoveStart: OnMoveStart = (event) => {
+    // A fitView transition has no source event, so this is how a programmatic move is told from
+    // a user's. While a focus is active such a move is the focus fit, and it must not be saved:
+    // the layout keeps the viewport the user chose (D-171 persists no focus state).
+    if (event === null && focus !== null) return;
     moved.current = true;
   };
   const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {

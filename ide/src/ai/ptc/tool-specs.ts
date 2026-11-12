@@ -69,6 +69,21 @@ export const GRAPH_TOOL_SPECS: readonly PtcToolSpec[] = [
     "graph_arrange({ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? })",
     "Arrange the project graph and write .facilis/graph immediately: move nodes, bend or reset edges (0,0), create/edit/delete notes (id absent = create), replace the hidden edge-kind set, collapse tables and views.",
   ),
+  spec(
+    "graph_highlight",
+    "graph_highlight({ nodes?, edges?, zoom? })",
+    "Focus visible node/edge ids on the canvas and open the graph tab; empty clears the focus, absent zoom fits the viewport. Returns { ok, nodes, edges, unknown } (unknown = ids not in the visible view).",
+  ),
+  spec(
+    "graph_paths",
+    "graph_paths({ from, to?, maxPaths?, maxHops?, highlight? })",
+    "Fewest-hop UNDIRECTED paths over the visible edges (an fk/relation edge connects both ways). With to: the fewest-hop path within maxHops (<=12). Without to: the shortest path to each of the closest maxPaths (<=5) reachable nodes (hop count, then id). Focuses the union of the returned paths and opens the graph unless highlight is false. Returns { ok, paths: [{ nodes, edges }], unknown }.",
+  ),
+  spec(
+    "graph_screenshot",
+    "graph_screenshot({ nodes?, edges? })",
+    "Off-DOM JPEG of the visible graph, or of the cards/connections named by ids (an edge brings its endpoints): max dimension 1536px, at most 2 per program. The user sees the image and a vision model receives it. Returns { captured, width?, height?, bytes?, reason? } with a machine reason code.",
+  ),
 ];
 
 /**
