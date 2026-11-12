@@ -1,35 +1,12 @@
-// One transcript entry (D-114/CHAT-UX): the assistant's prose is a plain block, the user's
-// message a quiet bubble on the right; pasted images sit above the text (D-113) and fenced code
-// blocks become a monospace panel. Theme roles only, so both themes flip without a component
-// change (D-044).
+// One transcript entry (D-114/CHAT-UX): the assistant's prose is Markdown, the user's message a
+// quiet plain-text bubble on the right (a user's literal text must not turn into markup); pasted
+// images sit above it (D-113). Theme roles only, so both themes flip without a component change
+// (D-044).
 
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/ai/types";
-
-/** Split on triple backticks; odd parts are code, and their first line is the language. */
-function MessageContent({ text }: { text: string }) {
-  const parts = text.split("```");
-  if (parts.length === 1) return <span className="whitespace-pre-wrap break-words">{text}</span>;
-  return (
-    <>
-      {parts.map((part, index) =>
-        index % 2 === 1 ? (
-          <pre
-            key={index}
-            className="mt-1 max-h-64 overflow-auto rounded bg-editor p-1.5 font-mono text-[11px] leading-4 text-editor-foreground"
-          >
-            {part.replace(/^[a-zA-Z0-9_+-]+\n/, "")}
-          </pre>
-        ) : (
-          <span key={index} className="whitespace-pre-wrap break-words">
-            {part}
-          </span>
-        ),
-      )}
-    </>
-  );
-}
+import { ChatMarkdown } from "./ChatMarkdown";
 
 export function ChatMessageView({
   message,
@@ -60,7 +37,11 @@ export function ChatMessageView({
             ))}
           </div>
         )}
-        <MessageContent text={message.content} />
+        {user ? (
+          <span className="whitespace-pre-wrap break-words">{message.content}</span>
+        ) : (
+          <ChatMarkdown text={message.content} />
+        )}
         {streaming && (
           <span
             aria-hidden="true"
