@@ -194,6 +194,9 @@ confined to the project root, and go through one policy function.
 | `preview_screenshot` | `{}` | JPEG of the page (html2canvas): shown to the user, sent to vision models (D-112) |
 | `graph_state` | `{}` | project graph: nodes (kind, label, position), edges (with manual bend), markdown notes, visibility (D-126) |
 | `graph_arrange` | `{ moves?, curves?, notes?, delete_notes?, hidden_edges?, collapsed? }` | applies a validated, capped arrangement to the committed graph state; the open panel reloads (D-126) |
+| `graph_highlight` | `{ nodes?, edges?, zoom? }` | focuses visible node/edge ids on the canvas (empty clears), opens the graph tab (D-171) |
+| `graph_paths` | `{ from, to?, maxPaths?, maxHops?, highlight? }` | fewest-hop undirected connections over the visible edges, ≤ 5 paths / ≤ 12 hops; highlights the result (D-171) |
+| `graph_screenshot` | `{ nodes?, edges? }` | off-DOM JPEG of the visible graph or the named subset, ≤ 1536 px, ≤ 2 per program; shown to the user, sent to vision models (D-171) |
 | `git_status` | `{}` | repo present?, current branch, staged/unstaged changes (repo-relative), ahead/behind (D-139) |
 | `git_diff` | `{ path?, staged? }` | unified diff, ≤ 24 KB / ≤ 100 files |
 | `git_log` | `{ limit? }` | recent commits: short oid, first line, author, timestamp (≤ 30) |
@@ -231,6 +234,14 @@ to the committed `.facilis/graph/` state and refreshes the open panel. Like the 
 below, this is a write-intent family that lands with phase 1: the graph is diagram state, not
 source, so it is not the §9.3 patch path and never validated as a code patch, and the source
 allowlist is unchanged. With no project open they answer `{ available: false }`.
+
+**The graph-view tools (D-171) act on what the panel draws.** `graph_highlight` focuses visible
+ids and opens the graph tab (a request made while the tab is closed replays on the next mount);
+`graph_paths` searches the visible edges undirected for the fewest-hop connection; and
+`graph_screenshot` renders the visible view off-DOM — a pure scene from the committed layout plus
+a canvas painter, no DOM capture — onto the same image channel as `preview_screenshot` (D-112),
+bounded to two images per program. Ids are validated against the panel's view, so an id that is
+not in that view is returned as data rather than guessed, and nothing here writes project state.
 
 **The git tools (D-139) operate the repository, not the source.** They drive the IDE's own
 Source Control sessions — `ScmSession` for the index/history/refs and `GitRemoteSession` for the
