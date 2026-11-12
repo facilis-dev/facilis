@@ -193,6 +193,11 @@ Still open: the eval corpus and browser matrix, the skills runtime, the declared
 
 Facilis is real: the framework packages, the acceptance app and the browser IDE run today. Contributions welcome — start with [`AGENTS.md`](AGENTS.md) for conventions and [`docs/DECISIONS.md`](docs/DECISIONS.md) for the decision log.
 
+**Pull requests are required (policy from 2026-11-12).** Every change reaches `main`
+through a pull request with at least one approving review — direct pushes and direct merges
+are not allowed. Branch, open the PR with the Definition-of-done evidence (`pnpm lint`,
+`pnpm typecheck`, `pnpm test`, `pnpm build`), get one approval, then merge.
+
 For now, the most useful thing you can do is **read `docs/SPEC.md` and file issues** on anything ambiguous, contradictory, or under-specified.
 
 ---

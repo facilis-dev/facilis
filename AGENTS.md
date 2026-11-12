@@ -130,8 +130,14 @@ A change is done when all of the following are true:
 ## Git
 
 - **Conventional Commits**: `feat|fix|chore|docs|test|refactor(scope): summary`.
-- Work on a branch; `main` is the integration branch. Never commit secrets, `.env`,
-  private keys, or generated runtime manifests (`/__facilis/manifest` is never committed).
+- Work on a branch; `main` is the integration branch.
+- **`main` is protected (policy from 2026-11-12): every change reaches it through a pull
+  request with at least one approving review — no direct push and no direct merge to
+  `main`.** The PR description carries the Definition-of-done evidence (`pnpm lint`,
+  `pnpm typecheck`, `pnpm test`, `pnpm build`, plus any browser gate the change needs).
+  The repository's GitHub branch protection for `main` must keep this enforced.
+- Never commit secrets, `.env`, private keys, or generated runtime manifests
+  (`/__facilis/manifest` is never committed).
 - Keep commits small and reviewable; do not mix refactors with behaviour changes.
 
 ---
