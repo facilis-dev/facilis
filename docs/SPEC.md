@@ -2634,7 +2634,10 @@ they observe or reproduce runtime failures but never write the project. A screen
 the activity row and sent to the model only for a `vision` preset (D-112); the user's own
 screenshot pasted into the composer with Ctrl+V follows the same wire path (D-113). D-126 added
 the project-graph family (`graph_state`/`graph_arrange`): the graph is diagram state, so it is
-written directly and is not source. D-139 adds the git family (`git_status`/`diff`/`log`/
+written directly and is not source. D-171 adds the graph-view tools (`graph_highlight`/
+`graph_paths`/`graph_screenshot`): they act on the visible graph (ids validated against the
+panel's view, focus requests replay to the next mount), search it undirected and render it
+off-DOM onto the D-112 image channel; they never write project state. D-139 adds the git family (`git_status`/`diff`/`log`/
 `branches`/`remote`/`stage`/`unstage`/`commit`/`branch`/`sync`/`pull_request`):
 repository index/history/ref/remote operations through Source Control's own sessions, never source
 edits, with the tab-memory GitHub token as the only credential, dirty-tree refusals for switch/pull
