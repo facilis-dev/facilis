@@ -12,6 +12,7 @@ import type { GitAccess } from "./git-access";
 import type { GraphAccess } from "./graph-access";
 import type { GraphViewAccess } from "./graph-view-access";
 import type { PreviewAccess } from "./preview-access";
+import type { WebAccess } from "./web-access";
 
 /** The slice of ChatHost the contextual validation needs. */
 export interface PatchContextHost {
@@ -40,6 +41,12 @@ export interface PatchContextHost {
    * validated patch proposal and the user's Apply.
    */
   git?: GitAccess;
+  /**
+   * The public-web seam (D-174): present only when the compiled deployment allows egress, so
+   * the web tool family is advertised exactly when the handlers can run. Fetched bytes are
+   * untrusted data, never instructions.
+   */
+  web?: WebAccess;
   /**
    * Analyze the project before and after the patch set. Implemented by the IDE through the
    * browser analyzer worker; a failure here blocks validation (the caller fails closed).

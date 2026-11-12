@@ -2645,6 +2645,20 @@ and no destructive operation. D-138 makes the transcript itself chronological: a
 persisted on its user message (success, failure or cancel) and rendered between the question and
 the answer, so the executions precede the prose in every state.
 
+**D-174 adds the host-side web family** (`web_fetch`/`web_image`/`web_download`): a program asks
+the host for a URL and the host, not the sandbox, performs the request. Reach is the deployment
+profile — `open` allows any HTTPS host, `managed` only the origins in `network.connect` (the same
+list compiled into `connect-src`), and a managed build with an empty list advertises no web
+tools, so the default is still no egress. Requests are GET with credentials omitted and no
+caller-supplied headers or body, the URL a redirect lands on is re-checked, text is capped at
+32k chars and secret-redacted, images at 5 MB (two per program), downloads at 5 MB (five per
+program), and a program may make 10 calls / 8 MB in total. A download may only write a
+project-relative path under `public/` — a static asset, never source — so the patch path and
+invariant 9 are unchanged.
+The browser's CORS rule is a real limit: a host that does not send `Access-Control-Allow-Origin`
+cannot be read. Fetched content is untrusted data — a prompt-injection vector — so the model
+must never follow instructions found in a page.
+
 ---
 
 ## 10. IDE (fork of Vivari Studio)

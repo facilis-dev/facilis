@@ -1,6 +1,6 @@
 # Facilis — current state
 
-**Status:** 2026-11-11. This page is the "where are we" summary. The contract is
+**Status:** 2026-11-12. This page is the "where are we" summary. The contract is
 [`SPEC.md`](./SPEC.md), the why is [`DECISIONS.md`](./DECISIONS.md) and the environment is
 [`DEV.md`](./DEV.md). The full documentation map is [`README.md`](./README.md).
 
@@ -19,7 +19,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 | Vivari engine | `vendor/vivari/` — git submodule | fork pinned to `facilis/main` = upstream `v1.1.5` + 23 fork commits (`e654919`, D-030) |
 | Acceptance app | [`examples/todo-app`](../examples/todo-app) | `scripts/verify-headless.sh`: auth, RBAC, CRUD, RLS, manifest, `x-db-tables`, jobs, attachments |
 | Template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke` creates, paints and validates a Facilis app (the only creation path, D-051) |
-| Chat + validator | `ide/src/ai/`, `packages/ai/` | PTC runtime — the only mode (D-101/D-103); 19 rules at proposal/Apply/write (D-084/D-162); §9.4 repair loop (D-100) |
+| Chat + validator | `ide/src/ai/`, `packages/ai/` | PTC runtime — the only mode (D-101/D-103); 19 rules at proposal/Apply/write (D-084/D-162); §9.4 repair loop (D-100); host-side `web_fetch`/`web_image`/`web_download` under the deployment profile gate (D-174) |
 | Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/` | pages, explicit page links, audited elevation, framework tables, declarative views and workflow definitions (D-092/D-134/D-160/D-161); committable layout in `.facilis/graph/` (D-126); per-kind details inspector, line-anchored source snippets, schematic page preview and open-in-preview (D-170); AI graph tools focus the visible view, search it undirected and screenshot it off-DOM (D-171) |
 | Entity Explorer + query console | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/` | dev schema diff, read-only SQL console and Create-view (D-083/D-097) |
 | Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | risk-classified ref diff (D-086) on the release-tag plan (D-158) |
@@ -30,7 +30,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 | Binary storage | `packages/storage/`, `packages/core/src/storage.ts` | content-addressed local + S3 drivers, signed tokens, encryption (D-116/D-117) |
 | External API clients | `packages/auth/`, `packages/nitro/` | OAuth2 client-credentials token endpoint and service accounts (D-142/D-143) |
 | Email verification | `packages/auth/` | single-use link, unverified-login refusal, SSO claim (D-156) |
-| Deployment profiles + updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | open/managed builds, CSP, offline update engine (D-063/D-064/D-065/D-070) |
+| Deployment profiles + updates | `ide/vite.deployment.ts`, `ide/src/deploy/` | open/managed builds, CSP, offline update engine (D-063/D-064/D-065/D-070); `network.connect` also gates the AI's web tools (D-174) |
 | Release-time DDL + deploy | `packages/core/src/schema-plan/`, `packages/db/src/schema-digest.ts` | immutable artifact from the tag diff, deploy ledger + fingerprint (D-158/D-159) |
 
 ## Evidence (run it)

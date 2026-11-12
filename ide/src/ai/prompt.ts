@@ -10,6 +10,7 @@
 
 import type { WritePolicy } from "@facilis.dev/ai";
 import { describeTools, type PtcToolSpec } from "./ptc/protocol";
+import { WEB_PROMPT } from "./prompt-web";
 
 const MANIFEST_CHAR_CAP = 16_000;
 const FILE_CONTENT_CHAR_CAP = 12_000;
@@ -238,6 +239,9 @@ export function buildSystemPrompt(context: PromptContext): string {
     }
     if (tools.some((tool) => tool.name.startsWith("git_"))) {
       lines.push(GIT_PROMPT, "");
+    }
+    if (tools.some((tool) => tool.name.startsWith("web_"))) {
+      lines.push(WEB_PROMPT, "");
     }
     if (tools.some((tool) => tool.name.startsWith("mcp_"))) {
       lines.push(MCP_PROMPT, "");

@@ -9,8 +9,8 @@
 // "No project is open" is data (available: false), like the preview tools, so the model can ask
 // the user and retry. The router adds the tool name and signature to every refusal.
 //
-// createRuntimeToolHandlers also lives here: the preview and graph families are the ones whose
-// runtime seam may be absent, and that composition has to sit outside the 300-line router.
+// createRuntimeToolHandlers also lives here: the preview, graph, git and web families are the ones
+// whose runtime seam may be absent, and that composition has to sit outside the 300-line router.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { GRAPH_EDGE_KINDS } from "@/facilis/graph-layout";
@@ -21,6 +21,7 @@ import { createGitHandlers } from "./git-tools";
 import { createGraphViewHandlers } from "./graph-view-tools";
 import { PtcToolError, type PtcJson } from "./protocol";
 import { createPreviewHandlers } from "./preview-tools";
+import { createWebHandlers } from "./web-tools";
 
 type Args = Record<string, unknown>;
 /** A tool family handler: the router unwraps the arguments and formats refusals. */
@@ -233,5 +234,6 @@ export function createRuntimeToolHandlers(
     ...(host.graph === undefined ? {} : createGraphHandlers(host.graph)),
     ...(host.graphView === undefined ? {} : createGraphViewHandlers(host.graphView)),
     ...(host.git === undefined ? {} : createGitHandlers(host.git)),
+    ...(host.web === undefined ? {} : createWebHandlers(host.web)),
   };
 }

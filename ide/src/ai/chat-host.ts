@@ -10,6 +10,8 @@ import type { IdeController } from "@/vv/controller";
 import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
+import { writeProjectAsset } from "@/facilis/vfs-write";
+import { webAccess as deploymentWebAccess } from "@/deploy/current";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { ChatStore } from "./chat-store";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
@@ -19,7 +21,9 @@ import { createGraphViewAccess } from "./graph-view-access";
 import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
 import { createRunnerFrameChild } from "./ptc/runner-frame";
+import { PtcToolError } from "./ptc/protocol";
 import { createToolRouter } from "./ptc/tools";
+import { createWebAccess } from "./web-access";
 import { withMcpTools } from "./mcp/mcp-executor";
 import { McpSession } from "./mcp/mcp-session";
 
@@ -43,19 +47,47 @@ export function chatFor(controller: IdeController): ChatSession {
   return chatStoreFor(controller).active();
 }
 
+/** Absolute VFS path of the open project, or null. */
+function projectRoot(controller: IdeController): string | null {
+  return controller.activeFolder?.rootPath ?? null;
+}
+
 function createSession(controller: IdeController, mcp: McpSession): ChatSession {
   const host = chatHost(controller, mcp);
+  // D-174: the compiled deployment decides whether the web family exists at all; managed
+  // with no declared origin compiles it out (deploymentWebAccess === null). The writer
+  // converts the tool layer's project-relative path into the VFS's absolute one.
+  const web =
+    deploymentWebAccess === null
+      ? null
+      : createWebAccess({
+          policy: deploymentWebAccess,
+          pageOrigin: location.origin,
+          writeAsset: (relativePath, bytes) => {
+            const root = projectRoot(controller);
+            if (root === null) {
+              throw new PtcToolError("capability", "no project is open: a download needs one");
+            }
+            return writeProjectAsset({
+              bridge: controller.bridge,
+              root,
+              path: relativePath,
+              bytes,
+            });
+          },
+        });
+  const sessionHost: ChatHost = web === null ? host : { ...host, web };
   // D-126: the graph's committed team state; D-139: the project's git repository and remotes.
   // Only the PTC router reads them, so they join the PatchValidationHost view here and the
   // ChatHost contract (chat-session-types.ts) stays put.
   const toolHost = {
-    ...host,
+    ...sessionHost,
     graph: createGraphAccess(controller),
     git: createGitAccess(controller),
   };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
-  return new ChatSession(host, {
+  return new ChatSession(sessionHost, {
     runner: createPtcRunner({
       childFactory: createRunnerFrameChild(),
       executorFactory: () => withMcpTools(createToolRouter(toolHost), mcp),
@@ -64,7 +96,7 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
 }
 
 function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
-  const root = (): string | null => controller.activeFolder?.rootPath ?? null;
+  const root = (): string | null => projectRoot(controller);
   const relative = (absolute: string): string => {
     const base = root();
     if (base === null) return absolute;

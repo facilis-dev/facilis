@@ -40,7 +40,8 @@ the validator is blocking and the diff is always shown.
 |---|---|---|
 | provider API | `ai.mode: "byo"` | `ai.providers` allowlist, compiled into `connect-src` |
 | internal LLM gateway | `ai.mode: "gateway"` | `ai.gateway` URL, compiled into `connect-src` |
-| everything else | never | not allowlisted |
+| AI web tools (`web_fetch`/`web_image`/`web_download`) | `open`: any HTTPS host the browser can read; `managed`: only origins in `network.connect`; empty list = no tools (D-174) | `network.connect`, compiled into `connect-src` |
+| everything else | never | not exposed as a tool |
 
 Notes:
 
@@ -109,7 +110,8 @@ so the boundary is the registry, not a context window.
 
 The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_file`, `search`,
 `get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the preview family
-(D-111), the project-graph family (D-126) and the git family (D-139). Tool output is data. A tool
+(D-111), the project-graph family (D-126), the git family (D-139) and the host-side web family
+(`web_fetch`, `web_image`, `web_download`, deployment-gated, D-174). Tool output is data. A tool
 call is never a capability grant: source writes still go through the validator and the user's
 Apply, and every call is logged.
 
@@ -159,7 +161,7 @@ skill/
 | `read` | path globs the skill may read through the tools/context | `[]` |
 | `write` | path globs the skill's patches may touch | `[]` |
 | `tools` | subset of the primitive tool set | `[]` |
-| `network` | always `false` today | `false` |
+| `network` | a skill cannot request network; still `false` only (the host-side web tools are not a skill capability, D-174) | `false` |
 | `commands` | subset of the `run-check` allowlist | `[]` |
 
 Capabilities are a maximum, not a grant: the actual patch/tool call must fit, and a violation
@@ -182,7 +184,7 @@ is a blocking error. No text in `SKILL.md` can add a capability.
 | `read` globs | context assembly and `read-file`/`list-files` |
 | `write` globs | validator and `applyPatch` |
 | `tools` | the tool router |
-| `network` | there is no network tool; skill scripts run in the WebContainer under the same egress policy |
+| `network` | no skill holds it; skill scripts run in the WebContainer under the same egress policy, and the PTC host's `web_*` tools are gated by the deployment profile instead (D-174) |
 | `commands` | the `run-check` allowlist |
 | allowlist/version | resolution, before the skill can be enabled |
 
@@ -201,7 +203,8 @@ in `managed`, ignore/pin for the adopter. A skill update is reviewed like a depe
 
 - no secrets or tokens in any file;
 - minimal capabilities (a reviewer should be able to see why `write` is needed);
-- deterministic wording, no "fetch this URL";
+- deterministic wording, no "fetch this URL" — a skill cannot fetch, and the host's web tools
+  are not part of a skill (D-174);
 - test against `examples/todo-app`;
 - if a skill needs to change auth or the config, that is a red flag: it needs the write
   capability on that path and an explicit user review.

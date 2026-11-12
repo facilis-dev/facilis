@@ -7,6 +7,7 @@ import type { Analysis, FilePatch, SyntaxChecker } from "@facilis.dev/ai";
 import type { PatchBridge } from "@/facilis/apply-patch";
 import type { GraphViewAccess } from "./graph-view-access";
 import type { PreviewAccess } from "./preview-access";
+import type { WebAccess } from "./web-access";
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
@@ -31,6 +32,8 @@ export interface ChatHost {
   preview?: PreviewAccess;
   /** The visible project graph (D-171): highlight/paths/screenshot act on the panel's ids. */
   graphView?: GraphViewAccess;
+  /** The deployment's web reach (D-174): absent when the build has no web family. */
+  web?: WebAccess;
   /** Runs before the context is assembled (MCP discovery, D-118); must not throw. */
   prepare?(): Promise<void>;
   /**

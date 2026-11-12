@@ -7,6 +7,7 @@
 import type { WritePolicy } from "@facilis.dev/ai";
 import { openDeployment } from "./resolve.ts";
 import type { ProjectImports, ResolvedDeployment } from "./types.ts";
+import { webAccessFor, type WebPolicy } from "./web-policy.ts";
 
 declare const __FACILIS_DEPLOYMENT__: ResolvedDeployment | undefined;
 declare const __FACILIS_ENV_VERSION__: string | undefined;
@@ -54,6 +55,9 @@ export function gitProxyConfigured(d: ResolvedDeployment): string | null {
 export function githubOAuthClientId(d: ResolvedDeployment): string | null {
   return d.projects.gitOAuth.githubClientId;
 }
+
+/** The web tools' reach (D-174): null when this build has no web family. */
+export const webAccess: WebPolicy | null = webAccessFor(deployment);
 
 /** AI is available unless the deployment turned it off. */
 export function aiAvailable(d: ResolvedDeployment): boolean {
