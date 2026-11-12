@@ -70,7 +70,7 @@ describe("buildGraphScene", () => {
   it("uses the card size per kind and pads the canvas", () => {
     const scene = buildGraphScene(view, layoutOf(), palette);
     const byId = new Map(scene.nodes.map((node) => [node.id, node]));
-    expect(byId.get(PAGE.id)?.rect).toEqual({ x: 72, y: 72, width: 224, height: 44 });
+    expect(byId.get(PAGE.id)?.rect).toEqual({ x: 72, y: 72, width: 224, height: 157 });
     expect(byId.get(GET.id)?.rect).toEqual({ x: 572, y: 72, width: 256, height: 60 });
     expect(byId.get(TODOS.id)?.rect).toEqual({ x: 1072, y: 372, width: 240, height: 80 });
     // Bounds: x 0..1240, y 0..380, plus 72 px of padding on every side.

@@ -48,7 +48,7 @@ export { GRAPH_COLUMNS } from "./graph-types";
  * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
  * the tallest of the fixed rows because they carry the input flags and path-parameter row.
  */
-const ROW_PITCH = { page: 88, route: 112, table: 190, view: 150, workflow: 150 } as const;
+const ROW_PITCH = { page: 200, route: 112, table: 190, view: 150, workflow: 150 } as const;
 
 /** Blank space between the last table row and the first view row in the schema column. */
 const VIEW_GAP = 56;

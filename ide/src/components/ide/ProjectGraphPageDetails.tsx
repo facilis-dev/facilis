@@ -1,48 +1,20 @@
-// Page inspector: the route table entry (or the fact that it has none), the analyzer's static
-// structure, the API calls the page makes, the components it renders and its explicit links.
+// Page inspector: the route table entry (or the fact that it has none), the schematic mini-page,
+// the API calls the page makes and its explicit links. The labelled component tree that used to
+// sit here is gone on owner request (D-176): at inspector width it read as the very structure the
+// miniature exists to replace.
 
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { PageDetails } from "@/facilis/graph-details";
-import { declarationLineOf } from "@/facilis/graph-source-snippet";
 import { Chip, DetailsSection, EmptyNote, NodeSelectChip } from "./ProjectGraphDetailsSection";
-import { ProjectGraphPreview } from "./ProjectGraphPreview";
+import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { ProjectGraphSourcePreview } from "./ProjectGraphSourcePreview";
-
-/** One file a page renders, deduplicated across the preview tree. */
-interface PageComponent {
-  readonly name: string;
-  readonly file: string;
-  readonly line: number;
-}
-
-function componentsOf(
-  node: ProjectGraphNode,
-  sources: ReadonlyMap<string, string>,
-): readonly PageComponent[] {
-  if (node.data.kind !== "page") return [];
-  const seen = new Map<string, PageComponent>();
-  for (const previewNode of node.data.preview?.nodes ?? []) {
-    const file = previewNode.file;
-    // The page's own root component is the page itself, not one of the pieces it renders.
-    if (file === null || file === node.data.pagePath) continue;
-    const key = file + "\u0000" + previewNode.name;
-    if (seen.has(key)) continue;
-    // The preview's own line is the JSX usage site; the list names the component, so it
-    // opens its declaration in the defining file (line 1 when the shape is unknown).
-    const line = declarationLineOf(sources.get(file), previewNode.name);
-    seen.set(key, { name: previewNode.name, file, line });
-  }
-  return [...seen.values()];
-}
 
 export interface ProjectGraphPageDetailsProps {
   node: ProjectGraphNode;
   edges: readonly ProjectGraphEdge[];
   details: PageDetails | null;
   sources: ReadonlyMap<string, string>;
-  locales: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  defaultLocale: string | null;
   nodeLabel: (id: string) => string | null;
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
@@ -54,8 +26,6 @@ export function ProjectGraphPageDetails({
   edges,
   details,
   sources,
-  locales,
-  defaultLocale,
   nodeLabel,
   onOpenFileAt,
   onOpenPreview,
@@ -65,7 +35,6 @@ export function ProjectGraphPageDetails({
   const page = node.data;
   const firstPath = page.routePaths[0];
   const calls = details?.calls ?? [];
-  const components = componentsOf(node, sources);
   // Links are interesting in both directions: a page that is only linked-to should not read as
   // "no explicit page links". The chip names the far endpoint.
   const links = edges.filter(
@@ -96,15 +65,18 @@ export function ProjectGraphPageDetails({
         </button>
       )}
       <DetailsSection title={t("projectGraph.preview.title")}>
-        {page.preview === null ? (
+        {page.preview === null || page.preview.nodes.length === 0 ? (
           <EmptyNote message={t("projectGraph.preview.empty")} />
         ) : (
-          <ProjectGraphPreview
-            preview={page.preview}
-            locales={locales}
-            defaultLocale={defaultLocale}
-            onOpenFileAt={onOpenFileAt}
-          />
+          <>
+            <ProjectGraphPageSketch preview={page.preview} />
+            <p className="text-[9px] text-muted-foreground">
+              {t("projectGraph.preview.staticNote")}
+            </p>
+            {page.preview.truncated && (
+              <p className="text-[9px] text-warning">{t("projectGraph.preview.truncated")}</p>
+            )}
+          </>
         )}
       </DetailsSection>
       <DetailsSection title={t("projectGraph.section.calls")}>
@@ -144,23 +116,6 @@ export function ProjectGraphPageDetails({
           </ul>
         )}
       </DetailsSection>
-      {components.length > 0 && (
-        <DetailsSection title={t("projectGraph.section.components")}>
-          <ul className="flex flex-wrap gap-1">
-            {components.map((component) => (
-              <li key={component.file + "\u0000" + component.name}>
-                <Chip
-                  mono
-                  title={t("projectGraph.openSource", { source: component.file })}
-                  onClick={() => onOpenFileAt(component.file, component.line)}
-                >
-                  {component.name}
-                </Chip>
-              </li>
-            ))}
-          </ul>
-        </DetailsSection>
-      )}
       <DetailsSection title={t("projectGraph.links")}>
         {links.length === 0 ? (
           <EmptyNote message={t("projectGraph.noLinks")} />

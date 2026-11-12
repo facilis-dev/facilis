@@ -18,8 +18,6 @@ export interface ProjectGraphInspectorProps {
   edges: readonly ProjectGraphEdge[];
   details: NodeDetails | null;
   sources: ReadonlyMap<string, string>;
-  locales: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  defaultLocale: string | null;
   nodeLabel: (id: string) => string | null;
   onClose: () => void;
   onOpenFileAt: (file: string, line: number) => void;
@@ -32,8 +30,6 @@ export function ProjectGraphInspector({
   edges,
   details,
   sources,
-  locales,
-  defaultLocale,
   nodeLabel,
   onClose,
   onOpenFileAt,
@@ -79,8 +75,6 @@ export function ProjectGraphInspector({
             {...shared}
             edges={edges}
             details={details?.kind === "page" ? details.page : null}
-            locales={locales}
-            defaultLocale={defaultLocale}
             onOpenPreview={onOpenPreview}
           />
         )}

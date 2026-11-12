@@ -14,6 +14,7 @@ import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
+import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
 import { ViewGraphNode } from "./ProjectGraphViewNode";
 
@@ -76,9 +77,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         </span>
       </div>
       {page.preview !== null && page.preview.nodes.length > 0 && (
-        <p className="mt-0.5 text-[9px] text-muted-foreground">
-          {t("projectGraph.preview.sections", { count: page.preview.nodes.length })}
-        </p>
+        <ProjectGraphPageSketch preview={page.preview} className="mt-1.5" />
       )}
       <LinkHandles />
     </div>

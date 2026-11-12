@@ -169,9 +169,12 @@ controls (`button`/`a`/`input`/`select`/`textarea`/`label`) and the media elemen
 siblings (`div`); a control is kept even without copy because it is a visible block. Content nodes
 have their own bounded budget so they cannot starve the structural ones. Only direct children of
 elements that already produce a node are read, so a flattened wrapper contributes no node and no
-label. The IDE renders the preview as a **schematic semi-render** — blocks, component cards and
-placeholder rows, labels resolved through the project's locale catalogs — explicitly not the page's
-CSS nor a mounted React tree (D-170).
+label. The IDE no longer draws the node tree: the page card and the inspector render a
+**schematic mini-page** (`graph-page-sketch.ts`: the header/rail shell plus at most four coarse
+regions — form, list, media, copy, a board per unexpanded component, one branch per run of
+conditional alternatives — as a fixed-ratio wireframe with no labels), explicitly not the page's
+CSS nor a mounted React tree (D-170, D-176). The labels above stay facts for other consumers (the
+AI tools); the miniature does not print them.
 
 ### 3.5 i18n
 

@@ -25,7 +25,7 @@ import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./gra
 const CARD_SIZES: Readonly<
   Record<GraphNodeKind, { readonly width: number; readonly height: number }>
 > = {
-  page: { width: 224, height: 44 },
+  page: { width: 224, height: 157 },
   route: { width: 256, height: 60 },
   table: { width: 240, height: 80 },
   view: { width: 240, height: 80 },
