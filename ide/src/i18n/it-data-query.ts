@@ -7,7 +7,6 @@ export const dataQueryIt: Partial<Record<MessageKey, string>> = {
   "dataQuery.open": "Apri console SQL",
   "dataQuery.title": "Console SQL",
   "dataQuery.editorLabel": "Query SQL",
-  "dataQuery.placeholder": "select * from todos limit 50",
   "dataQuery.run": "Esegui",
   "dataQuery.runShortcut": "Esegui (Ctrl/Cmd + Invio)",
   "dataQuery.running": "Esecuzione della query…",

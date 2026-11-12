@@ -7,7 +7,6 @@ export const dataQueryEn = {
   "dataQuery.open": "Open SQL console",
   "dataQuery.title": "SQL console",
   "dataQuery.editorLabel": "SQL query",
-  "dataQuery.placeholder": "select * from todos limit 50",
   "dataQuery.run": "Run",
   "dataQuery.runShortcut": "Run (Ctrl/Cmd + Enter)",
   "dataQuery.running": "Running query…",
