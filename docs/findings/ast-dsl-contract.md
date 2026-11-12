@@ -171,7 +171,7 @@ have their own bounded budget so they cannot starve the structural ones. Only di
 elements that already produce a node are read, so a flattened wrapper contributes no node and no
 label. The IDE renders the preview as a **schematic semi-render** — blocks, component cards and
 placeholder rows, labels resolved through the project's locale catalogs — explicitly not the page's
-CSS nor a mounted React tree (D-169).
+CSS nor a mounted React tree (D-170).
 
 ### 3.5 i18n
 
@@ -303,12 +303,12 @@ panels.
 - **route**: method + path, the wrapper config's one-sentence description (clamped to two
   lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
   input flags (`body | form | query | params`), path parameters from the route template, source;
-- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections plus content intrinsics — paragraphs, controls, media — each carrying its static `text`/`tKey` label, D-169); pages with no API calls are shown too;
+- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections plus content intrinsics — paragraphs, controls, media — each carrying its static `text`/`tKey` label, D-170); pages with no API calls are shown too;
 - **view** (D-160, `db/views/**`): name, invoker/definer mode and declared permission, the base tables its `defineView` declares (collapsible), and the routes that use it.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.
 
-The **details inspector** (D-169) reads the rest of the same `Analysis`: a route's `dbColumns`,
+The **details inspector** (D-170) reads the rest of the same `Analysis`: a route's `dbColumns`,
 `crossSite`/`rawSql`/handler reads, static db usage and elevations with their source lines; a
 table's column defaults, policies and foreign keys; a page's static API calls; a workflow's derived
 table surface. Source snippets are line-anchored off the cached project sources. This is view-only

@@ -2,7 +2,7 @@
  * Which intrinsic JSX elements the page preview draws, and which copy they carry.
  *
  * Sections are the page's layout skeleton and are always drawn; content intrinsics are the
- * copy-bearing blocks and controls that make the schematic page readable (D-169). Layout-only
+ * copy-bearing blocks and controls that make the schematic page readable (D-170). Layout-only
  * wrappers such as `<div>` are flattened, and a copy-bearing text element with no readable copy
  * is flattened too, so the preview never draws empty boxes for spacing wrappers.
  */
