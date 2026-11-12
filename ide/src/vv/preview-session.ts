@@ -178,10 +178,17 @@ export class PreviewSession {
     this.bridge.setKeepPrefixPorts(this.host.keepPrefixPorts());
   }
 
-  addPreviewTab(url = "") {
+  /** Open a tab on an address and in-server path; returns the new id. */
+  addPreviewTab(url = "", path = "/"): string {
     const id = "pv" + ++this.seq;
-    const tab: PreviewTab = { id, url, port: null, path: "/", nonce: 1 };
+    const tab: PreviewTab = { id, url, port: null, path, nonce: 1 };
     this.host.update({ tabs: [...this.state.tabs, tab], activeId: id });
+    return id;
+  }
+  /** Point an unbound tab at an in-server path (bound tabs use navigatePreviewPath). */
+  setPreviewPath(id: string, path: string) {
+    const tab = this.state.tabs.find((entry) => entry.id === id);
+    if (tab?.port === null && path.startsWith("/")) this.setTab(id, { path });
   }
   activatePreviewTab(id: string) {
     this.host.update({ activeId: id });

@@ -157,6 +157,13 @@ path; it is resolved through the route table to a target page. Guards, `<Navigat
 the shared providers are deliberately not page links. The graph keeps page nodes only for
 `src/pages/**`; component/lib files stay analyzer facts, not graph nodes.
 
+Each preview node carries the static label the element renders, when it is readable: `text` for a
+direct literal child and `tKey` for a `t("key")` child (D-043). Only direct children of elements
+that already produce a node are read, so a flattened wrapper (`div`, `p`, `button`) contributes no
+node and no label. The IDE renders the preview as a **schematic semi-render** — blocks, component
+cards and placeholder rows, labels resolved through the project's locale catalogs — explicitly not
+the page's CSS nor a mounted React tree (D-169).
+
 ### 3.5 i18n
 
 `t("key")` literal calls; catalogs are JSON files. Dynamic keys are `unknown` (SPEC §9.3
@@ -287,10 +294,16 @@ panels.
 - **route**: method + path, the wrapper config's one-sentence description (clamped to two
   lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
   input flags (`body | form | query | params`), path parameters from the route template, source;
-- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections); pages with no API calls are shown too;
+- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections, each carrying its static `text`/`tKey` label, D-169); pages with no API calls are shown too;
 - **view** (D-160, `db/views/**`): name, invoker/definer mode and declared permission, the base tables its `defineView` declares (collapsible), and the routes that use it.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.
+
+The **details inspector** (D-169) reads the rest of the same `Analysis`: a route's `dbColumns`,
+`crossSite`/`rawSql`/handler reads, static db usage and elevations with their source lines; a
+table's column defaults, policies and foreign keys; a page's static API calls; a workflow's derived
+table surface. Source snippets are line-anchored off the cached project sources. This is view-only
+detail: the node/edge contract does not change and no alternative view mode is added.
 
 **Edges** — each kind has its own style and filter:
 

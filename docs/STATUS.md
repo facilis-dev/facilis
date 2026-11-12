@@ -20,7 +20,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 | Acceptance app | [`examples/todo-app`](../examples/todo-app) | `scripts/verify-headless.sh`: auth, RBAC, CRUD, RLS, manifest, `x-db-tables`, jobs, attachments |
 | Template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke` creates, paints and validates a Facilis app (the only creation path, D-051) |
 | Chat + validator | `ide/src/ai/`, `packages/ai/` | PTC runtime — the only mode (D-101/D-103); 19 rules at proposal/Apply/write (D-084/D-162); §9.4 repair loop (D-100) |
-| Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/` | pages, explicit page links, audited elevation, framework tables, declarative views and workflow definitions (D-092/D-134/D-160/D-161); committable layout in `.facilis/graph/` (D-126) |
+| Project graph | `ide/src/components/ide/ProjectGraphPanel.tsx`, `packages/analyze/` | pages, explicit page links, audited elevation, framework tables, declarative views and workflow definitions (D-092/D-134/D-160/D-161); committable layout in `.facilis/graph/` (D-126); per-kind details inspector, line-anchored source snippets, schematic page preview and open-in-preview (D-169) |
 | Entity Explorer + query console | `ide/src/components/ide/DataExplorerPanel.tsx`, `packages/db/src/` | dev schema diff, read-only SQL console and Create-view (D-083/D-097) |
 | Release Preview | `ide/src/components/ide/ReleasePreviewPanel.tsx`, `packages/core/src/release-preview.ts` | risk-classified ref diff (D-086) on the release-tag plan (D-158) |
 | Git round-trip + publishing | `ide/src/vv/git-*.ts`, `ide/git-proxy/` | clone/commit/push, GitHub OAuth device flow, hosted publishing (D-078/D-079/D-082) |
