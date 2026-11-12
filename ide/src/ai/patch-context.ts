@@ -10,6 +10,7 @@ import type { Analysis, FilePatch, SyntaxChecker } from "@facilis.dev/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
 import type { GitAccess } from "./git-access";
 import type { GraphAccess } from "./graph-access";
+import type { GraphViewAccess } from "./graph-view-access";
 import type { PreviewAccess } from "./preview-access";
 
 /** The slice of ChatHost the contextual validation needs. */
@@ -28,6 +29,11 @@ export interface PatchContextHost {
    * write `.facilis/graph` directly: it is team state, not source code, so it needs no proposal.
    */
   graph?: GraphAccess;
+  /**
+   * The graph's VISIBLE view (D-171): highlight, path search and off-DOM screenshots act on the
+   * ids the panel renders, and screenshots travel back through turn.ts's image channel.
+   */
+  graphView?: GraphViewAccess;
   /**
    * The project's own repository and remotes (D-139). These tools are repository operations
    * only — index, history, refs, remotes — so source content still changes only through the

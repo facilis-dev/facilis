@@ -14,6 +14,7 @@ import { ChatSession, type ChatHost } from "./chat-session";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
 import { createGitAccess } from "./git-access";
 import { createGraphAccess } from "./graph-access";
+import { createGraphViewAccess } from "./graph-view-access";
 import { createPreviewAccess } from "./preview-access";
 import { createPtcRunner } from "./ptc/runner";
 import { createRunnerFrameChild } from "./ptc/runner-frame";
@@ -104,6 +105,8 @@ function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
     syntaxChecker: () => createAnalyzerSyntaxChecker(),
     // D-111: the running preview, so a program can inspect and drive the app itself.
     preview: createPreviewAccess(controller.preview),
+    // D-171: the graph's visible view, so a program can focus it, search it and screenshot it.
+    graphView: createGraphViewAccess(controller),
     // D-118: the project's MCP servers are discovered once, before a turn's tool list.
     prepare: () => mcp.ensureFresh(),
     // The 17-rule validator reads analyzer facts: the worker analyzes the project before and
