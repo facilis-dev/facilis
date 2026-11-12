@@ -56,9 +56,12 @@ export interface PageWireframe {
 type Locales = Readonly<Record<string, Readonly<Record<string, string>>>>;
 
 /**
- * Today's analyzer emits intrinsic nodes only for the section intrinsics (header/main/section/
- * nav/aside/footer/form/table/ul/h1-h3) plus components and <Outlet>; the other entries are
- * forward-compatible so a preview that keeps more elements needs no model change.
+ * The analyzer emits intrinsic nodes for the section intrinsics (header/main/section/nav/
+ * aside/footer/form/table/ul/h1-h3), the content intrinsics that carry copy or a control role
+ * (p/span/strong/em/code/pre/blockquote/h4-h6, button/a/input/select/textarea/label, img/video/
+ * audio) plus components and <Outlet>; layout-only elements (<div>) stay flattened into their
+ * parent. Entries without a current analyzer producer are forward-compatible so a richer
+ * preview needs no model change.
  */
 const INTRINSIC_TAGS: Readonly<Record<string, WireframeTag>> = {
   header: "bar",
@@ -83,6 +86,7 @@ const INTRINSIC_TAGS: Readonly<Record<string, WireframeTag>> = {
   img: "media",
   picture: "media",
   video: "media",
+  audio: "media",
   p: "text",
   h1: "text",
   h2: "text",
@@ -93,6 +97,12 @@ const INTRINSIC_TAGS: Readonly<Record<string, WireframeTag>> = {
   span: "text",
   strong: "text",
   em: "text",
+  small: "text",
+  b: "text",
+  i: "text",
+  code: "text",
+  pre: "text",
+  blockquote: "text",
 };
 
 /** The block kind a preview node is drawn as. Never throws: unknown intrinsics are "other". */

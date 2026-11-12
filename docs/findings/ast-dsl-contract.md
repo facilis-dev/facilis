@@ -149,8 +149,9 @@ The project graph's page inspector is a **static structure view**, not a renderi
 explicit route table (`src/app.tsx`: `<Routes>` / `<Route>` imported from `react-router-dom`),
 resolves each route element to its page file, and expands project page/layout/app components
 through `Outlet` and JSX-valued props. UI primitives (`src/components/ui/**`), guards and
-providers are leaves; the expansion has a depth/node budget, cuts cycles and marks conditional
-or `.map()` branches as dynamic. An unrouted page still gets a preview from its own component.
+providers are leaves; the expansion has a depth budget, a structural node budget, cycle cuts and
+marks conditional or `.map()` branches as dynamic. An unrouted page still gets a preview from its
+own component.
 
 Explicit navigation is read from `Link` / `NavLink` `to` and `useNavigate()` calls with a static
 path; it is resolved through the route table to a target page. Guards, `<Navigate>` redirects and
@@ -158,11 +159,19 @@ the shared providers are deliberately not page links. The graph keeps page nodes
 `src/pages/**`; component/lib files stay analyzer facts, not graph nodes.
 
 Each preview node carries the static label the element renders, when it is readable: `text` for a
-direct literal child and `tKey` for a `t("key")` child (D-043). Only direct children of elements
-that already produce a node are read, so a flattened wrapper (`div`, `p`, `button`) contributes no
-node and no label. The IDE renders the preview as a **schematic semi-render** — blocks, component
-cards and placeholder rows, labels resolved through the project's locale catalogs — explicitly not
-the page's CSS nor a mounted React tree (D-169).
+direct literal child, `tKey` for a `t("key")` child (D-043), and for a control whose label lives
+in an attribute, `text` from `placeholder`, `aria-label`, `value` or `alt`. Intrinsic nodes are
+emitted for the section intrinsics (`header`/`main`/`section`/`nav`/`aside`/`footer`/`form`/
+`table`/`ul`/`h1`–`h3`) and for the content intrinsics: the copy-bearing block and inline text
+elements (`p`/`span`/`strong`/`em`/`small`/`b`/`i`/`code`/`pre`/`blockquote`/`h4`–`h6`), the
+controls (`button`/`a`/`input`/`select`/`textarea`/`label`) and the media elements (`img`/`video`/
+`audio`). A copy-bearing text element that has no readable copy is flattened like its layout-only
+siblings (`div`); a control is kept even without copy because it is a visible block. Content nodes
+have their own bounded budget so they cannot starve the structural ones. Only direct children of
+elements that already produce a node are read, so a flattened wrapper contributes no node and no
+label. The IDE renders the preview as a **schematic semi-render** — blocks, component cards and
+placeholder rows, labels resolved through the project's locale catalogs — explicitly not the page's
+CSS nor a mounted React tree (D-169).
 
 ### 3.5 i18n
 
@@ -294,7 +303,7 @@ panels.
 - **route**: method + path, the wrapper config's one-sentence description (clamped to two
   lines, D-129), permission, wrapper state (`valid | invalid | unknown`), request
   input flags (`body | form | query | params`), path parameters from the route template, source;
-- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections, each carrying its static `text`/`tKey` label, D-169); pages with no API calls are shown too;
+- **page** (only `src/pages/**`): file path, URL paths from the route table, call count, and a bounded static structure preview (nested components/sections plus content intrinsics — paragraphs, controls, media — each carrying its static `text`/`tKey` label, D-169); pages with no API calls are shown too;
 - **view** (D-160, `db/views/**`): name, invoker/definer mode and declared permission, the base tables its `defineView` declares (collapsible), and the routes that use it.
 - Nodes that are invalid or partially unknown are **shown** (red/hatched), never hidden: the
   graph is also the integrity view.

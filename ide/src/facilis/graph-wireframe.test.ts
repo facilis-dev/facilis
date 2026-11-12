@@ -54,10 +54,19 @@ describe("wireframeTagOf", () => {
     ["video", "media"],
     ["p", "text"],
     ["h1", "text"],
+    ["h4", "text"],
+    ["h5", "text"],
     ["h6", "text"],
     ["span", "text"],
     ["strong", "text"],
     ["em", "text"],
+    ["small", "text"],
+    ["b", "text"],
+    ["i", "text"],
+    ["code", "text"],
+    ["pre", "text"],
+    ["blockquote", "text"],
+    ["audio", "media"],
     ["custom-element", "other"],
   ])("maps the intrinsic <%s> to %s", (name, tag) => {
     expect(wireframeTagOf(node("n", { name }))).toBe(tag);
@@ -144,6 +153,55 @@ describe("buildPageWireframe text resolution", () => {
 
   it("returns null when the node has neither text nor a tKey", () => {
     expect(wireframeText({}, "en")).toBeNull();
+  });
+});
+
+describe("buildPageWireframe content blocks", () => {
+  it("draws paragraphs, headings and inline copy as text blocks with their copy", () => {
+    const wireframe = buildPageWireframe(
+      previewOf([
+        node("n1", { name: "section" }),
+        node("p1", { parentId: "n1", name: "p", text: "Nothing here yet" }),
+        node("h1", { parentId: "n1", name: "h4", text: "Filters" }),
+        node("s1", { parentId: "p1", name: "strong", text: "Note" }),
+      ]),
+      NO_LOCALES,
+      "en",
+    );
+    const section = wireframe.roots[0];
+    expect(section?.children.map((child) => [child.tag, child.text])).toEqual([
+      ["text", "Nothing here yet"],
+      ["text", "Filters"],
+    ]);
+    // Inline copy nests under its paragraph, so the block keeps its own text and children.
+    expect(section?.children[0]?.children.map((child) => child.text)).toEqual(["Note"]);
+  });
+
+  it("exposes control copy: button text, input placeholder and img alt", () => {
+    const wireframe = buildPageWireframe(
+      previewOf([
+        node("n1", { name: "form" }),
+        node("b1", { parentId: "n1", name: "button", text: "Add" }),
+        node("i1", { parentId: "n1", name: "input", text: "Search" }),
+        node("m1", { parentId: "n1", name: "img", text: "Logo" }),
+      ]),
+      NO_LOCALES,
+      "en",
+    );
+    expect(wireframe.roots[0]?.children.map((child) => [child.tag, child.text])).toEqual([
+      ["action", "Add"],
+      ["field", "Search"],
+      ["media", "Logo"],
+    ]);
+  });
+
+  it("resolves a control's tKey the same way as a heading", () => {
+    const wireframe = buildPageWireframe(
+      previewOf([node("b1", { name: "button", text: "Home (fallback)", tKey: "home.title" })]),
+      LOCALES,
+      "it",
+    );
+    expect(wireframe.roots[0]?.text).toBe("Casa");
   });
 });
 

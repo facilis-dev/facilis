@@ -80,15 +80,18 @@ function BlockBody({ node, label }: { node: WireframeNode; label: string }) {
   const badge = node.dynamic ? <DynamicBadge /> : null;
   switch (node.tag) {
     case "text": {
-      // h1–h3 are the only text intrinsics the analyzer keeps as nodes; render them as headings.
-      const heading = /^h[1-3]$/i.test(node.label);
+      // Headings keep their weight; paragraph-like blocks wrap a second line like real copy.
+      const heading = /^h[1-6]$/i.test(node.label);
+      const paragraph = /^(p|blockquote|pre)$/i.test(node.label);
       return (
-        <span className="flex min-w-0 items-center gap-1">
+        <span className="flex min-w-0 items-start gap-1">
           <span
             className={
               heading
                 ? "min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground"
-                : "min-w-0 flex-1 truncate text-[10px] text-foreground"
+                : paragraph
+                  ? "line-clamp-2 min-w-0 flex-1 text-[10px] leading-tight text-foreground"
+                  : "min-w-0 flex-1 truncate text-[10px] text-foreground"
             }
           >
             {node.text ?? label}
@@ -116,8 +119,9 @@ function BlockBody({ node, label }: { node: WireframeNode; label: string }) {
     case "media":
       return (
         <span className="flex min-w-0 items-center gap-1">
+          {/* The only copy media carries is an attribute (img alt), so show it when present. */}
           <span className="min-w-0 flex-1 truncate text-center text-[9px] text-muted-foreground">
-            {label}
+            {node.text ?? label}
           </span>
           {badge}
         </span>
