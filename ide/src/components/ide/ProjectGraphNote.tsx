@@ -24,6 +24,8 @@ export const NOTE_NODE_TYPE = "note";
 
 export type ProjectNoteFlowData = {
   readonly note: GraphNote;
+  /** False when an AI focus request (D-171) names other nodes: the note is drawn dimmed. */
+  readonly focused: boolean;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
 };
@@ -102,7 +104,9 @@ export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<Pro
           ? "border-primary ring-1 ring-primary"
           : dragging
             ? "border-primary shadow-lg ring-1 ring-ring"
-            : "hover:border-ring")
+            : "hover:border-ring") +
+        // The focus dims an annotation like any other card: it names analysis nodes, not notes.
+        (data.focused ? "" : " opacity-40")
       }
       onDoubleClick={(event) => {
         if (editing) return;

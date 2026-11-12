@@ -79,6 +79,17 @@ const GIT_PROMPT = [
   "- { available: false } or { ok: false, reason } is a state to report or act on, never something to work around: the model has no shell.",
 ].join("\n");
 
+/** Teaches the project-graph tools when the host registers them (D-126/D-171). */
+const GRAPH_PROMPT = [
+  "## The project graph (graph tools)",
+  "The graph_* tools act on the same view the project-graph panel draws: saved positions, hidden edge kinds, collapsed tables and views, and the system-node filters are applied, so an id that is not in that view is not an id you can name.",
+  "- graph_state lists the view (nodes with positions, edges, notes, hidden kinds); graph_arrange writes .facilis/graph directly (team state, no patch proposal).",
+  "- graph_highlight focuses nodes/edges (absent or empty clears the focus) and opens the graph tab; zoom: false keeps the current viewport instead of fitting.",
+  "- graph_paths finds fewest-hop UNDIRECTED connections over the visible edges: an fk or relation edge connects both ways, so direction never matters. With to it returns the fewest-hop path within maxHops; without to it returns the shortest path to each of the closest maxPaths reachable nodes. It highlights the union of the returned paths unless highlight is false.",
+  "- graph_screenshot renders the visible graph (or just the nodes/edges you name) off-DOM: the user sees the image and a vision model also receives it, at most 2 per program. Use it for a layout or connectivity question text cannot show.",
+  "- ids come back in unknown when they are not in the visible view: do not retry them blindly; read graph_state and check which filters are on.",
+].join("\n");
+
 /** Teaches the remote tools when the user enabled an MCP server (D-118). */
 const MCP_PROMPT = [
   "## MCP tools",
@@ -221,6 +232,9 @@ export function buildSystemPrompt(context: PromptContext): string {
     lines.push(PTC_PROMPT, describeTools(tools), "");
     if (tools.some((tool) => tool.name.startsWith("preview_"))) {
       lines.push(PREVIEW_PROMPT, "");
+    }
+    if (tools.some((tool) => tool.name.startsWith("graph_"))) {
+      lines.push(GRAPH_PROMPT, "");
     }
     if (tools.some((tool) => tool.name.startsWith("git_"))) {
       lines.push(GIT_PROMPT, "");
