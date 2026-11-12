@@ -158,6 +158,15 @@ export interface ChatMessage {
   detail?: string;
 }
 
+/** A message typed while a turn was running; the session sends it FIFO on the next idle. */
+export interface ChatQueuedMessage {
+  id: string;
+  /** The trimmed text; empty only for an image-only message. */
+  text: string;
+  images: readonly string[];
+  at: number;
+}
+
 /** One model call in the chat's activity timeline (D-110): what it cost and what followed. */
 export interface ChatTraceCall {
   kind: "call";
@@ -215,6 +224,8 @@ export interface ChatContextInfo {
 export interface ChatState {
   phase: ChatPhase;
   messages: ChatMessage[];
+  /** Messages typed mid-turn: a per-conversation FIFO sent as soon as the session is idle. */
+  queued: ChatQueuedMessage[];
   /** The latest compaction, replayed instead of the messages it covers (O-018). */
   summary: ChatSummary | null;
   proposal: ChatProposal | null;

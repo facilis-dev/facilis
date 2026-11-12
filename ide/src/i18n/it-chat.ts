@@ -118,4 +118,13 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.error.validator": "Il validatore non è disponibile in questo momento — riprova tra poco.",
   "chat.streaming": "Sto scrivendo la risposta…",
   "chat.busy.elapsed": "{seconds}s",
+  "chat.queue.title": "In coda",
+  "chat.queue.add": "Metti in coda il messaggio",
+  "chat.queue.remove": "Rimuovi messaggio in coda",
+  "chat.queue.imageOnly": "Screenshot",
+  "chat.conversations.menu": "Conversazioni",
+  "chat.conversations.title": "Conversazioni",
+  "chat.conversations.untitled": "Nuova conversazione",
+  "chat.conversations.imageOnly": "Screenshot",
+  "chat.conversations.remove": "Elimina questa conversazione",
 };

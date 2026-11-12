@@ -14,11 +14,13 @@ import FileText from "~icons/lucide/file-text";
 import FoldVertical from "~icons/lucide/fold-vertical";
 import { Button } from "@/components/ui/button";
 import { ChatComposer } from "./ChatComposer";
+import { ChatConversationsMenu } from "./ChatConversationsMenu";
+import { ChatQueueView } from "./ChatQueueView";
 import { ChatTranscriptView } from "./ChatTranscriptView";
 import { ChatProposalView } from "./ChatProposalView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
-import { chatFor } from "@/ai/chat-host";
+import { chatStoreFor } from "@/ai/chat-host";
 import type { ChatFailure } from "@/ai/types";
 import { t } from "@/i18n";
 
@@ -54,12 +56,13 @@ function Welcome({ title, body, children }: { title: string; body: string; child
 
 export function ChatPanel() {
   const { c, snap } = useIde();
-  const chat = useMemo(() => chatFor(c), [c]);
+  const store = useMemo(() => chatStoreFor(c), [c]);
+  // The store snapshot is the active id: a switch re-renders and resubscribes to that session.
+  const activeId = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const chat = store.active();
   const state = useSyncExternalStore(chat.subscribe, chat.getSnapshot);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busySeconds, setBusySeconds] = useState(0);
-  // Remounts the composer (draft, pasted images) when the user starts a new chat.
-  const [composerKey, setComposerKey] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const hasProject = snap.workspaceFolders.length > 0;
   const busy = state.phase !== "idle";
@@ -148,16 +151,13 @@ export function ChatPanel() {
               <FoldVertical />
             </Button>
           )}
+          {hasProject && <ChatConversationsMenu store={store} activeId={activeId} />}
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label={t("chat.newChat")}
             title={t("chat.newChat")}
-            disabled={state.messages.length === 0}
-            onClick={() => {
-              chat.newChat();
-              setComposerKey((key) => key + 1);
-            }}
+            onClick={() => store.create()}
           >
             <Plus />
           </Button>
@@ -229,7 +229,10 @@ export function ChatPanel() {
       )}
 
       {hasProject && state.configured && (
-        <ChatComposer key={composerKey} chat={chat} state={state} />
+        <>
+          <ChatQueueView chat={chat} state={state} />
+          <ChatComposer key={activeId} chat={chat} state={state} />
+        </>
       )}
 
       <ChatSettingsDialog

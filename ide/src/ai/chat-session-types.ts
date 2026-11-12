@@ -134,6 +134,7 @@ export function initialState(settings: AiSettings | null): ChatState {
   return {
     phase: "idle",
     messages: [],
+    queued: [],
     summary: null,
     proposal: null,
     applied: null,
