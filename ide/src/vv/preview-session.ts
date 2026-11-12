@@ -259,6 +259,12 @@ export class PreviewSession {
     this.frames.delete(id);
     this.host.update(update);
   }
+  /** Close every tab mirroring `port`: its dev server went with the project that owned it. */
+  closePortTabs(port: number) {
+    for (const tab of this.state.tabs.filter((entry) => entry.port === port)) {
+      this.closePreviewTab(tab.id);
+    }
+  }
   closeOtherPreviewTabs(id: string) {
     this.host.update(closedOtherTabs(this.state.tabs, id));
   }

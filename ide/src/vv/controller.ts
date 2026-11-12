@@ -57,6 +57,7 @@ import { EditorPython, type EditorPythonHost } from "./editor-python";
 import { EditorSession, overflowWidgetsNode, type EditorSessionHost } from "./editor-session";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
 import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
+import { KernelPorts } from "./kernel-ports";
 import { type UiTheme, monacoThemeFor } from "./terminal-theme";
 import { appearanceFromDocument } from "../ui-themes";
 import { errText } from "./errors";
@@ -436,7 +437,7 @@ export class IdeController {
   private folderManifests = new Map<string, ProjectManifest>(); // rootPath -> run manifest
   private runningProjects = new Map<string, { terminalId: string | null; port: number | null }>();
   private runningDemos = new Map<string, { terminalId: string | null; port: number | null }>();
-  private portMap = new Map<number, number>(); // port -> pid (live listeners)
+  private readonly kernelPorts = new KernelPorts(); // live in-VM listeners (Ports view)
   private treeBump: ReturnType<typeof setTimeout> | null = null;
   private started = false;
   // Current resolved UI theme, seeded from the pre-paint <html> class the
@@ -518,11 +519,7 @@ export class IdeController {
     this.statusMessage.show(text);
   }
   private syncPorts() {
-    this.set({
-      ports: [...this.portMap]
-        .map(([port, pid]) => ({ port, pid }))
-        .sort((a, b) => a.port - b.port),
-    });
+    this.set({ ports: this.kernelPorts.list() });
   }
 
   // The Preview panel's window onto the controller: its four snapshot fields,
@@ -787,7 +784,7 @@ export class IdeController {
           const folder = this.snap.workspaceFolders.find((f) => f.rootPath === root);
           if (folder) this.closeFolder(folder.id);
         },
-        stopProject: (root) => this.stopProject(root),
+        stopProject: (root) => this.stopFolderRun(root),
         hydrateProject: (root) =>
           ensureProjectOnDisk(
             this.bridge,
@@ -809,13 +806,21 @@ export class IdeController {
     );
   }
 
-  /** Stop the project's run terminal (its dev server), if one is alive. */
-  private stopProject(root: string) {
-    const running = this.runningProjects.get(root);
-    if (running?.terminalId && this.terminals.has(running.terminalId)) {
-      this.terminals.closeTerminal(running.terminalId);
-    }
+  /** Stop a folder's run: its dev server, Ports row and preview tab go with it (D-169). */
+  private stopFolderRun(root: string) {
+    const run = this.runningProjects.get(root);
     this.runningProjects.delete(root);
+    if (run?.terminalId) {
+      // Renders the terminal dead and posts term-close: the VM kills the dev server.
+      this.terminals.closeTerminal(run.terminalId);
+      if (this.snap.runTerminalId === run.terminalId) this.set({ runTerminalId: null });
+    }
+    if (run?.port != null) {
+      if (this.kernelPorts.forget(run.port)) this.syncPorts();
+      this.preview.closePortTabs(run.port);
+    }
+    this.preview.syncKeepPrefixPorts();
+    this.endRunPhase(root);
   }
 
   // ── console output ────────────────────────────────────────────────────────
@@ -1470,6 +1475,7 @@ export class IdeController {
     const folder = this.snap.workspaceFolders.find((f) => f.id === id);
     if (!folder) return;
     const root = folder.rootPath;
+    this.stopFolderRun(root); // its dev server, Ports row and preview tab go with it (D-169)
     // Drop the folder's open tabs/models + its file index.
     const tabKinds = { ...this.snap.tabKinds };
     for (const abs of Array.from(this.snap.openTabs)) {
@@ -2322,15 +2328,7 @@ export class IdeController {
     b.on("exit", (m) => {
       this.consoleLine(`[kernel] pid ${m.pid} exited with code ${m.code}`, "90");
       // A listener process died — drop any port it owned from the Ports view.
-      const pid = m.pid as number;
-      let changed = false;
-      for (const [port, owner] of this.portMap) {
-        if (owner === pid) {
-          this.portMap.delete(port);
-          changed = true;
-        }
-      }
-      if (changed) this.syncPorts();
+      if (this.kernelPorts.forgetProcess(m.pid as number)) this.syncPorts();
       // A process finished — it may have been `npm/yarn/pnpm install`. In-VM writes
       // don't emit vv-fs-changed, so re-harvest dependency types (debounced; the
       // worker short-circuits via a node_modules fingerprint when nothing changed).
@@ -2338,7 +2336,7 @@ export class IdeController {
     });
     b.on("listen", (m) => {
       this.consoleLine(`[kernel] pid ${m.pid} listening on :${m.port}`, "90");
-      this.portMap.set(m.port as number, m.pid as number);
+      this.kernelPorts.add(m.port as number, m.pid as number);
       this.syncPorts();
       if (this.snap.runFailed) this.set({ runFailed: false });
       this.updateRunPhase((cur) => advance(cur, "starting"));
@@ -2389,7 +2387,7 @@ export class IdeController {
       if (demo && this.runningDemos.get(demo)?.terminalId === id) {
         const gone = this.runningDemos.get(demo);
         this.runningDemos.delete(demo);
-        if (gone?.port != null && this.portMap.delete(gone.port)) this.syncPorts();
+        if (gone?.port != null && this.kernelPorts.forget(gone.port)) this.syncPorts();
         if (gone?.port != null && this.snap.previewTabs.some((t) => t.port === gone.port))
           this.status("dev server stopped — preview will 502 until you Run again");
       }
@@ -2400,7 +2398,7 @@ export class IdeController {
           // default now (D-124). A close from the terminal list is not a failure.
           const failed = exited !== null && r.port == null && this.snap.runPhase != null;
           this.runningProjects.delete(dir);
-          if (r.port != null && this.portMap.delete(r.port)) this.syncPorts();
+          if (r.port != null && this.kernelPorts.forget(r.port)) this.syncPorts();
           this.preview.syncKeepPrefixPorts();
           // The run is over however it ended. An install that FAILED must stop
           // claiming to be installing — the preview shell would otherwise sit

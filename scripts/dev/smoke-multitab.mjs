@@ -14,7 +14,8 @@
 //      when its tab opens it (BootOptions.deferRestoreRoots): the files come back, and a
 //      project the tab never opened stays out of its VFS.
 //   7. a tab holds ONE project: opening another replaces the tab's root instead of stacking
-//      a second one, and the label is the folder name, never a form/kernel title (D-035).
+//      a second one, and the label is the folder name, never a form/kernel title (D-035);
+//      the replaced project's dev server goes with its folder (no phantom Ports row).
 //
 // Usage: node scripts/dev/smoke-multitab.mjs [--url http://127.0.0.1:5199/] [--keep-artifacts]
 //
@@ -284,10 +285,18 @@ async function main() {
       prevA.text.slice(0, 60),
     );
 
-    // A second project, created here and left closed: it must reach OPFS (so tab B can
-    // open it) without being claimed by this tab. Creating it also proves one project per
-    // tab (D-035): beta REPLACES alpha in this tab instead of stacking a second root.
-    const dirB = await createProject(tabA, "beta", false);
+    // The run belongs to the open folder: alpha's row is what the replacement has to clear.
+    const alphaPorts = await tabA.evaluate(
+      "window.__ide.getSnapshot().ports.map((p) => p.port)",
+    );
+    check(alphaPorts.length === 1, "alpha's dev server is in the Ports view", String(alphaPorts));
+
+    // A second project, created here and RUN: it must reach OPFS (so tab B can open it)
+    // without being claimed by this tab. Creating it also proves one project per tab
+    // (D-035): beta REPLACES alpha in this tab instead of stacking a second root, and the
+    // replaced project's run goes with its folder — no phantom Ports row (two live
+    // listeners would bind two ports) and no preview tab bound to a server that is gone.
+    const dirB = await createProject(tabA, "beta", true);
     check(dirB === BETA, "tab A creates beta", dirB);
     const afterBeta = await snapshot(tabA);
     check(
@@ -300,15 +309,56 @@ async function main() {
       "the tab labels the project by its folder name",
       afterBeta.title,
     );
+    const betaUp = await waitFor(
+      tabA,
+      "window.__ide.getSnapshot().ports.length === 1" +
+        " && window.__ide.getSnapshot().previewTabs.length === 1",
+      PREVIEW_TIMEOUT_MS,
+      "beta preview",
+    );
+    check(betaUp, "beta runs after replacing alpha in the same tab");
+    const betaPorts = await tabA.evaluate(
+      "window.__ide.getSnapshot().ports.map((p) => p.port)",
+    );
+    check(
+      betaPorts.length === 1,
+      "the replaced project's dev server stopped: one Ports row, not two",
+      JSON.stringify({ before: alphaPorts, after: betaPorts }),
+    );
+    const betaPreviews = await tabA.evaluate(
+      "window.__ide.getSnapshot().previewTabs.map((t) => t.port)",
+    );
+    check(
+      betaPreviews.length === 1 && betaPreviews[0] === betaPorts[0],
+      "the preview panel kept only the open project's tab",
+      JSON.stringify(betaPreviews),
+    );
     await closeFolder(tabA, BETA);
     await flushMirror(tabA);
     check((await snapshot(tabA)).folders.length === 0, "beta is created but not open in tab A");
     check(
+      (await tabA.evaluate("window.__ide.getSnapshot().ports.length")) === 0,
+      "closing the tab's project stops its dev server: no Ports row stays behind",
+    );
+    check(
+      (await tabA.evaluate("window.__ide.getSnapshot().previewTabs.length")) === 0,
+      "closing the tab's project closes its preview tab",
+    );
+    check(
       (await tabA.evaluate("new URLSearchParams(location.search).get('project')")) === null,
       "a tab with no project drops its ?project=",
     );
-    // The refusal test below needs tab A holding alpha, so reopen it.
-    await tabA.evaluate("window.__ide.openFolder(" + JSON.stringify(ALPHA) + ")");
+    // The refusal test below needs tab A holding alpha again — and RUNNING again: the run
+    // that was serving alpha died with the folder it belonged to (checked above). Reopen it
+    // the way Home does (a recent row), so the run manifest is registered before Run.
+    await tabA.evaluate(
+      "(async () => { const c = window.__ide;" +
+        " const meta = c.getSnapshot().recentProjects.find((p) => p.rootPath === " +
+        JSON.stringify(ALPHA) +
+        ");" +
+        " await c.openProject(meta);" +
+        " c.runProject(meta.rootPath); })()",
+    );
     check(
       await waitFor(
         tabA,
@@ -321,6 +371,16 @@ async function main() {
     check(
       (await tabA.evaluate("new URLSearchParams(location.search).get('project')")) === ALPHA,
       "the URL follows the tab's active project",
+    );
+    check(
+      await waitFor(
+        tabA,
+        "window.__ide.getSnapshot().ports.length === 1" +
+          " && window.__ide.getSnapshot().previewTabs.length === 1",
+        PREVIEW_TIMEOUT_MS,
+        "A reruns alpha",
+      ),
+      "alpha runs again after being reopened",
     );
 
     // ---- tab B: beta, opened by URL in its own kernel ----------------------
