@@ -20,6 +20,7 @@ import {
   type ValidationError,
   type ValidationResult,
 } from "@facilis.dev/ai";
+import { aiWritePolicy } from "@/deploy/current";
 import { validatePatchesWithHost, type PatchValidationHost } from "./patch-validation";
 import { MAX_PROGRAM_CHARS } from "./ptc/protocol";
 import { isRecord, parseNotes, parsePatches } from "./response-shape";
@@ -41,8 +42,7 @@ export interface AiParseFailure {
 }
 
 export type AiParseResult =
-  | { ok: true; response: AiResponse; validation: ValidationResult }
-  | AiParseFailure;
+  { ok: true; response: AiResponse; validation: ValidationResult } | AiParseFailure;
 
 function failure(
   kind: AiParseFailure["kind"],
@@ -81,10 +81,7 @@ function oneLine(error: ValidationError): string {
   return `${error.rule}: ${error.file}: ${error.message}`;
 }
 
-export function parseAiResponse(
-  raw: string,
-  options: { truncated?: boolean } = {},
-): AiParseResult {
+export function parseAiResponse(raw: string, options: { truncated?: boolean } = {}): AiParseResult {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return failure("empty", "The provider returned an empty response.", [], raw);
@@ -164,7 +161,9 @@ export function parseAiResponse(
     );
   }
 
-  const validation = validatePatch(parsedPatches.patches);
+  // The context-free gate must accept the same paths rule 11 will accept later, otherwise
+  // an open build could never propose the root config or a CI workflow it is allowed to write.
+  const validation = validatePatch(parsedPatches.patches, { writePolicy: aiWritePolicy });
   if (!validation.ok) {
     return failure(
       "validation",

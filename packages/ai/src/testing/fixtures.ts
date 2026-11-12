@@ -176,6 +176,7 @@ export function makeContext(
 export interface ValidateOptions extends ContextOptions {
   requiresConfirmation?: boolean;
   allowedRootFiles?: readonly string[];
+  writePolicy?: ValidatePatchOptions["writePolicy"];
 }
 
 /** Build the context for the patch set, then validate it (the IDE's whole round). */
@@ -184,11 +185,15 @@ export function validate(
   options: ValidateOptions = {},
 ): { result: ValidationResult; context: PatchContext } {
   const context = makeContext(patches, options);
-  const overrides: Pick<ValidatePatchOptions, "requiresConfirmation" | "allowedRootFiles"> = {};
+  const overrides: Pick<
+    ValidatePatchOptions,
+    "requiresConfirmation" | "allowedRootFiles" | "writePolicy"
+  > = {};
   if (options.requiresConfirmation !== undefined) {
     overrides.requiresConfirmation = options.requiresConfirmation;
   }
   if (options.allowedRootFiles !== undefined) overrides.allowedRootFiles = options.allowedRootFiles;
+  if (options.writePolicy !== undefined) overrides.writePolicy = options.writePolicy;
   const result = validatePatch(patches, { context, ...overrides });
   return { result, context };
 }

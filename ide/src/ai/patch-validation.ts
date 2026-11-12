@@ -18,7 +18,9 @@ import {
   type SyntaxCheck,
   type SyntaxChecker,
   type ValidationResult,
+  type WritePolicy,
 } from "@facilis.dev/ai";
+import { aiWritePolicy } from "@/deploy/current";
 import { loadProjectContext, type PatchContextHost } from "./patch-context";
 
 export type PatchValidationHost = PatchContextHost;
@@ -80,7 +82,12 @@ interface Analyses {
 export async function validatePatchesWithHost(
   patches: readonly FilePatch[],
   host: PatchValidationHost,
-  options: { requiresConfirmation?: boolean; signal?: AbortSignal } = {},
+  options: {
+    requiresConfirmation?: boolean;
+    signal?: AbortSignal;
+    /** Rule 11's writable set; defaults to the build's deployment profile (D-167). */
+    writePolicy?: WritePolicy;
+  } = {},
 ): Promise<PatchesValidation> {
   let analyses: Analyses;
   try {
@@ -105,6 +112,7 @@ export async function validatePatchesWithHost(
     ...(options.requiresConfirmation === undefined
       ? {}
       : { requiresConfirmation: options.requiresConfirmation }),
+    writePolicy: options.writePolicy ?? aiWritePolicy,
   });
   return { validation, context };
 }

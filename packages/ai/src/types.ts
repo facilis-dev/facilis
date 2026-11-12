@@ -39,6 +39,13 @@ export type ConfigFacts = AnalyzerConfigFacts;
 export type RouteFact = AnalyzerRouteFact;
 export type TableFact = AnalyzerTableFact;
 
+/**
+ * Rule 11's writable set, selected by the deployment profile (D-167). `managed` keeps the
+ * six source roots (D-084); `open` accepts the whole project minus the install, VCS/IDE and
+ * instruction surfaces. The default is `managed`, so an external caller changes nothing.
+ */
+export type WritePolicy = "open" | "managed";
+
 /** One proposed file write (SPEC §9.2 response contract). */
 export interface FilePatch {
   path: string;
@@ -161,4 +168,6 @@ export interface ValidatePatchOptions {
    * AGENTS.md scaffold); AI patches never do, so the model cannot persist instructions.
    */
   allowedRootFiles?: readonly string[];
+  /** Rule 11's writable set (D-167). Defaults to `managed`, the strict roots. */
+  writePolicy?: WritePolicy;
 }

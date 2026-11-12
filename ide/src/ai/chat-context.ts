@@ -5,6 +5,7 @@
 // facilis.config.ts, the user's AGENTS.md and the live manifest (SPEC §9.1 Model A).
 // Every source is best-effort — a project that is not running simply has no manifest.
 
+import { aiWritePolicy } from "@/deploy/current";
 import { fetchManifest } from "@/facilis/manifest-client";
 import { INSTRUCTIONS_PATH } from "./instructions";
 import type { PtcToolSpec } from "./ptc/protocol";
@@ -62,6 +63,7 @@ export async function buildChatContext(
       instructions:
         instructions.length > 0 ? { path: INSTRUCTIONS_PATH, content: instructions } : null,
       tools: options.tools ?? [],
+      writePolicy: aiWritePolicy,
     }),
     context: {
       manifestRevision,

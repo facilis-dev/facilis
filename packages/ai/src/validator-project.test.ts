@@ -77,6 +77,18 @@ describe("rule 11 file-path-allowed", () => {
     const { result } = validate([update("facilis.config.ts", CONFIG)]);
     expect(result.ok).toBe(true);
   });
+
+  it("rejects a package.json change under the open policy too", () => {
+    const { result } = validate([update("package.json", "{}\n")], { writePolicy: "open" });
+    expect(rulesOf(result.errors)).toContain("file-path-allowed");
+  });
+
+  it("lets an open patch add a GitHub workflow", () => {
+    const { result } = validate([create(".github/workflows/ci.yml", "name: ci\non: push\n")], {
+      writePolicy: "open",
+    });
+    expect(rulesOf(result.errors)).not.toContain("file-path-allowed");
+  });
 });
 
 describe("rule 12 import-resolves", () => {

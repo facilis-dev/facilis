@@ -34,6 +34,7 @@ Two profiles, selected at build time:
 | Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
 | AI provider | presets plus a custom base URL | allowlisted providers or an internal gateway; default `off` ([AI-SKILLS.md](./AI-SKILLS.md)) |
 | Skills | any installed skill | only allowlisted skills; default none |
+| AI patch write scope (rule 11) | any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage`, `package.json` + lockfiles + `.npmrc`, `AGENTS.md` (D-167) | `server/`/`src/`/`db/`/`lib/`/`components/`/`locales/` + `facilis.config.ts` only (D-084) |
 | Shell on the VM | available | configurable (`shell` / `run-only`) |
 | `window.__vv` (diag + bridge) | dev only (fix regardless) | absent from the production bundle |
 | Update indicator | compares the project with the running build | compares with the approved baseline |
@@ -53,6 +54,10 @@ Three enforcement levels are in scope. A fourth (server-side approval) is delibe
 | **L0 build** | what code exists in the bundle: imports removed, no runtime policy switch, preview origin fixed, `__vv` absent | no |
 | **L1 runtime** | checks in the IDE: admission gate, dependency allowlist before install, AI patch validator | yes - guardrail |
 | **L2 network** | CSP `script-src`/`connect-src`, the configured registry, the host's egress policy | no |
+
+The AI patch validator's rule 11 is profile-driven (D-167): an `open` build may write anywhere in
+the project except the install surface, the VCS/IDE/build state and `AGENTS.md`, while a
+`managed` build keeps the six roots plus `facilis.config.ts`.
 
 ### What a managed deployment guarantees
 

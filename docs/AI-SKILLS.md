@@ -76,9 +76,9 @@ Notes:
   2. a missing or inaccurate `dbTables`;
   3. a scoped table without its RLS policy;
   4. a raw Drizzle client import outside ```facilis/db`;
-  5. a `package.json` change outside the deployment policy (O-009 is gated by policy);
+  5. a `package.json`, lockfile or `.npmrc` change — rule 11 rejects it in both profiles (O-009);
   6. secret-looking content in a patch;
-  7. a path outside the project root or outside the skill's write capability;
+  7. a path outside the deployment's writable set (open: the project minus the install surface, the VCS/IDE/build state and `AGENTS.md`; managed: the six roots plus `facilis.config.ts`) or outside the skill's write capability (D-167);
   8. a Model B tool call outside the declared capability set.
   Until these exist, `managed` defaults to `ai.mode: "off"` - fail-closed, not "we will
   add the rules later".

@@ -37,7 +37,10 @@ export function validatePatch(
   patches: readonly FilePatch[],
   options: ValidatePatchOptions = {},
 ): ValidationResult {
-  const errors = structuralErrors(patches, options.allowedRootFiles);
+  const errors = structuralErrors(patches, {
+    allowedRootFiles: options.allowedRootFiles ?? [],
+    writePolicy: options.writePolicy ?? "managed",
+  });
   const warnings: ValidationResult["warnings"] = [];
   const context = options.context;
   if (context !== undefined) {

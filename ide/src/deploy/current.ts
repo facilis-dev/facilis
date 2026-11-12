@@ -4,6 +4,7 @@
 // value is a literal in the bundle: no fetch, no file, and nothing to override from the
 // page. Tests and unbundled imports fall back to the open profile.
 
+import type { WritePolicy } from "@facilis.dev/ai";
 import { openDeployment } from "./resolve.ts";
 import type { ProjectImports, ResolvedDeployment } from "./types.ts";
 
@@ -28,6 +29,11 @@ export const frameworkPackagesVersion: string =
   typeof __FACILIS_PACKAGES_VERSION__ !== "undefined" ? __FACILIS_PACKAGES_VERSION__ : "0.1.0";
 
 export const isManaged: boolean = deployment.profile === "managed";
+
+/** Rule 11's writable set for this build (D-167): a managed build keeps the strict six
+ * roots, an open build accepts the whole project minus the install/VCS/IDE/instruction
+ * surfaces. */
+export const aiWritePolicy: WritePolicy = isManaged ? "managed" : "open";
 
 /** Whether a project may enter the IDE through this path (MANAGED-DEPLOYMENT.md §8). */
 export function importAllowed(d: ResolvedDeployment, kind: keyof ProjectImports): boolean {

@@ -206,11 +206,13 @@ describe("applyPatch with project context", () => {
     const patches: FilePatch[] = [
       { path: "AGENTS.md", action: "create", content: "# instructions\n" },
     ];
+    // Test builds fall back to the open profile, so pin managed here to exercise the guard.
     const blocked = await applyPatch({
       bridge: fakeBridge().bridge,
       root,
       patches,
       context: validatorContext(patches),
+      writePolicy: "managed",
     });
     expect(blocked.ok).toBe(false);
 
@@ -220,7 +222,47 @@ describe("applyPatch with project context", () => {
       patches,
       context: validatorContext(patches),
       rootFiles: ["AGENTS.md"],
+      writePolicy: "managed",
     });
     expect(allowed.ok).toBe(true);
+  });
+
+  it("uses the open build profile by default: a root file and a CI workflow are writable", async () => {
+    const patches: FilePatch[] = [
+      { path: "wrangler.jsonc", action: "create", content: '{\n  "name": "demo"\n}\n' },
+      { path: ".github/workflows/ci.yml", action: "create", content: "name: ci\n" },
+    ];
+    const { bridge } = fakeBridge();
+    const result = await applyPatch({ bridge, root, patches, context: validatorContext(patches) });
+    expect(result.validation.errors.map((entry) => entry.rule)).not.toContain("file-path-allowed");
+    expect(result.ok).toBe(true);
+    expect(result.written).toEqual(["wrangler.jsonc", ".github/workflows/ci.yml"]);
+  });
+
+  it("keeps the install surface out of an open-build patch", async () => {
+    const patches: FilePatch[] = [{ path: "package.json", action: "update", content: "{}" }];
+    const result = await applyPatch({
+      bridge: fakeBridge().bridge,
+      root,
+      patches,
+      context: validatorContext(patches),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.validation.errors.map((entry) => entry.rule)).toContain("file-path-allowed");
+  });
+
+  it("rejects a CI workflow in a managed build", async () => {
+    const patches: FilePatch[] = [
+      { path: ".github/workflows/ci.yml", action: "create", content: "name: ci\n" },
+    ];
+    const result = await applyPatch({
+      bridge: fakeBridge().bridge,
+      root,
+      patches,
+      context: validatorContext(patches),
+      writePolicy: "managed",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.validation.errors.map((entry) => entry.rule)).toContain("file-path-allowed");
   });
 });

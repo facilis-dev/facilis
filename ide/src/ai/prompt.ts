@@ -8,6 +8,7 @@
 // It never carries an API key: keys live in AiSettings and travel only to the provider
 // as an Authorization header.
 
+import type { WritePolicy } from "@facilis.dev/ai";
 import { describeTools, type PtcToolSpec } from "./ptc/protocol";
 
 const MANIFEST_CHAR_CAP = 16_000;
@@ -31,6 +32,8 @@ export interface PromptContext {
   instructions: { path: string; content: string } | null;
   /** PTC tool specs; empty only in tests (the chat always has the runtime, D-103). */
   tools?: readonly PtcToolSpec[];
+  /** Rule 11's writable set this build enforces (D-167); defaults to `managed`. */
+  writePolicy?: WritePolicy;
 }
 
 /** Teaches the script/answer protocol when the PTC runtime is available (D-101/D-102). */
@@ -152,7 +155,7 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
   "notes": string[],
   "requires_confirmation": boolean
 }
-- path is relative to the project root and must stay under server/, src/, db/, lib/, components/ or locales/.
+- path is relative to the project root (never absolute, never a '..' segment); the 'Writable paths' section below states which paths this build accepts.
 - "create" and "update" carry the complete file content; "delete" omits content.
 - When a "Project exploration (PTC)" section is present, a turn may instead carry "script": a raw JavaScript program with no patches (see that section).
 - "continue": true marks a part of a patch set that continues in the next answer (see Large patch sets). Omit it on the last part.
@@ -172,6 +175,13 @@ If the latest user message says your previous answer was rejected, it is a valid
 - When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
 - Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.
 - If the corrected set is too large for one answer, send it in parts with "continue": true (Large patch sets).`;
+
+/** Rule 11's writable set, per deployment profile (D-167). */
+const MANAGED_WRITABLE_PATHS =
+  "This managed build lets a patch write only under server/, src/, db/, lib/, components/, locales/ or the root facilis.config.ts. Rule 11 rejects any other path.";
+
+const OPEN_WRITABLE_PATHS =
+  "This open build lets a patch write any project path except node_modules/, .git/, .facilis/, dist/, .turbo/, coverage/, the dependency manifest and lockfiles (package.json, package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock), .npmrc, and AGENTS.md (only the IDE writes it). Root files (index.html, vite.config.ts, wrangler.jsonc, README.md) and .github/workflows/*.yml are writable, so a CI pipeline or deploy config is a normal patch.";
 
 function capped(text: string, cap: number): string {
   if (text.length <= cap) return text;
@@ -196,6 +206,15 @@ function fence(code: string): string[] {
 export function buildSystemPrompt(context: PromptContext): string {
   const files = context.files.toSorted();
   const lines: string[] = [SYSTEM_PROMPT, ""];
+
+  // The writable set is a build fact, so it follows the deployment profile (D-167) rather
+  // than a per-turn option: the model must know what rule 11 will accept before it writes.
+  const writePolicy = context.writePolicy ?? "managed";
+  lines.push(
+    "## Writable paths",
+    writePolicy === "open" ? OPEN_WRITABLE_PATHS : MANAGED_WRITABLE_PATHS,
+    "",
+  );
 
   const tools = context.tools ?? [];
   if (tools.length > 0) {

@@ -62,7 +62,7 @@ describe("SYSTEM_PROMPT", () => {
       '"action"',
       '"notes"',
       "requires_confirmation",
-      "server/",
+      "path is relative to the project root",
       "delete",
       "Never put secrets",
     ]) {
@@ -294,5 +294,25 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("- src/file-499.ts");
     expect(prompt.includes("src/file-500.ts")).toBe(false);
     expect(prompt).toContain("[truncated]");
+  });
+});
+
+describe("buildSystemPrompt writable paths (D-167)", () => {
+  it("states the strict managed roots by default", () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain("## Writable paths");
+    expect(prompt).toContain("This managed build lets a patch write only under");
+    for (const token of ["server/", "src/", "db/", "lib/", "components/", "locales/"]) {
+      expect(prompt).toContain(token);
+    }
+    expect(prompt).toContain("the root facilis.config.ts");
+  });
+
+  it("states the open set, including CI and deploy config, when the build is open", () => {
+    const prompt = buildSystemPrompt(context({ writePolicy: "open" }));
+    expect(prompt).toContain("This open build lets a patch write any project path");
+    expect(prompt).toContain(".github/workflows");
+    expect(prompt).toContain("wrangler.jsonc");
+    expect(prompt).not.toContain("This managed build lets a patch write only under");
   });
 });

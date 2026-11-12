@@ -131,4 +131,13 @@ describe("validatePatchesWithHost", () => {
     ]);
     expect(result.validation.errors[0]?.fix_hint).toContain("patches are not validated");
   });
+
+  it("forwards the write policy to rule 11", async () => {
+    const ci = patch(".github/workflows/ci.yml", "name: ci\n");
+    const open = await validatePatchesWithHost([ci], host(), { writePolicy: "open" });
+    expect(open.validation.errors.map((entry) => entry.rule)).not.toContain("file-path-allowed");
+
+    const managed = await validatePatchesWithHost([ci], host(), { writePolicy: "managed" });
+    expect(managed.validation.errors.map((entry) => entry.rule)).toContain("file-path-allowed");
+  });
 });

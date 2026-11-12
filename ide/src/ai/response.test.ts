@@ -109,10 +109,20 @@ describe("parseAiResponse", () => {
     ]);
     // The repair turn needs the actionable fields, not only the one-line issue.
     expect(result.findings[0]?.fix_hint).toContain("project-relative path");
-    expect(result.patchedFiles).toEqual([
-      { path: "../escape.ts", action: "create", content: "x" },
-    ]);
+    expect(result.patchedFiles).toEqual([{ path: "../escape.ts", action: "create", content: "x" }]);
     expect(result.raw).toBe(raw);
+  });
+
+  it("runs the structural gate with the build's write profile (D-167)", () => {
+    // Test builds fall back to the open profile, so a root config path must pass the
+    // context-free gate too: the contextual validator would otherwise never see it.
+    const result = parseAiResponse(
+      json({
+        message: "x",
+        patches: [{ path: ".github/workflows/ci.yml", action: "create", content: "name: ci\n" }],
+      }),
+    );
+    expect(result.ok).toBe(true);
   });
 
   it("accepts a delete without content but rejects a create without content", () => {
@@ -133,7 +143,9 @@ describe("parseAiResponse", () => {
   });
 
   it("accepts a script turn and keeps the program", () => {
-    const result = parseAiResponse(json({ message: "explore", script: "return await tools.list_files({});" }));
+    const result = parseAiResponse(
+      json({ message: "explore", script: "return await tools.list_files({});" }),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.response.script).toBe("return await tools.list_files({});");
@@ -141,7 +153,9 @@ describe("parseAiResponse", () => {
   });
 
   it("rejects a turn that mixes a script and patches", () => {
-    const result = parseAiResponse(json({ message: "x", script: "return 1", patches: BODY.patches }));
+    const result = parseAiResponse(
+      json({ message: "x", script: "return 1", patches: BODY.patches }),
+    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.kind).toBe("contract");

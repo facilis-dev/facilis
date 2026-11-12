@@ -39,5 +39,6 @@ export type {
   ValidatePatchOptions,
   ValidationError,
   ValidationResult,
+  WritePolicy,
 } from "./types.ts";
 export { validatePatch } from "./validator.ts";

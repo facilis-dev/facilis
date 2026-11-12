@@ -18,7 +18,9 @@ import {
   type FilePatch,
   type PatchContext,
   type ValidationResult,
+  type WritePolicy,
 } from "@facilis.dev/ai";
+import { aiWritePolicy } from "@/deploy/current";
 import { fetchRevision } from "./manifest-client";
 
 /** The slice of KernelBridge a patch needs. Structural so the unit test stays a plain fake. */
@@ -45,6 +47,9 @@ export interface ApplyPatchInput {
   requiresConfirmation?: boolean;
   /** Root files this write may touch (the IDE's AGENTS.md scaffold only). */
   rootFiles?: readonly string[];
+  /** Rule 11's writable set for this write. The default is the build's deployment profile
+   * ({@link aiWritePolicy}); the override exists for tests that exercise the managed roots. */
+  writePolicy?: WritePolicy;
 }
 
 export interface ApplyPatchResult {
@@ -76,6 +81,7 @@ export async function applyPatch(input: ApplyPatchInput): Promise<ApplyPatchResu
       ? {}
       : { requiresConfirmation: input.requiresConfirmation }),
     ...(input.rootFiles === undefined ? {} : { allowedRootFiles: input.rootFiles }),
+    writePolicy: input.writePolicy ?? aiWritePolicy,
   });
   if (!validation.ok) {
     return { ok: false, validation, written: [], deleted: [], revision: null, errors: [] };

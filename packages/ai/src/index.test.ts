@@ -25,4 +25,24 @@ describe("validatePatch", () => {
     expect(result.ok).toBe(false);
     expect(result.errors[0]?.rule).toBe("file-path-allowed");
   });
+
+  it("applies the deployment profile to rule 11 (D-167)", () => {
+    const ci = {
+      path: ".github/workflows/ci.yml",
+      action: "create" as const,
+      content: "name: ci\n",
+    };
+
+    expect(validatePatch([ci]).errors[0]?.rule).toBe("file-path-allowed");
+    expect(validatePatch([ci], { writePolicy: "managed" }).ok).toBe(false);
+    expect(validatePatch([ci], { writePolicy: "open" }).ok).toBe(true);
+  });
+
+  it("still rejects the install surface under the open policy", () => {
+    const manifest = { path: "package.json", action: "update" as const, content: "{}\n" };
+    const result = validatePatch([manifest], { writePolicy: "open" });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]?.rule).toBe("file-path-allowed");
+  });
 });
