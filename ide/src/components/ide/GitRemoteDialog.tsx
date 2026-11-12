@@ -16,8 +16,8 @@ import { t, type MessageKey } from "@/i18n";
 import type { Credentials } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { githubSessionToken } from "@/vv/github-oauth";
-import { GitHubSignIn } from "./GitHubSignIn";
-import { TokenHelp } from "./TokenHelp";
+import { gitAuthTarget, hostOfGitInput } from "@/vv/git-provider";
+import { GitAuthPanel, GitProviderLine } from "./GitAuthPanel";
 
 // The session reports a machine phase; the dialog owns what the user reads. Both the
 // short names the session emits and the longer forms of the D-079 contract are mapped.
@@ -88,6 +88,11 @@ export function GitRemoteDialog() {
   // A field left empty falls back to the tab's GitHub sign-in (D-082). Operations
   // keep clearing the field, so the token itself is never shown after use.
   const effectiveToken = token.trim() !== "" ? token.trim() : (githubSessionToken() ?? "");
+  // The typed URL names the host first (the flow is URL → provider → auth); the saved
+  // remote stands in until the field is filled. GitHub takes the device flow, the rest a token.
+  const authSource = remote.trim() !== "" ? remote : (state.url ?? "");
+  const authTarget = gitAuthTarget(authSource);
+  const authHost = hostOfGitInput(authSource);
   const credentials = (): Credentials | undefined => {
     if (effectiveToken === "") return undefined;
     const name = username.trim();
@@ -189,6 +194,18 @@ export function GitRemoteDialog() {
               )}
             </label>
 
+            <GitProviderLine target={authTarget} host={authHost} />
+
+            <GitAuthPanel
+              target={authTarget}
+              token={token}
+              username={username}
+              busy={busy}
+              onToken={setToken}
+              onUsername={setUsername}
+              write
+            />
+
             {hasRemote && (
               <>
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -198,47 +215,6 @@ export function GitRemoteDialog() {
                   </span>
                   <span className="tabular-nums">{aheadBehind}</span>
                 </div>
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t("gitRemote.token")}
-                  </span>
-                  <Input
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={token}
-                    onChange={(event) => setToken(event.target.value)}
-                    placeholder={t("gitRemote.tokenPlaceholder")}
-                    disabled={busy}
-                  />
-                  <span className="text-xs text-muted-foreground">{t("gitRemote.tokenHint")}</span>
-                  <TokenHelp write />
-                </label>
-
-                <GitHubSignIn
-                  onToken={(value) => {
-                    setToken(value ?? "");
-                    if (value !== null) setUsername("");
-                  }}
-                />
-
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t("gitRemote.username")}
-                  </span>
-                  <Input
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    placeholder={t("gitRemote.usernamePlaceholder")}
-                    disabled={busy}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {t("gitRemote.usernameHint")}
-                  </span>
-                </label>
 
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => void runFetch()} disabled={busy}>

@@ -2468,6 +2468,14 @@ unreachable one, which must still fail loudly). In a managed build the clone is 
 (`imports.git` stays false), but the palette action still populates an empty folder with the
 sanctioned project, which is exactly the admission contract.
 
+**Amended (2026-11-12).** The bullet above offered the *default* template only, which meant the
+full-stack one reached an empty repository without the user choosing it. The new-project dialog
+already ships a picker of the registered templates (D-168), so the empty-repository action now
+opens the same picker instead of scaffolding silently: the clone toast's action and the palette
+command call the scaffold dialog, and `ProjectImport.scaffoldFolder(root, template)` forwards the
+choice to `scaffoldFacilisProject`. Nothing else changes — existing files are still kept and the
+scaffold is still left uncommitted for review.
+
 ### D-081 — Git authentication is HTTP Basic: a token, or an account password where the host still allows one
 **Status:** accepted (2026-11-02)
 

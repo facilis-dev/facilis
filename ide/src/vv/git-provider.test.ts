@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectGitProvider,
   gitAuthHeaders,
+  gitAuthTarget,
   hostOfGitInput,
   normalizeGitSecret,
   normalizeGitToken,
@@ -49,6 +50,43 @@ describe("git host selection", () => {
     expect(gitAuthHeaders("gitlab", "t")).toEqual({ "PRIVATE-TOKEN": "t" });
     expect(gitAuthHeaders("gitea", "t")).toEqual({ Authorization: "token t" });
     expect(gitAuthHeaders("github", null)).toEqual({});
+  });
+});
+
+describe("git auth target", () => {
+  it("asks for the GitHub device flow for a shorthand or a github.com URL", () => {
+    expect(gitAuthTarget("owner/repo")).toEqual({ kind: "github" });
+    expect(gitAuthTarget("github.com/owner/repo")).toEqual({ kind: "github" });
+    expect(gitAuthTarget("https://github.com/owner/repo.git")).toEqual({ kind: "github" });
+  });
+
+  it("asks for a token, naming the host when the editor knows the provider", () => {
+    expect(gitAuthTarget("https://gitlab.com/group/repo")).toEqual({
+      kind: "token",
+      provider: "gitlab",
+    });
+    expect(gitAuthTarget("gitea.com/owner/repo")).toEqual({ kind: "token", provider: "gitea" });
+    // A self-hosted GitLab still gets GitLab's label (and its token header).
+    expect(gitAuthTarget("https://gitlab.company.com/team/repo")).toEqual({
+      kind: "token",
+      provider: "gitlab",
+    });
+  });
+
+  it("asks for a token with no provider for any other host", () => {
+    expect(gitAuthTarget("https://git.company.com/team/repo")).toEqual({
+      kind: "token",
+      provider: null,
+    });
+    expect(gitAuthTarget("git.company.com/team/repo")).toEqual({
+      kind: "token",
+      provider: null,
+    });
+  });
+
+  it("has no auth target before the user typed a repository", () => {
+    expect(gitAuthTarget("")).toBeNull();
+    expect(gitAuthTarget("   ")).toBeNull();
   });
 });
 

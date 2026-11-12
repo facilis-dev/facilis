@@ -10,14 +10,6 @@ export const gitRemoteEn = {
   "gitRemote.remotePlaceholder": "https://github.com/owner/repo.git",
   "gitRemote.save": "Save remote",
   "gitRemote.saved": "Remote saved",
-  "gitRemote.token": "Access token or password (optional)",
-  "gitRemote.tokenPlaceholder": "ghp_…, glpat-…, …",
-  "gitRemote.tokenHint":
-    "Needed for private repositories and for pushing. GitHub: sign in above or paste a token; GitLab and Gitea/Forgejo also accept your account password. Used for this operation and never stored.",
-  "gitRemote.username": "Username (optional)",
-  "gitRemote.usernamePlaceholder": "git",
-  "gitRemote.usernameHint":
-    "Only with an account password (GitLab, Gitea/Forgejo), or when the host asks for one with the token.",
   "gitRemote.branch": "Branch",
   "gitRemote.aheadBehind": "↑{ahead} ↓{behind}",
   "gitRemote.upToDate": "Up to date with the remote.",
@@ -45,15 +37,8 @@ export const gitRemoteEn = {
   "import.repositoryHintGit":
     "owner/repo (GitHub by default) or the repository URL; GitLab and Gitea/Forgejo need their URL. A private repository needs the token or password below.",
 
-  // ── import with real git: token or account password (D-081) ─────────────
+  // ── import with real git: bad token or password (D-081) ──────────────────
   "import.secretInvalid": "That does not look like a valid token or password.",
-  "import.tokenOrPassword": "Access token or password (optional)",
-  "import.tokenOrPasswordHint":
-    "For a private repository. GitHub: sign in above or paste a token; GitLab and Gitea/Forgejo also accept your account password with the username below. Used for this import and never stored.",
-  "import.username": "Username (optional)",
-  "import.usernamePlaceholder": "your username",
-  "import.usernameHint":
-    "Only with an account password (GitLab, Gitea/Forgejo) — GitHub requires a token.",
 
   // ── GitHub device flow sign-in (D-082) ───────────────────────────────────
   "github.signIn": "Sign in with GitHub",
@@ -72,6 +57,28 @@ export const gitRemoteEn = {
   "github.network": "Could not reach GitHub through this deployment's proxy.",
   "github.invalid": "GitHub sign-in failed. Try again, or paste a token below.",
   "github.unavailable": "GitHub sign-in is not available in this deployment.",
+
+  // ── shared auth panel: provider, token fallback, username/password (D-081) ──
+  "gitAuth.provider": "Provider:",
+  "gitAuth.otherHost": "other host",
+  "gitAuth.host": "({host})",
+  "gitAuth.hintEmpty": "Paste a repository URL to choose how to sign in.",
+  "gitAuth.githubUnavailable":
+    "GitHub sign-in is not configured in this deployment — use an access token.",
+  "gitAuth.tokenLabel": "Access token",
+  "gitAuth.tokenPlaceholder": "ghp_…, glpat-…, …",
+  "gitAuth.tokenHint": "Needed for a private repository. Used for this operation and never stored.",
+  "gitAuth.tokenHintWrite":
+    "Needed for a private repository and for pushing. Used for this operation and never stored.",
+  "gitAuth.tokenInstead": "Use an access token instead",
+  "gitAuth.githubInstead": "Use GitHub sign-in instead",
+  "gitAuth.passwordInstead": "Use username and password instead",
+  "gitAuth.passwordLabel": "Password",
+  "gitAuth.passwordPlaceholder": "your account password",
+  "gitAuth.passwordHint": "Only for hosts that accept an account password (GitLab, Gitea/Forgejo).",
+  "gitAuth.usernameLabel": "Username",
+  "gitAuth.usernamePlaceholder": "your username",
+  "gitAuth.usernameHint": "Used with the account password.",
 
   // ── token help (shown by the import, publish and remote dialogs) ─────────
   "token.helpSummary": "How to create a token",

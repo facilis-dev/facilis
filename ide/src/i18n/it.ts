@@ -15,6 +15,7 @@ import { logsIt } from "./it-logs";
 import { tourIt } from "./it-tour";
 import { runIt } from "./it-run";
 import { previewIt } from "./it-preview";
+import { scaffoldIt } from "./it-scaffold";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -136,10 +137,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   "import.repositoryPlaceholder": "owner/repo, owner/repo@branch, o un URL del repository",
   "import.repositoryHint":
     "Pubblico per impostazione predefinita; un repository privato richiede il token qui sotto. Un server self-hosted deve consentire il CORS sulla sua API.",
-  "import.token": "Token di accesso (opzionale)",
-  "import.tokenPlaceholder": "ghp_…, glpat-…, …",
-  "import.tokenHint":
-    "Per i repository privati: un token con accesso in lettura. È usato per questo import e non viene mai salvato.",
   "import.tokenInvalid": "Non sembra un token valido.",
   "import.starting": "Avvio…",
   "import.submit": "Importa",
@@ -185,6 +182,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "push.kernelStarting": "Il runtime si sta ancora avviando — riprova tra un momento.",
   "push.disabled": "Questa distribuzione non consente la pubblicazione su un host git.",
   ...gitRemoteIt,
+  ...scaffoldIt,
   ...sourceControlIt,
   ...commitGraphIt,
   ...projectGraphIt,

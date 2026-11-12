@@ -10,10 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
-import { DEFAULT_TEMPLATE_KEY, FACILIS_TEMPLATES, type TemplateKey } from "@/facilis/templates";
+import { DEFAULT_TEMPLATE_KEY, type TemplateKey } from "@/facilis/templates";
 import { useIde } from "./useIde";
+import { TemplatePicker } from "./TemplatePicker";
 
 // Shared directory field with live validation against the VFS + registry.
 function useDirValidation(dir: string, enabled: boolean) {
@@ -217,39 +217,7 @@ export function NewProjectDialog({
               }}
             />
           </label>
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="mb-1 text-xs font-medium text-muted-foreground">
-              {t("create.template")}
-            </legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {FACILIS_TEMPLATES.map((option) => {
-                const selected = template === option.key;
-                return (
-                  <label
-                    key={option.key}
-                    className={cn(
-                      "flex cursor-pointer flex-col gap-0.5 rounded-lg border p-3 text-left transition-colors",
-                      selected
-                        ? "border-primary bg-primary/5"
-                        : "hover:border-primary/40 hover:bg-accent/40",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="facilis-template"
-                      className="sr-only"
-                      checked={selected}
-                      onChange={() => setTemplate(option.key)}
-                    />
-                    <span className="text-sm font-medium">{t(option.labelKey)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t(option.descriptionKey)}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
+          <TemplatePicker value={template} onChange={setTemplate} />
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">
               {t("create.directory")}

@@ -37,6 +37,7 @@ import { deployment, pushAllowed } from "@/deploy/current";
 import { proxyBase } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { publishSession } from "@/vv/publish-session";
+import { scaffoldUi } from "@/vv/scaffold-ui";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
 
@@ -80,15 +81,15 @@ export function CommandPalette() {
       },
       { label: t("palette.importRemote"), icon: GitBranch, run: () => c.openImportRemote() },
       {
-        // The empty-repository case and the manual recovery: write the Facilis project
-        // into the open folder without touching anything already there (D-080).
+        // The empty-repository case and the manual recovery: pick a template, then write
+        // it into the open folder without touching anything already there (D-080).
         label: t("palette.scaffold"),
         icon: FileCode,
         run: () => {
           const root = snap.workspaceFolders.find(
             (folder) => folder.id === snap.activeFolderId,
           )?.rootPath;
-          if (root !== undefined) void c.projectImport.scaffoldFolder(root);
+          if (root !== undefined) scaffoldUi.open(root);
         },
       },
       // Publishing is compiled out of deployments that forbid writing to a git host.
