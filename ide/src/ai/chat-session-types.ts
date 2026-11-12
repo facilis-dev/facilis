@@ -32,7 +32,7 @@ export interface ChatHost {
   preview?: PreviewAccess;
   /** The visible project graph (D-171): highlight/paths/screenshot act on the panel's ids. */
   graphView?: GraphViewAccess;
-  /** The deployment's web reach (D-174): absent when the build has no web family. */
+  /** The deployment's web reach (D-175): absent when the build has no web family. */
   web?: WebAccess;
   /** Runs before the context is assembled (MCP discovery, D-118); must not throw. */
   prepare?(): Promise<void>;

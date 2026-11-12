@@ -56,7 +56,7 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
 ## 2. Non-goals (phase 1)
 
 - No shell, no network from program code, no writes from program code. The sandbox stays
-  networkless: web I/O is a **host-side** exception (D-174) — the program asks the host, the host
+  networkless: web I/O is a **host-side** exception (D-175) — the program asks the host, the host
   performs the request under the deployment profile and returns data.
 - Patches are still proposed as `AIResponse.patches` and written only by the user's Apply
   (invariant 9); exploration can never touch the VFS.
@@ -209,7 +209,7 @@ confined to the project root, and go through one policy function.
 | `git_branch` | `{ action: "create"\|"switch", name }` | creates or switches; switch refuses a dirty working tree |
 | `git_sync` | `{ action: "fetch"\|"pull"\|"push" }` | network over the D-079 proxy; needs the signed-in GitHub token; pull refuses a dirty tree |
 | `git_pull_request` | `{ title, body?, base?, head?, draft? }` | opens a GitHub pull request from the current branch; returns number + url |
-| `web_fetch` | `{ url, maxChars? }` | GET a text-ish URL (text/*, JSON, XML) as text, ≤ 32k chars after secret redaction, response ≤ 1 MB; HTML reduced to text (D-174) |
+| `web_fetch` | `{ url, maxChars? }` | GET a text-ish URL (text/*, JSON, XML) as text, ≤ 32k chars after secret redaction, response ≤ 1 MB; HTML reduced to text (D-175) |
 | `web_image` | `{ url }` | GET an image (≤ 5 MB) onto the D-112 image channel; shown to the user and sent to vision presets; ≤ 2 per program |
 | `web_download` | `{ url, path }` | GET any content type (≤ 5 MB) into a project path under `public/` only; overwrite allowed; ≤ 5 per program |
 
@@ -268,7 +268,7 @@ answers `{ available: false, reason }` so the model asks the user to sign in ins
 a credential. The family is registered only when the host provides the repository seam
 (`createGitAccess`); with no project open, every tool answers `{ available: false }`.
 
-**The web tools (D-174) are the host-side exception to "no network": they run in the IDE page,
+**The web tools (D-175) are the host-side exception to "no network": they run in the IDE page,
 not in the sandbox.** `web_fetch` returns text (≤ 32k chars after redaction; HTML is reduced to
 text) and `web_image` returns an image onto the D-112 image channel (≤ 5 MB, two per program);
 `web_download` writes a file only under the project's `public/` directory (≤ 5 MB, five per
@@ -282,13 +282,13 @@ A browser cannot read a host that does not send `Access-Control-Allow-Origin`: C
 documented limit of a browser-only client, not a bug.
 Fetched content is data (the prompt-injection rule below); it never becomes instructions.
 
-**The graph tools (D-126) and web downloads into `public/` (D-174) are the other non-source
+**The graph tools (D-126) and web downloads into `public/` (D-175) are the other non-source
 writes, so the §9.3 patch path is unchanged for all of them.** Phase 2 (write-intent, still
 validator-gated):  (fixed allowlist, no arguments, executed in the WebContainer) and possibly a
 patch-draft helper. There is no `apply_patch` tool: the proposal+Apply path is already the write
 contract.
 
-Never exposed to a program: shell, network (the `web_*` family runs on the host, D-174),
+Never exposed to a program: shell, network (the `web_*` family runs on the host, D-175),
 `process.env`, `node_modules`, `.git` internals (the git tools use the SCM operations, never the
 raw object store), IDE storage,
 any path outside the project root, secrets (AI-SKILLS §3/§6 exclusions, plus the existing
@@ -347,7 +347,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Skill resources are readable only through a declared tool call and the read globs.
 - No skill is auto-enabled; the trace shows which skill's capability authorized each call.
 - `network` stays `false` for every skill: the `web_*` family is a deployment capability of the
-  host, not a skill capability (D-174), so a skill still cannot fetch by itself.
+  host, not a skill capability (D-175), so a skill still cannot fetch by itself.
 - This finally gives the "skills runtime" in AI-SKILLS §1 a concrete executor instead of prose.
 
 ## 10. UX and audit
@@ -369,9 +369,9 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Surface | Control |
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
-| tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-174), caps, redaction |
-| writes | source content: none from tools or programs — only the validated proposal + user Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-174) |
-| egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-174) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
+| tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction |
+| writes | source content: none from tools or programs — only the validated proposal + user Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
+| egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-175) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
 | web results | text ≤ 32k chars and secret-redacted, image ≤ 5 MB (2 per program), download ≤ 5 MB into `public/` only (5 per program), 10 calls / 8 MB per program; CORS can still refuse a host |
 | prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; read-only exploration limits damage |
 | secrets | excluded from tool results and context; redaction is shared with AI-SKILLS §3 |

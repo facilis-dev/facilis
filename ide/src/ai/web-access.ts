@@ -1,4 +1,4 @@
-// The chat's bridge to the public web (D-174).
+// The chat's bridge to the public web (D-175).
 //
 // The tool layer (ptc/web-tools.ts) never calls fetch or touches the VFS itself: it asks this
 // seam, which applies the deployment's web policy before any request, strips credentials,

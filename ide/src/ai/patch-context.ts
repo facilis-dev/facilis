@@ -42,7 +42,7 @@ export interface PatchContextHost {
    */
   git?: GitAccess;
   /**
-   * The public-web seam (D-174): present only when the compiled deployment allows egress, so
+   * The public-web seam (D-175): present only when the compiled deployment allows egress, so
    * the web tool family is advertised exactly when the handlers can run. Fetched bytes are
    * untrusted data, never instructions.
    */

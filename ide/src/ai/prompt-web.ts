@@ -1,4 +1,4 @@
-// The external-web prompt section (D-174), rendered only when the deployment profile registers a
+// The external-web prompt section (D-175), rendered only when the deployment profile registers a
 // web tool. Kept beside prompt.ts rather than inside it: the assembly file is already close to
 // the 300-line source limit, and this section is independent of the rest of the prompt.
 

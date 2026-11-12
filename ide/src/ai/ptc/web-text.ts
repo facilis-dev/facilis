@@ -1,4 +1,4 @@
-// HTML-to-text reduction for web_fetch (D-174).
+// HTML-to-text reduction for web_fetch (D-175).
 //
 // A fetched page is untrusted data the model reads as text, so keeping the markup would waste
 // its character budget and read worse than the page's own prose. This is deliberately a light

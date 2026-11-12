@@ -138,7 +138,7 @@ export const GIT_TOOL_SPECS: readonly PtcToolSpec[] = [
 ];
 
 /**
- * Tools that read external URLs and download static assets (D-174). The deployment profile decides
+ * Tools that read external URLs and download static assets (D-175). The deployment profile decides
  * reach: an open build admits any HTTPS host, a managed build only the `network.connect` origins,
  * and a managed build whose list is empty registers no web tool at all.
  */

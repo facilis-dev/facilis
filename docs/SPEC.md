@@ -2374,7 +2374,9 @@ from `facilis.config.ts` through `expandRoles`, never from the table.
 
 **Graph, analyzer and drift.** The project graph labels a table without RLS **system-only**, in a
 neutral colour — it is a class, not a warning — and the Data Explorer's live badge uses the same
-label. The analyzer warns `route-system-table` when a route declares a system-only table in
+label. It does not announce RLS on app-scoped tables — RLS is the default class — so only the
+system-only exception is named (D-174). The analyzer warns `route-system-table` when a route
+declares a system-only table in
 `dbTables` (or as the table side of `dbColumns`) outside the elevation whose `tables` name it
 (D-137). The drift `rls_disabled` is reported only for a scoped table (a system-only table is a
 classification, not a defect).
@@ -2645,7 +2647,7 @@ and no destructive operation. D-138 makes the transcript itself chronological: a
 persisted on its user message (success, failure or cancel) and rendered between the question and
 the answer, so the executions precede the prose in every state.
 
-**D-174 adds the host-side web family** (`web_fetch`/`web_image`/`web_download`): a program asks
+**D-175 adds the host-side web family** (`web_fetch`/`web_image`/`web_download`): a program asks
 the host for a URL and the host, not the sandbox, performs the request. Reach is the deployment
 profile — `open` allows any HTTPS host, `managed` only the origins in `network.connect` (the same
 list compiled into `connect-src`), and a managed build with an empty list advertises no web

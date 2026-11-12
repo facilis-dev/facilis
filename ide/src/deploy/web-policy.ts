@@ -1,4 +1,4 @@
-// The web tools' reach: which origins the chat may read from the public web (D-174).
+// The web tools' reach: which origins the chat may read from the public web (D-175).
 //
 // The decision belongs to the compiled deployment, never to the model or the UI. An open
 // build reaches any HTTPS host; a managed build only the origins its administrator already

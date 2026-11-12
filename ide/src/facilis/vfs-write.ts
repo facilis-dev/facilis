@@ -1,4 +1,4 @@
-// The Studio-side write path for AI-downloaded assets (D-174).
+// The Studio-side write path for AI-downloaded assets (D-175).
 //
 // A download is the one chat write that is not source code: it lands under public/ and the
 // §9.3 validator never sees it (invariant 9 governs source changes). That is not a bypass:

@@ -56,7 +56,7 @@ export function githubOAuthClientId(d: ResolvedDeployment): string | null {
   return d.projects.gitOAuth.githubClientId;
 }
 
-/** The web tools' reach (D-174): null when this build has no web family. */
+/** The web tools' reach (D-175): null when this build has no web family. */
 export const webAccess: WebPolicy | null = webAccessFor(deployment);
 
 /** AI is available unless the deployment turned it off. */

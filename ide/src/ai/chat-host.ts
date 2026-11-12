@@ -54,7 +54,7 @@ function projectRoot(controller: IdeController): string | null {
 
 function createSession(controller: IdeController, mcp: McpSession): ChatSession {
   const host = chatHost(controller, mcp);
-  // D-174: the compiled deployment decides whether the web family exists at all; managed
+  // D-175: the compiled deployment decides whether the web family exists at all; managed
   // with no declared origin compiles it out (deploymentWebAccess === null). The writer
   // converts the tool layer's project-relative path into the VFS's absolute one.
   const web =

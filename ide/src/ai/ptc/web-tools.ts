@@ -1,4 +1,4 @@
-// The web tool handlers (D-174): web_fetch, web_image and web_download.
+// The web tool handlers (D-175): web_fetch, web_image and web_download.
 //
 // Arguments arrive from a sandboxed program, so they are validated here. The URL policy, the
 // redirect re-check and the streamed byte cap live in WebAccess.read (../web-access) — the

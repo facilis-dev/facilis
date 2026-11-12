@@ -227,7 +227,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       }
       scripts = turnNumber;
       trace.push(...run.trace);
-      // D-112/D-171/D-174: preview and project-graph screenshots, plus images the web tools
+      // D-112/D-171/D-175: preview and project-graph screenshots, plus images the web tools
       // fetched, travel with the program's result turn (the activity row shows them to the
       // user; a vision preset also sends them to the model).
       const images = [

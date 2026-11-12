@@ -6,7 +6,7 @@ so they are not re-litigated or lost.
 
 Format: `D-0NN — title` · **status** (accepted / open) · context · decision · consequences.
 
-**Reading guide.** Start with the newest entries (D-142…D-174); the rest is history that still
+**Reading guide.** Start with the newest entries (D-142…D-175); the rest is history that still
 explains the current code. A handful of decisions are superseded by a later one — D-017
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
 (→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149,
@@ -6660,7 +6660,36 @@ and `pnpm lint` cover the touched modules.
 
 **Verification.** `pnpm --filter @facilis.dev/ide test` — 152 files / 1270 tests, including the new `clearGraphFocus` cases in `graph-focus.test.ts` (empty request maps to null; a pending focus is discarded). `typecheck`, `lint`, `node scripts/check-file-length.mjs` and the i18n parity test pass; the toolbar wiring has no component-test harness (typecheck/lint only), consistent with D-171.
 
-### D-174 — The AI's web tool family is host-side and gated by the deployment's `network.connect`
+### D-174 — The project graph names the system-only class, not the default RLS
+**Status:** accepted (2026-11-12)
+
+**Context.** The graph card and the table inspector carried an "RLS" badge on every app-scoped
+table. RLS is structural: every app table enables row-level security and its policy set is what
+grants `facilis_app` access, with a restrictive `tenant_isolation` gate mandatory on all of them
+(D-008/D-136). The badge therefore repeated the default on every card. The owner asked to remove
+it: "Dal grafo rimuoviamo RLS se è presente solo 'tenant isolation'".
+
+**Decision.** The graph shows no RLS badge at all and names only the exception, the
+**system-only** class (a table without RLS, D-136), in the neutral colour of D-137. The table
+inspector keeps the full policy list, `tenant_isolation` included, because there the policies
+are the fact, not a summary; the scope line and the analyzer facts are unchanged.
+
+**Why not hide it only for tables whose policy set is exactly `tenant_isolation`.** That
+condition would hide almost nothing: Postgres denies by default when RLS is on, so every
+reachable app table needs a permissive policy beside the mandatory restrictive tenant gate
+(owner, role, `EXISTS`, a tenant-access gate — D-008). "More than `tenant_isolation`" is the
+normal case, not the exception, so the badge would stay on every real card. RLS-on is the class
+default, hence not news.
+
+**Consequences.** A default-scoped card is silent; system-only tables stay named. No runtime,
+schema, policy, analyzer-fact or diagnostic change, and the Data Explorer's live RLS badge is
+untouched.
+
+**Verification.** `pnpm --filter @facilis.dev/ide typecheck`, `pnpm --filter @facilis.dev/ide test`
+(152 files / 1270 tests, unchanged model), `pnpm lint`, `pnpm build`. The badge is a JSX
+conditional and component behaviour has no test harness, consistent with D-171/D-173.
+
+### D-175 — The AI's web tool family is host-side and gated by the deployment's `network.connect`
 **Status:** accepted (2026-11-12)
 
 **Context.** The PTC runtime could read the project, the running preview, the project graph and the

@@ -33,7 +33,7 @@ Two profiles, selected at build time:
 | Preview | same-origin by default | separate preview origin, sandbox without `allow-same-origin` |
 | Installable as a PWA | yes (manifest + icons) | yes, on the deployment origin (D-076) |
 | AI provider | presets plus a custom base URL | allowlisted providers or an internal gateway; default `off` ([AI-SKILLS.md](./AI-SKILLS.md)) |
-| AI external reads (`web_fetch`/`web_image`/`web_download`) | available: any HTTPS host the browser can read (CORS permitting) | only origins in `network.connect`; an empty list advertises no web tools (D-174) |
+| AI external reads (`web_fetch`/`web_image`/`web_download`) | available: any HTTPS host the browser can read (CORS permitting) | only origins in `network.connect`; an empty list advertises no web tools (D-175) |
 | Skills | any installed skill | only allowlisted skills; default none |
 | AI patch write scope (rule 11) | any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage`, `package.json` + lockfiles + `.npmrc`, `AGENTS.md` (D-167) | `server/`/`src/`/`db/`/`lib/`/`components/`/`locales/` + `facilis.config.ts` only (D-084) |
 | Shell on the VM | available | configurable (`shell` / `run-only`) |
@@ -178,7 +178,7 @@ Rules:
 
 ### AI external reads (web tools)
 
-The PTC runtime's host-side `web_fetch`/`web_image`/`web_download` family (D-174) reads URLs the
+The PTC runtime's host-side `web_fetch`/`web_image`/`web_download` family (D-175) reads URLs the
 model asks for; it runs in the IDE page, never in the sandbox. Reach is the deployment profile,
 and it reuses `network.connect`: in `open` any HTTPS host is allowed (plain HTTP only on the
 IDE's own origin; the open CSP is `connect-src https:`), while in `managed` the only readable
@@ -380,7 +380,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | Admission | none (a registry flag only chooses the run manifest) | `.facilis/facilis.app.json` check before open/Run | L1 |
 | Dependency allowlist | none | `preinstall` check in the template + AI validator rule on `package.json` | L1 |
 | AI egress | presets plus a custom base URL (`ide/src/ai/providers.ts`, `ide/src/ai/settings.ts`) | allowlisted providers/gateway only, custom base URL rejected; their hosts join `connect-src` | L2 |
-| AI web reads | host-side `web_*` tools (`ide/src/ai/ptc/web-tools.ts`) | `managed`: only origins in `network.connect`, empty list = no tools; GET-only, capped, downloads under `public/` only (D-174) | L2 |
+| AI web reads | host-side `web_*` tools (`ide/src/ai/ptc/web-tools.ts`) | `managed`: only origins in `network.connect`, empty list = no tools; GET-only, capped, downloads under `public/` only (D-175) | L2 |
 | AI key vs preview | the same-origin preview can read `vv-ai-settings` | preview isolation is a prerequisite for enabling AI | L0 |
 | AI patches | structural validator only (`packages/ai/src/index.ts`), warnings for client files only | blocking rules (AI-SKILLS.md §4) before `managed` enables AI | L1 |
 | Skills | none | manifest + capabilities + deployment allowlist (AI-SKILLS.md) | L0/L1 |
