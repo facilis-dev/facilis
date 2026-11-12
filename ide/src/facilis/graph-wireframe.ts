@@ -55,6 +55,11 @@ export interface PageWireframe {
 /** Project locale catalogues (config locales), keyed by locale then flat message key. */
 type Locales = Readonly<Record<string, Readonly<Record<string, string>>>>;
 
+/**
+ * Today's analyzer emits intrinsic nodes only for the section intrinsics (header/main/section/
+ * nav/aside/footer/form/table/ul/h1-h3) plus components and <Outlet>; the other entries are
+ * forward-compatible so a preview that keeps more elements needs no model change.
+ */
 const INTRINSIC_TAGS: Readonly<Record<string, WireframeTag>> = {
   header: "bar",
   footer: "bar",

@@ -63,7 +63,11 @@ export function ProjectGraphRouteDetails({
   const inputs = INPUT_ORDER.filter((key) => route.input[key]);
   const flags = securityFlags(details);
   const relations = details?.relations ?? { used: [], unresolved: 0, rawSql: 0, opaque: false };
-  const hasRelations = relations.used.length > 0 || relations.unresolved > 0 || relations.opaque;
+  const hasRelations =
+    relations.used.length > 0 ||
+    relations.unresolved > 0 ||
+    relations.rawSql > 0 ||
+    relations.opaque;
   const elevations = details?.elevations ?? [];
   const columns = details?.dbColumns ?? [];
   return (

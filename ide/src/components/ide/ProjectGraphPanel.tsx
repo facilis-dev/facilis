@@ -100,11 +100,18 @@ export function ProjectGraphPanel() {
     [analysis, layout, query],
   );
   useEffect(() => {
+    // Drop the previous project's map first: the keys are project-relative, so a stale
+    // `src/app.tsx` would otherwise render the other project's source while this one loads.
+    setSources(new Map());
     if (analysis === null) return;
     let cancelled = false;
-    void loadProjectSources(c).then((loaded) => {
-      if (!cancelled && loaded.ok) setSources(loaded.files);
-    });
+    void loadProjectSources(c)
+      .then((loaded) => {
+        if (!cancelled && loaded.ok) setSources(loaded.files);
+      })
+      .catch(() => {
+        // A transient bridge failure leaves the snippets empty; the next analysis retries.
+      });
     return () => {
       cancelled = true;
     };
@@ -153,18 +160,9 @@ export function ProjectGraphPanel() {
     if (path !== null) void c.openFileAt(path, line);
   };
   // A detail list may name a relation the graph did not draw (system filters, unresolved
-  // names): selecting an id that has no node would close the inspector for no reason. A route's
-  // dbTables lists tables and views alike, but the chip only knows the name, so a view is retried
-  // under its own id prefix.
+  // names): selecting an id that has no node would close the inspector for no reason.
   const selectNode = (id: string) => {
-    if (nodeLabels.has(id)) {
-      setSelectedNodeId(id);
-      return;
-    }
-    if (id.startsWith("table:")) {
-      const view = "view:" + id.slice("table:".length);
-      if (nodeLabels.has(view)) setSelectedNodeId(view);
-    }
+    if (nodeLabels.has(id)) setSelectedNodeId(id);
   };
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.

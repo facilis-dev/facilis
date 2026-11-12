@@ -5,14 +5,20 @@
 
 import type { IdeController } from "@/vv/controller";
 
+/** A wildcard route has no concrete URL; a path parameter gets a placeholder value. */
+function previewablePath(path: string): string | null {
+  if (!path.startsWith("/") || path.includes("*")) return null;
+  return path.replace(/\{[^}]+\}/g, "1").replace(/:[A-Za-z0-9_]+/g, "1");
+}
+
 export function openPageInPreview(controller: IdeController, path: string): void {
-  if (!path.startsWith("/")) return;
+  const target = previewablePath(path);
+  if (target === null) return;
   controller.togglePreview(true);
   const active = controller.preview.activePreviewTab();
   if (active !== null) {
-    controller.preview.navigatePreviewPath(active.id, path);
+    controller.preview.navigatePreviewPath(active.id, target);
     return;
   }
-  const id = controller.preview.addPreviewTab();
-  controller.preview.setPreviewPath(id, path);
+  controller.preview.addPreviewTab("", target);
 }

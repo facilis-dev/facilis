@@ -24,7 +24,9 @@ export function ProjectGraphSourcePreview({
 }: ProjectGraphSourcePreviewProps) {
   const text = file === null ? null : (sources.get(file) ?? null);
   const snippet = text === null ? null : snippetAround(text, line ?? 1, CONTEXT_LINES);
-  const openLine = line ?? 1;
+  // A SourceRef can point past the file the VFS still has (an analysis from before an edit):
+  // the clamped anchor is what exists, so both the highlight and the jump use it.
+  const openLine = snippet?.anchor ?? line ?? 1;
   return (
     <section className="space-y-1">
       <div className="flex items-baseline justify-between gap-1">

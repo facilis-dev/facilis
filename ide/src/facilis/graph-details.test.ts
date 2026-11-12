@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildProjectGraph,
   pageId,
   routeId,
   tableId,
@@ -293,7 +294,6 @@ describe("buildGraphDetails", () => {
       default: { kind: "now", value: null },
       source: ref("db/schema.ts", 7),
     });
-    expect(entry.table.primaryKey).toEqual(["id"]);
     expect(entry.table.policies[1]).toEqual({
       name: "todos_scope",
       command: "ALL",
@@ -384,7 +384,6 @@ describe("buildGraphDetails", () => {
         calls: [
           {
             expression: 'api("/api/todos")',
-            kind: "literal",
             matchedRouteIds: [routeId(route)],
             source: ref("src/pages/todos.tsx", 6),
           },
@@ -403,6 +402,7 @@ describe("buildGraphDetails", () => {
         source: ref("server/workflows/purge.ts", 1),
         tables: ["projects", "todos"],
         unknownJobs: ["purge-todos"],
+        unknown: false,
       },
     });
   });
@@ -413,11 +413,44 @@ describe("buildGraphDetails", () => {
     );
     expect(details.get(workflowId("orphan"))).toEqual({
       kind: "workflow",
-      workflow: { source: ref("server/workflows/purge.ts", 1), tables: [], unknownJobs: [] },
+      workflow: {
+        source: ref("server/workflows/purge.ts", 1),
+        tables: [],
+        unknownJobs: [],
+        unknown: false,
+      },
     });
   });
 
   it("returns no entry for a fact the analysis does not have", () => {
     expect(buildGraphDetails(analysisOf({})).size).toBe(0);
+  });
+
+  it("resolves every node id the graph builder emits", () => {
+    // The graph builder (analyzer) and the details map (IDE) each derive the id spelling; a
+    // drift between them would leave a drawn node without inspectable facts.
+    const route = routeFact();
+    const table = tableFact();
+    const page = pageFact();
+    const view = viewFact();
+    const workflow = workflowFact();
+    const graph = buildProjectGraph({
+      routes: [route],
+      tables: [table],
+      relations: [relationFact()],
+      pages: [page],
+      views: [view],
+      workflows: [workflow],
+    });
+    const details = buildGraphDetails(
+      analysisOf({
+        routes: [route],
+        tables: [table],
+        pages: [page],
+        views: [view],
+        workflows: [workflow],
+      }),
+    );
+    expect(graph.nodes.map((node) => node.id).sort()).toEqual([...details.keys()].sort());
   });
 });

@@ -14,26 +14,40 @@ import {
 import { ProjectGraphSourcePreview } from "./ProjectGraphSourcePreview";
 
 /** One column row: its SQL name, the Drizzle property when they differ, and its markers. */
-function ColumnRow({ column }: { column: ColumnDetails }) {
+function ColumnRow({
+  column,
+  onOpenFileAt,
+}: {
+  column: ColumnDetails;
+  onOpenFileAt: (file: string, line: number) => void;
+}) {
+  // The column's own SourceRef opens the exact DDL line: the row is the code jump.
   return (
-    <li className="rounded border px-1.5 py-0.5">
-      <div className="flex min-w-0 items-baseline gap-1">
-        <span className="truncate font-mono text-[10px]">{column.name}</span>
-        {column.property !== column.name && (
-          <span className="truncate text-[9px] text-muted-foreground">{column.property}</span>
-        )}
-        <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">{column.type}</span>
-      </div>
-      <div className="flex flex-wrap gap-1 pt-0.5">
-        {column.primaryKey && <Chip mono>{t("projectGraph.marker.primaryKey")}</Chip>}
-        {column.notNull && <Chip mono>{t("projectGraph.marker.notNull")}</Chip>}
-        {column.unique && <Chip mono>{t("projectGraph.marker.unique")}</Chip>}
-        {column.default !== null && (
-          <Chip mono title={column.default.value ?? undefined}>
-            {t("projectGraph.marker.default")}
-          </Chip>
-        )}
-      </div>
+    <li>
+      <button
+        type="button"
+        title={t("projectGraph.openAtLine", { line: column.source.line })}
+        className="w-full rounded border px-1.5 py-0.5 text-left hover:bg-accent/40"
+        onClick={() => onOpenFileAt(column.source.file, column.source.line)}
+      >
+        <div className="flex min-w-0 items-baseline gap-1">
+          <span className="truncate font-mono text-[10px]">{column.name}</span>
+          {column.property !== column.name && (
+            <span className="truncate text-[9px] text-muted-foreground">{column.property}</span>
+          )}
+          <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">{column.type}</span>
+        </div>
+        <div className="flex flex-wrap gap-1 pt-0.5">
+          {column.primaryKey && <Chip mono>{t("projectGraph.marker.primaryKey")}</Chip>}
+          {column.notNull && <Chip mono>{t("projectGraph.marker.notNull")}</Chip>}
+          {column.unique && <Chip mono>{t("projectGraph.marker.unique")}</Chip>}
+          {column.default !== null && (
+            <Chip mono title={column.default.value ?? undefined}>
+              {t("projectGraph.marker.default")}
+            </Chip>
+          )}
+        </div>
+      </button>
     </li>
   );
 }
@@ -98,7 +112,7 @@ export function ProjectGraphTableDetails({
         ) : (
           <ul className="space-y-0.5">
             {columns.map((column) => (
-              <ColumnRow key={column.property} column={column} />
+              <ColumnRow key={column.property} column={column} onOpenFileAt={onOpenFileAt} />
             ))}
           </ul>
         )}
@@ -130,7 +144,13 @@ export function ProjectGraphTableDetails({
           <ul className="space-y-0.5">
             {foreignKeys.map((foreignKey) => (
               <li
-                key={foreignKey.targetTable + foreignKey.columns.join(",")}
+                key={
+                  foreignKey.targetTable +
+                  "\u0000" +
+                  foreignKey.columns.join(",") +
+                  "\u0000" +
+                  foreignKey.targetColumns.join(",")
+                }
                 className="rounded border px-1.5 py-0.5"
               >
                 <p className="truncate font-mono text-[9px]">
@@ -143,6 +163,11 @@ export function ProjectGraphTableDetails({
                 {foreignKey.onDelete !== null && (
                   <p className="text-[9px] text-muted-foreground">
                     {t("projectGraph.fk.onDelete", { action: foreignKey.onDelete })}
+                  </p>
+                )}
+                {foreignKey.onUpdate !== null && (
+                  <p className="text-[9px] text-muted-foreground">
+                    {t("projectGraph.fk.onUpdate", { action: foreignKey.onUpdate })}
                   </p>
                 )}
               </li>

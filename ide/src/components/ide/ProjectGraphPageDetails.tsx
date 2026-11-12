@@ -66,7 +66,11 @@ export function ProjectGraphPageDetails({
   const firstPath = page.routePaths[0];
   const calls = details?.calls ?? [];
   const components = componentsOf(node, sources);
-  const links = edges.filter((edge) => edge.kind === "page-link" && edge.source === node.id);
+  // Links are interesting in both directions: a page that is only linked-to should not read as
+  // "no explicit page links". The chip names the far endpoint.
+  const links = edges.filter(
+    (edge) => edge.kind === "page-link" && (edge.source === node.id || edge.target === node.id),
+  );
   return (
     <>
       <div className="flex flex-wrap items-center gap-1">
@@ -162,16 +166,19 @@ export function ProjectGraphPageDetails({
           <EmptyNote message={t("projectGraph.noLinks")} />
         ) : (
           <ul className="flex flex-wrap gap-1">
-            {links.map((edge) => (
-              <li key={edge.id}>
-                <NodeSelectChip
-                  id={edge.target}
-                  nodeLabel={nodeLabel}
-                  onSelect={onSelectNode}
-                  text={nodeLabel(edge.target) ?? edge.target}
-                />
-              </li>
-            ))}
+            {links.map((edge) => {
+              const other = edge.source === node.id ? edge.target : edge.source;
+              return (
+                <li key={edge.id}>
+                  <NodeSelectChip
+                    id={other}
+                    nodeLabel={nodeLabel}
+                    onSelect={onSelectNode}
+                    text={nodeLabel(other) ?? other}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </DetailsSection>

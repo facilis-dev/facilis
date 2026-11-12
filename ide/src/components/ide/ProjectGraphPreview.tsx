@@ -46,7 +46,7 @@ const CONTAINERS: ReadonlySet<WireframeTag> = new Set<WireframeTag>([
   "other",
 ]);
 
-const BADGE = "shrink-0 rounded border px-0.5 text-[8px] leading-tight";
+const BADGE = "shrink-0 rounded border px-0.5 text-[9px] leading-tight";
 
 function DynamicBadge() {
   return (
@@ -67,7 +67,7 @@ function SlotBadge() {
 function MutedLabel({ label, badge }: { label: string; badge: ReactNode }) {
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <span className="min-w-0 truncate font-mono text-[8px] tracking-wide text-muted-foreground/80 uppercase">
+      <span className="min-w-0 truncate font-mono text-[9px] tracking-wide text-muted-foreground/80 uppercase">
         {label}
       </span>
       {badge}
@@ -116,7 +116,7 @@ function BlockBody({ node, label }: { node: WireframeNode; label: string }) {
     case "media":
       return (
         <span className="flex min-w-0 items-center gap-1">
-          <span className="min-w-0 flex-1 truncate text-center text-[8px] text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate text-center text-[9px] text-muted-foreground">
             {label}
           </span>
           {badge}
@@ -159,7 +159,7 @@ function BlockBody({ node, label }: { node: WireframeNode; label: string }) {
             </span>
           )}
           {hint !== null && (
-            <span className="mt-0.5 block truncate font-mono text-[8px] text-muted-foreground">
+            <span className="mt-0.5 block truncate font-mono text-[9px] text-muted-foreground">
               {hint}
             </span>
           )}
@@ -183,7 +183,6 @@ function NodeBlock({ node, onOpenFileAt }: { node: WireframeNode; onOpenFileAt: 
   const label = node.label.trim() === "" ? t("projectGraph.unknown") : node.label;
   const file = node.file;
   const line = node.line;
-  const openable = file !== null && line !== null;
   const container = CONTAINERS.has(node.tag);
   const children =
     node.children.length === 0 ? null : (
@@ -197,7 +196,8 @@ function NodeBlock({ node, onOpenFileAt }: { node: WireframeNode; onOpenFileAt: 
   const boxClass = TAG_BOX[node.tag] + " min-w-0 overflow-hidden text-[9px] leading-tight";
   // Containers fill the inspector width; nav keeps its sidebar width, leaves their content.
   const fill = container && node.tag !== "nav" ? " w-full" : "";
-  const opener = openable ? (
+  // Every preview node carries its rendering site, so every block is a source jump.
+  const opener = (
     <button
       type="button"
       title={t("projectGraph.preview.open", { file })}
@@ -209,17 +209,17 @@ function NodeBlock({ node, onOpenFileAt }: { node: WireframeNode; onOpenFileAt: 
     >
       {body}
     </button>
-  ) : null;
+  );
   // A container keeps one box around its own body *and* its children, so the children's
   // open-buttons are siblings of the container's, never nested (a button inside a button is
   // invalid and breaks keyboard/AT semantics).
   const inner = container ? (
     <div className={boxClass + fill}>
-      {opener ?? body}
+      {opener}
       {children}
     </div>
   ) : (
-    (opener ?? <div className={boxClass + fill}>{body}</div>)
+    opener
   );
   return (
     <div className="min-w-0">
@@ -244,7 +244,7 @@ function DeviceHeader() {
         <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-foreground">
           {t("projectGraph.preview.title")}
         </span>
-        <span className="shrink-0 rounded-full border border-warning/40 bg-warning/10 px-1 text-[8px] leading-tight text-warning">
+        <span className="shrink-0 rounded-full border border-warning/40 bg-warning/10 px-1 text-[9px] leading-tight text-warning">
           {t("projectGraph.preview.fakeData")}
         </span>
       </div>

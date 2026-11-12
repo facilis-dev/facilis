@@ -51,7 +51,6 @@ export interface ColumnDetails {
 export interface TableDetails {
   readonly source: SourceRef | null;
   readonly columns: readonly ColumnDetails[];
-  readonly primaryKey: readonly string[];
   readonly policies: readonly { name: string; command: string; restrictive: boolean }[];
   readonly foreignKeys: readonly {
     columns: readonly string[];
@@ -73,7 +72,6 @@ export interface PageDetails {
   readonly source: SourceRef | null;
   readonly calls: readonly {
     expression: string;
-    kind: string;
     matchedRouteIds: readonly string[];
     source: SourceRef;
   }[];
@@ -87,6 +85,8 @@ export interface WorkflowDetails {
   readonly source: SourceRef | null;
   readonly tables: readonly string[];
   readonly unknownJobs: readonly string[];
+  /** True when a referenced job's dbTables is unreadable, so the surface is incomplete. */
+  readonly unknown: boolean;
 }
 
 export type NodeDetails =
@@ -160,7 +160,6 @@ function tableDetails(analysis: Analysis): ReadonlyMap<string, NodeDetails> {
               : { kind: column.default.kind, value: column.default.value },
           source: column.source,
         })),
-        primaryKey: table.primaryKey,
         policies: table.policies.map((policy) => ({
           name: policy.name,
           command: policy.command,
@@ -192,7 +191,6 @@ function pageViewWorkflowDetails(analysis: Analysis): ReadonlyMap<string, NodeDe
         source: page.source,
         calls: page.calls.map((call) => ({
           expression: call.expression,
-          kind: call.kind,
           matchedRouteIds: call.matchedRouteIds,
           source: call.source,
         })),
@@ -211,6 +209,7 @@ function pageViewWorkflowDetails(analysis: Analysis): ReadonlyMap<string, NodeDe
         source: workflow.source,
         tables: surface?.tables ?? [],
         unknownJobs: surface?.unknownJobs ?? [],
+        unknown: surface?.unknown === true,
       },
     });
   }

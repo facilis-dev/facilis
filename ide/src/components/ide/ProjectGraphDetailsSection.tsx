@@ -47,7 +47,7 @@ export function Chip({
   onClick?: () => void;
 }) {
   const className = cn(
-    "rounded border px-1 text-[9px]",
+    "max-w-full truncate rounded border px-1 text-[9px]",
     CHIP_TONE[tone],
     mono && "font-mono",
     onClick !== undefined && "hover:border-ring",
@@ -66,6 +66,24 @@ export function Chip({
 }
 
 /**
+ * A route's `dbTables` names tables and views alike, but a detail list only knows the name, so
+ * the table id spelling is retried as a view before calling the chip inert.
+ */
+function resolveNodeId(
+  id: string,
+  nodeLabel: (id: string) => string | null,
+): { id: string; label: string } | null {
+  const label = nodeLabel(id);
+  if (label !== null) return { id, label };
+  if (id.startsWith("table:")) {
+    const view = "view:" + id.slice("table:".length);
+    const viewLabel = nodeLabel(view);
+    if (viewLabel !== null) return { id: view, label: viewLabel };
+  }
+  return null;
+}
+
+/**
  * A chip over a graph node id: selectable only when the drawn view still has a node for it, so
  * a detail list naming a filtered or unresolved id never hands the canvas a dead selection.
  */
@@ -80,10 +98,14 @@ export function NodeSelectChip({
   nodeLabel: (id: string) => string | null;
   onSelect: (id: string) => void;
 }) {
-  const label = nodeLabel(id);
+  const target = resolveNodeId(id, nodeLabel);
   return (
-    <Chip mono onClick={label === null ? undefined : () => onSelect(id)} title={label ?? undefined}>
-      {text ?? label ?? id}
+    <Chip
+      mono
+      onClick={target === null ? undefined : () => onSelect(target.id)}
+      title={target?.label ?? undefined}
+    >
+      {text ?? target?.label ?? id}
     </Chip>
   );
 }

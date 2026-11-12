@@ -26,6 +26,35 @@ export function closedOtherTabs(tabs: readonly PreviewTab[], id: string): Previe
   return { tabs: tabs.filter((tab) => tab.id === id), activeId: id };
 }
 
+/**
+ * The tab a dev server binds. A tab already waiting for a server (port null, e.g. PreviewPanel's
+ * empty state or the graph's "Open in preview" before a run) keeps its path and becomes that
+ * server's tab; otherwise a new root tab is created. This is what makes the path the user asked
+ * for the first document the preview paints.
+ */
+export function previewTabForPort(
+  tabs: readonly PreviewTab[],
+  port: number,
+  nextId: () => string,
+): PreviewTabsUpdate {
+  const pending = tabs.find((tab) => tab.port === null);
+  if (pending !== undefined) {
+    return {
+      tabs: tabs.map((tab) =>
+        tab.id === pending.id
+          ? { ...tab, port, url: `localhost:${port}`, title: "", nonce: tab.nonce + 1 }
+          : tab,
+      ),
+      activeId: pending.id,
+    };
+  }
+  const id = nextId();
+  return {
+    tabs: [...tabs, { id, url: `localhost:${port}`, port, path: "/", nonce: 1 }],
+    activeId: id,
+  };
+}
+
 /** Close every tab to the right, keeping this one active if the old active tab survives. */
 export function closedTabsToRight(
   tabs: readonly PreviewTab[],

@@ -138,7 +138,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.noLinks": "Nessun link esplicito tra pagine.",
 
   // ── dettagli dei nodi (inspector) ────────────────────────────────────────
-  "projectGraph.section.overview": "Panoramica",
   "projectGraph.section.security": "Sicurezza",
   "projectGraph.section.inputs": "Input",
   "projectGraph.section.touches": "Tocca",
@@ -173,12 +172,11 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.openAtLine": "Apri alla riga {line}",
   "projectGraph.source.open": "Apri sorgente",
   "projectGraph.source.lines": "Righe {from}–{to}",
-  "projectGraph.preview.components": "Componenti",
   "projectGraph.preview.componentCount": "{count} componenti",
   "projectGraph.preview.openInPreview": "Apri nell’anteprima",
   "projectGraph.preview.fakeData": "dati segnaposto",
-  "projectGraph.preview.listCount": "{count} elementi",
   "projectGraph.call.route": "→ {route}",
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
+  "projectGraph.fk.onUpdate": "on update {action}",
 };

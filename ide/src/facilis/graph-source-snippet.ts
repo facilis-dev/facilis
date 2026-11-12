@@ -8,6 +8,8 @@
 export interface SourceSnippet {
   readonly from: number;
   readonly to: number;
+  /** The requested line after clamping to the file, so the UI highlights a real line. */
+  readonly anchor: number;
   readonly lines: readonly string[];
 }
 
@@ -27,7 +29,7 @@ export function snippetAround(text: string, line: number, context: number): Sour
   const anchor = Math.min(Math.max(1, requestedLine), rows.length);
   const from = Math.max(1, anchor - span);
   const to = Math.min(rows.length, anchor + span);
-  return { from, to, lines: rows.slice(from - 1, to) };
+  return { from, to, anchor, lines: rows.slice(from - 1, to) };
 }
 
 function sourceLines(text: string): string[] {

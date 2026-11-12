@@ -8,36 +8,58 @@ describe("snippetAround", () => {
 
   it("windows around a mid-file line", () => {
     const text = "one\ntwo\nthree\nfour\nfive";
-    expect(snippetAround(text, 3, 1)).toEqual({ from: 2, to: 4, lines: ["two", "three", "four"] });
+    expect(snippetAround(text, 3, 1)).toMatchObject({
+      from: 2,
+      to: 4,
+      lines: ["two", "three", "four"],
+    });
   });
 
   it("returns the requested line alone with zero context", () => {
-    expect(snippetAround("a\nb\nc", 2, 0)).toEqual({ from: 2, to: 2, lines: ["b"] });
+    expect(snippetAround("a\nb\nc", 2, 0)).toMatchObject({ from: 2, to: 2, lines: ["b"] });
   });
 
   it("clamps the window at the start of the file", () => {
-    expect(snippetAround("a\nb\nc\nd", 1, 2)).toEqual({ from: 1, to: 3, lines: ["a", "b", "c"] });
+    expect(snippetAround("a\nb\nc\nd", 1, 2)).toMatchObject({
+      from: 1,
+      to: 3,
+      lines: ["a", "b", "c"],
+    });
   });
 
   it("clamps the window at the end of the file", () => {
-    expect(snippetAround("a\nb\nc\nd", 4, 2)).toEqual({ from: 2, to: 4, lines: ["b", "c", "d"] });
+    expect(snippetAround("a\nb\nc\nd", 4, 2)).toMatchObject({
+      from: 2,
+      to: 4,
+      lines: ["b", "c", "d"],
+    });
   });
 
   it("clamps an out-of-range line to the last real line", () => {
-    expect(snippetAround("a\nb\nc", 99, 1)).toEqual({ from: 2, to: 3, lines: ["b", "c"] });
+    expect(snippetAround("a\nb\nc", 99, 1)).toMatchObject({ from: 2, to: 3, lines: ["b", "c"] });
   });
 
   it("clamps a non-positive line to the first line", () => {
-    expect(snippetAround("a\nb\nc", 0, 1)).toEqual({ from: 1, to: 2, lines: ["a", "b"] });
-    expect(snippetAround("a\nb\nc", -4, 0)).toEqual({ from: 1, to: 1, lines: ["a"] });
+    expect(snippetAround("a\nb\nc", 0, 1)).toMatchObject({ from: 1, to: 2, lines: ["a", "b"] });
+    expect(snippetAround("a\nb\nc", -4, 0)).toMatchObject({ from: 1, to: 1, lines: ["a"] });
   });
 
   it("treats a trailing newline as a terminator, not an extra line", () => {
-    expect(snippetAround("a\nb\n", 2, 1)).toEqual({ from: 1, to: 2, lines: ["a", "b"] });
+    expect(snippetAround("a\nb\n", 2, 1)).toMatchObject({ from: 1, to: 2, lines: ["a", "b"] });
   });
 
   it("strips CRLF line endings", () => {
-    expect(snippetAround("a\r\nb\r\nc", 2, 1)).toEqual({ from: 1, to: 3, lines: ["a", "b", "c"] });
+    expect(snippetAround("a\r\nb\r\nc", 2, 1)).toMatchObject({
+      from: 1,
+      to: 3,
+      lines: ["a", "b", "c"],
+    });
+  });
+
+  it("reports the clamped anchor so the UI highlights a real line", () => {
+    expect(snippetAround("a\nb\nc", 99, 1)?.anchor).toBe(3);
+    expect(snippetAround("a\nb\nc", 0, 1)?.anchor).toBe(1);
+    expect(snippetAround("a\nb\nc", 2, 0)?.anchor).toBe(2);
   });
 });
 

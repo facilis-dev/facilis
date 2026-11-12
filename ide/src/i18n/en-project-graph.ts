@@ -138,7 +138,6 @@ export const projectGraphEn = {
   "projectGraph.noLinks": "No explicit page links.",
 
   // ── node details (inspector) ─────────────────────────────────────────────
-  "projectGraph.section.overview": "Overview",
   "projectGraph.section.security": "Security",
   "projectGraph.section.inputs": "Inputs",
   "projectGraph.section.touches": "Touches",
@@ -173,12 +172,11 @@ export const projectGraphEn = {
   "projectGraph.openAtLine": "Open at line {line}",
   "projectGraph.source.open": "Open source",
   "projectGraph.source.lines": "Lines {from}–{to}",
-  "projectGraph.preview.components": "Components",
   "projectGraph.preview.componentCount": "{count} components",
   "projectGraph.preview.openInPreview": "Open in preview",
   "projectGraph.preview.fakeData": "placeholder data",
-  "projectGraph.preview.listCount": "{count} items",
   "projectGraph.call.route": "→ {route}",
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
+  "projectGraph.fk.onUpdate": "on update {action}",
 } as const;

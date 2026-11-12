@@ -29,6 +29,7 @@ export function ProjectGraphWorkflowDetails({
   const workflow = node.data;
   const tables = details?.tables ?? [];
   const unknownJobs = details?.unknownJobs ?? [];
+  const unknown = details?.unknown === true;
   return (
     <>
       <p className="truncate font-mono text-[11px]">{workflow.name}</p>
@@ -64,7 +65,11 @@ export function ProjectGraphWorkflowDetails({
       </DetailsSection>
       <DetailsSection title={t("projectGraph.section.workflowTables")}>
         {tables.length === 0 ? (
-          <EmptyNote message={t("projectGraph.empty.tables")} />
+          unknown ? (
+            <Chip tone="warning">{t("projectGraph.unknown")}</Chip>
+          ) : (
+            <EmptyNote message={t("projectGraph.empty.tables")} />
+          )
         ) : (
           <ul className="flex flex-wrap gap-1">
             {tables.map((name) => (
@@ -78,6 +83,11 @@ export function ProjectGraphWorkflowDetails({
               </li>
             ))}
           </ul>
+        )}
+        {unknown && tables.length > 0 && (
+          <p className="flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
+            <Chip tone="warning">{t("projectGraph.unknown")}</Chip>
+          </p>
         )}
         {unknownJobs.length > 0 && (
           <p className="flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
