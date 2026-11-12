@@ -98,6 +98,8 @@ export interface TableGraphData {
   /** Declared by an installed @facilis.dev package and only re-exported by the project. */
   readonly framework: boolean;
   readonly scope: GraphScope | null;
+  /** The declared policy set (D-177): the card names the permissive grants, not the tenant gate. */
+  readonly policies: readonly { readonly name: string; readonly restrictive: boolean }[];
   readonly unknown: boolean;
 }
 

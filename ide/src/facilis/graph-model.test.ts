@@ -100,6 +100,10 @@ describe("buildProjectGraphView data", () => {
   it("gives table nodes columns with name, type and markers, plus RLS/scope/unknown", () => {
     const owner = tableNode("projects", {
       scope: { column: "ownerId", kind: "owner" },
+      policies: [
+        { name: "tenant_isolation", restrictive: true },
+        { name: "owner_isolation", restrictive: false },
+      ],
       unknown: true,
     });
     const view = buildProjectGraphView({ graph: graphOf([TODOS, owner]) });
@@ -107,6 +111,7 @@ describe("buildProjectGraphView data", () => {
     if (todos?.data.kind !== "table") throw new Error("expected a table node");
     expect(todos.data.rlsEnabled).toBe(true);
     expect(todos.data.scope).toBeNull();
+    expect(todos.data.policies).toEqual([]);
     expect(todos.data.unknown).toBe(false);
     expect(todos.data.columns).toEqual([
       { property: "id", name: "id", type: "text", markers: ["primaryKey", "notNull"] },
@@ -117,6 +122,10 @@ describe("buildProjectGraphView data", () => {
     const projects = view.nodes.find((node) => node.id === "table:projects");
     if (projects?.data.kind !== "table") throw new Error("expected a table node");
     expect(projects.data.scope).toEqual({ column: "ownerId", kind: "owner" });
+    expect(projects.data.policies).toEqual([
+      { name: "tenant_isolation", restrictive: true },
+      { name: "owner_isolation", restrictive: false },
+    ]);
     expect(projects.data.unknown).toBe(true);
     expect(view.stats.unknownNodes).toBe(1);
   });

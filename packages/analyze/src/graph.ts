@@ -37,6 +37,10 @@ function tableNode(table: TableFact): GraphNode {
     columns: table.columns,
     rlsEnabled: table.rlsEnabled,
     scope: table.scope,
+    policies: table.policies.map((policy) => ({
+      name: policy.name,
+      restrictive: policy.restrictive,
+    })),
     framework: table.source.file.startsWith("node_modules/"),
     unknown:
       table.unknown.length > 0 ||

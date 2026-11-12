@@ -86,6 +86,9 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
 
 const MAX_VISIBLE_COLUMNS = 8;
 
+/** The card names at most two grants; the inspector's policy list carries the whole set (D-177). */
+const MAX_VISIBLE_POLICIES = 2;
+
 function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
   if (markers.length === 0) return null;
   return (
@@ -105,6 +108,10 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   if (table === null) return null;
   const shown = data.collapsed ? [] : table.columns.slice(0, MAX_VISIBLE_COLUMNS);
   const more = table.columns.length - shown.length;
+  // The restrictive tenant gate is the default class (D-136/D-174): the card names what the
+  // table actually grants, which is the permissive policy beside it (D-177).
+  const grants = table.policies.filter((policy) => !policy.restrictive);
+  const shownPolicies = grants.slice(0, MAX_VISIBLE_POLICIES);
   return (
     <div
       data-testid="project-graph-table"
@@ -141,6 +148,18 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
             {t("projectGraph.systemOnly")}
           </span>
         )}
+        {shownPolicies.map((policy) => (
+          <span
+            key={policy.name}
+            className="max-w-full truncate rounded border border-border px-1 font-mono"
+            title={policy.name}
+          >
+            {policy.name}
+          </span>
+        ))}
+        {grants.length > shownPolicies.length && (
+          <span className="shrink-0">+{grants.length - shownPolicies.length}</span>
+        )}
         {table.framework && (
           <span
             className="rounded border border-border px-1 text-muted-foreground"
@@ -149,7 +168,9 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
             {t("projectGraph.framework")}
           </span>
         )}
-        {table.scope !== null && (
+        {/* The tenant scope is the class default on every app table (D-136/D-174) and stays in the
+            inspector; the card names only the exception, an owner scope. */}
+        {table.scope !== null && table.scope.kind !== "tenant" && (
           <span className="min-w-0 truncate">
             {t("projectGraph.scope", {
               column: table.scope.column,

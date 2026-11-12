@@ -2375,7 +2375,10 @@ from `facilis.config.ts` through `expandRoles`, never from the table.
 **Graph, analyzer and drift.** The project graph labels a table without RLS **system-only**, in a
 neutral colour — it is a class, not a warning — and the Data Explorer's live badge uses the same
 label. It does not announce RLS on app-scoped tables — RLS is the default class — so only the
-system-only exception is named (D-174). The analyzer warns `route-system-table` when a route
+system-only exception is named (D-174). The table card names the table's permissive policies — the
+grants that let `facilis_app` read or write — up to two plus an overflow, and keeps the restrictive
+tenant gate and the tenant scope in the inspector's policy list, grants first (D-177). The analyzer
+warns `route-system-table` when a route
 declares a system-only table in
 `dbTables` (or as the table side of `dbColumns`) outside the elevation whose `tables` name it
 (D-137). The drift `rls_disabled` is reported only for a scoped table (a system-only table is a
