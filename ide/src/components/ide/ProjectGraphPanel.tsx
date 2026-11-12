@@ -13,6 +13,7 @@ import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
 import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
+import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import { errText } from "@/vv/errors";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
@@ -85,6 +86,26 @@ export function ProjectGraphPanel() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [fullscreen]);
+  // Escape also leaves an AI focus (D-171), but only once the fullscreen listener above had its
+  // turn: exiting fullscreen is the bigger mode change, so one key press does one thing. Typing
+  // targets keep Escape for themselves (the note editor cancels the edit), so never steal it.
+  useEffect(() => {
+    if (focus === null || fullscreen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      const typing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT");
+      if (typing) return;
+      clearGraphFocus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [focus, fullscreen]);
 
   const analysis = result !== null && result.ok ? result.analysis : null;
   const view = useMemo(
@@ -237,6 +258,8 @@ export function ProjectGraphPanel() {
         saveError={graph.saveError}
         errors={errors}
         warnings={warnings}
+        focusActive={focus !== null}
+        onClearFocus={clearGraphFocus}
         onToggleEdgeKind={graph.toggleEdgeKind}
         hideSystemRoutes={layout.hideSystemRoutes}
         hideSystemTables={layout.hideSystemTables}
