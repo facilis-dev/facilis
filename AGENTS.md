@@ -130,7 +130,16 @@ A change is done when all of the following are true:
 ## Git
 
 - **Conventional Commits**: `feat|fix|chore|docs|test|refactor(scope): summary`.
-- Work on a branch; `main` is the integration branch.
+- **Never work on `main`.** Start every change on a new branch; `main` is the
+  integration branch only.
+- **Every branch lives in its own dedicated git worktree** under
+  `.agents/worktrees/<type>/<slug>` (for example
+  `.agents/worktrees/feat/alt-templates-boot-graph`), created from `main` with
+  `git worktree add -b <type>/<slug> .agents/worktrees/<type>/<slug> main`. The primary
+  checkout stays on `main` and is not edited; remove the worktree with
+  `git worktree remove` once its PR is merged.
+- **Pull requests are written in English** — title and description, including the
+  Definition-of-done evidence listed above.
 - **`main` is protected (policy from 2026-11-12): every change reaches it through a pull
   request with at least one approving review — no direct push and no direct merge to
   `main`.** The PR description carries the Definition-of-done evidence (`pnpm lint`,
