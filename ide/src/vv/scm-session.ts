@@ -25,10 +25,10 @@ import { loadGitIdentity, type GitIdentity } from "./git-config";
 
 // Directories never worth walking for status (also covered by a good .gitignore,
 // but this guards repos that lack one — e.g. right after `git init`).
-const IGNORE_RE =
+export const IGNORE_RE =
   /(^|\/)(node_modules|\.git|\.facilis|dist|build|\.next|\.turbo|\.cache|coverage|\.vite)(\/|$)/;
 
-const DEFAULT_GITIGNORE = `node_modules/
+export const DEFAULT_GITIGNORE = `node_modules/
 dist/
 build/
 .next/

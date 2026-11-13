@@ -165,6 +165,19 @@ describe("rule 15 destructive-confirmed", () => {
     });
     expect(rulesOf(result.errors)).not.toContain("destructive-confirmed");
   });
+
+  it("flags the result destructive even when confirmation makes it pass", () => {
+    const { result } = validate([update("db/schema.ts", withoutTitle)], {
+      requiresConfirmation: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.destructive).toBe(true);
+  });
+
+  it("does not flag a clean source edit destructive", () => {
+    const { result } = validate([create("src/extra.ts", "export const extra = 1;\n")]);
+    expect(result.destructive).toBe(false);
+  });
 });
 
 function configWith(permissions: string, roles: string): string {

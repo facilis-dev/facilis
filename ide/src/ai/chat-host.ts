@@ -12,7 +12,10 @@ import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { writeProjectAsset } from "@/facilis/vfs-write";
 import { webAccess as deploymentWebAccess } from "@/deploy/current";
+import { createChatWrites } from "./chat-writes";
 import { ChatSession, type ChatHost } from "./chat-session";
+import { createGitCheckpoint } from "./git-checkpoint";
+import type { GitSafety } from "./types";
 import { ChatStore } from "./chat-store";
 import { createAnalyzerSyntaxChecker } from "./analyzer-syntax";
 import { createGitAccess } from "./git-access";
@@ -53,7 +56,8 @@ function projectRoot(controller: IdeController): string | null {
 }
 
 function createSession(controller: IdeController, mcp: McpSession): ChatSession {
-  const host = chatHost(controller, mcp);
+  const safety = createGitSafety(controller);
+  const host = { ...chatHost(controller, mcp), gitSafety: safety };
   // D-175: the compiled deployment decides whether the web family exists at all; managed
   // with no declared origin compiles it out (deploymentWebAccess === null). The writer
   // converts the tool layer's project-relative path into the VFS's absolute one.
@@ -80,10 +84,12 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
   // D-126: the graph's committed team state; D-139: the project's git repository and remotes.
   // Only the PTC router reads them, so they join the PatchValidationHost view here and the
   // ChatHost contract (chat-session-types.ts) stays put.
+  const writes = createChatWrites({ ...sessionHost, safety });
   const toolHost = {
     ...sessionHost,
     graph: createGraphAccess(controller),
     git: createGitAccess(controller),
+    writes,
   };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
@@ -92,7 +98,38 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
       childFactory: createRunnerFrameChild(),
       executorFactory: () => withMcpTools(createToolRouter(toolHost), mcp),
     }),
+    writes,
   });
+}
+
+/** Git safety for AI writes (D-181): Source Control's own commits, plus a refresh after a restore. */
+function createGitSafety(controller: IdeController): GitSafety {
+  const checkpoint = createGitCheckpoint({
+    bridge: controller.bridge,
+    root: () => projectRoot(controller),
+    commit: async (root) => {
+      await controller.scm.stageAll(root);
+      const committed = await controller.scm.commit(root, "chore: save work before AI changes");
+      const repo = controller.scm.getSnapshot().repos.find((entry) => entry.root === root);
+      return committed ? { ok: true } : { ok: false, error: repo?.error ?? "The commit failed." };
+    },
+    init: async (root) => {
+      await controller.scm.init(root);
+      return { ok: true };
+    },
+  });
+  // A git-fs checkout is silent (it does not broadcast vv-fs-changed), so the turn Undo must
+  // ask the controller to reload the worktree exactly as Source Control does after a discard.
+  return {
+    gate: () => checkpoint.gate(),
+    commitAll: () => checkpoint.commitAll(),
+    init: () => checkpoint.init(),
+    restore: async (paths) => {
+      const result = await checkpoint.restore(paths);
+      controller.scm.onWorkdirChanged?.();
+      return result;
+    },
+  };
 }
 
 function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
@@ -154,6 +191,6 @@ function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
     prepare: () => mcp.ensureFresh(),
     // The 17-rule validator reads analyzer facts: the worker analyzes the project before and
     // after the proposal; a thrown error blocks validation.
-    analyze: (patches, signal) => analyzePatches(controller, patches, signal),
+    analyze: (patches, signal, overlay) => analyzePatches(controller, patches, signal, overlay),
   };
 }

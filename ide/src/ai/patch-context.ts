@@ -54,6 +54,8 @@ export interface PatchContextHost {
   analyze(
     patches: readonly FilePatch[],
     signal?: AbortSignal,
+    /** Source writes already applied this turn; they are the pre-patch project. */
+    overlay?: readonly FilePatch[],
   ): Promise<{ before: Analysis; after: Analysis }>;
 }
 

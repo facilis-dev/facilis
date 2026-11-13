@@ -1,9 +1,9 @@
 # Chat UX direction
 
-**Status:** **partly implemented (2026-11-08/09, extended 2026-11-12)** — the lighter
-transcript (D-114), pasted screenshots (D-113) and context compaction (D-133) landed, and the
-2026-11-12 owner review added Markdown prose, the queued-message inbox and multiple
-conversations (D-172); the project-file picker remains planned. Tracked as O-018 in [DECISIONS.md](./DECISIONS.md); this file is the sketch to act on.
+**Status:** **partly implemented (2026-11-08/09, extended 2026-11-13)** — the lighter
+transcript (D-114), pasted screenshots (D-113), context compaction (D-133) and the source-write
+gate/Undo (D-181) landed, and the 2026-11-12 owner review added Markdown prose, the queued-message
+inbox and multiple conversations (D-172); the project-file picker remains planned. Tracked as O-018 in [DECISIONS.md](./DECISIONS.md); this file is the sketch to act on.
 
 The owner's reference is the harness's own session view (DeepSeek Harness): the same chat content
 we already have, but **much lighter** — a dense, chronological transcript instead of a stack of
@@ -64,11 +64,39 @@ the user's message is a quiet bubble on the right. The composer only gained the 
 - Attachments must stay display-only for the model unless a tool reads them: nothing here writes
   to the project.
 
+## Source writes: the clean-tree gate and Undo
+
+**Landed (2026-11-13, D-181).** The AI changes source file by file through the write tools, and the
+turn's consent is the repository: before the first write of a turn the chat checks for a git
+repository with a commit and a **clean working tree** — that checkpoint is what makes Undo exact.
+
+- **The paused gate card.** When the check fails the turn pauses and a card appears at the end of
+  the transcript: the dirty paths with their git status letter (A new, M modified, D deleted;
+  first six, then "and n more"), or the missing repository/commit, with the reason — the AI writes
+  only on a clean tree so its changes stay separate from the user's. The buttons are **Commit and
+  continue** (or **Initialize repository and continue** when there is no repo; the IDE stages
+  everything and commits) and **Stop**, which ends the turn with nothing written. While the commit
+  runs the buttons disable and show a busy label; a failure (no git identity, for example) stays
+  on the card as an error line instead of closing it. The user owns every commit.
+- **"Files the AI wrote (n)".** After a turn that wrote, the transcript ends with its write list:
+  one row per file with the action (created/updated/deleted), the added/removed line counts and a
+  **Destructive** badge when the write drops a table or column, plus **Undo this turn** — it restores
+  exactly those paths from HEAD (tracked files check out, files the turn created are deleted) and
+  reloads the worktree. The list is the last turn's (a new turn clears it), so Undo always means
+  that turn.
+- **Apply disappears for write-tool turns.** The model writes file by file, so there is no proposal
+  card to accept: the final answer arrives with an empty `patches` array and the transcript already
+  shows what changed. The proposal card and its Apply remain only for a patch set the model still
+  returns.
+
 ## What it touches when we do it
 
 - **Landed:** `ChatPanel` (header compact action + busy label), `chat-session.ts` /
   `chat-compaction.ts` (summarization call, `ChatSummary`, replay swap), `ChatSummaryView.tsx`
   (the marker row), i18n keys (en/it) and tests.
+- **Landed (2026-11-13, D-181):** `ChatGitGateView` and `ChatWritesView`, the git gate
+  (`chat-git-gate.ts`), the write journal and Undo (`chat-writes.ts`, `git-checkpoint.ts`),
+  i18n keys (en/it) and tests.
 - **Still planned:** the composer "+" project-file picker, with its screenshot acceptance pass on
   the real IDE (compaction currently has unit, typecheck, theme and i18n coverage only).
 
@@ -77,5 +105,6 @@ the user's message is a quiet bubble on the right. The composer only gained the 
 Partly landed (2026-11-08/09): the lighter transcript (D-114), pasted screenshots (D-113) and
 context compaction (D-133). Chronological ordering across turns landed in D-138 (a turn's activity
 persisted on its user message, rendered between question and answer). The preview tools landed
-first (D-111) and the git tools in D-139; the remaining chat slice is the project-file picker
-("+").
+first (D-111), the git tools in D-139 and the source-write flow in D-181 (the paused clean-tree
+gate card, the turn's write summary with Undo, and no Apply for a write-tool turn); the remaining
+chat slice is the project-file picker ("+").

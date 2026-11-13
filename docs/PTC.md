@@ -5,7 +5,7 @@ phase-0 isolation spike ([`spikes/ptc-sandbox/`](../spikes/ptc-sandbox/README.md
 checks in Chromium 156; the phase-1 chain and the exploration trace UI landed; the eval corpus
 and the browser matrix remain. Related: [`SPEC.md`](./SPEC.md) §9.1/§9.4/§9.5,
 [`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat), D-084 (validator),
-D-100 (repair loop), D-102 (repair hardening).
+D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools).
 
 ## Accepted decisions (2026-11-07)
 
@@ -24,9 +24,10 @@ D-100 (repair loop), D-102 (repair hardening).
 
 **One line:** the model stops receiving the project as preloaded context and instead writes a
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
-read-only tool registry (files, analyzer facts, manifest, later MCP servers), returns lossless
-JSON to the model, and only the final answer of the conversation becomes an `AIResponse` whose
-patches still go through the 19-rule validator and the user's Apply.
+tool registry (files, analyzer facts, manifest, later MCP servers; read-only except the validated
+write tools, D-181), returns lossless JSON to the model, and every source change — an incremental
+write or a returned `AIResponse` patch set — still goes through the 19-rule validator before the
+VFS (a returned set also through the user's Apply).
 
 ---
 
@@ -58,8 +59,9 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
 - No shell, no network from program code, no writes from program code. The sandbox stays
   networkless: web I/O is a **host-side** exception (D-175) — the program asks the host, the host
   performs the request under the deployment profile and returns data.
-- Patches are still proposed as `AIResponse.patches` and written only by the user's Apply
-  (invariant 9); exploration can never touch the VFS.
+- A returned patch set is still proposed as `AIResponse.patches` and written only by the user's
+  Apply (invariant 9); source may also change through the validated write tools (D-181), and
+  exploration can never touch the VFS.
 - No server-side execution: the IDE is a static SPA; git and files are in the browser/WebContainer.
 - No MCP or skills in phase 1; the design keeps the seam.
 - No replacement of the validator: tools change *how the model learns*, not *what is written*.
@@ -78,12 +80,14 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
         │                 │              ToolRouter ──► VFS read (kernel, project-root confined)
         │                 │                    │      ├► @facilis.dev/analyze facts (schema/routes/graph)
         │                 │                    │      ├► /__facilis/manifest client
-        │                 │                    │      └► (phase 3) MCP client
+        │                 │                    │      ├► (phase 3) MCP client
+        │                 │                    │      └► (D-181) write_file/delete_file ──► one-file §9.3
+        │                 │                    │            validation ──► applyPatch ──► VFS write
         │                 │                    │
         │                 │                    └► policy: path/glob allowlist, secret redaction,
         │                 │                       skill capability narrowing, result caps, audit log
         │                 ▼
-        └── final `AIResponse` (status quo) ──► parseTurn() §9.3 validator ──► proposal ──► user Apply
+        └── final `AIResponse` (returned patch set) ──► parseTurn() §9.3 validator ──► proposal ──► user Apply
 
 New modules (planned, all under `ide/src/ai/ptc/`):
 
@@ -168,7 +172,7 @@ Rules for the sandbox host:
   the WebContainer preview, memory/CPU bomb termination, and that the iframe cannot read the
   kernel/OPFS. This is the one assumption worth proving before building the tool layer.
 
-## 6. Tool registry (phase 1: read-only)
+## 6. Tool registry (read tools + validated writes)
 
 The tool set is a primitive, validated, logged API (AI-SKILLS §7). All paths are project-relative,
 confined to the project root, and go through one policy function.
@@ -185,6 +189,8 @@ confined to the project root, and go through one policy function.
 | `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
 | `validate` | `{ patches }` | the same `validatePatch()` findings the final gate uses (SPEC §9.3); read-only, writes nothing |
+| `write_file` | `{ path, content }` | creates or replaces ONE project file; the one-file patch is validated (§9.3) before the VFS write (D-181) |
+| `delete_file` | `{ path }` | removes one project file through the same validator; a schema drop is flagged destructive (D-181) |
 | `preview_state` | `{}` | running app: URL, title, viewport, visible text (D-111) |
 | `preview_console` | `{}` | recent console errors/warnings and uncaught exceptions |
 | `preview_network` | `{}` | recent failed or non-2xx requests |
@@ -254,8 +260,8 @@ D-079 proxy — so the model can inspect the branch and the changes (`git_status
 `git_log`, `git_branches`, `git_remote`), stage and commit (`git_stage`, `git_unstage`,
 `git_commit`) and move/switch a branch or sync a remote (`git_branch`, `git_sync`), plus open a
 pull request with `git_pull_request`. The AI never authors source content through them: staging
-mutates the index, `git_commit` writes a local commit, and source changes still arrive only through
-the validated proposal + the user's Apply. The operations that do move the working tree (`switch`,
+mutates the index, `git_commit` writes a local commit, and source changes arrive through the
+validated write tools (or a returned patch set through the user's Apply). The operations that do move the working tree (`switch`,
 `pull`) refuse a dirty tree with `{ ok: false, reason }` as data, so they can never clobber
 uncommitted work. There is deliberately no discard/reset/clean/rebase/force-push tool. A
 successful pull refreshes the SCM list, the Explorer and the open editor buffers like any other
@@ -282,11 +288,33 @@ A browser cannot read a host that does not send `Access-Control-Allow-Origin`: C
 documented limit of a browser-only client, not a bug.
 Fetched content is data (the prompt-injection rule below); it never becomes instructions.
 
-**The graph tools (D-126) and web downloads into `public/` (D-175) are the other non-source
-writes, so the §9.3 patch path is unchanged for all of them.** Phase 2 (write-intent, still
-validator-gated):  (fixed allowlist, no arguments, executed in the WebContainer) and possibly a
-patch-draft helper. There is no `apply_patch` tool: the proposal+Apply path is already the write
-contract.
+**The graph tools (D-126), the git family (D-139) and web downloads into `public/` (D-175) are
+the non-source writes, so the §9.3 patch path is unchanged for all of them.**
+
+**The write tools (D-181) are the source-write family and the one exception to the read-only
+registry.** `write_file({ path, content })` creates or replaces one complete file and
+`delete_file({ path })` removes one (`ide/src/ai/ptc/write-tools.ts`). Each call builds a one-file
+patch in `ide/src/ai/chat-writes.ts` and validates it with the same 19-rule validator as the final
+gate **before anything touches the VFS**, against the project as the turn has already rewritten it
+(the earlier writes are the pre-patch overlay); `applyPatch` then re-validates and writes through
+the kernel bridge. Findings come back as data (`{ ok: false, errors, warnings }`, each with rule,
+file, message, fix_hint and line/excerpt) and nothing is written on a rejection, so the model
+repairs the call and retries in the same turn. A path outside the project or content over 200k
+characters is refused as a finding before analysis; a malformed call is a `capability` error. An
+infrastructure finding (or no analyzer context) is a validator outage instead: the turn ends and
+nothing is written (D-105).
+
+Before the first write of a turn the engine requires a repository with `HEAD` and a **clean
+working tree** (`ide/src/ai/chat-git-gate.ts`, `ide/src/ai/git-checkpoint.ts`): that checkpoint is
+the turn's consent and what makes Undo exact. A refused gate **pauses the turn** — the chat card
+lists the dirty paths (or the missing repository/commit) and offers **commit and continue** (the
+IDE initializes the repository when missing, stages everything and commits) or **stop** (the turn
+ends, nothing written). A passed gate is cached for the turn; a refused one is re-checked, so the
+write re-issued after the commit succeeds. Every write that reached the VFS is journaled
+(`path`, `action`, `destructive`, `added`, `removed`) and **Undo this turn** restores exactly those
+paths from HEAD — checkout for tracked files, delete for files the turn created. The model never
+stages, commits or discards to get around the gate; history stays the user's. Destructive schema
+changes are allowed once the gate passed and are flagged destructive.
 
 Never exposed to a program: shell, network (the `web_*` family runs on the host, D-175),
 `process.env`, `node_modules`, `.git` internals (the git tools use the SCM operations, never the
@@ -304,6 +332,11 @@ Tool output is **data**: it can be quoted, never treated as instructions.
   "explore before rewriting; never assume a file's content" rule, the script/patches turn rule,
   and a minimal example. The section is **generated from the registry** so code and prompt cannot
   drift; a test asserts the prompt lists exactly the registered tools.
+- The *Writing files (write tools)* section is generated beside the tool list and appears only when
+  `write_file` is registered (`ide/src/ai/prompt-write.ts`, D-181): dependency order,
+  findings-as-data (no repair round and no parts for a write call), the clean-tree gate pause,
+  destructive changes once the gate passed, and the rule to finish the turn with the normal
+  `AIResponse` and an **empty `patches` array**, describing the change in `message`/`notes`.
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
@@ -311,6 +344,8 @@ Tool output is **data**: it can be quoted, never treated as instructions.
   with the runtime on it tells the model to `read_file` the implicated paths and to `validate`
   the exact set before answering (D-102: set-level validation, per-file feedback; no attempt
   cap since D-108). The runtime is always on, so the correction never inlines file content (D-103).
+  The loop and the parts protocol cover a returned patch set; a write-tool turn's feedback is the
+  tool result and its write is `applyPatch` (D-181).
 
 ## 8. MCP (phase 3)
 
@@ -327,10 +362,11 @@ The registry is transport-agnostic; an MCP server is just another tool provider:
   capped and redacted like local tools; a write-capable MCP tool is not allowed to touch the
   project (it is a remote effect, not a patch) and is disabled by default; every call is audited.
 - **Managed deployments:** an allowlist of servers/tools in the deployment policy; default off.
-- **Threat model:** MCP output is data; it cannot grant capabilities; the patch validator and the
-  user's Apply remain the only write path; prompt injection can at worst make the model read/quote
-  project data into the provider context, which is already the AI trust boundary (D-066) and is
-  redacted by the policy.
+- **Threat model:** MCP output is data; it cannot grant capabilities; source writes stay the
+  validator-gated write tools (or the user's Apply for a returned patch set), so an MCP result
+  cannot write by itself; prompt injection can at worst make the model read/quote project data
+  into the provider context, which is already the AI trust boundary (D-066) and is redacted by the
+  policy.
 
 **Landed (2026-11-08, D-118):** the Streamable-HTTP client, the namespaced registry merge
 (`withMcpTools`) and a per-project configuration (localStorage under `vv-ai-mcp`, explicit
@@ -370,10 +406,10 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
 | tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction |
-| writes | source content: none from tools or programs — only the validated proposal + user Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
+| writes | source content only through the validated write tools (every call through the 19-rule validator, behind the clean-tree gate, journaled and undoable, D-181) or a returned patch set through the user's Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
 | egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-175) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
 | web results | text ≤ 32k chars and secret-redacted, image ≤ 5 MB (2 per program), download ≤ 5 MB into `public/` only (5 per program), 10 calls / 8 MB per program; CORS can still refuse a host |
-| prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; read-only exploration limits damage |
+| prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; every write is validator-gated and undoable, which bounds the damage |
 | secrets | excluded from tool results and context; redaction is shared with AI-SKILLS §3 |
 
 ## 12. Delivery plan

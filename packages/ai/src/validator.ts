@@ -13,7 +13,12 @@
 import { buildEffectiveState } from "./overlay.ts";
 import { blockImportErrors } from "./rules/blocks.ts";
 import { roleConfigSyncErrors } from "./rules/config-sync.ts";
-import { destructiveErrors, migrationWarnings, rlsErrors } from "./rules/database.ts";
+import {
+  destructiveChanges,
+  destructiveErrors,
+  migrationWarnings,
+  rlsErrors,
+} from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
@@ -42,9 +47,11 @@ export function validatePatch(
     writePolicy: options.writePolicy ?? "managed",
   });
   const warnings: ValidationResult["warnings"] = [];
+  let destructive = false;
   const context = options.context;
   if (context !== undefined) {
     const state = buildEffectiveState(context, patches);
+    destructive = destructiveChanges(state).length > 0;
     errors.push(...tsParseErrors(patches, context.syntax));
     errors.push(...routeSecurityErrors(state));
     errors.push(...routeDbTablesPresentErrors(state));
@@ -70,5 +77,5 @@ export function validatePatch(
     errors.push(...jobTables.errors);
     warnings.push(...jobTables.warnings);
   }
-  return { ok: errors.length === 0, errors, warnings };
+  return { ok: errors.length === 0, errors, warnings, destructive };
 }

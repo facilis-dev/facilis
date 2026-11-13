@@ -127,4 +127,30 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.conversations.untitled": "Nuova conversazione",
   "chat.conversations.imageOnly": "Screenshot",
   "chat.conversations.remove": "Elimina questa conversazione",
+  // ── scritture AI (D-181): gate dell'albero pulito + annulla turno ────────
+  "chat.gitGate.title.noRepo": "Questo progetto non è un repository git",
+  "chat.gitGate.body.noRepo":
+    "L'AI scrive file sorgente solo quando può committarli e annullarli. L'inizializzazione crea il repository e il primo commit.",
+  "chat.gitGate.title.noHead": "Il repository non ha ancora un commit",
+  "chat.gitGate.body.noHead":
+    "L'AI ha bisogno di un primo commit per poter annullare le sue scritture. Committa i file attuali per continuare.",
+  "chat.gitGate.title.dirtyTree": "Modifiche non committate nel progetto",
+  "chat.gitGate.body.dirtyTree":
+    "L'AI scrive solo su un albero pulito, così le sue modifiche restano separate dalle tue. Committa tutto per continuare.",
+  "chat.gitGate.more": "e altri {n} file",
+  "chat.gitGate.primary": "Committa e continua",
+  "chat.gitGate.primaryInit": "Inizializza il repository e continua",
+  "chat.gitGate.secondary": "Interrompi",
+  "chat.gitGate.committing": "Commit in corso…",
+  "chat.gitGate.stopping": "Interruzione…",
+  "chat.gitGate.explanation":
+    "L'AI scrive solo su un albero pulito; i commit sono tuoi. Non viene scritto nulla finché non scegli.",
+  "chat.writes.title": "File scritti dall'AI ({n})",
+  "chat.writes.undo": "Annulla questo turno",
+  "chat.writes.undoing": "Annullamento…",
+  "chat.writes.action.create": "Creato",
+  "chat.writes.action.update": "Aggiornato",
+  "chat.writes.action.delete": "Eliminato",
+  "chat.writes.destructive": "Distruttiva",
+  "chat.writes.destructiveHint": "Elimina una tabella o una colonna.",
 };

@@ -1,16 +1,15 @@
-// The AI chat session: conversation state, streaming, proposal review and apply
-// (D-045/D-046/D-047).
-// One instance per conversation (chat-host.ts keeps the per-controller ChatStore), so
-// switching sidebar views keeps the conversation and a new chat keeps the previous one. Editor access is ChatHost, model access the injected call,
-// and the VFS is reached only through chat-actions.ts — the validated applyPatch() path.
-// Safety rule (invariant 9): the model never touches disk. A turn produces a reviewable
-// proposal; only the user's Apply reaches applyPatch(), and a clean Apply can be undone.
+// The AI chat session: conversation state, streaming, proposals and the validated write
+// tools (D-045/D-046/D-047, D-181). One instance per conversation (chat-host.ts keeps the
+// per-controller ChatStore); editor access is ChatHost and the VFS only through
+// chat-actions.ts and chat-writes.ts, where every write is validated first (invariant 9).
 
 import { applyProposal, undoProposal } from "./chat-apply";
 import { buildChatContext } from "./chat-context";
+import { GitGateActions } from "./chat-git-gate";
 import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
-import { buildProposal } from "./chat-proposal";
+import { buildProposal, toggleProposalFile } from "./chat-proposal";
+import type { ChatWrites } from "./chat-writes";
 import { callModel } from "./client";
 import { TURN_RESET, errorText, initialState, turnEnded } from "./chat-session-types";
 import type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
@@ -20,7 +19,7 @@ import type { PtcRunner } from "./ptc/protocol";
 import { runTurn } from "./turn";
 import { isConfigured, loadAiSettings, saveAiSettings } from "./settings";
 import { ChatQueue } from "./chat-queue";
-import type { AiSettings, ChatFailure, ChatMessage, ChatState } from "./types";
+import type { AiSettings, ChatMessage, ChatState } from "./types";
 
 export type { ChatHost, ChatSessionOptions, ModelCall } from "./chat-session-types";
 
@@ -33,6 +32,9 @@ export class ChatSession {
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
   private readonly runner: PtcRunner;
+  private readonly writes: ChatWrites | null;
+  /** The paused clean-tree gate and the write-tools turn Undo (D-181). */
+  readonly gitGate: GitGateActions;
   private readonly stream: ChatStreamWriter;
   private readonly queue: ChatQueue;
   private listeners = new Set<() => void>();
@@ -47,6 +49,7 @@ export class ChatSession {
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
     this.runner = options.runner;
+    this.writes = options.writes ?? null;
     this.stream = new ChatStreamWriter(this.now, {
       messages: () => this.state.messages,
       next: (role, content) => this.nextMessage(role, content),
@@ -54,6 +57,12 @@ export class ChatSession {
     });
     this.queue = new ChatQueue((queued) => this.emit({ queued }), this.now);
     this.state = initialState(this.load());
+    this.gitGate = new GitGateActions({
+      emit: (patch) => this.emit(patch),
+      state: () => this.state,
+      host: this.host,
+      writes: this.writes,
+    });
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -83,16 +92,13 @@ export class ChatSession {
     if (next !== null) void this.send(next.text, next.images);
   }
 
-  private fail(failure: ChatFailure): void {
-    this.emit({ error: failure });
-  }
-
   saveSettings(settings: AiSettings): void {
     this.save(settings);
     this.emit({ settings, configured: isConfigured(settings) });
   }
 
   newChat(): void {
+    this.gitGate.cancel();
     this.controller?.abort();
     this.controller = null;
     this.cancelled = false;
@@ -102,14 +108,12 @@ export class ChatSession {
   }
 
   cancel(): void {
+    this.gitGate.cancel();
     this.cancelled = true;
     this.controller?.abort();
   }
 
-  /** Drop one queued message; the rest keep their FIFO order. */
-  removeQueued(id: string): void {
-    this.queue.remove(id);
-  }
+  removeQueued = (id: string): void => this.queue.remove(id);
 
   /**
    * O-018: one model call summarizes the conversation; the next send replays the summary
@@ -119,7 +123,7 @@ export class ChatSession {
     const settings = this.state.settings;
     if (this.state.phase !== "idle") return;
     if (settings === null || !this.state.configured) {
-      this.fail({ kind: "unsupported", message: "No AI provider configured." });
+      this.emit({ error: { kind: "unsupported", message: "No AI provider configured." } });
       return;
     }
     const messages = this.state.messages;
@@ -150,7 +154,7 @@ export class ChatSession {
       ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
     });
     if (cancelled) return;
-    if ("failure" in outcome) this.fail(outcome.failure);
+    if ("failure" in outcome) this.emit({ error: outcome.failure });
     else this.emit({ summary: outcome.summary });
     // Settle the compaction first; a message queued while it ran starts only then.
     this.drainQueued();
@@ -160,20 +164,12 @@ export class ChatSession {
 
   async openInstructions(): Promise<void> {
     const error = await openProjectInstructions(this.host);
-    if (error !== null) this.fail({ kind: "stream", message: error });
+    if (error !== null) this.emit({ error: { kind: "stream", message: error } });
   }
 
   toggleFile(path: string): void {
-    const proposal = this.state.proposal;
-    if (!proposal) return;
-    this.emit({
-      proposal: {
-        ...proposal,
-        files: proposal.files.map((file) =>
-          file.patch.path === path ? { ...file, accepted: !file.accepted } : file,
-        ),
-      },
-    });
+    const proposal = toggleProposalFile(this.state.proposal, path);
+    if (proposal !== null) this.emit({ proposal });
   }
 
   discard(): void {
@@ -191,15 +187,16 @@ export class ChatSession {
     }
     const settings = this.state.settings;
     if (!settings || !this.state.configured) {
-      this.fail({ kind: "unsupported", message: "No AI provider configured." });
+      this.emit({ error: { kind: "unsupported", message: "No AI provider configured." } });
       return;
     }
     if (!this.host.root()) {
-      this.fail({ kind: "unsupported", message: "No project folder is open." });
+      this.emit({ error: { kind: "unsupported", message: "No project folder is open." } });
       return;
     }
 
     this.cancelled = false;
+    this.writes?.beginTurn();
     this.stream.reset();
     const user = this.nextMessage("user", content);
     // A pasted screenshot (D-113) rides on the user's bubble; an image-only message has no text.
@@ -233,6 +230,8 @@ export class ChatSession {
         signal: abort.signal,
         runner: this.runner,
         onText: (chunk) => this.stream.chunk(chunk),
+        ...(this.writes === null ? {} : { writes: this.writes }),
+        pauseGitGate: (failure) => this.gitGate.pause(failure),
         // D-110: the status lines, the program rows and the model-call rows are wired in
         // chat-turn-hooks.ts, which reads this session's current state.
         ...turnHooks({
@@ -246,10 +245,10 @@ export class ChatSession {
       if (!outcome.ok) {
         this.stream.drop();
         this.emit({ repair: null });
-        this.fail(outcome.failure);
+        this.emit({ error: outcome.failure });
         return;
       }
-      this.emit({ repair: null });
+      this.emit({ repair: null, writes: this.writes?.turnWrites() ?? [] });
       const response = outcome.parsed.response;
       this.stream.finish(response.message || "Done.");
       if (response.patches.length > 0) {
@@ -266,7 +265,7 @@ export class ChatSession {
     } catch (error) {
       if (!this.cancelled) {
         this.stream.drop();
-        this.fail({ kind: "stream", message: errorText(error) });
+        this.emit({ error: { kind: "stream", message: errorText(error) } });
       }
     } finally {
       this.controller = null;
@@ -278,6 +277,7 @@ export class ChatSession {
       this.emit({
         phase: "idle",
         streaming: false,
+        writes: this.writes?.turnWrites() ?? [],
         ...turnEnded(this.state.messages, user.id, this.state.trace),
         ...(cancelled ? { error: { kind: "aborted", message: "Cancelled by the user." } } : {}),
       });

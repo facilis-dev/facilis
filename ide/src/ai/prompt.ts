@@ -11,6 +11,7 @@
 import type { WritePolicy } from "@facilis.dev/ai";
 import { describeTools, type PtcToolSpec } from "./ptc/protocol";
 import { WEB_PROMPT } from "./prompt-web";
+import { WRITE_PROMPT } from "./prompt-write";
 
 const MANIFEST_CHAR_CAP = 16_000;
 const FILE_CONTENT_CHAR_CAP = 12_000;
@@ -49,6 +50,7 @@ const PTC_PROMPT = [
   "- The script is raw JavaScript inside the JSON string: no prose and no markdown fences.",
   "- Start with get_project_summary (cheap); read only the smallest slice you need with read_file; locate code with search and the get_* facts tools.",
   "- Before re-emitting a file, read_file it. Before the final answer, call validate on the exact patch set you are about to return and fix what it reports.",
+  "- When the write tools are available, validate is only for a patch set you still intend to return: a write_file/delete_file call is itself validated before it writes.",
   "You then receive one user turn with the result (or a typed failure that names the tool and its signature) and may run another program or answer with the normal AIResponse. There is no exploration quota; the final answer is accepted only once the framework's validation passes, so validate is your self-check, not a replacement.",
   "Tools:",
 ].join("\n");
@@ -60,7 +62,7 @@ const PREVIEW_PROMPT = [
   "- Start with preview_state; when the failure is an error or a failed request, call preview_console and preview_network before proposing a fix.",
   "- preview_click and preview_fill reproduce a user flow; preview_open navigates the preview (the page reloads); preview_wait waits for an element.",
   "- preview_screenshot captures the page (html2canvas): the user sees the screenshot and a vision model also receives the image; use it for a layout or visual problem the text tools cannot show.",
-  "- The tools act on the running app's own state (they can create or delete its data). They never write to the project: the only write path stays the patch set plus the user's Apply.",
+  "- The tools act on the running app's own state (they can create or delete its data). They never write project source: source changes go through the write tools, and the user can undo a turn.",
   "- A login screen is not a dead end: the preview runs inside the user's own session, so a login the user did is already there. When the app is not logged in, register a throwaway account through the form (the development database is per project) or ask the user for credentials — never guess a real password.",
   "- The form's fields are in the page's own source (usually src/pages/login.tsx or register.tsx); generated inputs often have no name attribute, so select them by type or label.",
   "- An OAuth/SSO or two-factor step lives outside the preview frame: ask the user to complete it, then continue.",
@@ -71,7 +73,8 @@ const PREVIEW_PROMPT = [
 /** Teaches the repository tools when the host registers them (D-139). */
 const GIT_PROMPT = [
   "## The project repository (git tools)",
-  "The git_* tools operate the project's own repository through Source Control. They are repository operations only: no tool authors or edits source content, so new code still arrives only as the patch set plus the user's Apply. A branch switch or pull can move already-committed files into the working tree (both refuse a dirty tree); stage, commit, refs and remotes never change file content.",
+  "The git_* tools operate the project's own repository through Source Control. They are repository operations only: no git tool authors or edits source content; source changes arrive through the write tools. A branch switch or pull can move already-committed files into the working tree (both refuse a dirty tree); stage, commit, refs and remotes never change file content.",
+  "- Never commit, stage or discard on your own initiative: the user owns history and commit boundaries. When a write tool reports the clean-tree gate, say what the user must commit; the chat pauses for their choice.",
   "- Start with git_status for the branch and the staged/unstaged changes (repo-relative paths); read a change with git_diff and history with git_log.",
   "- git_stage and git_unstage move files in the index; git_commit writes one LOCAL commit and refuses when nothing is staged. A commit stays on this machine until git_sync({ action: 'push' }) publishes it.",
   "- git_sync fetch/pull/push and git_pull_request need the GitHub account the user signed in with in Source Control -> Remote git. When it is absent they return { available: false }: ask the user to sign in; never ask for or pass a token, there is no token argument.",
@@ -111,7 +114,7 @@ export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change 
 6. Every user-facing string goes through t("key"), with the key registered in locales/en.json.
 7. Make minimal patches and match the project's existing style.
 8. Do not invent roles or permissions. If a route needs a permission or role that facilis.config.ts does not declare, add it to config.auth.permissions in the same patch and explain it in notes.
-9. A destructive schema change (dropping or renaming a table or column) must set requires_confirmation to true.
+9. A destructive schema change (dropping or renaming a table or column) is allowed through the write tools once the clean-tree gate passed, and must be explained in notes; a destructive change returned as a patch set must set requires_confirmation to true.
 10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis.dev/db, @facilis.dev/auth, @facilis.dev/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
 11. server/ runs in Nitro (Node): process.env is allowed there, but never import server code from src/ or components/. A change that needs secrets belongs in a server route, not in the browser bundle.
 12. Every route carries a description: one English sentence, max ~120 characters (about two lines), saying what the route does and what it touches. Keep it up to date when the route's contract (permission, inputs, dbTables/dbColumns) changes. It is developer documentation, never a user-facing string — never t().
@@ -171,6 +174,7 @@ Return exactly one JSON object and nothing else — no prose, no markdown, no co
 - "create" and "update" carry the complete file content; "delete" omits content.
 - When a "Project exploration (PTC)" section is present, a turn may instead carry "script": a raw JavaScript program with no patches (see that section).
 - "continue": true marks a part of a patch set that continues in the next answer (see Large patch sets). Omit it on the last part.
+- When the write tools wrote the files, return the same object with "patches": []; do not repeat the content.
 - Never put secrets, tokens, API keys or credentials in any file.
 
 ## Large patch sets
@@ -231,6 +235,9 @@ export function buildSystemPrompt(context: PromptContext): string {
   const tools = context.tools ?? [];
   if (tools.length > 0) {
     lines.push(PTC_PROMPT, describeTools(tools), "");
+    if (tools.some((tool) => tool.name === "write_file")) {
+      lines.push(WRITE_PROMPT, "");
+    }
     if (tools.some((tool) => tool.name.startsWith("preview_"))) {
       lines.push(PREVIEW_PROMPT, "");
     }

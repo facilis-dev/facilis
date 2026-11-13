@@ -54,6 +54,17 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** The project file list after the writes already applied this turn. */
+function overlayFiles(files: readonly string[], overlay: readonly FilePatch[]): readonly string[] {
+  if (overlay.length === 0) return files;
+  const set = new Set(files);
+  for (const patch of overlay) {
+    if (patch.action === "delete") set.delete(patch.path);
+    else set.add(patch.path);
+  }
+  return [...set];
+}
+
 async function syntaxCheck(
   checker: SyntaxChecker | null,
   patches: readonly FilePatch[],
@@ -87,11 +98,13 @@ export async function validatePatchesWithHost(
     signal?: AbortSignal;
     /** Rule 11's writable set; defaults to the build's deployment profile (D-167). */
     writePolicy?: WritePolicy;
+    /** Writes already applied this turn: the pre-patch project (incremental writes, D-181). */
+    overlay?: readonly FilePatch[];
   } = {},
 ): Promise<PatchesValidation> {
   let analyses: Analyses;
   try {
-    analyses = await host.analyze(patches, options.signal);
+    analyses = await host.analyze(patches, options.signal, options.overlay);
   } catch (error) {
     if (options.signal?.aborted === true) throw error;
     return { validation: analyzerUnavailable(messageOf(error)), context: null };
@@ -100,7 +113,7 @@ export async function validatePatchesWithHost(
   const loaded = await loadProjectContext(host, options.signal);
   const syntax = await syntaxCheck(loaded.checker, patches);
   const project: ProjectContext = buildProjectContext({
-    files: host.files(),
+    files: overlayFiles(host.files(), options.overlay ?? []),
     sources: loaded.sources,
     ...(loaded.manifest === undefined ? {} : { manifest: loaded.manifest }),
     analysis: analyses.after,

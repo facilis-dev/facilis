@@ -8,6 +8,16 @@
 import type { FilePatch, ValidationResult } from "@facilis.dev/ai";
 import type { MessageKey } from "@/i18n";
 import type { PtcFailureKind, PtcTraceEntry } from "./ptc/protocol";
+import type { ChatGitGateState, ChatTurnWrite } from "./write-types";
+
+export type {
+  ChatGitChange,
+  ChatGitGateFailure,
+  ChatGitGateState,
+  ChatTurnWrite,
+  GitGate,
+  GitSafety,
+} from "./write-types";
 
 /** A wire protocol, not a provider: presets differ only in defaults. */
 export type AiProtocol = "openai" | "anthropic";
@@ -251,6 +261,10 @@ export interface ChatState {
   /** A patch set arriving in parts (D-106): the 1-based part requested, or null. */
   patchParts: { part: number } | null;
   error: ChatFailure | null;
+  /** The clean-tree gate is waiting for the user's choice (the turn is paused). */
+  gitGate: ChatGitGateState | null;
+  /** Source files the AI wrote in the live turn (or the last finished one). */
+  writes: readonly ChatTurnWrite[];
   /** null until a provider was saved. */
   settings: AiSettings | null;
   /** A provider, a model and (when required) a key are present. */
