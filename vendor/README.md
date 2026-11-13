@@ -72,6 +72,46 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-11-13, pin `0a1eea1` / `facilis/main` = upstream v1.3.0 + 15 fork commits)
+
+The pin realigns the fork onto upstream `v1.3.0` (`4fbb009`): pnpm 11 as the shipped package
+manager, the SDK's `snapshot()`/`restore()`, terminal size, and the upstream PRs #29/#30/#31/#35
+this repo asked for — #35 is the hostful `file:` URL recovery (D-041), so the fork's own
+recovery is now upstream's. The fork delta is otherwise unchanged: `deferRestoreRoots`/
+`vv-restore-roots`, `deferCacheFiles`/`installDeferredHydration`, pnpm config kept out of the
+base process env, the preview token routing and the merged OPFS index were all verified present
+at the new pin. No Rust crate changed, so `pnpm ide:wasm` is not part of this bump (the Wasm
+artifacts are the ones built for the previous pin).
+
+Downstream, in this repo (D-180): `ide/public/vendor/pnpm-pack.bin` is rebuilt at **11.28.9**
+(the first pin whose kernel runs it — `node:sqlite` plus the new `tls-http-egress.js`), and
+`PNPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the pin in
+`vendor/vivari/scripts/vendor-pnpm.mjs`, which now refuses a scratch tree left by another
+version. npm stays **12.2.1** (D-032); upstream's packer stamps its own 10.9.2 into the header
+while packing this repo's tree, so `scripts/dev/pack-version.mjs` reads/restamps the header and
+the asset script rebuilds when it disagrees — the packer's "already present" guard would
+otherwise preserve an old npm behind a raised `NPM_VERSION`. The Studio delta (terminal size)
+is ported into `ide/src/vv/terminal-size.ts` + `terminal-session.ts`; `ide/public/sw.js` is not
+re-synced (upstream `studio/public/sw.js` is byte-identical between the pins) and the upstream
+`templates.ts` delta is moot (catalog deleted, D-051).
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `0a1eea1…` (`v1.3.0-15-g0a1eea1`) |
+| `pnpm ide:assets` | npm-pack restamped `12.2.1` (3.04 MB gz), pnpm-pack rebuilt `11.28.9` (4.82 MB gz), sqlite `864752` bytes |
+| `pnpm lint` | 0 errors / 325 pre-existing warnings; `check-file-length` OK (876 files, 9 baseline entries); theme gate OK |
+| `pnpm typecheck` | 21/21 tasks |
+| `pnpm test` | 21/21 tasks (IDE 158 files / 1289 tests) |
+| `pnpm build` | 13/13 tasks |
+| `pnpm ide:smoke` | **3 red, the same 3 at the previous pin**: `facilis manifest warnings 0` (4 warnings from the published `@facilis.dev/*` version skew), plus one HMR 404 (`/src/app.tsx`) and its console error during the write step. Everything else green: boot, create, install, preview paint, health/manifest/OpenAPI/401/session/db roundtrip, IntelliSense, A8/A9/A10/A12, chat apply+undo |
+| `pnpm ide:smoke:multitab` | **6 red, the identical list at the previous pin** (`main`, pin `e654919`, same machine): its React/Vue content assertions still expect the upstream template catalog deleted in D-051 — it creates Facilis projects, then compares them with "Vite + React"/Vue text. The routing, Web-Lock, OPFS-restore and one-project-per-tab assertions around them pass |
+| `pnpm format:check` | 47 files, the identical set on `main` (pre-existing); every file touched here is Prettier-clean |
+
+The two browser failures are not new and not pin-related: the same checks fail on `main` with the
+previous pin in this environment (the manifest warnings come from the published packages being
+older than the checkout's example, and the multitab content assertions are stale since D-051).
+The kernel-dependent checks the bump could actually break — boot, npm install, preview, the HMR
+write path, IntelliSense, the OPFS reboot and the db roundtrip — all pass.
 ## Verification (2026-10-31, pin `e654919` / `facilis/main` = upstream v1.2.0 + 19 fork commits)
 
 The pin carries the hostful-`file:` recovery (fork issue

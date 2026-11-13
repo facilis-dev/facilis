@@ -1,7 +1,7 @@
 #!/bin/sh
 # Produce the build-time assets the browser kernel fetches from /vendor/:
 #   ide/public/vendor/npm-pack.bin      real npm@12.2.1 CLI packed for the VFS
-#   ide/public/vendor/pnpm-pack.bin     real pnpm@9.15.9 (rolldown: wasm fallback)
+#   ide/public/vendor/pnpm-pack.bin     real pnpm@11.28.9 (rolldown: wasm fallback)
 #   ide/public/vendor/sqlite/sqlite3.wasm
 #
 # Upstream builds these with scripts/vendor-*.mjs into packages/studio/public/vendor
@@ -22,9 +22,13 @@ TC=${FACILIS_TOOLING_DIR:-/tmp/facilis-dev}
 # Node the VM reports: npm 12 requires ^22.22.2 || ^24.15.0 || >=26.0.0, and the
 # runtime claims v24.18.0.
 NPM_VERSION=12.2.1
-# pnpm stays only as the tool rolldown reaches for inside the VM: 12.x ships a native
-# binary and 11.x needs node:sqlite, so it is pinned here rather than tracked.
-PNPM_VERSION=9.15.9
+# pnpm stays only as the tool rolldown reaches for inside the VM's wasm fallback
+# (D-032). Pin the version the vendored packer itself pins (vendor/vivari/scripts/
+# vendor-pnpm.mjs): it packs the tree it finds under VV_VENDOR_PNPM_DIR under its own
+# stamp, so a scratch tree left by another version would ship the wrong CLI. pnpm 11
+# only runs on the fork pin this branch moves to (its node:sqlite store index and
+# tls.connect egress); pnpm 12 ships native binaries the VM cannot run.
+PNPM_VERSION=11.28.9
 SRC="$VIVARI/packages/studio/public/vendor"
 DST="$REPO_ROOT/ide/public/vendor"
 
@@ -54,7 +58,21 @@ fi
 #    kernel needs; building the pack any other way is not equivalent).
 # The packer reads VV_VENDOR_DIR (not VENDOR_DIR): pointing it at the scratch tree is
 # what keeps this offline, from the tarball fetched above.
-VV_VENDOR_DIR="$TC/npm-vendor" node "$VIVARI/scripts/vendor-npm.mjs"
+#
+# The packer stamps ITS OWN npm pin (10.9.2) into the pack header while packing the
+# $NPM_VERSION tree above, so its "already present" check (header == 10.9.2) would
+# preserve a pack built for an old pin forever and readPackVersion() would name a CLI
+# the asset does not contain. Decide on the IDE's pin instead: drop a pack whose header
+# disagrees (or cannot be read), let the packer rebuild it from the scratch tree, then
+# restamp the header. No --force: that would make the packer install upstream's 10.9.2
+# and break D-032.
+PACK_VERSION=$(node "$REPO_ROOT/scripts/dev/pack-version.mjs" read "$SRC/npm-pack.bin")
+if [ "$PACK_VERSION" != "$NPM_VERSION" ]; then
+  log "npm pack is \"$PACK_VERSION\", rebuilding for npm@$NPM_VERSION"
+  rm -f "$SRC/npm-pack.bin"
+  VV_VENDOR_DIR="$TC/npm-vendor" node "$VIVARI/scripts/vendor-npm.mjs"
+  node "$REPO_ROOT/scripts/dev/pack-version.mjs" stamp "$SRC/npm-pack.bin" "$NPM_VERSION"
+fi
 
 # 3. pnpm CLI, same tarball trick and load-bearing for Vite 8: rolldown's in-VM
 #    fallback runs `pnpm i @rolldown/binding-wasm32-wasi` when a project's dev server

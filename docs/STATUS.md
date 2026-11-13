@@ -16,7 +16,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 |---|---|---|
 | Framework packages | `packages/` (`core`, `db`, `auth`, `nitro`, `ai`, `analyze`, `time`, `i18n-db`, `storage`) | unit/integration suites (PGlite-backed), strict TypeScript, zero lint errors |
 | IDE app | `ide/` — Vivari fork, MIT, starts at upstream `v1.1.2` | provenance, patch set and `diff -r` in [`ide/README.md`](../ide/README.md) |
-| Vivari engine | `vendor/vivari/` — git submodule | fork pinned to `facilis/main` = upstream `v1.1.5` + 23 fork commits (`e654919`, D-030) |
+| Vivari engine | `vendor/vivari/` — git submodule | fork pinned to `facilis/main` = upstream `v1.3.0` + 15 fork commits (`0a1eea1`, D-030) |
 | Acceptance app | [`examples/todo-app`](../examples/todo-app) | `scripts/verify-headless.sh`: auth, RBAC, CRUD, RLS, manifest, `x-db-tables`, jobs, attachments |
 | Template in the IDE | `ide/src/facilis/` | `pnpm ide:smoke` creates, paints and validates a Facilis app (the only creation path, D-051) |
 | Chat + validator | `ide/src/ai/`, `packages/ai/` | PTC runtime — the only mode (D-101/D-103); 19 rules at proposal/Apply/write (D-084/D-162); §9.4 repair loop (D-100); host-side `web_fetch`/`web_image`/`web_download` under the deployment profile gate (D-175) |
