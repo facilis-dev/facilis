@@ -77,6 +77,12 @@ export interface ValidationResult {
   ok: boolean;
   errors: ValidationError[];
   warnings: ValidationError[];
+  /**
+   * The patch set drops a table or a column (rule 15's predicate). The IDE's incremental
+   * write path records it on the turn journal; confirmation stays rule 15's business, so
+   * this can be true on a result that is also `ok`.
+   */
+  destructive?: boolean;
 }
 
 /** One parse diagnostic from the injected TypeScript service (rule 1). */

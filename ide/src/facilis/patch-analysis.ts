@@ -100,16 +100,21 @@ export async function analyzePatches(
   controller: IdeController,
   patches: readonly FilePatch[],
   signal?: AbortSignal,
+  /** Writes already applied this turn: they are the pre-patch project (D-181). */
+  overlay: readonly FilePatch[] = [],
 ): Promise<PatchAnalyses> {
   throwIfAborted(signal);
   const sources: ProjectSourceResult = await loadProjectSources(controller);
   if (!sources.ok) throw new Error(sources.error);
   throwIfAborted(signal);
 
-  const before = await beforeAnalysis(sources.files);
+  // With a turn overlay the pre-patch project is the snapshot with those writes merged in;
+  // the per-snapshot before-cache would miss them, so it only serves the overlay-free case.
+  const base = overlay.length === 0 ? sources.files : overlayPatches(sources.files, overlay);
+  const before = overlay.length === 0 ? await beforeAnalysis(sources.files) : await analyzed(base);
   throwIfAborted(signal);
 
-  const effective = overlayPatches(sources.files, patches);
+  const effective = overlayPatches(base, patches);
   throwIfAborted(signal);
 
   const after = await analyzed(effective);

@@ -126,4 +126,30 @@ export const chatEn = {
   "chat.conversations.untitled": "New conversation",
   "chat.conversations.imageOnly": "Screenshot",
   "chat.conversations.remove": "Delete this conversation",
+  // ── AI source writes (D-181): clean-tree gate + turn Undo ────────────────
+  "chat.gitGate.title.noRepo": "This project is not a git repository",
+  "chat.gitGate.body.noRepo":
+    "The AI writes source files only when it can commit and undo them. Initializing the repository creates the first commit.",
+  "chat.gitGate.title.noHead": "The repository has no commit yet",
+  "chat.gitGate.body.noHead":
+    "The AI needs a first commit so its writes can be undone. Commit the current files to continue.",
+  "chat.gitGate.title.dirtyTree": "Uncommitted changes in the project",
+  "chat.gitGate.body.dirtyTree":
+    "The AI writes only on a clean tree, so its changes stay separate from yours. Commit everything to continue.",
+  "chat.gitGate.more": "and {n} more file(s)",
+  "chat.gitGate.primary": "Commit and continue",
+  "chat.gitGate.primaryInit": "Initialize repository and continue",
+  "chat.gitGate.secondary": "Stop",
+  "chat.gitGate.committing": "Committing…",
+  "chat.gitGate.stopping": "Stopping…",
+  "chat.gitGate.explanation":
+    "The AI writes only on a clean tree; you own the commits. Nothing is written until you choose.",
+  "chat.writes.title": "Files the AI wrote ({n})",
+  "chat.writes.undo": "Undo this turn",
+  "chat.writes.undoing": "Undoing…",
+  "chat.writes.action.create": "Created",
+  "chat.writes.action.update": "Updated",
+  "chat.writes.action.delete": "Deleted",
+  "chat.writes.destructive": "Destructive",
+  "chat.writes.destructiveHint": "Drops a table or column.",
 } as const;

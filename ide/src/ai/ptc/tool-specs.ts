@@ -161,6 +161,24 @@ export const WEB_TOOL_SPECS: readonly PtcToolSpec[] = [
 ];
 
 /**
+ * Source writes through the §9.3 validator (D-181). Registered only when the chat has the
+ * incremental write engine: each call validates one file against the project as the turn has
+ * rewritten it, and the clean-tree gate is the turn's consent.
+ */
+export const WRITE_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec(
+    "write_file",
+    "write_file({ path, content })",
+    "Write ONE project file; the §9.3 validator runs first and its findings refuse the write. Deletes are delete_file.",
+  ),
+  spec(
+    "delete_file",
+    "delete_file({ path })",
+    "Delete one project file through the same validator; a schema drop is flagged destructive.",
+  ),
+];
+
+/**
  * The specs to advertise: the base tools plus the families whose runtime seam exists. Kept here
  * so the router stays under the 300-line limit and the prompt receives exactly the tools the
  * handlers can dispatch.
@@ -170,6 +188,7 @@ export function advertisedSpecs(
   hasGraph: boolean,
   hasGit: boolean,
   hasWeb: boolean,
+  hasWrites: boolean,
 ): readonly PtcToolSpec[] {
   return [
     ...TOOL_SPECS,
@@ -177,6 +196,7 @@ export function advertisedSpecs(
     ...(hasGraph ? GRAPH_TOOL_SPECS : []),
     ...(hasGit ? GIT_TOOL_SPECS : []),
     ...(hasWeb ? WEB_TOOL_SPECS : []),
+    ...(hasWrites ? WRITE_TOOL_SPECS : []),
   ];
 }
 
@@ -186,15 +206,17 @@ export function advertisedFor(host: {
   readonly graph?: unknown;
   readonly git?: unknown;
   readonly web?: unknown;
+  readonly writes?: unknown;
 }): readonly PtcToolSpec[] {
   return advertisedSpecs(
     host.preview !== undefined,
     host.graph !== undefined,
     host.git !== undefined,
     host.web !== undefined,
+    host.writes !== undefined,
   );
 }
 
-export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true, true, true);
+export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true, true, true, true);
 export const TOOL_NAMES = ALL_TOOL_SPECS.map((entry) => entry.name).join(", ");
 export const SPEC_BY_NAME = new Map(ALL_TOOL_SPECS.map((entry) => [entry.name, entry] as const));

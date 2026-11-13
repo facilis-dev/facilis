@@ -319,6 +319,32 @@ describe("buildSystemPrompt", () => {
   });
 });
 
+describe("buildSystemPrompt write tools (D-181)", () => {
+  const writeSpec: PtcToolSpec = {
+    name: "write_file",
+    signature: "write_file({ path, content })",
+    description: "Write one project file.",
+  };
+
+  it("teaches incremental validated writes when the tool is registered", () => {
+    const prompt = buildSystemPrompt(context({ tools: [writeSpec] }));
+    expect(prompt).toContain("## Writing files (write tools)");
+    expect(prompt).toContain("EMPTY patches array");
+    expect(prompt).toContain("clean-tree gate");
+    expect(prompt).toContain("Never stage, commit or discard");
+    expect(prompt).toContain("write_file({ path, content })");
+  });
+
+  it("omits the section when the write tool is not registered", () => {
+    const prompt = buildSystemPrompt(
+      context({
+        tools: [{ name: "read_file", signature: "read_file({ path })", description: "Read." }],
+      }),
+    );
+    expect(prompt).not.toContain("## Writing files");
+  });
+});
+
 describe("buildSystemPrompt writable paths (D-167)", () => {
   it("states the strict managed roots by default", () => {
     const prompt = buildSystemPrompt(context());

@@ -18,6 +18,8 @@ import { ChatConversationsMenu } from "./ChatConversationsMenu";
 import { ChatQueueView } from "./ChatQueueView";
 import { ChatTranscriptView } from "./ChatTranscriptView";
 import { ChatProposalView } from "./ChatProposalView";
+import { ChatGitGateView } from "./ChatGitGateView";
+import { ChatWritesView } from "./ChatWritesView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useIde } from "./useIde";
 import { chatStoreFor } from "@/ai/chat-host";
@@ -85,6 +87,9 @@ export function ChatPanel() {
     state.reasoning,
     state.exploring,
     state.patchParts,
+    // The gate card and the turn-writes summary land at the end of the transcript too.
+    state.gitGate,
+    state.writes,
   ]);
 
   // A quiet spinner is not enough: show how long the current step has been running.
@@ -190,6 +195,8 @@ export function ChatPanel() {
             {/* Strict time order: each turn's activity sits between its user message and answer. */}
             <ChatTranscriptView state={state} />
             <ChatProposalView chat={chat} state={state} />
+            {state.gitGate !== null && <ChatGitGateView chat={chat} state={state} />}
+            {state.writes.length > 0 && <ChatWritesView chat={chat} state={state} />}
             {state.error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                 <p className="font-medium text-destructive">{errorText(state.error)}</p>

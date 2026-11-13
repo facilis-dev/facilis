@@ -1,9 +1,7 @@
-// Read-only tool router for the PTC program runtime (docs/PTC.md §6, D-101).
-//
-// A sandboxed model program asks the host for data; this module is the only place those
-// requests are answered (arguments are untrusted, paths go through policy.ts, results are
-// plain lossless JSON). Nothing here writes: the validated proposal + user Apply stay the
-// only write path (invariant 9).
+// The PTC tool router (docs/PTC.md §6, D-101): the only place a sandboxed model program's
+// requests are answered. Arguments are untrusted, paths go through policy.ts, results are
+// plain lossless JSON. write_file/delete_file (D-181) are the one source-write path: each
+// goes through chat-writes.ts, which validates with the §9.3 rules before the VFS.
 
 import type { Analysis, FilePatch } from "@facilis.dev/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
@@ -26,6 +24,7 @@ import {
   type PtcToolExecutor,
 } from "./protocol";
 import { SPEC_BY_NAME, TOOL_NAMES, advertisedFor } from "./tool-specs";
+import { createWriteToolHandlers, type WriteToolHost } from "./write-tools";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -266,12 +265,12 @@ function patchesArg(value: unknown): FilePatch[] {
   });
 }
 
-export function createToolRouter(host: PatchValidationHost): PtcToolExecutor {
+export function createToolRouter(host: PatchValidationHost & WriteToolHost): PtcToolExecutor {
   let facts: Promise<Analysis> | null = null;
   const analysis = (): Promise<Analysis> =>
     (facts ??= host.analyze([]).then((result) => result.after));
-  // D-111/D-126/D-139: the preview, graph and git tools exist only when the IDE provides them.
-  const extras = createRuntimeToolHandlers(host);
+  // D-111/D-126/D-139/D-181: these families exist only when the IDE provides their seam.
+  const extras = { ...createRuntimeToolHandlers(host), ...createWriteToolHandlers(host) };
   return {
     specs: () => advertisedFor(host),
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {

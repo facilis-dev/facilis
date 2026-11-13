@@ -13,6 +13,20 @@ import type { ChatProposal, ProposedFile } from "./types";
 /** Read a project-relative file; "" when it does not exist. */
 export type FileReader = (path: string) => Promise<string>;
 
+/** Flip one file's accepted flag (the card's checkbox); null when no proposal is open. */
+export function toggleProposalFile(
+  proposal: ChatProposal | null,
+  path: string,
+): ChatProposal | null {
+  if (proposal === null) return null;
+  return {
+    ...proposal,
+    files: proposal.files.map((file) =>
+      file.patch.path === path ? { ...file, accepted: !file.accepted } : file,
+    ),
+  };
+}
+
 export async function buildProposal(
   patches: readonly FilePatch[],
   notes: readonly string[],

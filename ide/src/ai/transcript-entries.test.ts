@@ -45,6 +45,8 @@ function state(overrides: Partial<ChatState> = {}): ChatState {
     settings: null,
     configured: true,
     context: null,
+    gitGate: null,
+    writes: [],
     ...overrides,
   };
 }

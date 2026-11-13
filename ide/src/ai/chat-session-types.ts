@@ -11,7 +11,15 @@ import type { WebAccess } from "./web-access";
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PtcRunner } from "./ptc/protocol";
 import { isConfigured } from "./settings";
-import type { AiChatTurn, AiSettings, ChatActivity, ChatMessage, ChatState } from "./types";
+import type { ChatWrites } from "./chat-writes";
+import type {
+  AiChatTurn,
+  AiSettings,
+  ChatActivity,
+  ChatMessage,
+  ChatState,
+  GitSafety,
+} from "./types";
 
 /** What the chat needs from the editor, all in project-relative terms. */
 export interface ChatHost {
@@ -36,6 +44,8 @@ export interface ChatHost {
   web?: WebAccess;
   /** Runs before the context is assembled (MCP discovery, D-118); must not throw. */
   prepare?(): Promise<void>;
+  /** Git safety for AI source writes (D-181); absent only in tests and non-IDE hosts. */
+  gitSafety?: GitSafety;
   /**
    * Analyze the project before and after a patch set (the browser analyzer worker). The
    * validator fails closed when this throws, so unanalyzed patches never reach disk.
@@ -43,6 +53,8 @@ export interface ChatHost {
   analyze(
     patches: readonly FilePatch[],
     signal?: AbortSignal,
+    /** Source writes already applied this turn; merged under the patches being validated. */
+    overlay?: readonly FilePatch[],
   ): Promise<{ before: Analysis; after: Analysis }>;
   /** Reveal a project-relative path in the editor. */
   openFile(path: string): void;
@@ -58,6 +70,8 @@ export interface ChatSessionOptions {
   now?: () => number;
   /** The PTC tool runtime (D-101). The chat has no non-PTC mode (D-103). */
   runner: PtcRunner;
+  /** The incremental write engine shared with the write tools (D-181). */
+  writes?: ChatWrites;
 }
 
 /** The turns replayed to the model on the next message (SPEC §9.1 Model A). */
@@ -91,24 +105,40 @@ export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Keep the provider's alternating-role requirement even when a turn is merged. */
+export function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
+  const last = turns.at(-1);
+  if (last !== undefined && last.role === turn.role) {
+    last.content = last.content + "\n\n" + turn.content;
+    return;
+  }
+  turns.push(turn);
+}
+
 /** State a new turn clears: the transcript keeps its trace after a finished turn. */
 export const TURN_RESET: Pick<
   ChatState,
-  "repair" | "trace" | "exploring" | "patchParts" | "reasoning"
+  "repair" | "trace" | "exploring" | "patchParts" | "reasoning" | "gitGate" | "writes"
 > = {
   repair: null,
   trace: [],
   exploring: null,
   patchParts: null,
   reasoning: null,
+  gitGate: null,
+  writes: [],
 };
 
 /** State a finished turn clears; its activity moves onto the turn's user message (turnEnded). */
-export const TURN_IDLE: Pick<ChatState, "repair" | "exploring" | "patchParts" | "reasoning"> = {
+export const TURN_IDLE: Pick<
+  ChatState,
+  "repair" | "exploring" | "patchParts" | "reasoning" | "gitGate"
+> = {
   repair: null,
   exploring: null,
   patchParts: null,
   reasoning: null,
+  gitGate: null,
 };
 
 /**

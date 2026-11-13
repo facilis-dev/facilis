@@ -105,20 +105,26 @@ function removedColumns(before: readonly TableFact[], after: readonly TableFact[
   return removed;
 }
 
-/** Rule 15: dropping a table or column is destructive and must be confirmed. */
-export function destructiveErrors(
-  state: EffectiveState,
-  requiresConfirmation: boolean,
-): ValidationError[] {
+/** The schema removals in a patch set (rule 15's predicate), for callers that need the
+ * fact without the finding (the IDE flags a write destructive, never blocks it). */
+export function destructiveChanges(state: EffectiveState): string[] {
   const afterNames = new Set(state.afterSchemaTables.map((table) => table.name));
   const droppedTables = state.beforeSchemaTables
     .map((table) => table.name)
     .filter((name) => !afterNames.has(name));
   const droppedColumns = removedColumns(state.beforeSchemaTables, state.afterSchemaTables);
-  const changes = [
+  return [
     ...droppedTables.map((name) => 'drops table "' + name + '"'),
     ...droppedColumns.map((name) => 'drops column "' + name + '"'),
   ];
+}
+
+/** Rule 15: dropping a table or column is destructive and must be confirmed. */
+export function destructiveErrors(
+  state: EffectiveState,
+  requiresConfirmation: boolean,
+): ValidationError[] {
+  const changes = destructiveChanges(state);
   if (changes.length === 0 || requiresConfirmation) return [];
   const shown = changes.slice(0, 3).join(", ");
   const suffix = changes.length > 3 ? " (and " + (changes.length - 3) + " more)" : "";

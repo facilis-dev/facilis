@@ -40,7 +40,16 @@ import {
 } from "./response";
 import { salvagePatches } from "./salvage";
 import { capReasoning } from "./chat-trace";
-import type { AiChatTurn, AiSettings, ChatFailure, ChatTraceCall } from "./types";
+import { appendTurn } from "./chat-session-types";
+import type { ChatWrites } from "./chat-writes";
+import { settleWriteStep } from "./turn-writes";
+import type {
+  AiChatTurn,
+  AiSettings,
+  ChatFailure,
+  ChatGitGateFailure,
+  ChatTraceCall,
+} from "./types";
 
 export interface TurnInput {
   call: (input: CallModelInput) => Promise<CallModelResult>;
@@ -61,6 +70,10 @@ export interface TurnInput {
   onScript?: (result: PtcRunResult, program: string, images: readonly string[]) => void;
   /** Called when another part of the same patch set is requested (1-based part). */
   onPatches?: (part: number) => void;
+  /** The incremental write engine the write tools use (D-181). */
+  writes?: ChatWrites;
+  /** A write hit the clean-tree gate: pause the turn until the user commits or stops. */
+  pauseGitGate?: (failure: ChatGitGateFailure) => Promise<"continue" | "stop">;
   /** Streams the provider's visible reasoning for the current call (D-110). */
   onReasoning?: (chunk: string) => void;
   /** A model call starts: the chat clears the live reasoning. */
@@ -72,16 +85,6 @@ export interface TurnInput {
 export type TurnOutcome =
   | { ok: true; parsed: Extract<AiParseResult, { ok: true }>; trace: PtcTraceEntry[] }
   | { ok: false; failure: ChatFailure };
-
-/** Keep the provider's alternating-role requirement even when a turn is merged. */
-function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
-  const last = turns.at(-1);
-  if (last !== undefined && last.role === turn.role) {
-    last.content = last.content + "\n\n" + turn.content;
-    return;
-  }
-  turns.push(turn);
-}
 
 /**
  * A validator outage (parser/analyzer) cannot be fixed by the model: no repair round. One
@@ -242,6 +245,8 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
         content: formatScriptResult(run),
         ...(images.length > 0 ? { images } : {}),
       });
+      const settled = await settleWriteStep(input, turns);
+      if (!settled.ok) return settled;
       continue;
     }
 
