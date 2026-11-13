@@ -6,7 +6,7 @@ so they are not re-litigated or lost.
 
 Format: `D-0NN — title` · **status** (accepted / open) · context · decision · consequences.
 
-**Reading guide.** Start with the newest entries (D-142…D-175); the rest is history that still
+**Reading guide.** Start with the newest entries (D-142…D-182); the rest is history that still
 explains the current code. A handful of decisions are superseded by a later one — D-017
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
 (→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149,
@@ -6933,6 +6933,72 @@ failures with their commit/stop branches, the write-tool argument refusals and t
 section. `pnpm --filter @facilis.dev/ai test`: 94 tests, including `destructiveChanges` and rule
 15 with and without `requiresConfirmation`. The remaining gates (`pnpm lint`, `pnpm typecheck`,
 `pnpm test`, `pnpm build`) are the PR's.
+
+### D-182 — The AI reads installed dependencies and consults a curated framework reference
+**Status:** accepted (2026-11-13)
+
+**Context.** The chat model wrote code against a framework it could not read: `node_modules` was
+excluded from every tool path, so the only in-context knowledge of an API was the canonical shapes
+in the system prompt. The model guessed exports and signatures — or reused a shape that no longer
+matched the installed version — and a fixed prompt cannot cover a growing package surface without
+paying for all of it every turn. The project's VFS does expose `node_modules` by path; only the
+tool policy hid it.
+
+**Decision.** The AI reads the installed dependencies and gets a curated framework index, while
+discovery stays bounded and dependency bytes stay data:
+
+- **`node_modules` is readable by path through the existing `read_file`**
+  (`ide/src/ai/ptc/policy.ts`). The safety rules are unchanged (project-relative, no `..`/absolute/
+  backslash), a secret basename is refused, and `.git`/`.facilis` segments stay unreadable
+  anywhere in a dependency path. Project listings stay snapshot-based: `list_files` and `search`
+  iterate `host.files()`, which never contains `node_modules`, so neither the model's file list
+  nor the Explorer grows with the dependency tree.
+- **`list_dependencies({ package? })`** (`ide/src/ai/dependency-access.ts`,
+  `ide/src/ai/ptc/dependency-tools.ts`) lists the installed packages (scopes expanded to
+  `@scope/name`), capped at 200 with a `truncated` flag, or one package's files at depth ≤ 3,
+  capped at 300, project-relative. Package names are validated against npm's own shape (one name,
+  or one `@scope`/name pair), so traversal, an absolute path or extra segments are refusals; a
+  package's nested `node_modules` is skipped. The family is registered only when the chat host
+  provides the seam.
+- **A curated framework reference** covers the nine `@facilis.dev` modules (`core`, `db`,
+  `auth`, `nitro`, `ai`, `analyze`, `time`, `storage`, `i18n-db`) with 86 entries copied by
+  hand from `packages/*/src` (`ide/src/ai/reference/`, aggregated in
+  `framework-reference-data.ts`). The system prompt gains a compact per-module index
+  (`frameworkIndex()`) only when the tool is registered, and `framework_reference({ module?, query? })`
+  returns the matching signatures and examples, capped at 40 entries and 8 KB with a `truncated`
+  flag. The index is the fast path; the installed source under `node_modules` stays the authority.
+- **A drift test enforces the copy** (`ide/src/ai/framework-reference.test.ts`): every entry name
+  must still appear in its package's source, every `@facilis.dev` package on disk must have exactly
+  one module, and a module for a missing package fails.
+- **Prompt families move out of `prompt.ts`** into `ide/src/ai/prompt-families.ts`: the write,
+  dependencies, framework, preview, graph, git, web and MCP sections, each appended only when the
+  registry advertises that family.
+- Dependency content is untrusted third-party data: it is capped and secret-redacted like other
+  tool output, it can be quoted but never treated as instructions, and it can never grant a
+  capability.
+
+**Rejected alternatives.** *Leaving `node_modules` unreadable*: the model guessed exports and
+signatures, the exact class of error the framework contracts exist to prevent. *Preloading whole
+package sources*: the context cost is unbounded and one route needs a fraction of one package.
+*Extending `list_files`/`search` over `node_modules`*: it is the largest tree in a project and the
+snapshot-based tools exist to stay bounded; explicit paths plus a capped listing scale instead.
+*Generating the reference from the TS APIs at build time*: a build step and a type-parser dependency
+for data the curated index and its drift test already keep honest.
+
+**Consequences.** The model can check what the project actually installed instead of assuming the
+newest API, and a stale reference cannot accumulate silently: dropping a public name from a package
+fails the drift suite until the entry is updated. Dependency reads widen what can leave the browser
+for the provider (package source — never secrets: redaction and the secret-basename rule still
+apply), and the prompt pays one compact index line per module. `node_modules` stays absent from the
+project snapshot, so the Explorer, the git diff and `list_files`/`search` are unchanged.
+
+**Verification.** The targeted suites pass — `pnpm --filter @facilis.dev/ide exec vitest run
+src/ai/dependency-access.test.ts src/ai/ptc/dependency-tools.test.ts src/ai/framework-reference.test.ts
+src/ai/ptc/framework-tools.test.ts src/ai/ptc/policy.test.ts src/ai/ptc/dependency-read.test.ts
+src/ai/prompt.test.ts`: 7 files / 91 tests. They cover the package and file listings with their
+caps, scope expansion, name refusals, the readable and refused path classes, the framework lookup
+and its entry/size caps, the drift guard, and the prompt's dependency and framework sections. The
+remaining gates (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`) are the PR's.
 
 ## Open items (post-MVP)
 

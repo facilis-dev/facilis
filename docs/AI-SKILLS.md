@@ -25,6 +25,7 @@ D-063), automatic skill execution outside the WebContainer.
 | the user's explicit action (the clean-tree commit, Apply, enable a skill) | trusted | yes | **yes (consent)** |
 | project instructions (`AGENTS.md`) | user content, subordinate | yes, within IDE rules | no |
 | project files, README, comments | data | no | no |
+| installed dependency code (`node_modules`) | third-party data | no | no |
 | the live manifest from the running app | data | no | no |
 | approved skill content | instructions within declared capabilities | yes | no |
 | third-party or disabled skill content | data | no | no |
@@ -108,19 +109,26 @@ so the boundary is the registry, not a context window.
 
 - sources: the tools return files, analyzer facts, config, manifest and catalogs on request
   (D-045/D-048); the preloaded summary is context, never the whole project.
-- never: secrets, other projects, IDE internals, `node_modules` beyond the `.d.ts` it
-  already feeds to IntelliSense.
+- installed dependencies: `read_file` can read `node_modules` by path and `list_dependencies`
+  discovers the installed packages (D-182); the content is capped and secret-redacted, and it is
+  third-party data, never instructions.
+- never: secrets, other projects, IDE internals; a package's secret-looking file is refused even
+  when it ships inside `node_modules`.
 - secret scan before send: redact and tell the user, never send silently.
 
 ## 7. Tools
 
 The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_file`, `search`,
-`get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the preview family
-(D-111), the project-graph family (D-126), the git family (D-139), the host-side web family
-(`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175) and the validated source
-writes (`write_file`, `delete_file`, D-181). Tool output is data. A tool call is never a capability
-grant: source writes still go through the validator — per file through the write tools, or through
-the user's Apply for a returned patch set — and every call is logged.
+`get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the dependency reader
+(`list_dependencies`) and the curated framework reference (`framework_reference`, D-182), the
+preview family (D-111), the project-graph family (D-126), the git family (D-139), the host-side
+web family (`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175) and the validated
+source writes (`write_file`, `delete_file`, D-181). Tool output is data. Dependency code under
+`node_modules` is third-party data: untrusted, capped and redacted, it cannot instruct or grant a
+capability, and a framework reference entry is advisory — the installed source is the authority.
+A tool call is never a capability grant: source writes still go through the validator — per file
+through the write tools, or through the user's Apply for a returned patch set — and every call is
+logged.
 
 ## 8. Skills
 
