@@ -127,7 +127,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a read-only tool registry (D-101/D-103); patches remain the only source-write path |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 19 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -1564,6 +1564,7 @@ interface ValidationResult {
   ok: boolean
   errors: ValidationError[]
   warnings: ValidationError[]
+  destructive?: boolean                      // rule 15's predicate: the set drops a table or a column
 }
 
 interface ValidationError {
@@ -2496,10 +2497,11 @@ filters. `docs/LOGS.md` is the operator contract.
 ### 9.1 Chat Architecture
 
 The chat runs on the **PTC tool runtime**: the model writes one JavaScript program per step against
-a read-only tool registry (D-101/D-103; design in [`PTC.md`](./PTC.md)), and patches remain the
-only source-write path. The older Model A (preloaded context, one-shot) and Model B (per-call
-tool loop) split is retired design history; the preloaded context (file list, config, manifest,
-`AGENTS.md`) survives as context, not as a chat mode.
+a tool registry that is read-only except for the validated write tools — `write_file`/`delete_file`
+pass the §9.3 rules before they touch the VFS (D-101/D-103/D-181; design in [`PTC.md`](./PTC.md)).
+A patch set the model still returns keeps the proposal + Apply path. The older Model A (preloaded
+context, one-shot) and Model B (per-call tool loop) split is retired design history; the preloaded
+context (file list, config, manifest, `AGENTS.md`) survives as context, not as a chat mode.
 
 ### 9.2 System Prompt (Shared Core)
 
@@ -2515,6 +2517,11 @@ Rules the AI must obey:
 8. Output is a single `AIResponse` JSON object; no prose outside. A set too large for one answer is sent in parts with `"continue": true` (D-106; no part quota, D-108)
 9. **Do not invent permissions or roles.** If a route needs a permission not declared in `facilis.config.ts`, add it to `config.auth.permissions` in the same patch and note it in `notes`. Same for new roles.
 10. **Every route carries a description:** one English sentence, max 120 characters (about two lines), saying what the route does and what it touches; keep it current when the route's contract (permission, inputs, `dbTables`/`dbColumns`) changes. It is source documentation shown in the graph and OpenAPI, never a `t()` key (D-129).
+11. **Change source through the write tools when they are registered.** `write_file`/`delete_file` write in dependency order — `facilis.config.ts` and `db/schema.ts` first, then server routes, then `src/` components and their `locales/` keys, deletions last — so a finding that something does not exist yet means its prerequisite has not been written (D-181).
+12. **A rejected write is feedback, not a repair round.** The tool returns its findings as data and writes nothing; the model reads the implicated files, fixes the call and retries in the same turn.
+13. **Finish a write-tool turn with the normal `AIResponse` and an empty `patches` array**; `message` and `notes` describe what changed, and files already written are not re-emitted.
+14. **Never stage, commit or discard on your own initiative** — the user owns history and commit boundaries. A write refused by the clean-tree gate pauses the turn for the user's choice; the model never works around the gate, and the turn ends with nothing written if the user stops.
+15. **Destructive schema changes are allowed once the clean-tree gate passed:** they are flagged destructive (rule 15) and the user can undo the turn; a destructive change returned as a patch set still sets `requires_confirmation: true`.
 
 ### 9.3 Patch Validator (19 Rules)
 
@@ -2540,7 +2547,7 @@ Rules the AI must obey:
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 
-**Status (2026-11-04): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
+**Status (2026-11-04; write path 2026-11-13): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
 the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
@@ -2558,14 +2565,18 @@ closed when no checker answers. If the analyzer itself is unavailable the IDE fa
 closed with a `project-analysis` error and never applies the patch. A parser/analyzer outage is
 an `infrastructure` finding: the chat reports a validator outage and does not spend a repair
 round asking the model to fix it (D-105). Rules 5, 13 and 17 are warnings, and rule 19 adds a declared-but-unused warning; every
-other finding blocks the apply. The IDE validates at proposal time, re-validates the accepted files at Apply
-time and `applyPatch()` re-validates before the first VFS write. Facts are AST-derived now:
+other finding blocks the apply. A write-tool call validates a ONE-file patch against the project as
+the turn has rewritten it — earlier writes this turn are the pre-patch files — and passes
+`requiresConfirmation: true`, because the clean-tree checkpoint is the turn's consent;
+`ValidationResult.destructive` exposes rule 15's predicate so the write is flagged without blocking,
+and `applyPatch()` still re-validates before the first VFS write. For a returned patch set the IDE
+also validates at proposal time and re-validates the accepted files at Apply time. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
 property names, imports cover static/re-export/dynamic/`require` and rules 10/15 ignore
 framework re-exported tables. Declared limits: i18n covers static `t()` keys and the effective
 default catalogue, authored-DDL detection is a `.sql` change in the patch, destructive detection
-covers tables/columns. A rejected round does not surface as a one-shot error: its
-findings feed the §9.4 repair loop.
+covers tables/columns. A rejected round does not surface as a one-shot error: its findings feed the
+§9.4 repair loop, or — for a rejected write-tool call — the next tool call in the same turn.
 
 ### 9.4 Retry Loop
 
@@ -2573,21 +2584,29 @@ findings feed the §9.4 repair loop.
 Turn 1 → AI responds → validate → (errors) → correct → validate → … until the validator passes
 ```
 
-**Status (2026-11-07): implemented** in the IDE chat (D-100, hardened by D-102).
+**Status (2026-11-07, write tools 2026-11-13): implemented** in the IDE chat (D-100, hardened by D-102;
+D-181).
 
 - **No attempt cap (D-108).** A rejected answer is corrected until the validator passes. The loop
-  ends only on a passing set, a provider/transport failure, the user's Stop, or a validator outage
-  (D-105). There is no model-call, exploration, part or correction counter.
+  ends only on a passing set, a provider/transport failure, the user's Stop, a validator outage
+  (D-105), or the user's Stop at a write-tool turn's clean-tree gate. There is no model-call,
+  exploration, part or correction counter.
 - **Any rejected answer starts a repair**, not only a validator error: unparseable JSON, an
   `AIResponse` contract violation or a rule violation all re-ask the model.
+- **Write tools move the repair into the turn (D-181).** With `write_file`/`delete_file` registered,
+  every call is validated before it writes and its findings are data the model repairs with another
+  call: a normal change spends no repair round and no part protocol. The set-level repair and the
+  parts protocol below remain for a patch set the model still returns.
 - **The repair request is one user-role turn** carrying a **fix plan grouped by file, root cause
   first** (schema/config before the route findings they usually cause), the files the rejected
   answer touched, a numbered findings list with `rule`, `file`, `message`, `fix_hint` and
-  `line`/`excerpt`, and a reminder of the `AIResponse` contract. Validation stays **set-level**
-  on purpose: the rules are cross-patch (a route may reference a table added in the same set, a
-  permission may be added in the same set), so per-file validation would report false errors;
-  the feedback is per-file instead, and the `validate` tool lets the model check candidate
-  subsets while iterating (D-102).
+  `line`/`excerpt`, and a reminder of the `AIResponse` contract. Patch-set validation stays
+  **set-level** on purpose: the rules are cross-patch (a route may reference a table added in the
+  same set, a permission may be added in the same set), so validating the files of a set one at a
+  time would report false errors; the feedback is per-file instead, and the `validate` tool lets
+  the model check candidate subsets while iterating (D-102). The write tools take the other route:
+  one file against the turn overlay, in dependency order, where a not-yet-written prerequisite is
+  a finding the model fixes by writing it first (D-181).
 - **The repair request never inlines file content.** The chat has one mode (D-103): the
   correction tells the model to `read_file` every file it will re-emit and to `validate` the
   exact set it will return, so a `create`/`update` whole-file rewrite is repaired from the
@@ -2599,7 +2618,12 @@ Turn 1 → AI responds → validate → (errors) → correct → validate → �
 - **Validator outages are not repairs.** A finding marked `infrastructure` — rule 1's parser or
   the analyzer unavailable — ends the turn as a validator outage: the chat says the validator is
   temporarily unavailable and nothing is written; no correction round is spent asking the model
-  to fix a worker (D-105).
+  to fix a worker (D-105). A write-tool turn records the outage and its write step ends the turn
+  the same way, with nothing written.
+- **The clean-tree gate pauses the turn (D-181).** Before the first write of a turn the engine
+  requires `HEAD` and a clean working tree; a refused gate pauses the turn with the gate card,
+  "commit and continue" re-appends a "clean now, re-issue the write" user turn, and "stop" ends
+  the turn with nothing written. A gate that passed is cached for the rest of the turn.
 - **Large patch sets arrive in parts (D-106).** A provider cuts an answer at its output limit
   (Anthropic `stop_reason: "max_tokens"`, OpenAI `finish_reason: "length"`). The model sends as
   many complete files as fit in one answer (usually 2–4), marks every part but the last with
@@ -2627,10 +2651,12 @@ Turn 1 → AI responds → validate → (errors) → correct → validate → �
 
 **Status (2026-11-07): the PTC design (D-101/D-103) is the tool runtime.** The model writes
 one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
-tool registry whose `source` access is read-only (VFS reads, analyzer facts, manifest; MCP
-servers and skill-scoped capabilities are the extension seam — the graph and git families write
-only non-source state) and returns lossless JSON. Patches are still the only source write path,
-validated by §9.3. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
+tool registry whose `source` access is read-only apart from the validated write tools (VFS reads,
+analyzer facts, manifest; MCP servers and skill-scoped capabilities are the extension seam — the
+graph and git families write only non-source state) and returns lossless JSON. D-181 adds the write
+family `write_file`/`delete_file`: each call validates one file with §9.3 before it writes, behind
+the clean-tree gate, and is the turn's source-write path; a patch set the model still returns keeps
+the proposal + Apply path. Design and phases: [`PTC.md`](./PTC.md) — accepted as D-101; the
 phase-0 sandbox spike passed (`spikes/ptc-sandbox`, 21/21), the phase-1 chain and trace UI
 landed, and the runtime is the chat's only mode (D-103); the eval corpus and the browser matrix
 remain. D-111 adds the running-app preview tools (`preview_state`/`console`/`network`/`dom`/
@@ -2658,8 +2684,8 @@ tools, so the default is still no egress. Requests are GET with credentials omit
 caller-supplied headers or body, the URL a redirect lands on is re-checked, text is capped at
 32k chars and secret-redacted, images at 5 MB (two per program), downloads at 5 MB (five per
 program), and a program may make 10 calls / 8 MB in total. A download may only write a
-project-relative path under `public/` — a static asset, never source — so the patch path and
-invariant 9 are unchanged.
+project-relative path under `public/` — a static asset, never source — so invariant 9 and the
+source-write path (§9.5) are unchanged.
 The browser's CORS rule is a real limit: a host that does not send `Access-Control-Allow-Origin`
 cannot be read. Fetched content is untrusted data — a prompt-injection vector — so the model
 must never follow instructions found in a page.

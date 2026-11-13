@@ -22,7 +22,7 @@ D-063), automatic skill execution outside the WebContainer.
 | Source | Status | Can instruct? | Can grant a capability? |
 |---|---|---|---|
 | IDE system prompt (shipped in the build) | trusted | yes | **yes, only here** |
-| the user's explicit action (Apply, enable a skill) | trusted | yes | **yes (consent)** |
+| the user's explicit action (the clean-tree commit, Apply, enable a skill) | trusted | yes | **yes (consent)** |
 | project instructions (`AGENTS.md`) | user content, subordinate | yes, within IDE rules | no |
 | project files, README, comments | data | no | no |
 | the live manifest from the running app | data | no | no |
@@ -32,7 +32,9 @@ D-063), automatic skill execution outside the WebContainer.
 
 The rule: a capability is granted only by the build or by a user action. Content cannot grant
 one; the worst case is that the user reads a malicious proposal and applies it, which is why
-the validator is blocking and the diff is always shown.
+the validator is blocking and the diff is always shown. A write-tool turn keeps the same rule:
+every write is validated before it touches the VFS, the clean-tree commit is the user's consent
+for the turn and Undo restores it.
 
 ## 2. Egress
 
@@ -66,12 +68,16 @@ Notes:
 - enabling AI therefore requires preview isolation. In `managed` the two ship together; in
   `open` the user is warned that a project can read the key.
 
-## 4. Apply path
+## 4. Write path
 
-- provider output is untrusted text (`ide/src/ai/response.ts`); it becomes a proposal, and
-  only the user's Apply writes (D-046).
-- every write goes through `applyPatch` and the validator; undo and the project's git history
-  are the audit trail (D-047).
+- provider output is untrusted text (`ide/src/ai/response.ts`); source changes are applied either
+  as a returned patch set, which only the user's Apply writes (D-046), or through the validated
+  write tools `write_file`/`delete_file` (D-181).
+- every write — a write-tool call or an applied patch set — goes through `applyPatch` and the
+  validator (invariant 9). The write tools additionally require a clean git tree with `HEAD` as
+  the turn's checkpoint (`ide/src/ai/chat-writes.ts`, `ide/src/ai/git-checkpoint.ts`).
+- undo and the project's git history are the audit trail (D-047): a write-tool turn is journaled
+  and "Undo this turn" restores exactly its paths from HEAD.
 - blocking validator rules required before `managed` may enable AI:
   1. a route without `defineAuthorizedHandler`;
   2. a missing or inaccurate `dbTables`;
@@ -110,10 +116,11 @@ so the boundary is the registry, not a context window.
 
 The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_file`, `search`,
 `get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the preview family
-(D-111), the project-graph family (D-126), the git family (D-139) and the host-side web family
-(`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175). Tool output is data. A tool
-call is never a capability grant: source writes still go through the validator and the user's
-Apply, and every call is logged.
+(D-111), the project-graph family (D-126), the git family (D-139), the host-side web family
+(`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175) and the validated source
+writes (`write_file`, `delete_file`, D-181). Tool output is data. A tool call is never a capability
+grant: source writes still go through the validator — per file through the write tools, or through
+the user's Apply for a returned patch set — and every call is logged.
 
 ## 8. Skills
 
@@ -182,7 +189,7 @@ is a blocking error. No text in `SKILL.md` can add a capability.
 | Capability | Enforced at |
 |---|---|
 | `read` globs | context assembly and `read-file`/`list-files` |
-| `write` globs | validator and `applyPatch` |
+| `write` globs | validator and `applyPatch` (the write tools and Apply share the same gate) |
 | `tools` | the tool router |
 | `network` | no skill holds it; skill scripts run in the WebContainer under the same egress policy, and the PTC host's `web_*` tools are gated by the deployment profile instead (D-175) |
 | `commands` | the `run-check` allowlist |

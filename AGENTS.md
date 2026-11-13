@@ -97,7 +97,8 @@ Pin Nitro to an exact version — v3 is beta (spec §13 risk 2).
 7. Studio writes go through `kernel.writeFiles` (Vivari VFS); never touch OPFS directly.
 8. Roles/permissions are declared in `facilis.config.ts`; `role_permissions` is written
    only by migrations.
-9. AI patches pass the 19-rule validator before touching disk.
+9. Every AI source write passes the 19-rule validator before touching disk; the write tools
+   additionally require a clean git tree (HEAD) as the turn's checkpoint (D-181).
 
 If a change cannot satisfy an invariant, stop and raise it — do not weaken the invariant.
 
