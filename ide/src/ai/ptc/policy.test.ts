@@ -4,6 +4,7 @@ import {
   assertReadablePath,
   assertSafeGlob,
   globMatcher,
+  isDependencyPath,
   isExcludedPath,
   isReadablePath,
   isSafeProjectPath,
@@ -74,9 +75,69 @@ describe("isExcludedPath", () => {
   });
 });
 
+describe("isDependencyPath", () => {
+  it("accepts installed package paths at the project root", () => {
+    for (const path of [
+      "node_modules/react/index.js",
+      "node_modules/@facilis.dev/db/dist/index.js",
+      "node_modules/react/node_modules/scheduler/index.js",
+      "node_modules/.package-lock.json",
+    ]) {
+      expect(isDependencyPath(path), path).toBe(true);
+    }
+  });
+
+  it("refuses paths outside node_modules and hidden state inside it", () => {
+    for (const path of [
+      "src/App.tsx",
+      "node_modules",
+      "src/node_modules/dep/index.js",
+      "node_modules/.git/config",
+      "node_modules/react/.facilis/graph/layout.json",
+      "../node_modules/react/index.js",
+      "/node_modules/react/index.js",
+      "node_modules/../src/App.tsx",
+      "node_modules\\react\\index.js",
+    ]) {
+      expect(isDependencyPath(path), path).toBe(false);
+    }
+  });
+});
+
 describe("assertReadablePath", () => {
   it("does not throw for readable paths", () => {
     expect(() => assertReadablePath("src/App.tsx")).not.toThrow();
+  });
+
+  it("does not throw for installed dependency paths", () => {
+    expect(() => assertReadablePath("node_modules/react/index.js")).not.toThrow();
+    expect(() => assertReadablePath("node_modules/@facilis.dev/db/dist/index.js")).not.toThrow();
+  });
+
+  it("still refuses secret files that ship inside a dependency", () => {
+    for (const path of [
+      "node_modules/react/.env",
+      "node_modules/react/certs/server.pem",
+      "node_modules/react/private.key",
+      "node_modules/react/id_rsa",
+    ]) {
+      expect(() => assertReadablePath(path), path).toThrow(/excluded from tool reads/);
+    }
+  });
+
+  it("keeps every non-dependency exclusion for project paths", () => {
+    for (const path of [
+      "dist/assets/app.js",
+      ".turbo/cache/x",
+      "coverage/lcov.info",
+      ".git/config",
+      ".facilis/graph/layout.json",
+      "certs/server.pem",
+      ".env.local",
+      "node_modules/.git/config",
+    ]) {
+      expect(() => assertReadablePath(path), path).toThrow();
+    }
   });
 
   it("throws a capability PtcToolError for traversal", () => {

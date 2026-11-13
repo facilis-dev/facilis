@@ -7,7 +7,7 @@ import type { Analysis, FilePatch } from "@facilis.dev/ai";
 import { fetchManifest } from "@/facilis/manifest-client";
 
 import { validatePatchesWithHost, type PatchValidationHost } from "../patch-validation";
-import { createRuntimeToolHandlers, type RuntimeToolHandler } from "./graph-tools";
+import type { RuntimeToolHandler } from "./graph-tools";
 import {
   assertReadablePath,
   assertSafeGlob,
@@ -24,7 +24,7 @@ import {
   type PtcToolExecutor,
 } from "./protocol";
 import { SPEC_BY_NAME, TOOL_NAMES, advertisedFor } from "./tool-specs";
-import { createWriteToolHandlers, type WriteToolHost } from "./write-tools";
+import { createExtraHandlers, type ToolHost } from "./tool-extras";
 
 // Caps bound one program's exploration: broad listings/searches and huge files come back as
 // capped data with a truncation flag, never as one giant tool result.
@@ -265,12 +265,11 @@ function patchesArg(value: unknown): FilePatch[] {
   });
 }
 
-export function createToolRouter(host: PatchValidationHost & WriteToolHost): PtcToolExecutor {
+export function createToolRouter(host: ToolHost): PtcToolExecutor {
   let facts: Promise<Analysis> | null = null;
   const analysis = (): Promise<Analysis> =>
     (facts ??= host.analyze([]).then((result) => result.after));
-  // D-111/D-126/D-139/D-181: these families exist only when the IDE provides their seam.
-  const extras = { ...createRuntimeToolHandlers(host), ...createWriteToolHandlers(host) };
+  const extras = createExtraHandlers(host);
   return {
     specs: () => advertisedFor(host),
     async execute(call: PtcToolCall, options: { signal?: AbortSignal }): Promise<PtcJson> {
