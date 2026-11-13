@@ -13,6 +13,8 @@ import { analyzePatches } from "@/facilis/patch-analysis";
 import { writeProjectAsset } from "@/facilis/vfs-write";
 import { webAccess as deploymentWebAccess } from "@/deploy/current";
 import { createChatWrites } from "./chat-writes";
+import { createDependencyAccess } from "./dependency-access";
+import { createFrameworkAccess } from "./framework-reference";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createGitCheckpoint } from "./git-checkpoint";
 import type { GitSafety } from "./types";
@@ -90,6 +92,11 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
     graph: createGraphAccess(controller),
     git: createGitAccess(controller),
     writes,
+    dependencies: createDependencyAccess({
+      root: () => projectRoot(controller),
+      readdir: (absolutePath) => controller.readdir(absolutePath),
+    }),
+    framework: createFrameworkAccess(),
   };
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.

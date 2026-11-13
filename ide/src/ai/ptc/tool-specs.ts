@@ -165,6 +165,24 @@ export const WEB_TOOL_SPECS: readonly PtcToolSpec[] = [
  * incremental write engine: each call validates one file against the project as the turn has
  * rewritten it, and the clean-tree gate is the turn's consent.
  */
+/** The installed dependencies (D-182): discovery plus capped source reads under node_modules. */
+export const DEPENDENCY_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec(
+    "list_dependencies",
+    "list_dependencies({ package? })",
+    "List the installed packages, or one package's files under node_modules; read one with read_file({ path: 'node_modules/...' }).",
+  ),
+];
+
+/** The framework API fast path (D-182): the curated @facilis.dev module reference. */
+export const FRAMEWORK_TOOL_SPECS: readonly PtcToolSpec[] = [
+  spec(
+    "framework_reference",
+    "framework_reference({ module?, query? })",
+    "Look up a framework module's public API (signatures, minimal examples, pitfalls); read node_modules for the exact installed source.",
+  ),
+];
+
 export const WRITE_TOOL_SPECS: readonly PtcToolSpec[] = [
   spec(
     "write_file",
@@ -189,6 +207,8 @@ export function advertisedSpecs(
   hasGit: boolean,
   hasWeb: boolean,
   hasWrites: boolean,
+  hasDependencies: boolean,
+  hasFramework: boolean,
 ): readonly PtcToolSpec[] {
   return [
     ...TOOL_SPECS,
@@ -197,6 +217,8 @@ export function advertisedSpecs(
     ...(hasGit ? GIT_TOOL_SPECS : []),
     ...(hasWeb ? WEB_TOOL_SPECS : []),
     ...(hasWrites ? WRITE_TOOL_SPECS : []),
+    ...(hasDependencies ? DEPENDENCY_TOOL_SPECS : []),
+    ...(hasFramework ? FRAMEWORK_TOOL_SPECS : []),
   ];
 }
 
@@ -207,6 +229,8 @@ export function advertisedFor(host: {
   readonly git?: unknown;
   readonly web?: unknown;
   readonly writes?: unknown;
+  readonly dependencies?: unknown;
+  readonly framework?: unknown;
 }): readonly PtcToolSpec[] {
   return advertisedSpecs(
     host.preview !== undefined,
@@ -214,9 +238,19 @@ export function advertisedFor(host: {
     host.git !== undefined,
     host.web !== undefined,
     host.writes !== undefined,
+    host.dependencies !== undefined,
+    host.framework !== undefined,
   );
 }
 
-export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(true, true, true, true, true);
+export const ALL_TOOL_SPECS: readonly PtcToolSpec[] = advertisedSpecs(
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+);
 export const TOOL_NAMES = ALL_TOOL_SPECS.map((entry) => entry.name).join(", ");
 export const SPEC_BY_NAME = new Map(ALL_TOOL_SPECS.map((entry) => [entry.name, entry] as const));

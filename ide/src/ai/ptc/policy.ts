@@ -1,9 +1,12 @@
 // Read-only path and secret policy for the PTC tool router (docs/PTC.md §6, §11, D-101).
 //
 // The router is the only place that decides what a model-authored program may read, so the
-// rules live here instead of in each tool: paths are untrusted input and a traversal, a
-// dependency, VCS metadata, build output, IDE state or a credential file must be refused
-// once, not re-litigated per handler. The prompt/context layer can share the same functions.
+// rules live here instead of in each tool: paths are untrusted input and a traversal, VCS
+// metadata, build output, IDE state or a credential file must be refused once, not
+// re-litigated per handler. Installed dependencies are the one exception (see
+// isDependencyPath): the model cannot know what it can import without reading them by path,
+// while the project file list keeps excluding node_modules because it is built from the
+// bounded snapshot in host.files(). The prompt/context layer can share the same functions.
 
 import { PtcToolError } from "./protocol";
 
@@ -56,7 +59,35 @@ export function isExcludedPath(path: string): boolean {
   );
 }
 
-/** The one predicate every read tool uses: safe project path and not excluded. */
+/** Directory segments that stay hidden even inside an installed package: VCS metadata and
+ * IDE state are handled as state, never as dependency source (a published tarball can carry
+ * both). */
+const DEPENDENCY_HIDDEN_SEGMENTS = new Set([".git", ".facilis"]);
+
+/**
+ * True when the path names an entry under the project's installed `node_modules` tree.
+ *
+ * Dependencies are the one excluded tree the model may read: without them it cannot know
+ * which packages and APIs it can use, and the VFS does expose them by path. The safety rules
+ * are the same as for project sources (project-relative, no traversal/absolute/backslash), and
+ * a `.git` or `.facilis` segment anywhere in the path keeps it unreadable.
+ */
+export function isDependencyPath(path: string): boolean {
+  if (!isSafeProjectPath(path)) return false;
+  const segments = path.split("/");
+  // The bare directory is not an entry: read_file on it would surface a VFS error, not data.
+  if (segments[0] !== "node_modules" || segments.length < 2) return false;
+  return !segments.some((segment) => DEPENDENCY_HIDDEN_SEGMENTS.has(segment));
+}
+
+/**
+ * The predicate the project file list uses: safe project path and not excluded.
+ *
+ * node_modules stays excluded HERE on purpose: list_files/search iterate host.files(), the
+ * bounded project snapshot that never contains dependencies, and this predicate must keep
+ * agreeing with that list. Dependency reads are by explicit path through assertReadablePath;
+ * the list_dependencies tool covers discovery.
+ */
 export function isReadablePath(path: string): boolean {
   return isSafeProjectPath(path) && !isExcludedPath(path);
 }
@@ -70,6 +101,14 @@ export function assertReadablePath(path: string): void {
       "not a project-relative path (no leading '/', '..' or '.' segments): " + JSON.stringify(path),
     );
   }
+  // A credential file stays refused even when it ships inside a package: redactSecrets() is a
+  // text heuristic, and a real key file is not context the model needs.
+  const segments = path.split("/");
+  const name = segments[segments.length - 1];
+  if (name !== undefined && isSecretFile(name)) {
+    throw new PtcToolError("capability", "path is excluded from tool reads: " + path);
+  }
+  if (isDependencyPath(path)) return;
   if (isExcludedPath(path)) {
     throw new PtcToolError("capability", "path is excluded from tool reads: " + path);
   }

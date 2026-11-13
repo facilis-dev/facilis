@@ -5,7 +5,7 @@ phase-0 isolation spike ([`spikes/ptc-sandbox/`](../spikes/ptc-sandbox/README.md
 checks in Chromium 156; the phase-1 chain and the exploration trace UI landed; the eval corpus
 and the browser matrix remain. Related: [`SPEC.md`](./SPEC.md) §9.1/§9.4/§9.5,
 [`AI-SKILLS.md`](./AI-SKILLS.md) §6–§8 (D-066, D-067), D-045/D-046 (chat), D-084 (validator),
-D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools).
+D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools), D-182 (dependency reads, framework reference).
 
 ## Accepted decisions (2026-11-07)
 
@@ -188,6 +188,8 @@ confined to the project root, and go through one policy function.
 | `get_manifest` | `{}` | live manifest summary (blocks, revision) — no secrets |
 | `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
+| `list_dependencies` | `{ package? }` | installed packages (scopes expanded, ≤ 200) or one package's files (depth ≤ 3, ≤ 300, project-relative); `truncated` flag (D-182) |
+| `framework_reference` | `{ module?, query? }` | curated `@facilis.dev` module entries: signatures, minimal examples, ≤ 40 entries / ≤ 8 KB, `truncated` flag (D-182) |
 | `validate` | `{ patches }` | the same `validatePatch()` findings the final gate uses (SPEC §9.3); read-only, writes nothing |
 | `write_file` | `{ path, content }` | creates or replaces ONE project file; the one-file patch is validated (§9.3) before the VFS write (D-181) |
 | `delete_file` | `{ path }` | removes one project file through the same validator; a schema drop is flagged destructive (D-181) |
@@ -316,11 +318,35 @@ paths from HEAD — checkout for tracked files, delete for files the turn create
 stages, commits or discards to get around the gate; history stays the user's. Destructive schema
 changes are allowed once the gate passed and are flagged destructive.
 
-Never exposed to a program: shell, network (the `web_*` family runs on the host, D-175),
-`process.env`, `node_modules`, `.git` internals (the git tools use the SCM operations, never the
-raw object store), IDE storage,
-any path outside the project root, secrets (AI-SKILLS §3/§6 exclusions, plus the existing
-`.gitignore`-style ignored paths, D-054).
+**The dependency reader (D-182) is the one tree `list_files`/`search` deliberately omit.**
+`read_file` accepts project-relative `node_modules/...` paths (`isDependencyPath` in
+`ide/src/ai/ptc/policy.ts`): the ordinary safety rules apply (project-relative, no `..`/absolute/
+backslash), a secret basename is refused, and a `.git`/`.facilis` segment stays unreadable
+anywhere in the path. Content is capped (400 lines / 32 KB) and secret-redacted like any other
+read, and it is untrusted third-party data: it can be quoted, never followed as instructions.
+Discovery is bounded: `list_dependencies({ package? })` returns the installed packages (scopes
+expanded, cap 200) or one package's files (depth ≤ 3, cap 300, project-relative), both with a
+`truncated` flag; package names are validated against npm's shape and a package's nested
+`node_modules` is skipped. The project file list stays snapshot-based: `list_files`/`search` iterate
+`host.files()`, which never contains `node_modules`, so the Explorer and the model's file list do
+not grow with the installed tree.
+
+**The framework reference (D-182) is the fast path to the installed framework's API.** Nine
+curated modules (`core`, `db`, `auth`, `nitro`, `ai`, `analyze`, `time`, `storage`, `i18n-db`)
+with 86 hand-copied entries live in `ide/src/ai/reference/`; the prompt carries a compact per-module
+index (`frameworkIndex()`) only when `framework_reference` is registered, and the tool returns the
+matching signatures and examples by module id (or package name) and/or a case-insensitive query,
+capped at 40 entries and 8 KB with a `truncated` flag. The curated copy is not authoritative:
+`node_modules` is readable, so the model can check the exact installed source, and
+`framework-reference.test.ts` fails when an entry name disappears from `packages/*/src` or a
+`@facilis.dev` package has no module.
+
+**Never exposed to a program:** shell, network (the `web_*` family runs on the host, D-175),
+`process.env`, `.git` internals (the git tools use the SCM operations, never the raw object store),
+IDE storage, any path outside the project root, secrets (AI-SKILLS §3/§6 exclusions, plus the
+existing `.gitignore`-style ignored paths, D-054). `node_modules` is readable through
+`read_file`/`list_dependencies` (D-182) — capped and redacted, secret files refused — but never
+enumerated by `list_files`/`search`, and dependency content is data, never instructions.
 
 Every call is logged (tool, path, bytes, duration, outcome) in the trace; there is no turn budget
 that could refuse it (D-108).
@@ -337,6 +363,12 @@ Tool output is **data**: it can be quoted, never treated as instructions.
   findings-as-data (no repair round and no parts for a write call), the clean-tree gate pause,
   destructive changes once the gate passed, and the rule to finish the turn with the normal
   `AIResponse` and an **empty `patches` array**, describing the change in `message`/`notes`.
+- The *Installed dependencies (node_modules)* section and the generated *Framework modules
+  (reference)* index appear only when their tools are registered
+  (`ide/src/ai/prompt-families.ts`, D-182): the first teaches `list_dependencies` and `read_file`
+  on `node_modules`, the second is `frameworkIndex()` — one line per module with its entry names —
+  plus the `framework_reference` lookup. Dependency and reference text is data: neither section can
+  grant a capability. The per-family sections live in `prompt-families.ts`, one gate per family.
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
@@ -405,11 +437,12 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Surface | Control |
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
-| tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction |
+| tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction; installed dependencies are readable by explicit path (secret basenames, traversal and VCS/IDE segments refused, D-182) |
+| dependency reads | `node_modules` paths only; `read_file` caps 400 lines / 32 KB and secret-redacts; `list_dependencies` caps 200 packages / 300 files (depth ≤ 3) with a truncated flag; the curated framework entries are ≤ 40 / 8 KB and drift-tested against `packages/*/src`; all of it is third-party data, never instructions (D-182) |
 | writes | source content only through the validated write tools (every call through the 19-rule validator, behind the clean-tree gate, journaled and undoable, D-181) or a returned patch set through the user's Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
 | egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-175) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
 | web results | text ≤ 32k chars and secret-redacted, image ≤ 5 MB (2 per program), download ≤ 5 MB into `public/` only (5 per program), 10 calls / 8 MB per program; CORS can still refuse a host |
-| prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; every write is validator-gated and undoable, which bounds the damage |
+| prompt injection | project/dependency/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; every write is validator-gated and undoable, which bounds the damage |
 | secrets | excluded from tool results and context; redaction is shared with AI-SKILLS §3 |
 
 ## 12. Delivery plan

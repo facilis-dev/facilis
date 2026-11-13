@@ -345,6 +345,32 @@ describe("buildSystemPrompt write tools (D-181)", () => {
   });
 });
 
+describe("buildSystemPrompt dependency and framework tools (D-182)", () => {
+  const deps: PtcToolSpec = {
+    name: "list_dependencies",
+    signature: "list_dependencies({ package? })",
+    description: "List the installed dependencies.",
+  };
+  const framework: PtcToolSpec = {
+    name: "framework_reference",
+    signature: "framework_reference({ module?, query? })",
+    description: "Look up a framework API.",
+  };
+
+  it("teaches the readable dependencies and the framework index", () => {
+    const prompt = buildSystemPrompt(context({ tools: [deps, framework] }));
+    expect(prompt).toContain("## Installed dependencies (node_modules)");
+    expect(prompt).toContain("list_dependencies");
+    expect(prompt).toContain("## Framework modules (reference)");
+    expect(prompt).toContain("@facilis.dev/core");
+  });
+
+  it("omits the framework section when its tool is not registered", () => {
+    const prompt = buildSystemPrompt(context({ tools: [deps] }));
+    expect(prompt).not.toContain("## Framework modules (reference)");
+  });
+});
+
 describe("buildSystemPrompt writable paths (D-167)", () => {
   it("states the strict managed roots by default", () => {
     const prompt = buildSystemPrompt(context());
