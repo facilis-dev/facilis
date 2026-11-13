@@ -33,6 +33,7 @@ import {
   parseGraphLayout,
   readCollapsed,
   readEdgeKinds,
+  readTableVisibility,
   readViewport,
   roundCoordinate,
   sortedEntries,
@@ -40,7 +41,12 @@ import {
   type GraphPosition,
   type ParsedGraphLayout,
 } from "./graph-layout-file";
-import { GRAPH_EDGE_KINDS, type GraphCurve, type GraphNote } from "./graph-types";
+import {
+  GRAPH_EDGE_KINDS,
+  type GraphCurve,
+  type GraphNote,
+  type GraphTableVisibility,
+} from "./graph-types";
 
 /** The raw text of each state file; `null`/`undefined`/`""` all mean "absent". */
 export interface GraphLayoutFiles {
@@ -155,16 +161,13 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
       : parseGraphLayout(legacy);
   }
   let hiddenEdges: GraphEdgeKind[] = [];
-  let hideSystemRoutes = false;
-  let hideSystemTables = false;
+  let tableVisibility: GraphTableVisibility = "all";
   let collapsed: Record<string, boolean> = {};
   if (layoutText !== null) {
     const raw = parseJson(layoutText);
     if (!isRecord(raw) || raw.version !== GRAPH_LAYOUT_VERSION) return invalid();
     hiddenEdges = readEdgeKinds(raw.hiddenEdges);
-    // Additive since D-163: a layout written before the system filters shows everything.
-    hideSystemRoutes = raw.hideSystemRoutes === true;
-    hideSystemTables = raw.hideSystemTables === true;
+    tableVisibility = readTableVisibility(raw);
     collapsed = readCollapsed(raw.collapsed);
   }
   const positions = readPositionedMap(files.positions);
@@ -187,8 +190,7 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
       version: GRAPH_LAYOUT_VERSION,
       nodes: graphNodes,
       hiddenEdges,
-      hideSystemRoutes,
-      hideSystemTables,
+      tableVisibility,
       collapsed,
       edgeCurves,
       notes: layoutNotes,
@@ -223,8 +225,7 @@ export function encodeGraphLayout(layout: GraphLayoutFile): readonly GraphLayout
           {
             version: GRAPH_LAYOUT_VERSION,
             hiddenEdges: GRAPH_EDGE_KINDS.filter((kind) => layout.hiddenEdges.includes(kind)),
-            hideSystemRoutes: layout.hideSystemRoutes,
-            hideSystemTables: layout.hideSystemTables,
+            tableVisibility: layout.tableVisibility,
             collapsed: sortedRecord(layout.collapsed, (value) => value),
           },
           null,

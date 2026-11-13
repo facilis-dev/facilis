@@ -12,7 +12,7 @@
 import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis.dev/analyze";
 import { pageData, routeData, tableData, viewData } from "./graph-model-data";
 import { matchesNodeQuery, workflowData } from "./graph-node-data";
-import { hiddenSystemNodeIds } from "./graph-system";
+import { hiddenTableNodeIds } from "./graph-system";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
 import {
   GRAPH_COLUMNS,
@@ -27,7 +27,7 @@ export type {
   ColumnMarker,
   GraphColumn,
   GraphScope,
-  GraphSystemNodeKind,
+  GraphTableVisibility,
   PageGraphData,
   ProjectGraphEdge,
   ProjectGraphNode,
@@ -184,12 +184,10 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   const allEdges = input.graph.edges
     .map(edgeView)
     .filter((edge) => byId.has(edge.source) && byId.has(edge.target));
-  // D-163: the system filters drop framework-feature nodes before layout, so the graph compacts
-  // instead of leaving holes where the hidden cards used to be.
-  const hiddenNodeIds = hiddenSystemNodeIds(nodes, allEdges, {
-    routes: input.hideSystemRoutes === true,
-    tables: input.hideSystemTables === true,
-  });
+  // D-179: the table-visibility choice drops framework tables before layout, so the graph
+  // compacts instead of leaving holes where the hidden cards used to be. Routes are never
+  // filtered; the default is "all" so an absent preference shows the whole analysis.
+  const hiddenNodeIds = hiddenTableNodeIds(nodes, allEdges, input.tableVisibility ?? "all");
   const visibleNodes =
     hiddenNodeIds.size === 0 ? nodes : nodes.filter((node) => !hiddenNodeIds.has(node.id));
   const visibleById =

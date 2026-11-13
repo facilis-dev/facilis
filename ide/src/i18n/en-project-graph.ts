@@ -33,11 +33,12 @@ export const projectGraphEn = {
   "projectGraph.edge.routeView": "Route → view",
   "projectGraph.edge.viewBase": "View → base",
   "projectGraph.edge.elevated": "Route → table (elevated)",
-  "projectGraph.systemFilters": "System",
-  "projectGraph.systemRoutes": "System routes",
-  "projectGraph.systemTables": "Unused system tables",
-  "projectGraph.systemHint":
-    "Framework-provided routes (auth, jobs, workflows, files) and framework tables that none of your routes uses. Hide them to keep the graph readable.",
+  "projectGraph.tableVisibility": "Table visibility",
+  "projectGraph.tableVisibility.project": "Project tables only",
+  "projectGraph.tableVisibility.used": "Project tables + used system tables",
+  "projectGraph.tableVisibility.all": "All tables",
+  "projectGraph.tableVisibility.hint":
+    "System tables are the ones loaded from the @facilis modules. Choose whether the graph draws all of them, only the ones your project uses, or none.",
   "projectGraph.stats":
     "{pages} pages · {routes} routes · {tables} tables · {views} views · {workflows} workflows · {edges} edges",
   "projectGraph.hiddenEdges": "{count} hidden",

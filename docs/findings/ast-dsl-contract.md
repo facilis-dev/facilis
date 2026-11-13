@@ -335,19 +335,18 @@ detail: the node/edge contract does not change and no alternative view mode is a
 - **Fullscreen**: a button turns the graph into a full-viewport overlay (CSS overlay; Esc
   exits), with the toolbar (filters, save, reset, fit, search) kept on top.
 - **Filters**: show/hide each edge kind (and optionally each node kind); hidden state is
-  persisted. Two persisted visibility filters remove the framework's own feature surface
-  (D-163): **System routes** (`hideSystemRoutes`) hides routes the project does not declare —
-  source under `node_modules/`, or (wrapper known) no `dbTables` entry naming a
-  project-declared relation (a non-framework table or any view); **Unused system tables**
-  (`hideSystemTables`) hides framework tables (declared by installed `@facilis.dev/*` packages,
-  source under `node_modules/`, the `sistema` badge) that no non-system route reaches with a
-  `route-table`/`route-view` edge, so a framework table the project's own routes use (e.g.
-  `facilis_files` from the todo routes) stays visible. Unknown/invalid routes are never
-  hidden: the graph is also the integrity view. Hidden nodes and every edge touching them are
-  removed from the drawn view, the automatic layout is computed from the visible nodes while
-  saved positions of the remaining nodes are kept, and `ProjectGraphStats.hiddenNodes` counts
-  them. Both filters default to **off**; the route filter is a heuristic (a project route that
-  touches no DB relation is classified as system) and can simply be left off.
+  persisted. A table-visibility dropdown (D-179, `tableVisibility`) picks which tables are
+  drawn: **project tables only** hides every framework table (declared by an installed
+  `@facilis.dev/*` package, source under `node_modules/`, the `sistema` badge); **project +
+  used system tables** hides only the framework tables the project's own facts reference — the
+  target of a `route-table`, `route-view`, `fk`, `relation` or `view-base` edge whose source
+  node exists and is not a framework table; **all tables** (the default) hides nothing.
+  Routes, pages, views and workflows are never filtered: every route the analysis sees is
+  project code, because the IDE inlines only `@facilis.dev/auth` and `@facilis.dev/db` source
+  (D-130), so D-163's route heuristic and its "system route" concept are retired. Hidden nodes
+  and every edge touching them are removed from the drawn view, the automatic layout is
+  computed from the visible nodes while saved positions of the remaining nodes are kept, and
+  `ProjectGraphStats.hiddenNodes` counts them. The mode defaults to **all**.
 - **Drag**: nodes are draggable and follow the pointer live; the position is committed on drop.
   Initial positions come from a deterministic layered layout (pages → routes → tables, with views
   below the tables in the schema column; FK/relations among tables). "Reset layout" returns to it.
@@ -374,7 +373,7 @@ markdown file per note, and pan/zoom kept local.
 
 ```text
 .facilis/graph/layout.json             { "version": 3, "hiddenEdges": [...], "collapsed": {...},
-                                         "hideSystemRoutes": false, "hideSystemTables": false }
+                                         "tableVisibility": "all" }
 .facilis/graph/positions/<key>.json    {"id":"table:todos","x":10,"y":20}     one per node/note
 .facilis/graph/bends/<key>.json        {"id":"fk:table:todos:…","x":24,"y":-40}   one per edge
 .facilis/graph/notes/<uuid>.md         # Annotazione   (one markdown file per note)
@@ -395,10 +394,11 @@ markdown file per note, and pan/zoom kept local.
 - `bends/<key>.json` are keyed by the stable edge id; a missing file is the automatic path.
   Schema version 1/2 files (the single `.facilis/graph.json`, no notes) are read once through
   migration and rewritten as v3; stale edge ids are ignored.
-- `hideSystemRoutes`/`hideSystemTables` are **additive** view preferences: default `false`,
-  version stays 3, and a layout written without them reads as show-everything. "Reset layout"
-  keeps them exactly like `hiddenEdges`; a hidden node keeps its saved position, so turning a
-  filter back on restores the arrangement instead of dropping the node.
+- `tableVisibility` is one view preference: default `"all"`, version stays 3, and a layout
+  written without it reads as `"all"`; a legacy `hideSystemTables: true` migrates to `"used"`
+  (`false`/absent → `"all"`), and a legacy `hideSystemRoutes` is ignored. "Reset layout" keeps
+  it exactly like `hiddenEdges`; a hidden node keeps its saved position, so switching to a
+  wider mode restores the arrangement instead of dropping the node.
 - IDs are the stable fact IDs (`page:<path>`, `route:<METHOD> <path>`, `table:<name>`); ids
   that no longer exist are ignored on load, new nodes get auto positions.
 - Missing/corrupt state → auto layout + warning; the state is never an input to validation.

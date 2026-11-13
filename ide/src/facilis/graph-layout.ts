@@ -20,14 +20,14 @@ import {
   GRAPH_EDGE_KINDS,
   type GraphCurve,
   type GraphNote,
-  type GraphSystemNodeKind,
+  type GraphTableVisibility,
 } from "./graph-types";
 
 export {
   GRAPH_EDGE_KINDS,
   type GraphCurve,
   type GraphNote,
-  type GraphSystemNodeKind,
+  type GraphTableVisibility,
 } from "./graph-types";
 export {
   GRAPH_DIR,
@@ -89,18 +89,16 @@ export function withHiddenEdgeKind(
   };
 }
 
-/** Toggle one system-node filter (D-163). Identity is preserved when the value is unchanged. */
-export function withHiddenSystemNodes(
+/**
+ * Set which framework tables the canvas draws (D-179). Identity is preserved when the choice is
+ * unchanged, so selecting the current option cannot trigger a save or a re-render.
+ */
+export function withTableVisibility(
   layout: GraphLayoutFile,
-  kind: GraphSystemNodeKind,
-  hidden: boolean,
+  visibility: GraphTableVisibility,
 ): GraphLayoutFile {
-  if (kind === "routes") {
-    if (layout.hideSystemRoutes === hidden) return layout;
-    return { ...layout, hideSystemRoutes: hidden };
-  }
-  if (layout.hideSystemTables === hidden) return layout;
-  return { ...layout, hideSystemTables: hidden };
+  if (layout.tableVisibility === visibility) return layout;
+  return { ...layout, tableVisibility: visibility };
 }
 
 export function withCollapsed(

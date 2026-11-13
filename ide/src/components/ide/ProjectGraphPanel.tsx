@@ -116,8 +116,7 @@ export function ProjectGraphPanel() {
             graph: analysis.graph,
             positions: layout.nodes,
             hiddenEdgeKinds: layout.hiddenEdges,
-            hideSystemRoutes: layout.hideSystemRoutes,
-            hideSystemTables: layout.hideSystemTables,
+            tableVisibility: layout.tableVisibility,
             collapsed: layout.collapsed,
             query,
           }),
@@ -183,7 +182,7 @@ export function ProjectGraphPanel() {
     const path = sourcePathFor(root, file);
     if (path !== null) void c.openFileAt(path, line);
   };
-  // A detail list may name a relation the graph did not draw (system filters, unresolved
+  // A detail list may name a relation the graph did not draw (hidden table visibility, unresolved
   // names): selecting an id that has no node would close the inspector for no reason.
   const selectNode = (id: string) => {
     if (nodeLabels.has(id)) setSelectedNodeId(id);
@@ -261,9 +260,8 @@ export function ProjectGraphPanel() {
         focusActive={focus !== null}
         onClearFocus={clearGraphFocus}
         onToggleEdgeKind={graph.toggleEdgeKind}
-        hideSystemRoutes={layout.hideSystemRoutes}
-        hideSystemTables={layout.hideSystemTables}
-        onToggleSystemNodes={graph.toggleSystemNodes}
+        tableVisibility={layout.tableVisibility}
+        onTableVisibilityChange={graph.changeTableVisibility}
       />
       <div className="flex min-h-0 flex-1">
         <div className="relative min-h-0 flex-1">{body}</div>

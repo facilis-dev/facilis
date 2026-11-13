@@ -129,10 +129,11 @@ export type ProjectGraphNodeData =
   PageGraphData | RouteGraphData | TableGraphData | ViewGraphData | WorkflowGraphData;
 
 /**
- * The node classes the graph's system filters can hide independently (D-163): the framework's
- * own feature surface rather than the project's data surface.
+ * Which tables the drawn graph shows (D-179): the project's own tables only, those plus the
+ * framework tables the project uses, or every table. Routes are never filtered by any of the
+ * three: every route the analysis sees is project code (D-179 builds on D-163).
  */
-export type GraphSystemNodeKind = "routes" | "tables";
+export type GraphTableVisibility = "project" | "used" | "all";
 
 export interface ProjectGraphNode {
   readonly id: string;
@@ -165,7 +166,7 @@ export interface ProjectGraphStats {
   readonly workflows: number;
   readonly edges: number;
   readonly hiddenEdges: number;
-  /** Nodes removed by the system filters (0 while both are off, D-163). */
+  /** Nodes removed by the table-visibility choice (0 in "all" mode, D-179). */
   readonly hiddenNodes: number;
   readonly matches: number;
   readonly unknownNodes: number;
@@ -181,10 +182,11 @@ export interface ProjectGraphViewInput {
   readonly positions?: Readonly<Record<string, GraphPosition>>;
   /** Edge kinds the layout hides. */
   readonly hiddenEdgeKinds?: readonly GraphEdgeKind[];
-  /** Hide routes the project does not declare (the framework's feature surface, D-163). */
-  readonly hideSystemRoutes?: boolean;
-  /** Hide framework tables that none of the project's own routes uses (D-163). */
-  readonly hideSystemTables?: boolean;
+  /**
+   * Which framework tables to draw (D-179): "all" (default) hides nothing, "project" hides
+   * every framework table, "used" hides only those the project's own facts reference.
+   */
+  readonly tableVisibility?: GraphTableVisibility;
   readonly collapsed?: Readonly<Record<string, boolean>>;
   readonly query?: string;
 }
