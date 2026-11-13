@@ -736,6 +736,11 @@ what Nitro's undeclared transitive requires (`ufo`, …) rely on, so pnpm's
 the IDE fetches them same-origin and inlines them as bytes in the create request's `files`,
 which the kernel writes with the text files in one batch.
 
+**Update (2026-11-13, pin `0a1eea1`):** the runtime now serves `node:sqlite` (upstream
+`v1.2.0`) and the vendored kernel ships pnpm 11, so the first bullet's "pnpm 11 cannot run"
+no longer holds. The decision is unchanged — a generated project still installs with npm
+12.2.1 — and pnpm remains the internal rolldown fallback, now pinned at 11.28.9 (D-180).
+
 **Consequences:** npm is the one package manager whose distribution cannot go native — it is
 the manager Node ships with, and it has been a pure-JS tree its whole life — so "aligned with
 Node" becomes a maintenance routine we own (bump the version, rebuild the pack, re-run the two
@@ -1200,6 +1205,11 @@ error are unchanged; the one deliberate deviation from Node is that a real UNC U
 `/server/share` instead of throwing. With that pin, `@facilis.dev/db` is back to the plain
 constructor (`new PGlite({ dataDir })`): the artifact hand-off and the one-boot recovery shim
 are deleted, and the database locates its own `.data`/`.wasm` again.
+
+**Update (2026-11-13, pin `0a1eea1`):** the recovery is now upstream's — the fix merged as
+PR #35 and ships in upstream `v1.2.1`, and `facilis/main` was realigned onto `v1.3.0` +
+15 fork commits. The behaviour is unchanged (the rule now lives in `runtime/file-url.js`),
+and `@facilis.dev/db` still uses the plain PGlite constructor.
 
 **Consequences:** DB boot is independent of the browser's URL parser *and* of any downstream
 shim, and the fix covers every hostful `file:` URL in the VM (PGlite, any other Emscripten
@@ -6826,6 +6836,24 @@ prompt section's presence only when a `web_` tool is advertised. The remaining g
 **Consequences.** No analyzer change: the classification uses facts that already exist (`framework`, `sourceFile`, `dbTables` and the graph edges), so the manifest, OpenAPI and validator are untouched. The "system route" concept disappears from the IDE graph model — the route heuristic, the two-boolean state and the route-filter branches are deleted — so no state combination can hide a route, and the owner-reported logout/sessions regression is fixed by construction and pinned by a test. Old `layout.json` files keep working: one saved with the table filter on opens in `"used"` (the closest saved intent) and one saved with the route filter on loses only that now-meaningless preference. The trade-off is that `"used"` is a projection over the drawn edges, not a semantic "unused" analysis: a framework table reached only through a framework→framework edge counts as unused, which is the intended reading of "the project does not use it". SPEC §10.2's project-graph row names the panel and its fact source, not the filter fields, so only this log and the findings doc change.
 
 **Verification.** `pnpm --filter @facilis.dev/ide test -- graph-model-table-visibility framework-analysis` covers the three modes and the owner case: in `"used"` the analyzer graph keeps `sessions` with the `POST /api/auth/logout` → `sessions` edge, in `"project"` `sessions` is hidden while the logout route stays visible, and the route count is identical in all three modes. `pnpm --filter @facilis.dev/ide test -- graph-layout graph-layout-files graph-layout-io graph-access` covers the default `"all"`, the legacy migration (`hideSystemTables: true` → `"used"`, absent → `"all"`, `hideSystemRoutes` ignored), the round-trip that writes `tableVisibility` only, and the AI `graph_state`/`graph_arrange` shape. Prettier on the touched files. The full gates (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and the file-length/theme/i18n checks) are run by the Lead before the PR.
+### D-180 — The vendor pin moves to upstream v1.3.0: pnpm 11 rebuilt, npm pack restamped, terminal size ported
+**Status:** accepted (2026-11-13)
+
+**Context.** The fork realigned `facilis/main` onto upstream `v1.3.0` (`4fbb009`) on 2026-11-12: upstream now ships pnpm 11 as the in-VM package manager (replacing the 9.15.9 JS major this repo vendored), adds the SDK's `snapshot()`/`restore()` and terminal size, and carries the earlier PRs #29/#30/#31/#35 — #35 is the hostful `file:` URL recovery this repo asked for. The submodule was still pinned at `e654919` (the v1.2.0 base), so the IDE ran a kernel without `runtime/node/internal/tls-http-egress.js` (pnpm 11's registry path) nor the terminal-size protocol. The new pin is `0a1eea1` = upstream `v1.3.0` + 15 fork commits; the fork delta is unchanged (`deferRestoreRoots`/`vv-restore-roots`, `deferCacheFiles`/`installDeferredHydration`, pnpm config out of the base process env, the `file:` recovery now replayed from upstream). No Rust crate changed.
+
+**Decision.**
+- **Bump the pin, then rebuild the assets.** `ide/public/vendor/pnpm-pack.bin` is rebuilt at **11.28.9**, and `PNPM_VERSION` in `scripts/dev/vendor-assets.sh` equals the packer's own pin (`vendor/vivari/scripts/vendor-pnpm.mjs`), which since this pin rejects a scratch tree left by another version instead of packing it under the new name. pnpm stays internal — rolldown's wasm fallback for Vite 8, not the project package manager (D-032).
+- **npm stays 12.2.1 and the pack header is restamped.** Upstream's `vendor-npm.mjs` now stamps its own pin (10.9.2) into the header while packing the 12.2.1 tree this repo pre-installs from the tarball (there is no host `npm` to shell out to). That header is the only staleness signal, so an uncorrected pack would preserve an old npm behind a raised `NPM_VERSION` forever. `scripts/dev/pack-version.mjs` reads the stamp before packing and restamps the rebuilt asset with `NPM_VERSION`; no `--force` (it would install upstream's 10.9.2 and break D-032) and no edit in the submodule.
+- **Port the studio delta.** Upstream's only `packages/studio` change is controller.ts's terminal size (`winsize` on `term-open`, `term-resize` on every fit). The IDE carries the same protocol in `ide/src/vv/terminal-size.ts` + `terminal-session.ts`, because its terminal code was already split out of the controller (D-042). The `templates.ts` delta (nodeLinker, tailwind 4.3.3) is moot: the upstream catalog is deleted (D-051) and Facilis templates pin Tailwind themselves. `ide/public/sw.js` needs no re-sync — upstream `studio/public/sw.js` is byte-identical between the pins, so the D-132/issue-#4 patch is untouched.
+- **No `pnpm ide:wasm`:** no crate changed, so the existing Wasm artifacts are the ones this pin builds.
+
+**Consequences.** The IDE runs the kernel pnpm 11 requires, and a terminal resize now reaches the shell and its process tree as SIGWINCH (upstream's protocol; before it stayed at the 80x24 default). The npm pack claims the npm it actually contains, so the next `NPM_VERSION` bump cannot silently ship the previous CLI — the failure the vendored pack-version check exists for (fork PR #30). The pin moves as one commit, as D-030 requires, and nothing is edited inside `vendor/vivari`.
+
+**Verification.** `pnpm ide:assets`: npm-pack restamped `12.2.1` (3.04 MB gz, warning line from the upstream packer still says 10.9.2 — that is the constant it would stamp), pnpm-pack rebuilt `11.28.9` (4.82 MB gz), sqlite `864752` bytes. Full gates: `pnpm lint` (0 errors, 325 pre-existing warnings), `pnpm typecheck` (21/21), `pnpm test` (21/21 tasks, IDE 158 files / 1289 tests), `pnpm build` (13/13); `check-file-length` OK (876 files, 9 baseline entries), theme gate OK; touched files Prettier-clean (repo-wide `format:check` reports the same 47 pre-existing files on `main`). Browser path: `pnpm ide:smoke` boots, installs, paints the preview and passes the contract,
+database, IntelliSense, A8/A9/A10/A12 and chat checks; its three red checks (`facilis manifest
+warnings 0`, `no console errors`, `no failed requests`) fail identically at the previous pin on
+`main` in this environment, and `pnpm ide:smoke:multitab` fails its six stale React/Vue content
+assertions there too (D-051). Details in `vendor/README.md`.
 
 ## Open items (post-MVP)
 

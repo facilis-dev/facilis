@@ -5,6 +5,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import type { KernelBridge } from "./kernel";
+import { terminalSize, wireTerminalResize } from "./terminal-size";
 import { createXterm, termThemeFor, type UiTheme } from "./terminal-theme";
 
 const ESC = "\x1b[";
@@ -158,6 +159,7 @@ export class TerminalSession {
       }
       this.bridge.post("term-input", { terminalId: id, chunk: data });
     });
+    wireTerminalResize(term, id, this.bridge, () => entry.started);
     // The run's shell becomes the active one even though a run no longer opens the
     // panel (D-124). The deferred background boot shell only fills an empty slot: it
     // is created at "ready", after a ?project= boot may already have the run shell.
@@ -186,6 +188,7 @@ export class TerminalSession {
       demo: entry.demo,
       cwd,
       run: entry.run ?? undefined,
+      winsize: terminalSize(entry.term),
     });
   }
 
@@ -229,9 +232,6 @@ export class TerminalSession {
     }
   }
 
-  /** Close a shell tab. Returns the shell to activate next; null when none is
-   *  left (the controller then points the panel back at the Console); undefined
-   *  when there is nothing to close (unknown id or the Console itself). */
   /** Close a shell tab, switching to the next shell (or the Console) if it was
    *  the active one. The Console itself cannot be closed. */
   closeTerminal(id: string) {
