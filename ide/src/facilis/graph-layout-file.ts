@@ -13,7 +13,12 @@
 // team state.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import { GRAPH_EDGE_KINDS, type GraphCurve, type GraphNote } from "./graph-types";
+import {
+  GRAPH_EDGE_KINDS,
+  type GraphCurve,
+  type GraphNote,
+  type GraphTableVisibility,
+} from "./graph-types";
 
 export const GRAPH_LAYOUT_VERSION = 3 as const;
 /** The debounce the panel uses before writing the state files. */
@@ -43,9 +48,8 @@ export interface GraphLayoutFile {
   readonly version: typeof GRAPH_LAYOUT_VERSION;
   readonly nodes: Readonly<Record<string, GraphPosition>>;
   readonly hiddenEdges: readonly GraphEdgeKind[];
-  /** View preferences (D-163): hide the framework's own routes / unused framework tables. */
-  readonly hideSystemRoutes: boolean;
-  readonly hideSystemTables: boolean;
+  /** View preference (D-179): which framework tables the canvas draws. */
+  readonly tableVisibility: GraphTableVisibility;
   readonly collapsed: Readonly<Record<string, boolean>>;
   /** Manual edge bends, keyed by edge id; a missing id means the automatic path. */
   readonly edgeCurves: Readonly<Record<string, GraphCurve>>;
@@ -75,8 +79,7 @@ export function emptyGraphLayout(): GraphLayoutFile {
     version: GRAPH_LAYOUT_VERSION,
     nodes: {},
     hiddenEdges: [],
-    hideSystemRoutes: false,
-    hideSystemTables: false,
+    tableVisibility: "all",
     collapsed: {},
     edgeCurves: {},
     notes: {},
@@ -140,6 +143,18 @@ export function readCurves(value: unknown): Record<string, GraphCurve> {
 }
 
 /**
+ * Read the table-visibility choice from a saved settings object (D-179). Before D-179 the same
+ * choice was two booleans, so `hideSystemTables: true` migrates to "used" and anything else to
+ * "all". `hideSystemRoutes` is ignored on purpose: every route the analysis sees is project
+ * code, so there is nothing for it to hide.
+ */
+export function readTableVisibility(raw: Record<string, unknown>): GraphTableVisibility {
+  const value = raw.tableVisibility;
+  if (value === "project" || value === "used" || value === "all") return value;
+  return raw.hideSystemTables === true ? "used" : "all";
+}
+
+/**
  * Parse the migrated single-file format (v1/v2). Kept as the migration entry point: a project
  * whose `.facilis/graph/` directory is still absent falls back to `.facilis/graph.json`, and
  * the next save rewrites it as the v3 files.
@@ -170,9 +185,7 @@ export function parseGraphLayout(text: string | null | undefined): ParsedGraphLa
       version: GRAPH_LAYOUT_VERSION,
       nodes: positions,
       hiddenEdges: readEdgeKinds(raw.hiddenEdges),
-      // The legacy single-file format predates the system filters: show everything (D-163).
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: readTableVisibility(raw),
       collapsed: readCollapsed(raw.collapsed),
       edgeCurves: readCurves(raw.edgeCurves),
       notes: {},
@@ -200,8 +213,7 @@ export function mergeGraphLayout(
     version: GRAPH_LAYOUT_VERSION,
     nodes,
     hiddenEdges: layout.hiddenEdges.filter((kind) => edgeKinds.has(kind)),
-    hideSystemRoutes: layout.hideSystemRoutes,
-    hideSystemTables: layout.hideSystemTables,
+    tableVisibility: layout.tableVisibility,
     collapsed,
     // Edge ids are not node ids: stale curves are dropped by pruneGraphCurves when the panel
     // next sees the graph, so merge just carries the map along.
@@ -240,8 +252,7 @@ export function resetGraphLayoutPositions(layout: GraphLayoutFile): GraphLayoutF
     version: GRAPH_LAYOUT_VERSION,
     nodes: {},
     hiddenEdges: layout.hiddenEdges,
-    hideSystemRoutes: layout.hideSystemRoutes,
-    hideSystemTables: layout.hideSystemTables,
+    tableVisibility: layout.tableVisibility,
     collapsed: {},
     edgeCurves: {},
     notes: layout.notes,

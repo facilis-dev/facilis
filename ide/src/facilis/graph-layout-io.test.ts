@@ -39,7 +39,7 @@ function fakeController(files: Record<string, string>) {
       if (name === "") continue;
       names.set(name, (names.get(name) ?? false) || slash !== -1);
     }
-    return [...names].map(([name, dir]) => ({ name, dir }));
+    return [...names].map(([name, nested]) => ({ name, dir: nested }));
   };
   const controller = {
     readFileText: async (path: string) => files[path] ?? "",
@@ -89,6 +89,7 @@ describe("loadGraphLayout", () => {
     expect(loaded.layout.edgeCurves).toEqual({ "fk:1": { x: 2, y: -3 } });
     expect(loaded.layout.viewport).toEqual({ x: 5, y: 6, zoom: 0.5 });
     expect(loaded.layout.notes).toEqual({ [NOTE]: note });
+    expect(loaded.layout.tableVisibility).toBe("all");
   });
 
   it("migrates the legacy single file while the v3 directory is absent", async () => {
@@ -113,6 +114,14 @@ describe("loadGraphLayout", () => {
 });
 
 describe("saveGraphLayout", () => {
+  it("round-trips the table visibility through the saved files", async () => {
+    const { controller } = fakeController({});
+    await saveGraphLayout(controller, ROOT, layout({ tableVisibility: "project" }));
+    const loaded = await loadGraphLayout(controller, ROOT);
+    expect(loaded.source).toBe("ok");
+    expect(loaded.layout.tableVisibility).toBe("project");
+  });
+
   it("writes the state files and the gitignore allowlist on a first save", async () => {
     const { controller, writes, files, removed } = fakeController({});
     const value = layout({

@@ -182,8 +182,7 @@ describe("graph_arrange", () => {
     expect(JSON.parse(files[ROOT + "/.facilis/graph/layout.json"] ?? "")).toEqual({
       version: 3,
       hiddenEdges: ["page-route"],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: { [TODOS.id]: true },
     });
     expect(files[ROOT + "/" + noteFilePath(NOTE)]?.trim()).toBe("edited");
@@ -200,8 +199,7 @@ describe("graph_arrange", () => {
     expect(JSON.parse(files[ROOT + "/.facilis/graph/layout.json"] ?? "")).toEqual({
       version: 3,
       hiddenEdges: ["route-view", "view-base"],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: {},
     });
   });

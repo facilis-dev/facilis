@@ -23,15 +23,15 @@ import {
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
-  withHiddenSystemNodes,
   withNodePosition,
   withNotePosition,
   withNoteText,
+  withTableVisibility,
   withViewport,
   withoutGraphNote,
   type GraphLayoutFile,
   type GraphPosition,
-  type GraphSystemNodeKind,
+  type GraphTableVisibility,
   type GraphViewport,
 } from "@/facilis/graph-layout";
 import { subscribeGraphLayoutChanged } from "@/facilis/graph-live";
@@ -56,7 +56,7 @@ export interface ProjectGraphLayout {
   readonly deleteNote: (id: string) => void;
   readonly toggleCollapsed: (id: string) => void;
   readonly toggleEdgeKind: (kind: GraphLayoutFile["hiddenEdges"][number], hidden: boolean) => void;
-  readonly toggleSystemNodes: (kind: GraphSystemNodeKind, hidden: boolean) => void;
+  readonly changeTableVisibility: (visibility: GraphTableVisibility) => void;
   readonly changeViewport: (viewport: GraphViewport) => void;
   readonly changeEdgeCurve: (edgeId: string, curve: GraphCurve | null) => void;
   readonly resetPositions: () => void;
@@ -223,8 +223,8 @@ export function useProjectGraphLayout(
     },
     [],
   );
-  const toggleSystemNodes = useCallback((kind: GraphSystemNodeKind, hidden: boolean) => {
-    setLayout((current) => withHiddenSystemNodes(current, kind, hidden));
+  const changeTableVisibility = useCallback((visibility: GraphTableVisibility) => {
+    setLayout((current) => withTableVisibility(current, visibility));
   }, []);
   const changeViewport = useCallback((viewport: GraphViewport) => {
     setLayout((current) => withViewport(current, viewport));
@@ -259,7 +259,7 @@ export function useProjectGraphLayout(
     deleteNote,
     toggleCollapsed,
     toggleEdgeKind,
-    toggleSystemNodes,
+    changeTableVisibility,
     changeViewport,
     changeEdgeCurve,
     resetPositions,

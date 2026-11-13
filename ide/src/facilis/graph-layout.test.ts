@@ -8,9 +8,9 @@ import {
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
-  withHiddenSystemNodes,
   withNodePosition,
   withNotePosition,
+  withTableVisibility,
   withNoteText,
   withViewport,
   withoutGraphNote,
@@ -43,13 +43,23 @@ describe("parseGraphLayout (v1/v2 migration)", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: { "table:todos": { x: 10, y: 20 } },
       hiddenEdges: ["fk", "relation"],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: { "table:todos": true },
       edgeCurves: {},
       notes: {},
       viewport: { x: 1, y: 2, zoom: 0.8 },
     });
+  });
+
+  it("reads a saved table visibility from the legacy file and defaults a bad one to all", () => {
+    expect(
+      parseGraphLayout(JSON.stringify({ version: 1, tableVisibility: "project" })).layout
+        .tableVisibility,
+    ).toBe("project");
+    expect(
+      parseGraphLayout(JSON.stringify({ version: 2, tableVisibility: "sideways" })).layout
+        .tableVisibility,
+    ).toBe("all");
   });
 
   it("reads the edge curves of a version-2 file", () => {
@@ -158,8 +168,7 @@ describe("mutations", () => {
       nodes: { "table:todos": { x: 1, y: 2 } },
       collapsed: { "table:todos": true },
       hiddenEdges: ["relation"],
-      hideSystemRoutes: true,
-      hideSystemTables: true,
+      tableVisibility: "used",
       edgeCurves: { "fk:1": { x: 2, y: 3 } },
       notes: { [NOTE]: note() },
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -168,26 +177,22 @@ describe("mutations", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: {},
       hiddenEdges: ["relation"],
-      hideSystemRoutes: true,
-      hideSystemTables: true,
+      tableVisibility: "used",
       collapsed: {},
       edgeCurves: {},
       notes: { [NOTE]: note() },
     });
   });
 
-  it("toggles the two system filters independently and keeps identity on a no-op", () => {
+  it("changes the table visibility and keeps identity on a no-op", () => {
     const base = layout();
-    expect(withHiddenSystemNodes(base, "routes", false)).toBe(base);
-    expect(withHiddenSystemNodes(base, "tables", false)).toBe(base);
-    const routes = withHiddenSystemNodes(base, "routes", true);
-    expect(routes.hideSystemRoutes).toBe(true);
-    expect(routes.hideSystemTables).toBe(false);
-    const tables = withHiddenSystemNodes(routes, "tables", true);
-    expect(tables.hideSystemTables).toBe(true);
-    expect(withHiddenSystemNodes(tables, "routes", true)).toBe(tables);
-    expect(withHiddenSystemNodes(tables, "tables", true)).toBe(tables);
-    expect(withHiddenSystemNodes(tables, "tables", false).hideSystemTables).toBe(false);
+    expect(base.tableVisibility).toBe("all");
+    expect(withTableVisibility(base, "all")).toBe(base);
+    const project = withTableVisibility(base, "project");
+    expect(project.tableVisibility).toBe("project");
+    expect(base.tableVisibility).toBe("all");
+    expect(withTableVisibility(project, "project")).toBe(project);
+    expect(withTableVisibility(project, "used").tableVisibility).toBe("used");
   });
 
   it("keeps an edge curve exactly at the reset distance", () => {

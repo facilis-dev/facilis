@@ -55,8 +55,7 @@ describe("decodeGraphLayout", () => {
       version: GRAPH_LAYOUT_VERSION,
       nodes: { "table:todos": { x: 10, y: 20 } },
       hiddenEdges: ["relation"],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: { "table:todos": true },
       edgeCurves: { "fk:1": { x: 2, y: -3 } },
       notes: { [NOTE]: note },
@@ -80,6 +79,7 @@ describe("decodeGraphLayout", () => {
     expect(migrated.source).toBe("ok");
     expect(migrated.layout.nodes).toEqual({ "table:todos": { x: 1, y: 2 } });
     expect(migrated.layout.edgeCurves).toEqual({ "fk:1": { x: 3, y: 4 } });
+    expect(migrated.layout.tableVisibility).toBe("all");
     const current = decodeGraphLayout({
       legacy,
       positions: { "a.json": position("table:todos", 9, 9) },
@@ -97,10 +97,28 @@ describe("decodeGraphLayout", () => {
     expect(decodeGraphLayout({ layout: JSON.stringify({ version: 3 }) }).source).toBe("ok");
   });
 
-  it("reads a layout written before the system filters as show-everything", () => {
-    const decoded = decodeGraphLayout({ layout: JSON.stringify({ version: 3 }) });
-    expect(decoded.layout.hideSystemRoutes).toBe(false);
-    expect(decoded.layout.hideSystemTables).toBe(false);
+  it("migrates the old hide flags: hideSystemTables true reads as used", () => {
+    expect(
+      decodeGraphLayout({ layout: JSON.stringify({ version: 3 }) }).layout.tableVisibility,
+    ).toBe("all");
+    expect(
+      decodeGraphLayout({ layout: JSON.stringify({ version: 3, hideSystemTables: false }) }).layout
+        .tableVisibility,
+    ).toBe("all");
+    // The old routes flag has no meaning any more: every route is project code.
+    expect(
+      decodeGraphLayout({
+        layout: JSON.stringify({ version: 3, hideSystemTables: true, hideSystemRoutes: true }),
+      }).layout.tableVisibility,
+    ).toBe("used");
+    expect(
+      decodeGraphLayout({ layout: JSON.stringify({ version: 3, tableVisibility: "project" }) })
+        .layout.tableVisibility,
+    ).toBe("project");
+    expect(
+      decodeGraphLayout({ layout: JSON.stringify({ version: 3, tableVisibility: "sideways" }) })
+        .layout.tableVisibility,
+    ).toBe("all");
   });
 
   it("skips one corrupt element file instead of losing the rest", () => {
@@ -136,8 +154,7 @@ describe("encodeGraphLayout", () => {
         nodes: { "table:todos": { x: 7, y: 8 } },
         edgeCurves: { "fk:1": { x: 1, y: 2 } },
         hiddenEdges: ["relation", "fk"],
-        hideSystemRoutes: true,
-        hideSystemTables: false,
+        tableVisibility: "used",
         collapsed: { "table:todos": true },
         notes: { [NOTE]: note },
         viewport: { x: 1, y: 2, zoom: 0.5 },
@@ -146,8 +163,7 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: ["fk", "relation"],
-      hideSystemRoutes: true,
-      hideSystemTables: false,
+      tableVisibility: "used",
       collapsed: { "table:todos": true },
     });
     expect(files.get(GRAPH_POSITIONS_DIR + "/table%3Atodos.json")).toBe(
@@ -164,8 +180,7 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: ["route-view", "view-base"],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: {},
     });
   });
@@ -183,8 +198,7 @@ describe("encodeGraphLayout", () => {
     expect(JSON.parse(files.get(GRAPH_LAYOUT_PATH) ?? "")).toEqual({
       version: GRAPH_LAYOUT_VERSION,
       hiddenEdges: [],
-      hideSystemRoutes: false,
-      hideSystemTables: false,
+      tableVisibility: "all",
       collapsed: {},
     });
     expect(files.get(GRAPH_VIEWPORT_PATH)).toBe("");
@@ -199,8 +213,7 @@ describe("encodeGraphLayout", () => {
       nodes: { "table:todos": { x: 7, y: 8 } },
       edgeCurves: { "fk:1": { x: 2, y: -3 } },
       hiddenEdges: ["fk"],
-      hideSystemRoutes: true,
-      hideSystemTables: true,
+      tableVisibility: "used",
       collapsed: { "table:todos": true },
       notes: { [NOTE]: note },
       viewport: { x: 1, y: 2, zoom: 1 },

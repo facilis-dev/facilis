@@ -20,8 +20,8 @@ export type GraphViewLoad =
   | { readonly ok: false; readonly reason: "no_project" | "analysis_failed" };
 
 /**
- * Load the visible view: saved positions, hidden edge kinds, collapsed cards and the system
- * filters are all applied, so a tool never names something the canvas does not draw.
+ * Load the visible view: saved positions, hidden edge kinds, collapsed cards and the table
+ * visibility are all applied, so a tool never names something the canvas does not draw.
  */
 export async function loadGraphView(controller: IdeController): Promise<GraphViewLoad> {
   const root = controller.activeFolder?.rootPath ?? null;
@@ -35,8 +35,7 @@ export async function loadGraphView(controller: IdeController): Promise<GraphVie
     graph: analysis.analysis.graph,
     positions: loaded.layout.nodes,
     hiddenEdgeKinds: loaded.layout.hiddenEdges,
-    hideSystemRoutes: loaded.layout.hideSystemRoutes,
-    hideSystemTables: loaded.layout.hideSystemTables,
+    tableVisibility: loaded.layout.tableVisibility,
     collapsed: loaded.layout.collapsed,
   });
   return { ok: true, view, layout: loaded.layout };

@@ -34,11 +34,12 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.edge.routeView": "Route → vista",
   "projectGraph.edge.viewBase": "Vista → base",
   "projectGraph.edge.elevated": "Route → tabella (elevata)",
-  "projectGraph.systemFilters": "Sistema",
-  "projectGraph.systemRoutes": "Rotte di sistema",
-  "projectGraph.systemTables": "Tabelle di sistema non usate",
-  "projectGraph.systemHint":
-    "Rotte fornite dal framework (auth, job, workflow, file) e tabelle del framework che nessuna delle tue rotte usa. Nascondile per rendere il grafo leggibile.",
+  "projectGraph.tableVisibility": "Visibilità tabelle",
+  "projectGraph.tableVisibility.project": "Solo tabelle di progetto",
+  "projectGraph.tableVisibility.used": "Tabelle di progetto + tabelle di sistema usate",
+  "projectGraph.tableVisibility.all": "Tutte le tabelle",
+  "projectGraph.tableVisibility.hint":
+    "Le tabelle di sistema sono quelle caricate dai moduli @facilis. Scegli se disegnare tutte le tabelle, solo quelle usate dal progetto o nessuna di sistema.",
   "projectGraph.stats":
     "{pages} pagine · {routes} route · {tables} tabelle · {views} viste · {workflows} workflow · {edges} archi",
   "projectGraph.hiddenEdges": "{count} nascosti",

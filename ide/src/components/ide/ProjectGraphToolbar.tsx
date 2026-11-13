@@ -13,13 +13,29 @@ import ScanEye from "~icons/lucide/scan-eye";
 import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { t, type MessageKey } from "@/i18n";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import { GRAPH_EDGE_KINDS, type GraphSystemNodeKind } from "@/facilis/graph-layout";
+import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { GRAPH_EDGE_LABEL_KEYS, GRAPH_EDGE_STYLES } from "./project-graph-edges";
 
 export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
+
+/** The owner's order: narrowest first, "all" last. */
+const TABLE_VISIBILITY_OPTIONS: readonly GraphTableVisibility[] = ["project", "used", "all"];
+
+const TABLE_VISIBILITY_LABEL_KEYS: Record<GraphTableVisibility, MessageKey> = {
+  project: "projectGraph.tableVisibility.project",
+  used: "projectGraph.tableVisibility.used",
+  all: "projectGraph.tableVisibility.all",
+};
 
 export function ProjectGraphToolbar({
   stats,
@@ -41,9 +57,8 @@ export function ProjectGraphToolbar({
   focusActive,
   onClearFocus,
   onToggleEdgeKind,
-  hideSystemRoutes,
-  hideSystemTables,
-  onToggleSystemNodes,
+  tableVisibility,
+  onTableVisibilityChange,
 }: {
   stats: ProjectGraphStats | null;
   hiddenEdgeKinds: readonly GraphEdgeKind[];
@@ -64,9 +79,8 @@ export function ProjectGraphToolbar({
   focusActive: boolean;
   onClearFocus: () => void;
   onToggleEdgeKind: (kind: GraphEdgeKind, hidden: boolean) => void;
-  hideSystemRoutes: boolean;
-  hideSystemTables: boolean;
-  onToggleSystemNodes: (kind: GraphSystemNodeKind, hidden: boolean) => void;
+  tableVisibility: GraphTableVisibility;
+  onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
 }) {
   return (
     <div className="flex shrink-0 flex-col gap-1 border-b px-2 py-1.5">
@@ -206,31 +220,33 @@ export function ProjectGraphToolbar({
             </label>
           );
         })}
-        <span>{t("projectGraph.systemFilters")}</span>
-        <label
-          title={t("projectGraph.systemHint")}
-          className="flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
+        <span>{t("projectGraph.tableVisibility")}</span>
+        <Select<GraphTableVisibility>
+          items={TABLE_VISIBILITY_OPTIONS.map((value) => ({
+            value,
+            label: t(TABLE_VISIBILITY_LABEL_KEYS[value]),
+          }))}
+          value={tableVisibility}
+          onValueChange={(value) => {
+            if (value !== null) onTableVisibilityChange(value);
+          }}
         >
-          <input
-            type="checkbox"
-            className="size-3 accent-primary"
-            checked={!hideSystemRoutes}
-            onChange={(event) => onToggleSystemNodes("routes", !event.target.checked)}
-          />
-          <span>{t("projectGraph.systemRoutes")}</span>
-        </label>
-        <label
-          title={t("projectGraph.systemHint")}
-          className="flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
-        >
-          <input
-            type="checkbox"
-            className="size-3 accent-primary"
-            checked={!hideSystemTables}
-            onChange={(event) => onToggleSystemNodes("tables", !event.target.checked)}
-          />
-          <span>{t("projectGraph.systemTables")}</span>
-        </label>
+          <SelectTrigger
+            size="sm"
+            aria-label={t("projectGraph.tableVisibility")}
+            title={t("projectGraph.tableVisibility.hint")}
+            className="h-5 gap-0.5 rounded border px-1.5 py-0 text-[10px] text-foreground"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TABLE_VISIBILITY_OPTIONS.map((value) => (
+              <SelectItem key={value} value={value} className="text-[11px]">
+                {t(TABLE_VISIBILITY_LABEL_KEYS[value])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {stats !== null && stats.hiddenEdges > 0 && (
           <span>{t("projectGraph.hiddenEdges", { count: stats.hiddenEdges })}</span>
         )}
