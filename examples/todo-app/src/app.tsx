@@ -7,6 +7,7 @@ import { PublicOnly, RequireAuth, SessionProvider } from "./lib/session.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { NotFoundPage } from "./pages/not-found.tsx";
 import { RegisterPage } from "./pages/register.tsx";
+import { TodoDetailPage } from "./pages/todo-detail.tsx";
 import { TodosPage } from "./pages/todos.tsx";
 
 /**
@@ -28,6 +29,14 @@ export function App() {
             element={
               <RequireAuth>
                 <TodosPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/todos/:id"
+            element={
+              <RequireAuth>
+                <TodoDetailPage />
               </RequireAuth>
             }
           />

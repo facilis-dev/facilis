@@ -343,7 +343,8 @@ always: a patch that writes UI needs it as much as one that writes a route.
    text-sm; meta text-xs text-muted-foreground; labels text-2xs font-medium tracking-label
    uppercase. Numbers use font-mono tabular-nums.
 3. Every route renders inside <Page title description actions>; sections are flex flex-col gap-6.
-   Never hand-roll page padding, a header or a container.
+   Never hand-roll page padding, a header or a container. Read src/components/ui/page.tsx and
+   src/pages/todos.tsx before inventing a shell.
 4. One primary action per view, in Page actions; every other action is outline or ghost. Lists
    and tables are the default surface; a form lives on a page, not in a modal.
 5. Cards: rounded-lg border border-border bg-card p-5 shadow-card; header pb-3, footer pt-3
@@ -370,9 +371,11 @@ always: a patch that writes UI needs it as much as one that writes a route.
 
 1. `DESIGN.md` in the generated project (tokens, type, composition and motion — under 2k
    characters), injected like `AGENTS.md` with the same cap: project taste the user can edit.
-2. A **reference section** in the template: one list → detail → chart slice built to
-   `PATTERNS.md`, and a prompt line telling the model to read `src/components/ui/page.tsx` and
-   that page before inventing a shell. Examples beat rules, and cost tokens only when read.
+2. A **reference section** in the template: the list → detail → chart slice built to
+   `PATTERNS.md` (`src/pages/todos.tsx`, `src/pages/todo-detail.tsx`,
+   `src/components/weekly-chart.tsx`), named in design rule 3 so the model reads
+   `src/components/ui/page.tsx` and `src/pages/todos.tsx` before inventing a shell. Examples
+   beat rules, and cost tokens only when read.
 3. **Non-blocking warnings** on the returned patch (raw hex, palette class, arbitrary value,
    missing `<Page>`, missing states), reported as a rate. Never a validator error: a new error
    rule buys repair loops, not quality.
@@ -386,7 +389,8 @@ and layouts instead (the block package was retired, D-131).
   `page`/`empty-state`/`skeleton` touch-ups, `app-layout` and `not-found` use `max-w-page`.
   Screenshot A/B on login, register, 404 and the todos list, light and dark.
 - **P1** — `DESIGN_PROMPT`, the `DESIGN.md` injection, the rule-5 fix, SPEC §9.2 update.
-- **P2** — reference section + `PATTERNS.md` accepted (not draft) + the warning linter.
+- **P2** — reference section (landed), `PATTERNS.md` accepted, the review-time warning linter
+  (four design rules, never blocking).
 - **P3** — eval suite: fixed prompts (dashboard, list + create, settings form, auth, empty,
   error) × 3 seeds, `preview_screenshot` + a rubric judge; metrics are output tokens, turns to
   first correct render, warning rate and repair rate.

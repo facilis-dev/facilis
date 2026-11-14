@@ -86,10 +86,11 @@ describe("project analysis with framework sources", () => {
       "user_roles",
       "users",
     ]);
-    expect(analysis.graph.nodes).toHaveLength(42);
-    // 63 after D-157 and the W1/W3 routes: session/jobs routes no longer declare tables they
-    // do not touch, while the task and workflow routes add their own route-table edges.
-    expect(analysis.graph.edges).toHaveLength(63);
+    expect(analysis.graph.nodes).toHaveLength(45);
+    // 76 after D-157, the W1/W3 routes and the todos detail/stats routes: session/jobs routes
+    // no longer declare tables they do not touch, while the task, workflow and detail routes
+    // add their own route-table edges.
+    expect(analysis.graph.edges).toHaveLength(76);
   });
 
   it("links the file route and the re-exported tables through the graph", () => {
@@ -121,10 +122,10 @@ describe("project analysis with framework sources", () => {
 
   it('draws the whole analysis when no visibility preference is saved ("all" default)', () => {
     const view = buildProjectGraphView({ graph: analysis.graph });
-    expect(view.nodes).toHaveLength(42);
-    expect(view.edges).toHaveLength(63);
+    expect(view.nodes).toHaveLength(45);
+    expect(view.edges).toHaveLength(76);
     expect(view.stats.hiddenNodes).toBe(0);
-    expect(routeCount(view)).toBe(21);
+    expect(routeCount(view)).toBe(23);
     expect(drawnTableNames(view)).toEqual([
       "api_clients",
       "api_tokens",
@@ -148,13 +149,13 @@ describe("project analysis with framework sources", () => {
   it('hides every framework table and no route in "project" mode', () => {
     const view = buildProjectGraphView({ graph: analysis.graph, tableVisibility: "project" });
     expect(view.stats.hiddenNodes).toBe(14);
-    expect(view.nodes).toHaveLength(28);
-    expect(view.edges).toHaveLength(23);
+    expect(view.nodes).toHaveLength(31);
+    expect(view.edges).toHaveLength(34);
     expect(drawnTableNames(view)).toEqual(["todo_files", "todos"]);
     // The visibility choice never filters routes, pages or workflows: all of the starter's
     // surface stays drawn even though the auth routes only name framework tables.
-    expect(routeCount(view)).toBe(21);
-    expect(view.nodes.filter((node) => node.kind === "page")).toHaveLength(4);
+    expect(routeCount(view)).toBe(23);
+    expect(view.nodes.filter((node) => node.kind === "page")).toHaveLength(5);
     expect(view.nodes.filter((node) => node.kind === "workflow")).toHaveLength(1);
     expect(view.nodes.some((node) => node.id === LOGOUT)).toBe(true);
     expect(view.nodes.some((node) => node.id === SESSIONS)).toBe(false);
@@ -163,8 +164,8 @@ describe("project analysis with framework sources", () => {
   it('keeps the framework tables the project actually uses in "used" mode', () => {
     const view = buildProjectGraphView({ graph: analysis.graph, tableVisibility: "used" });
     expect(view.stats.hiddenNodes).toBe(4);
-    expect(view.nodes).toHaveLength(38);
-    expect(view.edges).toHaveLength(61);
+    expect(view.nodes).toHaveLength(41);
+    expect(view.edges).toHaveLength(74);
     expect(drawnTableNames(view)).toEqual([
       "api_clients",
       "api_tokens",
@@ -185,7 +186,7 @@ describe("project analysis with framework sources", () => {
     expect(view.edges.some((edge) => edge.source === LOGOUT && edge.target === SESSIONS)).toBe(
       true,
     );
-    expect(routeCount(view)).toBe(21);
+    expect(routeCount(view)).toBe(23);
   });
 
   it('hides only framework tables no project fact references in "used" mode', () => {
@@ -215,7 +216,7 @@ describe("project analysis with framework sources", () => {
     const views = (["project", "used", "all"] as const).map((tableVisibility) =>
       buildProjectGraphView({ graph: analysis.graph, tableVisibility }),
     );
-    for (const view of views) expect(routeCount(view)).toBe(21);
+    for (const view of views) expect(routeCount(view)).toBe(23);
     for (const view of views.slice(1)) {
       expect(drawnRouteLabels(view)).toEqual(drawnRouteLabels(views[0]));
     }
@@ -229,8 +230,8 @@ describe("project analysis without framework sources", () => {
 
   it("keeps only the locally declared tables", () => {
     expect(tableNames(analysis)).toEqual(["todo_files", "todos"]);
-    expect(analysis.graph.nodes).toHaveLength(28);
-    expect(analysis.graph.edges).toHaveLength(23);
+    expect(analysis.graph.nodes).toHaveLength(31);
+    expect(analysis.graph.edges).toHaveLength(34);
   });
 
   it("drops the route and FK edges into framework state", () => {
