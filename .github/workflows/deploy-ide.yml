@@ -10,10 +10,11 @@ name: Deploy IDE
 # The ide.facilis.dev custom domain is added once from the project's Custom domains page; the
 # deploy job also attempts it, but only a token with zone permissions can do that.
 #
-# This is the single release workflow (D-164): when a push can have changed packages/ it
-# publishes the @facilis.dev packages first, then builds the IDE against that exact version.
-# Publishing rides the deploy instead of racing it in a parallel workflow, which could deploy
-# an IDE pinned to a version npm does not serve yet (or to an older one).
+# This is the single release workflow (D-164): when the tree has something to publish — packages/
+# or tsconfig.base.json differs from the last release tag (D-183/D-184) — it publishes the
+# @facilis.dev packages first, then builds the IDE against that exact version. Publishing rides
+# the deploy instead of racing it in a parallel workflow, which could deploy an IDE pinned to a
+# version npm does not serve yet (or to an older one).
 # The upload authenticates with npm trusted publishing (OIDC), not a stored token: the job
 # mints a short-lived GitHub identity token, the npm CLI exchanges it for a publish credential,
 # and provenance is attached automatically. There is no NPM_TOKEN secret to leak or rotate.
@@ -35,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish a new patch version of the @facilis.dev packages first"
+        description: "Force a publish even when packages/ has not changed since the last release tag"
         type: boolean
         default: false
       version:
@@ -67,8 +68,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          # The publish decision diffs HEAD^ against HEAD, so the parent must be present.
-          fetch-depth: 2
+          # The publish decision diffs HEAD against the last release tag, which can be any
+          # ancestor: the tag and its tree must be in the clone (D-184).
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -86,20 +89,38 @@ jobs:
       # Publishing must ride the deploy instead of racing it: a parallel workflow could deploy
       # an IDE pinned to a version npm does not serve yet (or an older one). A push publishes
       # when it can have changed packages/; a manual run publishes only when asked to.
+      # Publishing is decided by the tree, not by the event (D-184): the last release tag records
+      # what was published, so the diff against it says whether this commit has anything new to
+      # publish. A push and a manual run agree, and re-running a deploy publishes nothing — the
+      # retry used to bump a patch merely for being a retry. The `publish` input forces a
+      # re-publish when the diff is empty (a failed upload, or a bad one).
       - name: Decide whether to publish the packages
         id: packages
         env:
-          PUBLISH_INPUT: ${{ inputs.publish }}
+          FORCE_PUBLISH: ${{ inputs.publish }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            changed="$PUBLISH_INPUT"
-          elif ! git diff --quiet HEAD^ HEAD -- packages/; then
-            # Non-zero also covers a diff we cannot compute (e.g. shallow history): publishing
-            # an extra patch is harmless, deploying an IDE against packages older than the
-            # commit is not.
+          set -eu
+          if [ "$FORCE_PUBLISH" = "true" ]; then
+            echo "publishing: publish=true was requested"
             changed=true
-          else
+          elif ! last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null); then
+            echo "publishing: no release tag exists yet, so nothing has been released"
+            changed=true
+          # Test modules never reach the tarball (publish-packages.mjs filters them), so a
+          # test-only change is not something to publish.
+          elif git diff --quiet "$last" HEAD -- \
+            packages/ tsconfig.base.json \
+            ':(exclude)packages/**/*.test.ts' \
+            ':(exclude)packages/**/*.test.tsx' \
+            ':(exclude)packages/**/*.test-fixtures.ts' \
+            ':(exclude)packages/**/test-fixtures/**'; then
+            echo "not publishing: packages/ matches $last"
             changed=false
+          else
+            # A diff we cannot compute lands here too: publishing an extra patch is harmless,
+            # deploying an IDE against packages older than the commit is not.
+            echo "publishing: packages/ changed since $last"
+            changed=true
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 

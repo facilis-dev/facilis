@@ -569,16 +569,19 @@ and schema as few-shot examples). The probe caps output at 16k tokens; the IDE s
 The nine `packages/*` packages publish to public npm under the `@facilis.dev` organization
 scope. There is no separate publish workflow: publishing is a job inside
 `.github/workflows/deploy-ide.yml` (see §9), because the deploy has to publish first and then
-pin the version it just published. The job runs only when the push can change `packages/**`,
-or when a manual **Deploy IDE** run sets the `publish` input; it gates the published surface
+pin the version it just published. The job runs when the tree has something to publish:
+`packages/` or `tsconfig.base.json` differs from the last release tag `vX.Y.Z` (D-183/D-184),
+test modules excepted, or no tag exists yet. A push and a manual **Deploy IDE** run are decided the
+same way, so re-running a deploy publishes nothing; the `publish` input only forces a re-publish
+when the diff is empty (a failed upload, or a bad one). It gates the published surface
 (`turbo lint/typecheck/test/build --filter=./packages/*` plus
 `scripts/check-file-length.mjs`), then stages and uploads each package. Once the upload
 finishes, `scripts/publish-packages.mjs` verifies the registry — it polls until every package
 reports the new version as `latest` — before the IDE build continues, so a failed or
 inconsistent publish fails the deploy instead of shipping a template pinned to packages that
 are not there. The published version becomes the build's `FACILIS_PACKAGES_VERSION`, and the
-generated-project template pins every `@facilis.dev/*` dependency to it (D-166). A deploy-only
-change skips the job and pins the current npm `latest`.
+generated-project template pins every `@facilis.dev/*` dependency to it (D-166). A deploy with
+nothing to publish skips the job and pins the current npm `latest`.
 
 Versions are derived, not committed: all packages release in lockstep on the next patch after the
 highest version already on npm (`0.1.0` for the first release, the workspace stays at `0.0.0`), and
