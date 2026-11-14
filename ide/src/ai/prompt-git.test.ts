@@ -14,6 +14,7 @@ function context(tools: readonly PtcToolSpec[]): PromptContext {
     activeFile: null,
     configFile: null,
     instructions: null,
+    designFile: null,
     tools,
   };
 }

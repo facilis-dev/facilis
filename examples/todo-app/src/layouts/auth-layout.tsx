@@ -35,7 +35,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             {POINTS.map((key) => (
               <li key={key} className="flex items-start gap-3 text-sm text-muted-foreground">
                 <span
-                  className="mt-1.5 size-1.5 flex-none rounded-full bg-accent"
+                  className="mt-1.5 size-1.5 flex-none rounded-full bg-primary"
                   aria-hidden="true"
                 />
                 {t(key)}

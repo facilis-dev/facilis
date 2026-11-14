@@ -35,6 +35,7 @@
   "locale.label": "Language",
   "locale.en": "English",
   "locale.it": "Italiano",
+  "not_found.code": "404",
   "not_found.title": "Page not found",
   "not_found.description": "The page you are looking for does not exist.",
   "not_found.action": "Go to the dashboard",

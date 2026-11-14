@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { t } from "@facilis.dev/core/i18n";
 import { formatDueDate, isOverdue, localTimeZone } from "../lib/dates.ts";
 import { useLocale } from "../lib/i18n.tsx";
@@ -77,14 +78,15 @@ export function TodoTable({
                   />
                 </TableCell>
                 <TableCell>
-                  <span
+                  <Link
                     className={cn(
-                      "block [overflow-wrap:anywhere]",
+                      "block w-fit [overflow-wrap:anywhere] hover:underline",
                       todo.done && "line-through opacity-60",
                     )}
+                    to={"/todos/" + todo.id}
                   >
                     {todo.title}
-                  </span>
+                  </Link>
                   <TodoFiles
                     files={todo.files}
                     canWrite={canWrite}

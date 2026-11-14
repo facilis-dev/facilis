@@ -5,8 +5,16 @@ import type { TodoFile } from "../components/todo-files.tsx";
 import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
 import { TodoTable, type Todo } from "../components/todo-table.tsx";
 import { DEFAULT_FILTER, TodoToolbar, type StatusFilter } from "../components/todo-toolbar.tsx";
+import { WeeklyChart, type WeekBucket } from "../components/weekly-chart.tsx";
 import { Alert } from "../components/ui/alert.tsx";
 import { Button } from "../components/ui/button.tsx";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card.tsx";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +36,10 @@ type TodosState =
   | { status: "ready"; todos: readonly Todo[] };
 
 const SKELETON_ROWS = [0, 1, 2, 3];
+
+interface TodoStats {
+  buckets: readonly WeekBucket[];
+}
 
 export function TodosPage() {
   const { session } = useSession();
@@ -53,6 +65,22 @@ export function TodosPage() {
     setState({ status: "loading" });
     await reloadList();
   }, [reloadList]);
+
+  // The chart is supplementary: when the aggregation fails the list still renders.
+  const [buckets, setBuckets] = useState<readonly WeekBucket[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api<TodoStats>("/api/todos/stats")
+      .then((stats) => {
+        if (!cancelled) setBuckets(stats.buckets);
+      })
+      .catch(() => {
+        if (!cancelled) setBuckets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void load();
@@ -177,6 +205,18 @@ export function TodosPage() {
             onFilterChange={setFilter}
             onNew={() => titleInput.current?.focus()}
           />
+
+          {todos.length > 0 && buckets !== null && buckets.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("todos.chart.title")}</CardTitle>
+                <CardDescription>{t("todos.chart.description")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <WeeklyChart buckets={buckets} />
+              </CardContent>
+            </Card>
+          ) : null}
 
           {todos.length === 0 ? (
             <EmptyState

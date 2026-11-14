@@ -1,9 +1,9 @@
 # Resource pages — the standard for a list → detail → chart section
 
-Status: draft (2026-11-11). This is the contract both the AI and a human follow to add a section
-to a generated Facilis project. The reference implementation and the checker are **not in the
-tree yet** (`scripts/dev/fixtures/` is absent), so §8 has no evidence; the checklist and the
-anti-patterns are the part in force.
+Status: accepted (2026-11-14). This is the contract both the AI and a human follow to add a
+section to a generated Facilis project. The reference implementation now ships in the template
+(`examples/todo-app`, §7); the paginated envelope of §2.1 is the one part still ahead of it.
+The checklist and the anti-patterns are in force.
 
 Why a standard: at section scale the model stops failing on syntax and starts failing on
 **plumbing** — it invents an envelope, forgets a permission, filters client-side, adds no
@@ -16,9 +16,9 @@ One resource, three surfaces, one wiring checklist:
 
 | surface | page | server | job |
 |---|---|---|---|
-| list | `src/pages/<resources>.tsx` | `GET /api/<resources>` | paginated table, search, status filter |
+| list | `src/pages/<resources>.tsx` | `GET /api/<resources>` | table, search, status filter |
 | detail | `src/pages/<resource>-detail.tsx` | `GET /api/<resources>/:id` | record + linked rows |
-| chart | `src/components/weekly-chart.tsx` | `GET /api/<resources>/:id/stats` | one aggregation, SVG bars |
+| chart | `src/components/weekly-chart.tsx` | `GET /api/<resources>/stats` | one aggregation, SVG bars |
 
 Everything else (schema, permissions, i18n, router, nav) is §6.
 
@@ -57,7 +57,7 @@ GET /api/projects/a1b2...
 ### 2.3 Stats — chart data, server-side
 
 ```http
-GET /api/projects/a1b2.../stats?weeks=8
+GET /api/<resources>/stats?weeks=8
 200 { "buckets": [ { "weekStart": "2026-09-14", "count": 3 }, ... ] }
 ```
 
@@ -198,13 +198,31 @@ data; that is the only exception and never a release path.
 
 ## 7. Reference implementation
 
-The section-standard fixture (`scripts/dev/fixtures/section-standard/project/`) and its checker
-are not in the tree yet. When they return, the section becomes the few-shot bundle the chat ships.
+The section ships in the template, runnable, on the `todos` resource — the AI reads it instead of
+guessing, and the design prompt names it:
 
-## 8. Evidence (probe)
+| Surface | File |
+|---|---|
+| list + chart + toolbar | `examples/todo-app/src/pages/todos.tsx` |
+| detail | `examples/todo-app/src/pages/todo-detail.tsx` |
+| chart | `examples/todo-app/src/components/weekly-chart.tsx` |
+| list route | `examples/todo-app/server/routes/api/todos/index.get.ts` |
+| detail route | `examples/todo-app/server/routes/api/todos/[id].get.ts` |
+| stats route | `examples/todo-app/server/routes/api/todos/stats.get.ts` |
+| bucket maths (pure, tested) | `examples/todo-app/server/utils/week-buckets.ts` |
 
-Not collected: the probe needs the fixture above. It should compare the validator, typecheck and
-wiring, the baseline prompt against the standard prompt, and the token/speed cost.
+Two deliberate deviations from the sections above, both narrowing, not widening: the list
+endpoint still returns the rows directly (§2.1's paginated envelope is the next slice), and the
+chart aggregates the resource per week rather than one record (§2.3's path is
+`/api/<resources>/stats`). Everything else — permissions, RLS, Zod, `fail("not_found")`, the four
+states, tokens-only SVG, i18n keys in both catalogues — is the contract, applied.
+
+## 8. Evidence
+
+2026-11-14: typecheck, lint, tests (49, including the bucket maths) and the Nitro build pass for
+`examples/todo-app`; screenshots of the list (chart + table) and the detail (record + attachments)
+in light and dark. The prompt A/B — baseline against this section as a few-shot exemplar — is the
+P3 eval and is still open.
 
 ## 9. Anti-patterns
 

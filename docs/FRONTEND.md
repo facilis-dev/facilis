@@ -159,6 +159,8 @@ export function resolveTheme(stored: string | null, prefersDark: boolean): Theme
   is what makes the `dark:` utilities follow the attribute.
 - Rebranding is editing the variables (direction A's greens, radii and densities are already
   there); deeper changes are Tailwind classes or a copied component.
+- The visual system behind those variables — token set, type scale, motion recipes, page
+  anatomy — is [DESIGN.md](./DESIGN.md) (D-185); `styles.css` is its single point of truth.
 
 ## 6. i18n — `lib/i18n.tsx`
 

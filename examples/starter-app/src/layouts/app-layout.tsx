@@ -17,7 +17,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex min-h-[56px] w-full max-w-[80rem] flex-wrap items-center gap-3 px-5 py-2 max-[640px]:px-3">
+        <div className="mx-auto flex min-h-[56px] w-full max-w-page flex-wrap items-center gap-3 px-5 py-2 max-[640px]:px-3">
           <Link className="flex min-w-0 items-center gap-2 text-foreground" to="/">
             <span
               className="grid size-8 flex-none place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
@@ -46,7 +46,7 @@ export function AppLayout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[80rem] px-5 py-6 max-[1120px]:px-4 max-[640px]:px-3 max-[640px]:py-4">
+      <main className="mx-auto w-full max-w-page px-5 py-6 max-[1120px]:px-4 max-[640px]:px-3 max-[640px]:py-4">
         <Outlet />
       </main>
     </div>

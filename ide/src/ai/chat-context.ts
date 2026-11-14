@@ -7,6 +7,7 @@
 
 import { aiWritePolicy } from "@/deploy/current";
 import { fetchManifest } from "@/facilis/manifest-client";
+import { DESIGN_PATH } from "./design";
 import { INSTRUCTIONS_PATH } from "./instructions";
 import type { PtcToolSpec } from "./ptc/protocol";
 import { buildSystemPrompt } from "./prompt";
@@ -43,6 +44,9 @@ export async function buildChatContext(
     activeFile?.path === INSTRUCTIONS_PATH
       ? activeFile.content
       : await host.read(INSTRUCTIONS_PATH);
+  // Same rule as AGENTS.md: an open tab with unsaved edits is the current intent.
+  const design =
+    activeFile?.path === DESIGN_PATH ? activeFile.content : await host.read(DESIGN_PATH);
   let manifest: Record<string, unknown> | null = null;
   let manifestRevision: string | null = null;
   const base = host.manifestBase();
@@ -62,6 +66,7 @@ export async function buildChatContext(
       configFile: config.length > 0 ? { path: "facilis.config.ts", content: config } : null,
       instructions:
         instructions.length > 0 ? { path: INSTRUCTIONS_PATH, content: instructions } : null,
+      designFile: design.length > 0 ? { path: DESIGN_PATH, content: design } : null,
       tools: options.tools ?? [],
       writePolicy: aiWritePolicy,
     }),

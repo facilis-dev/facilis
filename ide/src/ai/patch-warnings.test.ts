@@ -142,11 +142,66 @@ describe("scanPatchWarnings", () => {
 
   it("orders warnings by first occurrence across rules", () => {
     const warnings = scanPatchWarnings([
-      update("src/App.tsx", 'import { db } from "@facilis.dev/db";\nexport const x = process.env.X;'),
+      update(
+        "src/App.tsx",
+        'import { db } from "@facilis.dev/db";\nexport const x = process.env.X;',
+      ),
     ]);
     expect(warnings).toEqual([
       { path: "src/App.tsx", rule: "server-import", symbol: "@facilis.dev/db" },
       { path: "src/App.tsx", rule: "node-global", symbol: "process" },
     ]);
+  });
+});
+
+describe("design warnings (D-185)", () => {
+  it("flags a raw colour and a palette class by position", () => {
+    const warnings = scanPatchWarnings([
+      update(
+        "src/pages/report.tsx",
+        '<Page title="x"><div className="bg-blue-600 text-[#0b0d10]" /></Page>',
+      ),
+    ]);
+    expect(warnings).toEqual([
+      { path: "src/pages/report.tsx", rule: "palette-class", symbol: "bg-blue-600" },
+      { path: "src/pages/report.tsx", rule: "raw-color", symbol: "#0b0d10" },
+    ]);
+  });
+
+  it("accepts the role tokens and the scale", () => {
+    const warnings = scanPatchWarnings([
+      update(
+        "src/pages/report.tsx",
+        '<Page title="x"><div className="bg-background p-4 text-sm text-muted-foreground border-border" /></Page>',
+      ),
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("does not flag variant selectors that contain brackets", () => {
+    const warnings = scanPatchWarnings([
+      update(
+        "src/pages/report.tsx",
+        '<Page title="x"><div className="min-[900px]:flex data-[state=open]:block" /></Page>',
+      ),
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("flags a page that does not render <Page>", () => {
+    const warnings = scanPatchWarnings([
+      update("src/pages/report.tsx", "export function Report() { return <div>hi</div>; }"),
+    ]);
+    expect(warnings).toEqual([
+      { path: "src/pages/report.tsx", rule: "missing-page", symbol: "report" },
+    ]);
+  });
+
+  it("exempts the catch-all page and non-TSX files", () => {
+    const warnings = scanPatchWarnings([
+      update("src/pages/not-found.tsx", "export const X = () => <div />;"),
+      update("src/lib/colors.ts", 'export const accent = "#0b0d10";'),
+    ]);
+    expect(warnings).toEqual([]);
   });
 });

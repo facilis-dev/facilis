@@ -34,4 +34,11 @@ interface ImportMetaEnv {
   readonly VITE_DEEPSEEK_MODEL?: string;
   /** Optional base URL override for the dev seed. */
   readonly VITE_DEEPSEEK_BASE_URL?: string;
+  /**
+   * Opt-in live design eval (docs/DEV.md §12.1). `pnpm ai:eval` sets it, so a normal test run
+   * never spends tokens even when the key above is present.
+   */
+  readonly VITE_DESIGN_EVAL?: string;
+  /** Seeds per case for the design eval; defaults to 3. */
+  readonly VITE_DESIGN_EVAL_SEEDS?: string;
 }

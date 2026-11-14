@@ -33,6 +33,7 @@ const rawSources = import.meta.glob<string>(
     "../../../examples/starter-app/.gitignore",
     "../../../examples/starter-app/vite.config.ts",
     "../../../examples/starter-app/facilis.config.ts",
+    "../../../examples/starter-app/DESIGN.md",
     "../../../examples/starter-app/package.json",
   ],
   { query: "?raw", import: "default", eager: true },
