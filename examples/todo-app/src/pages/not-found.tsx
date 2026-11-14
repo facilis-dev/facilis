@@ -7,7 +7,7 @@ import { Page } from "../components/ui/page.tsx";
 /** The catch-all route has no layout, so it centres its own Page container. */
 export function NotFoundPage() {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[80rem] flex-col justify-center px-4 py-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-page flex-col justify-center px-4 py-8">
       <Page title={t("not_found.title")}>
         <EmptyState
           title={t("not_found.title")}

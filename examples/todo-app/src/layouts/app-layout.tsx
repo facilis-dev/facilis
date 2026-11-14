@@ -42,7 +42,7 @@ export function AppLayout() {
               cn(
                 "flex min-h-[34px] items-center gap-3 rounded-lg px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                 isActive &&
-                  "bg-accent/10 font-semibold text-primary hover:bg-accent/10 hover:text-primary",
+                  "bg-accent font-semibold text-accent-foreground hover:bg-accent hover:text-accent-foreground",
               )
             }
             to="/todos"
@@ -86,7 +86,7 @@ export function AppLayout() {
             ) : null}
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[80rem] px-5 py-6 max-[1120px]:px-4 max-[640px]:px-3 max-[640px]:py-4">
+        <main className="mx-auto w-full max-w-page px-5 py-6 max-[1120px]:px-4 max-[640px]:px-3 max-[640px]:py-4">
           <Outlet />
         </main>
       </div>

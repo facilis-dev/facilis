@@ -99,10 +99,10 @@ or repeats the literal. Everything below follows both halves.
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --shadow-xs: 0 1px 2px rgb(24 32 27 / 0.05);
-  --shadow-sm: 0 1px 3px rgb(24 32 27 / 0.06), 0 1px 2px -1px rgb(24 32 27 / 0.06);
-  --shadow-md: 0 4px 8px -2px rgb(24 32 27 / 0.06), 0 2px 4px -2px rgb(24 32 27 / 0.05);
-  --shadow-lg: 0 12px 24px -6px rgb(24 32 27 / 0.08), 0 4px 8px -4px rgb(24 32 27 / 0.05);
+  --shadow-xs: var(--elev-xs);
+  --shadow-sm: var(--elev-sm);
+  --shadow-md: var(--elev-md);
+  --shadow-lg: var(--elev-lg);
   --shadow-card: var(--card-shadow);
 
   --container-page: 80rem;
@@ -153,7 +153,11 @@ or repeats the literal. Everything below follows both halves.
   --radius: 6px;
   /* literals on purpose: see 4.1 */
   --display-font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
-  --card-shadow: 0 1px 2px rgb(24 32 27 / 0.05), inset 0 1px 0 rgb(255 255 255 / 0.8);
+  --elev-xs: 0 1px 2px rgb(24 32 27 / 0.05);
+  --elev-sm: 0 1px 3px rgb(24 32 27 / 0.06), 0 1px 2px -1px rgb(24 32 27 / 0.06);
+  --elev-md: 0 4px 8px -2px rgb(24 32 27 / 0.06), 0 2px 4px -2px rgb(24 32 27 / 0.05);
+  --elev-lg: 0 12px 24px -6px rgb(24 32 27 / 0.08), 0 4px 8px -4px rgb(24 32 27 / 0.05);
+  --card-shadow: var(--elev-xs), inset 0 1px 0 rgb(255 255 255 / 0.8);
   --shimmer-highlight: rgb(255 255 255 / 0.45);
   --ease-emphasized: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -188,7 +192,7 @@ or repeats the literal. Everything below follows both halves.
   --chart-4: #e08a80;
   --chart-5: #93a3c4;
   --radius: 6px;
-  --card-shadow: 0 1px 2px rgb(24 32 27 / 0.05), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  --card-shadow: var(--elev-xs), inset 0 1px 0 rgb(255 255 255 / 0.04);
   --shimmer-highlight: rgb(255 255 255 / 0.07);
   --ease-emphasized: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -201,7 +205,7 @@ The editorial preset keeps the same block structure and changes only values (`--
 
 | Token | Buys |
 |---|---|
-| `--shadow-sm/md/lg` | an elevation vocabulary the prompt can name |
+| `--elev-* → shadow-*` | an elevation vocabulary both the prompt and hand-written CSS can name |
 | `--shadow-card` | the inset highlight that separates card from canvas |
 | `--text-2xs`, `--tracking-label` | the kicker/label step |
 | `--font-mono` | comparable figures (`tabular-nums`) |
@@ -287,7 +291,7 @@ only, all `prefers-reduced-motion` safe:
 }
 
 @media (hover: hover) {
-  .lift:hover { translate: 0 -2px; box-shadow: var(--shadow-md); }
+  .lift:hover { translate: 0 -2px; box-shadow: var(--elev-md); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -379,8 +383,8 @@ and layouts instead (the block package was retired, D-131).
 ## 11. Verification and rollout
 
 - **P0** — tokens + motion layer in `examples/todo-app/src/styles.css`, `card`/`button`/
-  `dialog`/`Page` touch-ups, `app-layout` uses `max-w-page`. Screenshot A/B on dashboard, list,
-  settings form, auth, in light and dark.
+  `page`/`empty-state`/`skeleton` touch-ups, `app-layout` and `not-found` use `max-w-page`.
+  Screenshot A/B on login, register, 404 and the todos list, light and dark.
 - **P1** — `DESIGN_PROMPT`, the `DESIGN.md` injection, the rule-5 fix, SPEC §9.2 update.
 - **P2** — reference section + `PATTERNS.md` accepted (not draft) + the warning linter.
 - **P3** — eval suite: fixed prompts (dashboard, list + create, settings form, auth, empty,
