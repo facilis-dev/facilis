@@ -113,6 +113,7 @@ export const en = {
   "reset.title": "Reset everything?",
   "reset.body":
     "This permanently deletes all saved files and cached dependencies from this browser, then reloads Studio with a clean slate. This cannot be undone.",
+  "reset.confirmLabel": "Type {word} to confirm",
   "reset.confirm": "Reset everything",
   "reset.busy": "Resetting…",
   "create.title": "New project",
@@ -262,8 +263,6 @@ export const en = {
   "palette.reloadPreview": "Reload Preview",
   "palette.measureMemory": "Measure Memory",
   "palette.resetEverything": "Reset Everything (wipe files + caches)",
-  "palette.resetConfirm":
-    "Reset everything? This permanently deletes all saved files and cached dependencies, then reloads.",
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,

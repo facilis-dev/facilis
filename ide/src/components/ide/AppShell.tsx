@@ -24,6 +24,7 @@ import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
 import { ProjectBootOverlay } from "./ProjectBootOverlay";
 import { GitRemoteDialog } from "./GitRemoteDialog";
 import { ImportRemoteDialog } from "./ImportRemoteDialog";
+import { ResetEverythingDialog } from "./ResetEverythingDialog";
 import { PushRemoteDialog } from "./PushRemoteDialog";
 import { ScaffoldTemplateDialog } from "./ScaffoldTemplateDialog";
 import { useIde } from "./useIde";
@@ -250,6 +251,7 @@ export function AppShell() {
       <TourHost />
       <CommandPalette />
       <ImportRemoteDialog />
+      <ResetEverythingDialog />
       <PushRemoteDialog />
       <GitRemoteDialog />
       <ScaffoldTemplateDialog />

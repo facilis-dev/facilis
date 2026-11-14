@@ -37,6 +37,7 @@ import { deployment, pushAllowed } from "@/deploy/current";
 import { proxyBase } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { publishSession } from "@/vv/publish-session";
+import { resetUi } from "@/vv/reset-ui";
 import { scaffoldUi } from "@/vv/scaffold-ui";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
@@ -143,9 +144,9 @@ export function CommandPalette() {
       {
         label: t("palette.resetEverything"),
         icon: RotateCcw,
-        run: () => {
-          if (confirm(t("palette.resetConfirm"))) void c.resetEverything();
-        },
+        // The dialog owns the typed confirmation: a browser confirm() here would be
+        // a second, weaker gate in front of the same irreversible wipe (D-189).
+        run: () => resetUi.open(),
       },
     ],
     [c, setTheme, snap],
