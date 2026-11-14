@@ -590,7 +590,8 @@ when the diff is empty (a failed upload, or a bad one). It gates the published s
 (`turbo lint/typecheck/test/build --filter=./packages/*` plus
 `scripts/check-file-length.mjs`), then stages and uploads each package. Once the upload
 finishes, `scripts/publish-packages.mjs` verifies the registry — it polls until every package
-reports the new version as `latest` — before the IDE build continues, so a failed or
+reports the new version as `latest`, up to ~8 minutes, because npm processes an upload
+asynchronously and the metadata lags by minutes — before the IDE build continues, so a failed or
 inconsistent publish fails the deploy instead of shipping a template pinned to packages that
 are not there. The published version becomes the build's `FACILIS_PACKAGES_VERSION`, and the
 generated-project template pins every `@facilis.dev/*` dependency to it (D-166). A deploy with
