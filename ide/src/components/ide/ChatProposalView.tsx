@@ -33,9 +33,20 @@ function headingOf(applied: ChatApplied, count: number): string {
 }
 
 function warningOf(warning: PatchWarning): string {
-  return warning.rule === "node-global"
-    ? t("chat.warning.nodeGlobal", { symbol: warning.symbol })
-    : t("chat.warning.serverImport", { symbol: warning.symbol });
+  switch (warning.rule) {
+    case "node-global":
+      return t("chat.warning.nodeGlobal", { symbol: warning.symbol });
+    case "server-import":
+      return t("chat.warning.serverImport", { symbol: warning.symbol });
+    case "raw-color":
+      return t("chat.warning.rawColor", { symbol: warning.symbol });
+    case "palette-class":
+      return t("chat.warning.paletteClass", { symbol: warning.symbol });
+    case "arbitrary-value":
+      return t("chat.warning.arbitraryValue", { symbol: warning.symbol });
+    case "missing-page":
+      return t("chat.warning.missingPage", { symbol: warning.symbol });
+  }
 }
 
 export function ChatProposalView({ chat, state }: { chat: ChatSession; state: ChatState }) {

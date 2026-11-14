@@ -60,6 +60,12 @@ export const chatEn = {
   "chat.warning.nodeGlobal":
     "{symbol} does not exist in the browser — use import.meta.env or a server route.",
   "chat.warning.serverImport": "Server-only module imported into browser code: {symbol}.",
+  "chat.warning.rawColor":
+    "Raw colour {symbol} — use a role token (bg-background, text-muted-foreground, border-border).",
+  "chat.warning.paletteClass": "Palette class {symbol} — use a role token, not a palette colour.",
+  "chat.warning.arbitraryValue": "Arbitrary value {symbol} — use the scale (p-4, text-sm, gap-2).",
+  "chat.warning.missingPage":
+    "The page {symbol} does not render <Page>, so it has no title, description or spacing.",
   "chat.proposal.openFile": "Open {path}",
   "chat.proposal.noChanges": "No changes proposed.",
   "chat.settings.title": "AI provider",

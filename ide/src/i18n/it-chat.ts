@@ -60,6 +60,12 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.warning.nodeGlobal":
     "{symbol} non esiste nel browser — usa import.meta.env o una route server.",
   "chat.warning.serverImport": "Modulo solo server importato nel codice browser: {symbol}.",
+  "chat.warning.rawColor":
+    "Colore grezzo {symbol} — usa un token di ruolo (bg-background, text-muted-foreground, border-border).",
+  "chat.warning.paletteClass": "Classe di palette {symbol} — usa un token di ruolo, non un colore.",
+  "chat.warning.arbitraryValue": "Valore arbitrario {symbol} — usa la scala (p-4, text-sm, gap-2).",
+  "chat.warning.missingPage":
+    "La pagina {symbol} non rende <Page>: niente titolo, descrizione o spaziatura.",
   "chat.proposal.openFile": "Apri {path}",
   "chat.proposal.noChanges": "Nessuna modifica proposta.",
   "chat.settings.title": "Provider AI",

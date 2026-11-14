@@ -7,7 +7,13 @@
 
 import type { FilePatch } from "@facilis.dev/ai";
 
-export type PatchWarningRule = "node-global" | "server-import";
+export type PatchWarningRule =
+  | "node-global"
+  | "server-import"
+  | "raw-color"
+  | "palette-class"
+  | "arbitrary-value"
+  | "missing-page";
 
 export interface PatchWarning {
   path: string;
@@ -23,6 +29,17 @@ const REQUIRE_CALL = /\brequire\s*\(/g;
 const IMPORT_FROM = /\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/g;
 const BARE_IMPORT = /\bimport\s*["']([^"']+)["']/g;
 const REQUIRE_SPECIFIER = /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+/** Design rules (D-185): the role tokens are the only colour and spacing vocabulary. */
+const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/g;
+const PALETTE_CLASS =
+  /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|divide|decoration|shadow)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)(?:-\d{2,3})?\b/g;
+const ARBITRARY_VALUE = /\b[a-z][a-z0-9-]*-\[[^\]\n]+\]/g;
+/** Variant selectors that happen to contain brackets, not literal values. */
+const ARBITRARY_VARIANTS = ["min-[", "max-[", "data-[", "aria-[", "supports-[", "has-", "group-"];
+const PAGE_ROOT = "src/pages/";
+/** The catch-all is a bare page by design (D-178), so it is not held to <Page>. */
+const PAGE_EXCEPTION = "not-found.tsx";
 
 const SERVER_MODULES = new Set(["fs", "path", "os", "crypto", "child_process", "drizzle-orm"]);
 const SERVER_PREFIXES = ["@facilis.dev/db", "@facilis.dev/auth", "@facilis.dev/nitro"];
@@ -120,6 +137,34 @@ function collect(content: string): ScanEvent[] {
   return events.toSorted((left, right) => left.index - right.index);
 }
 
+/** Design warnings for a TSX file: colour, spacing and the page shell (D-185). */
+function collectDesign(content: string): ScanEvent[] {
+  const events: ScanEvent[] = [];
+  const colours = [...content.matchAll(HEX_COLOR)];
+
+  for (const match of colours) {
+    events.push({ index: match.index ?? 0, rule: "raw-color", symbol: match[0] });
+  }
+
+  for (const match of content.matchAll(PALETTE_CLASS)) {
+    events.push({ index: match.index ?? 0, rule: "palette-class", symbol: match[0] });
+  }
+
+  for (const match of content.matchAll(ARBITRARY_VALUE)) {
+    const symbol = match[0];
+    if (ARBITRARY_VARIANTS.some((prefix) => symbol.startsWith(prefix))) continue;
+    // text-[#0b0d10] is one problem, not two: the colour already names it.
+    const start = match.index ?? 0;
+    const end = start + symbol.length;
+    if (colours.some((colour) => (colour.index ?? 0) >= start && (colour.index ?? 0) < end)) {
+      continue;
+    }
+    events.push({ index: start, rule: "arbitrary-value", symbol });
+  }
+
+  return events;
+}
+
 function isClientPath(path: string): boolean {
   const normalized = path.startsWith("./") ? path.slice(2) : path;
   return CLIENT_ROOTS.some((root) => normalized.startsWith(root));
@@ -138,7 +183,25 @@ export function scanPatchWarnings(patches: readonly FilePatch[]): PatchWarning[]
     if (patch.action === "delete" || typeof patch.content !== "string") continue;
     if (!isClientPath(patch.path)) continue;
 
-    for (const event of collect(stripComments(patch.content))) {
+    const source = stripComments(patch.content);
+    const events = collect(source);
+    if (patch.path.endsWith(".tsx")) {
+      events.push(...collectDesign(source));
+      // A new page that invents its own shell drifts from the one anatomy the prompt names.
+      const isPage =
+        patch.path.startsWith(PAGE_ROOT) &&
+        !patch.path.endsWith(PAGE_EXCEPTION) &&
+        !source.includes("<Page");
+      if (isPage) {
+        events.push({
+          index: 0,
+          rule: "missing-page",
+          symbol: patch.path.slice(PAGE_ROOT.length).replace(/\.tsx$/, ""),
+        });
+      }
+    }
+
+    for (const event of events.toSorted((left, right) => left.index - right.index)) {
       const warning: PatchWarning = { path: patch.path, rule: event.rule, symbol: event.symbol };
       const key = warningKey(warning);
       if (seen.has(key)) continue;

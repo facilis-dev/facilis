@@ -100,8 +100,8 @@ export interface ProposedFile {
 /** A client file that should not run in the browser as written (D-047). */
 export interface PatchWarning {
   path: string;
-  rule: "node-global" | "server-import";
-  /** The offending global or module specifier, interpolated by the UI. */
+  rule: import("./patch-warnings").PatchWarningRule;
+  /** The offending global, module specifier, class or page, interpolated by the UI. */
   symbol: string;
 }
 
