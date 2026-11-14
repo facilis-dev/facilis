@@ -31,7 +31,8 @@
     "lint:ide-theme": "node scripts/check-ide-theme.mjs",
     "pg:e2e": "node scripts/postgres-e2e.mjs",
     "ai:probe": "node --experimental-strip-types scripts/dev/ai-probe.mjs",
-    "ai:probe:check": "node --experimental-strip-types scripts/dev/ai-probe-check.mjs"
+    "ai:probe:check": "node --experimental-strip-types scripts/dev/ai-probe-check.mjs",
+    "ai:eval": "VITE_DESIGN_EVAL=1 pnpm --filter @facilis.dev/ide exec vitest run src/ai/design-eval.live.test.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",

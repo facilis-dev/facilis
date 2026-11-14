@@ -391,9 +391,11 @@ and layouts instead (the block package was retired, D-131).
 - **P1** — `DESIGN_PROMPT`, the `DESIGN.md` injection, the rule-5 fix, SPEC §9.2 update.
 - **P2** — reference section (landed), `PATTERNS.md` accepted, the review-time warning linter
   (four design rules, never blocking).
-- **P3** — eval suite: fixed prompts (dashboard, list + create, settings form, auth, empty,
-  error) × 3 seeds, `preview_screenshot` + a rubric judge; metrics are output tokens, turns to
-  first correct render, warning rate and repair rate.
+- **P3** — design eval (landed): the six fixed cases (dashboard, list + create, settings form,
+  auth, empty, error) × 3 seeds through the chat's own prompt, scored by a deterministic rubric —
+  page shell, role tokens, the four states, dependencies, motion, copy — with output tokens,
+  warnings and wall time. `docs/DEV.md` §12.1. A vision judge on `preview_screenshot` is the
+  next addition, not part of this one.
 
 Acceptance: contrast floors met (§7), reduced motion honoured, both themes complete, primitives'
 APIs unchanged, no new validator error rule, and hand-built pages still match the template's look.

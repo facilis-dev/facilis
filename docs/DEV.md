@@ -564,6 +564,19 @@ Prompt variants exist to size the quality gap: `baseline` (the IDE prompt as shi
 and schema as few-shot examples). The probe caps output at 16k tokens; the IDE sends no
 `max_tokens`, so a `finish_reason: length` here only says the answer was very long.
 
+### 12.1 Design eval — does the page come out right?
+
+`pnpm ai:eval` sends the six fixed cases in `ide/src/ai/design-eval.ts` through the chat's own
+system prompt (patch-only mode, the project's `DESIGN.md` included) and scores every answer with a
+deterministic rubric: page shell, role tokens, the four async states, no new dependency, no motion
+library, copy. Pass rate per criterion, warnings, output tokens and wall time land in
+`/tmp/facilis-dev/design-eval/<ts>/summary.md`.
+
+It needs the same key as the probe and is opt-in twice — `DESIGN_EVAL=1` gates the test, so a
+normal `pnpm test` never spends tokens even when `ide/.env` is populated. The scoring itself is
+pure and always runs in the suite (`design-eval.test.ts`, `design-eval-report.test.ts`), which is
+what CI gates on. `DESIGN_EVAL_SEEDS` (default 3) and `VITE_DEEPSEEK_MODEL` shape a run.
+
 ## 13. Publishing the framework packages — `@facilis.dev` (D-164/D-166)
 
 The nine `packages/*` packages publish to public npm under the `@facilis.dev` organization
