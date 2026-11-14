@@ -587,9 +587,24 @@ staged by `scripts/publish-packages.mjs`: `exports` resolve to `dist/*.js`, inte
 pinned to the release version, `devDependencies`/`scripts` are dropped and test modules are
 filtered out — publishing the workspace manifest directly is not installable.
 
-**One-time setup.** Create a granular npm token with read/write on the `facilis.dev` organization
-and store it as the `NPM_TOKEN` repository secret. The workflow fails before the first upload, with
-a named error, when the secret is missing.
+**One-time setup — trusted publishing (OIDC), no token.** The upload authenticates with npm
+[trusted publishing](https://docs.npmjs.com/trusted-publishers): the job mints a short-lived
+GitHub OIDC token (`permissions: id-token: write`) and the npm CLI exchanges it for a publish
+credential, so no long-lived npm token is stored, logged or rotated. On npmjs.com, for **every**
+published package (Settings → Trusted Publisher → GitHub Actions), set organization
+`facilis-dev`, repository `facilis`, workflow filename `deploy-ide.yml` (filename only), no
+environment, and allow `npm publish`; `npm stage publish` is always allowed. Required: npm CLI
+≥ 11.5.1 and Node ≥ 22.14 — the pinned Node 26 ships one. The workflow checks the CLI version, the
+`id-token: write` permission and the absence of a token before the long build, and fails with a
+named error otherwise; provenance is attached automatically. It works on GitHub-hosted runners
+only (never self-hosted), and a token in the environment would silently take precedence, so
+`NPM_TOKEN` must not exist — delete the old repository secret.
+
+**A trusted publisher is configured per package and expires unvalidated.** A new configuration
+must complete its first successful publish within **2 days** (npm policy since 2026-10-02);
+after that it can neither be used nor edited, and must be deleted and re-created. So the first
+release after adding the publishers is the validation run — a push that changes `packages/`, or
+a `workflow_dispatch` with `publish=true`.
 
 **Local rehearsal and manual release.**
 
@@ -600,5 +615,5 @@ node scripts/publish-packages.mjs --version 0.2.0 --dry-run   # pin the version 
 ```
 
 `npm publish` inside a package directory is never right: the workspace `exports` point at
-`src/*.ts` and the deps use `workspace:`, both of which npm rejects or resolves wrong. Trusted
-publishing (OIDC) can replace the token after the packages exist.
+`src/*.ts` and the deps use `workspace:`, both of which npm rejects or resolves wrong. A local
+`pnpm publish:packages` authenticates with `npm login` (trusted publishing is CI-only).
