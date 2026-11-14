@@ -606,9 +606,19 @@ after that it can neither be used nor edited, and must be deleted and re-created
 release after adding the publishers is the validation run — a push that changes `packages/`, or
 a `workflow_dispatch` with `publish=true`.
 
+Every published version is also recorded in git: the deploy job tags that commit `vX.Y.Z` and opens
+a GitHub Release with generated notes (D-183), so the Releases page is the ledger of what npm
+serves. `pnpm release:status` prints the three facts together — the last tag, the version npm
+serves (per package, so a lockstep break shows) and the version this checkout's IDE build pins —
+and `--check` exits non-zero when they disagree. The deployed IDE shows its pin in the status bar,
+next to the branch: it is a build-time literal, otherwise visible only in the deploy log. A
+`workflow_dispatch` run with `publish=true` and `version=0.2.0` is how a minor (or major) release
+is cut; the default stays the next patch. `0.1.0` predates the tags and has none.
+
 **Local rehearsal and manual release.**
 
 ```sh
+pnpm release:status                                           # tag vs npm vs the IDE pin
 pnpm publish:dry-run                                          # build, stage, npm publish --dry-run
 pnpm publish:packages                                         # real publish (needs npm login on the org)
 node scripts/publish-packages.mjs --version 0.2.0 --dry-run   # pin the version explicitly

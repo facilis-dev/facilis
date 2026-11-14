@@ -15,7 +15,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import CircleX from "~icons/lucide/circle-x";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
+import Package from "~icons/lucide/package";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { frameworkPackagesVersion } from "@/deploy/current";
 import { t, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -103,6 +105,13 @@ export function StatusBar() {
           {errors}
           <TriangleAlert className="ml-1 size-3.5" />
           {warnings}
+        </StatusItem>
+        {/* The @facilis.dev/* version this build pins new projects to (D-166). It is a
+            build-time literal, so without this readout the answer exists only in the
+            deploy log — and "which packages does this IDE expect?" became a real question. */}
+        <StatusItem label={t("status.frameworkPackages", { version: frameworkPackagesVersion })}>
+          <Package className="size-3.5" />
+          <span>{frameworkPackagesVersion}</span>
         </StatusItem>
         {/* Run/Stop, and the panel's door: both are always visible, so a run never
             needs the terminal and the terminal never needs the title bar (D-124). */}
