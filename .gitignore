@@ -170,3 +170,7 @@ ide/public/vendor/
 # vendor/vivari is a git submodule (.gitmodules): its content is not tracked here
 .storybook/
 
+# Local agent (`.agents/`) and personal (`.users/`) git worktrees, AGENTS.md "Git"
+.agents/
+.users/
+
