@@ -35,7 +35,7 @@ brand/       logo + identity assets (black & white), see brand/README.md
 
 | Concern | Choice |
 |---|---|
-| Runtime | **Node >= 22.15.0** (`.nvmrc` = 22) |
+| Runtime | **Node >= 22.15.0**, pinned to **26** by `mise.toml` + `mise.lock` (D-182) |
 | Package manager | **pnpm** workspace (v12) + **turbo** |
 | Package registry | **public npm, scope `@facilis.dev`** (D-164) |
 | Language | **TypeScript, strict**, ESM only (`"type": "module"`) |

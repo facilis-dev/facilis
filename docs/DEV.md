@@ -13,6 +13,7 @@ them; this page is the contract for those scripts.
 
 ```bash
 git submodule update --init vendor/vivari   # once, from a clean clone
+mise install                                # Node 26 (mise.toml + mise.lock, D-182)
 pnpm install
 
 pnpm ide:wasm          # Rust -> Wasm kernel (vendor/vivari/packages/{vfs,codec,crypto}/pkg)

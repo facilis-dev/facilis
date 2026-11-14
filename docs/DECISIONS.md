@@ -10,7 +10,7 @@ Format: `D-0NN — title` · **status** (accepted / open) · context · decision
 explains the current code. A handful of decisions are superseded by a later one — D-017
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
 (→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149,
-D-032 was completed by D-164/D-166, while D-157 was extended to jobs by D-162. The "Open items" table at the end lists what is still
+D-032 was completed by D-164/D-166, while D-157 was extended to jobs by D-162 and D-002's `.nvmrc` pin was superseded by D-182. The "Open items" table at the end lists what is still
 undecided.
 
 ---
@@ -29,7 +29,7 @@ and upgraded deliberately (spec §13 risk 2).
 ### D-002 — Toolchain defaults
 **Status:** accepted (2026-10-25)
 
-- Node **>= 22.15** (`.nvmrc` = 22), pnpm workspace (v12) + turbo.
+- Node **>= 22.15**, pinned to **26** by `mise.toml` + `mise.lock` (D-182); pnpm workspace (v12) + turbo.
 - TypeScript **strict**, ESM only.
 - **oxlint** + **Prettier** (print width 100).
 - **Vitest** for unit/integration tests.
@@ -6933,6 +6933,26 @@ failures with their commit/stop branches, the write-tool argument refusals and t
 section. `pnpm --filter @facilis.dev/ai test`: 94 tests, including `destructiveChanges` and rule
 15 with and without `requiresConfirmation`. The remaining gates (`pnpm lint`, `pnpm typecheck`,
 `pnpm test`, `pnpm build`) are the PR's.
+
+### D-182 — The Node pin is mise's, not `.nvmrc`'s
+**Status:** accepted (2026-11-14)
+
+**Context.** D-002 pinned the runtime with `.nvmrc` = 22. The mise config added in #25
+(`mise.toml`, `node = "26"`) introduced a second, contradicting pin: mise installed 26 while
+`nvm use` installed 22 in the same checkout, CI hand-wrote 22 in both workflows, and no lockfile
+existed, so `mise install` resolved whatever 26.x was newest that day.
+
+**Decision.** `mise.toml` is the single pin, made exact by the committed `mise.lock`
+(`node = "26"` → 26.13.1 when written). `.nvmrc` is deleted. Both CI workflows install the same
+major (`node-version: 26`), because `actions/setup-node` cannot read `mise.toml`: a runtime bump
+edits `mise.toml`, runs `mise lock`, and moves both workflows in the same PR.
+
+**Consequences.** `engines.node >= 22.15.0` stays the floor a consumer of the published packages
+needs; 26 is the development and CI runtime, tested as such. Verified on 26.13.1:
+`pnpm install --frozen-lockfile`, `pnpm lint`, `turbo run typecheck --force` (21 tasks),
+`turbo run test --force` (13 packages, 2,619 tests) and `turbo run build --force` (13 tasks) all
+pass. Switching CI to `jdx/mise-action` would make the workflow read `mise.toml` directly and
+remove the last duplicated version string; it is a follow-up, not part of this decision.
 
 ## Open items (post-MVP)
 
