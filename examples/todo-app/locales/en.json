@@ -40,6 +40,7 @@
   "todos.title.placeholder": "What needs doing?",
   "todos.dueDate": "Due date",
   "todos.add": "Add",
+  "todos.form.description": "A title and an optional due date.",
   "datepicker.previous_month": "Previous month",
   "datepicker.next_month": "Next month",
   "datepicker.today": "Today",

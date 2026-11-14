@@ -5,6 +5,10 @@ section to a generated Facilis project. The reference implementation now ships i
 (`examples/todo-app`, §7); the paginated envelope of §2.1 is the one part still ahead of it.
 The checklist and the anti-patterns are in force.
 
+The **interaction** layer — where a screen lives, how create, filters and destructive actions
+behave, what changes on mobile — is [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186). This file stays
+the data, API and wiring standard for a section.
+
 Why a standard: at section scale the model stops failing on syntax and starts failing on
 **plumbing** — it invents an envelope, forgets a permission, filters client-side, adds no
 route or no i18n key. The 19-rule validator cannot see any of that. A short, exact contract

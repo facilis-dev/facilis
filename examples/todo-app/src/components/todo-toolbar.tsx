@@ -1,5 +1,4 @@
 import { t } from "@facilis.dev/core/i18n";
-import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.tsx";
 
@@ -22,17 +21,10 @@ export type TodoToolbarProps = {
   onQueryChange: (query: string) => void;
   filter: StatusFilter;
   onFilterChange: (filter: StatusFilter) => void;
-  onNew: () => void;
 };
 
-/** Search + status filter + the "new todo" action above the table. */
-export function TodoToolbar({
-  query,
-  onQueryChange,
-  filter,
-  onFilterChange,
-  onNew,
-}: TodoToolbarProps) {
+/** Search + the one high-frequency refinement above the table (P-03). */
+export function TodoToolbar({ query, onQueryChange, filter, onFilterChange }: TodoToolbarProps) {
   const items = {
     all: t(FILTER_LABELS.all),
     open: t(FILTER_LABELS.open),
@@ -68,9 +60,6 @@ export function TodoToolbar({
           ))}
         </SelectContent>
       </Select>
-      <Button variant="secondary" size="sm" onClick={onNew}>
-        {t("todos.new")}
-      </Button>
     </div>
   );
 }

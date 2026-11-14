@@ -12,6 +12,7 @@ import type { WritePolicy } from "@facilis.dev/ai";
 import { describeTools, type PtcToolSpec } from "./ptc/protocol";
 import { DESIGN_PROMPT } from "./prompt-design";
 import { MCP_PROMPT } from "./prompt-mcp";
+import { PATTERNS_PROMPT } from "./prompt-patterns";
 import { PTC_PROMPT } from "./prompt-ptc";
 import { WEB_PROMPT } from "./prompt-web";
 import { WRITE_PROMPT } from "./prompt-write";
@@ -215,6 +216,8 @@ export function buildSystemPrompt(context: PromptContext): string {
     writePolicy === "open" ? OPEN_WRITABLE_PATHS : MANAGED_WRITABLE_PATHS,
     "",
   );
+
+  lines.push(PATTERNS_PROMPT, "");
 
   const tools = context.tools ?? [];
   if (tools.length > 0) {
