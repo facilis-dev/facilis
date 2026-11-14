@@ -364,3 +364,25 @@ describe("buildSystemPrompt writable paths (D-167)", () => {
     expect(prompt).not.toContain("This managed build lets a patch write only under");
   });
 });
+
+describe("buildSystemPrompt UI patterns (D-185)", () => {
+  it("carries the pattern defaults even without tools", () => {
+    const prompt = buildSystemPrompt(context());
+    for (const token of [
+      "## UI patterns (defaults, not law)",
+      "documented for humans in docs/UI-PATTERNS.md",
+      "side drawer",
+      "List | Calendar switcher",
+      "confirmation Dialog",
+      "## Ask before you guess",
+      'whose "patches" is empty',
+    ]) {
+      expect(prompt).toContain(token);
+    }
+  });
+
+  it("never asks the user about style or placement", () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain("Decide style, naming and file placement yourself");
+  });
+});

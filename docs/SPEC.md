@@ -2522,6 +2522,7 @@ Rules the AI must obey:
 13. **Finish a write-tool turn with the normal `AIResponse` and an empty `patches` array**; `message` and `notes` describe what changed, and files already written are not re-emitted.
 14. **Never stage, commit or discard on your own initiative** — the user owns history and commit boundaries. A write refused by the clean-tree gate pauses the turn for the user's choice; the model never works around the gate, and the turn ends with nothing written if the user stops.
 15. **Destructive schema changes are allowed once the clean-tree gate passed:** they are flagged destructive (rule 15) and the user can undo the turn; a destructive change returned as a patch set still sets `requires_confirmation: true`.
+16. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-185): create = header button → dialog → save; an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint and the four page states. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
 ### 9.3 Patch Validator (19 Rules)
 

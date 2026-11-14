@@ -7015,6 +7015,59 @@ reports it, and the next run publishes one more patch and tags that one, so the 
 at the cost of a single spare version. That is a consequence of D-183's tag-after-publish order,
 not of this rule.
 
+### D-185 — The AI builds screens from a named pattern catalog, and asks when the layout is open
+**Status:** accepted (2026-11-14)
+
+**Context.** In an owner trial the request "create a calendar view of the to-dos" came back slow,
+with no question asked, the calendar embedded in the existing list page and, on mobile, the list
+page turned into an agenda list. Each decision is defensible in isolation; together they are a
+convention the owner never chose. The four things the assistant decided silently — where a view
+lives, what a filter looks like, how a create flow opens, whether mobile keeps the list — are the
+same four on every generated app, so they belong in a catalog, not in a per-turn guess. The
+validator cannot help: it proves a patch is safe, not that a screen is placed where the app puts
+screens. The structural prompt rules (SPEC §9.2) were also silent on layout and on asking.
+
+**Decision.** The interaction defaults become a contract in [UI-PATTERNS.md](./UI-PATTERNS.md),
+applied by default and named in `notes`: create = page-header button → dialog → save; alternate
+views (calendar, board, timeline) = their own route with a List | Calendar switcher, the list page
+never becomes another view on mobile; list refinements = side drawer (full-screen on mobile) with
+chips and URL state, search stays in the toolbar; destructive actions = a confirmation dialog
+naming the record; one responsive breakpoint and the four page states on every screen. The
+defaults are not law: an explicit user sentence overrides any of them. When the request leaves the
+information architecture open — new page versus section of an existing page, which existing view
+it replaces, the scope of a destructive change — the assistant asks one short question with the
+default it would apply and the alternative, and writes nothing that turn. For a UI change it reads
+only `app.tsx`, the target page, the route it calls, the primitives and the locale file. A pattern
+that needs a missing primitive (a side sheet, a month grid) may add that one file under
+`src/components/ui`, which is the pattern's requirement rather than an invented block (rule 5).
+
+**Consequences.** The catalog is enforced by prompt and review, not by the 19-rule validator, and
+that is deliberate: screen placement is a design decision a human reviews. Adding a pattern is now
+a decision entry, not a prompt tweak — the list is closed so it stays copyable. SPEC §9.2 gains
+rule 16 so the defaults are part of the AI contract, and the existing section standard in
+[PATTERNS.md](./PATTERNS.md) (list → detail → chart) remains its data/API half; this file is the
+interaction half. The Ask-before-you-guess rule costs one turn on ambiguous requests and saves the
+rebuild that the trial produced.
+
+### D-186 — The chat follows only while the reader is at the bottom
+**Status:** accepted (2026-11-14)
+
+**Context.** The transcript auto-scrolled on every change to the turn — including each reasoning
+token, which is an effect dependency — so reading the thinking while it streamed was impossible:
+the view jumped back to the newest line on every chunk. The busy bar and the reasoning rows were
+already outside the scroll; the scrolling itself was the problem.
+
+**Decision.** The panel follows new content only while the reader is within 24 px of the end
+(`isAtBottom`, pure and unit-tested) and the explicit lock is off. Scrolling up pauses following;
+scrolling back to the end resumes it; the header pin freezes it at any position and the pill over
+the transcript jumps to the latest activity and resumes. A conversation switch resets to following.
+There is no persisted preference: each session starts at the bottom.
+
+**Consequences.** Reading reasoning during a turn no longer fights the transcript, and anything
+that lands while the reader is away leaves the pill instead of yanking the view. The lock is
+per conversation in memory only, so a reload returns to following; a persisted preference would be
+a settings entry, which this decision does not add.
+
 ## Open items (post-MVP)
 
 Rows marked `done` are kept so their O-IDs stay resolvable; only the rows without a resolution are

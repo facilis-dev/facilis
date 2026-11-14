@@ -35,6 +35,7 @@ Start with one of these three, depending on the question:
 | [DEMO.md](./DEMO.md) | The three-minute demo script. |
 | [FRONTEND.md](./FRONTEND.md) | The generated app's client contract: layout, routing, session, theme, i18n. |
 | [PATTERNS.md](./PATTERNS.md) | The list → detail → chart section standard used by the AI and humans. |
+| [UI-PATTERNS.md](./UI-PATTERNS.md) | The interaction defaults the AI applies: create dialog, calendar route, filter drawer, confirmations, responsive states (D-185). |
 | [AI-SKILLS.md](./AI-SKILLS.md) | AI trust boundary and the skills supply chain. |
 | [CHAT-UX.md](./CHAT-UX.md) | Chat transcript and compaction direction (the file picker is still open). |
 

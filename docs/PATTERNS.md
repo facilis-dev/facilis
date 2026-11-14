@@ -5,6 +5,10 @@ to a generated Facilis project. The reference implementation and the checker are
 tree yet** (`scripts/dev/fixtures/` is absent), so §8 has no evidence; the checklist and the
 anti-patterns are the part in force.
 
+The **interaction** layer — where a screen lives, how create, filters and destructive actions
+behave, what changes on mobile — is [UI-PATTERNS.md](./UI-PATTERNS.md) (D-185). This file stays
+the data, API and wiring standard for a section.
+
 Why a standard: at section scale the model stops failing on syntax and starts failing on
 **plumbing** — it invents an envelope, forgets a permission, filters client-side, adds no
 route or no i18n key. The 19-rule validator cannot see any of that. A short, exact contract

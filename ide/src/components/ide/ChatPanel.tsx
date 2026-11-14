@@ -5,13 +5,16 @@
 // All strings go through t() and every colour is a role, so the panel lands
 // compliant with D-043/D-044 from its first commit (ide/I18N.md).
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Sparkles from "~icons/lucide/sparkles";
 import Settings from "~icons/lucide/settings";
 import Plus from "~icons/lucide/plus";
 import LoaderCircle from "~icons/lucide/loader-circle";
 import FileText from "~icons/lucide/file-text";
 import FoldVertical from "~icons/lucide/fold-vertical";
+import Pin from "~icons/lucide/pin";
+import PinOff from "~icons/lucide/pin-off";
+import ArrowDown from "~icons/lucide/arrow-down";
 import { Button } from "@/components/ui/button";
 import { ChatComposer } from "./ChatComposer";
 import { ChatConversationsMenu } from "./ChatConversationsMenu";
@@ -21,6 +24,7 @@ import { ChatProposalView } from "./ChatProposalView";
 import { ChatGitGateView } from "./ChatGitGateView";
 import { ChatWritesView } from "./ChatWritesView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
+import { useChatScroll } from "./use-chat-scroll";
 import { useIde } from "./useIde";
 import { chatStoreFor } from "@/ai/chat-host";
 import type { ChatFailure } from "@/ai/types";
@@ -65,18 +69,24 @@ export function ChatPanel() {
   const state = useSyncExternalStore(chat.subscribe, chat.getSnapshot);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busySeconds, setBusySeconds] = useState(0);
-  const listRef = useRef<HTMLDivElement | null>(null);
+  // Auto-follow pauses the moment the reader scrolls away, and the lock freezes it at the
+  // bottom too, so the reasoning can be read while it streams (D-186).
+  const { listRef, follow, locked, onScroll, resume, toggle } = useChatScroll(activeId);
   const hasProject = snap.workspaceFolders.length > 0;
   const busy = state.phase !== "idle";
   const hasConversation = state.messages.some((message) => message.content.length > 0);
   // Re-compacting an unchanged transcript would only spend a call: the marker already covers it.
   const alreadyCovered = state.summary !== null && state.summary.through >= state.messages.length;
 
-  // Follow the newest message / card; the transcript is the panel's only scroll.
+  // Follow the newest message / card only while following is on; the transcript is the
+  // panel's only scroll.
   useEffect(() => {
+    if (!follow) return;
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [
+    activeId,
+    follow,
     state.messages.length,
     state.phase,
     state.proposal,
@@ -156,6 +166,18 @@ export function ChatPanel() {
               <FoldVertical />
             </Button>
           )}
+          {hasConversation && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-pressed={locked}
+              aria-label={follow ? t("chat.scroll.pause") : t("chat.scroll.resume")}
+              title={follow ? t("chat.scroll.pause") : t("chat.scroll.resume")}
+              onClick={toggle}
+            >
+              {locked ? <Pin /> : <PinOff />}
+            </Button>
+          )}
           {hasProject && <ChatConversationsMenu store={store} activeId={activeId} />}
           <Button
             variant="ghost"
@@ -178,44 +200,63 @@ export function ChatPanel() {
         </div>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 py-2">
-        {!hasProject ? (
-          <Welcome title={t("chat.empty.noProject")} body={t("chat.empty.noProjectBody")} />
-        ) : !state.configured ? (
-          <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")}>
-            <Button size="sm" onClick={() => setSettingsOpen(true)}>
-              {t("chat.empty.configure")}
-            </Button>
-            <p className="text-[10px] text-muted-foreground">{t("chat.empty.privacy")}</p>
-          </Welcome>
-        ) : state.messages.length === 0 && !state.proposal && !state.error ? (
-          <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")} />
-        ) : (
-          <>
-            {/* Strict time order: each turn's activity sits between its user message and answer. */}
-            <ChatTranscriptView state={state} />
-            <ChatProposalView chat={chat} state={state} />
-            {state.gitGate !== null && <ChatGitGateView chat={chat} state={state} />}
-            {state.writes.length > 0 && <ChatWritesView chat={chat} state={state} />}
-            {state.error && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
-                <p className="font-medium text-destructive">{errorText(state.error)}</p>
-                {state.error.kind === "validator" && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    {t("chat.validator.hint")}
-                  </p>
-                )}
-                {state.error.message.length > 0 && (
-                  <details className="mt-1 text-[10px] text-muted-foreground">
-                    <summary className="cursor-pointer select-none">{t("chat.detail")}</summary>
-                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">
-                      {state.error.message}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            )}
-          </>
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={listRef}
+          onScroll={onScroll}
+          className="h-full space-y-1.5 overflow-y-auto px-2 py-2"
+        >
+          {!hasProject ? (
+            <Welcome title={t("chat.empty.noProject")} body={t("chat.empty.noProjectBody")} />
+          ) : !state.configured ? (
+            <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")}>
+              <Button size="sm" onClick={() => setSettingsOpen(true)}>
+                {t("chat.empty.configure")}
+              </Button>
+              <p className="text-[10px] text-muted-foreground">{t("chat.empty.privacy")}</p>
+            </Welcome>
+          ) : state.messages.length === 0 && !state.proposal && !state.error ? (
+            <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")} />
+          ) : (
+            <>
+              {/* Strict time order: each turn's activity sits between its user message and answer. */}
+              <ChatTranscriptView state={state} />
+              <ChatProposalView chat={chat} state={state} />
+              {state.gitGate !== null && <ChatGitGateView chat={chat} state={state} />}
+              {state.writes.length > 0 && <ChatWritesView chat={chat} state={state} />}
+              {state.error && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
+                  <p className="font-medium text-destructive">{errorText(state.error)}</p>
+                  {state.error.kind === "validator" && (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {t("chat.validator.hint")}
+                    </p>
+                  )}
+                  {state.error.message.length > 0 && (
+                    <details className="mt-1 text-[10px] text-muted-foreground">
+                      <summary className="cursor-pointer select-none">{t("chat.detail")}</summary>
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">
+                        {state.error.message}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {!follow && (
+          // The transcript stays where the reader put it; this is the one-click way back to
+          // the newest activity.
+          <Button
+            variant="secondary"
+            size="xs"
+            className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 shadow-md"
+            onClick={resume}
+          >
+            <ArrowDown />
+            {t("chat.scroll.jump")}
+          </Button>
         )}
       </div>
 
