@@ -224,27 +224,61 @@ function verifyStaged(stage, manifest) {
   }
 }
 
-// npm exiting 0 only means the registry accepted the upload: it serves a new version after a
-// delay (a first release took ~2 min), so poll until every package reports it as `latest`.
-// A stage-only token never gets there — it stages a 0.0.0 placeholder — hence the error text.
+// npm exits 0 as soon as it accepts the upload, but it serves the version asynchronously: every
+// publish answers "Your package is being processed and may take a few minutes to become
+// available", and the `latest` dist-tag catches up minutes later — at a different moment for each
+// package, which is why a fixed short window kept failing on a different trio every run. So poll
+// the small dist-tags endpoint (origin-served, unlike the CDN-cached packument) for longer than
+// that lag. Failing here stays deliberate: the IDE build pins this exact version, and a template
+// that installs a version npm does not serve yet breaks every new project.
+const VERIFY_TIMEOUT_MS = 8 * 60_000;
+const VERIFY_INTERVAL_MS = 10_000;
+
+async function distTags(name) {
+  const url = REGISTRY + "/-/package/" + encodeURIComponent(name) + "/dist-tags?t=" + Date.now();
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  return response.json();
+}
+
 async function verifyPublished(packages, version) {
-  for (let attempt = 1; attempt <= 12; attempt++) {
-    const metadata = await Promise.all(packages.map((pkg) => publishedMetadata(pkg.name, true)));
-    const stale = packages.filter((_, index) => metadata[index]?.["dist-tags"]?.latest !== version);
+  const deadline = Date.now() + VERIFY_TIMEOUT_MS;
+  for (let attempt = 1; ; attempt++) {
+    // A failed lookup counts as "not there yet": a transient registry error must not turn into a
+    // release failure, and a permanent one still ends at the deadline with the right message.
+    const tags = await Promise.all(packages.map((pkg) => distTags(pkg.name).catch(() => null)));
+    const stale = packages.filter((_, index) => tags[index]?.latest !== version);
     if (stale.length === 0) {
       console.log("[publish] verified " + version + " as latest on npm");
       return;
     }
-    if (attempt === 12) {
+    if (Date.now() >= deadline) {
       fail(
-        "registry does not serve " +
+        "the registry still does not serve " +
           version +
           " as latest for " +
           stale.map((pkg) => pkg.name).join(", ") +
-          ": a stage-only npm token stages versions (a 0.0.0 placeholder) instead of publishing them",
+          " " +
+          VERIFY_TIMEOUT_MS / 60_000 +
+          " minutes after the upload. npm processes publishes asynchronously, so this is usually lag rather than a lost upload: check `pnpm release:status` and re-run the deploy once the versions are visible.",
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, 8_000));
+    if (attempt === 1 || attempt % 6 === 0) {
+      console.log(
+        "[publish] waiting for the registry (" +
+          attempt +
+          "): " +
+          stale.map((pkg) => pkg.name).join(", ") +
+          " not at " +
+          version +
+          " yet",
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, VERIFY_INTERVAL_MS));
   }
 }
 
