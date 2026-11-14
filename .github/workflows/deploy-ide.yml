@@ -14,6 +14,9 @@ name: Deploy IDE
 # publishes the @facilis.dev packages first, then builds the IDE against that exact version.
 # Publishing rides the deploy instead of racing it in a parallel workflow, which could deploy
 # an IDE pinned to a version npm does not serve yet (or to an older one).
+# The upload authenticates with npm trusted publishing (OIDC), not a stored token: the job
+# mints a short-lived GitHub identity token, the npm CLI exchanges it for a publish credential,
+# and provenance is attached automatically. There is no NPM_TOKEN secret to leak or rotate.
 on:
   push:
     branches: [main]
@@ -52,6 +55,11 @@ jobs:
     name: Build and deploy ide.facilis.dev
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Trusted publishing: `id-token: write` is the permission that lets the job mint the OIDC
+    # token npm exchanges. GitHub-hosted runners only — the exchange refuses self-hosted ones.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,27 +110,33 @@ jobs:
           pnpm exec turbo run test --concurrency=2 --filter='./packages/*' -- --fsModuleCachePath=node_modules/.vitest-cache
           node scripts/check-file-length.mjs
 
-      # Publishing a brand-new scoped package answers 404 (not 403) when the token may not
-      # write that scope, so log who the token is and whether it can see the organization.
-      - name: Check the npm credentials
+      # Trusted publishing has three preconditions, and each of them fails the run in seconds
+      # here instead of after the long Wasm build (docs/DEV.md section 13): the npm CLI must be
+      # new enough to exchange the OIDC token, the job must be allowed to mint one, and no
+      # token may be present — npm prefers a token over OIDC, which would silently fall back.
+      - name: Check the trusted-publishing preconditions
         if: steps.packages.outputs.changed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::the NPM_TOKEN repository secret is missing: add a granular npm token with read/write on @facilis.dev (docs/DEV.md section 13)"
+          set -eu
+          node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 14)) { console.error("::error::Node " + process.version + " is too old for trusted publishing: npm needs >= 22.14"); process.exit(1) }'
+          npm_version=$(npm --version)
+          if [ "$(printf '%s\n' 11.5.1 "$npm_version" | sort -V | head -n1)" != "11.5.1" ]; then
+            echo "::error::npm $npm_version cannot exchange an OIDC token for a publish credential: trusted publishing needs npm >= 11.5.1"
             exit 1
           fi
-          echo "npm token belongs to: $(npm whoami)"
-          if ! npm org ls facilis.dev --json; then
-            echo "::warning::this token cannot list the facilis.dev organization: give it Organizations: Read and write (docs/DEV.md section 13)"
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::this job may not mint an OIDC token: give it 'permissions: id-token: write'"
+            exit 1
           fi
+          if [ -n "${NODE_AUTH_TOKEN:-}" ] || [ -n "${NPM_TOKEN:-}" ]; then
+            echo "::error::an npm token is in the environment and npm prefers it over OIDC: remove it from this workflow"
+            exit 1
+          fi
+          echo "node $(node --version), npm $npm_version, OIDC token available: publishing with trusted publishing (provenance is automatic)"
 
       - name: Publish
         id: publish
         if: steps.packages.outputs.changed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: node scripts/publish-packages.mjs --skip-build
 
       # The IDE installs the exact packages version: this run's release when it published,

@@ -257,10 +257,16 @@ async function main() {
   );
 
   if (!skipBuild) run("pnpm", ["exec", "turbo", "run", "build", "--filter=./packages/*"]);
-  if (!dryRun && !process.env.NODE_AUTH_TOKEN && !process.env.NPM_TOKEN) {
-    console.warn(
-      "[publish] neither NODE_AUTH_TOKEN nor NPM_TOKEN is set: relying on the local npm login",
-    );
+  // CI authenticates with trusted publishing: the job's GitHub OIDC token becomes the publish
+  // credential, with no token in the environment. A token would take precedence over that
+  // exchange, so a run with neither is a local `npm login`.
+  if (
+    !dryRun &&
+    !process.env.NODE_AUTH_TOKEN &&
+    !process.env.NPM_TOKEN &&
+    !process.env.ACTIONS_ID_TOKEN_REQUEST_URL
+  ) {
+    console.warn("[publish] no npm token and no OIDC request URL: relying on the local npm login");
   }
 
   for (const pkg of packages) {
