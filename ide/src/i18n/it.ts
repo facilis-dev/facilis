@@ -204,6 +204,8 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── barra di stato ───────────────────────────────────────────────────────
   "status.branch": "Branch corrente",
+  "status.frameworkPackages":
+    "Questa build fa riferimento a @facilis.dev/* {version} — i nuovi progetti installano esattamente quella",
   "status.goToLine": "Vai a riga/colonna",
   "status.indent": "Scegli indentazione",
   "status.language": "Scegli linguaggio",
