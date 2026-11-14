@@ -374,6 +374,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 ├── tsconfig.json
 ├── package.json                  scripts.dev = "vite dev"; @facilis.dev/* pinned exactly (D-166)
 ├── scripts/                      check-pm.mjs
+├── DESIGN.md                     the project's visual contract the AI reads (D-185)
 └── README.md
 ```
 
@@ -2522,6 +2523,7 @@ Rules the AI must obey:
 13. **Finish a write-tool turn with the normal `AIResponse` and an empty `patches` array**; `message` and `notes` describe what changed, and files already written are not re-emitted.
 14. **Never stage, commit or discard on your own initiative** — the user owns history and commit boundaries. A write refused by the clean-tree gate pauses the turn for the user's choice; the model never works around the gate, and the turn ends with nothing written if the user stops.
 15. **Destructive schema changes are allowed once the clean-tree gate passed:** they are flagged destructive (rule 15) and the user can undo the turn; a destructive change returned as a patch set still sets `requires_confirmation: true`.
+16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same patch; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 
 ### 9.3 Patch Validator (19 Rules)
 

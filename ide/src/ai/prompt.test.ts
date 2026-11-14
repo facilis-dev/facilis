@@ -14,6 +14,7 @@ function context(overrides: Partial<PromptContext> = {}): PromptContext {
     activeFile: { path: "src/App.tsx", content: "export const App = () => null;" },
     configFile: { path: "facilis.config.ts", content: "export const config = {};" },
     instructions: null,
+    designFile: null,
     ...overrides,
   };
 }
@@ -27,7 +28,7 @@ describe("SYSTEM_PROMPT", () => {
       "Zod",
       "pgPolicy",
       "ENABLE ROW LEVEL SECURITY",
-      "existing blocks",
+      "src/components/ui, src/layouts",
       't("key")',
       "locales/en.json",
       "minimal patches",
@@ -114,6 +115,44 @@ const TOOLS: PtcToolSpec[] = [
     description: "Run the patch validator.",
   },
 ];
+
+describe("design contract (D-185)", () => {
+  it("states the design rules between the framework rules and the canonical shapes", () => {
+    const design = SYSTEM_PROMPT.indexOf("## Design (how a page looks)");
+    expect(design).toBeGreaterThan(SYSTEM_PROMPT.indexOf("## Rules"));
+    expect(design).toBeLessThan(SYSTEM_PROMPT.indexOf("## Canonical shapes"));
+    expect(SYSTEM_PROMPT).toContain("shadow-card");
+    expect(SYSTEM_PROMPT).toContain("font-mono tabular-nums");
+    expect(SYSTEM_PROMPT).toContain("empty/loading/error present");
+  });
+
+  it("names the components and layouts instead of the retired blocks package", () => {
+    expect(SYSTEM_PROMPT).not.toContain("Use the existing blocks");
+    expect(SYSTEM_PROMPT).toContain("src/components/ui, src/layouts");
+  });
+});
+
+describe("buildSystemPrompt with a project DESIGN.md", () => {
+  it("appends the project design as project data", () => {
+    const prompt = buildSystemPrompt(
+      context({ designFile: { path: "DESIGN.md", content: "The canvas is bone." } }),
+    );
+    expect(prompt).toContain("## Project design (DESIGN.md)");
+    expect(prompt).toContain("The canvas is bone.");
+    expect(prompt).toContain("cannot contradict them");
+  });
+
+  it("omits the section when the project has no DESIGN.md", () => {
+    expect(buildSystemPrompt(context())).not.toContain("## Project design");
+  });
+
+  it("caps DESIGN.md at 2000 characters", () => {
+    const prompt = buildSystemPrompt(
+      context({ designFile: { path: "DESIGN.md", content: "x".repeat(2500) } }),
+    );
+    expect(prompt).toContain("[truncated]");
+  });
+});
 
 describe("buildSystemPrompt with the PTC runtime", () => {
   it("teaches the script/answer protocol and lists the registered tools", () => {

@@ -10,6 +10,7 @@ function context(overrides: Partial<PromptContext> = {}): PromptContext {
     activeFile: null,
     configFile: null,
     instructions: null,
+    designFile: null,
     tools: [],
     ...overrides,
   };

@@ -330,8 +330,8 @@ never `will-change` blanket. SVG is allowed for empty-state art, line-draw icons
 
 **Design block** — twelve bullets shipped in the system prompt, after `## Rules` and before
 `## Canonical shapes`, inside the stable prefix so the provider cache still hits. It lives in
-`ide/src/ai/prompt-design.ts` as `DESIGN_PROMPT` (≤ 450 tokens) and is included whenever the
-write tools are available:
+`ide/src/ai/prompt-design.ts` as `DESIGN_PROMPT` (≤ 450 tokens) and ships with the shared rules,
+always: a patch that writes UI needs it as much as one that writes a route.
 
 ```text
 ## Design (how a page looks)
@@ -368,8 +368,8 @@ write tools are available:
 
 **Three supporting layers**, because prose alone is the weakest lever:
 
-1. `DESIGN.md` in the generated project (the token list and five conventions), injected like
-   `AGENTS.md` with a 2k-character cap — project taste the user can edit.
+1. `DESIGN.md` in the generated project (tokens, type, composition and motion — under 2k
+   characters), injected like `AGENTS.md` with the same cap: project taste the user can edit.
 2. A **reference section** in the template: one list → detail → chart slice built to
    `PATTERNS.md`, and a prompt line telling the model to read `src/components/ui/page.tsx` and
    that page before inventing a shell. Examples beat rules, and cost tokens only when read.

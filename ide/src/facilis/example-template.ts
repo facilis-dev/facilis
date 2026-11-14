@@ -25,6 +25,7 @@ const rawSources = import.meta.glob<string>(
     "../../../examples/todo-app/.gitignore",
     "../../../examples/todo-app/vite.config.ts",
     "../../../examples/todo-app/facilis.config.ts",
+    "../../../examples/todo-app/DESIGN.md",
     "../../../examples/todo-app/package.json",
   ],
   { query: "?raw", import: "default", eager: true },
