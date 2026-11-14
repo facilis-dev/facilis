@@ -1,6 +1,6 @@
 # Chat UX direction
 
-**Status:** **partly implemented (2026-11-08/09, extended 2026-11-13)** — the lighter
+**Status:** **partly implemented (2026-11-08/09, extended 2026-11-13 and 2026-11-14)** — the lighter
 transcript (D-114), pasted screenshots (D-113), context compaction (D-133) and the source-write
 gate/Undo (D-181) landed, and the 2026-11-12 owner review added Markdown prose, the queued-message
 inbox and multiple conversations (D-172); the project-file picker remains planned. Tracked as O-018 in [DECISIONS.md](./DECISIONS.md); this file is the sketch to act on.
@@ -28,6 +28,19 @@ title, status and a right-aligned mono meta on one line; expanding keeps the rea
 and tool rows), and the assistant's prose is a plain full-width block (`ChatMessageView.tsx`);
 the user's message is a quiet bubble on the right. The composer only gained the paste path
 (D-113).
+
+## Following the transcript (landed 2026-11-14, D-186)
+
+The transcript used to jump to the newest line on every reasoning token, so the reasoning could
+not be read while it streamed. It now follows only while the reader is within 24 px of the end:
+
+- Scrolling up pauses following; scrolling back to the end resumes it. The header pin freezes it
+  at any position (`aria-pressed`), and a **Jump to latest** pill stays over the transcript while
+  following is paused.
+- While paused, new content keeps arriving below the viewport; nothing yanks the view back.
+- A conversation switch resets to following; there is no persisted preference (D-187).
+- The position logic is the pure `isAtBottom` helper (`components/ide/chat-scroll.ts`, tested), so
+  it runs without a DOM.
 
 ## Requested functions
 
@@ -94,6 +107,8 @@ repository with a commit and a **clean working tree** — that checkpoint is wha
 - **Landed:** `ChatPanel` (header compact action + busy label), `chat-session.ts` /
   `chat-compaction.ts` (summarization call, `ChatSummary`, replay swap), `ChatSummaryView.tsx`
   (the marker row), i18n keys (en/it) and tests.
+- **Landed (2026-11-14, D-187):** `chat-scroll.ts` (pure follow test), the pin action and the
+  jump-to-latest pill in `ChatPanel`, i18n keys (en/it).
 - **Landed (2026-11-13, D-181):** `ChatGitGateView` and `ChatWritesView`, the git gate
   (`chat-git-gate.ts`), the write journal and Undo (`chat-writes.ts`, `git-checkpoint.ts`),
   i18n keys (en/it) and tests.

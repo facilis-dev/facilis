@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { t } from "@facilis.dev/core/i18n";
 import type { TodoFile } from "../components/todo-files.tsx";
-import { TodoForm, type TodoDraft } from "../components/todo-form.tsx";
+import { TodoCreateDialog, type TodoDraft } from "../components/todo-create-dialog.tsx";
+import { TodoDeleteDialog } from "../components/todo-delete-dialog.tsx";
 import { TodoTable, type Todo } from "../components/todo-table.tsx";
 import { DEFAULT_FILTER, TodoToolbar, type StatusFilter } from "../components/todo-toolbar.tsx";
 import { WeeklyChart, type WeekBucket } from "../components/weekly-chart.tsx";
@@ -15,14 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card.tsx";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog.tsx";
 import { EmptyState } from "../components/ui/empty-state.tsx";
 import { Page } from "../components/ui/page.tsx";
 import { Skeleton } from "../components/ui/skeleton.tsx";
@@ -46,12 +39,12 @@ export function TodosPage() {
   const canWrite = hasPermission(session, "todos:write");
 
   const [state, setState] = useState<TodosState>({ status: "loading" });
+  const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>(DEFAULT_FILTER);
   const [pendingDelete, setPendingDelete] = useState<Todo | null>(null);
-  const titleInput = useRef<HTMLInputElement>(null);
 
   const reloadList = useCallback(async () => {
     try {
@@ -171,14 +164,15 @@ export function TodosPage() {
   const filtersActive = normalizedQuery.length > 0 || filter !== DEFAULT_FILTER;
 
   return (
-    <Page title={t("todos.title")} description={t("todos.description")}>
-      <TodoForm
-        canWrite={canWrite}
-        creating={creating}
-        titleInput={titleInput}
-        onCreate={handleCreate}
-      />
-
+    <Page
+      title={t("todos.title")}
+      description={t("todos.description")}
+      actions={
+        <Button onClick={() => setCreateOpen(true)} disabled={!canWrite}>
+          {t("todos.new")}
+        </Button>
+      }
+    >
       {state.status === "loading" ? (
         <div className="flex flex-col gap-2" role="status" aria-label={t("common.loading")}>
           {SKELETON_ROWS.map((row) => (
@@ -203,7 +197,6 @@ export function TodosPage() {
             onQueryChange={setQuery}
             filter={filter}
             onFilterChange={setFilter}
-            onNew={() => titleInput.current?.focus()}
           />
 
           {todos.length > 0 && buckets !== null && buckets.length > 0 ? (
@@ -223,7 +216,7 @@ export function TodosPage() {
               title={t("todos.empty.title")}
               description={t("todos.empty.description")}
               action={
-                <Button onClick={() => titleInput.current?.focus()}>
+                <Button onClick={() => setCreateOpen(true)} disabled={!canWrite}>
                   {t("todos.empty.action")}
                 </Button>
               }
@@ -262,35 +255,19 @@ export function TodosPage() {
         </>
       ) : null}
 
-      <Dialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-      >
-        <DialogContent closeLabel={t("common.close")}>
-          <DialogHeader>
-            <DialogTitle>{t("todos.delete.title")}</DialogTitle>
-            <DialogDescription>
-              {pendingDelete === null
-                ? null
-                : t("todos.delete.description", { title: pendingDelete.title })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busyId !== null}
-              onClick={() => void confirmDelete()}
-            >
-              {t("todos.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TodoCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        creating={creating}
+        onCreate={handleCreate}
+      />
+
+      <TodoDeleteDialog
+        todo={pendingDelete}
+        busy={busyId !== null}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </Page>
   );
 }

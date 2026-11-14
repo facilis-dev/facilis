@@ -220,7 +220,7 @@ they never replace the page with an error blob.
 | Route | Page | Demonstrates |
 |---|---|---|
 | `/login`, `/register` | LoginPage/RegisterPage | `AuthShell`, `Field`+`Input`, API error codes, session refresh |
-| `/todos` | TodosPage | `Page`, create form with a native date input, `Table`, checkbox toggle, delete through `Dialog`, `Badge` for overdue, loading/empty/error, sonner toasts |
+| `/todos` | TodosPage | `Page` with a **New todo** action that opens the create `Dialog` (native date input), `Table`, checkbox toggle, delete through a confirming `Dialog`, `Badge` for overdue, loading/empty/error, sonner toasts |
 | `*` | NotFoundPage | `EmptyState` |
 
 Run: `pnpm --filter @facilis.dev/example-todo-app dev` (Vite + Nitro on one origin).

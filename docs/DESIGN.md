@@ -346,7 +346,9 @@ always: a patch that writes UI needs it as much as one that writes a route.
    Never hand-roll page padding, a header or a container. Read src/components/ui/page.tsx and
    src/pages/todos.tsx before inventing a shell.
 4. One primary action per view, in Page actions; every other action is outline or ghost. Lists
-   and tables are the default surface; a form lives on a page, not in a modal.
+   and tables are the default surface. A short create form (five fields or fewer, one step) opens
+   in a Dialog from Page actions (UI-PATTERNS P-01); a long, multi-step or deep-linkable form gets
+   its own page.
 5. Cards: rounded-lg border border-border bg-card p-5 shadow-card; header pb-3, footer pt-3
    border-t; one idea per card, at most three per row at lg.
 6. Every async surface ships four states in the same patch: Skeleton rows that mirror the real

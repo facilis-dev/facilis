@@ -40,6 +40,7 @@
   "todos.title.placeholder": "Cosa c'è da fare?",
   "todos.dueDate": "Scadenza",
   "todos.add": "Aggiungi",
+  "todos.form.description": "Un titolo e una scadenza opzionale.",
   "datepicker.previous_month": "Mese precedente",
   "datepicker.next_month": "Mese successivo",
   "datepicker.today": "Oggi",
