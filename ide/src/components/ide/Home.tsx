@@ -1,18 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import FilePlus from "~icons/lucide/file-plus-2";
 import Clock from "~icons/lucide/clock";
 import ArrowLeft from "~icons/lucide/arrow-left";
 import FolderInput from "~icons/lucide/folder-input";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { useIde } from "./useIde";
@@ -21,11 +13,11 @@ import { RecentProjectsRow } from "./RecentProjectsRow";
 import { BootStatus } from "./BootStatus";
 import { HomeImportCards } from "./HomeImportCards";
 import { NewProjectDialog } from "./NewProjectDialog";
+import { resetUi } from "@/vv/reset-ui";
 
 export function HomeView() {
   const { c, snap } = useIde();
   const [newOpen, setNewOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   const onDrop = (e: React.DragEvent) => {
@@ -103,7 +95,7 @@ export function HomeView() {
               <Clock className="size-3.5" /> {t("home.recent")}
             </div>
             <button
-              onClick={() => setResetOpen(true)}
+              onClick={() => resetUi.open()}
               className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
             >
               <RotateCcw className="size-3.5" /> {t("home.reset")}
@@ -125,56 +117,6 @@ export function HomeView() {
       </div>
 
       <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
-      <ResetEverythingDialog open={resetOpen} onOpenChange={setResetOpen} />
     </div>
-  );
-}
-
-function ResetEverythingDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
-  const { c } = useIde();
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (open) setBusy(false);
-  }, [open]);
-
-  const confirmReset = async () => {
-    setBusy(true);
-    // resetEverything() tears down the worker, wipes OPFS, and reloads the page,
-    // so control does not return here on success.
-    await c.resetEverything();
-  };
-
-  return (
-    // While the reset is running, lock the dialog: ignore open-state changes and
-    // disable backdrop/Escape dismissal + the X so the destructive op can't be
-    // interrupted mid-flight (the page reloads on success).
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!busy) onOpenChange(o);
-      }}
-    >
-      <DialogContent className="sm:max-w-md" showCloseButton={!busy}>
-        <DialogHeader>
-          <DialogTitle>{t("reset.title")}</DialogTitle>
-          <DialogDescription>{t("reset.body")}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            {t("common.cancel")}
-          </Button>
-          <Button variant="destructive" onClick={() => void confirmReset()} disabled={busy}>
-            {busy ? t("reset.busy") : t("reset.confirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

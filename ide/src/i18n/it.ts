@@ -106,6 +106,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "reset.title": "Ripristinare tutto?",
   "reset.body":
     "Elimina definitivamente tutti i file salvati e le dipendenze in cache da questo browser, poi ricarica Studio con una sessione pulita. Non è possibile annullare.",
+  "reset.confirmLabel": "Digita {word} per confermare",
   "reset.confirm": "Ripristina tutto",
   "reset.busy": "Ripristino…",
   "create.title": "Nuovo progetto",
@@ -254,8 +255,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   "palette.reloadPreview": "Ricarica anteprima",
   "palette.measureMemory": "Misura memoria",
   "palette.resetEverything": "Ripristina tutto (file + cache)",
-  "palette.resetConfirm":
-    "Ripristinare tutto? Elimina definitivamente tutti i file salvati e le dipendenze in cache, poi ricarica.",
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatIt,
