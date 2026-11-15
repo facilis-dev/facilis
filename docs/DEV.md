@@ -346,6 +346,10 @@ It cannot profile workers — attach Chrome's Task Manager (`Shift+Esc`: the `fs
 at 100 % means a busy thread, 0 % means parked on OPFS) and `chrome://inspect` for stacks.
 The file stays on disk: nothing is uploaded.
 
+To bisect a warm-boot stall without rebuilding, a dev build reads the levers off the URL
+(dev only; a production build ignores it): `?boot=-deferCacheFiles`, `-deferRestoreRoots`,
+`-mirrorLane`, comma-separated, prefixed with `-` to switch one off for that tab.
+
 ## 6. Known in-VM constraints
 
 | Constraint | Effect | Handling |

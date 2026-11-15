@@ -25,6 +25,7 @@ import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
+import { bootFlag } from "./boot-flags";
 import { bootTargetFrom } from "./boot-target";
 import { deleteProject } from "./project-delete";
 import { withTemplateAssets } from "../facilis/project-assets";
@@ -694,14 +695,13 @@ export class IdeController {
     // (BootOptions.deferCacheFiles): its bodies stay on OPFS and are replayed the
     // first time an install reads them, so a tab does not carry the cache entries of
     // projects it never installs.
-    // Persistence goes through the mirror lane (BootOptions.mirrorLane, D-188): one
-    // journal fsync per drain instead of one per file; the kernel falls back per tab.
+    // Persistence goes through the mirror lane (D-188): one journal fsync per drain.
     this.bridge.boot(
-      true,
+      bootFlag("deferRestoreRoots"),
       readNetRelayParam(),
       this.snap.recentProjects.map((p) => p.rootPath),
-      true,
-      true,
+      bootFlag("deferCacheFiles"),
+      bootFlag("mirrorLane"),
     );
   }
 
