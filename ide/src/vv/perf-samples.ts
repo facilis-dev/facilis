@@ -155,7 +155,7 @@ export function readDiag(reply: unknown): DiagFacts {
 /** Nearest-rank percentile over the answered probes; null when there is nothing to rank. */
 export function percentile(values: readonly number[], p: number): number | null {
   if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = values.toSorted((a, b) => a - b);
   const rank = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[rank] ?? null;
 }

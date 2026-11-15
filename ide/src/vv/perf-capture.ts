@@ -173,6 +173,9 @@ export async function captureSnapshot(sources: CaptureSources): Promise<PerfSnap
   let procs: GuestProc[] = [];
   try {
     for (let index = 0; index < PERF_LIMITS.burstProbes; index += 1) {
+      // Sequential on purpose: five concurrent probes would queue behind each other in the FS
+      // worker and report their own contention instead of the machine's.
+      // oxlint-disable-next-line no-await-in-loop -- see above.
       const result = await probe(sources);
       if (!result) continue;
       burst.push(result.sample);
@@ -182,7 +185,7 @@ export async function captureSnapshot(sources: CaptureSources): Promise<PerfSnap
     capturing = false;
     sampling = wasSampling;
   }
-  const samples = [...bootWindow, ...burst].sort((a, b) => a.t - b.t);
+  const samples = [...bootWindow, ...burst].toSorted((a, b) => a.t - b.t);
   const marks = sources.bootMarks();
   const storage = await sources.storage();
   return {
@@ -204,6 +207,7 @@ export async function captureSnapshot(sources: CaptureSources): Promise<PerfSnap
 
 function readBootMarks(): BootMark[] {
   if (typeof window === "undefined") return [];
+  // oxlint-disable-next-line no-underscore-dangle -- the kernel's own global, not our naming.
   const marks = (window as Window & { __vvBoot?: BootMark[] }).__vvBoot;
   return Array.isArray(marks) ? marks : [];
 }

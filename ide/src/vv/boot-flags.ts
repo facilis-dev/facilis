@@ -6,12 +6,12 @@
 
 export type BootFlagName = "deferRestoreRoots" | "deferCacheFiles" | "mirrorLane" | "depCache";
 
-const FLAGS: readonly BootFlagName[] = [
+const FLAGS = new Set<BootFlagName>([
   "deferRestoreRoots",
   "deferCacheFiles",
   "mirrorLane",
   "depCache",
-];
+]);
 
 /** `?boot=-mirrorLane,-deferCacheFiles`: the named levers off, everything else on. */
 export function parseBootFlags(search: string): Partial<Record<BootFlagName, boolean>> {
@@ -27,7 +27,7 @@ export function parseBootFlags(search: string): Partial<Record<BootFlagName, boo
     const name = token.trim();
     const on = !name.startsWith("-");
     const bare = (on ? name : name.slice(1)) as BootFlagName;
-    if (FLAGS.includes(bare)) out[bare] = on;
+    if (FLAGS.has(bare)) out[bare] = on;
   }
   return out;
 }
@@ -40,6 +40,7 @@ export function bootFlag(name: BootFlagName): boolean {
   if (overrides === null) {
     overrides = typeof location === "undefined" ? {} : parseBootFlags(location.search);
     // Say the effective set once: an A/B that silently did not apply reads as a null result.
+    // oxlint-disable-next-line no-console -- the bisect result must be visible in the console.
     console.debug("[boot] flags", overrides);
   }
   return overrides[name] ?? true;
