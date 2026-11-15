@@ -12,6 +12,8 @@
 // consumer in the IDE.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import Activity from "~icons/lucide/activity";
 import CircleX from "~icons/lucide/circle-x";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
@@ -27,6 +29,9 @@ import {
   subscribeDeviceHealth,
 } from "@/vv/device-health";
 import { languageLabel } from "@/vv/editor-languages";
+import { captureSnapshot, ideSources, startPerfSampling } from "@/vv/perf-capture";
+import { downloadSnapshot } from "@/vv/perf-report";
+import { terminalTail } from "@/vv/perf-samples";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
 import { StatusBarPanels, StatusBarRun } from "./StatusBarRuntime";
 import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
@@ -48,11 +53,43 @@ export function StatusBar() {
   const message = useSyncExternalStore(c.statusMessage.subscribe, c.statusMessage.getSnapshot);
   const [picker, setPicker] = useState<StatusPicker>(null);
   const device = useSyncExternalStore(subscribeDeviceHealth, getDeviceHealth);
+  const [capturing, setCapturing] = useState(false);
   // Sampled once per session, then again when the first preview paints: the boot time is
   // only known afterwards, and it is the signal that says "this device is the problem".
+  // The perf sampler rides along: it probes the FS once a second while a boot is in flight,
+  // so a capture taken when the tab is already stuck still contains the minutes that led
+  // there (perf-capture.ts).
   useEffect(() => {
     startDeviceHealth();
-  }, []);
+    startPerfSampling(ideSources(c.bridge, () => []));
+  }, [c]);
+
+  /** The tail of every open terminal, console included: the failure is always in the last lines. */
+  const readTerminals = (): string[] => {
+    const out: string[] = [];
+    for (const meta of snap.terminals) {
+      const entry = c.terminals.entry(meta.id);
+      if (!entry) continue;
+      out.push("### " + meta.label + " (" + meta.kind + ")", ...terminalTail(entry.term));
+    }
+    return out;
+  };
+
+  // One click turns "it hangs on reload" into a file a maintainer can act on: FS answer
+  // latency (the queue every syscall waits in), the VFS trend, the guest processes and the
+  // terminal tail, plus the raw diag samples.
+  const capture = async (): Promise<void> => {
+    setCapturing(true);
+    try {
+      const snapshot = await captureSnapshot(ideSources(c.bridge, readTerminals));
+      const saved = downloadSnapshot(snapshot);
+      toast.success(t("status.perf.saved", { file: saved }));
+    } catch {
+      toast.error(t("status.perf.failed"));
+    } finally {
+      setCapturing(false);
+    }
+  };
   const deviceIssue = device?.issues[0];
 
   // VS Code shows one repository at a time: the one owning the active file, else
@@ -98,6 +135,10 @@ export function StatusBar() {
             <span>{t(DEVICE_LABELS[deviceIssue])}</span>
           </StatusItem>
         )}
+        <StatusItem label={t("status.perf.hint")} onClick={() => void capture()}>
+          <Activity className="size-3.5" />
+          <span>{capturing ? t("status.perf.capturing") : t("status.perf.capture")}</span>
+        </StatusItem>
         {/* Live TS/JS diagnostics from the language-service worker. Not clickable:
             there's no Problems panel to open (markers surface in the editor). */}
         <StatusItem label={problemsLabel}>
