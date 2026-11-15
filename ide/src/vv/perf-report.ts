@@ -8,6 +8,7 @@
 
 import { downloadBlob } from "./project-export";
 import type { PerfSnapshot } from "./perf-capture";
+import { percentile } from "./perf-samples";
 
 const FENCE = "```";
 
@@ -39,10 +40,35 @@ function verdictLine(snapshot: PerfSnapshot): string {
     return (
       "saturated — the probe round-trip is the queue every syscall waits in, so a " +
       "dev-server boot asking for hundreds of files pays it per request: expect a " +
-      "multi-minute boot and module-runner timeouts at the 60 s budget"
+      "multi-minute boot and module-runner timeouts at the 60 s budget" +
+      (pageLag(snapshot) !== null && (pageLag(snapshot) ?? 0) > 100
+        ? " (but read the page lag first: the main thread is a candidate too)"
+        : "")
     );
   }
   return "unknown — no probe answered and none timed out";
+}
+
+/** Processes the kernel could not read a heap from within its 2 s budget: parked, by definition. */
+function parkedLine(snapshot: PerfSnapshot): string {
+  const parked = snapshot.procs.filter((proc) => proc.heapBytes === -1);
+  if (parked.length === 0) return "- parked processes: none (every guest answered the heap query)";
+  return (
+    "- parked processes (" +
+    parked.length +
+    " of " +
+    snapshot.procs.length +
+    ", no heap answer within the kernel 2 s budget): " +
+    parked.map((proc) => "pid " + proc.pid + " (" + proc.command + ")").join(", ")
+  );
+}
+
+/** Median of the page's own event-loop delay across the window, or null when unseen. */
+function pageLag(snapshot: PerfSnapshot): number | null {
+  const lags = snapshot.samples
+    .map((sample) => sample.pageLagMs)
+    .filter((value): value is number => typeof value === "number");
+  return percentile(lags, 50);
 }
 
 function marksLine(marks: { name: string; t: number }[]): string {
@@ -52,13 +78,17 @@ function marksLine(marks: { name: string; t: number }[]): string {
 
 function sampleRows(snapshot: PerfSnapshot): string[] {
   const rows = snapshot.samples.slice(-60);
-  if (rows.length === 0) return ["| — | — | — | — |"];
+  if (rows.length === 0) return ["| — | — | — | — | — |"];
   return rows.map(
     (sample) =>
       "| " +
       sample.t +
       " | " +
       MS(sample.rttMs) +
+      " | " +
+      MS(sample.diagMs) +
+      " | " +
+      MS(sample.pageLagMs) +
       " | " +
       (sample.files ?? "—") +
       " | " +
@@ -68,7 +98,7 @@ function sampleRows(snapshot: PerfSnapshot): string[] {
 }
 
 function procRows(snapshot: PerfSnapshot): string[] {
-  if (snapshot.procs.length === 0) return ["| — | — | — | — | — |"];
+  if (snapshot.procs.length === 0) return ["| — | — | — | — | — | — |"];
   return snapshot.procs.map(
     (proc) =>
       "| " +
@@ -81,6 +111,8 @@ function procRows(snapshot: PerfSnapshot): string[] {
       proc.syscalls +
       " | " +
       (proc.booted ? "yes" : "no") +
+      " | " +
+      (proc.heapBytes === -1 ? "**no answer**" : bytes(proc.heapBytes)) +
       " |",
   );
 }
@@ -107,15 +139,21 @@ export function renderSnapshot(snapshot: PerfSnapshot): string {
     "- boot (kernel-online to preview-paint): " + seconds(boot.bootMs),
     "- marks: " + marksLine(boot.marks),
     "",
-    "### FS answer latency (__vv.diag() round-trip — the same queue as every syscall)",
+    "### FS answer latency (vv-stat round-trip — the same queue as every syscall)",
     "",
     "- probes " + fs.probes + " (answered " + fs.answered + ", timeouts " + fs.timeouts + ")",
     "- p50 " + MS(fs.p50Ms) + " · p95 " + MS(fs.p95Ms) + " · max " + MS(fs.maxMs),
     "- verdict: **" + verdictLine(snapshot) + "**",
+    "- page event-loop lag (median): " +
+      MS(pageLag(snapshot)) +
+      " — the probe starts its clock before the request, so this is the page's share of it",
+    "- diag column: __vv.diag() round-trip. The kernel asks every process for its heap with a " +
+      "hardcoded 2 s budget, so a diag pinned at ~2 s means a guest process did not answer " +
+      "(parked), NOT that the filesystem is slow",
     "- healthy baseline measured in this IDE on an idle machine: ~105 ms",
     "",
-    "| t (ms) | rtt | files | deferred |",
-    "|---|---|---|---|",
+    "| t (ms) | fs rtt | diag | page lag | files | deferred |",
+    "|---|---|---|---|---|---|",
     ...sampleRows(snapshot),
     "",
     "### VFS across the window",
@@ -133,8 +171,10 @@ export function renderSnapshot(snapshot: PerfSnapshot): string {
     "",
     "### Guest processes",
     "",
-    "| pid | command | silent | syscalls | booted |",
-    "|---|---|---|---|---|",
+    parkedLine(snapshot),
+    "",
+    "| pid | command | silent | syscalls | booted | heap |",
+    "|---|---|---|---|---|---|",
     ...procRows(snapshot),
     "",
     "### Terminal (tail)",

@@ -34,6 +34,8 @@ const diagReply = (files: number, deferred: number, silent: number) => ({
       sinceOutputMs: silent - 1000,
       syscalls: 0,
       booted: false,
+      // The kernel's sentinel for "no heap answer within 2 s": a parked process.
+      heapBytes: -1,
     },
   ],
 });
@@ -46,6 +48,7 @@ function fakeSources(
   let clock = 0;
   return {
     diag: () => Promise.resolve(reply),
+    stat: () => Promise.resolve({ ok: true }),
     bootMarks: () => marks,
     terminal: () => ["[runtime] PID 5 has printed nothing for 64s"],
     device: () => ({
@@ -59,6 +62,7 @@ function fakeSources(
       storageQuotaBytes: null,
     }),
     storage: () => Promise.resolve({ usedBytes: 2048, quotaBytes: 4096 }),
+    lag: () => Promise.resolve(2),
     now: () => (clock += 1000),
   };
 }
@@ -108,6 +112,7 @@ describe("classifyLatency", () => {
 describe("readDiag", () => {
   it("survives a reply that is not the protocol", () => {
     expect(readDiag(null)).toEqual({
+      ready: false,
       files: null,
       bytes: null,
       deferred: null,
@@ -128,8 +133,26 @@ describe("readDiag", () => {
 describe("summarizeLatency", () => {
   it("counts timeouts as probes that answered nothing", () => {
     const summary = summarizeLatency([
-      { t: 0, rttMs: 2000, files: 1, bytes: 1, deferred: 0, silentMaxMs: 0 },
-      { t: 1, rttMs: null, files: 1, bytes: 1, deferred: 0, silentMaxMs: 0 },
+      {
+        t: 0,
+        rttMs: 2000,
+        diagMs: 2000,
+        files: 1,
+        bytes: 1,
+        deferred: 0,
+        silentMaxMs: 0,
+        pageLagMs: 1,
+      },
+      {
+        t: 1,
+        rttMs: null,
+        diagMs: null,
+        files: 1,
+        bytes: 1,
+        deferred: 0,
+        silentMaxMs: 0,
+        pageLagMs: 1,
+      },
     ]);
     expect(summary).toMatchObject({
       probes: 2,
@@ -143,11 +166,29 @@ describe("summarizeLatency", () => {
 
 describe("vfsTrend", () => {
   it("says nothing moved when the counters are identical", () => {
-    const sample = { t: 0, rttMs: 100, files: 10, bytes: 5, deferred: 2, silentMaxMs: 0 };
+    const sample = {
+      t: 0,
+      rttMs: 100,
+      diagMs: 100,
+      files: 10,
+      bytes: 5,
+      deferred: 2,
+      silentMaxMs: 0,
+      pageLagMs: 1,
+    };
     expect(vfsTrend([sample, { ...sample, t: 1000 }]).changed).toBe(false);
   });
   it("sees a hydration moving the deferred count", () => {
-    const a = { t: 0, rttMs: 100, files: 10, bytes: 5, deferred: 2, silentMaxMs: 0 };
+    const a = {
+      t: 0,
+      rttMs: 100,
+      diagMs: 100,
+      files: 10,
+      bytes: 5,
+      deferred: 2,
+      silentMaxMs: 0,
+      pageLagMs: 1,
+    };
     const b = { ...a, t: 1000, deferred: 0 };
     expect(vfsTrend([a, b])).toMatchObject({ deferredStart: 2, deferredEnd: 0, changed: true });
   });
@@ -178,11 +219,25 @@ describe("captureSnapshot", () => {
     expect(snapshot.schema).toBe(1);
     expect(snapshot.samples).toHaveLength(PERF_LIMITS.burstProbes);
     expect(snapshot.fs.p50Ms).toBe(1000);
+    expect(snapshot.samples[0]?.diagMs).toBe(1000);
     expect(snapshot.fs.verdict).toBe("degraded");
     expect(snapshot.boot.bootMs).toBe(156_319);
     expect(snapshot.device.storageQuotaBytes).toBe(4096);
     expect(snapshot.procs[0]?.command).toBe("vite --configLoader native");
     expect(snapshot.terminal).toHaveLength(1);
+    expect(snapshot.samples[0]?.pageLagMs).toBe(2);
+  });
+
+  it("records nothing while the kernel answers 'not ready'", async () => {
+    const snapshot = await captureSnapshot(fakeSources([], { error: "kernel not ready" }));
+    expect(snapshot.samples).toHaveLength(0);
+    expect(snapshot.fs).toMatchObject({ probes: 0, verdict: "unknown" });
+  });
+
+  it("orders the merged window by time, so the burst never reads before the boot", async () => {
+    const snapshot = await captureSnapshot(fakeSources());
+    const times = snapshot.samples.map((sample) => sample.t);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 });
 
@@ -212,6 +267,9 @@ describe("the report", () => {
     expect(document).toContain("p50 1000 ms");
     expect(document).toContain("verdict: **degraded");
     expect(document).toContain("files 100 to 100");
+    expect(document).toContain("page event-loop lag (median): 2 ms");
+    expect(document).toContain("parked processes (1 of 2");
+    expect(document).toContain("**no answer**");
     expect(document).toContain("PID 5 has printed nothing for 64s");
     const raw = document.split("```json")[1]?.split("```")[0] ?? "";
     expect(JSON.parse(raw)).toMatchObject({ schema: 1 });

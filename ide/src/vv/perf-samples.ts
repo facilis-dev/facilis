@@ -18,13 +18,28 @@ export interface BootMark {
 export interface PerfSample {
   /** performance.now() at the start of the probe. */
   t: number;
-  /** Round-trip in ms; null means the probe timed out — which is itself the measurement. */
+  /**
+   * Filesystem round-trip in ms (`vv-stat` on the VFS root): page → kernel → FS worker and
+   * back, the queue every syscall waits in. Null means it timed out — itself a measurement.
+   */
   rttMs: number | null;
+  /**
+   * `__vv.diag()` round-trip, kept separate because it is NOT a pure FS probe: the kernel
+   * queries per-process heaps with a hardcoded 2 s budget, so a diag that takes ~2 s means a
+   * guest process did not answer — i.e. one is parked, not that the FS is slow.
+   */
+  diagMs: number | null;
   files: number | null;
   bytes: number | null;
   deferred: number | null;
   /** Longest `sinceOutputMs` across the guest processes at this instant. */
   silentMaxMs: number | null;
+  /**
+   * How long a zero-delay timer took to fire just before the probe: the page's own event
+   * loop. Without it a slow round-trip could be blamed on the FS worker when the main thread
+   * is the one that never yielded.
+   */
+  pageLagMs: number | null;
 }
 
 export interface GuestProc {
@@ -33,6 +48,8 @@ export interface GuestProc {
   sinceOutputMs: number;
   syscalls: number;
   booted: boolean;
+  /** -1 is the kernel's sentinel for "did not answer the 2 s heap query": a parked process. */
+  heapBytes: number | null;
 }
 
 /** What a verdict means, in the order a maintainer reads it. */
@@ -97,6 +114,8 @@ const asNumber = (value: unknown): number | null =>
 const asString = (value: unknown): string => (typeof value === "string" ? value : "");
 
 export interface DiagFacts {
+  /** False when the kernel answered "not ready": that probe measured nothing. */
+  ready: boolean;
   files: number | null;
   bytes: number | null;
   deferred: number | null;
@@ -119,10 +138,12 @@ export function readDiag(reply: unknown): DiagFacts {
       sinceOutputMs: asNumber(proc.sinceOutputMs) ?? 0,
       syscalls: asNumber(proc.syscalls) ?? 0,
       booted: proc.booted === true,
+      heapBytes: asNumber(proc.heapBytes),
     });
   }
   const silent = procs.map((proc) => proc.sinceOutputMs);
   return {
+    ready: root !== null && typeof root.error !== "string",
     files: asNumber(vfs?.files),
     bytes: asNumber(vfs?.bytes),
     deferred: asNumber(vfs?.deferred),
