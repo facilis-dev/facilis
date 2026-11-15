@@ -3,10 +3,13 @@ import { parseModuleInfo, type ModuleInfo } from "./module-info.ts";
 import { createPathResolver, normalizePath, type PathAlias } from "./path-resolver.ts";
 import type { ParseError, Parser } from "./parser.ts";
 import type { AstNode } from "./ast/node.ts";
+import { sourceLines, type SourceLines } from "./source.ts";
 
 export interface ProjectFile {
   readonly path: string;
   readonly source: string;
+  /** Newline index for `source`, built once so a position lookup is not a rescan. */
+  readonly lines: SourceLines;
   readonly program: AstNode;
   readonly errors: readonly ParseError[];
   readonly module: ModuleInfo;
@@ -45,12 +48,14 @@ export function createModuleGraph(input: ModuleGraphInput): ModuleGraph {
     sources.set(path, source);
     if (!isSourceFile(path)) continue;
     const parsed = input.parser.parse(path, source);
+    const lines = sourceLines(source);
     files.set(path, {
       path,
       source,
+      lines,
       program: parsed.program,
       errors: parsed.errors,
-      module: parseModuleInfo(path, source, parsed.program),
+      module: parseModuleInfo(path, lines, parsed.program),
     });
   }
 

@@ -33,7 +33,7 @@ export const ROUTE_DIRECT_DB_MESSAGE =
   "Direct DB access bypasses the policy-scoped client; use ctx.db for user-scoped work and ctx.system/ctx.sudo for audited system operations (not recommended).";
 
 function nodeRef(file: ProjectFile, node: AstNode, fallback: SourceRef): SourceRef {
-  return typeof node.start === "number" ? sourceRef(file.path, file.source, node.start) : fallback;
+  return typeof node.start === "number" ? sourceRef(file.path, file.lines, node.start) : fallback;
 }
 
 /** True when the object chain of `node` contains a `.facilis` property. */

@@ -16,7 +16,7 @@ import {
 } from "../ast/node.ts";
 import { warning } from "../diagnostics.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
-import { sourceRef } from "../source.ts";
+import { sourceRef, type SourceLines } from "../source.ts";
 import { evaluateStatic, type StaticContext } from "../static-eval.ts";
 import type { Diagnostic, UnknownFact, WorkflowFact, WorkflowStepFact } from "../types.ts";
 import {
@@ -56,7 +56,7 @@ function scanFile(
 ): void {
   const context: StaticContext = { graph, file: file.path };
   const expression = defaultExportExpression(file);
-  const ref = sourceRef(file.path, file.source, expression?.start ?? 0);
+  const ref = sourceRef(file.path, file.lines, expression?.start ?? 0);
   const problem = definitionProblem(file, expression);
   if (problem !== null || expression === undefined || expression.type !== "CallExpression") {
     diagnostics.push(
@@ -84,7 +84,7 @@ function scanFile(
     return;
   }
   const unknown: UnknownFact[] = [];
-  const steps = readSteps(fields.get("steps"), context, file.path, file.source, unknown);
+  const steps = readSteps(fields.get("steps"), context, file.path, file.lines, unknown);
   workflows.push({ name, sourceFile: file.path, source: ref, steps, unknown });
 }
 
@@ -113,7 +113,7 @@ function readSteps(
   node: AstNode | undefined,
   context: StaticContext,
   file: string,
-  source: string,
+  lines: SourceLines,
   unknown: UnknownFact[],
 ): WorkflowStepFact[] {
   const array = node === undefined ? undefined : unwrapExpression(node);
@@ -121,13 +121,13 @@ function readSteps(
     unknown.push({
       code: STATIC_CODE,
       reason: "steps must be an array literal",
-      source: sourceRef(file, source, array?.start ?? 0),
+      source: sourceRef(file, lines, array?.start ?? 0),
     });
     return [];
   }
   const steps: WorkflowStepFact[] = [];
   nodeArray(array, "elements").forEach((element, index) => {
-    const ref = sourceRef(file, source, element.start ?? 0);
+    const ref = sourceRef(file, lines, element.start ?? 0);
     const literal = objectLiteral(element);
     const fields = literal === undefined ? new Map<string, AstNode>() : fieldMap(literal);
     const job = fields.get("job");

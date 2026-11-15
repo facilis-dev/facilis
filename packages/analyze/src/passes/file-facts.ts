@@ -15,8 +15,7 @@ import { sourceRef } from "../source.ts";
 import type { CallFact, FileFacts, ImportFact, SourceRef, TranslationCallFact } from "../types.ts";
 
 function refOf(file: ProjectFile, node: AstNode): SourceRef {
-  const offset = typeof node.start === "number" ? node.start : 0;
-  return sourceRef(file.path, file.source, offset);
+  return sourceRef(file.path, file.lines, typeof node.start === "number" ? node.start : 0);
 }
 
 function push(

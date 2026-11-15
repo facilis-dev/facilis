@@ -1,4 +1,5 @@
 import { identifierName, isAstNode, literalString, nodeArray, type AstNode } from "./ast/node.ts";
+import { sourceRef, type SourceLines } from "./source.ts";
 import type { SourceRef } from "./types.ts";
 
 export interface ImportBinding {
@@ -23,22 +24,13 @@ export interface ModuleInfo {
   readonly exports: readonly ExportBinding[];
 }
 
-function refOf(file: string, source: string, node: AstNode): SourceRef {
-  const offset = typeof node.start === "number" ? node.start : 0;
-  let line = 1;
-  for (let index = 0; index < offset && index < source.length; index += 1) {
-    if (source.charCodeAt(index) === 10) line += 1;
-  }
-  return { file, line };
-}
-
-function importBindings(file: string, source: string, program: AstNode): ImportBinding[] {
+function importBindings(file: string, lines: SourceLines, program: AstNode): ImportBinding[] {
   const out: ImportBinding[] = [];
   for (const statement of nodeArray(program, "body")) {
     if (statement.type !== "ImportDeclaration") continue;
     const specifier = literalString(statement.source);
     if (specifier === undefined) continue;
-    const ref = refOf(file, source, statement);
+    const ref = sourceRef(file, lines, statement.start ?? 0);
     for (const item of nodeArray(statement, "specifiers")) {
       if (item.type === "ImportDefaultSpecifier") {
         const local = identifierName(item.local);
@@ -75,10 +67,10 @@ export function declarationNames(declaration: AstNode): string[] {
   return [];
 }
 
-function exportBindings(file: string, source: string, program: AstNode): ExportBinding[] {
+function exportBindings(file: string, lines: SourceLines, program: AstNode): ExportBinding[] {
   const out: ExportBinding[] = [];
   for (const statement of nodeArray(program, "body")) {
-    const ref = refOf(file, source, statement);
+    const ref = sourceRef(file, lines, statement.start ?? 0);
     if (statement.type === "ExportDefaultDeclaration") {
       const declaration = isAstNode(statement.declaration) ? statement.declaration : undefined;
       const local = declaration === undefined ? null : (identifierName(declaration) ?? null);
@@ -125,10 +117,10 @@ function exportBindings(file: string, source: string, program: AstNode): ExportB
   return out;
 }
 
-export function parseModuleInfo(file: string, source: string, program: AstNode): ModuleInfo {
+export function parseModuleInfo(file: string, lines: SourceLines, program: AstNode): ModuleInfo {
   return {
-    imports: importBindings(file, source, program),
-    exports: exportBindings(file, source, program),
+    imports: importBindings(file, lines, program),
+    exports: exportBindings(file, lines, program),
   };
 }
 

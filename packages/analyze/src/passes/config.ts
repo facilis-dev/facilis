@@ -215,7 +215,7 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
     };
   }
   const context: StaticContext = { graph, file: file.path };
-  const at = sourceRef(file.path, file.source, defaultExportDeclaration(file.program)?.start ?? 0);
+  const at = sourceRef(file.path, file.lines, defaultExportDeclaration(file.program)?.start ?? 0);
   const resolved = resolveDefineConfig(file);
   if (resolved.call === null) {
     const reason = resolved.reason ?? "defineConfig() could not be resolved";

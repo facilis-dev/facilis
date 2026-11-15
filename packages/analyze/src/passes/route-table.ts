@@ -93,7 +93,7 @@ export function buildRouteTable(graph: ModuleGraph, file: ProjectFile): readonly
       path: finalPath,
       element: element !== undefined && element.type === "JSXElement" ? element : null,
       parentIndex,
-      source: sourceRef(file.path, file.source, typeof node.start === "number" ? node.start : 0),
+      source: sourceRef(file.path, file.lines, typeof node.start === "number" ? node.start : 0),
     });
     for (const child of jsxChildren(node)) {
       if (child.type === "JSXElement" && routeLocals.has(elementName(child) ?? "")) {

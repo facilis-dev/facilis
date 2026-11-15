@@ -103,7 +103,7 @@ export function callbackExpression(callback: AstNode | undefined): AstNode | und
 }
 
 export function nodeRef(file: ProjectFile, node: AstNode | undefined): SourceRef {
-  return sourceRef(file.path, file.source, typeof node?.start === "number" ? node.start : 0);
+  return sourceRef(file.path, file.lines, typeof node?.start === "number" ? node.start : 0);
 }
 
 /** Schema DSL files live under the project's `db/` directory (root-aware). */

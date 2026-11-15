@@ -206,12 +206,7 @@ function linksInFile(
 }
 
 function lineOf(file: ProjectFile, node: AstNode): { file: string; line: number } {
-  const offset = typeof node.start === "number" ? node.start : 0;
-  let line = 1;
-  for (let index = 0; index < offset && index < file.source.length; index += 1) {
-    if (file.source.charCodeAt(index) === 10) line += 1;
-  }
-  return { file: file.path, line };
+  return { file: file.path, line: file.lines.lineAt(node.start ?? 0) };
 }
 
 /** Build route paths, page previews and explicit page links from the project snapshot. */
