@@ -13,8 +13,8 @@ import { baseName, normDir } from "./path-utils";
 // Practical cap on a shareable-URL length; beyond this the link is unwieldy.
 const MAX_SHARE_URL_LEN = 1_800_000;
 
-// Download an in-memory Blob to the user's disk (zip export).
-function downloadBlob(blob: Blob, filename: string) {
+// Download an in-memory Blob to the user's disk (zip export, performance snapshot).
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

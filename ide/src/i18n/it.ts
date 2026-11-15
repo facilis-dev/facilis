@@ -224,6 +224,12 @@ export const it: Partial<Record<MessageKey, string>> = {
   "status.device.lowStorage": "Spazio quasi esaurito",
   "status.device.hint":
     "Questa scheda esegue l'intera VM. Chiudere altre schede e app libera la memoria che le serve.",
+  "status.perf.capture": "Snapshot",
+  "status.perf.capturing": "Cattura…",
+  "status.perf.hint":
+    "Cattura il report di prestazioni di questa scheda — latenza di risposta del filesystem, conteggi VFS, processi guest e coda del terminale — per una segnalazione",
+  "status.perf.saved": "Snapshot delle prestazioni salvato: {file}",
+  "status.perf.failed": "Non è stato possibile catturare lo snapshot delle prestazioni.",
 
   // ── pannello anteprima ───────────────────────────────────────────────────
   ...previewIt,

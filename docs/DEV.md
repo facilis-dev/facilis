@@ -326,6 +326,39 @@ registry keeps every tab's projects. Exit code is non-zero on any failure. Refer
 16 cores: 41 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
 under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the same retention as §5.
 
+### 5.2 A performance snapshot from the tab that is hanging — status bar **Snapshot**
+
+`ide/src/vv/perf-capture.ts` (collect) + `perf-report.ts` (render) turn "it hangs on reload"
+into one Markdown file, produced from the tab that is hanging rather than from a harness.
+While a boot is in flight the IDE probes `__vv.diag()` once a second (it stops at
+`preview-paint` + 3 samples, capped at 300); the status bar entry adds a burst of 5 probes
+taken now and saves `facilis-perf-<ISO>.md` containing:
+
+- the probe round-trip p50/p95/max plus a verdict. The probe uses the **same doorbell queue**
+  as every syscall, so its latency is that queue's latency: ~105 ms on a healthy machine,
+  2008 ms on the warm-reload report that motivated this (a 156 s boot is ~78 requests at
+  2 s each, which is the whole explanation);
+- the VFS trend (files / bytes / deferred) across the window, per-process silence, device and
+  storage facts, and the tail of every open terminal;
+- the raw JSON snapshot in a fenced block at the end.
+
+It cannot profile workers — attach Chrome's Task Manager (`Shift+Esc`: the `fs-worker` entry
+at 100 % means a busy thread, 0 % means parked on OPFS) and `chrome://inspect` for stacks.
+The file stays on disk: nothing is uploaded.
+
+To bisect a warm-boot stall without rebuilding, a dev build reads the levers off the URL
+(dev only; a production build ignores it): `?boot=-deferCacheFiles`, `-deferRestoreRoots`,
+`-mirrorLane`, comma-separated, prefixed with `-` to switch one off for that tab.
+
+To bisect a warm-boot stall without rebuilding, a dev build reads the levers off the URL
+(dev only; a production build ignores it): `?boot=-deferCacheFiles`, `-deferRestoreRoots`,
+`-mirrorLane`, comma-separated, prefixed with `-` to switch one off for that tab.
+`-depCache` is different in kind: it deletes the persistent `vv-depcache` store **before** the
+kernel opens it, so that boot installs instead of restoring the `node_modules` snapshot — the
+one experiment that separates "install every boot" from "restore every boot". The effective
+set is logged once on the console (`[boot] flags …`), so a null A/B can be told apart from an
+A/B that never applied.
+
 ## 6. Known in-VM constraints
 
 | Constraint | Effect | Handling |

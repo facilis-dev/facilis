@@ -233,6 +233,14 @@ export const en = {
   "status.device.hint":
     "This tab runs the whole VM. Closing other tabs and apps frees the memory it needs.",
 
+  // Performance snapshot (perf-capture.ts): the artifact a slow boot needs to become a bug.
+  "status.perf.capture": "Snapshot",
+  "status.perf.capturing": "Capturing…",
+  "status.perf.hint":
+    "Capture this tab's performance report — FS answer latency, VFS counts, guest processes and the terminal tail — for a bug report",
+  "status.perf.saved": "Performance snapshot saved: {file}",
+  "status.perf.failed": "The performance snapshot could not be captured.",
+
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
 
