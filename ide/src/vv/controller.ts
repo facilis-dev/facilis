@@ -694,10 +694,13 @@ export class IdeController {
     // (BootOptions.deferCacheFiles): its bodies stay on OPFS and are replayed the
     // first time an install reads them, so a tab does not carry the cache entries of
     // projects it never installs.
+    // Persistence goes through the mirror lane (BootOptions.mirrorLane, D-188): one
+    // journal fsync per drain instead of one per file; the kernel falls back per tab.
     this.bridge.boot(
       true,
       readNetRelayParam(),
       this.snap.recentProjects.map((p) => p.rootPath),
+      true,
       true,
     );
   }
