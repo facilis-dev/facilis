@@ -72,6 +72,33 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-11-15, pin `daceb39` / `facilis/main` = upstream v1.3.1 + 19 fork commits)
+
+The pin moves from v1.3.0 (`0a1eea1`) to `v1.3.1-19-gdaceb39`: upstream's v1.3.1 release
+(PR #41) plus the fork's **mirror lane** — an opt-in `BootOptions.mirrorLane` where the FS worker
+appends persisted file bodies to one journal in a dedicated worker
+(`packages/core/src/workers/mirror-worker.js` → `packages/kernel-host/mirror-lane.js`), holds the
+`vv-vfs-journal` Web Lock, fsyncs once per drain and rebuilds the per-path OPFS files. The fork
+also fixes `packages/runtime/esm.js`'s specifier scan (a comment inside `export { … } from`, which
+parse5 8.1 writes, made those bindings `undefined`). The IDE now boots with `mirrorLane: true`
+(D-188 in the superproject), so the browser checks below exercise the lane.
+
+Nothing downstream needed porting: `packages/studio` did not change between the pins, so
+`ide/public/sw.js` keeps only the documented D-132 patch, and no Rust crate changed, so the
+`pkg/` Wasm artifacts were reused rather than rebuilt (`pnpm ide:wasm` not run). The packers
+behind `pnpm ide:assets` did not change either, so that script was not re-run.
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `daceb39…` (`v1.3.1-19-gdaceb39`), no worktree edits, no extra branches or remotes |
+| `pnpm lint` | 0 errors / 328 pre-existing warnings; `check-file-length` OK (900 files, 9 baseline entries); theme gate OK |
+| `pnpm typecheck` | 21/21 tasks |
+| `pnpm test` | 21/21 tasks; the IDE suite run uncached: 166 files / 1396 tests, 1 skipped |
+| `pnpm build` | 13/13 tasks |
+| `TEMPLATE=Facilis pnpm ide:smoke` | **1 red, the known one**: `facilis manifest warnings 0` (4 warnings from the published `@facilis.dev/*` version skew, red at the previous pin too). 84 checks green: boot, create, install, preview paint, health/manifest/OpenAPI/401/session/db roundtrip, IntelliSense, A8/A9/A10/A12, write, chat apply+undo, panels, project graph |
+| `pnpm ide:smoke:multitab` | **45 pass, the same 6 stale-template reds**: every red is a `/Vite \+ React/` or `/Vite \+ Vue/` content assertion (plus the beta `package.json` `"vue"` check) that still expects the upstream template catalog deleted in D-051; previews now render the Facilis login page. The routing, Web-Lock, OPFS-reload and one-project-per-tab checks around them pass |
+| the lane is live | headless Chrome against the dev server: `navigator.locks.query()` holds `vv-vfs-journal`, OPFS carries `vv-vfs/{manifest.json,journal.wal,files}`, and no `[opfs] mirror lane unavailable` line appears — i.e. the tab took the lane instead of falling back |
+
 ## Verification (2026-11-13, pin `0a1eea1` / `facilis/main` = upstream v1.3.0 + 15 fork commits)
 
 The pin realigns the fork onto upstream `v1.3.0` (`4fbb009`): pnpm 11 as the shipped package
