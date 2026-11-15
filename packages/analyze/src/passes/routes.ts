@@ -96,13 +96,13 @@ function scanRoute(
         info(
           "unknown",
           "cannot derive a route method/path from the route file name",
-          sourceRef(file.path, file.source, anchor),
+          sourceRef(file.path, file.lines, anchor),
         ),
       ],
     };
   }
   const wrapper = resolveWrapper(file);
-  const ref = sourceRef(file.path, file.source, wrapper.call?.start ?? anchor);
+  const ref = sourceRef(file.path, file.lines, wrapper.call?.start ?? anchor);
   if (wrapper.state !== "valid" || wrapper.call === null) {
     return {
       route: {

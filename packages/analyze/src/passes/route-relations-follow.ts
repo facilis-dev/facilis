@@ -27,7 +27,7 @@ export type Visit = (node: AstNode, scope: RelationScope) => void;
 function refOf(scope: RelationScope, node: AstNode): SourceRef {
   return sourceRef(
     scope.file.path,
-    scope.file.source,
+    scope.file.lines,
     typeof node.start === "number" ? node.start : 0,
   );
 }

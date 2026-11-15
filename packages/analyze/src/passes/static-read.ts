@@ -17,7 +17,7 @@ import {
 } from "../ast/node.ts";
 import { declarationNames, defaultExportDeclaration, localInitializer } from "../module-info.ts";
 import type { ProjectFile } from "../module-graph.ts";
-import { sourceRef } from "../source.ts";
+import { NO_SOURCE_LINES, sourceRef } from "../source.ts";
 import { evaluateStatic, type StaticContext } from "../static-eval.ts";
 import type { Diagnostic, SourceRef, UnknownFact } from "../types.ts";
 
@@ -59,7 +59,7 @@ export function relativePath(root: string, path: string): string {
 export function refOf(context: StaticContext, node: AstNode | undefined): SourceRef {
   const file = context.graph.file(context.file);
   const offset = node !== undefined && typeof node.start === "number" ? node.start : 0;
-  return sourceRef(context.file, file?.source ?? "", offset);
+  return sourceRef(context.file, file?.lines ?? NO_SOURCE_LINES, offset);
 }
 
 function objectLiteral(

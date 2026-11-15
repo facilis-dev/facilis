@@ -9,7 +9,7 @@
 import { asNode, nodeArray, type AstNode } from "../ast/node.ts";
 import type { ModuleGraph } from "../module-graph.ts";
 import { defaultExportDeclaration } from "../module-info.ts";
-import { sourceRef } from "../source.ts";
+import { NO_SOURCE_LINES, sourceRef } from "../source.ts";
 
 export interface ComponentRef {
   readonly file: string;
@@ -21,10 +21,8 @@ export function lineRef(
   file: string,
   node: AstNode,
 ): { file: string; line: number } {
-  const source = graph.file(file)?.source;
-  return source === undefined
-    ? { file, line: 1 }
-    : sourceRef(file, source, typeof node.start === "number" ? node.start : 0);
+  const lines = graph.file(file)?.lines;
+  return sourceRef(file, lines ?? NO_SOURCE_LINES, typeof node.start === "number" ? node.start : 0);
 }
 
 function componentDeclaration(program: AstNode, name: string): AstNode | undefined {
