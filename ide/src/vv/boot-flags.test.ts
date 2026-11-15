@@ -21,6 +21,10 @@ describe("parseBootFlags", () => {
     });
   });
 
+  it("knows the dependency-cache lever", () => {
+    expect(parseBootFlags("?boot=-depCache")).toEqual({ depCache: false });
+  });
+
   it("ignores names it does not know, and a bare dash", () => {
     expect(parseBootFlags("?boot=-nope,-")).toEqual({});
   });

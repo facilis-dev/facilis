@@ -350,6 +350,15 @@ To bisect a warm-boot stall without rebuilding, a dev build reads the levers off
 (dev only; a production build ignores it): `?boot=-deferCacheFiles`, `-deferRestoreRoots`,
 `-mirrorLane`, comma-separated, prefixed with `-` to switch one off for that tab.
 
+To bisect a warm-boot stall without rebuilding, a dev build reads the levers off the URL
+(dev only; a production build ignores it): `?boot=-deferCacheFiles`, `-deferRestoreRoots`,
+`-mirrorLane`, comma-separated, prefixed with `-` to switch one off for that tab.
+`-depCache` is different in kind: it deletes the persistent `vv-depcache` store **before** the
+kernel opens it, so that boot installs instead of restoring the `node_modules` snapshot — the
+one experiment that separates "install every boot" from "restore every boot". The effective
+set is logged once on the console (`[boot] flags …`), so a null A/B can be told apart from an
+A/B that never applied.
+
 ## 6. Known in-VM constraints
 
 | Constraint | Effect | Handling |

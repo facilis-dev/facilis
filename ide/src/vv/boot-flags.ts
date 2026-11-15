@@ -4,9 +4,14 @@
 // off for that tab, so a bug report can say which lever the stall needs instead of
 // guessing. Production builds ignore it: an embedder's users get the shipped behaviour.
 
-export type BootFlagName = "deferRestoreRoots" | "deferCacheFiles" | "mirrorLane";
+export type BootFlagName = "deferRestoreRoots" | "deferCacheFiles" | "mirrorLane" | "depCache";
 
-const FLAGS: readonly BootFlagName[] = ["deferRestoreRoots", "deferCacheFiles", "mirrorLane"];
+const FLAGS: readonly BootFlagName[] = [
+  "deferRestoreRoots",
+  "deferCacheFiles",
+  "mirrorLane",
+  "depCache",
+];
 
 /** `?boot=-mirrorLane,-deferCacheFiles`: the named levers off, everything else on. */
 export function parseBootFlags(search: string): Partial<Record<BootFlagName, boolean>> {
@@ -34,6 +39,25 @@ export function bootFlag(name: BootFlagName): boolean {
   if (!import.meta.env.DEV) return true;
   if (overrides === null) {
     overrides = typeof location === "undefined" ? {} : parseBootFlags(location.search);
+    // Say the effective set once: an A/B that silently did not apply reads as a null result.
+    console.debug("[boot] flags", overrides);
   }
   return overrides[name] ?? true;
+}
+
+/**
+ * `-depCache`: drop the persistent node_modules snapshot store before the kernel opens it, so
+ * this boot installs instead of restoring. The only way to compare "install every boot" with
+ * "restore every boot" on the same project, and the lever a bisect needs when the restore is
+ * the suspect.
+ */
+export async function dropDepCacheIfAsked(): Promise<boolean> {
+  if (bootFlag("depCache") || typeof navigator === "undefined") return false;
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry("vv-depcache", { recursive: true });
+    return true;
+  } catch {
+    return false; // nothing persisted yet, or the browser refused: the boot proceeds
+  }
 }

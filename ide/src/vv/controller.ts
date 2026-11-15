@@ -25,7 +25,7 @@ import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
-import { bootFlag } from "./boot-flags";
+import { bootFlag, dropDepCacheIfAsked } from "./boot-flags";
 import { bootTargetFrom } from "./boot-target";
 import { deleteProject } from "./project-delete";
 import { withTemplateAssets } from "../facilis/project-assets";
@@ -691,11 +691,10 @@ export class IdeController {
     // Every project Home lists is left on OPFS at boot instead of being replayed into
     // this tab's VFS (BootOptions.deferRestoreRoots): a tab pays for the project it
     // opens, not for every project the origin holds. openProject hydrates one.
-    // The package-manager cache follows the same rule per FILE
-    // (BootOptions.deferCacheFiles): its bodies stay on OPFS and are replayed the
-    // first time an install reads them, so a tab does not carry the cache entries of
-    // projects it never installs.
+    // The package-manager cache follows the same rule per FILE (deferCacheFiles): bodies
+    // stay on OPFS and are replayed on first read, so a tab carries no cache it never uses.
     // Persistence goes through the mirror lane (D-188): one journal fsync per drain.
+    await dropDepCacheIfAsked();
     this.bridge.boot(
       bootFlag("deferRestoreRoots"),
       readNetRelayParam(),
