@@ -69,6 +69,11 @@ export function isScriptPath(path: string): boolean {
   return SCRIPT_EXTENSIONS.some((extension) => path.endsWith(extension));
 }
 
+/** True when the path names a JSON module; the structural `json-parse` check reads these. */
+export function isJsonPath(path: string): boolean {
+  return path.endsWith(".json");
+}
+
 /** True when the normalized path is writable under `policy` (rule 11). */
 export function isAllowedWritePath(path: string, policy: WritePolicy = "managed"): boolean {
   if (policy === "managed") {

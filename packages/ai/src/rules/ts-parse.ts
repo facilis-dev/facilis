@@ -9,6 +9,7 @@
 
 import { isScriptPath, normalizeProjectPath } from "../paths.ts";
 import type { FilePatch, SyntaxCheck, ValidationError } from "../types.ts";
+import { excerptOf } from "./excerpt.ts";
 
 export interface ScriptSource {
   path: string;
@@ -24,13 +25,6 @@ export function scriptSources(patches: readonly FilePatch[]): ScriptSource[] {
     if (isScriptPath(path)) sources.push({ path, content: patch.content });
   }
   return sources;
-}
-
-function excerptOf(content: string, line: number): string | undefined {
-  const text = content.split("\n")[line - 1];
-  if (text === undefined) return undefined;
-  const trimmed = text.trim();
-  return trimmed.length > 160 ? trimmed.slice(0, 160) + "…" : trimmed;
 }
 
 export function tsParseErrors(
