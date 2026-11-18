@@ -239,11 +239,12 @@ restores the uncommitted file). 24 checks, recorded in `report.json`; a failure 
 mirrored" and "never restored" are distinguishable).
 
 The smoke then runs `scripts/dev/smoke-chat.mjs`: it opens the AI Chat activity view,
-configures the **dev-only mock provider** in the real settings dialog (no key, no network),
-sends a message, reviews the proposal card and clicks Apply, then reads the written file back
-from the VFS; it finally clicks **Undo** and asserts the file is gone again. The mock streams its
-canned `AIResponse` in chunks (D-047), so the same run exercises the streaming bubble too; the
-production build cannot select it (D-045). It finally clicks **Project instructions** and asserts
+configures the **dev-only mock provider** in the real settings dialog (no key, no network), sends a
+message, follows the clean-tree gate when it appears ("commit and continue"), reads the file the
+mock wrote back from the VFS, checks the git-changes footer and clicks **Undo this turn**,
+asserting the file is gone again. The mock streams its first answer in chunks (D-047) and answers
+the commit-message side call, so the same run exercises the streaming bubble and the generated
+message; the production build cannot select it (D-045). It finally clicks **Project instructions** and asserts
 `AGENTS.md` lands in the VFS (D-048). The smoke covers the real settings/parser/patch/apply/undo
 and instructions path without an LLM. The last step opens Home and deletes the project through
 the typed-confirmation dialog, asserting both the files and the recent-list entry are gone
@@ -251,8 +252,7 @@ the typed-confirmation dialog, asserting both the files and the recent-list entr
 
 To exercise the PTC trace without a key, keep the **Mock (dev)** provider and send a message
 containing "ptc" (or "esplora"): the mock answers with one exploration program, the runner
-executes it, the trace card renders it, and the second call returns the usual demo proposal
-(D-101).
+executes it, the trace card renders it, and the next call writes the demo file (D-101).
 
 One page error is expected and filtered: the first edit in a project whose imports do not all
 resolve makes Monaco 0.55.1's TS worker post a TS 6.0 diagnostic that carries a callback

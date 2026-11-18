@@ -1,8 +1,8 @@
 // The graph tool handlers (D-126): what the model may read and rearrange on the project graph.
 //
 // The graph is committed team state under `.facilis/graph`, not source code, so graph-access.ts
-// writes it directly instead of going through the patch proposal/Apply flow — that flow exists
-// to review source changes with the §9.3 validator. This module is the trust boundary: the
+// writes it directly instead of going through the write tools — those exist to validate source
+// changes with the §9.3 rules. This module is the trust boundary: the
 // arguments arrive from a sandboxed program and are validated here before graph-access.ts
 // touches the state files.
 //

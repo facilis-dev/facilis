@@ -6,7 +6,7 @@
 // Committing is asynchronous and can fail (no git identity, for example): the failure stays in
 // gitGate.error, so the buttons disable and show a busy label until the action settles.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import GitBranch from "~icons/lucide/git-branch";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ export function ChatGitGateView({ chat, state }: { chat: ChatSession; state: Cha
   // Local pending flag: the session owns the outcome, this only keeps the card from
   // accepting a second click while the commit is in flight.
   const [pending, setPending] = useState<"continue" | "stop" | null>(null);
+  const messageId = useId();
   const gate = state.gitGate;
 
   if (gate === null) return null;
@@ -68,7 +69,7 @@ export function ChatGitGateView({ chat, state }: { chat: ChatSession; state: Cha
   async function continueGate(): Promise<void> {
     setPending("continue");
     try {
-      await chat.gitGate.continue();
+      await chat.gitGate.continue(state.gitGate?.message ?? "");
     } finally {
       // A failed commit leaves the gate up with gitGate.error; a successful one clears it.
       setPending(null);
@@ -119,8 +120,31 @@ export function ChatGitGateView({ chat, state }: { chat: ChatSession; state: Cha
         </ul>
       )}
 
+      <label
+        htmlFor={messageId}
+        className="mt-1.5 block text-[10px] font-medium text-muted-foreground"
+      >
+        {t("chat.gitGate.messageLabel")}
+      </label>
+      <textarea
+        id={messageId}
+        className="mt-0.5 h-16 w-full resize-y rounded border border-border bg-card px-1.5 py-1 font-mono text-[10px] text-foreground outline-none focus:border-ring disabled:opacity-60"
+        value={gate.message}
+        disabled={busy || gate.generating}
+        placeholder={gate.generating ? t("chat.gitGate.messageGenerating") : undefined}
+        spellCheck={false}
+        onChange={(event) => chat.gitGate.setMessage(event.target.value)}
+      />
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        {gate.generating ? t("chat.gitGate.messageGenerating") : t("chat.gitGate.messageHint")}
+      </p>
+
       <div className="mt-1.5 flex items-center gap-1.5">
-        <Button size="sm" disabled={busy} onClick={() => void continueGate()}>
+        <Button
+          size="sm"
+          disabled={busy || gate.generating || gate.message.trim().length === 0}
+          onClick={() => void continueGate()}
+        >
           {busy ? busyLabel : primary}
         </Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={stopGate}>

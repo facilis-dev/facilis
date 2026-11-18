@@ -2,7 +2,7 @@
 //
 // A patch that lands Node-only globals or server-only modules in src/ or components/ still
 // compiles, then breaks the browser preview ("process is not defined"). The review card warns
-// before Apply but never blocks: the user can accept anyway. Messages are not built here; the
+// and never blocks a write. Messages are not built here; the
 // UI translates rule + symbol through t().
 
 import type { FilePatch } from "@facilis.dev/ai";

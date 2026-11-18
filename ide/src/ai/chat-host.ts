@@ -2,16 +2,18 @@
 // It owns the one-per-controller conversation store (chat-store.ts), so a sidebar view switch
 // keeps the conversation and a new chat keeps the previous one; reloading starts clean.
 //
-// Paths cross the boundary project-relative (the prompt and the patches are
-// root-relative, SPEC §9.2); the editor speaks absolute VFS paths. Do the
+// Paths cross the boundary project-relative (the prompt's paths are root-relative,
+// SPEC §9.2); the editor speaks absolute VFS paths. Do the
 // conversion here, once, instead of in every consumer.
 
 import type { IdeController } from "@/vv/controller";
+import { CHECKPOINT_IDENTITY, loadGitIdentity } from "@/vv/git-config";
 import { isDiffTabId } from "@/vv/synthetic-tabs";
 import { previewSrcFor } from "@/vv/preview-url";
 import { analyzePatches } from "@/facilis/patch-analysis";
 import { writeProjectAsset } from "@/facilis/vfs-write";
 import { webAccess as deploymentWebAccess } from "@/deploy/current";
+import { getLocale } from "@/i18n";
 import { createChatWrites } from "./chat-writes";
 import { ChatSession, type ChatHost } from "./chat-session";
 import { createGitCheckpoint } from "./git-checkpoint";
@@ -94,6 +96,7 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
   // D-103: the tool runtime is the chat's only mode. The runner holds no cross-turn state:
   // its sandbox frame is created and removed per program.
   return new ChatSession(sessionHost, {
+    locale: () => getLocale(),
     runner: createPtcRunner({
       childFactory: createRunnerFrameChild(),
       executorFactory: () => withMcpTools(createToolRouter(toolHost), mcp),
@@ -102,14 +105,24 @@ function createSession(controller: IdeController, mcp: McpSession): ChatSession 
   });
 }
 
+/** The `diff` field of the git_diff tool result; anything unexpected is "no diff". */
+function diffTextOf(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return "";
+  const diff = (value as { diff?: unknown }).diff;
+  return typeof diff === "string" ? diff : "";
+}
+
 /** Git safety for AI writes (D-181): Source Control's own commits, plus a refresh after a restore. */
 function createGitSafety(controller: IdeController): GitSafety {
   const checkpoint = createGitCheckpoint({
     bridge: controller.bridge,
     root: () => projectRoot(controller),
-    commit: async (root) => {
+    commit: async (root, message) => {
       await controller.scm.stageAll(root);
-      const committed = await controller.scm.commit(root, "chore: save work before AI changes");
+      // A first-run project has no identity yet and the gate must not block on that: this
+      // checkpoint commit is the IDE's, while the user's own commits keep using their identity.
+      const identity = loadGitIdentity() ?? CHECKPOINT_IDENTITY;
+      const committed = await controller.scm.commit(root, message, identity);
       const repo = controller.scm.getSnapshot().repos.find((entry) => entry.root === root);
       return committed ? { ok: true } : { ok: false, error: repo?.error ?? "The commit failed." };
     },
@@ -120,10 +133,25 @@ function createGitSafety(controller: IdeController): GitSafety {
   });
   // A git-fs checkout is silent (it does not broadcast vv-fs-changed), so the turn Undo must
   // ask the controller to reload the worktree exactly as Source Control does after a discard.
+  const git = createGitAccess(controller);
   return {
     gate: () => checkpoint.gate(),
-    commitAll: () => checkpoint.commitAll(),
+    commitAll: (message) => checkpoint.commitAll(message),
     init: () => checkpoint.init(),
+    // The generated commit summary (D-192) reads both sides of the index: the gate commits
+    // everything, so the message must describe everything.
+    diff: async () => {
+      try {
+        const parts: string[] = [];
+        for (const staged of [false, true]) {
+          const text = diffTextOf(await git.diff({ staged }));
+          if (text.length > 0) parts.push(text);
+        }
+        return parts.join("\n");
+      } catch {
+        return "";
+      }
+    },
     restore: async (paths) => {
       const result = await checkpoint.restore(paths);
       controller.scm.onWorkdirChanged?.();
@@ -190,7 +218,7 @@ function chatHost(controller: IdeController, mcp: McpSession): ChatHost {
     // D-118: the project's MCP servers are discovered once, before a turn's tool list.
     prepare: () => mcp.ensureFresh(),
     // The 17-rule validator reads analyzer facts: the worker analyzes the project before and
-    // after the proposal; a thrown error blocks validation.
+    // after a write; a thrown error blocks validation.
     analyze: (patches, signal, overlay) => analyzePatches(controller, patches, signal, overlay),
   };
 }

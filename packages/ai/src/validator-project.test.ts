@@ -51,7 +51,7 @@ export const notes = pgTable("notes", {
     expect(rulesOf(result.errors)).toContain("rls-on-scoped-table");
   });
 
-  it("accepts a new scoped table that ships the policy and a migration", () => {
+  it("accepts a new scoped table that ships the policy", () => {
     const content = nextSchema(`
 export const notes = pgTable(
   "notes",
@@ -59,10 +59,7 @@ export const notes = pgTable(
   () => [tenantIsolationPolicy()],
 ).enableRLS();
 `);
-    const { result } = validate([
-      update("db/schema.ts", content),
-      create("db/migrations/0002_notes.sql", "create table notes();\n"),
-    ]);
+    const { result } = validate([update("db/schema.ts", content)]);
     expect(rulesOf(result.errors)).not.toContain("rls-on-scoped-table");
   });
 });
@@ -135,19 +132,25 @@ export const title = t("app.title");
 });
 
 describe("rule 14 migration-generated", () => {
-  it("warns when a schema change ships no migration", () => {
+  it("rejects an authored migration file", () => {
     const { result } = validate([
-      update("db/schema.ts", nextSchema("export const extra = true;\n")),
+      create(MIGRATION, "insert into role_permissions values ('user', 'x');\n"),
     ]);
-    expect(result.warnings.some((entry) => entry.rule === "migration-generated")).toBe(true);
+    expect(rulesOf(result.errors)).toContain("migration-generated");
+    expect(result.ok).toBe(false);
   });
 
-  it("accepts a schema change with a migration file", () => {
+  it("rejects an edit to an existing migration file", () => {
+    const { result } = validate([update(MIGRATION, "-- edited by hand\n")]);
+    expect(rulesOf(result.errors)).toContain("migration-generated");
+  });
+
+  it("accepts a schema change: the migration is generated at release", () => {
     const { result } = validate([
       update("db/schema.ts", nextSchema("export const extra = true;\n")),
-      create("db/migrations/0002_extra.sql", "-- extra\n"),
     ]);
-    expect(result.warnings.some((entry) => entry.rule === "migration-generated")).toBe(false);
+    expect(rulesOf(result.errors)).not.toContain("migration-generated");
+    expect(result.ok).toBe(true);
   });
 });
 
@@ -188,35 +191,24 @@ function configWith(permissions: string, roles: string): string {
 }
 
 describe("rule 16 role-config-sync", () => {
-  it("rejects a permission change without a seed migration", () => {
+  it("accepts a permission change: the seed is generated at release", () => {
     const { result } = validate([
       update(
         "facilis.config.ts",
         configWith('"todos:read", "todos:write", "tags:read"', '"todos:read", "tags:read"'),
       ),
     ]);
-    expect(rulesOf(result.errors)).toContain("role-config-sync");
+    expect(rulesOf(result.errors)).not.toContain("role-config-sync");
   });
 
   it("rejects a config patch whose auth block cannot be read", () => {
     const { result } = validate([update("facilis.config.ts", "export default 1;\n")]);
     expect(rulesOf(result.errors)).toContain("role-config-sync");
   });
-
-  it("accepts a permission change that ships the seed migration", () => {
-    const { result } = validate([
-      update(
-        "facilis.config.ts",
-        configWith('"todos:read", "todos:write", "tags:read"', '"todos:read", "tags:read"'),
-      ),
-      create(MIGRATION, "insert into role_permissions values ('user', 'tags:read');\n"),
-    ]);
-    expect(rulesOf(result.errors)).not.toContain("role-config-sync");
-  });
 });
 
 describe("integration", () => {
-  it("accepts one coherent feature patch: route, permission and migration", () => {
+  it("accepts one coherent feature patch: route and permission", () => {
     const config = CONFIG.replace(
       '"todos:read", "todos:write"',
       '"todos:read", "todos:write", "tags:read"',
@@ -233,7 +225,6 @@ export default defineAuthorizedHandler(
 `;
     const { result } = validate([
       update("facilis.config.ts", config),
-      create(MIGRATION, "insert into role_permissions values ('user', 'tags:read');\n"),
       create(ROUTE + "tags/index.get.ts", route),
     ]);
     expect(result.errors).toEqual([]);

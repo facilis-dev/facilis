@@ -1,7 +1,10 @@
 # Migration generation in the release and deploy pipeline
 
 **Status:** implemented in part (2026-11-11): P0, P1 and P2 landed with D-158/D-159; P3 (the
-upgrade-action/UI side) is pending. §2–§3 are the design reference behind SPEC §2/§7.7/§11.3;
+upgrade-action/UI side) is pending. P5 landed in part on 2026-11-18 (D-193): rules 14/16 block
+authored DDL, and the dev boot reconciles the declared schema additively (with confirmed drops
+only). The migration replay in `db-bootstrap.ts` and the retirement of the examples' SQL are what
+remains. §2–§3 are the design reference behind SPEC §2/§7.7/§11.3;
 §8–§9 are historical checklists.
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
 tags** (in the release pipeline, no database access) and **applied as an immutable artifact** by the
@@ -316,7 +319,9 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 
 ### P5 - Dev/upgrade convergence and retirement of authored DDL
 - Dev boot: live PGlite -> declared reconcile (dev only), replace migration replay; upgrade
-  postflight uses the same call.
+  postflight uses the same call. *Additive slice landed (D-193): `schema-reconcile.ts` creates
+  missing tables/columns/policies and applies a drop only when the user confirmed it; the replay
+  still runs first and is removed in P6.*
 - examples/todo-app: remove the hand-written DDL (0000-0006), drop meta/ from the template, replace
   migrations.test.ts with "empty DB + artifacts == declared" and "preview plan == artifact"; add the
   CI gate.

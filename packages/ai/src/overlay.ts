@@ -60,17 +60,6 @@ function isSchemaTable(table: TableFact): boolean {
   return normalizeProjectPath(table.source.file) === SCHEMA_PATH;
 }
 
-/** True when the patch creates a SQL migration file in the configured directory. */
-export function hasMigrationPatch(patches: readonly FilePatch[], migrationsDir: string): boolean {
-  const directory = normalizeProjectPath(migrationsDir).replace(/\/+$/, "");
-  return patches.some(
-    (patch) =>
-      patch.action === "create" &&
-      normalizeProjectPath(patch.path).startsWith(directory + "/") &&
-      normalizeProjectPath(patch.path).endsWith(".sql"),
-  );
-}
-
 /** Overlay the patch set onto the project context. */
 export function buildEffectiveState(
   context: PatchContext,

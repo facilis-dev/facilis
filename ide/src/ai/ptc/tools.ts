@@ -233,7 +233,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
     if (requiresConfirmation !== undefined && typeof requiresConfirmation !== "boolean")
       refuse("requiresConfirmation must be a boolean");
     throwIfAborted(context.signal);
-    // Exactly the final-gate function, so the self-check can never disagree with Apply.
+    // Exactly the write path's function, so the self-check can never disagree with a write.
     const result = await validatePatchesWithHost(patches, context.host, {
       ...(requiresConfirmation === undefined ? {} : { requiresConfirmation }),
       ...(context.signal === undefined ? {} : { signal: context.signal }),

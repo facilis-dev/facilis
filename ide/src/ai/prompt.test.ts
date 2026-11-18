@@ -31,7 +31,7 @@ describe("SYSTEM_PROMPT", () => {
       "src/components/ui, src/layouts",
       't("key")',
       "locales/en.json",
-      "minimal patches",
+      "minimal changes",
       "Do not invent roles or permissions",
       "config.auth.permissions",
       "Every route carries a description",
@@ -55,51 +55,17 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("states the one-object response contract", () => {
+  it("states the message-and-script response contract", () => {
     for (const token of [
       "Return exactly one JSON object",
       '"message"',
-      '"patches"',
-      '"action"',
-      '"notes"',
-      "requires_confirmation",
-      "path is relative to the project root",
-      "delete",
+      '"script"',
+      "write_file/delete_file",
+      "never return a patch set",
       "Never put secrets",
     ]) {
       expect(SYSTEM_PROMPT).toContain(token);
     }
-  });
-
-  it("states the validation repair protocol", () => {
-    for (const token of [
-      "## Validation repair",
-      "validation repair report",
-      "your previous answer was rejected",
-      "fix every finding",
-      "return the corrected AIResponse JSON object",
-      "merged into the rejected set",
-      "re-emit only the files",
-      "fix_hint",
-      "line/excerpt",
-      "read the implicated files with the tools",
-      "keep every existing declaration",
-      "tables, columns, routes, config, keys",
-      "never drop code you were not asked to remove",
-      "destructive",
-      "requires_confirmation",
-      "notes",
-    ]) {
-      expect(SYSTEM_PROMPT).toContain(token);
-    }
-  });
-
-  it("places the validation repair section after the response contract", () => {
-    const contractAt = SYSTEM_PROMPT.indexOf("## Response contract");
-    const repairAt = SYSTEM_PROMPT.indexOf("## Validation repair");
-    expect(contractAt).toBeGreaterThan(-1);
-    expect(repairAt).toBeGreaterThan(contractAt);
-    expect(repairAt).toBeGreaterThan(SYSTEM_PROMPT.indexOf("Never put secrets"));
   });
 });
 
@@ -158,7 +124,7 @@ describe("buildSystemPrompt with the PTC runtime", () => {
   it("teaches the script/answer protocol and lists the registered tools", () => {
     const prompt = buildSystemPrompt(context({ tools: TOOLS }));
     expect(prompt).toContain("## Project exploration (PTC)");
-    expect(prompt).toContain('"script" string instead of "patches"');
+    expect(prompt).toContain('"script" string and no file changes');
     expect(prompt).toContain("There is no exploration quota");
     expect(prompt).toContain("read_file({ path, startLine?, endLine? })");
     expect(prompt).toContain("validate({ patches, requiresConfirmation? })");
@@ -240,8 +206,8 @@ describe("canonical shapes and the tool protocol", () => {
     }
   });
 
-  it("offers the script alternative in the response contract", () => {
-    expect(SYSTEM_PROMPT).toContain('a turn may instead carry "script"');
+  it("offers the script as the only program-turn field", () => {
+    expect(SYSTEM_PROMPT).toContain('"script" is the optional PTC program body');
   });
 
   it("requires a return value, object tool arguments and read-before-write", () => {
@@ -250,8 +216,8 @@ describe("canonical shapes and the tool protocol", () => {
       "ONE object argument",
       "returns nothing",
       "no markdown fences",
-      "Before re-emitting a file, read_file it",
-      "call validate on the exact patch set",
+      "Before writing a multi-file change, call validate",
+      "call validate on the candidate patches",
       "Reading the schema.",
     ]) {
       expect(prompt).toContain(token);
@@ -368,10 +334,19 @@ describe("buildSystemPrompt write tools (D-181)", () => {
   it("teaches incremental validated writes when the tool is registered", () => {
     const prompt = buildSystemPrompt(context({ tools: [writeSpec] }));
     expect(prompt).toContain("## Writing files (write tools)");
-    expect(prompt).toContain("EMPTY patches array");
+    expect(prompt).toContain("message that summarises what changed");
     expect(prompt).toContain("clean-tree gate");
     expect(prompt).toContain("Never stage, commit or discard");
     expect(prompt).toContain("write_file({ path, content })");
+  });
+
+  it("never ships the patch-set contract", () => {
+    const prompt = buildSystemPrompt(context({ tools: [writeSpec] }));
+    expect(prompt).toContain("## Response contract");
+    expect(prompt).toContain('"patches" field is rejected');
+    expect(prompt).toContain("write_file/delete_file");
+    expect(prompt).not.toContain("## Large patch sets");
+    expect(prompt).not.toContain("## Validation repair");
   });
 
   it("omits the section when the write tool is not registered", () => {
@@ -388,7 +363,7 @@ describe("buildSystemPrompt writable paths (D-167)", () => {
   it("states the strict managed roots by default", () => {
     const prompt = buildSystemPrompt(context());
     expect(prompt).toContain("## Writable paths");
-    expect(prompt).toContain("This managed build lets a patch write only under");
+    expect(prompt).toContain("This managed build lets the write tools write only under");
     for (const token of ["server/", "src/", "db/", "lib/", "components/", "locales/"]) {
       expect(prompt).toContain(token);
     }
@@ -397,10 +372,10 @@ describe("buildSystemPrompt writable paths (D-167)", () => {
 
   it("states the open set, including CI and deploy config, when the build is open", () => {
     const prompt = buildSystemPrompt(context({ writePolicy: "open" }));
-    expect(prompt).toContain("This open build lets a patch write any project path");
+    expect(prompt).toContain("This open build lets the write tools write any project path");
     expect(prompt).toContain(".github/workflows");
     expect(prompt).toContain("wrangler.jsonc");
-    expect(prompt).not.toContain("This managed build lets a patch write only under");
+    expect(prompt).not.toContain("This managed build lets the write tools write only under");
   });
 });
 
@@ -414,7 +389,7 @@ describe("buildSystemPrompt UI patterns (D-186)", () => {
       "List | Calendar switcher",
       "confirmation Dialog",
       "## Ask before you guess",
-      'whose "patches" is empty',
+      "no script",
     ]) {
       expect(prompt).toContain(token);
     }

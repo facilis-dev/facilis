@@ -11,7 +11,7 @@ export const DESIGN_PROMPT = [
   "3. Every route renders inside <Page title description actions>; sections are flex flex-col gap-6. Never hand-roll page padding, a header or a container. Read src/components/ui/page.tsx and src/pages/todos.tsx before inventing a shell.",
   "4. One primary action per view, in Page actions; every other action is outline or ghost. Lists and tables are the default surface. A short create form (five fields or fewer, one step) opens in a Dialog from Page actions (UI-PATTERNS P-01); a long, multi-step or deep-linkable form gets its own page.",
   "5. Cards: rounded-lg border border-border bg-card p-5 shadow-card; header pb-3, footer pt-3 border-t; one idea per card, at most three per row at lg.",
-  "6. Every async surface ships four states in the same patch: Skeleton rows that mirror the real layout, EmptyState (icon, one line, one action), Alert + retry, ready. A spinner-only screen is not a loading state.",
+  "6. Every async surface ships four states in the same change: Skeleton rows that mirror the real layout, EmptyState (icon, one line, one action), Alert + retry, ready. A spinner-only screen is not a loading state.",
   "7. Forms: Field + Label + inline error; submit disabled with Spinner while pending; focus the first invalid field; toast on success.",
   "8. Tables: h-11 rows, sticky header, right-aligned numbers with tabular-nums, one line per cell.",
   "9. Motion: the CSS recipes enter, enter-stagger, lift, draw, shimmer, pop-in. 150-400ms, transform and opacity only, one entrance per page, honour motion-reduce. Never add a motion library; never animate layout properties.",

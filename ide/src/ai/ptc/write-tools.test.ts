@@ -33,6 +33,8 @@ function fakeWrites(overrides: Partial<ChatWrites> = {}): ChatWrites {
     }),
     turnWrites: () => [],
     takeGateFailure: () => null,
+    takeSchemaConfirmation: () => null,
+    applyPending: async () => ({ ok: false, path: "", errors: [], warnings: [] }),
     outage: () => false,
     undoTurn: async () => ({ ok: true, errors: [] }),
     ...overrides,

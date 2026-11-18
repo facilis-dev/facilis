@@ -83,6 +83,8 @@ export interface ValidationResult {
    * this can be true on a result that is also `ok`.
    */
   destructive?: boolean;
+  /** Rule 15's list, e.g. `drops column "todos.title"`; empty when the change is additive. */
+  destructiveChanges?: readonly string[];
 }
 
 /** One parse diagnostic from the injected TypeScript service (rule 1). */

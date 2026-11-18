@@ -2,7 +2,7 @@
  * The SPEC §9.3 patch validator: 19 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
- * presence, JSON parse); with a context the full rule set runs. Rules 5, 13, 14 and 17 are
+ * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 are
  * warnings (they never block); the others are errors and make `ok` false, which is what stops
  * the IDE's apply path before it writes anything (invariant 9).
  *
@@ -16,7 +16,7 @@ import { roleConfigSyncErrors } from "./rules/config-sync.ts";
 import {
   destructiveChanges,
   destructiveErrors,
-  migrationWarnings,
+  migrationErrors,
   rlsErrors,
 } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
@@ -50,10 +50,12 @@ export function validatePatch(
   errors.push(...jsonParseErrors(patches));
   const warnings: ValidationResult["warnings"] = [];
   let destructive = false;
+  let drops: string[] = [];
   const context = options.context;
   if (context !== undefined) {
     const state = buildEffectiveState(context, patches);
-    destructive = destructiveChanges(state).length > 0;
+    drops = destructiveChanges(state);
+    destructive = drops.length > 0;
     errors.push(...tsParseErrors(patches, context.syntax));
     errors.push(...routeSecurityErrors(state));
     errors.push(...routeDbTablesPresentErrors(state));
@@ -66,7 +68,7 @@ export function validatePatch(
     errors.push(...rlsErrors(state));
     errors.push(...importResolveErrors(state, context));
     warnings.push(...i18nWarnings(state));
-    warnings.push(...migrationWarnings(patches, state));
+    errors.push(...migrationErrors(patches, state));
     errors.push(...destructiveErrors(state, options.requiresConfirmation === true));
     errors.push(...roleConfigSyncErrors(patches, state));
     warnings.push(...routeDescriptionWarnings(state));
@@ -79,5 +81,5 @@ export function validatePatch(
     errors.push(...jobTables.errors);
     warnings.push(...jobTables.warnings);
   }
-  return { ok: errors.length === 0, errors, warnings, destructive };
+  return { ok: errors.length === 0, errors, warnings, destructive, destructiveChanges: drops };
 }

@@ -26,6 +26,8 @@ function fakeWrites(overrides: Partial<ChatWrites> = {}): ChatWrites {
     }),
     turnWrites: () => [],
     takeGateFailure: () => null,
+    takeSchemaConfirmation: () => null,
+    applyPending: async () => ({ ok: false, path: "", errors: [], warnings: [] }),
     outage: () => false,
     undoTurn: async () => ({ ok: true, errors: [] }),
     ...overrides,
@@ -41,12 +43,36 @@ function input(
   writes: ChatWrites,
   pauseGitGate?: GitGateStepInput["pauseGitGate"],
   signal: AbortSignal = new AbortController().signal,
+  pauseSchemaConfirm?: GitGateStepInput["pauseSchemaConfirm"],
 ): GitGateStepInput {
   return {
     writes,
     signal,
     ...(pauseGitGate === undefined ? {} : { pauseGitGate }),
+    ...(pauseSchemaConfirm === undefined ? {} : { pauseSchemaConfirm }),
   };
+}
+
+const DROPS = ['drops table "todos"'] as const;
+
+function confirmedWrites(apply: () => Promise<{ ok: boolean }>): ChatWrites {
+  return fakeWrites({
+    takeSchemaConfirmation: () => ({ changes: DROPS }),
+    applyPending: async () => {
+      const applied = await apply();
+      return applied.ok
+        ? {
+            ok: true,
+            path: "db/schema.ts",
+            action: "update",
+            bytes: 1,
+            destructive: true,
+            added: 1,
+            removed: 1,
+          }
+        : { ok: false, path: "db/schema.ts", errors: [], warnings: [] };
+    },
+  });
 }
 
 function turns(): AiChatTurn[] {
@@ -102,6 +128,65 @@ describe("settleWriteStep", () => {
         },
         abort.signal,
       ),
+      turns(),
+    );
+    expect(settled).toMatchObject({ ok: false, failure: { kind: "aborted" } });
+  });
+
+  it("pauses on a destructive schema write and continues once the user applies it", async () => {
+    const list = turns();
+    let confirmed: readonly string[] = [];
+    let applied = 0;
+    const settled = settleWriteStep(
+      input(
+        confirmedWrites(async () => {
+          applied += 1;
+          return { ok: true };
+        }),
+        undefined,
+        undefined,
+        async (changes) => {
+          confirmed = changes;
+          return "apply";
+        },
+      ),
+      list,
+    );
+    await expect(settled).resolves.toEqual({ ok: true });
+    expect(confirmed).toEqual([...DROPS]);
+    expect(applied).toBe(1);
+    expect(list.at(-1)?.content).toContain("confirmed");
+  });
+
+  it("ends the turn when the user refuses the destructive change", async () => {
+    const settled = await settleWriteStep(
+      input(
+        confirmedWrites(async () => ({ ok: true })),
+        undefined,
+        undefined,
+        async () => "cancel",
+      ),
+      turns(),
+    );
+    expect(settled).toMatchObject({ ok: false, failure: { kind: "aborted" } });
+  });
+
+  it("ends the turn when the confirmed write cannot be applied", async () => {
+    const settled = await settleWriteStep(
+      input(
+        confirmedWrites(async () => ({ ok: false })),
+        undefined,
+        undefined,
+        async () => "apply",
+      ),
+      turns(),
+    );
+    expect(settled).toMatchObject({ ok: false, failure: { kind: "aborted" } });
+  });
+
+  it("ends the turn when no confirmation handler is wired", async () => {
+    const settled = await settleWriteStep(
+      input(confirmedWrites(async () => ({ ok: true }))),
       turns(),
     );
     expect(settled).toMatchObject({ ok: false, failure: { kind: "aborted" } });

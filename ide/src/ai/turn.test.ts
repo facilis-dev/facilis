@@ -8,11 +8,9 @@ import {
   answer,
   capture,
   host,
-  NEW_FILE,
   okRun,
+  patchedAnswer,
   previewAccess,
-  ROUTE,
-  ROUTE_FIXED,
   run,
   runner,
   script,
@@ -24,7 +22,7 @@ describe("runTurn with PTC exploration", () => {
   it("runs a program, returns its result to the model, then accepts the final answer", async () => {
     const calls: CallModelInput[] = [];
     const outcome = await run(
-      [script("return await tools.list_files({})"), answer([NEW_FILE])],
+      [script("return await tools.list_files({})"), answer()],
       runner(okRun({ files: ["src/a.ts"] })),
       calls,
     );
@@ -37,66 +35,27 @@ describe("runTurn with PTC exploration", () => {
     expect(resultTurn).toContain("The program finished");
     expect(resultTurn).toContain("src/a.ts");
     expect(resultTurn).toContain("list_files");
-    expect(outcome.parsed.response.patches).toEqual([NEW_FILE]);
+    expect(outcome.parsed.response.message).toBe("Here is the change.");
     expect(outcome.trace).toHaveLength(1);
   });
 
-  it("does not spend a repair round on a validator outage", async () => {
+  it("rejects a returned patch set and asks for the write tools", async () => {
     const calls: CallModelInput[] = [];
-    const outcome = await runTurn({
-      call: capture([answer([NEW_FILE])], calls),
-      settings,
-      system: "system",
-      messages: [{ role: "user", content: "add a file" }],
-      host: {
-        ...host(),
-        analyze: async () => {
-          throw new Error("analyzer worker did not become ready");
-        },
-      },
-      signal: SIGNAL,
-      onText: () => {},
-      onRepair: () => {},
-      runner: runner(okRun(null, 0)),
-    });
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.kind).toBe("validator");
-    expect(calls).toHaveLength(1);
-  });
-
-  it("treats a mixed outage as a validator outage, not a repair round", async () => {
-    const calls: CallModelInput[] = [];
-    const outcome = await runTurn({
-      call: capture([answer([ROUTE])], calls),
-      settings,
-      system: "system",
-      messages: [{ role: "user", content: "add a route" }],
-      host: {
-        ...host(),
-        // Rule 1's parser is down; the permission finding cannot be trusted either.
-        syntaxChecker: () => ({
-          check: async () => {
-            throw new Error("parser unavailable");
-          },
-        }),
-      },
-      signal: SIGNAL,
-      onText: () => {},
-      onRepair: () => {},
-      runner: runner(okRun(null, 0)),
-    });
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.failure.kind).toBe("validator");
-    expect(calls).toHaveLength(1);
+    const outcome = await run([patchedAnswer(), answer()], runner(okRun(null, 0)), calls);
+    expect(outcome.ok).toBe(true);
+    expect(calls).toHaveLength(2);
+    const repair = calls[1]?.messages.at(-1)?.content ?? "";
+    expect(repair).toContain("patches: not part of the response");
+    expect(repair).toContain("write_file/delete_file");
+    if (!outcome.ok) return;
+    expect(outcome.parsed.response.message).toBe("Here is the change.");
   });
 
   it("reports each program through the start and finish callbacks", async () => {
     const calls: CallModelInput[] = [];
     const started: string[] = [];
     const finished: string[] = [];
-    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+    const outcome = await run([script("return 1"), answer()], runner(okRun(1)), calls, {
       onScriptStart: (program, turn) => started.push(turn + ":" + program),
       onScript: (result, program) => finished.push(program + ":" + String(result.ok)),
     });
@@ -109,7 +68,7 @@ describe("runTurn with PTC exploration", () => {
   it("tells the model when a program returned nothing", async () => {
     const calls: CallModelInput[] = [];
     const outcome = await run(
-      [script("await tools.list_files({})"), answer([NEW_FILE])],
+      [script("await tools.list_files({})"), answer()],
       runner(okRun(null, 1)),
       calls,
     );
@@ -126,11 +85,7 @@ describe("runTurn with PTC exploration", () => {
       elapsedMs: 5000,
       trace: [],
     };
-    const outcome = await run(
-      [script("while (true) {}"), answer([NEW_FILE])],
-      runner(timeout),
-      calls,
-    );
+    const outcome = await run([script("while (true) {}"), answer()], runner(timeout), calls);
     expect(outcome.ok).toBe(true);
     const resultTurn = calls[1]?.messages.at(-1)?.content ?? "";
     expect(resultTurn).toContain("timeout");
@@ -139,19 +94,19 @@ describe("runTurn with PTC exploration", () => {
 
   it("keeps exploring until the model answers (D-108)", async () => {
     const calls: CallModelInput[] = [];
-    const texts = [...Array.from({ length: 10 }, () => script("return 1")), answer([NEW_FILE])];
+    const texts = [...Array.from({ length: 10 }, () => script("return 1")), answer()];
     const outcome = await run(texts, runner(okRun(1)), calls);
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(calls).toHaveLength(11);
-    expect(outcome.parsed.response.patches).toEqual([NEW_FILE]);
+    expect(outcome.parsed.response.message).toBe("Here is the change.");
   });
 
   it("attaches screenshots to the tool result and to the activity callback (D-112)", async () => {
     const calls: CallModelInput[] = [];
     const images = ["data:image/jpeg;base64,QUJD"];
     const seen: (readonly string[])[] = [];
-    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+    const outcome = await run([script("return 1"), answer()], runner(okRun(1)), calls, {
       preview: previewAccess({ takeImages: () => images }),
       onScript: (_result, _program, captured) => seen.push(captured),
     });
@@ -174,7 +129,7 @@ describe("runTurn with PTC exploration", () => {
       takeImages: () => [graph],
     };
     const outcome = await runTurn({
-      call: capture([script("return 1"), answer([NEW_FILE])], calls),
+      call: capture([script("return 1"), answer()], calls),
       settings,
       system: "system",
       messages: [{ role: "user", content: "inspect the graph" }],
@@ -194,26 +149,11 @@ describe("runTurn with PTC exploration", () => {
     expect(calls[1]?.messages.at(-1)?.images).toEqual([preview, graph]);
   });
 
-  it("does not inline file content in a repair when the tools are available", async () => {
-    const calls: CallModelInput[] = [];
-    const outcome = await run(
-      [answer([ROUTE]), answer([ROUTE_FIXED])],
-      runner(okRun(null, 0)),
-      calls,
-    );
-    expect(outcome.ok).toBe(true);
-    expect(calls).toHaveLength(2);
-    const repair = calls[1]?.messages.at(-1)?.content ?? "";
-    expect(repair).toContain("## Validation findings");
-    expect(repair).toContain("## Tools");
-    expect(repair).not.toContain("## Current content of the files");
-  });
-
   it("records one activity row per model call with its outcome (D-110)", async () => {
     const calls: CallModelInput[] = [];
     const activity: ChatTraceCall[] = [];
     const started: number[] = [];
-    const outcome = await run([script("return 1"), answer([NEW_FILE])], runner(okRun(1)), calls, {
+    const outcome = await run([script("return 1"), answer()], runner(okRun(1)), calls, {
       onCallStart: (call) => started.push(call),
       onCall: (entry) => activity.push(entry),
     });
@@ -231,7 +171,7 @@ describe("runTurn with PTC exploration", () => {
       call: async (input) => {
         input.onReasoning?.("thinking ");
         input.onReasoning?.("hard");
-        return { ok: true, text: answer([NEW_FILE]), reasoning: "thinking hard" };
+        return { ok: true, text: answer(), reasoning: "thinking hard" };
       },
       settings,
       system: "system",

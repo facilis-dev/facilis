@@ -22,8 +22,8 @@ export interface GitCheckpointDeps {
   bridge: KernelBridge;
   /** Absolute VFS path of the open project, or null when nothing is open. */
   root(): string | null;
-  /** Stage everything and commit it; the SCM panel owns identity and messaging. */
-  commit(root: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Stage everything and commit it with the user's message; the SCM panel owns identity. */
+  commit(root: string, message: string): Promise<{ ok: true } | { ok: false; error: string }>;
   /** Initialize a repository for a project that has none. */
   init(root: string): Promise<{ ok: true } | { ok: false; error: string }>;
 }
@@ -213,10 +213,10 @@ export function createGitCheckpoint(
     return { ok: errors.length === 0, errors };
   }
 
-  async function commitAll(): Promise<{ ok: true } | { ok: false; error: string }> {
+  async function commitAll(message: string): Promise<{ ok: true } | { ok: false; error: string }> {
     const root = rootOf();
     if (root === null) return { ok: false, error: "no project is open" };
-    return delegated(() => deps.commit(root));
+    return delegated(() => deps.commit(root, message));
   }
 
   async function init(): Promise<{ ok: true } | { ok: false; error: string }> {

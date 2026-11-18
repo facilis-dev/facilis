@@ -84,7 +84,7 @@ function beforeAnalysis(base: ReadonlyMap<string, string>): Promise<Analysis> {
   const analysis = analyzed(base);
   const entry: BeforeCacheEntry = { base, analysis };
   beforeCache = entry;
-  // A failed analysis must not be pinned to the snapshot: retry on the next proposal.
+  // A failed analysis must not be pinned to the snapshot: retry on the next write.
   analysis.catch(() => {
     if (beforeCache === entry) beforeCache = null;
   });

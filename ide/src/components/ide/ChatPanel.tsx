@@ -20,9 +20,9 @@ import { ChatComposer } from "./ChatComposer";
 import { ChatConversationsMenu } from "./ChatConversationsMenu";
 import { ChatQueueView } from "./ChatQueueView";
 import { ChatTranscriptView } from "./ChatTranscriptView";
-import { ChatProposalView } from "./ChatProposalView";
 import { ChatGitGateView } from "./ChatGitGateView";
-import { ChatWritesView } from "./ChatWritesView";
+import { ChatSchemaConfirmView } from "./ChatSchemaConfirmView";
+import { ChatGitChangesView } from "./ChatGitChangesView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useChatScroll } from "./use-chat-scroll";
 import { useIde } from "./useIde";
@@ -89,17 +89,13 @@ export function ChatPanel() {
     follow,
     state.messages.length,
     state.phase,
-    state.proposal,
-    state.applied,
     state.error,
     state.repair,
     state.trace.length,
     state.reasoning,
     state.exploring,
-    state.patchParts,
-    // The gate card and the turn-writes summary land at the end of the transcript too.
+    // The gate card lands at the end of the transcript too.
     state.gitGate,
-    state.writes,
   ]);
 
   // A quiet spinner is not enough: show how long the current step has been running.
@@ -121,15 +117,11 @@ export function ChatPanel() {
       ? t("chat.exploring", { n: state.exploring })
       : state.repair !== null
         ? t("chat.repairing", { attempt: state.repair.attempt })
-        : state.patchParts !== null
-          ? t("chat.patchParts", { part: state.patchParts.part })
-          : state.phase === "applying"
-            ? t("chat.applying")
-            : state.phase === "compacting"
-              ? t("chat.compacting")
-              : state.streaming
-                ? t("chat.streaming")
-                : t("chat.thinking");
+        : state.phase === "compacting"
+          ? t("chat.compacting")
+          : state.streaming
+            ? t("chat.streaming")
+            : t("chat.thinking");
 
   return (
     <aside
@@ -215,15 +207,14 @@ export function ChatPanel() {
               </Button>
               <p className="text-[10px] text-muted-foreground">{t("chat.empty.privacy")}</p>
             </Welcome>
-          ) : state.messages.length === 0 && !state.proposal && !state.error ? (
+          ) : state.messages.length === 0 && !state.error ? (
             <Welcome title={t("chat.empty.title")} body={t("chat.empty.body")} />
           ) : (
             <>
               {/* Strict time order: each turn's activity sits between its user message and answer. */}
               <ChatTranscriptView state={state} />
-              <ChatProposalView chat={chat} state={state} />
               {state.gitGate !== null && <ChatGitGateView chat={chat} state={state} />}
-              {state.writes.length > 0 && <ChatWritesView chat={chat} state={state} />}
+              {state.schemaConfirm !== null && <ChatSchemaConfirmView chat={chat} state={state} />}
               {state.error && (
                 <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                   <p className="font-medium text-destructive">{errorText(state.error)}</p>
@@ -275,6 +266,8 @@ export function ChatPanel() {
           </span>
         </div>
       )}
+
+      <ChatGitChangesView controller={c} chat={chat} state={state} />
 
       {hasProject && state.configured && (
         <>

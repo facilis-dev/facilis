@@ -1,11 +1,10 @@
-// Contextual validation before a proposal is shown and before anything is written
-// (SPEC §9.3, invariant 9; task-10).
+// Contextual validation before a write (SPEC §9.3, invariant 9; task-10).
 //
 // The project facts come from the analyzer worker: the host analyzes the project before and
 // after the patch set, then this module maps those facts (plus the two source files and the
 // live manifest) into the PatchContext the synchronous validatePatch() consumes. If the
-// analyzer is unavailable, validation fails closed with a blocking result: a proposal without
-// a context must never reach applyPatch().
+// analyzer is unavailable, validation fails closed with a blocking result: a write without a
+// context must never reach applyPatch().
 
 import {
   buildProjectContext,

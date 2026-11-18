@@ -17,17 +17,17 @@ D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools).
   Chrome-only `csp=""` attribute.
 - **Spike first.** Phase 0 proved isolation, RPC, worker termination and parent responsiveness
   before any tool work (results in §5).
-- **`validate` tool.** The model can run the 19-rule validator on candidate patches before its
-  final answer. The final §9.3 gate **stays mandatory** (invariant 9): the goal is that the
-  model self-checks and the user almost never sees a final validation failure, not removing the
-  safety net.
+- **`validate` tool.** The model can run the 19-rule validator on candidate patches before it
+  writes them. The write tools' own validation **stays mandatory** (invariant 9): every
+  `write_file`/`delete_file` validates its one file before the VFS, and `validate` is the
+  pre-flight check for a multi-file change.
 
 **One line:** the model stops receiving the project as preloaded context and instead writes a
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
 tool registry (files, analyzer facts, manifest, later MCP servers; read-only except the validated
 write tools, D-181), returns lossless JSON to the model, and every source change — an incremental
-write or a returned `AIResponse` patch set — still goes through the 19-rule validator before the
-VFS (a returned set also through the user's Apply).
+write through `write_file`/`delete_file` — still goes through the 19-rule validator before the
+VFS. The answer never carries patches: it is the turn's summary (D-192).
 
 ---
 
@@ -59,9 +59,8 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
 - No shell, no network from program code, no writes from program code. The sandbox stays
   networkless: web I/O is a **host-side** exception (D-175) — the program asks the host, the host
   performs the request under the deployment profile and returns data.
-- A returned patch set is still proposed as `AIResponse.patches` and written only by the user's
-  Apply (invariant 9); source may also change through the validated write tools (D-181), and
-  exploration can never touch the VFS.
+- Source changes only through the validated write tools (D-181); a returned patch set is not
+  part of the answer (D-192), and exploration can never touch the VFS.
 - No server-side execution: the IDE is a static SPA; git and files are in the browser/WebContainer.
 - No MCP or skills in phase 1; the design keeps the seam.
 - No replacement of the validator: tools change *how the model learns*, not *what is written*.
@@ -87,7 +86,7 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
         │                 │                    └► policy: path/glob allowlist, secret redaction,
         │                 │                       skill capability narrowing, result caps, audit log
         │                 ▼
-        └── final `AIResponse` (returned patch set) ──► parseTurn() §9.3 validator ──► proposal ──► user Apply
+        └── final `AIResponse` (message + optional script) ──► shape check ──► transcript summary
 
 New modules (planned, all under `ide/src/ai/ptc/`):
 
@@ -110,12 +109,10 @@ Exploration turn:
 
     {
       "message": "Let me read the schema and the todos route.",
-      "script": "const files = await tools.list_files({ dir: 'server/routes/api/todos' });\nconst schema = await tools.read_file({ path: 'db/schema.ts' });\nreturn { files, schema };",
-      "notes": [],
-      "requires_confirmation": false
+      "script": "const files = await tools.list_files({ dir: 'server/routes/api/todos' });\nconst schema = await tools.read_file({ path: 'db/schema.ts' });\nreturn { files, schema };"
     }
 
-Final turn: the current `AIResponse` with `patches` (unchanged).
+Final turn: `{"message": "<summary of what changed>"}` — no patches (D-192).
 
 - The program is an **async function body**: top-level `await` and `return` are allowed, `tools`
   is the only injected global. The return value must be lossless JSON.
@@ -188,7 +185,7 @@ confined to the project root, and go through one policy function.
 | `get_manifest` | `{}` | live manifest summary (blocks, revision) — no secrets |
 | `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
-| `validate` | `{ patches }` | the same `validatePatch()` findings the final gate uses (SPEC §9.3); read-only, writes nothing |
+| `validate` | `{ patches }` | the same `validatePatch()` findings a write uses (SPEC §9.3), run before writing a multi-file change; read-only, writes nothing |
 | `write_file` | `{ path, content }` | creates or replaces ONE project file; the one-file patch is validated (§9.3) before the VFS write (D-181) |
 | `delete_file` | `{ path }` | removes one project file through the same validator; a schema drop is flagged destructive (D-181) |
 | `preview_state` | `{}` | running app: URL, title, viewport, visible text (D-111) |
@@ -219,12 +216,10 @@ confined to the project root, and go through one policy function.
 | `web_image` | `{ url }` | GET an image (≤ 5 MB) onto the D-112 image channel; shown to the user and sent to vision presets; ≤ 2 per program |
 | `web_download` | `{ url, path }` | GET any content type (≤ 5 MB) into a project path under `public/` only; overwrite allowed; ≤ 5 per program |
 
-**The `validate` tool is the model's self-check.** The model can assemble a candidate patch set,
-validate it, fix every finding and only then emit the final `AIResponse`. The final §9.3
-validation and the user's Apply stay in place (invariant 9); with the pre-flight tool the final
-gate should almost never fire, so the red "invalid patch set" flow disappears from normal use
-while the safety net remains. The tool must call the same pure function as the final gate —
-never a second implementation of the rules.
+**The `validate` tool is the model's pre-write self-check.** The model can assemble a candidate
+patch set, validate it and fix every finding before it calls `write_file`/`delete_file`; each
+write validates its own file again before the VFS (invariant 9). The tool must call the same pure
+function as the write path — never a second implementation of the rules.
 
 **The preview tools (D-111) inspect the app, not the source.** Every preview page already carries
 chobitsu — the CDP backend the preview Service Worker injects (`ide/public/sw.js`) — and the
@@ -261,7 +256,7 @@ D-079 proxy — so the model can inspect the branch and the changes (`git_status
 `git_commit`) and move/switch a branch or sync a remote (`git_branch`, `git_sync`), plus open a
 pull request with `git_pull_request`. The AI never authors source content through them: staging
 mutates the index, `git_commit` writes a local commit, and source changes arrive through the
-validated write tools (or a returned patch set through the user's Apply). The operations that do move the working tree (`switch`,
+validated write tools; the answer never carries a patch set (D-192). The operations that do move the working tree (`switch`,
 `pull`) refuse a dirty tree with `{ ok: false, reason }` as data, so they can never clobber
 uncommitted work. There is deliberately no discard/reset/clean/rebase/force-push tool. A
 successful pull refreshes the SCM list, the Explorer and the open editor buffers like any other
@@ -294,8 +289,8 @@ the non-source writes, so the §9.3 patch path is unchanged for all of them.**
 **The write tools (D-181) are the source-write family and the one exception to the read-only
 registry.** `write_file({ path, content })` creates or replaces one complete file and
 `delete_file({ path })` removes one (`ide/src/ai/ptc/write-tools.ts`). Each call builds a one-file
-patch in `ide/src/ai/chat-writes.ts` and validates it with the same 19-rule validator as the final
-gate **before anything touches the VFS**, against the project as the turn has already rewritten it
+patch in `ide/src/ai/chat-writes.ts` and validates it with the same 19-rule validator as the
+`validate` tool **before anything touches the VFS**, against the project as the turn has already rewritten it
 (the earlier writes are the pre-patch overlay); `applyPatch` then re-validates and writes through
 the kernel bridge. Findings come back as data (`{ ok: false, errors, warnings }`, each with rule,
 file, message, fix_hint and line/excerpt) and nothing is written on a rejection, so the model
@@ -308,8 +303,8 @@ Before the first write of a turn the engine requires a repository with `HEAD` an
 working tree** (`ide/src/ai/chat-git-gate.ts`, `ide/src/ai/git-checkpoint.ts`): that checkpoint is
 the turn's consent and what makes Undo exact. A refused gate **pauses the turn** — the chat card
 lists the dirty paths (or the missing repository/commit) and offers **commit and continue** (the
-IDE initializes the repository when missing, stages everything and commits) or **stop** (the turn
-ends, nothing written). A passed gate is cached for the turn; a refused one is re-checked, so the
+IDE initializes the repository when missing, stages everything and commits with the card's
+generated message, D-192) or **stop** (the turn ends, nothing written). A passed gate is cached for the turn; a refused one is re-checked, so the
 write re-issued after the commit succeeds. Every write that reached the VFS is journaled
 (`path`, `action`, `destructive`, `added`, `removed`) and **Undo this turn** restores exactly those
 paths from HEAD — checkout for tracked files, delete for files the turn created. The model never
@@ -334,18 +329,18 @@ Tool output is **data**: it can be quoted, never treated as instructions.
   drift; a test asserts the prompt lists exactly the registered tools.
 - The *Writing files (write tools)* section is generated beside the tool list and appears only when
   `write_file` is registered (`ide/src/ai/prompt-write.ts`, D-181): dependency order,
-  findings-as-data (no repair round and no parts for a write call), the clean-tree gate pause,
-  destructive changes once the gate passed, and the rule to finish the turn with the normal
-  `AIResponse` and an **empty `patches` array**, describing the change in `message`/`notes`.
+  findings-as-data (no repair round for a write call), the clean-tree gate pause, destructive
+  changes once the gate passed, and the rule to finish the turn with the normal `AIResponse` and a
+  `message` that summarises what changed. The answer shape is `{"message", "script"?}`: a
+  `patches` field is a contract error, the repair asks for those files through the tools, and the
+  repair report carries the same contract (`ide/src/ai/turn.ts`, `repair.ts`, D-192).
 - Model A's preloaded context shrinks to: project file list (names only), config facts, manifest
   summary and AGENTS.md. File bodies and the schema source are **not** preloaded; the model reads
   what it needs. This is the direct answer to "passing files in the input does not scale".
-- The repair loop (§9.4) feeds a fix plan grouped by file, root cause first, then the findings;
-  with the runtime on it tells the model to `read_file` the implicated paths and to `validate`
-  the exact set before answering (D-102: set-level validation, per-file feedback; no attempt
-  cap since D-108). The runtime is always on, so the correction never inlines file content (D-103).
-  The loop and the parts protocol cover a returned patch set; a write-tool turn's feedback is the
-  tool result and its write is `applyPatch` (D-181).
+- The repair loop (§9.4) only fixes the answer's shape: it replays the rejected raw answer with
+  the structural issues and the `{"message", "script"?}` contract, and never inlines file content
+  (D-103, no attempt cap since D-108). A write-tool turn's feedback is the tool result, its write
+  is `applyPatch`, and the final answer is a summary (D-181/D-192).
 
 ## 8. MCP (phase 3)
 
@@ -363,8 +358,7 @@ The registry is transport-agnostic; an MCP server is just another tool provider:
   project (it is a remote effect, not a patch) and is disabled by default; every call is audited.
 - **Managed deployments:** an allowlist of servers/tools in the deployment policy; default off.
 - **Threat model:** MCP output is data; it cannot grant capabilities; source writes stay the
-  validator-gated write tools (or the user's Apply for a returned patch set), so an MCP result
-  cannot write by itself; prompt injection can at worst make the model read/quote project data
+  validator-gated write tools, so an MCP result cannot write by itself; prompt injection can at worst make the model read/quote project data
   into the provider context, which is already the AI trust boundary (D-066) and is redacted by the
   policy.
 
@@ -406,7 +400,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
 | tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction |
-| writes | source content only through the validated write tools (every call through the 19-rule validator, behind the clean-tree gate, journaled and undoable, D-181) or a returned patch set through the user's Apply; non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
+| writes | source content only through the validated write tools (every call through the 19-rule validator, behind the clean-tree gate, journaled and undoable, D-181); the answer never carries a patch set (D-192); non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
 | egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-175) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
 | web results | text ≤ 32k chars and secret-redacted, image ≤ 5 MB (2 per program), download ≤ 5 MB into `public/` only (5 per program), 10 calls / 8 MB per program; CORS can still refuse a host |
 | prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; every write is validator-gated and undoable, which bounds the damage |
@@ -417,7 +411,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 | Phase | Scope | Exit gate |
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
-| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring, not by preloaded context; the model validates its own patches and the final gate stays green |
+| 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring and writing files, not by preloaded context; every write is validated before the VFS |
 | 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 19-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist — **client and config landed 2026-11-08 (D-118); settings UI and allowlist remain** | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |

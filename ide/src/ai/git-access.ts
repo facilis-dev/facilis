@@ -3,8 +3,8 @@
 // The model works on the project's own repository through Source Control's existing sessions
 // (ScmSession for the index/history, GitRemoteSession for the network) instead of shelling out.
 // These are repository operations only — index, history, refs, remotes — and no tool writes
-// project source content: source still changes only through the validated patch proposal and
-// the user's Apply (invariant 9).
+// project source content: source still changes only through the validated write tools
+// (invariant 9).
 //
 // Availability and refusals are DATA ({ available: false } / { ok: false, reason }), never an
 // exception: "no project", "no repository", "not signed in" and "dirty working tree" are states

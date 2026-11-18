@@ -1,6 +1,6 @@
-// Line diff for the reviewable proposal (D-045; types.ts FileDiff).
+// Line diff for the turn journal and the git footer (D-045; types.ts FileDiff).
 //
-// The UI shows one unified diff per proposed file before anything is written, so this
+// The footer shows the line counts of what the AI wrote, so this
 // module has to be cheap and total: create/delete are trivial, modify uses LCS over
 // lines, and both the DP and the rendered output are capped so a pathological file can
 // never freeze the chat. No React, no i18n.

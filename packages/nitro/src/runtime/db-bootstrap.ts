@@ -2,12 +2,14 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { applyStatements, applyViews, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
+import { parseSchemaApprovals, SCHEMA_APPROVALS_PATH } from "@facilis.dev/core";
 import { seedStatements } from "@facilis.dev/auth";
 import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 import { projectRoot } from "#facilis/config";
 import dbViewModules from "#facilis/db-views";
 
 import { readMigrationsDir, toAuthConfig } from "./config.ts";
+import { reconcileDeclaredSchema } from "./schema-reconcile.ts";
 import { readTextFile } from "./project-files.ts";
 import { splitSqlStatements } from "./sql.ts";
 import { provisionSystemRole } from "./system-role.ts";
@@ -28,6 +30,22 @@ export async function bootstrapDevelopmentDatabase(
     if (statements.length > 0) await applyStatements(db, statements);
   } catch (error) {
     warnings.push(warning("migration_failed", `Migrations failed: ${describe(error)}`));
+  }
+
+  // D-193: the declared schema is the source of truth in dev too. The replay above keeps a
+  // project that still ships db/migrations working; the reconcile creates what db/schema.ts
+  // added since, and never drops anything the user did not confirm.
+  try {
+    const approvals = await readTextFile(join(projectRoot, SCHEMA_APPROVALS_PATH));
+    await reconcileDeclaredSchema(
+      db,
+      approvals === null ? [] : parseSchemaApprovals(approvals),
+      warnings,
+    );
+  } catch (error) {
+    warnings.push(
+      warning("schema_reconcile_failed", `Schema reconcile failed: ${describe(error)}`),
+    );
   }
 
   try {

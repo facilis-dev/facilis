@@ -27,7 +27,7 @@ export interface PatchContextHost {
   preview?: PreviewAccess;
   /**
    * The project graph's committed state (D-126), when the project is analyzable. The graph tools
-   * write `.facilis/graph` directly: it is team state, not source code, so it needs no proposal.
+   * write `.facilis/graph` directly: it is team state, not source code, so it needs no validation.
    */
   graph?: GraphAccess;
   /**
@@ -38,7 +38,7 @@ export interface PatchContextHost {
   /**
    * The project's own repository and remotes (D-139). These tools are repository operations
    * only — index, history, refs, remotes — so source content still changes only through the
-   * validated patch proposal and the user's Apply.
+   * validated write tools; the answer itself carries no source.
    */
   git?: GitAccess;
   /**

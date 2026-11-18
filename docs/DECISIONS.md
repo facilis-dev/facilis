@@ -6109,6 +6109,13 @@ piano operativo e' docs/MIGRATION-PLAN.md.
 drizzle-kit generateDrizzleJson + generateMigration come oracolo; una dichiarazione non supportata
 fallisce il rilascio. Gate finali: pnpm lint/typecheck/test/build.
 
+**Implementation note (2026-11-18).** Le regole 14 e 16 del validator ora applicano il contratto:
+la 14 rifiuta (errore, non piu' warning) ogni create/update sotto `db/migrations/` — il DDL esce
+dal piano dei tag, quindi non c'e' un file da scrivere — e la 16 non chiede piu' una migrazione di
+seed quando `facilis.config.ts` cambia ruoli/permessi: il seed e' generato al rilascio e resta solo
+il controllo fail-closed sull'auth leggibile. Restano di P5 la riconciliazione dev live -> dichiarato
+e la rimozione del replay delle migrazioni dal boot.
+
 ### D-159 — Un rilascio e' un tag piu' un artefatto immutabile; il deploy applica artefatti con un ledger e un fingerprint
 **Status:** accepted (2026-11-10)
 
@@ -7195,6 +7202,183 @@ keeps its 19 numbered rules.
 **Verification.** `packages/ai/src/validator-json-parse.test.ts` pins the rejection (trailing
 comma, missing value, nested path, normalized path), the BOM acceptance, the offset-to-line
 mapping for both message shapes, and the two non-cases (a non-JSON file, a delete).
+
+### D-191 — The chat writes only through the tools, and the gate's commit message is the user's
+**Status:** superseded in part by D-192 (2026-11-18) — the file-list message became a generated
+summary, and the returned-patch fallback was removed.
+
+**Context.** D-181 made the validated write tools the normal source path but kept the end-of-turn
+patch set + Apply as a fallback: the system prompt still described a patch-set contract and the
+model could choose it, so a turn could finish on the "Modifiche proposte / Applica tutto" card —
+the review surface D-181 set out to replace. The clean-tree gate's "commit and continue" also
+committed with a hardcoded message ("chore: save work before AI changes"), so the user's own
+pending work entered history under a message they never saw or could change.
+
+**Decision.** Three changes, all in the IDE chat:
+
+- **Write-only answers.** When `write_file`/`delete_file` are registered (always in the IDE),
+  `buildSystemPrompt` replaces the patch-set contract with `WRITE_CONTRACT`
+  (`ide/src/ai/prompt-write.ts`): the answer is
+  `{"message": string, "patches": [], "notes": string[], "requires_confirmation": boolean}`;
+  `patches` is always empty and `message` is the turn's summary, naming every file written or
+  deleted. The *Large patch sets* and patch *Validation repair* sections are not shipped in write
+  mode, and the shared rules no longer talk about patches if the write tools are the path.
+- **Enforcement.** `runTurn` refuses an answer that carries patches or `"continue"`
+  (`refusePatchSet` in `ide/src/ai/turn-writes.ts`): the rejected answer goes back with an
+  instruction to write those files through the tools, and the loop continues. The cut-off salvage
+  path is disabled in write mode, and `repair.ts` carries the write-only contract and tool
+  guidance. `ChatSession` builds a proposal only when no write engine is registered, so the card
+  is unreachable in the IDE.
+- **Editable commit message.** The gate generates a starting message from the change list
+  (`ide/src/ai/commit-message.ts`): a Conventional-Commits subject plus the paths grouped by
+  status, capped at 30 and counted. It is stored in `ChatGitGateState.message`, pre-fills the
+  card's textarea, and the edited text travels through `GitSafety.commitAll(message)` to Source
+  Control; the button stays disabled while the message is blank.
+
+**Consequences.** A normal change never ends on a proposal card: the model writes as it goes and
+the final answer is the summary the user reads, with `ChatWritesView` listing the files and
+offering Undo. A model that still returns a patch set costs one extra call and cannot apply it —
+the failure is visible as a rejected answer, not as a silently dropped change. The proposal +
+Apply code survives as the no-write-engine fallback (tests and non-IDE hosts) and is documented as
+such, not deleted. Committing at the gate is now a real user commit: the generated message is a
+default, and the user may rewrite it before it becomes history.
+
+**Rejected alternatives.** *Keep the fallback reachable in the IDE*: that is the card the owner
+asked to remove, and two paths for the same write make Undo and the validator story ambiguous.
+*Silently ignore a returned patch set*: the user would see "Done" with nothing applied. *Auto-apply
+a returned set*: it bypasses the per-file write journal and the gate that D-181 made the consent.
+*Ask a model to generate the commit message*: an extra paid call before the user can commit, for a
+message they will usually edit anyway; the file/status description is deterministic, local and
+testable, and the user's edit is the real message.
+
+**Verification.** Targeted suites:
+`pnpm --filter @facilis.dev/ide exec vitest run src/ai/commit-message.test.ts
+src/ai/chat-git-gate.test.ts src/ai/git-checkpoint.test.ts src/ai/prompt.test.ts src/ai/turn.test.ts
+src/ai/turn-writes.test.ts src/ai/repair.test.ts src/ai/chat-writes.test.ts` — 8 files, 117 tests,
+all passing. Full IDE suite 170 files / 1427 tests, IDE `pnpm typecheck`, `pnpm lint` (0 errors;
+the file-length and theme gates pass) in this worktree.
+
+### D-192 — The answer is a summary, the commit message is generated, and the work lands in a git footer
+**Status:** accepted (2026-11-18)
+
+**Context.** D-191 made the write tools the practical source path but kept the returned patch set as
+a fallback with a proposal + Apply card, and generated the gate's commit message from the changed
+paths. The owner rejected both: the message must be a semantic summary of what was done (for
+example "Aggiunto il calendario alla pagina todo"), at most 30 words, and the chat must not end on
+a patch proposal at all. The work should be summarized by a git-changes widget outside the
+conversation.
+
+**Decision.**
+
+- **The answer never carries source.** The `AIResponse` contract is
+  `{"message": string, "script"?: string}`; a `patches` field is a contract error and the repair
+  turn asks for those files through the tools. `parseAiResponse` only checks the shape, the turn
+  loop is explore → write → summary, and the repair loop covers malformed JSON/contract only
+  (`ide/src/ai/response.ts`, `turn.ts`, `repair.ts`).
+- **The proposal path is deleted, not hidden.** `AiResponse.patches/continue/notes/
+  requiresConfirmation`, `ChatState.proposal/applied/undo/patchParts`, the `"applying"` phase,
+  `chat-proposal.ts`, `chat-apply.ts`, `chat-actions.ts`, `patch-set.ts`, `salvage.ts`,
+  `ChatProposalView` and `ChatWritesView` (with their tests) are gone. `validate` stays as the
+  pre-write self-check; `write_file`/`delete_file` still validate every file before
+  `applyPatch` (D-181, invariant 9).
+- **Generated commit message (max 30 words).** When the gate pauses, `GitSafety.diff()` returns
+  the uncommitted diff (staged and unstaged, through the git tool family's own diff) and
+  `commit-message.ts` makes one small, non-streaming model call: one sentence in the UI language,
+  capped at 30 words, stripped of fences/labels and editable in the card. No model or no diff falls
+  back to a short deterministic message. The same pieces are meant for Source Control's own commit
+  box later.
+- **Git-changes footer.** `ChatGitChangesView` sits at the bottom of the chat panel, outside the
+  scrolling transcript, and merges the SCM snapshot (staged + unstaged) with the turn journal so
+  the AI's writes appear before the SCM walk catches up: A/M/D letters, line counts for the turn's
+  files, the destructive badge, **Undo this turn** and **Source Control**. It replaces the
+  in-transcript "files the AI wrote" card and is the per-turn summary.
+
+**Rejected alternatives.** *Keep the returned-patch fallback hidden*: still two write paths, two
+Undo stories and the card the owner asked to remove. *Silently ignore a returned patch set*: the
+user would see "Done" with nothing applied. *A file-list commit message* (D-191): not a summary.
+*Generate the message on every keystroke or at commit time*: one call when the gate appears is
+enough, and the user's edit is the final word. *Put the widget inside the transcript*: it scrolls
+away exactly when the user wants to review the work.
+
+**Consequences.** A gate adds one small model call; when it fails the card still opens with the
+fallback text. The answer protocol lost `notes`/parts, so the final message must carry the summary
+and the destructive mentions. The IDE has no Apply path any more: a model that returns patches is
+corrected, never applied. The footer is SCM-driven, so a commit, discard or manual edit elsewhere
+updates it too; the journal is only the immediate overlay.
+
+**Verification.** Targeted suites: `pnpm --filter @facilis.dev/ide exec vitest run
+src/ai/commit-message.test.ts src/ai/chat-git-gate.test.ts src/ai/response.test.ts
+src/ai/prompt.test.ts src/ai/turn.test.ts src/ai/repair.test.ts src/ai/chat-session.test.ts
+src/ai/mock.test.ts`. Full IDE suite 164 files / 1380 tests, IDE `pnpm typecheck`, `pnpm lint`
+(0 errors; file-length and theme gates pass) and `pnpm build` in this worktree.
+
+### D-193 — Dev materializes the declared schema additively, and a drop needs the user's confirmation
+**Status:** accepted (2026-11-18)
+
+**Context.** D-158 retired authored DDL: rule 14 now refuses any write under `db/migrations/` and
+rule 16 no longer asks for a seed migration (implementation note there). But the dev database was
+still built by replaying `db/migrations/*.sql`, so once the AI stopped authoring migrations an
+added table simply did not exist at runtime: the schema compiled, the route was valid, and the
+query failed with `relation does not exist`. The plan (docs/MIGRATION-PLAN.md P5) already says
+the dev boot reconciles live -> declared; SPEC §7.3/§11 assumed it. Nothing implemented it, and
+the destructive half (a drop) had no consent model in dev at all.
+
+**Decision.** The dev boot builds the database from the declaration, and destructive DDL needs
+the user.
+
+- **Additive reconcile.** After the legacy migration replay (kept so projects that still ship SQL
+  boot unchanged), `reconcileDeclaredSchema` (`packages/nitro/src/runtime/schema-reconcile.ts`)
+  reads the declared snapshot (`schemaSnapshot(db)`, from `db/schema.ts`) and the live catalog
+  (`liveSchemaSnapshot`), and renders the missing pieces with the release planner's own SQL
+  (`createTableSql`, `addColumnSql`, `addForeignKeySql`, `createIndexSql`, `createPolicySql`,
+  `enableRlsSql`; guarded `CREATE TYPE` for enums). Tables the declaration has and the database
+  lacks are created whole — columns, PK/unique/check, then foreign keys, indexes, RLS and policies
+  in later passes; existing tables get their missing columns, RLS and policies. A statement that
+  cannot apply (a NOT NULL column with no default on a table with rows, an unsupported
+  declaration) is a `schema_reconcile_failed` manifest warning, never a failed boot; the drift
+  stays visible on `/__facilis/dev/schema`.
+- **Destructive needs consent.** A write whose validated result drops a table or a column is
+  **held**: the tool returns `{ ok: false, confirmation: { changes } }` with rule 15's own wording
+  and writes nothing, and the turn pauses with a card. **Apply** re-validates the held patch
+  against the project as it is now, writes it, and appends the drops to
+  `<project>/.facilis/dev/schema-approvals.json` (shared contract: `SCHEMA_APPROVALS_PATH` /
+  `parseSchemaApprovals` in `@facilis.dev/core`, writer in `ide/src/ai/schema-approval.ts`).
+  **Cancel** ends the turn with nothing written. No other write lands while the card is open, so
+  a turn cannot half-apply around the pause.
+- **The boot applies only approved drops.** The reconcile drops a live-only table or column only
+  when the approvals file names exactly that change (`drops table "x"`,
+  `drops column "x.y"`); everything else is left alone, silently. Naming the change instead of
+  hashing the schema file keeps an approval valid across later unrelated edits and makes a
+  confirmation impossible to replay against another table.
+
+**Rejected alternatives.** *Interrupt the boot when a drop is pending*: the preview never starts,
+the user cannot inspect anything, and every boot asks again. *Apply destructive DDL automatically*
+(dev data is disposable): a hand edit of `db/schema.ts` would silently delete columns, and the
+confirmation is about intent, not about recovering bytes. *Ask from the runtime through an HTTP
+endpoint*: the WebContainer process has no channel to the UI beyond routes and the manifest, so it
+would need a second round trip and a pending-plan state for no extra safety. *Hash `db/schema.ts`
+as the approval token*: any later schema edit invalidates an approval for a drop that was already
+approved. *Block after the write* (revert on refusal): the model would already have seen a success.
+
+**Consequences.** A confirmed drop runs at the next boot; an unconfirmed one leaves the column in
+the dev database (visible as drift, harmless to the app). The gate's checkpoint commit uses the
+Source Control identity and falls back to `Facilis IDE <ide@facilis.local>` when the user has not
+set one yet, so a first-run project does not leave the assistant blocked behind a git config it
+cannot set from the chat; the fallback is never persisted and the SCM panel still prompts for the
+real identity. The AI cannot add a required column with
+no default to a table with rows in dev: the boot warns and the column stays missing until the
+database is reset or the schema gives it a default — the same preconditions the release planner
+declares. The migration replay remains until P6, so a project's existing SQL still runs first and
+the reconcile is then a no-op for it. `.facilis` state stays local (D-052); the approvals file is
+never committed.
+
+**Verification.** New suites: `packages/nitro/src/runtime/schema-reconcile.test.ts` (creates a
+missing table, adds a missing column, never drops unapproved state, drops an approved table, warns
+instead of failing the boot), `ide/src/ai/chat-writes.test.ts` (holds a destructive write, applies
+it on confirmation and records the consent, refuses other writes while pending, applies an
+additive schema change directly), `ide/src/ai/turn-writes.test.ts` (pause/apply/cancel/no-handler)
+and `ide/src/ai/chat-schema-confirm.test.ts`. Full gates in this worktree: `pnpm lint` (0
+errors), `pnpm typecheck` 21/21, `pnpm test` 21/21, `pnpm build` 13/13.
 
 ## Open items (post-MVP)
 

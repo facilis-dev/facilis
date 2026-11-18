@@ -24,7 +24,7 @@ export interface TurnSurface {
 
 export type TurnHooks = Pick<
   TurnInput,
-  "onRepair" | "onScriptStart" | "onScript" | "onPatches" | "onReasoning" | "onCallStart" | "onCall"
+  "onRepair" | "onScriptStart" | "onScript" | "onReasoning" | "onCallStart" | "onCall"
 >;
 
 export function turnHooks(surface: TurnSurface): TurnHooks {
@@ -33,7 +33,7 @@ export function turnHooks(surface: TurnSurface): TurnHooks {
     surface.emit(patch);
   };
   return {
-    onRepair: (attempt) => status({ repair: { attempt }, patchParts: null }),
+    onRepair: (attempt) => status({ repair: { attempt } }),
     // An exploration answer is not the turn's answer: drop its partial bubble, so its prose
     // never renders above the program that followed it (the call row records the call).
     onScriptStart: (program, programNumber) =>
@@ -43,7 +43,6 @@ export function turnHooks(surface: TurnSurface): TurnHooks {
         exploring: null,
         trace: completeTraceRun(surface.trace(), result, program, images),
       }),
-    onPatches: (part) => status({ patchParts: { part } }),
     // The running call row is inserted where the call starts, so the reasoning that streams
     // next renders inside that row instead of above the whole timeline (D-110).
     onCallStart: (call) =>

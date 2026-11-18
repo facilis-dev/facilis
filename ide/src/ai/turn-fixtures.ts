@@ -3,11 +3,11 @@
 // Not a test file: vitest collects only *.test.ts, so both suites import these helpers and
 // stay under the 300-line limit.
 
-import type { FilePatch } from "@facilis.dev/ai";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import type { CallModelInput } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
 import type { PtcRunner, PtcRunResult, PtcToolSpec } from "./ptc/protocol";
+import type { ChatWrites } from "./chat-writes";
 import { runTurn } from "./turn";
 import type { PreviewAccess } from "./preview-access";
 import type { AiSettings, ChatTraceCall } from "./types";
@@ -19,61 +19,21 @@ export const settings: AiSettings = {
   baseUrl: "http://provider.test/v1",
 };
 
-export const NEW_FILE: FilePatch = {
-  path: "src/new.ts",
-  action: "create",
-  content: "export const x = 1;\n",
-};
+/** A valid final answer: the summary and nothing else (D-192). */
+export function answer(): string {
+  return JSON.stringify({ message: "Here is the change." });
+}
 
-export const ROUTE: FilePatch = {
-  path: "server/routes/api/ping.get.ts",
-  action: "create",
-  content:
-    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
-    'export default defineAuthorizedHandler({ permission: ["todos:write"], dbTables: [] }, async () => null);\n',
-};
-
-/** The same route with the permission the findings ask for. */
-export const ROUTE_FIXED: FilePatch = {
-  ...ROUTE,
-  content:
-    'import { defineAuthorizedHandler } from "@facilis.dev/core";\n\n' +
-    "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
-};
-
-export const SECOND_FILE: FilePatch = {
-  path: "src/second.ts",
-  action: "create",
-  content: "export const y = 2;\n",
-};
-
-export function answer(patches: FilePatch[] = []): string {
+/** The old shape, which the parser must reject: source never travels in the answer. */
+export function patchedAnswer(): string {
   return JSON.stringify({
-    message: "Here is the change.",
-    patches,
-    notes: [],
-    requires_confirmation: false,
+    message: "Here is the patch.",
+    patches: [{ path: "src/new.ts", action: "create", content: "export const x = 1;\n" }],
   });
 }
 
 export function script(program: string): string {
-  return JSON.stringify({
-    message: "Let me look.",
-    script: program,
-    notes: [],
-    requires_confirmation: false,
-  });
-}
-
-/** A part of a patch set: same shape, optionally flagged continue. */
-export function part(patches: FilePatch[], extra: Record<string, unknown> = {}): string {
-  return JSON.stringify({
-    message: "part",
-    patches,
-    notes: [],
-    requires_confirmation: false,
-    ...extra,
-  });
+  return JSON.stringify({ message: "Let me look.", script: program });
 }
 
 const FILES = [
@@ -120,6 +80,37 @@ export function runner(result: PtcRunResult | ((program: string) => PtcRunResult
     specs: () => [SPEC],
     run: async (program) => (typeof result === "function" ? result(program) : result),
     dispose: () => {},
+  };
+}
+
+/** A write engine that records nothing: the turn loop only needs it to be in write mode. */
+export function fakeWrites(): ChatWrites {
+  return {
+    beginTurn() {},
+    writeFile: async () => ({
+      ok: true,
+      path: "src/a.ts",
+      action: "create",
+      bytes: 1,
+      destructive: false,
+      added: 1,
+      removed: 0,
+    }),
+    deleteFile: async () => ({
+      ok: true,
+      path: "src/a.ts",
+      action: "delete",
+      bytes: 0,
+      destructive: false,
+      added: 0,
+      removed: 1,
+    }),
+    turnWrites: () => [],
+    takeGateFailure: () => null,
+    takeSchemaConfirmation: () => null,
+    applyPending: async () => ({ ok: false, path: "", errors: [], warnings: [] }),
+    outage: () => false,
+    undoTurn: async () => ({ ok: true, errors: [] }),
   };
 }
 
@@ -178,6 +169,8 @@ export function previewAccess(overrides: Partial<PreviewAccess> = {}): PreviewAc
 export interface RunOptions extends Hooks {
   /** Replaces the plain validation host, e.g. to add a preview (D-112). */
   preview?: PreviewAccess;
+  /** Puts the loop in write mode: the write tools are the only source-change path (D-191). */
+  writes?: ChatWrites;
 }
 
 export async function run(
@@ -186,7 +179,7 @@ export async function run(
   calls: CallModelInput[],
   options: RunOptions = {},
 ) {
-  const { preview, ...hooks } = options;
+  const { preview, writes, ...hooks } = options;
   return runTurn({
     call: capture(texts, calls),
     settings,
@@ -197,6 +190,7 @@ export async function run(
     onText: () => {},
     onRepair: () => {},
     runner: ptc,
+    ...(writes === undefined ? {} : { writes }),
     ...hooks,
   });
 }

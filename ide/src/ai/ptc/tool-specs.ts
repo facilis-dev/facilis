@@ -55,7 +55,7 @@ export const PREVIEW_TOOL_SPECS: readonly PtcToolSpec[] = [
 
 /**
  * Tools that read and rearrange the project graph (D-126). The graph is committed team state
- * under `.facilis/graph`, not source code, so an arrangement needs no patch proposal; the tools
+ * under `.facilis/graph`, not source code, so an arrangement needs no write validation; the tools
  * are registered only when the IDE can reach that state.
  */
 export const GRAPH_TOOL_SPECS: readonly PtcToolSpec[] = [

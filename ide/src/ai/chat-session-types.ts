@@ -68,6 +68,8 @@ export interface ChatSessionOptions {
   loadSettings?: () => AiSettings | null;
   saveSettings?: (settings: AiSettings) => void;
   now?: () => number;
+  /** The UI language, so the generated commit message matches it (D-192). */
+  locale?: () => "en" | "it";
   /** The PTC tool runtime (D-101). The chat has no non-PTC mode (D-103). */
   runner: PtcRunner;
   /** The incremental write engine shared with the write tools (D-181). */
@@ -118,27 +120,27 @@ export function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
 /** State a new turn clears: the transcript keeps its trace after a finished turn. */
 export const TURN_RESET: Pick<
   ChatState,
-  "repair" | "trace" | "exploring" | "patchParts" | "reasoning" | "gitGate" | "writes"
+  "repair" | "trace" | "exploring" | "reasoning" | "gitGate" | "schemaConfirm" | "writes"
 > = {
   repair: null,
   trace: [],
   exploring: null,
-  patchParts: null,
   reasoning: null,
   gitGate: null,
+  schemaConfirm: null,
   writes: [],
 };
 
 /** State a finished turn clears; its activity moves onto the turn's user message (turnEnded). */
 export const TURN_IDLE: Pick<
   ChatState,
-  "repair" | "exploring" | "patchParts" | "reasoning" | "gitGate"
+  "repair" | "exploring" | "reasoning" | "gitGate" | "schemaConfirm"
 > = {
   repair: null,
   exploring: null,
-  patchParts: null,
   reasoning: null,
   gitGate: null,
+  schemaConfirm: null,
 };
 
 /**
@@ -169,9 +171,6 @@ export function initialState(settings: AiSettings | null): ChatState {
     messages: [],
     queued: [],
     summary: null,
-    proposal: null,
-    applied: null,
-    undo: null,
     streaming: false,
     ...TURN_RESET,
     error: null,
