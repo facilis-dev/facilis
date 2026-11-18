@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { transcriptEntries, transcriptEntryKey } from "./transcript-entries";
 import type { ChatActivity, ChatTraceCall } from "./types";
-import { answer, createNewFile, sessionWith } from "./chat-session-fixtures";
+import { answer, sessionWith } from "./chat-session-fixtures";
 
 function callsOf(activity: readonly ChatActivity[] | undefined): ChatTraceCall[] {
   return (activity ?? []).filter((entry): entry is ChatTraceCall => entry.kind === "call");
@@ -14,7 +14,7 @@ function callsOf(activity: readonly ChatActivity[] | undefined): ChatTraceCall[]
 
 describe("ChatSession turn activity", () => {
   it("moves the turn's trace onto the user message and clears the live trace", async () => {
-    const chat = sessionWith(async () => ({ ok: true, text: answer(createNewFile()) }));
+    const chat = sessionWith(async () => ({ ok: true, text: answer() }));
     await chat.send("add a file");
 
     const state = chat.getSnapshot();

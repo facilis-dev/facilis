@@ -73,9 +73,7 @@ export function createTableSql(table: TableSnapshot): string {
     );
   }
   for (const unique of sortedUniqueConstraints(table.uniqueConstraints)) {
-    lines.push(
-      `CONSTRAINT ${quote(unique.name)} UNIQUE (${unique.columns.map(quote).join(", ")})`,
-    );
+    lines.push(`CONSTRAINT ${quote(unique.name)} UNIQUE (${unique.columns.map(quote).join(", ")})`);
   }
   for (const check of sortedChecks(table.checks)) {
     lines.push(`CONSTRAINT ${quote(check.name)} CHECK (${check.expression})`);
@@ -118,10 +116,7 @@ export function addForeignKeySql(table: string, foreignKey: ForeignKeySnapshot):
   );
 }
 
-export function addUniqueConstraintSql(
-  table: string,
-  unique: UniqueConstraintSnapshot,
-): string {
+export function addUniqueConstraintSql(table: string, unique: UniqueConstraintSnapshot): string {
   return `ALTER TABLE ${quote(table)} ADD CONSTRAINT ${quote(unique.name)} UNIQUE (${unique.columns
     .map(quote)
     .join(", ")});`;

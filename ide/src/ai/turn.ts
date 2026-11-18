@@ -1,44 +1,25 @@
-// The SPEC §9.4/§9.5 turn loop: ask the model, let it explore with PTC programs, validate
-// the final answer, and ask it to correct a rejected one.
+// The SPEC §9.4/§9.5 turn loop: ask the model, let it explore with PTC programs, and accept
+// its final answer. Source changes happen inside a program through the validated write tools
+// (D-181); the answer itself is the turn's summary, never a patch set (D-192).
 //
 // Kept out of ChatSession (which owns the visible conversation) so the control flow is
 // unit-testable and the session stays under the 300-line limit. The loop never writes to
 // the project: it returns either a parsed answer or the failure the chat shows.
 //
-// D-108: the loop has no counters. It ends when the merged set passes the validator, a
-// provider call fails, the user cancels, or a validator outage makes a correction useless.
-// The only way an answer reaches the project is a passing validation plus the user's Apply.
-//
-// D-106: when an answer is cut at the provider's output limit (or the model sends a large
-// set in parts with "continue": true), the loop keeps the complete patches it received and
-// asks for the rest; the merged set is what the validator sees.
+// D-108: the loop has no counters. It ends when the answer parses, a provider call fails, or
+// the user cancels; a refused clean-tree gate or a validator outage ends it through the
+// write step instead.
 
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
-import {
-  addPatches,
-  beginCorrection,
-  changedPatches,
-  completeResponse,
-  emptyPatchSet,
-  formatContinuation,
-  formatReceived,
-  type PatchSetState,
-} from "./patch-set";
 import {
   formatScriptResult,
   type PtcRunner,
   type PtcRunResult,
   type PtcTraceEntry,
 } from "./ptc/protocol";
-import { buildRepairMessages, formatFailure } from "./repair";
-import {
-  parseAiResponse,
-  validateResponse,
-  type AiParseFailure,
-  type AiParseResult,
-} from "./response";
-import { salvagePatches } from "./salvage";
+import { buildRepairMessages } from "./repair";
+import { parseAiResponse, type AiParseFailure, type AiParseResult } from "./response";
 import { capReasoning } from "./chat-trace";
 import { appendTurn } from "./chat-session-types";
 import type { ChatWrites } from "./chat-writes";
@@ -68,12 +49,12 @@ export interface TurnInput {
   onScriptStart?: (program: string, programNumber: number) => void;
   /** Called after each exploration program with its outcome and captured screenshots. */
   onScript?: (result: PtcRunResult, program: string, images: readonly string[]) => void;
-  /** Called when another part of the same patch set is requested (1-based part). */
-  onPatches?: (part: number) => void;
   /** The incremental write engine the write tools use (D-181). */
   writes?: ChatWrites;
   /** A write hit the clean-tree gate: pause the turn until the user commits or stops. */
   pauseGitGate?: (failure: ChatGitGateFailure) => Promise<"continue" | "stop">;
+  /** A write drops a table or a column: pause the turn for the user's confirmation (D-193). */
+  pauseSchemaConfirm?: (changes: readonly string[]) => Promise<"apply" | "cancel">;
   /** Streams the provider's visible reasoning for the current call (D-110). */
   onReasoning?: (chunk: string) => void;
   /** A model call starts: the chat clears the live reasoning. */
@@ -87,23 +68,9 @@ export type TurnOutcome =
   | { ok: false; failure: ChatFailure };
 
 /**
- * A validator outage (parser/analyzer) cannot be fixed by the model: no repair round. One
- * infrastructure finding is enough: the other findings cannot be trusted while the project was
- * not fully analyzed, and a correction would retry against the same broken worker (D-105/D-108).
- */
-function isInternalFailure(failure: AiParseFailure): boolean {
-  return failure.findings.some(
-    (finding) => finding.infrastructure === true || finding.rule === "project-analysis",
-  );
-}
-
-function validatorFailure(failure: AiParseFailure): TurnOutcome {
-  return { ok: false, failure: { kind: "validator", message: formatFailure(failure) } };
-}
-
-/**
- * Ask the model to fix a rejected answer. Returns a failure when the rejection is internal;
- * otherwise appends the repair turns and returns null. There is no attempt cap (D-108).
+ * Ask the model to fix an answer that is not a valid AIResponse. Returns a failure only when
+ * the user cancelled; otherwise appends the repair turns and returns null. No attempt cap
+ * (D-108).
  */
 async function requestRepair(
   input: TurnInput,
@@ -111,7 +78,6 @@ async function requestRepair(
   attempt: number,
   turns: AiChatTurn[],
 ): Promise<TurnOutcome | null> {
-  if (isInternalFailure(failure)) return validatorFailure(failure);
   input.onRepair(attempt);
   const messages = await buildRepairMessages({ failure, attempt });
   for (const turn of messages) appendTurn(turns, turn);
@@ -121,14 +87,11 @@ async function requestRepair(
 export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
   const turns: AiChatTurn[] = [...input.messages];
   const trace: PtcTraceEntry[] = [];
-  let patchSet: PatchSetState = emptyPatchSet();
   let repairs = 0;
   let scripts = 0;
   let calls = 0;
   let firstCall = true;
 
-  // No budget: the loop ends when the answer validates. See D-108 for why the counters that
-  // used to stop it are gone, and for the terminators that remain.
   for (;;) {
     if (input.signal.aborted) {
       return { ok: false, failure: { kind: "aborted", message: "Cancelled by the user." } };
@@ -187,31 +150,6 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
 
     const parsed = parseAiResponse(result.text, { truncated: result.truncated === true });
     if (!parsed.ok) {
-      // A cut-off answer still carries complete patches: keep them and ask for the rest
-      // instead of asking for everything again (the same limit would cut it again).
-      const salvaged = parsed.kind === "json" ? salvagePatches(result.text) : [];
-      if (salvaged.length > 0) {
-        const changed = changedPatches(patchSet, salvaged);
-        patchSet = addPatches(patchSet, {
-          message: "",
-          patches: salvaged,
-          notes: [],
-          requiresConfirmation: false,
-        });
-        finishCall("cut");
-        input.onPatches?.(patchSet.parts);
-        appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
-        appendTurn(turns, {
-          role: "user",
-          content: formatContinuation({
-            set: patchSet,
-            cutOff: true,
-            cutAt: result.text.length,
-            changed,
-          }),
-        });
-        continue;
-      }
       finishCall("rejected");
       const stop = await requestRepair(input, parsed, repairs + 1, turns);
       if (stop !== null) return stop;
@@ -250,35 +188,7 @@ export async function runTurn(input: TurnInput): Promise<TurnOutcome> {
       continue;
     }
 
-    const changed = changedPatches(patchSet, parsed.response.patches);
-    patchSet = addPatches(patchSet, parsed.response);
-    if (parsed.response.continue === true) {
-      finishCall("part");
-      input.onPatches?.(patchSet.parts);
-      appendTurn(turns, { role: "assistant", content: formatReceived(patchSet) });
-      appendTurn(turns, { role: "user", content: formatContinuation({ set: patchSet, changed }) });
-      continue;
-    }
-
-    const checked = await validateResponse(completeResponse(patchSet), input.host, {
-      signal: input.signal,
-      raw: result.text,
-    });
-    if (!checked.ok) {
-      // The rejected set is kept: a correction may re-emit only the files it changes, and
-      // the untouched files stay part of the answer (D-106).
-      patchSet = beginCorrection(patchSet);
-      finishCall("rejected");
-      const stop = await requestRepair(input, checked, repairs + 1, turns);
-      if (stop !== null) return stop;
-      repairs += 1;
-      continue;
-    }
     finishCall("answer");
-    return {
-      ok: true,
-      parsed: { ok: true, response: completeResponse(patchSet), validation: checked.validation },
-      trace,
-    };
+    return { ok: true, parsed, trace };
   }
 }

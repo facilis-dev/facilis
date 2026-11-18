@@ -140,7 +140,7 @@ function assetPath(raw: string): string {
   if (isExcludedPath(path)) fail("path is excluded from project writes: " + path);
   if (!path.startsWith("public/")) {
     fail(
-      "path must be under public/: a download is a static asset, and source changes go through the patch proposal",
+      "path must be under public/: a download is a static asset, and source changes go through the write tools",
     );
   }
   return path;

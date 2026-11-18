@@ -1,10 +1,10 @@
 // The AI-facing facade over the project graph's committed state (D-126).
 //
 // The graph is team state under `.facilis/graph`, not source code: arranging a node or writing
-// a note changes no TypeScript, so the §9.3 validator and the user's proposal/Apply review have
-// nothing to check. These tools therefore write the state files directly — read the layout,
-// mutate it with the layout helpers, save it and tell the open panel to reload. Only source
-// edits keep the patch-proposal flow.
+// a note changes no TypeScript, so the §9.3 write validator has nothing to check. These tools
+// therefore write the state files directly — read the layout, mutate it with the layout helpers,
+// save it and tell the open panel to reload. Only source edits go through the validated write
+// tools.
 //
 // Node and edge ids come from the analyzer graph, geometry from the saved layout. A node without
 // a saved position is reported at its deterministic automatic position (graph-model.ts), so the

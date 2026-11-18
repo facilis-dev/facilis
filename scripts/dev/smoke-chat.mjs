@@ -1,11 +1,11 @@
-// The AI chat acceptance step (D-045/D-046).
+// The AI chat acceptance step (D-045/D-046, write path D-192).
 //
-// No model is called in CI: the smoke drives the same UI a user does, but the
-// provider it picks is the dev-only mock, which answers with a fixed AIResponse.
-// That still exercises the real path end to end — saved settings, prompt assembly
-// (the manifest may be unreachable), the parser, the proposal card, Apply, and the
-// kernel write — without a key or the network. Headless Chrome runs in English,
-// which is why the labels below are English.
+// No model is called in CI: the smoke drives the same UI a user does, but the provider it
+// picks is the dev-only mock. It answers with a write script, so the run exercises the real
+// path end to end — saved settings, prompt assembly (the manifest may be unreachable), the
+// parser, the clean-tree gate, write_file through the validator, the git-changes footer and
+// Undo — without a key or the network. Headless Chrome runs in English, which is why the
+// labels below are English.
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,6 +56,25 @@ const OPEN_CHAT =
 
 const MODEL_IS_MOCK = "(document.querySelector('#chat-model')?.value || '') === 'mock'";
 
+const GATE_LABELS = JSON.stringify(["Initialize repository and continue", "Commit and continue"]);
+
+const GATE_VISIBLE =
+  "(() => { const aside = document.querySelector('aside[aria-label=\"AI Chat\"]'); if (!aside) return false;" +
+  "return [...aside.querySelectorAll('button')].some((candidate) => !candidate.disabled && " +
+  GATE_LABELS +
+  ".includes((candidate.innerText || '').trim())); })()";
+
+function clickAnyIn(scope, labels) {
+  return (
+    "(() => { const root = document.querySelector(" +
+    JSON.stringify(scope) +
+    "); if (!root) return 'NOTFOUND'; const button = [...root.querySelectorAll('button')].find(" +
+    "(candidate) => !candidate.disabled && " +
+    JSON.stringify(labels) +
+    ".includes((candidate.innerText || '').trim())); if (!button) return 'NOTFOUND'; button.click(); return 'OK'; })()"
+  );
+}
+
 const CLICK_INSTRUCTIONS =
   "(() => { const aside = document.querySelector('aside[aria-label=\"AI Chat\"]'); if (!aside) return 'NOTFOUND';" +
   "const button = [...aside.querySelectorAll('button')].find(" +
@@ -75,6 +94,11 @@ const PATCH_GONE =
   "const text = await window.__ide.readFileText(root + '/src/chat-demo.ts');" +
   "if (text.length === 0) return 'OK'; await new Promise((resolve) => setTimeout(resolve, 250)); }" +
   "return 'STILL THERE'; })()";
+
+const FILE_READY =
+  "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
+  "if (!root) return false; const text = await window.__ide.readFileText(root + '/src/chat-demo.ts');" +
+  "return text.length > 0; })()";
 
 const PATCH_IN_VFS =
   "(async () => { const root = window.__ide?.snap?.workspaceFolders?.[0]?.rootPath;" +
@@ -127,27 +151,45 @@ export async function runChatChecks({ page, check, ARTIFACTS }) {
       if (!streamingSeen) await sleep(25);
     }
     record(streamingSeen, "chat streaming bubble shown");
-    const proposalShown = await waitFor(page, bodyHas("Proposed changes"), 20000);
-    // A validator rejection is surfaced as a parse error; its detail is what makes a
-    // failure diagnosable, so it belongs in the FAIL line rather than only in the PNG.
-    const proposalDetail = proposalShown
-      ? ""
-      : await page.evaluate(
-          "(() => { const a = document.querySelector('aside[aria-label=\\\"AI Chat\\\"]');" +
-            " if (!a) return 'NO PANEL';" +
-            " const pre = a.querySelector('pre');" +
-            " return ((a.innerText || '') + ' || DETAIL: ' + (pre ? pre.textContent : 'NO DETAIL')).slice(0, 900); })()",
-        );
-    record(proposalShown, "chat proposal shown", proposalDetail);
-    record(await waitFor(page, bodyHas("src/chat-demo.ts"), 5000), "chat proposal lists the file");
-    record((await page.evaluate(clickIn(panel, "Apply all"))) === "OK", "chat apply clicked");
-    record(await waitFor(page, bodyHas("Applied 1 file(s)"), 15000), "chat patch applied");
-    record((await page.evaluate(PATCH_IN_VFS)) === "OK", "chat patch reached the VFS");
+    // The mock writes src/chat-demo.ts; the clean-tree gate may pause the first write. When
+    // it does, "commit and continue" is the real user action (initializing the repo too).
+    let gateShown = false;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      if (await page.evaluate(GATE_VISIBLE)) {
+        gateShown = true;
+        break;
+      }
+      if (await page.evaluate(FILE_READY)) break;
+      await sleep(250);
+    }
+    if (gateShown) {
+      record(
+        (await page.evaluate(
+          clickAnyIn(panel, ["Initialize repository and continue", "Commit and continue"]),
+        )) === "OK",
+        "chat clean-tree gate committed",
+      );
+    }
+    const inVfs = await page.evaluate(PATCH_IN_VFS);
+    const failureDetail =
+      inVfs === "OK"
+        ? ""
+        : await page.evaluate(
+            "(() => { const a = document.querySelector('aside[aria-label=\\\"AI Chat\\\"]');" +
+              " if (!a) return 'NO PANEL';" +
+              " const pre = a.querySelector('pre');" +
+              " return ((a.innerText || '') + ' || DETAIL: ' + (pre ? pre.textContent : 'NO DETAIL')).slice(0, 900); })()",
+          );
+    record(inVfs === "OK", "chat written file reached the VFS", failureDetail);
     record(
-      (await page.evaluate(clickIn(panel, "Undo applied changes"))) === "OK",
-      "chat undo clicked",
+      await waitFor(page, bodyHas("the git-changes footer shows the file"), 20000),
+      "chat final summary shown",
     );
-    record(await waitFor(page, bodyHas("Reverted 1 file(s)"), 15000), "chat patch reverted");
+    record(await waitFor(page, bodyHas("Git changes (1)"), 10000), "chat git footer shown");
+    record(
+      (await page.evaluate(clickIn(panel, "Undo this turn"))) === "OK",
+      "chat turn undo clicked",
+    );
     record((await page.evaluate(PATCH_GONE)) === "OK", "chat undo removed the file from the VFS");
     record((await page.evaluate(CLICK_INSTRUCTIONS)) === "OK", "chat project instructions button");
     record(

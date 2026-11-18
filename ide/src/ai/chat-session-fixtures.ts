@@ -1,7 +1,6 @@
 // Shared fixtures for the ChatSession suites (chat-session.test.ts and any test that needs
 // the same fake host/settings). Not a test file: vitest collects only *.test.ts.
 
-import type { FilePatch } from "@facilis.dev/ai";
 import { ChatSession, type ChatHost, type ModelCall } from "./chat-session";
 import { analyzeHostFiles } from "./analysis-fixtures";
 import type { PtcRunner } from "./ptc/protocol";
@@ -23,13 +22,9 @@ export const settings: AiSettings = {
   baseUrl: "http://provider.test/v1",
 };
 
-export function answer(patch?: FilePatch): string {
-  return JSON.stringify({
-    message: "Here is the change.",
-    patches: patch ? [patch] : [],
-    notes: ["A note"],
-    requires_confirmation: false,
-  });
+/** A valid final answer: a summary and nothing else (D-192). */
+export function answer(): string {
+  return JSON.stringify({ message: "Here is the change." });
 }
 
 export interface Harness {
@@ -76,8 +71,4 @@ export function sessionWith(call: ModelCall, host: ChatHost = fakeHost().host): 
     now: () => 1,
     runner: EMPTY_RUNNER,
   });
-}
-
-export function createNewFile(): FilePatch {
-  return { path: "src/new.ts", action: "create", content: "x\n" };
 }

@@ -7,7 +7,7 @@
 //
 // Two callers share the same snapshot read: the project-graph panel analyzes the project as
 // it is, the AI patch validator analyzes it before and after a proposed patch set. The read
-// is cached per controller snapshot (the file-list array reference), so a chat proposal does
+// is cached per controller snapshot (the file-list array reference), so a chat write does
 // not re-read hundreds of files the graph panel just read.
 //
 // One worker per tab is intentional: the wasm instance reserves ~250 MiB of linear memory,

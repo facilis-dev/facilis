@@ -269,36 +269,80 @@ export const todos = pgTable("todos", {
 });
 `;
 
-describe("createChatWrites delete_file", () => {
-  it("validates a destructive delete against the overlay and flags it", async () => {
-    const sources = new Map([["db/schema.ts", SCHEMA]]);
-    const h = harness(
-      {
-        files: () => [...sources.keys()],
-        read: async (path) => sources.get(path) ?? "",
+const PACKAGE = JSON.stringify({ dependencies: { "drizzle-orm": "^0.44.0" } }, null, 2) + "\n";
+
+function schemaHarness(extra: Partial<ChatWritesHost> = {}): Harness {
+  const sources = new Map([
+    ["db/schema.ts", SCHEMA],
+    ["package.json", PACKAGE],
+  ]);
+  return harness(
+    {
+      files: () => [...sources.keys()],
+      read: async (path) => sources.get(path) ?? "",
+      ...extra,
+    },
+    {
+      analyze: (patches, overlay) => {
+        const base = overlayPatches(sources, overlay);
+        return {
+          before: analyzeSources(base),
+          after: analyzeSources(overlayPatches(base, patches)),
+        };
       },
-      {
-        analyze: (patches, overlay) => {
-          const base = overlayPatches(sources, overlay);
-          return {
-            before: analyzeSources(base),
-            after: analyzeSources(overlayPatches(base, patches)),
-          };
+    },
+  );
+}
+
+describe("createChatWrites schema confirmation", () => {
+  it("holds a destructive write for the user and writes nothing", async () => {
+    const h = schemaHarness();
+    const outcome = await h.writes.deleteFile("db/schema.ts");
+    expect(outcome).toMatchObject({ ok: false, path: "db/schema.ts" });
+    expect("confirmation" in outcome && outcome.confirmation.changes.length > 0).toBe(true);
+    expect(h.applyCalls).toHaveLength(0);
+    expect(h.writes.turnWrites()).toHaveLength(0);
+    expect(h.writes.takeSchemaConfirmation()?.changes).toContain('drops table "todos"');
+  });
+
+  it("applies the held write once confirmed and records the consent", async () => {
+    const written: { path: string; contents: string }[] = [];
+    const h = schemaHarness({
+      bridge: {
+        request: async (type, extra) => {
+          if (type === "vv-write") written.push(extra as { path: string; contents: string });
+          return { ok: true };
         },
       },
-    );
-    const outcome = await h.writes.deleteFile("db/schema.ts");
-    expect(outcome).toMatchObject({
-      ok: true,
-      path: "db/schema.ts",
-      action: "delete",
-      bytes: 0,
-      destructive: true,
     });
+    await h.writes.deleteFile("db/schema.ts");
+    const applied = await h.writes.applyPending();
+    expect(applied).toMatchObject({ ok: true, path: "db/schema.ts", action: "delete" });
     expect(h.applyCalls[0]?.patches).toEqual([{ path: "db/schema.ts", action: "delete" }]);
     expect(h.writes.turnWrites()).toEqual([
       expect.objectContaining({ path: "db/schema.ts", action: "delete", destructive: true }),
     ]);
+    const marker = written.find((entry) => entry.path.endsWith("schema-approvals.json"));
+    expect(JSON.parse(marker?.contents ?? "{}")).toEqual({ approved: ['drops table "todos"'] });
+  });
+
+  it("refuses every other write while the confirmation is pending", async () => {
+    const h = schemaHarness();
+    await h.writes.deleteFile("db/schema.ts");
+    const other = await h.writes.writeFile("src/other.ts", "export const other = 1;\n");
+    expect(other.ok).toBe(false);
+    expect("confirmation" in other).toBe(true);
+    expect(h.applyCalls).toHaveLength(0);
+  });
+
+  it("applies a non-destructive schema change directly", async () => {
+    const h = schemaHarness();
+    const outcome = await h.writes.writeFile(
+      "db/schema.ts",
+      SCHEMA + "export const extra = true;\n",
+    );
+    expect(outcome).toMatchObject({ ok: true, path: "db/schema.ts", destructive: false });
+    expect(h.applyCalls).toHaveLength(1);
   });
 });
 

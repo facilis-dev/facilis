@@ -1,14 +1,14 @@
-// The AI chat session: conversation state, streaming, proposals and the validated write
-// tools (D-045/D-046/D-047, D-181). One instance per conversation (chat-host.ts keeps the
+// The AI chat session: conversation state, streaming and the validated write tools
+// (D-045/D-046/D-047, D-181/D-192). One instance per conversation (chat-host.ts keeps the
 // per-controller ChatStore); editor access is ChatHost and the VFS only through
-// chat-actions.ts and chat-writes.ts, where every write is validated first (invariant 9).
+// chat-writes.ts, where every write is validated first (invariant 9).
 
-import { applyProposal, undoProposal } from "./chat-apply";
 import { buildChatContext } from "./chat-context";
 import { GitGateActions } from "./chat-git-gate";
+import { SchemaConfirmActions } from "./chat-schema-confirm";
 import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
-import { buildProposal, toggleProposalFile } from "./chat-proposal";
+import { generateCommitMessage } from "./commit-message";
 import type { ChatWrites } from "./chat-writes";
 import { callModel } from "./client";
 import { TURN_RESET, errorText, initialState, turnEnded } from "./chat-session-types";
@@ -31,10 +31,13 @@ export class ChatSession {
   private readonly load: () => AiSettings | null;
   private readonly save: (settings: AiSettings) => void;
   private readonly now: () => number;
+  private readonly locale: () => "en" | "it";
   private readonly runner: PtcRunner;
   private readonly writes: ChatWrites | null;
   /** The paused clean-tree gate and the write-tools turn Undo (D-181). */
   readonly gitGate: GitGateActions;
+  /** The paused destructive-schema confirmation (D-193). */
+  readonly schemaConfirm: SchemaConfirmActions;
   private readonly stream: ChatStreamWriter;
   private readonly queue: ChatQueue;
   private listeners = new Set<() => void>();
@@ -48,6 +51,7 @@ export class ChatSession {
     this.load = options.loadSettings ?? loadAiSettings;
     this.save = options.saveSettings ?? saveAiSettings;
     this.now = options.now ?? Date.now;
+    this.locale = options.locale ?? (() => "en");
     this.runner = options.runner;
     this.writes = options.writes ?? null;
     this.stream = new ChatStreamWriter(this.now, {
@@ -62,6 +66,11 @@ export class ChatSession {
       state: () => this.state,
       host: this.host,
       writes: this.writes,
+      generateMessage: () => this.commitMessage(),
+    });
+    this.schemaConfirm = new SchemaConfirmActions({
+      emit: (patch) => this.emit(patch),
+      state: () => this.state,
     });
   }
 
@@ -99,6 +108,7 @@ export class ChatSession {
 
   newChat(): void {
     this.gitGate.cancel();
+    this.schemaConfirm.cancel();
     this.controller?.abort();
     this.controller = null;
     this.cancelled = false;
@@ -109,6 +119,7 @@ export class ChatSession {
 
   cancel(): void {
     this.gitGate.cancel();
+    this.schemaConfirm.cancel();
     this.cancelled = true;
     this.controller?.abort();
   }
@@ -167,16 +178,6 @@ export class ChatSession {
     if (error !== null) this.emit({ error: { kind: "stream", message: error } });
   }
 
-  toggleFile(path: string): void {
-    const proposal = toggleProposalFile(this.state.proposal, path);
-    if (proposal !== null) this.emit({ proposal });
-  }
-
-  discard(): void {
-    if (!this.state.proposal) return;
-    this.emit({ proposal: null, applied: null });
-  }
-
   async send(text: string, images: readonly string[] = []): Promise<void> {
     const content = text.trim();
     if (content.length === 0 && images.length === 0) return;
@@ -204,9 +205,6 @@ export class ChatSession {
     this.emit({
       phase: "sending",
       messages,
-      proposal: null,
-      applied: null,
-      undo: null,
       streaming: false,
       ...TURN_RESET,
       error: null,
@@ -232,6 +230,7 @@ export class ChatSession {
         onText: (chunk) => this.stream.chunk(chunk),
         ...(this.writes === null ? {} : { writes: this.writes }),
         pauseGitGate: (failure) => this.gitGate.pause(failure),
+        pauseSchemaConfirm: (changes) => this.schemaConfirm.pause(changes),
         // D-110: the status lines, the program rows and the model-call rows are wired in
         // chat-turn-hooks.ts, which reads this session's current state.
         ...turnHooks({
@@ -251,17 +250,6 @@ export class ChatSession {
       this.emit({ repair: null, writes: this.writes?.turnWrites() ?? [] });
       const response = outcome.parsed.response;
       this.stream.finish(response.message || "Done.");
-      if (response.patches.length > 0) {
-        this.emit({
-          proposal: await buildProposal(
-            response.patches,
-            response.notes,
-            response.requiresConfirmation,
-            (path) => this.host.read(path),
-            outcome.parsed.validation,
-          ),
-        });
-      }
     } catch (error) {
       if (!this.cancelled) {
         this.stream.drop();
@@ -286,15 +274,14 @@ export class ChatSession {
     }
   }
 
-  /** Write the accepted files through the validated path (chat-apply.ts). */
-  async apply(): Promise<void> {
-    await applyProposal(this.host, this.state, (patch) => this.emit(patch));
-    this.drainQueued();
-  }
-
-  /** Put the last clean Apply back the way it was (chat-apply.ts). */
-  async undo(): Promise<void> {
-    await undoProposal(this.host, this.state, (patch) => this.emit(patch));
-    this.drainQueued();
+  /** Summarize the pending diff into the gate's commit message (D-192); never throws. */
+  private commitMessage(): Promise<string> {
+    return generateCommitMessage({
+      safety: this.host.gitSafety,
+      settings: this.state.settings,
+      locale: this.locale(),
+      call: this.call,
+      ...(this.controller === null ? {} : { signal: this.controller.signal }),
+    });
   }
 }

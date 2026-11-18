@@ -6,74 +6,52 @@
 // the consent for the turn — the first write gates on it and Undo restores the journal from
 // HEAD. Findings are data the model repairs; an analyzer outage ends the turn instead, since
 // the model cannot fix the validator's plumbing.
+//
+// A write that drops a table or a column pauses the turn for the user's confirmation (D-193):
+// the tool answers "confirmation required" and writes nothing, the session asks, and only a
+// confirmed write is applied and recorded for the dev boot. The engine owns that pending state
+// because a second write must not land while the card is open.
 
-import type { Analysis, FilePatch, SyntaxChecker, ValidationError } from "@facilis.dev/ai";
-import { applyPatch, type PatchBridge } from "@/facilis/apply-patch";
+import type { FilePatch } from "@facilis.dev/ai";
 
-import { fileDiff } from "./diff";
+import { applyPatch } from "@/facilis/apply-patch";
+
+import { applyConfirmedWrite } from "./chat-write-confirm";
+import { persistWrite, type PersistDeps } from "./chat-write-persist";
+import {
+  finding,
+  findingsOutcome,
+  type ChatWritesHost,
+  type WriteOutcome,
+} from "./chat-write-types";
 import { validatePatchesWithHost } from "./patch-validation";
 import { isSafeProjectPath } from "./ptc/policy";
-import { findingsJson, type PtcJson } from "./ptc/protocol";
-import type { ChatGitGateFailure, ChatTurnWrite, GitSafety } from "./types";
+import type { ChatGitGateFailure, ChatTurnWrite } from "./types";
+
+export type {
+  ChatWritesHost,
+  WriteFindings,
+  WriteGitRefusal,
+  WriteOutcome,
+  WriteSchemaConfirmation,
+  WriteSuccess,
+} from "./chat-write-types";
 
 /** One tool call cannot stream an unbounded file into the validator. */
 export const MAX_WRITE_CHARS = 200_000;
 
-/** What the engine needs from the chat host; the analyzer and git seams belong to the host. */
-export interface ChatWritesHost {
-  root(): string | null;
-  bridge: PatchBridge;
-  manifestBase(): string | null;
-  files(): readonly string[];
-  read(path: string): Promise<string>;
-  /** Rule 1's parser; the real host supplies it, tests may leave it out to fail closed. */
-  syntaxChecker?(): SyntaxChecker | null;
-  analyze(
-    patches: readonly FilePatch[],
-    signal?: AbortSignal,
-    overlay?: readonly FilePatch[],
-  ): Promise<{ before: Analysis; after: Analysis }>;
-  safety: GitSafety;
-}
-
-/** A write that passed validation and reached the VFS. */
-export interface WriteSuccess {
-  ok: true;
-  path: string;
-  action: FilePatch["action"];
-  /** UTF-8 bytes written; 0 for a delete. */
-  bytes: number;
-  /** The validated change drops a table or a column (rule 15's predicate). */
-  destructive: boolean;
-  added: number;
-  removed: number;
-}
-
-/** The validator refused the write: the model reads these findings and repairs the call. */
-export interface WriteFindings {
-  ok: false;
-  path: string;
-  errors: PtcJson[];
-  warnings: PtcJson[];
-}
-
-/** The clean-tree gate refused the write; the session pauses for the user's choice. */
-export interface WriteGitRefusal {
-  ok: false;
-  path: string;
-  git: ChatGitGateFailure;
-}
-
-export type WriteOutcome = WriteSuccess | WriteFindings | WriteGitRefusal;
-
 export interface ChatWrites {
-  /** Reset the turn: journal, overlay, the gate cache and the outage can never leak across turns. */
+  /** Reset the turn: journal, overlay, the gate cache, the confirmation and the outage. */
   beginTurn(): void;
   writeFile(path: string, content: string, signal?: AbortSignal): Promise<WriteOutcome>;
   deleteFile(path: string, signal?: AbortSignal): Promise<WriteOutcome>;
   turnWrites(): readonly ChatTurnWrite[];
   /** The pending gate failure, returned once (the turn loop pauses on it). */
   takeGateFailure(): ChatGitGateFailure | null;
+  /** The destructive write waiting for confirmation, or null (the turn loop pauses on it). */
+  takeSchemaConfirmation(): { changes: readonly string[] } | null;
+  /** The user confirmed: validate and apply the write the turn paused on. */
+  applyPending(): Promise<WriteOutcome>;
   /** The validator could not run: the turn must end as an outage, not a repair round. */
   outage(): boolean;
   undoTurn(): Promise<{ ok: boolean; errors: string[] }>;
@@ -82,18 +60,6 @@ export interface ChatWrites {
 export interface ChatWritesDeps {
   /** Injected by the tests; the kernel-bridge writer in the IDE. */
   apply?: typeof applyPatch;
-}
-
-function finding(rule: string, path: string, message: string, fixHint: string): ValidationError {
-  return { rule, severity: "error", file: path, message, fix_hint: fixHint };
-}
-
-function findingsOutcome(
-  path: string,
-  errors: readonly ValidationError[],
-  warnings: readonly ValidationError[] = [],
-): WriteFindings {
-  return { ok: false, path, errors: findingsJson(errors), warnings: findingsJson(warnings) };
 }
 
 export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}): ChatWrites {
@@ -105,6 +71,19 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
   let gated = false;
   let gateFailure: ChatGitGateFailure | null = null;
   let validatorOutage = false;
+  /** The destructive write the turn paused on; cleared when it is applied or the turn ends. */
+  let pendingConfirm: { patch: FilePatch; changes: readonly string[] } | null = null;
+
+  const persistDeps: PersistDeps = {
+    bridge: host.bridge,
+    apply,
+    before: (path) => beforeImage(path),
+    manifestBase: () => host.manifestBase(),
+    record(entry, patch) {
+      journal.push(entry);
+      overlay = [...overlay, patch];
+    },
+  };
 
   function beginTurn(): void {
     journal = [];
@@ -112,6 +91,7 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
     gated = false;
     gateFailure = null;
     validatorOutage = false;
+    pendingConfirm = null;
   }
 
   /** True when the path exists in the project or was already written this turn. */
@@ -139,6 +119,10 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
     content: string | undefined,
     signal: AbortSignal | undefined,
   ): Promise<WriteOutcome> {
+    // While a confirmation is pending the turn is paused: no other write may land first.
+    if (pendingConfirm !== null) {
+      return { ok: false, path, confirmation: { changes: pendingConfirm.changes } };
+    }
     // The first write needs HEAD plus a clean tree: that checkpoint is the turn's consent.
     if (!gated) {
       const gate = await host.safety.gate();
@@ -194,52 +178,12 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
       return findingsOutcome(path, validation.errors, validation.warnings);
     }
     if (!validation.ok) return findingsOutcome(path, validation.errors, validation.warnings);
-    const before = await beforeImage(path);
-    const manifestBase = host.manifestBase();
-    const applied = await apply({
-      bridge: host.bridge,
-      root,
-      patches: [patch],
-      context: checked.context,
-      requiresConfirmation: true,
-      ...(manifestBase === null ? {} : { manifestBase }),
-      ...(signal === undefined ? {} : { signal }),
-    });
-    if (!applied.ok) {
-      const errors =
-        applied.errors.length > 0
-          ? applied.errors.map((message) =>
-              finding(
-                "apply-failed",
-                path,
-                message,
-                "The file was not written; retry, or inspect the project before writing again.",
-              ),
-            )
-          : applied.validation.errors;
-      return findingsOutcome(path, errors);
+    if (validation.destructive === true) {
+      const changes = validation.destructiveChanges ?? [];
+      pendingConfirm = { patch, changes };
+      return { ok: false, path, confirmation: { changes } };
     }
-    const after = action === "delete" ? null : (content ?? "");
-    const diff = fileDiff(before, after);
-    const destructive = validation.destructive === true;
-    const entry: ChatTurnWrite = {
-      path,
-      action,
-      destructive,
-      added: diff.added,
-      removed: diff.removed,
-    };
-    journal.push(entry);
-    overlay = [...overlay, patch];
-    return {
-      ok: true,
-      path,
-      action,
-      bytes: content === undefined ? 0 : new TextEncoder().encode(content).length,
-      destructive,
-      added: diff.added,
-      removed: diff.removed,
-    };
+    return persistWrite(persistDeps, patch, validation, checked.context, root, signal);
   }
 
   return {
@@ -255,6 +199,34 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
       const failure = gateFailure;
       gateFailure = null;
       return failure;
+    },
+    takeSchemaConfirmation() {
+      return pendingConfirm === null ? null : { changes: pendingConfirm.changes };
+    },
+    async applyPending() {
+      const pending = pendingConfirm;
+      if (pending === null) {
+        return findingsOutcome("", [
+          finding(
+            "schema-confirmation",
+            "",
+            "No destructive write is waiting for confirmation.",
+            "Retry the write.",
+          ),
+        ]);
+      }
+      pendingConfirm = null;
+      return applyConfirmedWrite(
+        {
+          host,
+          overlay: () => overlay,
+          persist: persistDeps,
+          markOutage: () => {
+            validatorOutage = true;
+          },
+        },
+        pending,
+      );
     },
     outage: () => validatorOutage,
     async undoTurn() {

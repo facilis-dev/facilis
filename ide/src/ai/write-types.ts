@@ -19,6 +19,10 @@ export type ChatGitGateFailure =
 /** The pending clean-tree gate, as the chat card renders it. */
 export interface ChatGitGateState {
   failure: ChatGitGateFailure;
+  /** The generated commit message the card pre-fills; the user may edit it before committing. */
+  message: string;
+  /** The summarizer call is running: the card waits for the generated message. */
+  generating: boolean;
   /** A commit attempt failed (for example no git identity); shown under the buttons. */
   error: string | null;
 }
@@ -44,8 +48,10 @@ export type GitGate = { ok: true; head: string } | { ok: false; failure: ChatGit
 export interface GitSafety {
   /** HEAD plus a clean working tree, or why the AI may not write. */
   gate(): Promise<GitGate>;
-  /** Stage everything and commit it (the card's "commit and continue"). */
-  commitAll(): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Stage everything and commit it with the user's message (the card's "commit and continue"). */
+  commitAll(message: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** The uncommitted diff (staged and unstaged), for the generated commit summary; "" when unknown. */
+  diff?(): Promise<string>;
   /** Initialize the repository for a project that has none. */
   init(): Promise<{ ok: true } | { ok: false; error: string }>;
   /** Restore the given project paths from HEAD (the turn's Undo). */

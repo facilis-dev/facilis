@@ -15,12 +15,7 @@ const settings: AiSettings = {
 };
 
 function answer(): string {
-  return JSON.stringify({
-    message: "Here is the change.",
-    patches: [{ path: "src/new.ts", action: "create", content: "x\n" }],
-    notes: [],
-    requires_confirmation: false,
-  });
+  return JSON.stringify({ message: "Here is the change." });
 }
 
 function fakeHost(): ChatHost {
@@ -71,8 +66,6 @@ describe("ChatSession with the PTC runtime", () => {
             ? JSON.stringify({
                 message: "Let me look.",
                 script: "return await tools.read_file({ path: 'src/App.tsx' });",
-                notes: [],
-                requires_confirmation: false,
               })
             : answer();
         return { ok: true, text };
@@ -103,10 +96,6 @@ describe("ChatSession with the PTC runtime", () => {
       toolCalls: 1,
     });
     expect(runs[0]?.entries[0]?.name).toBe("read_file");
-    expect(state.proposal?.files[0]?.patch).toEqual({
-      path: "src/new.ts",
-      action: "create",
-      content: "x\n",
-    });
+    expect(state.messages.at(-1)?.content).toBe("Here is the change.");
   });
 });

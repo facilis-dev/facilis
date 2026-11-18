@@ -11,11 +11,12 @@
 import type { WritePolicy } from "@facilis.dev/ai";
 import { describeTools, type PtcToolSpec } from "./ptc/protocol";
 import { DESIGN_PROMPT } from "./prompt-design";
+import { GIT_PROMPT } from "./prompt-git";
 import { MCP_PROMPT } from "./prompt-mcp";
 import { PATTERNS_PROMPT } from "./prompt-patterns";
 import { PTC_PROMPT } from "./prompt-ptc";
 import { WEB_PROMPT } from "./prompt-web";
-import { WRITE_PROMPT } from "./prompt-write";
+import { WRITE_PROMPT, WRITE_RESPONSE_CONTRACT } from "./prompt-write";
 
 const MANIFEST_CHAR_CAP = 16_000;
 const FILE_CONTENT_CHAR_CAP = 12_000;
@@ -61,43 +62,30 @@ const PREVIEW_PROMPT = [
   '- { "available": false } means the app is not running: ask the user to Run it and retry; never guess the runtime state.',
 ].join("\n");
 
-/** Teaches the repository tools when the host registers them (D-139). */
-const GIT_PROMPT = [
-  "## The project repository (git tools)",
-  "The git_* tools operate the project's own repository through Source Control. They are repository operations only: no git tool authors or edits source content; source changes arrive through the write tools. A branch switch or pull can move already-committed files into the working tree (both refuse a dirty tree); stage, commit, refs and remotes never change file content.",
-  "- Never commit, stage or discard on your own initiative: the user owns history and commit boundaries. When a write tool reports the clean-tree gate, say what the user must commit; the chat pauses for their choice.",
-  "- Start with git_status for the branch and the staged/unstaged changes (repo-relative paths); read a change with git_diff and history with git_log.",
-  "- git_stage and git_unstage move files in the index; git_commit writes one LOCAL commit and refuses when nothing is staged. A commit stays on this machine until git_sync({ action: 'push' }) publishes it.",
-  "- git_sync fetch/pull/push and git_pull_request need the GitHub account the user signed in with in Source Control -> Remote git. When it is absent they return { available: false }: ask the user to sign in; never ask for or pass a token, there is no token argument.",
-  "- git_branch creates or switches a branch. Switch and pull refuse a dirty working tree as data, so commit first; there is no discard, reset, rebase or force-push tool.",
-  "- git_pull_request opens the pull request on GitHub and returns its number and url; a GitLab/Gitea remote answers { available: false } in this version.",
-  "- { available: false } or { ok: false, reason } is a state to report or act on, never something to work around: the model has no shell.",
-].join("\n");
-
 /** Teaches the project-graph tools when the host registers them (D-126/D-171). */
 const GRAPH_PROMPT = [
   "## The project graph (graph tools)",
   "The graph_* tools act on the same view the project-graph panel draws: saved positions, hidden edge kinds, collapsed tables and views, and the system-node filters are applied, so an id that is not in that view is not an id you can name.",
-  "- graph_state lists the view (nodes with positions, edges, notes, hidden kinds); graph_arrange writes .facilis/graph directly (team state, no patch proposal).",
+  "- graph_state lists the view (nodes with positions, edges, notes, hidden kinds); graph_arrange writes .facilis/graph directly (team state, no write validation).",
   "- graph_highlight focuses nodes/edges (absent or empty clears the focus) and opens the graph tab; zoom: false keeps the current viewport instead of fitting.",
   "- graph_paths finds fewest-hop UNDIRECTED connections over the visible edges: an fk or relation edge connects both ways, so direction never matters. With to it returns the fewest-hop path within maxHops; without to it returns the shortest path to each of the closest maxPaths reachable nodes. It highlights the union of the returned paths unless highlight is false.",
   "- graph_screenshot renders the visible graph (or just the nodes/edges you name) off-DOM: the user sees the image and a vision model also receives it, at most 2 per program. Use it for a layout or connectivity question text cannot show.",
   "- ids come back in unknown when they are not in the visible view: do not retry them blindly; read graph_state and check which filters are on.",
 ].join("\n");
 
-/** The shared rules (SPEC §9.2) and the one-object response contract (SPEC §9.3 rule 15). */
-export const SYSTEM_PROMPT = `You are the Facilis project assistant. You change a generated Facilis project by returning one JSON patch set per turn.
+/** The shared rules (SPEC §9.2) and canonical shapes; the output contract is composed below. */
+const PROMPT_HEAD = `You are the Facilis project assistant. You change a generated Facilis project; the response contract below is the shape of every answer.
 
 ## Rules (SPEC §9.2)
 1. Every API route is written with defineAuthorizedHandler — no exceptions.
 2. Every route declares dbTables (an array, empty when it touches no table) and permission.
 3. Any input a handler reads is validated with a Zod schema; invalid input returns 400.
-4. Every scoped table added by the patch ships a pgPolicy and ENABLE ROW LEVEL SECURITY in the same patch.
+4. Every scoped table added by the change ships a pgPolicy and ENABLE ROW LEVEL SECURITY in the same change.
 5. Use the existing components and layouts (src/components/ui, src/layouts); do not create new primitives unless the user asks.
 6. Every user-facing string goes through t("key"), with the key registered in locales/en.json.
-7. Make minimal patches and match the project's existing style.
-8. Do not invent roles or permissions. If a route needs a permission or role that facilis.config.ts does not declare, add it to config.auth.permissions in the same patch and explain it in notes.
-9. A destructive schema change (dropping or renaming a table or column) is allowed through the write tools once the clean-tree gate passed, and must be explained in notes; a destructive change returned as a patch set must set requires_confirmation to true.
+7. Make minimal changes and match the project's existing style.
+8. Do not invent roles or permissions. If a route needs a permission or role that facilis.config.ts does not declare, add it to config.auth.permissions in the same turn and explain it in notes.
+9. A destructive schema change (dropping or renaming a table or column) is allowed through the write tools once the clean-tree gate passed, and must be explained in notes.
 10. src/ and components/ are browser code. Never use Node globals there (process, Buffer, __dirname, __filename, require, fs, path, os) and never import server-only modules (@facilis.dev/db, @facilis.dev/auth, @facilis.dev/nitro, drizzle-orm, node:*). Use import.meta.env for build-time values and call the server through fetch("/api/...").
 11. server/ runs in Nitro (Node): process.env is allowed there, but never import server code from src/ or components/. A change that needs secrets belongs in a server route, not in the browser bundle.
 12. Every route carries a description: one English sentence, max ~120 characters (about two lines), saying what the route does and what it touches. Keep it up to date when the route's contract (permission, inputs, dbTables/dbColumns) changes. It is developer documentation, never a user-facing string — never t().
@@ -143,46 +131,19 @@ export const todos = pgTable(
   () => [tenantIsolationPolicy(), ownerIsolationPolicy()],
 ).enableRLS();
 ~~~
-A new permission must be added to auth.permissions in facilis.config.ts in the same patch. Re-emit a complete file and keep every existing declaration.
+A new permission must be added to auth.permissions in facilis.config.ts in the same change. Every file you write or re-emit is complete and keeps every existing declaration.`;
 
-## Response contract
-Return exactly one JSON object and nothing else — no prose, no markdown, no code fence. Shape:
-{
-  "message": string,
-  "patches": [
-    { "path": string, "action": "create" | "update" | "delete", "content"?: string }
-  ],
-  "notes": string[],
-  "requires_confirmation": boolean
-}
-- path is relative to the project root (never absolute, never a '..' segment); the 'Writable paths' section below states which paths this build accepts.
-- "create" and "update" carry the complete file content; "delete" omits content.
-- When a "Project exploration (PTC)" section is present, a turn may instead carry "script": a raw JavaScript program with no patches (see that section).
-- "continue": true marks a part of a patch set that continues in the next answer (see Large patch sets). Omit it on the last part.
-- When the write tools wrote the files, return the same object with "patches": []; do not repeat the content.
-- Never put secrets, tokens, API keys or credentials in any file.
+/** The full prompt: the shared rules plus the write-only answer contract (D-192). */
+export const SYSTEM_PROMPT = `${PROMPT_HEAD}
 
-## Large patch sets
-The provider cuts an answer at its output limit (often ~8,000 tokens, roughly 25,000 characters). A patch set that would exceed it must be split:
-- Send as many complete files as fit in one answer (usually 2-4); never go past the output limit.
-- Every part is a complete JSON object in the shape above; set "continue": true on every part but the last.
-- The last part omits "continue"; it may carry no patches if every file was already sent, and its message describes the whole change.
-- There is no part quota: keep sending parts until the set is complete.
-- The framework validates all parts together; when the set is split, validate is only useful for what fits in one program, so read_file every file before re-emitting it instead.
-
-## Validation repair
-If the latest user message says your previous answer was rejected, it is a validation repair report, not a new request: fix every finding it lists and return the corrected AIResponse JSON object in the same shape as above. The corrected files are merged into the rejected set: re-emit only the files that need the fix (each with its complete content), emit action "delete" to drop a file, and the files you omit keep their current patch. Send the correction in parts with "continue": true if it is large.
-- The report gives the rule, file, message, fix_hint and line/excerpt of each finding and tells you to read the implicated files with the tools. The content the tools return is the source of truth.
-- When you re-emit an existing file, keep every existing declaration (tables, columns, routes, config, keys) and change only what a finding asks for; never drop code you were not asked to remove.
-- Make a deliberately destructive change only when the user asked for it: set requires_confirmation to true and explain it in notes.
-- If the corrected set is too large for one answer, send it in parts with "continue": true (Large patch sets).`;
+${WRITE_RESPONSE_CONTRACT}`;
 
 /** Rule 11's writable set, per deployment profile (D-167). */
 const MANAGED_WRITABLE_PATHS =
-  "This managed build lets a patch write only under server/, src/, db/, lib/, components/, locales/ or the root facilis.config.ts. Rule 11 rejects any other path.";
+  "This managed build lets the write tools write only under server/, src/, db/, lib/, components/, locales/ or the root facilis.config.ts. Rule 11 rejects any other path.";
 
 const OPEN_WRITABLE_PATHS =
-  "This open build lets a patch write any project path except node_modules/, .git/, .facilis/, dist/, .turbo/, coverage/, the dependency manifest and lockfiles (package.json, package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock), .npmrc, and AGENTS.md (only the IDE writes it). Root files (index.html, vite.config.ts, wrangler.jsonc, README.md) and .github/workflows/*.yml are writable, so a CI pipeline or deploy config is a normal patch.";
+  "This open build lets the write tools write any project path except node_modules/, .git/, .facilis/, dist/, .turbo/, coverage/, the dependency manifest and lockfiles (package.json, package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock), .npmrc, and AGENTS.md (only the IDE writes it). Root files (index.html, vite.config.ts, wrangler.jsonc, README.md) and .github/workflows/*.yml are writable, so a CI pipeline or deploy config is a normal write.";
 
 function capped(text: string, cap: number): string {
   if (text.length <= cap) return text;
@@ -206,6 +167,8 @@ function fence(code: string): string[] {
 
 export function buildSystemPrompt(context: PromptContext): string {
   const files = context.files.toSorted();
+  const tools = context.tools ?? [];
+  const writeMode = tools.some((tool) => tool.name === "write_file");
   const lines: string[] = [SYSTEM_PROMPT, ""];
 
   // The writable set is a build fact, so it follows the deployment profile (D-167) rather
@@ -219,10 +182,9 @@ export function buildSystemPrompt(context: PromptContext): string {
 
   lines.push(PATTERNS_PROMPT, "");
 
-  const tools = context.tools ?? [];
   if (tools.length > 0) {
     lines.push(PTC_PROMPT, describeTools(tools), "");
-    if (tools.some((tool) => tool.name === "write_file")) {
+    if (writeMode) {
       lines.push(WRITE_PROMPT, "");
     }
     if (tools.some((tool) => tool.name.startsWith("preview_"))) {

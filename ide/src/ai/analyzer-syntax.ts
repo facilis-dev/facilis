@@ -21,7 +21,10 @@ export interface AnalyzerDiagnostic {
 export type AnalyzeSource = (
   files: ReadonlyMap<string, string>,
 ) => Promise<
-  | { readonly ok: true; readonly analysis: { readonly diagnostics: readonly AnalyzerDiagnostic[] } }
+  | {
+      readonly ok: true;
+      readonly analysis: { readonly diagnostics: readonly AnalyzerDiagnostic[] };
+    }
   | { readonly ok: false; readonly error: string }
 >;
 

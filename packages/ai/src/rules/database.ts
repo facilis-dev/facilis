@@ -7,17 +7,12 @@
  * re-flagged here. Scope is the analyzer's ScopeFact or a tenant/owner column property.
  */
 
-import type { EffectiveState } from "../overlay.ts";
-import { hasMigrationPatch, SCHEMA_PATH } from "../overlay.ts";
+import { SCHEMA_PATH, type EffectiveState } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";
 import type { FilePatch, TableFact, ValidationError } from "../types.ts";
 
 function error(rule: string, file: string, message: string, fix_hint: string): ValidationError {
   return { rule, severity: "error", file, message, fix_hint };
-}
-
-function warning(rule: string, file: string, message: string, fix_hint: string): ValidationError {
-  return { rule, severity: "warning", file, message, fix_hint };
 }
 
 /** True when this patch set touches the project schema file (create, update or delete). */
@@ -66,25 +61,31 @@ export function rlsErrors(state: EffectiveState): ValidationError[] {
   return errors;
 }
 
-/** Rule 14: a schema edit must ship a generated migration file (warning). */
-export function migrationWarnings(
+/**
+ * Rule 14: DDL is generated, never authored (D-158). The release pipeline renders the SQL
+ * from the schema diff between two tags, so a hand-written file under the migrations
+ * directory can neither be reproduced from the tags nor reviewed as a schema change. A
+ * write there is refused before anything lands; the schema is the only input.
+ */
+export function migrationErrors(
   patches: readonly FilePatch[],
   state: EffectiveState,
 ): ValidationError[] {
-  const touches = patches.some((patch) => {
+  const directory = normalizeProjectPath(state.migrationsDir).replace(/\/+$/, "");
+  const authored = patches.find((patch) => {
     const path = normalizeProjectPath(patch.path);
-    return path === SCHEMA_PATH && patch.action !== "delete";
+    if (!path.startsWith(directory + "/")) return false;
+    return patch.action === "create" || patch.action === "update";
   });
-  if (!touches) return [];
-  if (hasMigrationPatch(patches, state.migrationsDir)) return [];
+  if (authored === undefined) return [];
   return [
-    warning(
+    error(
       "migration-generated",
-      SCHEMA_PATH,
-      "The patch changes the schema without shipping a migration.",
-      "Add the drizzle-kit generated migration (.sql) under " +
-        state.migrationsDir +
-        "/ in the same patch.",
+      normalizeProjectPath(authored.path),
+      "Migration SQL is generated at release from db/schema.ts, never authored (D-158).",
+      "Change db/schema.ts and let the migration system render the DDL: there is no migration file to write under " +
+        directory +
+        "/.",
     ),
   ];
 }

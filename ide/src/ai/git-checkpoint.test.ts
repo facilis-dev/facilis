@@ -34,7 +34,7 @@ interface FakeState {
   matrixWalks: number;
   unlinked: string[];
   checkouts: { dir: string; filepaths: string[]; force: boolean }[];
-  commits: string[];
+  commits: { root: string; message: string }[];
   inits: string[];
 }
 
@@ -86,8 +86,8 @@ function harness(options: HarnessOptions = {}): { safety: GitSafety; state: Fake
   const deps: GitCheckpointDeps = {
     bridge: {} as unknown as KernelBridge,
     root: () => ("root" in options ? (options.root ?? null) : ROOT),
-    commit: async (root) => {
-      state.commits.push(root);
+    commit: async (root, message) => {
+      state.commits.push({ root, message });
       if (options.commitError !== undefined) throw options.commitError;
       return options.commitResult ?? { ok: true };
     },
@@ -311,25 +311,25 @@ describe("restore", () => {
 });
 
 describe("commitAll", () => {
-  it("delegates to the host on the open root", async () => {
+  it("delegates the user's message to the host on the open root", async () => {
     const { safety, state } = harness();
-    expect(await safety.commitAll()).toEqual({ ok: true });
-    expect(state.commits).toEqual([ROOT]);
+    expect(await safety.commitAll("chore: my message")).toEqual({ ok: true });
+    expect(state.commits).toEqual([{ root: ROOT, message: "chore: my message" }]);
   });
 
   it("passes a host failure through", async () => {
     const { safety } = harness({ commitResult: { ok: false, error: "set a git identity first" } });
-    expect(await safety.commitAll()).toEqual({ ok: false, error: "set a git identity first" });
+    expect(await safety.commitAll("x")).toEqual({ ok: false, error: "set a git identity first" });
   });
 
   it("turns a thrown host failure into a typed error", async () => {
     const { safety } = harness({ commitError: new Error("boom") });
-    expect(await safety.commitAll()).toEqual({ ok: false, error: "boom" });
+    expect(await safety.commitAll("x")).toEqual({ ok: false, error: "boom" });
   });
 
   it("refuses without an open project", async () => {
     const { safety, state } = harness({ root: null });
-    expect(await safety.commitAll()).toEqual({ ok: false, error: "no project is open" });
+    expect(await safety.commitAll("x")).toEqual({ ok: false, error: "no project is open" });
     expect(state.commits).toEqual([]);
   });
 });

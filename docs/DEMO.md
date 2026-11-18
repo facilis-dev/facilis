@@ -33,18 +33,18 @@ timings below are honest.
 | 0:20 | Press **Run**. | The install resolves `@facilis.dev/*` from npm at the pinned version (D-166); the preview paints the todo login page. |
 | 0:40 | Register the `FACILIS_INITIAL_ADMIN` email **and the bootstrap token** in the preview (D-150); the dev fallback verifies the address immediately (D-156). | The todo app is authenticated: create/complete a todo works. |
 | 0:55 | Open the **Data** view (database icon). | Tables with columns, RLS badges on the scoped tables, reverse route usage, and *"Code and database are in sync"*. |
-| 1:10 | Open **AI Chat** → settings → provider **Mock (dev)** → send any prompt. | The answer streams, then a **reviewable proposal** appears: one per-file diff, validator clean, Apply enabled. |
-| 1:30 | **Apply**. | The file is written through `applyPatch()` only, Undo becomes available, and the new file appears in the Explorer. |
-| 1:45 | (Optional, with a real key) ask *"add a due date to the todo form"*, review the diff, Apply. | Same proposal/validate/apply flow against a real model; the preview hot-updates after the write (HMR). |
+| 1:10 | Open **AI Chat** → settings → provider **Mock (dev)** → send any prompt. | The answer streams; the mock writes `src/chat-demo.ts` through the write tools (the clean-tree gate may ask to commit first) and ends with a summary. |
+| 1:30 | **Undo this turn** in the git-changes footer. | The file is restored from HEAD and disappears from the footer and the Explorer. |
+| 1:45 | (Optional, with a real key) ask *"add a due date to the todo form"*. | The gate commits with a generated message, the AI writes file by file, and the footer lists what changed; the preview hot-updates (HMR). |
 | 2:10 | In the preview's address bar append `/_openapi.json`. | Every route carries `x-db-tables`/`x-permission`; the API contract is the spec. |
 | 2:30 | **Source Control** → stage the chat change → commit. | A normal commit on the VFS; pushing needs a token and the same-origin proxy (D-079, optional for the demo). |
 | 2:50 | Done. | Under three minutes, no backend, no account on the Studio. |
 
 ## What the script must not skip
 
-- The **validator** runs before the proposal exists, again on Apply and once more inside
-  `applyPatch()` (D-084). If the proposal card shows a blocking error, the demo stops there —
-  nothing was written.
+- The **validator** runs on every write: `validate` can pre-check a multi-file change, and
+  `write_file`/`delete_file` validate before `applyPatch()` (D-084). A rejected write returns its
+  findings and nothing is written.
 - The **entity explorer** compares `db/schema.ts` with the live catalog (D-083): after a schema
   patch the Data view shows the drift disappear once the dev boot reconciles the declared schema
   (no migration file to run; D-158).
@@ -62,8 +62,8 @@ framework endpoints are checked by `scripts/dev/smoke-facilis.mjs`; the multi-ta
 ## Notes
 
 - The **Mock (dev)** provider is built into dev builds and never calls a network: it returns a
-  fixed, safe patch so the proposal/validate/apply path can be demonstrated without a key
-  (D-045).
+  fixed write script and a summary so the gate/write/footer/Undo path can be demonstrated without a
+  key (D-045/D-192).
 - A **managed** build (D-063) turns AI and imports off by policy; run the demo against the
   `open` profile.
 - If the preview or the Data view says *unreachable*, the project is still booting: the panels

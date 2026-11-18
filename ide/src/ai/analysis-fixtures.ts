@@ -28,7 +28,7 @@ export function analyzePatchesOf(
 /**
  * Test-host adapter: read the host's pre-patch file list through its own VFS seam, then
  * analyze it pre/post patch. Hosts whose sources change between calls (a project edited
- * after the proposal) get fresh facts on every validation round.
+ * after the write) get fresh facts on every validation round.
  */
 export async function analyzeHostFiles(
   files: readonly string[],

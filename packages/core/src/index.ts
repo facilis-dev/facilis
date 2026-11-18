@@ -283,10 +283,5 @@ export type {
   ReleaseRef,
 } from "./release-artifact.ts";
 
-export { planSchema } from "./schema-plan/plan.ts";
-export type {
-  SchemaPlan,
-  SchemaPlanBatch,
-  SchemaPlanProblem,
-  SchemaPlanProblemCode,
-} from "./schema-plan/types.ts";
+// The release generator, its SQL renderers and the dev consent file (D-158/D-193).
+export * from "./schema-plan/public.ts";

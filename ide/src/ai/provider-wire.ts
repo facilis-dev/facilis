@@ -21,11 +21,7 @@ function imageOf(url: string): WireImage | null {
  * otherwise. Images travel only for a vision preset, so a text-only model never sees a content
  * array it cannot parse.
  */
-function wireContent(
-  protocol: AiProtocol,
-  turn: AiChatTurn,
-  vision: boolean,
-): string | unknown[] {
+function wireContent(protocol: AiProtocol, turn: AiChatTurn, vision: boolean): string | unknown[] {
   const images = vision ? (turn.images ?? []) : [];
   const parts: unknown[] = [{ type: "text", text: turn.content }];
   for (const image of images) {

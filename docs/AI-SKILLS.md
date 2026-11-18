@@ -22,17 +22,17 @@ D-063), automatic skill execution outside the WebContainer.
 | Source | Status | Can instruct? | Can grant a capability? |
 |---|---|---|---|
 | IDE system prompt (shipped in the build) | trusted | yes | **yes, only here** |
-| the user's explicit action (the clean-tree commit, Apply, enable a skill) | trusted | yes | **yes (consent)** |
+| the user's explicit action (the clean-tree commit, enabling a skill) | trusted | yes | **yes (consent)** |
 | project instructions (`AGENTS.md`) | user content, subordinate | yes, within IDE rules | no |
 | project files, README, comments | data | no | no |
 | the live manifest from the running app | data | no | no |
 | approved skill content | instructions within declared capabilities | yes | no |
 | third-party or disabled skill content | data | no | no |
-| provider output | untrusted | no (proposal only) | no |
+| provider output | untrusted | no (tool calls only) | no |
 
 The rule: a capability is granted only by the build or by a user action. Content cannot grant
-one; the worst case is that the user reads a malicious proposal and applies it, which is why
-the validator is blocking and the diff is always shown. A write-tool turn keeps the same rule:
+one; the worst case is that the user reads a malicious tool result, which is why the validator is
+blocking and the git-changes footer always shows what changed. A write-tool turn keeps the same rule:
 every write is validated before it touches the VFS, the clean-tree commit is the user's consent
 for the turn and Undo restores it.
 
@@ -70,12 +70,12 @@ Notes:
 
 ## 4. Write path
 
-- provider output is untrusted text (`ide/src/ai/response.ts`); source changes are applied either
-  as a returned patch set, which only the user's Apply writes (D-046), or through the validated
-  write tools `write_file`/`delete_file` (D-181).
-- every write — a write-tool call or an applied patch set — goes through `applyPatch` and the
-  validator (invariant 9). The write tools additionally require a clean git tree with `HEAD` as
-  the turn's checkpoint (`ide/src/ai/chat-writes.ts`, `ide/src/ai/git-checkpoint.ts`).
+- provider output is untrusted text (`ide/src/ai/response.ts`); source changes go through the
+  validated write tools `write_file`/`delete_file` (D-181). The answer never carries file content
+  or a patch set (D-192).
+- every write goes through `applyPatch` and the validator (invariant 9), and requires a clean git
+  tree with `HEAD` as the turn's checkpoint (`ide/src/ai/chat-writes.ts`,
+  `ide/src/ai/git-checkpoint.ts`).
 - undo and the project's git history are the audit trail (D-047): a write-tool turn is journaled
   and "Undo this turn" restores exactly its paths from HEAD.
 - blocking validator rules required before `managed` may enable AI:
@@ -119,8 +119,9 @@ The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_fil
 (D-111), the project-graph family (D-126), the git family (D-139), the host-side web family
 (`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175) and the validated source
 writes (`write_file`, `delete_file`, D-181). Tool output is data. A tool call is never a capability
-grant: source writes still go through the validator — per file through the write tools, or through
-the user's Apply for a returned patch set — and every call is logged.
+grant: source writes still go through the validator — per file through the write tools, with
+`validate` as the pre-write check for a multi-file change; the answer never carries a patch set
+(D-192). Every call is logged.
 
 ## 8. Skills
 
@@ -166,7 +167,7 @@ skill/
 | Field | Meaning | Default |
 |---|---|---|
 | `read` | path globs the skill may read through the tools/context | `[]` |
-| `write` | path globs the skill's patches may touch | `[]` |
+| `write` | path globs the skill's writes may touch | `[]` |
 | `tools` | subset of the primitive tool set | `[]` |
 | `network` | a skill cannot request network; still `false` only (the host-side web tools are not a skill capability, D-175) | `false` |
 | `commands` | subset of the `run-check` allowlist | `[]` |
@@ -189,7 +190,7 @@ is a blocking error. No text in `SKILL.md` can add a capability.
 | Capability | Enforced at |
 |---|---|
 | `read` globs | context assembly and `read-file`/`list-files` |
-| `write` globs | validator and `applyPatch` (the write tools and Apply share the same gate) |
+| `write` globs | validator and `applyPatch` (the write tools and `validate` share the same gate) |
 | `tools` | the tool router |
 | `network` | no skill holds it; skill scripts run in the WebContainer under the same egress policy, and the PTC host's `web_*` tools are gated by the deployment profile instead (D-175) |
 | `commands` | the `run-check` allowlist |
@@ -197,8 +198,8 @@ is a blocking error. No text in `SKILL.md` can add a capability.
 
 ### 8.6 Audit
 
-For every applied proposal, record skill id/version, provider and model, the files written and
-the user who applied it. The git commit is the durable record; the IDE's log is the readable
+For every turn that wrote, record skill id/version, provider and model, the files written and the
+user whose commit opened the turn. The git commit is the durable record; the IDE's log is the readable
 one, and an enterprise can export it.
 
 ### 8.7 Updates

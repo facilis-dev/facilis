@@ -3,7 +3,6 @@ import type { ChatTraceCall } from "./types";
 import { ChatSession } from "./chat-session";
 import {
   answer,
-  createNewFile,
   EMPTY_RUNNER,
   fakeHost,
   root,
@@ -12,7 +11,7 @@ import {
 } from "./chat-session-fixtures";
 
 describe("ChatSession", () => {
-  it("turns an answer into a reviewable proposal without writing", async () => {
+  it("records the final answer and writes nothing on its own", async () => {
     const harness = fakeHost();
     let system = "";
     let turns = 0;
@@ -20,7 +19,7 @@ describe("ChatSession", () => {
       call: async (input) => {
         system = input.system;
         turns = input.messages.length;
-        return { ok: true, text: answer(createNewFile()) };
+        return { ok: true, text: answer() };
       },
       loadSettings: () => settings,
       saveSettings: () => {},
@@ -37,50 +36,7 @@ describe("ChatSession", () => {
     ]);
     expect(turns).toBe(1);
     expect(system).toContain("## Project context");
-    expect(state.proposal?.files).toHaveLength(1);
-    expect(state.proposal?.files[0]?.before).toBeNull();
-    expect(state.proposal?.files[0]?.accepted).toBe(true);
-    expect(state.proposal?.files[0]?.added).toBe(1);
-    expect(state.proposal?.notes).toEqual(["A note"]);
-    expect(state.proposal?.warnings).toEqual([]);
     expect(harness.writes).toEqual([]);
-  });
-
-  it("applies only the accepted files and keeps an undo plan", async () => {
-    const harness = fakeHost();
-    const chat = sessionWith(
-      async () => ({ ok: true, text: answer(createNewFile()) }),
-      harness.host,
-    );
-    await chat.send("add");
-    await chat.apply();
-
-    const state = chat.getSnapshot();
-    expect(harness.writes).toEqual(["vv-write:" + root + "/src/new.ts"]);
-    expect(state.applied).toMatchObject({ kind: "apply", ok: true });
-    expect(state.proposal).toBeNull();
-    expect(state.undo).toEqual({ entries: [{ path: "src/new.ts", content: null }] });
-
-    await chat.undo();
-    expect(harness.writes).toEqual([
-      "vv-write:" + root + "/src/new.ts",
-      "vv-rm:" + root + "/src/new.ts",
-    ]);
-    expect(chat.getSnapshot().applied).toMatchObject({ kind: "undo", ok: true });
-    expect(chat.getSnapshot().undo).toBeNull();
-  });
-
-  it("does not write when the user unchecks every file", async () => {
-    const harness = fakeHost();
-    const chat = sessionWith(
-      async () => ({ ok: true, text: answer(createNewFile()) }),
-      harness.host,
-    );
-    await chat.send("add");
-    chat.toggleFile("src/new.ts");
-    await chat.apply();
-    expect(harness.writes).toEqual([]);
-    expect(chat.getSnapshot().applied).toBeNull();
   });
 
   it("streams the message field into a bubble before the answer completes", async () => {
@@ -95,7 +51,7 @@ describe("ChatSession", () => {
         input.onText?.('lo there"}');
         return {
           ok: true,
-          text: '{"message":"Hello there","patches":[],"notes":[],"requires_confirmation":false}',
+          text: '{"message":"Hello there"}',
         };
       },
       loadSettings: () => settings,
@@ -121,7 +77,7 @@ describe("ChatSession", () => {
         input.onText?.('{"message":"partial');
         return { ok: true, text: "not json at all" };
       }
-      return { ok: true, text: answer(createNewFile()) };
+      return { ok: true, text: answer() };
     });
     await chat.send("hi");
     const state = chat.getSnapshot();
@@ -129,22 +85,20 @@ describe("ChatSession", () => {
     expect(state.error).toBeNull();
     expect(state.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
     expect(state.messages.some((message) => message.content.includes("partial"))).toBe(false);
-    expect(state.proposal).not.toBeNull();
+    expect(state.messages.at(-1)?.content).toBe("Here is the change.");
   });
 
   it("keeps asking for a usable answer instead of failing the turn (D-108)", async () => {
     let calls = 0;
     const chat = sessionWith(async () => {
       calls += 1;
-      return calls < 3
-        ? { ok: true, text: "sorry, no JSON" }
-        : { ok: true, text: answer(createNewFile()) };
+      return calls < 3 ? { ok: true, text: "sorry, no JSON" } : { ok: true, text: answer() };
     });
     await chat.send("add");
     const state = chat.getSnapshot();
     expect(calls).toBe(3);
     expect(state.error).toBeNull();
-    expect(state.proposal).not.toBeNull();
+    expect(state.messages.at(-1)?.content).toBe("Here is the change.");
   });
 
   it("folds consecutive user turns after a failed answer so roles alternate", async () => {
@@ -156,7 +110,7 @@ describe("ChatSession", () => {
         first = false;
         return { ok: false, failure: { kind: "network", message: "offline" } };
       }
-      return { ok: true, text: answer(createNewFile()) };
+      return { ok: true, text: answer() };
     });
 
     await chat.send("first request");
@@ -247,7 +201,7 @@ describe("ChatSession", () => {
       input.onReasoning?.("first ");
       input.onReasoning?.("thought");
       live.push(chat.getSnapshot().reasoning);
-      return { ok: true, text: answer(createNewFile()), reasoning: "first thought" };
+      return { ok: true, text: answer(), reasoning: "first thought" };
     });
     await chat.send("add");
     const state = chat.getSnapshot();

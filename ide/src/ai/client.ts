@@ -107,7 +107,7 @@ export async function callModel(input: CallModelInput): Promise<CallModelResult>
     if (!import.meta.env.DEV) {
       return failed("unsupported", "The mock provider is only available in development builds.");
     }
-    const text = mockAnswer(input.messages);
+    const text = mockAnswer(input.messages, input.system);
     await trickleMock(text, input.onText);
     return { ok: true, text };
   }
