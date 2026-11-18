@@ -141,6 +141,10 @@ A change is done when all of the following are true:
   `git worktree remove` once its PR is merged.
 - **Pull requests are written in English** — title and description, including the
   Definition-of-done evidence listed above.
+- **Issues use the repository forms; pull requests use the repository template.** An AI
+  agent may start an issue **only** when it carries the **`agent:ready`** label: claim it by
+  assigning yourself before the first edit, and stop if triage turns out to be incomplete.
+  Templates, label semantics and the agent protocol: [`docs/ISSUES.md`](./docs/ISSUES.md).
 - **`main` is protected (policy from 2026-11-12): every change reaches it through a pull
   request with at least one approving review — no direct push and no direct merge to
   `main`.** The PR description carries the Definition-of-done evidence (`pnpm lint`,

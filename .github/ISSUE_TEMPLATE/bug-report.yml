@@ -1,0 +1,91 @@
+name: Bug report
+description: Something does not behave as the specification says.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [`AGENTS.md`](https://github.com/facilis-dev/facilis/blob/main/AGENTS.md) and the
+        relevant [`docs/SPEC.md`](https://github.com/facilis-dev/facilis/blob/main/docs/SPEC.md)
+        section first: a behaviour issue is judged against the contract, not against preference.
+
+        A maintainer adds `agent:ready` after triage, once the issue is fully specified. Do not
+        add it yourself — see
+        [`docs/ISSUES.md`](https://github.com/facilis-dev/facilis/blob/main/docs/ISSUES.md).
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence that names the broken behaviour.
+      placeholder: "The IDE loses the selected project when ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where does the problem live?
+      options:
+        - IDE (ide/)
+        - Framework packages (packages/)
+        - Starter or examples (starter/, examples/)
+        - Documentation, tooling or CI
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen. Cite the SPEC section or decision when the contract defines it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happens instead, including the error message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest reliable sequence. Say whether it happens on the latest `main`.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: The SHA, release version, browser and OS where you saw it.
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, stack trace or failing test
+      description: Paste the relevant output, or link a screenshot or recording. Remove secrets and project data.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I reproduced this on the latest `main`.
+          required: false

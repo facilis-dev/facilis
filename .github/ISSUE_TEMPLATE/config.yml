@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Facilis specification and decisions
+    url: https://github.com/facilis-dev/facilis/blob/main/docs/SPEC.md
+    about: The contract lives here; read the relevant section before filing behaviour issues.
+  - name: Issue and pull request conventions
+    url: https://github.com/facilis-dev/facilis/blob/main/docs/ISSUES.md
+    about: Which template to use, how triage works, and what the agent:ready label means.

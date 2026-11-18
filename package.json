@@ -22,6 +22,7 @@
     "publish:packages": "node scripts/publish-packages.mjs",
     "publish:dry-run": "node scripts/publish-packages.mjs --dry-run",
     "release:status": "node scripts/release-status.mjs",
+    "labels:sync": "node scripts/sync-labels.mjs",
     "ide:dev": "pnpm --filter @facilis.dev/ide dev --port 5173",
     "ide:wasm": "sh scripts/dev/build-kernel-wasm.sh",
     "ide:assets": "sh scripts/dev/vendor-assets.sh",
