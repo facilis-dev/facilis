@@ -42,9 +42,18 @@ export interface ForeignKeySnapshot {
 
 export interface IndexSnapshot {
   name: string;
-  /** Plain column names only; any other index shape lands in `unsupported`. */
+  /**
+   * Plain column names. Empty when the index is a single SQL expression; mixed
+   * column/expression elements and multiple expressions land in `unsupported`.
+   */
   columns: string[];
   unique: boolean;
+  /**
+   * SQL of a single-expression index (`lower("users"."email")`), rendered verbatim.
+   * Present only with an empty `columns` array: an index on the bare column would be a
+   * different index, and dropping the expression silently would weaken the declaration.
+   */
+  expression?: string;
 }
 
 export interface CheckSnapshot {
@@ -65,9 +74,10 @@ export interface EnumSnapshot {
 }
 
 /**
- * A declaration the snapshot can read but the v1 shapes above cannot represent (expression,
- * partial or method-specific indexes; `ON DELETE SET DEFAULT`). It is carried, never
- * dropped, so the P2 generator can fail the release closed instead of silently ignoring it
+ * A declaration the snapshot can read but the v1 shapes above cannot represent (partial or
+ * method-specific indexes, mixed column/expression elements; `ON DELETE SET DEFAULT`). It
+ * is carried, never dropped, so the P2 generator can fail the release closed instead of
+ * silently ignoring it
  * (D-158: an unsupported declaration fails the release, never degrades silently).
  */
 export interface UnsupportedDeclarationSnapshot {

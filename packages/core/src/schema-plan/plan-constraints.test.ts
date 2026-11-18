@@ -84,6 +84,27 @@ describe("planSchema index and check changes", () => {
     ]);
   });
 
+  it("creates an expression index", () => {
+    const plan = planSchema(base(), withTodos({ indexes: [...(todos().indexes ?? []), { name: "todos_lower_title_idx", columns: [], unique: true, expression: 'lower("todos"."title")' }] }));
+
+    expect(plan.batches).toEqual([
+      { id: "001-create-index-todos_lower_title_idx", sql: 'CREATE UNIQUE INDEX "todos_lower_title_idx" ON "todos" (lower("todos"."title"));', risk: "careful" },
+    ]);
+  });
+
+  it("replaces a plain index with an expression index and keeps an unchanged one", () => {
+    const expressionIndex = { name: "todos_title_idx", columns: [], unique: false, expression: 'lower("todos"."title")' };
+    const replaced = planSchema(base(), withTodos({ indexes: [expressionIndex] }));
+
+    expect(replaced.batches).toEqual([
+      { id: "001-drop-index-todos_title_idx", sql: 'DROP INDEX "todos_title_idx";', risk: "careful" },
+      { id: "002-create-index-todos_title_idx", sql: 'CREATE INDEX "todos_title_idx" ON "todos" (lower("todos"."title"));', risk: "careful" },
+    ]);
+
+    const unchanged = planSchema(withTodos({ indexes: [expressionIndex] }), withTodos({ indexes: [expressionIndex] }));
+    expect(unchanged.batches).toEqual([]);
+  });
+
   it("adds a check constraint", () => {
     const checks = [...(todos().checks ?? []), { name: "todos_done_ck", expression: '"done" = true' }];
     const plan = planSchema(base(), withTodos({ checks }));

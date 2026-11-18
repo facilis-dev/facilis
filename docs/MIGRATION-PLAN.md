@@ -291,8 +291,10 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
   destructive ids, requires preconditions and machine problems; the D-109 renderer is ported
   here and the orphan deleted. The declared snapshot gained ordered PK, indexes, checks, unique
   constraints and enums (SPEC §7.3).
-- Fail closed: enum value changes, identity/generated columns, advanced index shapes, PK
-  changes, dangling FKs and policy broadening are problems with no batches, never silent SQL.
+- Fail closed: enum value changes, identity/generated columns, partial/method-specific index
+  shapes, PK changes, dangling FKs and policy broadening are problems with no batches, never
+  silent SQL. A single expression index (`lower(email)`) is rendered verbatim; mixed or
+  multi-expression shapes stay unsupported.
 - Golden tests: empty -> target and add/drop/change for tables, columns, indexes, checks, FKs,
   policies, RLS and enums, plus a PGlite round-trip (plan SQL applied -> live digest == declared).
 - Deferred to P4: the drizzle-kit oracle comparison (it needs the pipeline's Drizzle schema

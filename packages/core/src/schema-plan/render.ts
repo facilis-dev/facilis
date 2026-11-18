@@ -157,9 +157,9 @@ export function disableRlsSql(table: string): string {
 }
 
 export function createIndexSql(table: string, index: IndexSnapshot): string {
-  return `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quote(index.name)} ON ${quote(table)} (${index.columns
-    .map(quote)
-    .join(", ")});`;
+  // An expression index is rendered verbatim: its SQL is what the declaration means.
+  const elements = index.expression ?? index.columns.map(quote).join(", ");
+  return `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quote(index.name)} ON ${quote(table)} (${elements});`;
 }
 
 export function dropIndexSql(name: string): string {
@@ -203,7 +203,11 @@ export function sameStringArray(left: readonly string[], right: readonly string[
 }
 
 export function sameIndex(left: IndexSnapshot, right: IndexSnapshot): boolean {
-  return left.unique === right.unique && sameStringArray(left.columns, right.columns);
+  return (
+    left.unique === right.unique &&
+    left.expression === right.expression &&
+    sameStringArray(left.columns, right.columns)
+  );
 }
 
 export function sortedForeignKeys(list: readonly ForeignKeySnapshot[]): ForeignKeySnapshot[] {
