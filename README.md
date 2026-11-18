@@ -198,6 +198,10 @@ through a pull request with at least one approving review — direct pushes and 
 are not allowed. Branch, open the PR with the Definition-of-done evidence (`pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm build`), get one approval, then merge.
 
+Issues are filed through the repository's forms (bug, feature or task) and pull requests
+follow [the template](.github/pull_request_template.md). AI agents pick up only issues
+labelled `agent:ready`; the triage rules are in [`docs/ISSUES.md`](docs/ISSUES.md).
+
 For now, the most useful thing you can do is **read `docs/SPEC.md` and file issues** on anything ambiguous, contradictory, or under-specified.
 
 ---

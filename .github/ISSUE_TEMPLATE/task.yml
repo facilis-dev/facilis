@@ -1,0 +1,67 @@
+name: Task
+description: Internal work that is neither a bug nor a new user-facing capability.
+title: "[task] "
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for refactors, documentation, tooling, CI and dependency work. A change
+        in user-visible behaviour is a feature request; broken behaviour is a bug report.
+
+        A maintainer adds `agent:ready` after triage, once the issue is fully specified. Do not
+        add it yourself — see
+        [`docs/ISSUES.md`](https://github.com/facilis-dev/facilis/blob/main/docs/ISSUES.md).
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this work is needed now, and what it unblocks or removes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: What to change
+      description: The files, packages or surfaces to touch. Mention what must not change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable statements that make the task done.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: The gates and checks that prove it (lint, typecheck, test, build, smoke).
+      placeholder: |
+        pnpm lint
+        pnpm typecheck
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk and rollback
+      description: What can break, and how to undo it. Write "None" when trivial.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This does not require a contract change, or the SPEC and DECISIONS update is part of the task.
+          required: true

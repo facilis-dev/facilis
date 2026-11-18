@@ -1,0 +1,90 @@
+name: Feature request
+description: Propose a capability the specification does not cover yet.
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [`AGENTS.md`](https://github.com/facilis-dev/facilis/blob/main/AGENTS.md) and the
+        relevant [`docs/SPEC.md`](https://github.com/facilis-dev/facilis/blob/main/docs/SPEC.md)
+        section first. If the proposal changes a contract, it needs a decision in
+        [`docs/DECISIONS.md`](https://github.com/facilis-dev/facilis/blob/main/docs/DECISIONS.md)
+        before implementation.
+
+        A maintainer adds `agent:ready` after triage, once the issue is fully specified. Do not
+        add it yourself — see
+        [`docs/ISSUES.md`](https://github.com/facilis-dev/facilis/blob/main/docs/ISSUES.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is blocked, in which workflow, and why the current behaviour is not enough.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: The behaviour, API or UI you expect. A sketch is enough; keep the contract in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve the problem, and why this one wins.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where would the change land?
+      options:
+        - IDE (ide/)
+        - Framework packages (packages/)
+        - Starter or examples (starter/, examples/)
+        - Documentation, tooling or CI
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable statements that make the issue done. Use Given/When/Then or a checklist.
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract impact
+      description: Which SPEC section changes, and which decision records it. Write "None" when the contract is untouched.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, related issues, references to other frameworks.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I read the relevant SPEC section and this is not already specified.
+          required: true
