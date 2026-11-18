@@ -117,8 +117,9 @@ function recordEnum(enums: Map<string, string[]>, name: string, values: readonly
 }
 
 /**
- * Indexes are only representable when they are a plain (optionally unique) b-tree over
- * plain columns; every other shape is recorded as unsupported rather than misrendered.
+ * Indexes are representable when they are a plain (optionally unique) b-tree over plain
+ * columns, or a single SQL expression (the `lower(email)` case). Every other shape is
+ * recorded as unsupported rather than misrendered.
  */
 function snapshotIndex(
   index: ReturnType<typeof getTableConfig>["indexes"][number],
@@ -127,27 +128,60 @@ function snapshotIndex(
 ): IndexSnapshot {
   const config = index.config;
   const columns = config.columns.map(indexColumnName);
-  const name =
-    config.name ??
-    `${tableName}_${columns.filter((column): column is string => column !== null).join("_")}_${
-      config.unique ? "unique_" : ""
-    }idx`;
+  const expressions = config.columns.map(indexExpression);
+  // A single expression is the only expression shape the flat snapshot can render: a mixed
+  // or multi-expression index would lose the order between columns and expressions.
+  const expression = config.columns.length === 1 ? (expressions[0] ?? null) : null;
+  const hasExpression = expressions.some((entry) => entry !== null);
+  const name = config.name ?? derivedIndexName(tableName, columns, expression, config.unique);
   const unsupportedShape =
     config.concurrently === true ||
     config.only === true ||
     config.where !== undefined ||
     config.with !== undefined ||
     (config.method !== undefined && config.method !== "btree") ||
-    columns.some((column) => column === null);
+    config.columns.some(
+      (_, position) => columns[position] === null && expressions[position] === null,
+    ) ||
+    (hasExpression && expression === null);
   if (unsupportedShape) {
     unsupported.push({ construct: "index", name });
     return { name, columns: [], unique: config.unique };
+  }
+  if (expression !== null) {
+    return { name, columns: [], unique: config.unique, expression };
   }
   return {
     name,
     columns: columns.filter((column): column is string => column !== null),
     unique: config.unique,
   };
+}
+
+/**
+ * Drizzle keeps an expression index member as an `SQL` object instead of a `PgColumn`.
+ * Its rendered SQL is the only faithful description of the index; a parameterized
+ * expression is not replayable inside CREATE INDEX and stays unsupported.
+ */
+function indexExpression(column: unknown): string | null {
+  if (!is(column, SQL)) return null;
+  const query = dialect.sqlToQuery(column);
+  return query.params.length === 0 ? query.sql : null;
+}
+
+function derivedIndexName(
+  tableName: string,
+  columns: readonly (string | null)[],
+  expression: string | null,
+  unique: boolean,
+): string {
+  let element = columns.filter((column): column is string => column !== null).join("_");
+  if (expression !== null) {
+    element =
+      expression.replaceAll(/[^a-zA-Z0-9]+/gu, "_").replaceAll(/^_+|_+$/gu, "").toLowerCase() ||
+      "expression";
+  }
+  return `${tableName}_${element}_${unique ? "unique_" : ""}idx`;
 }
 
 /** An index member that is not a plain ordered column returns null (unsupported shape). */

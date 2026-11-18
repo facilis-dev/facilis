@@ -37,9 +37,10 @@ const documents = pgTable(
   },
   (table) => [
     ...withRls({ tenantColumn: "tenant_id", ownerColumn: "owner_id" }).policies,
-    // An expression index is not representable in the v1 IndexSnapshot: it must be carried
-    // as unsupported, never dropped from the declared snapshot.
+    // A single expression is representable; a partial index is not and must be carried as
+    // unsupported rather than silently dropped from the declared snapshot.
     index("documents_title_lower_idx").on(sql`lower(${table.title})`),
+    index("documents_title_partial_idx").on(table.title).where(sql`${table.title} IS NOT NULL`),
   ],
 ).enableRLS();
 
@@ -185,15 +186,21 @@ describe("schemaSnapshot", () => {
     expect(eventTable.columns.find((column) => column.name === "kind")?.type).toBe("event_kind");
   });
 
-  it("carries index shapes the v1 snapshot cannot represent as unsupported", () => {
+  it("represents a single-expression index and carries other shapes as unsupported", () => {
     const documentTable = snapshot.tables.find((table) => table.name === "documents");
     if (documentTable === undefined) throw new Error("documents table missing");
 
-    expect(documentTable.unsupported).toEqual([
-      { construct: "index", name: "documents_title_lower_idx" },
-    ]);
     expect(documentTable.indexes).toEqual([
-      { name: "documents_title_lower_idx", columns: [], unique: false },
+      {
+        name: "documents_title_lower_idx",
+        columns: [],
+        unique: false,
+        expression: 'lower("documents"."title")',
+      },
+      { name: "documents_title_partial_idx", columns: [], unique: false },
+    ]);
+    expect(documentTable.unsupported).toEqual([
+      { construct: "index", name: "documents_title_partial_idx" },
     ]);
   });
 });

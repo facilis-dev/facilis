@@ -64,7 +64,10 @@ function users(): TableSnapshot {
       column("created_at", { type: "timestamp with time zone", notNull: true, default: "now()" }),
     ],
     primaryKey: ["id"],
-    indexes: [{ name: "users_created_at_idx", columns: ["created_at"], unique: false }],
+    indexes: [
+      { name: "users_created_at_idx", columns: ["created_at"], unique: false },
+      { name: "users_email_lower_idx", columns: [], unique: true, expression: 'lower("users"."email")' },
+    ],
   });
 }
 

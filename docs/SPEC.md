@@ -15,6 +15,11 @@
   `coverage`) and `AGENTS.md`, so root config (`index.html`, `vite.config.ts`,
   `wrangler.jsonc`) and `.github/**` become writable. The IDE maps the policy from its build
   profile (D-063) and the system prompt states the effective rule. §5.5/§9.3 follow.
+- v1.34 — Indici su espressione nello snapshot dichiarato. `IndexSnapshot` rappresenta un
+  indice singolo su espressione (`lower(email)`) con `expression`, oltre agli indici b-tree su
+  colonne semplici; il generatore lo rende verbatim, quindi un primo artefatto `empty -> declared`
+  non fallisce più su `users_email_lower_idx`. Indici parziali, su metodo non btree e misti
+  colonna/espressione restano `unsupported` (fail closed). §7.3 follows.
 - v1.33 — Generated projects install the published packages (D-166). Every `@facilis.dev/*`
   dependency is an exact version resolved from npm like any other package: the IDE build injects
   the release version through `FACILIS_PACKAGES_VERSION` and the template pins all framework
@@ -1358,7 +1363,12 @@ interface ColumnSnapshot {
   generated?: true                             // computed columns: same fail-closed treatment
 }
 
-interface IndexSnapshot { name: string; columns: string[]; unique: boolean }
+interface IndexSnapshot {
+  name: string
+  columns: string[]                             // empty when expression is set
+  unique: boolean
+  expression?: string                           // single-expression index, rendered verbatim (D-158)
+}
 interface CheckSnapshot { name: string; expression: string }   // expression already rendered as SQL
 interface UniqueConstraintSnapshot { name: string; columns: string[] }
 interface EnumSnapshot { name: string; values: string[] }
