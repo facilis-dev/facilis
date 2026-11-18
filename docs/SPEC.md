@@ -2550,6 +2550,13 @@ Rules the AI must obey:
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 
+Two structural checks run on every patch, with or without a context and before the numbered
+rules: a create/update patch must carry content (`content-present`), and a `.json` file it
+writes must parse (`json-parse`). The second is deliberately not rule 13's business: rule 13
+reads only `locales/en.json` and only warns, while every catalogue is imported by the client, so
+a broken `locales/it.json` otherwise surfaces later as Vite's native JSON parser failing on a
+module whose path its error does not name (D-190).
+
 **Status (2026-11-04; write path 2026-11-13): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are

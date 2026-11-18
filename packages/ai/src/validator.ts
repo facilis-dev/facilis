@@ -1,10 +1,10 @@
 /**
  * The SPEC §9.3 patch validator: 19 rules, grouped by the part of the project they read.
  *
- * Without a context only the two context-free structural checks run (the parser gate);
- * with a context the full rule set runs. Rules 5, 13, 14 and 17 are warnings (they never
- * block); the others are errors and make `ok` false, which is what stops the IDE's apply
- * path before it writes anything (invariant 9).
+ * Without a context only the three context-free structural checks run (paths, content
+ * presence, JSON parse); with a context the full rule set runs. Rules 5, 13, 14 and 17 are
+ * warnings (they never block); the others are errors and make `ok` false, which is what stops
+ * the IDE's apply path before it writes anything (invariant 9).
  *
  * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
  * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
@@ -22,6 +22,7 @@ import {
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
+import { jsonParseErrors } from "./rules/json-parse.ts";
 import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
 import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
@@ -46,6 +47,7 @@ export function validatePatch(
     allowedRootFiles: options.allowedRootFiles ?? [],
     writePolicy: options.writePolicy ?? "managed",
   });
+  errors.push(...jsonParseErrors(patches));
   const warnings: ValidationResult["warnings"] = [];
   let destructive = false;
   const context = options.context;
