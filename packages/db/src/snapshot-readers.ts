@@ -79,11 +79,12 @@ function snapshotColumn(
   primaryKey: readonly string[],
   enums: Map<string, string[]>,
 ): ColumnSnapshot {
+  const type = column.getSQLType();
   const snapshot: ColumnSnapshot = {
     name: column.name,
-    type: column.getSQLType(),
+    type,
     notNull: column.notNull,
-    default: renderDefault(column.default),
+    default: renderDefault(column.default, type),
     // A composite (table-level) PK is declared on the table, not on its columns, so
     // `column.primary` alone would disagree with the live catalog's indisprimary view.
     isPrimaryKey: column.primary || primaryKey.includes(column.name),
@@ -224,12 +225,18 @@ function toForeignKeyAction(
   }
 }
 
-function renderDefault(value: PgColumn["default"]): string | null {
+function renderDefault(value: PgColumn["default"], type: string): string | null {
   if (value === undefined) return null;
   if (is(value, SQL)) return dialect.sqlToQuery(value).sql;
   if (typeof value === "string") return quoteLiteral(value);
   if (value instanceof Date) return quoteLiteral(value.toISOString());
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  // Drizzle stores a json/jsonb default as the JS value (an object or an array). The planner
+  // renders this string AS SQL, so an unquoted {} or [] would be a syntax error; the literal
+  // needs its jsonb/json cast, exactly as the generated DDL would carry it.
+  if (typeof value === "object" && value !== null) {
+    const json = quoteLiteral(JSON.stringify(value));
+    return type === "json" || type === "jsonb" ? json + "::" + type : json;
+  }
   return String(value);
 }
 
