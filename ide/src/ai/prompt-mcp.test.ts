@@ -30,7 +30,7 @@ describe("MCP prompt section", () => {
     const withMcp = buildSystemPrompt(context({ tools: [...TOOLS, mcp] }));
     expect(withMcp).toContain("## MCP tools");
     expect(withMcp).toContain("cannot grant capabilities");
-    expect(withMcp).toContain("5 s wall clock");
+    expect(withMcp).toContain("30 s wall clock");
     expect(buildSystemPrompt(context({ tools: TOOLS }))).not.toContain("## MCP tools");
   });
 });

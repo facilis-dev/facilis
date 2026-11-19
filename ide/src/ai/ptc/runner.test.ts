@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   MAX_PROGRAM_CHARS,
   MAX_TOOL_RESULT_CHARS,
   PtcToolError,
+  RUN_TIMEOUT_MS,
   type PtcChild,
   type PtcChildFactory,
   type PtcJson,
@@ -199,6 +200,34 @@ describe("createPtcRunner", () => {
     expect(result.error?.kind).toBe("timeout");
     expect(result.error?.message).toContain("20ms");
     expect(harnessed.lastChild().terminateReasons).toEqual(["timeout"]);
+  });
+
+  it("keeps the default 30 s wall clock: a ~10 s program completes, a >30 s one times out", async () => {
+    // Fake clock: the default bound is RUN_TIMEOUT_MS, not a harness override (issue #43).
+    vi.useFakeTimers();
+    try {
+      const harnessed = harness();
+      const pending = harnessed.runner.run("return 1");
+      await vi.advanceTimersByTimeAsync(0);
+      const child = harnessed.lastChild();
+      // The program "awaits" ~10 s — past the old 5 s bound, inside the new one.
+      await vi.advanceTimersByTimeAsync(10_000);
+      child.emit({ type: "result", value: 42 });
+      const result = await pending;
+      expect(result).toMatchObject({ ok: true, value: 42 });
+      expect(child.terminateReasons).toEqual(["completed"]);
+
+      const slow = harness();
+      const pendingSlow = slow.runner.run("while (true) {}");
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(RUN_TIMEOUT_MS + 1);
+      const timedOut = await pendingSlow;
+      expect(timedOut.error?.kind).toBe("timeout");
+      expect(timedOut.error?.message).toContain("30000ms");
+      expect(slow.lastChild().terminateReasons).toEqual(["timeout"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("aborts an in-flight run and ignores an already-aborted signal", async () => {

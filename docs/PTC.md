@@ -124,7 +124,7 @@ Final turn: `{"message": "<summary of what changed>"}` — no patches (D-192).
   The model can recover inside the loop; a bad program is data, not a dead end.
 - **Bounds:** no conversation quotas (D-108) — there is no program, tool-call or part counter, so
   the model explores until it has what it needs. Resource guards remain: one program ≤ 16 KB
-  source, 5 s wall clock, one run result ≤ 64 KB (and its trace args are capped). Cancellation
+  source, 30 s wall clock, one run result ≤ 64 KB (and its trace args are capped). Cancellation
   aborts the provider request and the sandbox.
 - **Why not native function calling (OpenAI/Anthropic `tools`)?** The user asked for PTC and it
   is the better fit: one program can loop, join, filter and aggregate, so N reads cost one round
@@ -433,7 +433,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Headers: `ide/vite.ptc.ts` for dev/preview and the `/ptc-runner.html` rule in
   `ide/public/_headers` for Cloudflare Pages (the `/*` rule already carries COOP/COEP).
 - Browser proof: `node scripts/dev/check-ptc-runner.mjs` (9/9: result + trace, tool RPC,
-  CSP-blocked worker fetch, opaque origin, the iframe relays while the worker is stuck, a >5 s
+  CSP-blocked worker fetch, opaque origin, the iframe relays while the worker is stuck, a >30 s
   loop is killed, a fresh sandbox works after termination).
 - Activity UI: `ChatTraceView` renders the model calls (duration, characters, outcome, and the
   reasoning when the provider exposes it) next to the runs (program, tool calls,

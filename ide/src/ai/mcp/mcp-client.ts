@@ -54,7 +54,7 @@ export function isMcpError(value: unknown): value is McpError {
 
 /** The MCP revision this client speaks; servers negotiate their own version in the reply. */
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-/** HTTP timeout; a PTC program's own 5 s wall clock is the tighter bound for tool calls. */
+/** HTTP timeout; with the program's 30 s wall clock (D-108 amendment) this is the binding bound for a remote call. */
 export const MCP_TIMEOUT_MS = 15_000;
 
 interface JsonRpcMessage {
