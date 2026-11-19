@@ -1,7 +1,14 @@
-import { integer, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, index, integer, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { applyStatements, createDb, liveSchemaSnapshot, schemaSnapshot } from "@facilis.dev/db";
+import {
+  applyStatements,
+  createDb,
+  diffSchemaSnapshots,
+  liveSchemaSnapshot,
+  schemaSnapshot,
+} from "@facilis.dev/db";
 
 import { planReconcile, reconcileDeclaredSchema } from "./schema-reconcile.ts";
 
@@ -76,3 +83,106 @@ describe("dev schema reconcile", () => {
     await db.close();
   });
 });
+
+const owners = pgTable("owners", {
+  id: uuid("id").primaryKey().defaultRandom(),
+});
+
+const articles = pgTable(
+  "articles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    status: text("status").notNull().default("draft"),
+    authorId: uuid("author_id").references(() => owners.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("articles_title_idx").on(table.title),
+    index("articles_title_lower_idx").on(sql`lower(${table.title})`),
+    check("articles_title_ck", sql`length(${table.title}) > 0`),
+  ],
+);
+
+const ARTICLES_LEGACY =
+  'CREATE TABLE "articles" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid(), "title" text NOT NULL, "status" text NOT NULL, "author_id" uuid)';
+
+describe("dev schema reconcile of existing-table constraints", () => {
+  it("adds index, expression index, FK, check and default without resetting data", async () => {
+    const db = await createDb({ schema: { articles, owners } });
+    await applyStatements(db, [
+      ARTICLES_LEGACY,
+      `INSERT INTO "articles" ("id", "title", "status") VALUES (gen_random_uuid(), 'hello', 'published')`,
+    ]);
+    const warnings: { code: string; message: string }[] = [];
+    await reconcileDeclaredSchema(db, [], warnings);
+    expect(warnings).toEqual([]);
+
+    const live = await liveSchemaSnapshot(db);
+    const table = live.tables.find((entry) => entry.name === "articles");
+    if (table === undefined) throw new Error("articles table missing");
+    expect(table.indexes.map((entry) => entry.name).toSorted()).toEqual([
+      "articles_title_idx",
+      "articles_title_lower_idx",
+    ]);
+    expect(table.foreignKeys).toMatchObject([
+      { columns: ["author_id"], targetTable: "owners", targetColumns: ["id"], onDelete: "cascade" },
+    ]);
+    expect(table.checks.map((entry) => entry.name)).toEqual(["articles_title_ck"]);
+    expect(table.columns.find((column) => column.name === "status")?.default).toBe("'draft'::text");
+
+    const rows = await db.db.execute(sql`select count(*)::int as n from "articles"`);
+    expect(rows.rows[0]?.["n"]).toBe(1);
+    const declared = await schemaSnapshot(db);
+    expect(diffSchemaSnapshots(declared, live)).toEqual([]);
+    await db.close();
+  });
+
+  it("is idempotent: a converged schema plans no further constraint statements", async () => {
+    const db = await createDb({ schema: { articles, owners } });
+    await applyStatements(db, [ARTICLES_LEGACY]);
+    await reconcileDeclaredSchema(db, [], []);
+    const [declared, live] = await Promise.all([schemaSnapshot(db), liveSchemaSnapshot(db)]);
+    expect(planReconcile(declared, live, [])).toEqual([]);
+    await db.close();
+  });
+
+  it("replaces a changed index, check, default and FK action, then converges", async () => {
+    const db = await createDb({ schema: { articles, owners } });
+    await applyStatements(db, [
+      'CREATE TABLE "articles" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid(), "title" text NOT NULL, "status" text NOT NULL DEFAULT \'legacy\', "author_id" uuid)',
+      'CREATE TABLE "owners" ("id" uuid PRIMARY KEY DEFAULT gen_random_uuid())',
+      'CREATE INDEX "articles_title_idx" ON "articles" ("status")',
+      'ALTER TABLE "articles" ADD CONSTRAINT "articles_title_ck" CHECK (length(title) >= 0)',
+      'ALTER TABLE "articles" ADD CONSTRAINT "articles_owner_fk" FOREIGN KEY ("author_id") REFERENCES "owners" ("id") ON DELETE SET NULL',
+    ]);
+    const warnings: { code: string; message: string }[] = [];
+    await reconcileDeclaredSchema(db, [], warnings);
+    expect(warnings).toEqual([]);
+
+    const live = await liveSchemaSnapshot(db);
+    const table = live.tables.find((entry) => entry.name === "articles");
+    if (table === undefined) throw new Error("articles table missing");
+    expect(table.indexes.find((entry) => entry.name === "articles_title_idx")?.columns).toEqual(["title"]);
+    expect(table.columns.find((column) => column.name === "status")?.default).toBe("'draft'::text");
+    expect(table.foreignKeys).toMatchObject([{ columns: ["author_id"], onDelete: "cascade" }]);
+    const [declared, after] = await Promise.all([schemaSnapshot(db), liveSchemaSnapshot(db)]);
+    expect(planReconcile(declared, after, [])).toEqual([]);
+    await db.close();
+  });
+
+  it("never drops a live-only index, check or FK the user did not confirm", async () => {
+    const db = await createDb({ schema: { articles, owners } });
+    await applyStatements(db, [
+      ARTICLES_LEGACY,
+      'CREATE TABLE "legacy_ref" (id uuid PRIMARY KEY)',
+      'CREATE INDEX "articles_extra_idx" ON "articles" ("status")',
+      `ALTER TABLE "articles" ADD CONSTRAINT "articles_extra_ck" CHECK (status <> '')`,
+      'ALTER TABLE "articles" ADD CONSTRAINT "articles_legacy_fk" FOREIGN KEY ("author_id") REFERENCES "legacy_ref" ("id")',
+    ]);
+    const [declared, live] = await Promise.all([schemaSnapshot(db), liveSchemaSnapshot(db)]);
+    const plan = planReconcile(declared, live, []);
+    expect(plan.some((statement) => statement.startsWith("DROP "))).toBe(false);
+    await db.close();
+  });
+});
+

@@ -93,3 +93,77 @@ describe("liveSchemaSnapshot on an empty database", () => {
     }
   });
 });
+
+describe("liveSchemaSnapshot constraints", () => {
+  let db: FacilisDb;
+  let snapshot: LiveSchemaSnapshot;
+
+  beforeAll(async () => {
+    db = await createDb();
+    await applyStatements(db, [
+      `CREATE TABLE parents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        label text NOT NULL UNIQUE
+      )`,
+      `CREATE TABLE children (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        parent_id uuid NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+        title text NOT NULL,
+        score integer NOT NULL DEFAULT 0,
+        CONSTRAINT children_score_ck CHECK (score >= 0)
+      )`,
+      "CREATE INDEX children_title_idx ON children (title)",
+      "CREATE UNIQUE INDEX children_title_unique_idx ON children (title)",
+      "CREATE INDEX children_title_lower_idx ON children (lower(title))",
+    ]);
+    snapshot = await liveSchemaSnapshot(db);
+  }, 30_000);
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  function tableNamed(name: string) {
+    const table = snapshot.tables.find((entry) => entry.name === name);
+    if (table === undefined) throw new Error(`${name} table missing`);
+    return table;
+  }
+
+  it("reads plain, unique and expression indexes, not constraint backing indexes", () => {
+    expect(tableNamed("children").indexes).toEqual([
+      { name: "children_title_idx", columns: ["title"], unique: false, expression: null },
+      {
+        name: "children_title_lower_idx",
+        columns: [],
+        unique: false,
+        expression: "lower(title)",
+      },
+      { name: "children_title_unique_idx", columns: ["title"], unique: true, expression: null },
+    ]);
+    // The PK and the label UNIQUE constraint back indexes of their own; the snapshot models
+    // those as column flags, so they must not surface as declaration-level indexes.
+    expect(tableNamed("parents").indexes).toEqual([]);
+  });
+
+  it("reads foreign keys with columns, target and actions", () => {
+    expect(tableNamed("children").foreignKeys).toEqual([
+      {
+        name: "children_parent_id_fkey",
+        columns: ["parent_id"],
+        targetTable: "parents",
+        targetColumns: ["id"],
+        onDelete: "cascade",
+        onUpdate: "no action",
+      },
+    ]);
+    expect(tableNamed("parents").foreignKeys).toEqual([]);
+  });
+
+  it("reads checks with the catalog-rendered expression", () => {
+    const checks = tableNamed("children").checks;
+    expect(checks).toHaveLength(1);
+    expect(checks[0]?.name).toBe("children_score_ck");
+    expect(checks[0]?.expression).toContain("score >= 0");
+  });
+});
+

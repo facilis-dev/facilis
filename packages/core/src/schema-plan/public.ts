@@ -5,16 +5,21 @@
 
 export { planSchema } from "./plan.ts";
 export {
+  addCheckSql,
   addColumnSql,
   addForeignKeySql,
   createIndexSql,
   createPolicySql,
   createTableSql,
   dropColumnSql,
+  dropConstraintSql,
+  dropDefaultSql,
+  dropIndexSql,
   dropTableSql,
   enableRlsSql,
   quote,
   quoteLiteral,
+  setDefaultSql,
 } from "./render.ts";
 export type {
   SchemaPlan,
