@@ -39,11 +39,15 @@ function build(target) {
 
 async function main() {
   build("@facilis.dev/db");
+  build("@facilis.dev/core");
+  build("@facilis.dev/auth");
   build("@facilis.dev/example-todo-app");
 
   const { PGlite } = requireFromDb("@electric-sql/pglite");
   const { PGLiteSocketServer } = requireFromDb("@electric-sql/pglite-socket");
   const db = await import("file://" + path.join(REPO, "packages/db/dist/index.js"));
+  const core = await import("file://" + path.join(REPO, "packages/core/dist/index.js"));
+  const auth = await import("file://" + path.join(REPO, "packages/auth/dist/index.js"));
 
   const pgPort = await freePort();
   const httpPort = await freePort();
@@ -60,9 +64,26 @@ async function main() {
   await server.start();
   console.log("postgres wire server: " + url);
 
-  const admin = await db.createDb({ driver: "postgres", url });
-  await db.applyMigrations(admin, { directory: path.join(EXAMPLE, "db/migrations") });
+  // D-193: a generated project ships no DDL. Provision the example's declared schema through
+  // the release planner, the same batches a deploy applies, instead of committed SQL.
+  const declaredSchema = await import("file://" + path.join(EXAMPLE, "db/schema.ts"));
+  const admin = await db.createDb({ driver: "postgres", url, schema: declaredSchema });
+  const declared = await db.schemaSnapshot(admin);
+  const plan = core.planSchema({ tables: [], enums: [] }, declared);
+  if (plan.problems.length > 0) {
+    throw new Error("declared schema has planner problems: " + JSON.stringify(plan.problems));
+  }
+  await db.applyStatements(
+    admin,
+    plan.batches.map((batch) => batch.sql),
+  );
+  // The deploy step owns the seed and the roles too: the retired migrations used to insert
+  // the configured roles and create the two database roles, and a production boot never
+  // does (a restricted runtime role can neither seed nor CREATE ROLE).
+  const projectConfig = await import("file://" + path.join(EXAMPLE, "facilis.config.ts"));
+  await db.applyStatements(admin, auth.seedStatements(projectConfig.default.auth));
   await db.ensureAppRole(admin);
+  await db.ensureSystemRole(admin);
 
   const app = spawn(process.execPath, [".output/server/index.mjs"], {
     cwd: EXAMPLE,
