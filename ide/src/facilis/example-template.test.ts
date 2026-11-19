@@ -18,7 +18,6 @@ describe("example project source", () => {
         "src/styles.css",
         "server/routes/api/todos/[id].patch.ts",
         "db/schema.ts",
-        "db/migrations/0001_seed_roles.sql",
         "locales/en.json",
         "locales/it.json",
         "index.html",
@@ -29,8 +28,10 @@ describe("example project source", () => {
     );
   });
 
-  it("skips test files and the example's own package.json/tsconfig", () => {
+  it("skips test files, the retired migrations directory and the example's own package.json/tsconfig", () => {
     expect(Object.keys(example).some((path) => path.includes(".test."))).toBe(false);
+    // D-158: the folder is retired, so no example file may leak back into the template.
+    expect(Object.keys(example).some((path) => path.startsWith("db/migrations/"))).toBe(false);
     expect(example).not.toHaveProperty("package.json");
     expect(example).not.toHaveProperty("tsconfig.json");
   });
