@@ -58,6 +58,7 @@ export const en = {
   "recent.daysAgo": "{n}d ago",
   "recent.openInNewTab": "Open in a new tab",
   "recent.openInNewTabAria": "Open {name} in a new tab",
+  "recent.opening": "Opening…",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Starting runtime",

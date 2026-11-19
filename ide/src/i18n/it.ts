@@ -50,6 +50,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "recent.daysAgo": "{n} g fa",
   "recent.openInNewTab": "Apri in una nuova scheda",
   "recent.openInNewTabAria": "Apri {name} in una nuova scheda",
+  "recent.opening": "Apertura…",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Avvio del runtime",
