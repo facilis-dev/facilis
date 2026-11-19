@@ -230,7 +230,7 @@ in-VM `npm install`): `health: ok`,
 registers a user, logs in (the session cookie is staged by h3's `setCookie` through
 `@facilis.dev/nitro/session`, and survives to the next request), inserts a todo through the
 authorized handler and reads the list back (11 endpoint checks). That last group is
-the only in-VM proof that PGlite, the migrations, RLS, permissions and the session middleware
+the only in-VM proof that PGlite, the declared schema, RLS, permissions and the session middleware
 work together inside the WebContainer. The smoke drives those requests from the IDE page
 against the preview's `/preview/<port>/` base — same origin, so the session cookie applies —
 because the generated starter is the reference app and carries no test instrumentation

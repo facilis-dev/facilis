@@ -416,7 +416,8 @@ without the variable pins the `0.1.0` fallback). The generated tree therefore ca
 fetches the framework packages when the project installs.
 
 `db/migrations/` and its `meta/` journal are not part of the generated project: DDL is a release
-artifact generated from the tag pair, never a directory the app carries (D-158).
+artifact generated from the tag pair, never a directory the app carries (D-158). The dev boot
+materializes the declaration in `db/schema.ts`; nothing replays committed SQL (D-193/D-197).
 
 ---
 
@@ -1223,7 +1224,6 @@ interface FacilisConfig {
   release: { ref: string }
   db: {
     mode: "pglite" | "postgres" | "json"   // D-068: an env URL wins over this; "json" not implemented
-    migrationsDir: string   // legacy dev-replay directory; release DDL is a generated artifact (D-158)
     tenantColumns: string[]
     ownerColumns: string[]
   }
