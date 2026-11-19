@@ -20,7 +20,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { t } from "@/i18n";
+import { chatFor } from "@/ai/chat-host";
 import { useIde } from "./useIde";
+import { useCommitGenerator } from "./use-commit-generator";
 import type { GitChange, RepoState } from "@/vv/scm-session";
 import { hasGitIdentity, loadGitIdentity, saveGitIdentity } from "@/vv/git-config";
 import { Panel, baseName } from "./SourceControlParts";
@@ -30,6 +33,10 @@ export function SourceControlPanel() {
   const { c } = useIde();
   const scm = c.scm;
   const snap = useSyncExternalStore(scm.subscribe, scm.getSnapshot);
+  // The generator uses the chat's configured model, so the control follows that same state.
+  const chat = chatFor(c);
+  const configured = useSyncExternalStore(chat.subscribe, chat.getSnapshot).configured;
+  const generate = useCommitGenerator(c);
 
   // Dialog + collapse state is keyed by repo root so it works across sections.
   const [identityRoot, setIdentityRoot] = useState<string | null>(null);
@@ -87,7 +94,7 @@ export function SourceControlPanel() {
     return (
       <Panel>
         <div className="p-3 text-xs leading-relaxed text-muted-foreground">
-          Open a project to use Source Control.
+          {t("scm.openProject")}
         </div>
       </Panel>
     );
@@ -112,6 +119,8 @@ export function SourceControlPanel() {
             onOpenFile={openFile}
             onOpenGraph={() => c.openCommitGraph(repo.root)}
             onCommit={() => void doCommit(repo)}
+            configured={configured}
+            generate={generate}
             onNewBranch={() => {
               setBranchRoot(repo.root);
               setBranchName("");
@@ -131,8 +140,8 @@ export function SourceControlPanel() {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Create branch</DialogTitle>
-            <DialogDescription>Branch off the current HEAD and switch to it.</DialogDescription>
+            <DialogTitle>{t("scm.createBranchTitle")}</DialogTitle>
+            <DialogDescription>{t("scm.createBranchDescription")}</DialogDescription>
           </DialogHeader>
           <Input
             autoFocus
@@ -148,7 +157,7 @@ export function SourceControlPanel() {
           />
           <DialogFooter>
             <Button variant="secondary" onClick={() => setBranchRoot(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               disabled={!branchName.trim()}
@@ -157,7 +166,7 @@ export function SourceControlPanel() {
                 setBranchRoot(null);
               }}
             >
-              Create
+              {t("scm.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -172,17 +181,15 @@ export function SourceControlPanel() {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Set your git identity</DialogTitle>
-            <DialogDescription>
-              Used as the author of your commits. Stored locally in this browser.
-            </DialogDescription>
+            <DialogTitle>{t("scm.identityTitle")}</DialogTitle>
+            <DialogDescription>{t("scm.identityDescription")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t("scm.identityName")}
             />
             <Input
               value={email}
@@ -192,13 +199,13 @@ export function SourceControlPanel() {
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setIdentityRoot(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               disabled={!name.trim() || !email.trim()}
               onClick={() => void saveIdentityAndCommit()}
             >
-              Save &amp; commit
+              {t("scm.identitySave")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -214,14 +221,14 @@ export function SourceControlPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Discard changes to {discardTarget ? baseName(discardTarget.change.path) : ""}?
+              {t("scm.discardOneTitle", {
+                name: discardTarget ? baseName(discardTarget.change.path) : "",
+              })}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              This is irreversible — the file is restored to its last committed state.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("scm.discardOneDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -229,7 +236,7 @@ export function SourceControlPanel() {
                 setDiscardTarget(null);
               }}
             >
-              Discard
+              {t("scm.discard")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -245,19 +252,17 @@ export function SourceControlPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Discard all{" "}
-              {discardAllRoot
-                ? (scm.getSnapshot().repos.find((r) => r.root === discardAllRoot)?.changes.length ??
-                  0)
-                : 0}{" "}
-              changes?
+              {t("scm.discardAllTitle", {
+                n: discardAllRoot
+                  ? (scm.getSnapshot().repos.find((r) => r.root === discardAllRoot)?.changes
+                      .length ?? 0)
+                  : 0,
+              })}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              This is irreversible — all unstaged changes are reverted.
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("scm.discardAllDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -274,7 +279,7 @@ export function SourceControlPanel() {
                 })();
               }}
             >
-              Discard All
+              {t("scm.discardAll")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

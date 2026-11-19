@@ -10,17 +10,16 @@ import { parseGitRepo } from "@/vv/git-provider";
 import type { GitAccess, GitPorts } from "./git-access";
 import {
   DEFAULT_LOG,
-  MAX_DIFF_CHARS,
   MAX_DIFF_FILES,
   MAX_LOG,
   changesJson,
+  composeDiff,
   failed,
   hasChanges,
   missingPaths,
   originOf,
   providerOf,
   ready,
-  renderFile,
 } from "./git-common";
 import type { RepoRemote } from "./git-repo";
 import type { PtcJson } from "./ptc/protocol";
@@ -84,36 +83,9 @@ export function createGitLocalOperations(ports: GitPorts): Pick<GitAccess, Local
       const after = request.staged
         ? await ports.contents.index(state.root, paths)
         : await ports.contents.workdir(state.root, paths);
-      const chunks: string[] = [];
-      const files: PtcJson[] = [];
-      let used = 0;
-      let truncated = selected.length > paths.length;
-      for (const path of paths) {
-        const rendered = renderFile(path, before.get(path) ?? null, after.get(path) ?? null);
-        if (rendered === null) {
-          files.push({ path, binary: true });
-          continue;
-        }
-        if (rendered.text.length === 0) continue;
-        if (used + rendered.text.length + 1 > MAX_DIFF_CHARS) {
-          truncated = true;
-          break;
-        }
-        used += rendered.text.length + 1;
-        chunks.push(rendered.text);
-        files.push({
-          path,
-          added: rendered.added,
-          removed: rendered.removed,
-          ...(rendered.truncated ? { truncated: true } : {}),
-        });
-      }
-      let text = chunks.join("\n");
-      if (text.length > MAX_DIFF_CHARS) {
-        text = text.slice(0, MAX_DIFF_CHARS);
-        truncated = true;
-      }
-      return { diff: text, files, truncated };
+      // The one renderer: the SCM panel's commit message and git_diff must agree on the diff.
+      const composed = composeDiff(paths, before, after, selected.length > paths.length);
+      return { diff: composed.diff, files: composed.files, truncated: composed.truncated };
     },
 
     async log(limit) {

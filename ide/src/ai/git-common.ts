@@ -133,6 +133,56 @@ export function renderFile(
   };
 }
 
+/** One bounded unified diff, plus the files it rendered. Shared by git_diff and the commit box. */
+export interface ComposedDiff {
+  readonly diff: string;
+  readonly files: PtcJson[];
+  readonly truncated: boolean;
+}
+
+/**
+ * Compose the unified diff the git tools and the commit-message generator both render: the
+ * only diff renderer in the IDE. Contents are already resolved by the caller; here the caps
+ * are applied (MAX_DIFF_FILES was applied when the paths were chosen, `moreFiles` says so).
+ */
+export function composeDiff(
+  paths: readonly string[],
+  before: ReadonlyMap<string, string | null>,
+  after: ReadonlyMap<string, string | null>,
+  moreFiles: boolean,
+): ComposedDiff {
+  const chunks: string[] = [];
+  const files: PtcJson[] = [];
+  let used = 0;
+  let truncated = moreFiles;
+  for (const path of paths) {
+    const rendered = renderFile(path, before.get(path) ?? null, after.get(path) ?? null);
+    if (rendered === null) {
+      files.push({ path, binary: true });
+      continue;
+    }
+    if (rendered.text.length === 0) continue;
+    if (used + rendered.text.length + 1 > MAX_DIFF_CHARS) {
+      truncated = true;
+      break;
+    }
+    used += rendered.text.length + 1;
+    chunks.push(rendered.text);
+    files.push({
+      path,
+      added: rendered.added,
+      removed: rendered.removed,
+      ...(rendered.truncated ? { truncated: true } : {}),
+    });
+  }
+  let text = chunks.join("\n");
+  if (text.length > MAX_DIFF_CHARS) {
+    text = text.slice(0, MAX_DIFF_CHARS);
+    truncated = true;
+  }
+  return { diff: text, files, truncated };
+}
+
 /** The active repository, refreshed when asked; otherwise the data refusal to return as-is. */
 export async function ready(ports: GitPorts, refresh: boolean): Promise<Readiness> {
   const root = ports.root();
