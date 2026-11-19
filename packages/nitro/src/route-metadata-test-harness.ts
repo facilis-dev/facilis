@@ -39,7 +39,6 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
       defaultRole: null,
       defaultLocale: "en",
       locales: ["en"],
-      migrationsDir: "./drizzle",
       tenantColumns: ["tenantId"],
       ownerColumns: ["ownerId"],
       unknown: [],

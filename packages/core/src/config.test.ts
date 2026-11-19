@@ -35,7 +35,6 @@ const FULL_CONFIG: FacilisConfig = {
   release: { ref: "main" },
   db: {
     mode: "pglite",
-    migrationsDir: "./drizzle",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
   },
@@ -86,7 +85,6 @@ describe("defineConfig", () => {
     expect(config.release).toEqual({ ref: "main" });
     expect(config.db).toEqual({
       mode: "pglite",
-      migrationsDir: "./drizzle",
       tenantColumns: ["tenantId"],
       ownerColumns: ["ownerId"],
     });

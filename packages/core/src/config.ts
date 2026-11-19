@@ -93,7 +93,6 @@ export interface FacilisReleaseConfig {
 
 export interface FacilisDbConfig {
   readonly mode: DbMode;
-  readonly migrationsDir: string;
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
 }
@@ -153,7 +152,6 @@ export interface FacilisConfigInput {
   readonly release?: { readonly ref?: string };
   readonly db?: {
     readonly mode?: DbMode;
-    readonly migrationsDir?: string;
     readonly tenantColumns?: readonly string[];
     readonly ownerColumns?: readonly string[];
   };
@@ -187,7 +185,6 @@ export interface FacilisConfigInput {
 }
 
 const DEFAULT_RELEASE_REF = "main";
-const DEFAULT_MIGRATIONS_DIR = "./drizzle";
 const DEFAULT_TENANT_COLUMN = "tenantId";
 const DEFAULT_OWNER_COLUMN = "ownerId";
 const DEFAULT_LOCALE = "en";
@@ -195,7 +192,6 @@ const DEFAULT_SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
 
 const DEFAULT_DB_CONFIG = {
   mode: "pglite" as const,
-  migrationsDir: DEFAULT_MIGRATIONS_DIR,
   tenantColumns: [DEFAULT_TENANT_COLUMN],
   ownerColumns: [DEFAULT_OWNER_COLUMN],
 };
@@ -212,7 +208,6 @@ const releaseSchema = z
 const dbSchema = z
   .strictObject({
     mode: z.enum(DB_MODES).default("pglite"),
-    migrationsDir: z.string().min(1).default(DEFAULT_MIGRATIONS_DIR),
     tenantColumns: z.array(z.string().min(1)).default([DEFAULT_TENANT_COLUMN]),
     ownerColumns: z.array(z.string().min(1)).default([DEFAULT_OWNER_COLUMN]),
   })

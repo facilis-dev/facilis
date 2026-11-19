@@ -36,7 +36,6 @@ export interface EffectiveState {
   locales: Readonly<Record<string, string>>;
   /** False when a patched locales/en.json is not a valid JSON catalogue. */
   localesValid: boolean;
-  migrationsDir: string;
   removedTables: readonly string[];
   removedPermissions: readonly string[];
 }
@@ -111,7 +110,6 @@ export function buildEffectiveState(
     afterSchemaTables,
     locales,
     localesValid,
-    migrationsDir: normalizeProjectPath(config.migrationsDir),
     removedTables: [...beforeNames].filter((name) => !afterNames.has(name)),
     removedPermissions: before.config.permissions.filter(
       (permission) => !config.permissions.includes(permission),

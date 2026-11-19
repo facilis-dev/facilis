@@ -1,4 +1,3 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { applyStatements, applyViews, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
@@ -8,33 +7,25 @@ import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
 import { projectRoot } from "#facilis/config";
 import dbViewModules from "#facilis/db-views";
 
-import { readMigrationsDir, toAuthConfig } from "./config.ts";
+import { toAuthConfig } from "./config.ts";
 import { reconcileDeclaredSchema } from "./schema-reconcile.ts";
 import { readTextFile } from "./project-files.ts";
-import { splitSqlStatements } from "./sql.ts";
 import { provisionSystemRole } from "./system-role.ts";
 
 /**
- * Dev-only database bootstrap: migrations -> seed -> app role -> system role -> views
- * (D-052/D-097/D-099). Split from `bootstrap.ts` to keep both modules under the file-length
- * limit; a Postgres target skips this module entirely, because the deploy step owns DDL.
+ * Dev-only database bootstrap: declared schema -> seed -> app role -> system role -> views
+ * (D-052/D-097/D-099/D-193). Split from `bootstrap.ts` to keep both modules under the
+ * file-length limit; a Postgres target skips this module entirely, because the deploy step
+ * owns DDL.
  */
 export async function bootstrapDevelopmentDatabase(
   db: FacilisDb,
   projectConfig: FacilisConfig,
   warnings: ManifestWarning[],
 ): Promise<void> {
-  // Order mandated by the Lead: migrations -> seed (roles/role_permissions) -> app role.
-  try {
-    const statements = await readMigrationStatements(projectConfig);
-    if (statements.length > 0) await applyStatements(db, statements);
-  } catch (error) {
-    warnings.push(warning("migration_failed", `Migrations failed: ${describe(error)}`));
-  }
-
-  // D-193: the declared schema is the source of truth in dev too. The replay above keeps a
-  // project that still ships db/migrations working; the reconcile creates what db/schema.ts
-  // added since, and never drops anything the user did not confirm.
+  // Order mandated by the Lead: declared schema -> seed (roles/role_permissions) -> app role.
+  // D-193: the declared schema is the source of truth in dev; the reconcile creates what
+  // db/schema.ts added since, and never drops anything the user did not confirm.
   try {
     const approvals = await readTextFile(join(projectRoot, SCHEMA_APPROVALS_PATH));
     await reconcileDeclaredSchema(
@@ -84,32 +75,8 @@ export async function bootstrapDevelopmentDatabase(
   }
 }
 
-async function readMigrationStatements(projectConfig: FacilisConfig): Promise<string[]> {
-  const dir = join(projectRoot, readMigrationsDir(projectConfig));
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch (error) {
-    // No migrations directory is a valid early-project state.
-    if (isMissingFileError(error)) return [];
-    throw error;
-  }
-
-  const names = entries.filter((name) => name.endsWith(".sql")).toSorted();
-  const contents = await Promise.all(names.map((name) => readTextFile(join(dir, name))));
-  const statements: string[] = [];
-  for (const source of contents) {
-    if (source !== null) statements.push(...splitSqlStatements(source));
-  }
-  return statements;
-}
-
 function warning(code: string, message: string): ManifestWarning {
   return { code, message };
-}
-
-function isMissingFileError(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
 }
 
 export function describe(error: unknown): string {

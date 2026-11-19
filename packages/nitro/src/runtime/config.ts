@@ -2,7 +2,6 @@ import type { AuthConfig } from "@facilis.dev/auth";
 import type { FacilisConfig } from "@facilis.dev/core";
 
 export const DEFAULT_SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
-export const DEFAULT_MIGRATIONS_DIR = "db/migrations";
 export const DEFAULT_LOCALE = "en";
 
 /** Subset of FacilisConfig.auth that may be missing when the virtual module fell back. */
@@ -25,10 +24,6 @@ export function toAuthConfig(auth: AuthConfigLike | undefined): AuthConfig {
     defaultRole: auth?.defaultRole ?? "user",
     sessionDurationMs: auth?.sessionDurationMs ?? DEFAULT_SESSION_DURATION_MS,
   };
-}
-
-export function readMigrationsDir(config: FacilisConfig | null | undefined): string {
-  return config?.db?.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
 }
 
 export function readDefaultLocale(config: FacilisConfig | null | undefined): string {

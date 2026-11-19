@@ -17,7 +17,6 @@ function fixtureConfig(): ConfigFacts {
     defaultRole: null,
     defaultLocale: null,
     locales: [],
-    migrationsDir: "db/migrations",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
     unknown: [],
