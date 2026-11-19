@@ -2,9 +2,11 @@
 // from db/schema.ts at boot instead of from hand-written SQL, which is what lets the AI edit
 // the schema without writing a migration.
 //
-// The reconcile is ADDITIVE by design. Tables, columns, policies and RLS that the declaration
-// has and the database lacks are created with the release planner's own renderers, so a table
-// created at boot and one created by a release artifact cannot drift. Destructive DDL is
+// The reconcile is ADDITIVE by design. Tables, columns, defaults, checks, foreign keys,
+// indexes, policies and RLS that the declaration has and the database lacks are created with
+// the release planner's own renderers, so a table created at boot and one created by a release
+// artifact cannot drift. A changed construct is replaced (drop + re-add of the same name),
+// which loses no data (D-195). Destructive DDL is
 // never inferred: a drop runs only when the user confirmed that exact change from the IDE and
 // it is recorded in .facilis/dev/schema-approvals.json (SCHEMA_APPROVALS_PATH). An unconfirmed
 // drop is skipped, so a hand edit of db/schema.ts can never delete data at boot.
@@ -35,6 +37,9 @@ import {
   type LiveSchemaSnapshot,
   type LiveTableSnapshot,
 } from "@facilis.dev/db";
+
+import { planTableConstraints, planTableForeignKeys } from "./schema-reconcile-constraints.ts";
+
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -109,11 +114,18 @@ export function planReconcile(
     for (const column of table.columns) {
       if (!columns.has(column.name)) statements.push(addColumnSql(table.name, column));
     }
+    statements.push(...planTableConstraints(table, current));
     if (table.rlsEnabled && !current.rlsEnabled) statements.push(enableRlsSql(table.name));
     const policies = new Set(current.policies.map((policy) => policy.name));
     for (const policy of table.policies) {
       if (!policies.has(policy.name)) statements.push(createPolicySql(policy));
     }
+  }
+  // Foreign keys come last: one may reference a column another existing table gained above.
+  for (const table of existing) {
+    const current = liveByName.get(table.name);
+    if (current === undefined) continue;
+    statements.push(...planTableForeignKeys(table, current));
   }
 
   const approved = new Set(approvals);

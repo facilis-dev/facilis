@@ -99,6 +99,9 @@ function liveSnapshot(
             withCheck: `(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
           },
         ],
+        indexes: [],
+        foreignKeys: [],
+        checks: [],
         ...overrides,
       },
     ],
@@ -130,7 +133,15 @@ describe("diffSchemaSnapshots", () => {
 
   it("reports missing and extra tables", () => {
     const live = liveSnapshot();
-    live.tables.push({ name: "ghost", rlsEnabled: false, columns: [], policies: [] });
+    live.tables.push({
+      name: "ghost",
+      rlsEnabled: false,
+      columns: [],
+      policies: [],
+      indexes: [],
+      foreignKeys: [],
+      checks: [],
+    });
     const code = codeSnapshot();
     code.tables.push({
       name: "planned",

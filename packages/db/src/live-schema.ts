@@ -1,7 +1,19 @@
 import { sql } from "drizzle-orm";
 
 import type { FacilisDb } from "./client.ts";
+import {
+  readLiveConstraints,
+  type LiveCheckSnapshot,
+  type LiveForeignKeySnapshot,
+  type LiveIndexSnapshot,
+} from "./live-schema-constraints.ts";
 import { MIGRATION_TRACKING_TABLE } from "./migrator.ts";
+
+export type {
+  LiveCheckSnapshot,
+  LiveForeignKeySnapshot,
+  LiveIndexSnapshot,
+} from "./live-schema-constraints.ts";
 
 /**
  * Tables this package owns for its own bookkeeping. They exist in every migrated database
@@ -44,6 +56,10 @@ export interface LiveTableSnapshot {
   rlsEnabled: boolean;
   columns: LiveColumnSnapshot[];
   policies: LivePolicySnapshot[];
+  /** Declaration-level indexes only: PK/unique constraint backing indexes are excluded. */
+  indexes: LiveIndexSnapshot[];
+  foreignKeys: LiveForeignKeySnapshot[];
+  checks: LiveCheckSnapshot[];
 }
 
 export interface LiveSchemaSnapshot {
@@ -120,6 +136,23 @@ export async function liveSchemaSnapshot(db: FacilisDb): Promise<LiveSchemaSnaps
     });
   }
 
+  const constraints = await readLiveConstraints(db);
+  for (const index of constraints.indexes) {
+    if (INTERNAL_TABLES.has(index.table)) continue;
+    const { table, ...snapshot } = index;
+    tableFor(tables, table).indexes.push(snapshot);
+  }
+  for (const foreignKey of constraints.foreignKeys) {
+    if (INTERNAL_TABLES.has(foreignKey.table)) continue;
+    const { table, ...snapshot } = foreignKey;
+    tableFor(tables, table).foreignKeys.push(snapshot);
+  }
+  for (const check of constraints.checks) {
+    if (INTERNAL_TABLES.has(check.table)) continue;
+    const { table, ...snapshot } = check;
+    tableFor(tables, table).checks.push(snapshot);
+  }
+
   return {
     tables: [...tables.values()].toSorted((left, right) => left.name.localeCompare(right.name)),
   };
@@ -128,7 +161,15 @@ export async function liveSchemaSnapshot(db: FacilisDb): Promise<LiveSchemaSnaps
 function tableFor(tables: Map<string, LiveTableSnapshot>, name: string): LiveTableSnapshot {
   const existing = tables.get(name);
   if (existing !== undefined) return existing;
-  const table: LiveTableSnapshot = { name, rlsEnabled: false, columns: [], policies: [] };
+  const table: LiveTableSnapshot = {
+    name,
+    rlsEnabled: false,
+    columns: [],
+    policies: [],
+    indexes: [],
+    foreignKeys: [],
+    checks: [],
+  };
   tables.set(name, table);
   return table;
 }

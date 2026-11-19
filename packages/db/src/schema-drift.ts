@@ -177,10 +177,27 @@ export function normalizePolicySql(value: string | null): string {
   if (value === null) return "";
   return value
     .toLowerCase()
-    .replace(
-      /::(?:uuid|text|jsonb|json|integer|int4|int8|bigint|boolean|bool|numeric|date|timestamptz|timestamp(?: with(?:out)? time zone)?)\b/g,
-      "",
-    )
+    .replace(CAST_PATTERN, "")
+    .replace(/["'()]/g, "")
+    .replace(/\s+/g, "");
+}
+
+const CAST_PATTERN =
+  /::(?:uuid|text|jsonb|json|integer|int4|int8|bigint|boolean|bool|numeric|date|timestamptz|timestamp(?: with(?:out)? time zone)?)\b/g;
+
+/**
+ * Normalizer for defaults, check expressions and index expressions (D-195): the catalog
+ * deparser and PgDialect disagree on casts, parentheses, quotes and table qualification
+ * (`lower("documents"."title")` vs `lower((title)::text)`), so the reconcile compares this
+ * form instead of raw SQL. Qualifiers are stripped BEFORE parentheses, while the function
+ * name is still separable from the table name.
+ */
+export function normalizeSchemaExpression(value: string | null): string {
+  if (value === null) return "";
+  return value
+    .toLowerCase()
+    .replace(CAST_PATTERN, "")
+    .replace(/(?:"[a-z_][a-z0-9_]*"|[a-z_][a-z0-9_]*)\./g, "")
     .replace(/["'()]/g, "")
     .replace(/\s+/g, "");
 }

@@ -60,7 +60,10 @@ export {
 } from "./snapshot.ts";
 export {
   liveSchemaSnapshot,
+  type LiveCheckSnapshot,
   type LiveColumnSnapshot,
+  type LiveForeignKeySnapshot,
+  type LiveIndexSnapshot,
   type LivePolicySnapshot,
   type LiveSchemaSnapshot,
   type LiveTableSnapshot,
@@ -68,6 +71,7 @@ export {
 export {
   canonicalColumnType,
   diffSchemaSnapshots,
+  normalizeSchemaExpression,
   type SchemaDrift,
   type SchemaDriftKind,
 } from "./schema-drift.ts";

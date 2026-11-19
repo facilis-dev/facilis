@@ -1,11 +1,17 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.34 (patch write scope follows the deployment profile, D-167)
+**Version:** 1.35 (dev reconcile converges table constraints, D-195)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.35 — The dev reconcile converges existing-table constraints (D-195, issue #49).
+  `liveSchemaSnapshot` reads indexes (including single-expression ones), foreign keys and
+  checks from `pg_index`/`pg_constraint`; `planReconcile` adds the missing ones and replaces
+  changed same-named constructs (drop + re-add, no data loss), sets or drops column defaults,
+  and compares expressions through a shared normalizer. Live-only constructs are never dropped
+  without the D-193 consent; unsupported shapes are never rendered. §11.1 follows.
 - v1.34 — Rule 11's write scope follows the deployment profile (D-167). `validatePatch`
   gains a `writePolicy` of `"open" | "managed"` and defaults to `managed` (fail-closed);
   rule 11 keeps its id and severity. `managed` is unchanged — the six project roots plus
@@ -2845,7 +2851,7 @@ await waitForPort(vivari, 5173)
 
 ### 11.1 Entity Explorer (Phase 3)
 
-- Reads from both `db/schema.ts` (via `getTableConfig`) and the live catalog (`pg_catalog`: `format_type`, `pg_get_expr`, `relrowsecurity`, `pg_policies`)
+- Reads from both `db/schema.ts` (via `getTableConfig`) and the live catalog (`pg_catalog`: `format_type`, `pg_get_expr`, `relrowsecurity`, `pg_policies`, plus `pg_index`/`pg_constraint` for indexes, foreign keys and checks — D-195). The dev boot reconcile (D-193/D-195) converges an existing table onto the declaration: missing columns, defaults, checks, foreign keys, indexes, RLS and policies are added, changed same-named constructs are replaced without data loss, and drops stay approval-gated
 - **Diffs them** through a pure function: typed drift like *"code says X, DB says Y — reconcile (dev) or run the release deploy / adopt / repair"*
 - RLS status badges: 🟢 policy defined / 🟡 RLS on, no policy / 🔴 RLS off on scoped table / ⚪ system-only (RLS off, unscoped)
 - Reverse lookup: "used by these routes" (from `x-db-tables`/`x-db-columns`)
