@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { exampleProjectFiles } from "./example-template";
 import { createBrowserOxcParser } from "./oxc-browser";
 import type { ReleaseTableFact } from "./release-engine";
-import { releaseTablesFromAnalysis, schemaSourcePaths } from "./release-schema";
+import {
+  readReleaseSnapshot,
+  releaseTablesFromAnalysis,
+  schemaSourcePaths,
+} from "./release-schema";
 
 const parser = createBrowserOxcParser();
 
@@ -110,5 +114,25 @@ export const second = pgTable("same", { id: uuid("id") });
 `,
     };
     expect(tablesOf(files)).toHaveLength(1);
+  });
+
+  it("reads the full snapshot the schema plan consumes", async () => {
+    const files: Readonly<Record<string, string>> = {
+      "db/schema.ts": exampleProjectFiles()["db/schema.ts"] ?? "",
+    };
+    const snapshot = await readReleaseSnapshot(
+      schemaSourcePaths(Object.keys(files)),
+      async (file) => files[file] ?? null,
+      async (sources) => ({ ok: true, analysis: analyzeProject({ files: sources, parser }) }),
+    );
+    // Sorted by name: the snapshot is compared ref-to-ref, order must not depend on source order.
+    expect(snapshot?.tables.map((entry) => entry.name)).toEqual(["todo_files", "todos"]);
+    const todos = snapshot?.tables.find((entry) => entry.name === "todos");
+    expect(todos?.primaryKey).toEqual(["id"]);
+    expect(todos?.policies.map((policy) => policy.name)).toEqual([
+      "tenant_isolation",
+      "owner_isolation",
+    ]);
+    expect(todos?.columns.map((column) => column.name)).toContain("tenant_id");
   });
 });
