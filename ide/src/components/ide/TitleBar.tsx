@@ -1,6 +1,8 @@
+import { toast } from "sonner";
 import CircleHelp from "~icons/lucide/circle-help";
 import ExternalLink from "~icons/lucide/external-link";
 import Home from "~icons/lucide/house";
+import Monitor from "~icons/lucide/monitor";
 import PanelLeft from "~icons/lucide/panel-left";
 import PanelLeftOff from "~icons/lucide/panel-left-dashed";
 import PanelRight from "~icons/lucide/panel-right";
@@ -66,6 +68,11 @@ export function TitleBar() {
   // The title-bar twin of the status bar's Run chip: same control, same state, so
   // the primary action is reachable from either corner (D-124).
   const running = snap.runTerminalId != null;
+  // The always-available external preview (issue #44): the control must outlive the
+  // Preview panel, so its port comes from the run state, not from the panel's tab.
+  const activeRoot =
+    snap.workspaceFolders.find((f) => f.id === snap.activeFolderId)?.rootPath ?? null;
+  const externalPort = c.preview.externalPreviewPort(activeRoot, snap.ports);
   return (
     <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-sidebar pr-2 pl-3 text-sm">
       <button
@@ -143,6 +150,38 @@ export function TitleBar() {
           On={PanelRight}
           Off={PanelRightOff}
         />
+        {/* The external preview is the point of hiding the panel, so the control must
+            stay here when the panel is gone — disabled, never hidden, when nothing runs. */}
+        {snap.workspaceFolders.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger
+              onClick={() => {
+                if (externalPort === null) return;
+                if (!c.preview.openExternalPreview(externalPort))
+                  toast.error(t("preview.openExternalBlocked"));
+              }}
+              aria-disabled={externalPort === null}
+              aria-label={
+                externalPort === null
+                  ? t("preview.openExternalDisabled")
+                  : t("preview.openExternalHint")
+              }
+              className={cn(
+                "flex size-7 items-center justify-center rounded transition-colors",
+                externalPort === null
+                  ? "cursor-not-allowed text-muted-foreground/40"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              <Monitor className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {externalPort === null
+                ? t("preview.openExternalDisabled")
+                : t("preview.openExternalHint")}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );

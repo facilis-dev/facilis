@@ -24,6 +24,10 @@ export const previewEn = {
   "preview.openDevtools": "Open devtools",
   "preview.closeDevtools": "Close devtools",
   "preview.openExternal": "Open in a new tab",
+  "preview.openExternalHint": "Open the app in a new browser tab",
+  "preview.openExternalDisabled": "Start the project to open its app in a new browser tab.",
+  "preview.openExternalBlocked":
+    "The browser blocked the new tab. Allow pop-ups for this site and try again.",
   "preview.address": "Local address",
   "preview.devtoolsTitle": "DevTools",
 } as const;

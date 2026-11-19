@@ -4,7 +4,8 @@ import type { MessageKey } from "./index";
 
 export const previewIt: Partial<Record<MessageKey, string>> = {
   "preview.empty": "Nessuna anteprima aperta.",
-  "preview.emptyTab": "Scheda vuota — digita un indirizzo locale come localhost:3000 e premi Invio.",
+  "preview.emptyTab":
+    "Scheda vuota — digita un indirizzo locale come localhost:3000 e premi Invio.",
   "preview.runProject": "Esegui progetto",
   "preview.startFailed": "Il progetto non si è avviato.",
   "preview.progressHint":
@@ -23,6 +24,11 @@ export const previewIt: Partial<Record<MessageKey, string>> = {
   "preview.openDevtools": "Apri DevTools",
   "preview.closeDevtools": "Chiudi DevTools",
   "preview.openExternal": "Apri in una nuova scheda",
+  "preview.openExternalHint": "Apri l'app in una nuova scheda del browser",
+  "preview.openExternalDisabled":
+    "Avvia il progetto per aprire la sua app in una nuova scheda del browser.",
+  "preview.openExternalBlocked":
+    "Il browser ha bloccato la nuova scheda. Consenti i pop-up per questo sito e riprova.",
   "preview.address": "Indirizzo locale",
   "preview.devtoolsTitle": "DevTools",
 };
