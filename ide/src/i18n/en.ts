@@ -58,6 +58,7 @@ export const en = {
   "recent.daysAgo": "{n}d ago",
   "recent.openInNewTab": "Open in a new tab",
   "recent.openInNewTabAria": "Open {name} in a new tab",
+  "recent.opening": "Opening…",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Starting runtime",
@@ -80,7 +81,6 @@ export const en = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "This tab's project is not in the recent-projects list any more.",
   "project.openElsewhere": "{name} is already open in another tab — close it there first.",
-  "project.starting": "Studio is still starting — please wait a moment, then try again.",
   "project.gone": "This project's files are no longer on disk.",
   "project.deleted": "Deleted {name}",
   "project.deleteFailed": "Couldn't delete {name}: {error}",

@@ -50,6 +50,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "recent.daysAgo": "{n} g fa",
   "recent.openInNewTab": "Apri in una nuova scheda",
   "recent.openInNewTabAria": "Apri {name} in una nuova scheda",
+  "recent.opening": "Apertura…",
 
   // ── bootstrap ────────────────────────────────────────────────────────────
   "boot.starting": "Avvio del runtime",
@@ -72,7 +73,6 @@ export const it: Partial<Record<MessageKey, string>> = {
   // ── projects ─────────────────────────────────────────────────────────────
   "project.missing": "Il progetto di questa scheda non è più nella lista dei recenti.",
   "project.openElsewhere": "{name} è già aperto in un'altra scheda — chiudilo lì prima.",
-  "project.starting": "Studio si sta ancora avviando — attendi un istante e riprova.",
   "project.gone": "I file di questo progetto non sono più su disco.",
   "project.deleted": "Eliminato {name}",
   "project.deleteFailed": "Impossibile eliminare {name}: {error}",

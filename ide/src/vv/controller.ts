@@ -25,6 +25,7 @@ import { loadWordWrap, saveWordWrap } from "./editor-prefs";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
+import { createProjectOpenGuard } from "./project-open";
 import { bootFlag, dropDepCacheIfAsked } from "./boot-flags";
 import { bootTargetFrom } from "./boot-target";
 import { deleteProject } from "./project-delete";
@@ -441,6 +442,7 @@ export class IdeController {
   private readonly kernelPorts = new KernelPorts(); // live in-VM listeners (Ports view)
   private treeBump: ReturnType<typeof setTimeout> | null = null;
   private started = false;
+  private readonly openGuard = createProjectOpenGuard();
   // Current resolved UI theme, seeded from the pre-paint <html> class the
   // no-flash script sets, then kept in sync with next-themes via applyUiTheme.
   private uiTheme: UiTheme = appearanceFromDocument();
@@ -1633,51 +1635,49 @@ export class IdeController {
     }
   }
 
-  // Open a previously-created project from the Home recent list.
+  // Open a previously-created project (Home recents or the ?project= tab boot). A click
+  // during boot queues on whenKernelReady instead of being dropped, and the per-root
+  // guard collapses repeated clicks into one restore replay + workspace open.
   async openProject(meta: ProjectMeta) {
-    // Before `kernel-online` the VFS worker has not even read the OPFS index, so the
-    // project is genuinely not there *yet* — tell the user to retry rather than
-    // calling it deleted (which would drop it from the recent list).
-    if (!this.snap.kernelReady) {
-      toast.info(t("project.starting"));
-      return;
-    }
+    await this.whenKernelReady();
     const root = normDir(meta.rootPath);
-    const onDisk = await ensureProjectOnDisk(
-      this.bridge,
-      root,
-      (p) => this.pathInfo(p),
-      (line) => this.status(line),
-    );
-    if (!onDisk) {
-      toast.error(t("project.gone"));
-      this.removeProjectMeta(root);
-      return;
-    }
-    // Only a Facilis project gets a registered manifest - and, in a managed build, only one
-    // that carries a valid .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
-    // opens, but Run drops into a shell rather than executing an unvetted project.
-    const descriptor = templateForStoredId(meta.template);
-    if (descriptor !== undefined && (await projectAdmitted(this.bridge, root))) {
-      const template = await descriptor.load();
-      this.folderManifests.set(root, template.manifest);
-      this.bridge.post("vv-register-project", {
-        dir: root,
-        manifest: template.manifest,
-        title: projectName(root),
-      });
-    }
-    this.touchProject(root);
-    this.openFolder(root);
-    this.openProjectGraph();
-    // node_modules is no longer mirrored file-by-file — it's restored from the
-    // dependency-cache snapshot on demand. Bring it back now the project is open
-    // (one blob read), then refresh the Explorer + IntelliSense to reflect it.
-    void this.bridge.request("vv-ensure-deps", { dir: root }).then((res) => {
-      if ((res as { restored?: boolean }).restored) {
-        this.bumpTree();
-        this.editorLanguage.scheduleDependencyTypes();
+    await this.openGuard(root, async () => {
+      const onDisk = await ensureProjectOnDisk(
+        this.bridge,
+        root,
+        (p) => this.pathInfo(p),
+        (line) => this.status(line),
+      );
+      if (!onDisk) {
+        toast.error(t("project.gone"));
+        this.removeProjectMeta(root);
+        return;
       }
+      // Only a Facilis project gets a registered manifest - and, in a managed build, only one
+      // that carries a valid .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
+      // opens, but Run drops into a shell rather than executing an unvetted project.
+      const descriptor = templateForStoredId(meta.template);
+      if (descriptor !== undefined && (await projectAdmitted(this.bridge, root))) {
+        const template = await descriptor.load();
+        this.folderManifests.set(root, template.manifest);
+        this.bridge.post("vv-register-project", {
+          dir: root,
+          manifest: template.manifest,
+          title: projectName(root),
+        });
+      }
+      this.touchProject(root);
+      this.openFolder(root);
+      this.openProjectGraph();
+      // node_modules is no longer mirrored file-by-file — it's restored from the
+      // dependency-cache snapshot on demand. Bring it back now the project is open
+      // (one blob read), then refresh the Explorer + IntelliSense to reflect it.
+      void this.bridge.request("vv-ensure-deps", { dir: root }).then((res) => {
+        if ((res as { restored?: boolean }).restored) {
+          this.bumpTree();
+          this.editorLanguage.scheduleDependencyTypes();
+        }
+      });
     });
   }
 
