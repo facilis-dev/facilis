@@ -9,8 +9,14 @@ import { describe, expect, it } from "vitest";
 // build), and ?raw reads the file through Vite's loader, which vitest also serves.
 import assetScript from "../../../scripts/dev/vendor-assets.sh?raw";
 import type { FacilisManifest } from "./facilis-template";
+import { openDeployment } from "@/deploy/resolve";
+import { examplePackageJson } from "./example-template";
 import { createFacilisTemplate, TEMPLATE_PACKAGES } from "./facilis-template";
+import { fullstackPackageJson } from "./fullstack-files";
+import { localPackageSpec } from "./local-packages";
 import { projectFiles } from "./project-files";
+import { staticPackageJson } from "./static-files";
+import { LOCAL_PACKAGES_NPMRC, projectFileTemplates } from "./template-files";
 
 const PACKAGES = TEMPLATE_PACKAGES;
 
@@ -73,5 +79,55 @@ describe("generated project package manager", () => {
     expect(assets).toEqual([]);
     expect(Object.keys(template.files).some((path) => path.startsWith("vendor/"))).toBe(false);
     expect(JSON.stringify(generatedPackageJson())).not.toContain("file:./vendor");
+  });
+});
+
+// The dev local path (issue #41, D-196) is opt-in per build: the compiled flag is false
+// under Vitest, so the release-mode guards above hold by default. These exercise the
+// rewritten manifest explicitly, the way a dev build with the path enabled produces it.
+describe("dev local packages manifest (issue #41)", () => {
+  it("pins a file: spec for every framework package in local mode", () => {
+    const deps = (JSON.parse(fullstackPackageJson(examplePackageJson(), true)) as PackageJson)
+      .dependencies;
+    for (const name of PACKAGES) {
+      expect(deps["@facilis.dev/" + name]).toBe(localPackageSpec("@facilis.dev/" + name));
+    }
+    expect(JSON.stringify(deps)).toContain("file:./vendor/facilis/");
+  });
+
+  it("leaves non-framework dependencies untouched in local mode", () => {
+    const local = JSON.parse(fullstackPackageJson(examplePackageJson(), true)) as PackageJson;
+    const release = JSON.parse(fullstackPackageJson(examplePackageJson(), false)) as PackageJson;
+    const react = Object.keys(release.dependencies).find((n) => !n.startsWith("@facilis.dev/"));
+    expect(react).toBeDefined();
+    expect(local.dependencies[react as string]).toBe(release.dependencies[react as string]);
+  });
+
+  it("still pins the exact published version in release mode", () => {
+    const deps = (JSON.parse(fullstackPackageJson(examplePackageJson(), false)) as PackageJson)
+      .dependencies;
+    for (const name of PACKAGES) expect(deps["@facilis.dev/" + name]).toBe("0.1.0");
+  });
+
+  it("copies file: directory deps via install-links in local mode, not in release", () => {
+    // npm symlinks a file: directory dep by default; the in-VM Vite then resolves the real
+    // path outside the preview scope. install-links copies it into node_modules (issue #41).
+    const bodies = { packageJson: "{}\n", readme: "", tsconfigInclude: [] as readonly string[] };
+    const local = projectFileTemplates(openDeployment(), "v", bodies, true);
+    const release = projectFileTemplates(openDeployment(), "v", bodies, false);
+    expect(local[".npmrc"]).toContain("install-links=true");
+    expect(release[".npmrc"]).not.toContain("install-links");
+    expect(LOCAL_PACKAGES_NPMRC).toContain("install-links=true");
+  });
+
+  it("rewrites the static wrapper's framework deps in local mode too", () => {
+    const source = JSON.stringify({
+      dependencies: { "@facilis.dev/core": "0.1.0", react: "19.3.0" },
+    });
+    const local = JSON.parse(staticPackageJson(source, true)) as PackageJson;
+    const release = JSON.parse(staticPackageJson(source, false)) as PackageJson;
+    expect(local.dependencies["@facilis.dev/core"]).toBe("file:./vendor/facilis/core");
+    expect(release.dependencies["@facilis.dev/core"]).toBe("0.1.0");
+    expect(local.dependencies.react).toBe("19.3.0");
   });
 });

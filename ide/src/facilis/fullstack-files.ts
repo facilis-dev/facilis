@@ -12,6 +12,7 @@
 
 import { frameworkPackagesVersion } from "@/deploy/current";
 import { examplePackageJson } from "./example-template";
+import { localPackageSpec, localPackagesEnabled } from "./local-packages";
 import { PROJECT_PACKAGE_MANAGER, VM_OVERRIDES, vmDevDependencies } from "./template-files";
 
 type ExamplePackage = {
@@ -56,13 +57,22 @@ npm it was built and tested against, and keeps it aligned with its Node version.
  *
  * @param exampleSource the example's package.json; defaults to examples/todo-app's.
  */
-export function fullstackPackageJson(exampleSource: string = examplePackageJson()): string {
+export function fullstackPackageJson(
+  exampleSource: string = examplePackageJson(),
+  local: boolean = localPackagesEnabled,
+): string {
   const example = JSON.parse(exampleSource) as ExamplePackage;
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies)) {
-    // Exact, never a range: the deploy pipeline injects the published version this IDE was
-    // built against, and the framework packages move in lockstep with it (D-166).
-    dependencies[name] = name.startsWith("@facilis.dev/") ? frameworkPackagesVersion : spec;
+    // Release path: exact, never a range — the deploy pipeline injects the published version
+    // this IDE was built against (D-166). Dev local path (issue #41, D-196): a file: spec
+    // naming the copy the create pipeline writes into vendor/facilis/, so npm installs the
+    // workspace package without a registry. `local` defaults to the compiled build flag.
+    dependencies[name] = name.startsWith("@facilis.dev/")
+      ? local
+        ? localPackageSpec(name)
+        : frameworkPackagesVersion
+      : spec;
   }
   // Nitro 3.0.260903-beta imports a dozen packages it lists only in its devDependencies —
   // but it also vendors pruned copies of them under dist/node_modules, so the runtime's
@@ -112,6 +122,9 @@ export function fullstackPackageJson(exampleSource: string = examplePackageJson(
           build: "vite build",
           preview: "vite preview",
           preinstall: "node scripts/check-pm.mjs",
+          // Dev local path (issue #41, D-196): copy the framework file: symlinks into real
+          // node_modules dirs after install, so the project deletes like a registry install.
+          ...(local ? { postinstall: "node scripts/local-packages.mjs" } : {}),
         },
         dependencies,
         devDependencies,

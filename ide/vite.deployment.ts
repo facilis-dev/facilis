@@ -210,7 +210,7 @@ export function deploymentPlugin(): Plugin[] {
     gitProxyDevPlugin(),
     {
       name: "facilis-deployment",
-      config() {
+      config(_config, env) {
         // A literal in the bundle: there is no file to fetch and nothing to override.
         const define: Record<string, string> = {
           __FACILIS_DEPLOYMENT__: JSON.stringify(loaded.deployment),
@@ -218,6 +218,15 @@ export function deploymentPlugin(): Plugin[] {
           // The exact published @facilis.dev/* version new projects pin (D-164): the
           // deploy pipeline sets it, and a local build falls back to the current release.
           __FACILIS_PACKAGES_VERSION__: JSON.stringify(process.env[PACKAGES_VERSION] || "0.1.0"),
+          // Dev-only local workspace packages (issue #41, D-196): true only for a real dev
+          // server, never a production build, and never under Vitest (which also runs in
+          // serve mode) so unit tests stay in the release/npm mode by default.
+          // FACILIS_IDE_LOCAL_PACKAGES=0 opts back into npm to test a pinned release.
+          __FACILIS_LOCAL_PACKAGES__: JSON.stringify(
+            env.command === "serve" &&
+              process.env.VITEST !== "true" &&
+              process.env.FACILIS_IDE_LOCAL_PACKAGES !== "0",
+          ),
         };
         // The controller reads this at boot (ide/src/vv/controller.ts); a managed build
         // sets it from its policy unless the operator chose one explicitly.

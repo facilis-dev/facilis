@@ -11,6 +11,7 @@ import path from "node:path";
 import { deploymentPlugin } from "./vite.deployment.ts";
 import { ptcRunnerHeaders } from "./vite.ptc.ts";
 import { swScope } from "./vite.isolation.ts";
+import { localPackagesPlugin } from "./vite.local-packages.ts";
 // The two headers that unlock SharedArrayBuffer (cross-origin isolation). Without
 // them `SharedArrayBuffer` is undefined and the whole runtime cannot run. Applied
 // to the dev server, the preview server, AND — via the plugin below — every
@@ -255,6 +256,9 @@ function vvPrecacheAndHints(): Plugin {
 // /devtools/*) always stay at the origin root because the SW claims root scope.
 const base = process.env.VV_BASE || "/";
 
+// The workspace root, for the dev-only local-packages route (issue #41, D-196).
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
+
 export default defineConfig({
   base,
   plugins: [
@@ -273,6 +277,10 @@ export default defineConfig({
     vvPrecacheAndHints(),
     deploymentPlugin(),
     ptcRunnerHeaders(),
+    // Dev-only: serves the built workspace packages so a generated project installs them
+    // with file: deps instead of npm (issue #41, D-196). apply:"serve" keeps it out of a
+    // production build, where /__facilis/dev/packages/* must 404.
+    localPackagesPlugin(REPO_ROOT),
   ],
   resolve: {
     alias: {

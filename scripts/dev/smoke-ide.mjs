@@ -13,7 +13,7 @@
 // SMOKE_ARTIFACTS skips that; see scripts/dev/run-artifacts.mjs).
 // Exit code 0 = the Studio booted and the created project served a preview.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -25,6 +25,7 @@ import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
 import { runWriteChecks } from "./smoke-write.mjs";
 import { runChatChecks } from "./smoke-chat.mjs";
 import { runPanelChecks } from "./smoke-panels.mjs";
+import { runLocalPackagesChecks } from "./smoke-local-packages.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -39,6 +40,9 @@ const PORT = Number(process.env.SMOKE_PORT || 5199);
 const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-artifacts");
 const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
 const KEEP_ARTIFACTS = process.argv.includes("--keep-artifacts");
+// A dev build installs the workspace packages locally by default (issue #41, D-196);
+// FACILIS_IDE_LOCAL_PACKAGES=0 runs the smoke against a pinned npm release instead.
+const LOCAL_PACKAGES = process.env.FACILIS_IDE_LOCAL_PACKAGES !== "0";
 const CHROME = process.env.FACILIS_CHROME || path.join(TOOLING, "browser/chrome/chrome");
 const SYSROOT = process.env.FACILIS_BROWSER_SYSROOT || path.join(TOOLING, "browser/sysroot");
 const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser/fonts.conf");
@@ -49,6 +53,7 @@ let intellisenseReport = null;
 let writeReport = null;
 let chatReport = null;
 let panelReport = null;
+let localPackagesReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
   if (!ok) failures.push(label);
@@ -128,6 +133,17 @@ function stopDevServer(child) {
 async function main() {
   fs.mkdirSync(ARTIFACTS, { recursive: true });
   console.log("artifacts: " + ARTIFACTS);
+
+  // The dev route serves the packages' built dist/, so build the workspace packages first
+  // (issue #41). Skipped when reusing an external server (--url): the operator owns its build.
+  if (LOCAL_PACKAGES && !URL_) {
+    console.log("building workspace packages for the local install...");
+    const build = spawnSync("pnpm", ["exec", "turbo", "run", "build", "--filter=./packages/*"], {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+    });
+    if (build.status !== 0) throw new Error("workspace package build failed before the smoke");
+  }
 
   const dev = await startDevServer();
   console.log("studio url: " + dev.url);
@@ -282,6 +298,18 @@ async function main() {
     }
   } catch (error) {
     check(false, "facilis checks ran", String(error));
+  }
+  // Dev local-packages path (issue #41, D-196): the created project installs the workspace
+  // packages from the IDE origin, not npm. Only meaningful when the path is enabled.
+  if (LOCAL_PACKAGES) {
+    try {
+      localPackagesReport = await runLocalPackagesChecks({ page, devUrl: dev.url });
+      for (const result of localPackagesReport.checks) {
+        if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+      }
+    } catch (error) {
+      check(false, "local packages checks ran", String(error));
+    }
   }
   // IntelliSense is an acceptance criterion of its own (the IDE's TypeScript service
   // must resolve the template's imports, i.e. installed @types/*.d.ts reach Monaco).
@@ -524,6 +552,7 @@ async function main() {
       : {}),
     ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
     ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
+    ...(localPackagesReport ? { localPackages: { checks: localPackagesReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
   pruneSmokeArtifacts({

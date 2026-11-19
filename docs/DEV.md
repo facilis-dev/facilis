@@ -27,10 +27,10 @@ pnpm ide:smoke        # headless acceptance: boot -> create React/TS project -> 
 Everything is installed under `FACILIS_TOOLING_DIR` (default `/tmp/facilis-dev`), never in
 the repository. Nothing under `vendor/` or `ide/public/vendor/` is ever committed.
 
-There is no vendoring step for the framework packages any more: a generated project installs
-`@facilis.dev/*` from npm at the exact version the IDE build pins with
-`FACILIS_PACKAGES_VERSION` (a dev build without the variable pins the fallback `0.1.0`; D-166,
-§9/§13).
+A *production* build installs `@facilis.dev/*` from npm at the exact version the IDE build
+pins with `FACILIS_PACKAGES_VERSION` (fallback `0.1.0`; D-166, §9/§13). A *dev* build can
+instead install the workspace packages locally from the IDE origin, without publishing
+(`FACILIS_IDE_LOCAL_PACKAGES=0` opts back into npm; issue #41, D-196 — see §2 below).
 
 ## Why this page exists
 
@@ -115,11 +115,30 @@ files under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the 
 exactly that manifest (`exports` resolve to `dist/*.js`, internal deps are pinned to the
 release version), because publishing the workspace manifest directly is not installable.
 
-Changes under `packages/**` reach a generated project only through a published version: a
-project is created with whatever `FACILIS_PACKAGES_VERSION` the running IDE build carries (a
-dev build without the variable pins the fallback `0.1.0`), so publish a version and rebuild —
-or restart `pnpm ide:dev` with the new `FACILIS_PACKAGES_VERSION` — before testing a package
-change against a fresh project.
+**Release path (production builds).** A deployed IDE installs `@facilis.dev/*` from npm at
+the exact version the build pins with `FACILIS_PACKAGES_VERSION` (D-166). A change under
+`packages/**` reaches a deployed project only through a published version: publish, then
+rebuild the IDE with the new `FACILIS_PACKAGES_VERSION`.
+
+**Dev local path (issue #41, D-196).** A dev build (`pnpm ide:dev`, `pnpm ide:smoke`) instead
+installs the *workspace* packages from the IDE's own origin, so a `packages/**` change is
+exercised in the WebContainer without publishing. The dev server serves the built packages at
+`/__facilis/dev/packages/index.json` (plus each package's `dist/` and a rewritten
+`package.json`); at create time the IDE copies them into the project VFS under
+`vendor/facilis/<pkg>/` and pins `"@facilis.dev/<name>": "file:./vendor/facilis/<name>"`, with
+internal deps rewritten to `file:../<sibling>`. The in-VM `npm install` then resolves the whole
+closure locally — no `@facilis.dev/*` request reaches npm.
+
+The packages must be **built** first (`dist/` is what the native ESM loader imports under
+`node_modules`): `pnpm build` (or `pnpm exec turbo run build --filter=./packages/*`).
+`pnpm ide:smoke` runs that build as a pre-step and asserts the local install end to end. The
+route is dev-only (`apply: "serve"`): a production build has no `/__facilis/dev/packages/*`
+route, no `vendor/` directory and no `file:` deps — it keeps the release path above.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `FACILIS_IDE_LOCAL_PACKAGES` | enabled in dev | set to `0` to install from npm even in a dev build, to test a pinned release |
+| `FACILIS_PACKAGES_VERSION` | `0.1.0` fallback | the exact published version a release build pins (D-166) |
 
 `vendor/locks/index.json` and `vendor/depcache/index.json` are **not** generated: the kernel
 logs a warning and installs every project from scratch (slower, still correct).

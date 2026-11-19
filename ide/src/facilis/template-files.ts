@@ -11,6 +11,7 @@ import { renderProjectNpmrc } from "@/deploy/artifacts";
 import { deployment, environmentVersion } from "@/deploy/current";
 import type { ResolvedDeployment } from "@/deploy/types";
 import { APP_MANIFEST_FILE, renderAppManifest } from "./app-manifest";
+import { LOCAL_PACKAGES_POSTINSTALL, localPackagesEnabled } from "./local-packages";
 import type { ExampleSources, FacilisManifest } from "./template-types";
 import type { ProjectTemplate } from "../vv/project-manifest";
 
@@ -112,6 +113,12 @@ export interface TemplateAssembly {
   overrides?: Record<string, string>;
 }
 
+/** The .npmrc block the dev local path appends (issue #41, D-196); empty in a release build. */
+export const LOCAL_PACKAGES_NPMRC =
+  "; Dev local packages: copy file: directory deps into node_modules instead of symlinking,\n" +
+  "; so the in-VM Vite resolves them under node_modules like registry deps (D-196).\n" +
+  "install-links=true\n";
+
 /**
  * The generated project, from the template plus what only the IDE can write.
  *
@@ -123,6 +130,7 @@ export function projectFileTemplates(
   d: ResolvedDeployment,
   version: string,
   files: ProjectFileBodies,
+  local: boolean = localPackagesEnabled,
 ): Record<string, string> {
   return {
     [APP_MANIFEST_FILE]: renderAppManifest(version),
@@ -134,9 +142,16 @@ export function projectFileTemplates(
     // which is what the bundled Nitro dist's undeclared transitive requires rely on.
     // renderProjectNpmrc keeps those flags and adds `registry=<mirror>` when the
     // deployment has one.
-    ".npmrc": renderProjectNpmrc(d),
+    // Dev local path (issue #41, D-196): npm symlinks a file: directory dep by default, and
+    // the in-VM Vite then resolves the symlink's real path to a root-relative /vendor/facilis/
+    // URL that escapes the preview scope. install-links copies the deps into node_modules
+    // instead, so they resolve exactly like the registry packages the release path installs.
+    ".npmrc": renderProjectNpmrc(d) + (local ? LOCAL_PACKAGES_NPMRC : ""),
     "README.md": files.readme,
     "scripts/check-pm.mjs": checkPm,
+    // Dev local path (issue #41, D-196): de-symlink the framework packages after install so
+    // the project tree deletes cleanly (the in-VM rm -rf fails ENOTDIR on the file: links).
+    ...(local ? { "scripts/local-packages.mjs": LOCAL_PACKAGES_POSTINSTALL } : {}),
   };
 }
 
