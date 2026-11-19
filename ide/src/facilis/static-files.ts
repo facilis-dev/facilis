@@ -9,6 +9,7 @@
 // project is a site, not a workspace member.
 
 import { frameworkPackagesVersion } from "@/deploy/current";
+import { localPackageSpec, localPackagesEnabled } from "./local-packages";
 import { PROJECT_PACKAGE_MANAGER, VM_OVERRIDES, vmDevDependencies } from "./template-files";
 
 type StaticPackage = {
@@ -48,13 +49,21 @@ The preinstall guard rejects other package managers on purpose.
  *
  * @param exampleSource the example's package.json; the source of every dependency version.
  */
-export function staticPackageJson(exampleSource: string): string {
+export function staticPackageJson(
+  exampleSource: string,
+  local: boolean = localPackagesEnabled,
+): string {
   const example = JSON.parse(exampleSource) as StaticPackage;
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies ?? {})) {
     // A static template has no framework packages, but a future one might: keep the same
-    // exact-version rule the full-stack template uses rather than a workspace spec (D-166).
-    dependencies[name] = name.startsWith("@facilis.dev/") ? frameworkPackagesVersion : spec;
+    // rule the full-stack template uses — exact published version (D-166), or a file: spec
+    // for the dev local path (issue #41, D-196) — never a workspace spec.
+    dependencies[name] = name.startsWith("@facilis.dev/")
+      ? local
+        ? localPackageSpec(name)
+        : frameworkPackagesVersion
+      : spec;
   }
   const devDependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.devDependencies ?? {})) {

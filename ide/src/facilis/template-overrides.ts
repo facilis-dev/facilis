@@ -14,6 +14,7 @@
 // test instrumentation and never auto-registers a probe user.
 
 import { exampleProjectFiles } from "./example-template";
+import { localPackagesEnabled } from "./local-packages";
 
 /** The exact element the write smoke test replaces to prove client HMR. */
 export const HMR_HINT = '<p className="muted">Edit src/app.tsx and save to test HMR.</p>';
@@ -119,13 +120,36 @@ export function addVmNitro(configSource: string, exampleDir = "examples/todo-app
   return config.replace(/\n\}\);\s*$/, "\n" + VM_NITRO_RUNNER + "});\n");
 }
 
+/**
+ * Keep Vite from resolving a symlinked file: dep to its real path (issue #41, D-196).
+ *
+ * The dev local path installs the framework packages as file: directory deps. npm links
+ * them into node_modules, and Vite's default realpath resolution then serves a package file
+ * by its real path under /vendor/facilis/ — a root-relative URL that escapes the preview's
+ * /preview/<port>/ scope and 404s at the IDE origin. preserveSymlinks keeps the import on its
+ * node_modules path, so Vite optimizes and serves it under the preview base like a registry
+ * package. Only the dev local path needs it; a release build installs real registry dirs.
+ */
+export function injectPreserveSymlinks(viteSource: string): string {
+  return replaceOnce(
+    viteSource,
+    "  resolve: {\n    alias:",
+    "  resolve: {\n    preserveSymlinks: true,\n    alias:",
+    "vite.config.ts resolve block",
+  );
+}
+
 /** Overlay applied after the example files when the template is assembled. */
 export function templateOverrides(): Record<string, string> {
   const example = exampleProjectFiles();
-  return {
+  const overrides: Record<string, string> = {
     "server/routes/api/ping.get.ts": PROBE_PING_ROUTE,
     "src/app.tsx": injectHmrHint(exampleFile(example, "src/app.tsx")),
     "src/styles.css": appendHintStyle(exampleFile(example, "src/styles.css")),
     "facilis.config.ts": addVmNitro(exampleFile(example, "facilis.config.ts")),
   };
+  if (localPackagesEnabled) {
+    overrides["vite.config.ts"] = injectPreserveSymlinks(exampleFile(example, "vite.config.ts"));
+  }
+  return overrides;
 }

@@ -14,6 +14,11 @@
 
 import type { ProjectTemplate } from "../vv/project-manifest";
 import type { FacilisManifest, TemplateAsset } from "./facilis-template";
+import {
+  fetchLocalPackageFiles,
+  LOCAL_PACKAGES_ROUTE,
+  localPackagesEnabled,
+} from "./local-packages";
 
 /** A create-project payload: text files plus binary bodies (structured-cloned to the kernel). */
 export type TemplateFilePayload = Record<string, string | Uint8Array>;
@@ -50,7 +55,8 @@ export async function withTemplateAssets(
   fetchImpl: typeof fetch = fetch,
 ): Promise<TemplateFilePayload> {
   const assets = (template.manifest as Partial<FacilisManifest>).assets ?? [];
-  if (assets.length === 0) return files;
+  // The release create request is sources-only: no binary assets and no local packages.
+  if (assets.length === 0 && !localPackagesEnabled) return files;
   const fetched = await Promise.all(
     assets.map(async (asset): Promise<readonly [string, Uint8Array]> => [
       asset.path,
@@ -59,5 +65,14 @@ export async function withTemplateAssets(
   );
   const payload: TemplateFilePayload = { ...files };
   for (const [path, bytes] of fetched) payload[path] = bytes;
+  // Dev local path (issue #41, D-196): copy the workspace packages the template pins with
+  // file: specs into the project VFS, through the same create payload (kernel.writeFiles).
+  // localPackagesEnabled is false in a production build, so this is compiled out there and
+  // the shipped template never carries a vendor/ directory.
+  if (localPackagesEnabled) {
+    const base = (import.meta.env.BASE_URL || "/") + LOCAL_PACKAGES_ROUTE + "/";
+    const local = await fetchLocalPackageFiles(base, fetchImpl);
+    for (const [path, bytes] of Object.entries(local)) payload[path] = bytes;
+  }
   return payload;
 }
