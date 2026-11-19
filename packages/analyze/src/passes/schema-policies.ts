@@ -8,6 +8,7 @@ import {
 } from "../ast/node.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import { staticString, type StaticContext } from "../static-eval.ts";
+
 import type { Diagnostic, PolicyCommand, PolicyFact, SourceRef, UnknownFact } from "../types.ts";
 import { optionsOf } from "./schema-column-types.ts";
 import {
@@ -18,6 +19,13 @@ import {
   type DslResolver,
   type DslSymbol,
 } from "./schema-dsl.ts";
+import {
+  ownerPredicate,
+  policyColumn,
+  readPgPolicyFact,
+  rolePredicate,
+  tenantPredicate,
+} from "./schema-policy-sql.ts";
 
 export interface PolicyInput {
   readonly extras: AstNode | undefined;
@@ -30,14 +38,6 @@ export interface PolicyScan {
   readonly policies: readonly PolicyFact[];
   readonly diagnostics: readonly Diagnostic[];
 }
-
-const COMMANDS: Readonly<Record<string, PolicyCommand>> = {
-  select: "SELECT",
-  insert: "INSERT",
-  update: "UPDATE",
-  delete: "DELETE",
-  all: "ALL",
-};
 
 function scan(policies: readonly PolicyFact[]): PolicyScan {
   return {
@@ -52,14 +52,18 @@ function fixedPolicy(
   restrictive: boolean,
   source: SourceRef,
   unknown: readonly UnknownFact[] = [],
+  using: string | null = null,
+  withCheck: string | null = null,
 ): PolicyFact {
-  return { name, command, restrictive, source, unknown };
+  return { name, command, restrictive, using, withCheck, source, unknown };
 }
 
 function unknownPolicyScan(name: string, reason: string, source: SourceRef): PolicyScan {
   const unknown = schemaUnknown(reason, source);
   return {
-    policies: [{ name, command: "ALL", restrictive: false, source, unknown: [unknown] }],
+    policies: [
+      { name, command: "ALL", restrictive: false, using: null, withCheck: null, source, unknown: [unknown] },
+    ],
     diagnostics: schemaDiagnostics([unknown]),
   };
 }
@@ -70,43 +74,7 @@ function calleeLabel(callee: unknown): string {
   return identifierName(node) ?? memberName(node) ?? "policy";
 }
 
-function readPgPolicy(call: AstNode, context: StaticContext, file: ProjectFile): PolicyScan {
-  const source = nodeRef(file, call);
-  const args = callArguments(call);
-  const unknowns: UnknownFact[] = [];
-  let name = "unknown";
-  const nameResult = staticString(args[0], context);
-  if (nameResult.ok) {
-    name = nameResult.value;
-  } else {
-    unknowns.push(schemaUnknown("pgPolicy name is not a static string", source));
-  }
-  let command: PolicyCommand = "ALL";
-  let restrictive = false;
-  if (args[1] !== undefined) {
-    const options = optionsOf(args[1], context);
-    if (options === null) {
-      unknowns.push(schemaUnknown("pgPolicy options are not static", source));
-    } else {
-      const rawFor = options["for"];
-      if (rawFor !== undefined) {
-        const parsed = typeof rawFor === "string" ? (COMMANDS[rawFor.toLowerCase()] ?? null) : null;
-        if (parsed === null) {
-          unknowns.push(schemaUnknown('pgPolicy "for" is not a policy command', source));
-        } else {
-          command = parsed;
-        }
-      }
-      const rawAs = options["as"];
-      if (rawAs === "restrictive") {
-        restrictive = true;
-      } else if (rawAs !== undefined && rawAs !== "permissive") {
-        unknowns.push(schemaUnknown('pgPolicy "as" is not restrictive or permissive', source));
-      }
-    }
-  }
-  return scan([fixedPolicy(name, command, restrictive, source, unknowns)]);
-}
+
 
 /** `rlsForTable({...})` expands to the same policy set `@facilis.dev/db` builds at runtime. */
 function expandRlsTable(call: AstNode, context: StaticContext, file: ProjectFile): PolicyScan {
@@ -124,14 +92,24 @@ function expandRlsTable(call: AstNode, context: StaticContext, file: ProjectFile
     }
     options = evaluated;
   }
-  const policies: PolicyFact[] = [fixedPolicy("tenant_isolation", "ALL", true, source)];
+  const tenantColumn = options["tenantColumn"];
+  const tenantUnknown =
+    tenantColumn === undefined || typeof tenantColumn === "string"
+      ? []
+      : [schemaUnknown("rlsForTable tenantColumn is not a string", source)];
+  const tenant = typeof tenantColumn === "string" ? tenantColumn : "tenant_id";
+  const predicates = tenantPredicate(tenant);
+  const policies: PolicyFact[] = [
+    fixedPolicy("tenant_isolation", "ALL", true, source, tenantUnknown, predicates, predicates),
+  ];
   const ownerColumn = options["ownerColumn"];
   if (Object.hasOwn(options, "ownerColumn")) {
     const unknown =
       typeof ownerColumn === "string"
         ? []
         : [schemaUnknown("rlsForTable ownerColumn is not a string", source)];
-    policies.push(fixedPolicy("owner_isolation", "ALL", false, source, unknown));
+    const predicate = typeof ownerColumn === "string" ? ownerPredicate(ownerColumn) : null;
+    policies.push(fixedPolicy("owner_isolation", "ALL", false, source, unknown, predicate, predicate));
   }
   const rolesColumn = options["rolesColumn"];
   if (Object.hasOwn(options, "rolesColumn")) {
@@ -139,7 +117,8 @@ function expandRlsTable(call: AstNode, context: StaticContext, file: ProjectFile
       typeof rolesColumn === "string"
         ? []
         : [schemaUnknown("rlsForTable rolesColumn is not a string", source)];
-    policies.push(fixedPolicy("role_access", "ALL", false, source, unknown));
+    const predicate = typeof rolesColumn === "string" ? rolePredicate(rolesColumn) : null;
+    policies.push(fixedPolicy("role_access", "ALL", false, source, unknown, predicate, predicate));
   }
   return scan(policies);
 }
@@ -169,6 +148,26 @@ function readRlsExpansion(
   return expandRlsTable(call, context, file);
 }
 
+/** Index/check/unique entries share the extras callback; schema-extras.ts reads them. */
+const NON_POLICY_HELPERS = new Set(["index", "uniqueIndex", "check", "unique", "primaryKey"]);
+
+function isNonPolicyEntry(node: AstNode, resolver: DslResolver): boolean {
+  let current: AstNode | undefined = node;
+  let guard = 0;
+  while (current?.type === "CallExpression" && guard < 32) {
+    guard += 1;
+    const callee = unwrapExpression(current.callee);
+    if (callee === undefined) return false;
+    if (callee.type === "MemberExpression") {
+      current = unwrapExpression(callee.object);
+      continue;
+    }
+    const symbol = resolver(callee);
+    return symbol?.pkg === "pg-core" && NON_POLICY_HELPERS.has(symbol.name);
+  }
+  return false;
+}
+
 function readPolicyEntry(
   element: AstNode,
   context: StaticContext,
@@ -182,17 +181,42 @@ function readPolicyEntry(
   if (node?.type !== "CallExpression") {
     return unknownPolicyScan("policy", "table extras entry is not a policy call", source);
   }
+  if (isNonPolicyEntry(node, resolver)) return scan([]);
   const symbol = resolver(node.callee);
+  const args = callArguments(node);
   if (symbol?.pkg === "facilis-db") {
-    if (symbol.name === "tenantIsolationPolicy") {
-      return scan([fixedPolicy("tenant_isolation", "ALL", true, source)]);
-    }
-    if (symbol.name === "ownerIsolationPolicy") {
-      return scan([fixedPolicy("owner_isolation", "ALL", false, source)]);
+    if (symbol.name === "tenantIsolationPolicy" || symbol.name === "ownerIsolationPolicy") {
+      const tenant = symbol.name === "tenantIsolationPolicy";
+      const evaluated = policyColumn(
+        args[0],
+        tenant ? "tenant_id" : "owner_id",
+        context,
+        symbol.name,
+        source,
+      );
+      const predicate =
+        evaluated.column === null
+          ? null
+          : tenant
+            ? tenantPredicate(evaluated.column)
+            : ownerPredicate(evaluated.column);
+      const unknown = evaluated.unknown === null ? [] : [evaluated.unknown];
+      return scan([
+        fixedPolicy(
+          tenant ? "tenant_isolation" : "owner_isolation",
+          "ALL",
+          tenant,
+          source,
+          unknown,
+          predicate,
+          predicate,
+        ),
+      ]);
     }
     if (symbol.name === "rolePolicy") {
-      const args = callArguments(node);
       const unknowns: UnknownFact[] = [];
+      const column = policyColumn(args[0], null, context, "rolePolicy", source);
+      if (column.unknown !== null) unknowns.push(column.unknown);
       let name = "role_access";
       if (args[1] !== undefined) {
         const evaluated = staticString(args[1], context);
@@ -202,11 +226,12 @@ function readPolicyEntry(
           unknowns.push(schemaUnknown("rolePolicy name is not a static string", source));
         }
       }
-      return scan([fixedPolicy(name, "ALL", false, source, unknowns)]);
+      const predicate = column.column === null ? null : rolePredicate(column.column);
+      return scan([fixedPolicy(name, "ALL", false, source, unknowns, predicate, predicate)]);
     }
   }
   if (symbol?.pkg === "pg-core" && symbol.name === "pgPolicy") {
-    return readPgPolicy(node, context, file);
+    return scan([readPgPolicyFact(node, context, file, resolver)]);
   }
   return unknownPolicyScan(
     calleeLabel(node.callee),

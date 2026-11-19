@@ -84,8 +84,24 @@ export function linkColumns(parentColumn: string, source: SourceRef): ColumnFact
 
 export function linkPolicies(source: SourceRef): PolicyFact[] {
   return [
-    { name: "tenant_isolation", command: "ALL", restrictive: true, source, unknown: [] },
-    { name: "parent_access", command: "ALL", restrictive: false, source, unknown: [] },
+    {
+      name: "tenant_isolation",
+      command: "ALL",
+      restrictive: true,
+      using: null,
+      withCheck: null,
+      source,
+      unknown: [],
+    },
+    {
+      name: "parent_access",
+      command: "ALL",
+      restrictive: false,
+      using: null,
+      withCheck: null,
+      source,
+      unknown: [],
+    },
   ];
 }
 
@@ -115,6 +131,10 @@ export function facilisFilesDraft(source: SourceRef): TableDraft {
       ],
       primaryKey: ["id"],
       foreignKeys: [],
+      indexes: [],
+      checks: [],
+      uniqueConstraints: [],
+      unsupported: [],
       policies: [],
       rlsEnabled: false,
       scope: null,

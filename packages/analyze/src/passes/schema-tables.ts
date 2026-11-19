@@ -13,6 +13,8 @@ import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import { staticString } from "../static-eval.ts";
 import type { ConfigFacts, Diagnostic, TableFact, UnknownFact } from "../types.ts";
 import { buildColumnFact, type ColumnReference } from "./schema-columns.ts";
+import { collectEnumDeclarations } from "./schema-enums.ts";
+import { buildTableExtras } from "./schema-extras.ts";
 import { scopeOf, type ScopedColumn } from "./schema-scope.ts";
 import {
   createDslResolver,
@@ -38,25 +40,6 @@ export interface TableScan {
 interface TableCall {
   readonly call: AstNode;
   readonly methods: readonly string[];
-}
-
-/** Local `pgEnum("name", values)` consts; a column built from one is a known enum builder. */
-function collectEnumBindings(
-  file: ProjectFile,
-  resolver: DslResolver,
-  graph: ModuleGraph,
-): Map<string, string> {
-  const enums = new Map<string, string>();
-  for (const declarator of topLevelDeclarators(file.program)) {
-    const binding = identifierName(declarator.id);
-    const init = unwrapExpression(declarator.init);
-    if (binding === undefined || init?.type !== "CallExpression") continue;
-    const symbol = resolver(init.callee);
-    if (symbol?.pkg !== "pg-core" || symbol.name !== "pgEnum") continue;
-    const name = staticString(callArguments(init)[0], { graph, file: file.path });
-    enums.set(binding, name.ok ? name.value : binding);
-  }
-  return enums;
 }
 
 /** The `pgTable` call inside `pgTable(...).enableRLS()`, plus the chain methods after it. */
@@ -157,6 +140,27 @@ function buildTableDraft(input: {
     resolver,
   });
   diagnostics.push(...policyScan.diagnostics);
+  // Index/check/unique declarations live in the same extras callback as the policies; each
+  // pass reads the callback independently so a policy expansion never hides an index.
+  const columnNames = new Map(
+    columns.map((entry) => [entry.column.property, entry.column.name] as const),
+  );
+  const extrasScan = buildTableExtras({
+    extras: args[2],
+    file,
+    graph,
+    resolver,
+    tableName: name,
+    columns: columnNames,
+  });
+  diagnostics.push(...extrasScan.diagnostics);
+  unknowns.push(...extrasScan.unknown);
+  // A policy whose predicate could not be read is a declaration the snapshot cannot render:
+  // carry it as unsupported so the mapper fails closed instead of emitting a weaker policy.
+  const unsupported = [...extrasScan.unsupported];
+  for (const policy of policyScan.policies) {
+    if (policy.unknown.length > 0) unsupported.push({ construct: "policy", name: policy.name });
+  }
   const rlsEnabled = tableCall.methods.includes("enableRLS");
   const scope = scopeOf(columns, config);
   const fact: TableFact = {
@@ -167,6 +171,10 @@ function buildTableDraft(input: {
       .filter((entry) => entry.column.primaryKey)
       .map((entry) => entry.column.property),
     foreignKeys: [],
+    indexes: extrasScan.indexes,
+    checks: extrasScan.checks,
+    uniqueConstraints: extrasScan.uniqueConstraints,
+    unsupported,
     policies: policyScan.policies,
     rlsEnabled,
     scope,
@@ -193,9 +201,10 @@ export function collectTableDrafts(
   config: ConfigFacts,
 ): TableScan {
   const resolver = createDslResolver(graph, file);
-  const enums = collectEnumBindings(file, resolver, graph);
+  const enumDeclarations = collectEnumDeclarations(graph, file);
+  const enums = enumDeclarations.bindings;
   const drafts: TableDraft[] = [];
-  const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = [...enumDeclarations.diagnostics];
   for (const declarator of topLevelDeclarators(file.program)) {
     const binding = identifierName(declarator.id) ?? null;
     const tableCall = findTableCall(declarator.init, resolver);

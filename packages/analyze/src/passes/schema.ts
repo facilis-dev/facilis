@@ -1,6 +1,7 @@
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
-import type { ConfigFacts, Diagnostic, RelationFact, TableFact } from "../types.ts";
+import type { ConfigFacts, Diagnostic, EnumFact, RelationFact, TableFact } from "../types.ts";
 import { isSchemaFile } from "./schema-dsl.ts";
+import { collectEnumFacts } from "./schema-enums.ts";
 import { collectFileLinkDrafts } from "./schema-file-links.ts";
 import { buildTableLookup, finalizeTables, withFrameworkTables } from "./schema-foreign-keys.ts";
 import { collectTableDrafts, type TableDraft } from "./schema-tables.ts";
@@ -9,6 +10,8 @@ import { buildRelationFacts } from "./schema-relations.ts";
 
 export interface SchemaResult {
   readonly tables: readonly TableFact[];
+  /** Project-wide enum types, deduped by name (the SchemaSnapshot.enums contract). */
+  readonly enums: readonly EnumFact[];
   readonly relations: readonly RelationFact[];
   readonly diagnostics: readonly Diagnostic[];
 }
@@ -57,11 +60,19 @@ export function buildSchemaFacts(graph: ModuleGraph, config: ConfigFacts): Schem
     diagnostics.push(...scan.diagnostics);
   }
 
+  const enumScan = collectEnumFacts(graph, files);
+  diagnostics.push(...enumScan.diagnostics);
+
   const drafts = dedupeDrafts(collected);
   const lookup = withFrameworkTables(buildTableLookup(drafts), externalTables);
   const finalized = finalizeTables(graph, drafts, lookup);
   diagnostics.push(...finalized.diagnostics);
   const relations = buildRelationFacts(graph, files, lookup);
   diagnostics.push(...relations.diagnostics);
-  return { tables: finalized.tables, relations: relations.relations, diagnostics };
+  return {
+    tables: finalized.tables,
+    enums: enumScan.enums,
+    relations: relations.relations,
+    diagnostics,
+  };
 }

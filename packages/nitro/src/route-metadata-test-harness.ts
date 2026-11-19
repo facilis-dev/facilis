@@ -46,6 +46,7 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     },
     routes: [],
     tables: [],
+    enums: [],
     relations: [],
     views: [],
     pages: [],
