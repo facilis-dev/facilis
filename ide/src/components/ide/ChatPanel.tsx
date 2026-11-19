@@ -63,9 +63,11 @@ function Welcome({ title, body, children }: { title: string; body: string; child
 export function ChatPanel() {
   const { c, snap } = useIde();
   const store = useMemo(() => chatStoreFor(c), [c]);
-  // The store snapshot is the active id: a switch re-renders and resubscribes to that session.
+  // Both reads go through subscriptions: React Compiler memoizes a direct store.active() on
+  // [store] alone, which pinned the transcript to the first session after "+" (issue #52).
+  // ActivityBar already follows the store the same way.
   const activeId = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  const chat = store.active();
+  const chat = useSyncExternalStore(store.subscribe, () => store.active());
   const state = useSyncExternalStore(chat.subscribe, chat.getSnapshot);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busySeconds, setBusySeconds] = useState(0);

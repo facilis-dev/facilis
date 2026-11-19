@@ -107,6 +107,33 @@ const PATCH_IN_VFS =
   "if (text.length > 0) return 'OK'; await new Promise((resolve) => setTimeout(resolve, 250)); }" +
   "return 'EMPTY'; })()";
 
+const CLICK_NEW_CHAT =
+  "(() => { const aside = document.querySelector('aside[aria-label=\"AI Chat\"]'); if (!aside) return 'NOTFOUND';" +
+  "const button = [...aside.querySelectorAll('button')].find(" +
+  "(candidate) => (candidate.getAttribute('aria-label') || '') === 'New chat');" +
+  "if (!button || button.disabled) return 'NOTFOUND'; button.click(); return 'OK'; })()";
+
+const OPEN_CONVERSATIONS =
+  "(() => { const aside = document.querySelector('aside[aria-label=\"AI Chat\"]'); if (!aside) return 'NOTFOUND';" +
+  "const button = [...aside.querySelectorAll('button')].find(" +
+  "(candidate) => (candidate.getAttribute('aria-label') || '') === 'Conversations');" +
+  "if (!button || button.disabled) return 'NOTFOUND'; button.click(); return 'OK'; })()";
+
+const MENU_LISTS_BOTH =
+  "(() => { const items = [...document.querySelectorAll('[data-slot=\"dropdown-menu-item\"]')]" +
+  ".map((item) => (item.innerText || '').trim());" +
+  "return items.some((text) => text.includes('Create a demo file')) && items.includes('New conversation'); })()";
+
+const SELECT_FIRST_CHAT =
+  "(() => { const item = [...document.querySelectorAll('[data-slot=\"dropdown-menu-item\"]')].find(" +
+  "(candidate) => (candidate.innerText || '').includes('Create a demo file'));" +
+  "if (!item) return 'NOTFOUND'; item.click(); return 'OK'; })()";
+
+const DELETE_ACTIVE_CHAT =
+  "(() => { const item = [...document.querySelectorAll('[data-slot=\"dropdown-menu-item\"]')].find(" +
+  "(candidate) => (candidate.innerText || '').trim() === 'Delete this conversation');" +
+  "if (!item) return 'NOTFOUND'; item.click(); return 'OK'; })()";
+
 export async function runChatChecks({ page, check, ARTIFACTS }) {
   const checks = [];
   const record = (ok, label, detail = "") => {
@@ -195,6 +222,46 @@ export async function runChatChecks({ page, check, ARTIFACTS }) {
     record(
       (await page.evaluate(INSTRUCTIONS_IN_VFS)) === "OK",
       "chat created AGENTS.md in the project",
+    );
+
+    // Conversations (issue #52): "+" switches to a fresh chat, the history menu opens
+    // without the Base UI group crash, selecting restores the transcript, deleting the
+    // active chat falls back to the remaining one. smoke-ide.mjs's global page-error and
+    // console-error checks fail the run if opening the menu throws.
+    record((await page.evaluate(CLICK_NEW_CHAT)) === "OK", "chat new-conversation button clicked");
+    record(
+      await waitFor(page, bodyHas("Build with the assistant"), 5000),
+      "chat new conversation shows the empty state",
+    );
+    record(
+      !(await page.evaluate(bodyHas("Create a demo file"))),
+      "chat previous transcript left the panel",
+    );
+    record((await page.evaluate(OPEN_CONVERSATIONS)) === "OK", "chat conversations menu opened");
+    record(await waitFor(page, MENU_LISTS_BOTH, 5000), "chat conversations menu lists both chats");
+    record(
+      await page.evaluate("Boolean(document.querySelector('aside[aria-label=\"AI Chat\"]'))"),
+      "chat panel alive after opening the conversations menu",
+    );
+    await page.screenshot(ARTIFACTS + "/04-chat-conversations.png");
+    record((await page.evaluate(SELECT_FIRST_CHAT)) === "OK", "chat first conversation selected");
+    record(
+      await waitFor(page, bodyHas("Create a demo file"), 5000),
+      "chat first transcript restored",
+    );
+    record((await page.evaluate(OPEN_CONVERSATIONS)) === "OK", "chat conversations menu reopened");
+    record(
+      await waitFor(page, MENU_LISTS_BOTH, 5000),
+      "chat conversations menu lists both chats again",
+    );
+    record((await page.evaluate(DELETE_ACTIVE_CHAT)) === "OK", "chat delete conversation clicked");
+    record(
+      await waitFor(page, bodyHas("Build with the assistant"), 5000),
+      "chat delete falls back to the remaining conversation",
+    );
+    record(
+      !(await page.evaluate(bodyHas("Create a demo file"))),
+      "chat deleted transcript gone",
     );
   }
 
