@@ -5,6 +5,7 @@ import {
   mergeGraphLayout,
   parseGraphLayout,
   resetGraphLayoutPositions,
+  restoreGraphView,
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
@@ -226,5 +227,50 @@ describe("mergeGraphLayout", () => {
     expect(mergeGraphLayout(value, { nodeIds: new Set() }).edgeCurves).toEqual({
       "fk:gone": { x: 1, y: 1 },
     });
+  });
+});
+
+describe("restoreGraphView (deep-link restore, issue #58)", () => {
+  it("replaces the view fields wholesale and leaves the document fields untouched", () => {
+    const value = layout({
+      nodes: { "table:todos": { x: 1, y: 2 } },
+      hiddenEdges: ["fk"],
+      tableVisibility: "project",
+      collapsed: { "table:old": true },
+      edgeCurves: { "fk:1": { x: 3, y: 4 } },
+      notes: { [NOTE]: note() },
+      viewport: { x: 9, y: 9, zoom: 2 },
+    });
+    const restored = restoreGraphView(value, {
+      hiddenEdgeKinds: ["page-link", "relation"],
+      tableVisibility: "used",
+      collapsed: { "table:todos": true },
+      viewport: { x: -10.5, y: 20.25, zoom: 0.75 },
+    });
+    expect(restored.hiddenEdges).toEqual(["relation", "page-link"]);
+    expect(restored.tableVisibility).toBe("used");
+    expect(restored.collapsed).toEqual({ "table:todos": true });
+    expect(restored.viewport).toEqual({ x: -10.5, y: 20.25, zoom: 0.75 });
+    expect(restored.nodes).toEqual(value.nodes);
+    expect(restored.edgeCurves).toEqual(value.edgeCurves);
+    expect(restored.notes).toEqual(value.notes);
+    expect(restored.version).toBe(value.version);
+    // The reducer is immutable: the loaded layout is never mutated in place.
+    expect(value.hiddenEdges).toEqual(["fk"]);
+    expect(value.collapsed).toEqual({ "table:old": true });
+  });
+
+  it("clears the viewport when the deep link carries none", () => {
+    const value = layout({ viewport: { x: 9, y: 9, zoom: 2 } });
+    const restored = restoreGraphView(value, {
+      hiddenEdgeKinds: [],
+      tableVisibility: "all",
+      collapsed: {},
+      viewport: null,
+    });
+    expect(restored.viewport).toBeUndefined();
+    expect(restored.hiddenEdges).toEqual([]);
+    expect(restored.tableVisibility).toBe("all");
+    expect(restored.collapsed).toEqual({});
   });
 });
