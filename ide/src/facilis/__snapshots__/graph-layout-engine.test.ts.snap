@@ -1,0 +1,213 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the example project layout > is deterministic: same input, same output (snapshot) 1`] = `
+[
+  {
+    "id": "page:src/pages/index.tsx",
+    "x": 0,
+    "y": 0,
+  },
+  {
+    "id": "page:src/pages/projects.tsx",
+    "x": 0,
+    "y": 200,
+  },
+  {
+    "id": "page:src/pages/settings.tsx",
+    "x": 0,
+    "y": 400,
+  },
+  {
+    "id": "page:src/pages/todos.tsx",
+    "x": 0,
+    "y": 600,
+  },
+  {
+    "id": "route:GET /api/auth/login",
+    "x": 320,
+    "y": 0,
+  },
+  {
+    "id": "route:GET /api/auth/me",
+    "x": 320,
+    "y": 224,
+  },
+  {
+    "id": "route:GET /api/comments",
+    "x": 320,
+    "y": 448,
+  },
+  {
+    "id": "route:GET /api/comments/{id}",
+    "x": 320,
+    "y": 672,
+  },
+  {
+    "id": "route:GET /api/projects",
+    "x": 320,
+    "y": 896,
+  },
+  {
+    "id": "route:GET /api/projects/{id}",
+    "x": 320,
+    "y": 1120,
+  },
+  {
+    "id": "route:GET /api/stats",
+    "x": 640,
+    "y": 1008,
+  },
+  {
+    "id": "route:GET /api/tags",
+    "x": 640,
+    "y": 784,
+  },
+  {
+    "id": "route:GET /api/todos",
+    "x": 640,
+    "y": 560,
+  },
+  {
+    "id": "route:GET /api/todos/{id}",
+    "x": 640,
+    "y": 336,
+  },
+  {
+    "id": "route:GET /api/users",
+    "x": 640,
+    "y": 112,
+  },
+  {
+    "id": "route:GET /api/users/{id}",
+    "x": 960,
+    "y": 0,
+  },
+  {
+    "id": "route:POST /api/auth/login",
+    "x": 320,
+    "y": 112,
+  },
+  {
+    "id": "route:POST /api/auth/me",
+    "x": 320,
+    "y": 336,
+  },
+  {
+    "id": "route:POST /api/comments",
+    "x": 320,
+    "y": 560,
+  },
+  {
+    "id": "route:POST /api/comments/{id}",
+    "x": 320,
+    "y": 784,
+  },
+  {
+    "id": "route:POST /api/projects",
+    "x": 320,
+    "y": 1008,
+  },
+  {
+    "id": "route:POST /api/projects/{id}",
+    "x": 640,
+    "y": 1120,
+  },
+  {
+    "id": "route:POST /api/stats",
+    "x": 640,
+    "y": 896,
+  },
+  {
+    "id": "route:POST /api/tags",
+    "x": 640,
+    "y": 672,
+  },
+  {
+    "id": "route:POST /api/todos",
+    "x": 640,
+    "y": 448,
+  },
+  {
+    "id": "route:POST /api/todos/{id}",
+    "x": 640,
+    "y": 224,
+  },
+  {
+    "id": "route:POST /api/users",
+    "x": 640,
+    "y": 0,
+  },
+  {
+    "id": "route:POST /api/users/{id}",
+    "x": 960,
+    "y": 112,
+  },
+  {
+    "id": "table:comments",
+    "x": 1312,
+    "y": 0,
+  },
+  {
+    "id": "table:projects",
+    "x": 1616,
+    "y": 546,
+  },
+  {
+    "id": "table:sessions",
+    "x": 1312,
+    "y": 190,
+  },
+  {
+    "id": "table:tags",
+    "x": 1312,
+    "y": 760,
+  },
+  {
+    "id": "table:tasks",
+    "x": 1312,
+    "y": 380,
+  },
+  {
+    "id": "table:todo_tags",
+    "x": 1312,
+    "y": 570,
+  },
+  {
+    "id": "table:todos",
+    "x": 1312,
+    "y": 950,
+  },
+  {
+    "id": "table:users",
+    "x": 1616,
+    "y": 356,
+  },
+  {
+    "id": "view:active_todos",
+    "x": 1616,
+    "y": 150,
+  },
+  {
+    "id": "view:project_stats",
+    "x": 1616,
+    "y": 0,
+  },
+  {
+    "id": "workflow:onboard",
+    "x": 1952,
+    "y": 0,
+  },
+  {
+    "id": "workflow:purge",
+    "x": 1952,
+    "y": 150,
+  },
+]
+`;
+
+exports[`the example project layout > is deterministic: same input, same output (snapshot) 2`] = `
+{
+  "height": 1180,
+  "width": 2208,
+}
+`;

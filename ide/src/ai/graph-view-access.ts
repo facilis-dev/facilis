@@ -151,7 +151,9 @@ function subsetOf(view: ProjectGraphView, request: GraphCaptureRequest): Project
   // A connection is only drawn when both cards are in the picture; an explicit edge brings
   // its endpoints along, so a requested edge is always drawn.
   const edges = view.edges.filter((edge) => selected.has(edge.source) && selected.has(edge.target));
-  return { nodes, edges, stats: view.stats };
+  // The subset keeps the parent's auto-layout size: the scene re-derives its own bounds from
+  // the cards it actually draws, and layoutSize describes the layout the subset came from.
+  return { nodes, edges, stats: view.stats, layoutSize: view.layoutSize };
 }
 
 export function createGraphViewAccess(

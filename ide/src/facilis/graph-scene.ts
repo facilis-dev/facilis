@@ -7,30 +7,14 @@
 // scene; keeping geometry out of it is what makes this testable in Node.
 
 import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
-import {
-  EDGE_ENDPOINT_GAP,
-  edgeGeometry,
-  floatingAnchors,
-  nodeRect,
-  selfLoopGeometry,
-  type Rect,
-} from "./graph-edge-geometry";
+import { edgeGeometry, nodeRect, selfLoopGeometry, type Rect } from "./graph-edge-geometry";
+import { routeEdge } from "./graph-edge-routing";
+import { GRAPH_CARD_SIZES } from "./graph-layout-engine";
 import type { GraphLayoutFile } from "./graph-layout-file";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./graph-types";
 
-/**
- * Card classes (w-56/w-60/w-64 = 224/240/256 px) plus the height each kind's content settles at
- * in the panel; the workflow card is wider than the edge fallback because its class says so.
- */
-const CARD_SIZES: Readonly<
-  Record<GraphNodeKind, { readonly width: number; readonly height: number }>
-> = {
-  page: { width: 224, height: 157 },
-  route: { width: 256, height: 60 },
-  table: { width: 240, height: 80 },
-  view: { width: 240, height: 80 },
-  workflow: { width: 256, height: 64 },
-};
+/** The engine's card sizes are the scene's sizes: one source of truth keeps the two in sync. */
+const CARD_SIZES = GRAPH_CARD_SIZES;
 
 /** Blank space around the drawing (self-loops bulge ~62 px out of a card). */
 const SCENE_PADDING = 72;
@@ -107,6 +91,7 @@ function edgePath(
   source: Rect | undefined,
   target: Rect | undefined,
   curve: { readonly x: number; readonly y: number } | null,
+  obstacles: readonly Rect[],
 ): string {
   // A missing card can only happen for an edge the caps cut; fall back to a straight segment.
   if (source === undefined || target === undefined) {
@@ -114,7 +99,7 @@ function edgePath(
     return edgeGeometry({ source: from, target: from }, curve).path;
   }
   if (edge.source === edge.target) return selfLoopGeometry(source, curve).path;
-  return edgeGeometry(floatingAnchors(source, target, EDGE_ENDPOINT_GAP), curve).path;
+  return routeEdge(source, target, { obstacles, curve }).path;
 }
 
 /** Build the deterministic scene for one visible view + the committed layout. */
@@ -162,6 +147,7 @@ export function buildGraphScene(
       },
     };
   });
+  const obstacles = [...rects.values()];
   const sceneEdges: GraphSceneEdge[] = selectedEdges.map((edge) => {
     const style = edgeStyleOf(edge, palette);
     return {
@@ -171,6 +157,7 @@ export function buildGraphScene(
         rects.get(edge.source),
         rects.get(edge.target),
         layout.edgeCurves[edge.id] ?? null,
+        obstacles,
       ),
       stroke: style.stroke,
       dashed: style.dashed,

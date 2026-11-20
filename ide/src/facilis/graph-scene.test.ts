@@ -104,7 +104,8 @@ describe("buildGraphScene", () => {
     const straightPath = straight.edges.find((edge) => edge.id === ROUTE_TABLE.id)?.path;
     const bentPath = bent.edges.find((edge) => edge.id === ROUTE_TABLE.id)?.path;
     expect(bentPath).not.toBe(straightPath);
-    expect(bentPath).toMatch(/^M -?\d+(?:\.\d+)? -?\d+(?:\.\d+)? C /u);
+    // The router draws orthogonal segments; the curve bends the middle one.
+    expect(bentPath).toMatch(/^M -?\d+(?:\.\d+)? -?\d+(?:\.\d+)? L /u);
   });
 
   it("draws a self-loop as a cubic path", () => {

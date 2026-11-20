@@ -200,6 +200,11 @@ export interface ProjectGraphView {
   readonly nodes: readonly ProjectGraphNode[];
   readonly edges: readonly ProjectGraphEdge[];
   readonly stats: ProjectGraphStats;
+  /**
+   * Achieved bounding box of the auto layout (issue #61), before saved overrides: the engine
+   * targets 16:9 and fitView frames exactly these bounds through the placed nodes.
+   */
+  readonly layoutSize: { readonly width: number; readonly height: number };
 }
 
 /** Canonical edge-kind order, used by the filters, serialiser and legend. */
@@ -214,15 +219,3 @@ export const GRAPH_EDGE_KINDS = [
   "route-view",
   "view-base",
 ] as const satisfies readonly GraphEdgeKind[];
-
-/**
- * The layout columns, in CSS pixels. Views are schema objects too, so they share the tables
- * column (below it, behind a gap); workflows get the fourth column on the right.
- */
-export const GRAPH_COLUMNS = {
-  page: 0,
-  route: 344,
-  table: 680,
-  view: 680,
-  workflow: 1016,
-} as const;

@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   EDGE_ENDPOINT_GAP,
   SELF_LOOP_RADIUS,
-  borderPoint,
   edgeGeometry,
-  floatingAnchors,
   nodeRect,
   selfLoopGeometry,
   type Rect,
@@ -27,50 +25,6 @@ describe("nodeRect", () => {
       center: { x: 60, y: 40 },
       width: 100,
       height: 40,
-    });
-  });
-});
-
-describe("borderPoint", () => {
-  const card = rect(100, 50);
-
-  it.each([
-    ["right", { x: 1, y: 0 }, { x: 50, y: 0 }],
-    ["left", { x: -1, y: 0 }, { x: -50, y: 0 }],
-    ["bottom", { x: 0, y: 1 }, { x: 0, y: 25 }],
-    ["top", { x: 0, y: -1 }, { x: 0, y: -25 }],
-  ])("hits the %s border", (_side, towards, expected) => {
-    expect(borderPoint(card, towards)).toEqual(expected);
-  });
-
-  it("hits the nearest border on a diagonal", () => {
-    expect(borderPoint(card, { x: 100, y: 100 })).toEqual({ x: 25, y: 25 });
-  });
-
-  it("pushes the point outwards by the gap", () => {
-    expect(borderPoint(card, { x: 1, y: 0 }, EDGE_ENDPOINT_GAP)).toEqual({ x: 56, y: 0 });
-    const diagonal = borderPoint(card, { x: 1, y: 1 }, EDGE_ENDPOINT_GAP);
-    expect(diagonal.x).toBeCloseTo(25 + EDGE_ENDPOINT_GAP / Math.SQRT2);
-    expect(diagonal.y).toBeCloseTo(25 + EDGE_ENDPOINT_GAP / Math.SQRT2);
-  });
-
-  it("falls back to the right border when the target is the centre", () => {
-    expect(borderPoint(card, { x: 0, y: 0 }, 6)).toEqual({ x: 56, y: 0 });
-  });
-});
-
-describe("floatingAnchors", () => {
-  it("anchors each card where the centre line crosses its border", () => {
-    expect(floatingAnchors(rect(100, 40, 0, 0), rect(100, 40, 300, 0))).toEqual({
-      source: { x: 56, y: 0 },
-      target: { x: 244, y: 0 },
-    });
-  });
-
-  it("anchors a vertical connection on the facing borders", () => {
-    expect(floatingAnchors(rect(100, 100, 0, 0), rect(100, 100, 0, 200))).toEqual({
-      source: { x: 0, y: 56 },
-      target: { x: 0, y: 144 },
     });
   });
 });
