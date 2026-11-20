@@ -13,6 +13,7 @@ import {
   DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
   encodeGraphViewState,
+  type GraphGroupBy,
   type GraphLensId,
   type GraphViewMode,
   type GraphViewState,
@@ -34,6 +35,10 @@ interface GraphViewLocalState {
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
+  /** Cluster fields (issue #62): panel-local, URL-synced, never persisted to .facilis/graph/. */
+  readonly groupBy: GraphGroupBy;
+  readonly collapsedClusters: readonly string[];
+  readonly drill: string | null;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -42,6 +47,9 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
+  groupBy: DEFAULT_GRAPH_VIEW_STATE.groupBy,
+  collapsedClusters: DEFAULT_GRAPH_VIEW_STATE.collapsedClusters,
+  drill: DEFAULT_GRAPH_VIEW_STATE.drill,
 };
 
 export interface ProjectGraphViewState {
@@ -55,6 +63,9 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
+  readonly setGroupBy: (groupBy: GraphGroupBy) => void;
+  readonly setCollapsedClusters: (ids: readonly string[]) => void;
+  readonly setDrill: (id: string | null) => void;
 }
 
 /**
@@ -125,6 +136,9 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      groupBy: pending.groupBy,
+      collapsedClusters: pending.collapsedClusters,
+      drill: pending.drill,
     });
     restoreView({
       hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
@@ -178,6 +192,27 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setGroupBy = useCallback(
+    (groupBy: GraphGroupBy) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, groupBy }));
+    },
+    [cancelRestore],
+  );
+  const setCollapsedClusters = useCallback(
+    (ids: readonly string[]) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, collapsedClusters: ids }));
+    },
+    [cancelRestore],
+  );
+  const setDrill = useCallback(
+    (id: string | null) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, drill: id }));
+    },
+    [cancelRestore],
+  );
 
   const collapsedIds = useMemo(
     () =>
@@ -194,6 +229,9 @@ export function useProjectGraphViewState(
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
       collapsed: collapsedIds,
+      collapsedClusters: local.collapsedClusters,
+      groupBy: local.groupBy,
+      drill: local.drill,
       viewport: layout.viewport ?? null,
       query: local.query,
     }),
@@ -227,5 +265,17 @@ export function useProjectGraphViewState(
     [],
   );
 
-  return { graph, state, ready, setMode, setActiveLenses, setSelection, setUserFocus, setQuery };
+  return {
+    graph,
+    state,
+    ready,
+    setMode,
+    setActiveLenses,
+    setSelection,
+    setUserFocus,
+    setQuery,
+    setGroupBy,
+    setCollapsedClusters,
+    setDrill,
+  };
 }
