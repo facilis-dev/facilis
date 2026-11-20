@@ -27,10 +27,11 @@ pnpm ide:smoke        # headless acceptance: boot -> create React/TS project -> 
 Everything is installed under `FACILIS_TOOLING_DIR` (default `/tmp/facilis-dev`), never in
 the repository. Nothing under `vendor/` or `ide/public/vendor/` is ever committed.
 
-A *production* build installs `@facilis.dev/*` from npm at the exact version the IDE build
-pins with `FACILIS_PACKAGES_VERSION` (fallback `0.1.0`; D-166, §9/§13). A *dev* build can
-instead install the workspace packages locally from the IDE origin, without publishing
-(`FACILIS_IDE_LOCAL_PACKAGES=0` opts back into npm; issue #41, D-196 — see §2 below).
+A *production* build installs `@facilis.dev/*` from npm at each package's own committed
+version — the IDE build reads `packages/*/package.json` and compiles a per-package minimum
+(D-166, D-198; §9/§13). A *dev* build can instead install the workspace packages locally from
+the IDE origin, without publishing (`FACILIS_IDE_LOCAL_PACKAGES=0` opts back into npm;
+issue #41, D-196 — see §2 below).
 
 ## Why this page exists
 
@@ -100,25 +101,28 @@ sh scripts/dev/vendor-assets.sh --all    # + yarn, corepack, tsgo, pyodide, ruff
 The generators write into `vendor/vivari/packages/studio/public/vendor` (gitignored, inside
 the submodule); the script copies the results into `ide/public/vendor/` (also gitignored).
 
-The template's `@facilis.dev/*` dependencies are not packed or vendored locally any more
-(D-166). Generated projects install with **npm** inside the WebContainer (D-032) and the
-template declares every framework package at an exact registry version: the IDE build injects
-the release version through `FACILIS_PACKAGES_VERSION` and pins all of them to it, so
-`npm install` resolves them like React or Zod. The IDE no longer fetches package bytes from its
-own origin into the create request, and the project has no `vendor/` directory and no
-`scripts/vendor-paths.cjs`.
+The template's `@facilis.dev/*` dependencies are not packed or vendored locally in a
+release build (D-166). Generated projects install with **npm** inside the WebContainer (D-032)
+and the template declares every framework package at its own exact committed registry version:
+the IDE build reads `packages/*/package.json` and pins each dependency to that package's
+version (D-198), so `npm install` resolves them like React or Zod. The IDE no longer fetches
+package bytes from its own origin into the create request, and a release project has no
+`vendor/` directory and no `scripts/vendor-paths.cjs`.
 
 The published manifest still exports `dist/`, not `src/`: the generated project's Vite config
 is loaded with `--configLoader native`, and a native ESM loader refuses to strip types from
 files under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); the config imports
 `@facilis.dev/nitro/vite`, so that entry must be JS. `scripts/publish-packages.mjs` stages
-exactly that manifest (`exports` resolve to `dist/*.js`, internal deps are pinned to the
-release version), because publishing the workspace manifest directly is not installable.
+exactly that manifest (`exports` resolve to `dist/*.js`, internal deps are pinned to each
+target package's committed version), because publishing the workspace manifest directly is
+not installable.
 
 **Release path (production builds).** A deployed IDE installs `@facilis.dev/*` from npm at
-the exact version the build pins with `FACILIS_PACKAGES_VERSION` (D-166). A change under
-`packages/**` reaches a deployed project only through a published version: publish, then
-rebuild the IDE with the new `FACILIS_PACKAGES_VERSION`.
+each package's committed version (D-166, D-198). A change under `packages/**` reaches a
+deployed project only through a published version: bump the version in the package manifest
+in a PR, merge, and the deploy publishes exactly that version and rebuilds the IDE from the
+same manifests. A project pinned below the built-in per-package minimum does not boot
+silently — the IDE blocks and offers an explicit update (D-065/D-070).
 
 **Dev local path (issue #41, D-196).** A dev build (`pnpm ide:dev`, `pnpm ide:smoke`) instead
 installs the *workspace* packages from the IDE's own origin, so a `packages/**` change is
@@ -138,7 +142,9 @@ route, no `vendor/` directory and no `file:` deps — it keeps the release path 
 | Env var | Default | Meaning |
 |---|---|---|
 | `FACILIS_IDE_LOCAL_PACKAGES` | enabled in dev | set to `0` to install from npm even in a dev build, to test a pinned release |
-| `FACILIS_PACKAGES_VERSION` | `0.1.0` fallback | the exact published version a release build pins (D-166) |
+
+A release build has no version env var: the pins come from the committed
+`packages/*/package.json` manifests, compiled in as `__FACILIS_MINIMUM_PACKAGES__` (D-198).
 
 `vendor/locks/index.json` and `vendor/depcache/index.json` are **not** generated: the kernel
 logs a warning and installs every project from scratch (slower, still correct).
@@ -204,11 +210,12 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
 - The scaffolded project **is** `examples/todo-app` plus the IDE wrappers (D-062): editing
   the example changes what Create produces, and the smoke drives the framework endpoints
   from the IDE page rather than from code inside the project. The tree is inlined at IDE
-  build time, so restart `pnpm ide:dev` after changing the example. The `@facilis.dev/*`
-  dependencies are ordinary published packages installed from npm at the exact version the
-  build pins through `FACILIS_PACKAGES_VERSION` (D-166; a dev build without the variable pins
-  the fallback `0.1.0`): a package change reaches a project only through a published version,
-  so publish and rebuild the IDE, then create the project anew.
+  build time, so restart `pnpm ide:dev` after changing the example. In a release build the
+  `@facilis.dev/*` dependencies are ordinary published packages installed from npm at each
+  package's own committed version (D-166, D-198): a package change reaches a deployed project
+  only through a published version, so bump the manifest, publish and rebuild the IDE, then
+  create the project anew. A dev build instead vendors the workspace packages locally (D-196,
+  §2); with `FACILIS_IDE_LOCAL_PACKAGES=0` it pins the committed versions like a release build.
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 
@@ -428,7 +435,7 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
 | `Blocked request. This host ("…") is not allowed.` | Vite 8 Host check | `FACILIS_DEV_HOST=<host> pnpm --filter @facilis.dev/ide dev …` |
 | UI renders but every text label is missing/blank | no system fonts for Chromium | `pnpm ide:browser`, or point `FACILIS_FONTCONFIG` at a `fonts.conf` |
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
-| `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the project is pinned to a `@facilis.dev/*` version that predates a framework change (or is not on npm at all), or the IDE was built with a stale `FACILIS_PACKAGES_VERSION`: the in-VM config is validated by an older schema, so a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Redeploy so the pipeline publishes the current packages and pins the version it just published, then **recreate the project** — packages are installed when the project is created |
+| `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the project is pinned to a `@facilis.dev/*` version that predates a framework change (or is not on npm at all), or the IDE was built from stale package manifests: the in-VM config is validated by an older schema, so a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Redeploy so the pipeline publishes the committed versions and pins them, then **recreate the project** — packages are installed when the project is created. A project pinned below the IDE's per-package minimum is blocked at boot with an explicit update action instead (D-198) |
 | `manifest` warns `storage_*` and the file routes answer `503 storage_unavailable` | binary storage failed to boot: `storage_local_in_production` means a production build still has `storage.driver: "local"`; `storage_s3_credentials_missing` / `storage_secret_missing` mean the `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET` env vars are absent; `storage_encryption_key_missing` / `storage_encryption_key_invalid` mean `storage.encryption.enabled` is on but `FACILIS_STORAGE_ENCRYPTION_KEY` is absent or the key, key id or retired-keys JSON is malformed; `storage_boot_failed` is an unexpected driver-construction failure (the dev log carries the cause) | set the variables in the deployment environment, or fix the driver configuration, and restart; the rest of the app keeps working, only the file routes degrade (SPEC §5.10, D-116/D-117) |
 | `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
@@ -456,14 +463,14 @@ Production is a **Cloudflare Pages** project named `facilis-ide`, served at
 that touches the IDE inputs, and it is the **one** release workflow: publishing and deploying
 are a single pipeline (D-166). A `publish` job runs first when the push can change
 `packages/**` (or when a manual run sets the `publish` input): it gates, stages and uploads the
-`@facilis.dev/*` packages, and the publish script verifies the registry before the build
-continues (§13). The build then runs with `FACILIS_PACKAGES_VERSION` set to the version it just
-published, rebuilds the two gitignored artifacts it needs (`pnpm ide:wasm` — cached by kernel
-commit — then `pnpm ide:assets`; the third build artifact, the headless browser, is only used
-by `pnpm ide:smoke`), runs
+`@facilis.dev/*` packages at their committed versions (D-198), and the publish script verifies
+the registry before the build continues (§13). The build then reads the same committed
+manifests itself, rebuilds the two gitignored artifacts it needs (`pnpm ide:wasm` — cached by
+kernel commit — then `pnpm ide:assets`; the third build artifact, the headless browser, is only
+used by `pnpm ide:smoke`), runs
 `pnpm --filter @facilis.dev/ide build:app`, and uploads the finished `ide/dist` with
-`wrangler pages deploy`. A push that does not touch `packages/**` skips the publish job and
-pins the current npm `latest`. **Nothing is run locally**, and Cloudflare's own Git
+`wrangler pages deploy`. A push that does not touch `packages/**` skips the publish job; the
+IDE still pins the committed versions. **Nothing is run locally**, and Cloudflare's own Git
 integration is deliberately not used (D-077): it cannot cache the Rust/Wasm toolchain, and the
 pipeline should deploy exactly the tree this repo builds.
 
@@ -642,19 +649,23 @@ when the diff is empty (a failed upload, or a bad one). It gates the published s
 (`turbo lint/typecheck/test/build --filter=./packages/*` plus
 `scripts/check-file-length.mjs`), then stages and uploads each package. Once the upload
 finishes, `scripts/publish-packages.mjs` verifies the registry — it polls until every package
-reports the new version as `latest`, up to ~8 minutes, because npm processes an upload
+reports its own committed version as `latest`, up to ~8 minutes, because npm processes an upload
 asynchronously and the metadata lags by minutes — before the IDE build continues, so a failed or
 inconsistent publish fails the deploy instead of shipping a template pinned to packages that
-are not there. The published version becomes the build's `FACILIS_PACKAGES_VERSION`, and the
-generated-project template pins every `@facilis.dev/*` dependency to it (D-166). A deploy with
-nothing to publish skips the job and pins the current npm `latest`.
+are not there. The build reads the same committed manifests and the generated-project template
+pins every `@facilis.dev/*` dependency to its own package's version (D-166, D-198). A deploy
+with nothing to publish skips the job; the IDE still pins the committed versions.
 
-Versions are derived, not committed: all packages release in lockstep on the next patch after the
-highest version already on npm (`0.1.0` for the first release, the workspace stays at `0.0.0`), and
-a half-failed release retries on a version no package has yet. The manifest that reaches npm is
-staged by `scripts/publish-packages.mjs`: `exports` resolve to `dist/*.js`, internal deps are
-pinned to the release version, `devDependencies`/`scripts` are dropped and test modules are
-filtered out — publishing the workspace manifest directly is not installable.
+Versions are committed, not derived (D-198): each `packages/*/package.json` carries the version
+that package publishes, versions may diverge, and a minor/major release is a manifest edit in a
+PR. The script refuses a `0.0.0` placeholder, an unparseable version, or a version already on
+npm — a retry never mints a second version; a half-failed release is retried at the same
+committed version once npm serves it. The release tag names the set by its headline (highest
+committed) version and the release notes carry the full `name@version` ledger, verified after
+creation. The manifest that reaches npm is staged by `scripts/publish-packages.mjs`: `exports`
+resolve to `dist/*.js`, internal deps are pinned to each target package's committed version,
+`devDependencies`/`scripts` are dropped and test modules are filtered out — publishing the
+workspace manifest directly is not installable.
 
 **One-time setup — trusted publishing (OIDC), no token.** The upload authenticates with npm
 [trusted publishing](https://docs.npmjs.com/trusted-publishers): the job mints a short-lived
@@ -675,22 +686,24 @@ after that it can neither be used nor edited, and must be deleted and re-created
 release after adding the publishers is the validation run — a push that changes `packages/`, or
 a `workflow_dispatch` with `publish=true`.
 
-Every published version is also recorded in git: the deploy job tags that commit `vX.Y.Z` and opens
-a GitHub Release with generated notes (D-183), so the Releases page is the ledger of what npm
-serves. `pnpm release:status` prints the three facts together — the last tag, the version npm
-serves (per package, so a lockstep break shows) and the version this checkout's IDE build pins —
-and `--check` exits non-zero when they disagree. The deployed IDE shows its pin in the status bar,
-next to the branch: it is a build-time literal, otherwise visible only in the deploy log. A
-`workflow_dispatch` run with `publish=true` and `version=0.2.0` is how a minor (or major) release
-is cut; the default stays the next patch. `0.1.0` predates the tags and has none.
+Every published set is also recorded in git: the deploy job tags that commit with the headline
+version `vX.Y.Z` and opens a GitHub Release whose notes name every published `name@version` plus
+the generated PR notes (D-183, amended by D-198), so the Releases page is the ledger of what npm
+serves. `pnpm release:status` compares the committed `packages/*/package.json` versions with
+npm's `latest` per package and exits non-zero on any drift (a bump not yet published, npm ahead
+of the checkout, an unpublished package, or an unreachable registry); the last tag is shown as
+information only. The deployed IDE shows its per-package minimum in the status bar, next to the
+branch: it is a build-time literal, otherwise visible only in the deploy log. A minor (or major)
+release is a version edit in the package manifests, merged through a PR — there is no version
+input or flag. `0.1.0` predates the tags and has none.
 
 **Local rehearsal and manual release.**
 
 ```sh
-pnpm release:status                                           # tag vs npm vs the IDE pin
-pnpm publish:dry-run                                          # build, stage, npm publish --dry-run
-pnpm publish:packages                                         # real publish (needs npm login on the org)
-node scripts/publish-packages.mjs --version 0.2.0 --dry-run   # pin the version explicitly
+pnpm release:status          # committed versions vs npm latest (exit 1 on drift)
+pnpm publish:dry-run         # build, stage, npm publish --dry-run (pre-release rehearsal;
+                             # npm refuses versions already published — expected after a release)
+pnpm publish:packages        # real publish (needs npm login on the org)
 ```
 
 `npm publish` inside a package directory is never right: the workspace `exports` point at

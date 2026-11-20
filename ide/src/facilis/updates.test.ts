@@ -71,3 +71,63 @@ describe("update planning", () => {
     expect(plan.steps).toEqual([]);
   });
 });
+
+// D-198: the framework-minimum step is required by the project's pins, not its marker,
+// so requiredTargets forces it regardless of the environment-version comparison.
+describe("required targets (D-198)", () => {
+  const recipes = [{ from: "0.0.0", to: "0.1.10" }];
+
+  it("forces the step for a current project and reports an update", () => {
+    const plan = planUpdate({
+      projectVersion: "2026.11",
+      currentVersion: "2026.11",
+      recipes,
+      requiredTargets: ["0.1.10"],
+    });
+    expect(plan.status).toBe("outdated");
+    expect(plan.steps).toEqual([{ from: "0.0.0", to: "0.1.10" }]);
+  });
+
+  it("forces the step for a marker-less (unknown) project", () => {
+    const plan = planUpdate({
+      projectVersion: null,
+      currentVersion: "2026.11",
+      recipes,
+      requiredTargets: ["0.1.10"],
+    });
+    expect(plan.status).toBe("outdated");
+    expect(plan.steps).toEqual([{ from: "0.0.0", to: "0.1.10" }]);
+  });
+
+  it("forces the step even for an ahead project (pins still below minimum)", () => {
+    const plan = planUpdate({
+      projectVersion: "2026.12",
+      currentVersion: "2026.11",
+      recipes,
+      requiredTargets: ["0.1.10"],
+    });
+    expect(plan.status).toBe("outdated");
+    expect(plan.steps.length).toBe(1);
+  });
+
+  it("does not duplicate a step the version comparison already selected", () => {
+    const plan = planUpdate({
+      projectVersion: "0.1.9",
+      currentVersion: "0.1.10",
+      recipes,
+      requiredTargets: ["0.1.10"],
+    });
+    expect(plan.steps).toEqual([{ from: "0.0.0", to: "0.1.10" }]);
+  });
+
+  it("ignores a target this build ships no recipe for", () => {
+    const plan = planUpdate({
+      projectVersion: "2026.11",
+      currentVersion: "2026.11",
+      recipes,
+      requiredTargets: ["9.9.9"],
+    });
+    expect(plan.status).toBe("current");
+    expect(plan.steps).toEqual([]);
+  });
+});

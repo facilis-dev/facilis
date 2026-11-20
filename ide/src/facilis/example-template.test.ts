@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { frameworkPackageMinimums } from "@/deploy/current";
 import { examplePackageJson, exampleProjectFiles } from "./example-template";
 import { createFacilisTemplate, type FacilisManifest } from "./facilis-template";
 import { HMR_HINT } from "./template-overrides";
@@ -95,12 +96,14 @@ describe("generated template", () => {
     expect((template.manifest as FacilisManifest).assets).toEqual([]);
   });
 
-  it("pins every @facilis.dev package to the published version", () => {
+  it("pins every @facilis.dev package to its own released version (D-198)", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
     for (const name of ["analyze", "auth", "core", "db", "nitro", "storage", "time"]) {
-      expect(pkg.dependencies["@facilis.dev/" + name]).toBe("0.1.0");
+      expect(pkg.dependencies["@facilis.dev/" + name]).toBe(
+        frameworkPackageMinimums["@facilis.dev/" + name],
+      );
     }
     expect(pkg.dependencies["@facilis.dev/ui"]).toBeUndefined();
     expect(JSON.stringify(pkg)).not.toContain("workspace:");

@@ -1,6 +1,6 @@
 // The generated project installs with the npm the IDE vendors (D-032), and its
-// @facilis.dev/* packages install from the npm registry at the exact published version
-// this build pins (D-166). Both halves are cross-file invariants that fail at install time
+// @facilis.dev/* packages install from the npm registry at each package's own committed
+// version (D-166/D-198). Both halves are cross-file invariants that fail at install time
 // in a confusing place if they drift: a version bump in one place only, or a dependency
 // the template lists but the example does not carry.
 
@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 // build), and ?raw reads the file through Vite's loader, which vitest also serves.
 import assetScript from "../../../scripts/dev/vendor-assets.sh?raw";
 import type { FacilisManifest } from "./facilis-template";
+import { frameworkPackageMinimums } from "@/deploy/current";
 import { openDeployment } from "@/deploy/resolve";
 import { examplePackageJson } from "./example-template";
 import { createFacilisTemplate, TEMPLATE_PACKAGES } from "./facilis-template";
@@ -46,12 +47,14 @@ describe("generated project package manager", () => {
     expect(guard).not.toContain("pnpm/");
   });
 
-  it("pins every @facilis.dev/* package to the published version", () => {
+  it("pins every @facilis.dev/* package to its own released version", () => {
     const deps = generatedPackageJson().dependencies;
     for (const name of PACKAGES) {
-      // The fallback an unbundled build compiles in; the deploy pipeline injects the
-      // exact published version (D-166), and the template must never float a range.
-      expect(deps["@facilis.dev/" + name]).toBe("0.1.0");
+      // The build compiles the table from packages/*/package.json (D-198); the template
+      // must never float a range or leak the example's workspace: spec.
+      const minimum = frameworkPackageMinimums["@facilis.dev/" + name];
+      expect(minimum).toMatch(/^[0-9]+\.[0-9]+\.[0-9]+$/);
+      expect(deps["@facilis.dev/" + name]).toBe(minimum);
     }
   });
 
@@ -106,7 +109,9 @@ describe("dev local packages manifest (issue #41)", () => {
   it("still pins the exact published version in release mode", () => {
     const deps = (JSON.parse(fullstackPackageJson(examplePackageJson(), false)) as PackageJson)
       .dependencies;
-    for (const name of PACKAGES) expect(deps["@facilis.dev/" + name]).toBe("0.1.0");
+    for (const name of PACKAGES) {
+      expect(deps["@facilis.dev/" + name]).toBe(frameworkPackageMinimums["@facilis.dev/" + name]);
+    }
   });
 
   it("copies file: directory deps via install-links in local mode, not in release", () => {
@@ -127,7 +132,9 @@ describe("dev local packages manifest (issue #41)", () => {
     const local = JSON.parse(staticPackageJson(source, true)) as PackageJson;
     const release = JSON.parse(staticPackageJson(source, false)) as PackageJson;
     expect(local.dependencies["@facilis.dev/core"]).toBe("file:./vendor/facilis/core");
-    expect(release.dependencies["@facilis.dev/core"]).toBe("0.1.0");
+    expect(release.dependencies["@facilis.dev/core"]).toBe(
+      frameworkPackageMinimums["@facilis.dev/core"],
+    );
     expect(local.dependencies.react).toBe("19.3.0");
   });
 });

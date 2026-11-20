@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/core",
-  "version": "0.0.0",
+  "version": "0.1.10",
   "type": "module",
   "description": "Facilis framework core: configuration contract, authorized-handler types and manifest shapes.",
   "license": "MIT",

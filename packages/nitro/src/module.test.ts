@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,11 @@ import {
 } from "./virtual-ids.ts";
 
 const projectRoot = fileURLToPath(new URL("../test-fixtures/project", import.meta.url));
+// The virtual module reports the version committed in the core manifest (D-198), so the
+// assertion reads it too instead of pinning a placeholder literal that every bump breaks.
+const coreVersion: string = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../../core/package.json", import.meta.url)), "utf8"),
+).version;
 
 interface MockOptions {
   rootDir: string;
@@ -133,7 +138,7 @@ describe("createFacilisNitroModule", () => {
     expect(code).toContain("export default config;");
     expect(code).toContain(`facilis.config.ts`);
     expect(code).toContain("export const configError = undefined;");
-    expect(code).toContain('export const coreVersion = "0.0.0";');
+    expect(code).toContain(`export const coreVersion = ${JSON.stringify(coreVersion)};`);
   });
 
   it("degrades gracefully when facilis.config.ts is missing", async () => {

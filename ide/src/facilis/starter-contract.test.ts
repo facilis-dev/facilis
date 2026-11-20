@@ -5,6 +5,7 @@
 // smoke's job (scripts/dev/smoke-facilis.mjs drives it from the IDE page).
 
 import { describe, expect, it } from "vitest";
+import { frameworkPackageMinimums } from "@/deploy/current";
 import { createFacilisTemplate } from "./facilis-template";
 
 const files = createFacilisTemplate().files;
@@ -73,8 +74,11 @@ describe("generated starter contract", () => {
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
-    // Published from npm at the version the build pins (D-166), never a file: tarball.
-    expect(pkg.dependencies["@facilis.dev/storage"]).toBe("0.1.0");
+    // Published from npm at the package's own committed version (D-166/D-198), never a
+    // file: tarball.
+    expect(pkg.dependencies["@facilis.dev/storage"]).toBe(
+      frameworkPackageMinimums["@facilis.dev/storage"],
+    );
     // The link table and its restrictive policies are declared, not authored as SQL.
     expect(files["db/schema.ts"]).toContain("fileLinks(todos");
     expect(files["db/schema.ts"]).toContain("facilisFiles");

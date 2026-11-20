@@ -8,7 +8,8 @@
 // process.arch is "wasm32" (DEV.md 6.1). Test/lint tooling stays out: the generated
 // project is a site, not a workspace member.
 
-import { frameworkPackagesVersion } from "@/deploy/current";
+import { frameworkPackageMinimums } from "@/deploy/current";
+import { publishedFrameworkPin } from "./package-minimums";
 import { localPackageSpec, localPackagesEnabled } from "./local-packages";
 import { PROJECT_PACKAGE_MANAGER, VM_OVERRIDES, vmDevDependencies } from "./template-files";
 
@@ -57,12 +58,12 @@ export function staticPackageJson(
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies ?? {})) {
     // A static template has no framework packages, but a future one might: keep the same
-    // rule the full-stack template uses — exact published version (D-166), or a file: spec
-    // for the dev local path (issue #41, D-196) — never a workspace spec.
+    // rule the full-stack template uses — each package's own exact version (D-166/D-198),
+    // or a file: spec for the dev local path (issue #41, D-196) — never a workspace spec.
     dependencies[name] = name.startsWith("@facilis.dev/")
       ? local
         ? localPackageSpec(name)
-        : frameworkPackagesVersion
+        : publishedFrameworkPin(name, frameworkPackageMinimums)
       : spec;
   }
   const devDependencies: Record<string, string> = {};

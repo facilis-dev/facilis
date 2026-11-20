@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/db",
-  "version": "0.0.0",
+  "version": "0.1.10",
   "type": "module",
   "description": "Facilis database layer: Drizzle + PGlite client, RLS policy helpers and release diffing.",
   "license": "MIT",

@@ -1,11 +1,20 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.35 (dev reconcile converges table constraints, D-195)
+**Version:** 1.36 (packages carry their released version; per-package minimum, D-198)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.36 — Packages carry their released version; the IDE enforces a per-package minimum (D-198,
+  issue #40). Every `packages/*/package.json` commits the version that package publishes —
+  versions may diverge, there is no lockstep. The publish script uploads exactly those versions
+  and refuses placeholders or versions already on npm; the release tag names the headline
+  version and the release notes carry the full `name@version` ledger. The IDE build reads the
+  manifests and compiles `__FACILIS_MINIMUM_PACKAGES__`; new projects pin each framework
+  dependency to its own committed version, and opening a project pinned below the minimum
+  blocks with an explicit update through the upgrade engine (D-065/D-070) instead of booting.
+  Dev builds keep the local route (D-196). §4.2 follows.
 - v1.35 — The dev reconcile converges existing-table constraints (D-195, issue #49).
   `liveSchemaSnapshot` reads indexes (including single-expression ones), foreign keys and
   checks from `pg_index`/`pg_constraint`; `planReconcile` adds the missing ones and replaces
@@ -27,14 +36,14 @@
   non fallisce più su `users_email_lower_idx`. Indici parziali, su metodo non btree e misti
   colonna/espressione restano `unsupported` (fail closed). §7.3 follows.
 - v1.33 — Generated projects install the published packages (D-166). Every `@facilis.dev/*`
-  dependency is an exact version resolved from npm like any other package: the IDE build injects
-  the release version through `FACILIS_PACKAGES_VERSION` and the template pins all framework
-  dependencies to it, so the generated tree no longer carries `vendor/` tarballs or
-  `scripts/vendor-paths.cjs`, and the IDE no longer inlines package bytes into the create
-  request. Publishing rides the IDE deploy workflow instead of a separate one: the publish job
-  runs first only when `packages/**` changed (or via the workflow_dispatch `publish` input), the
-  publish script verifies the registry, and the build pins the version it just published.
-  §4.1/§4.2 follow.
+  dependency is an exact version resolved from npm like any other package: the template pins
+  each framework dependency to that package's own committed version and the IDE build compiles
+  the committed manifests into a per-package minimum (D-198), so the generated tree no longer
+  carries `vendor/` tarballs or `scripts/vendor-paths.cjs`, and the IDE no longer inlines package
+  bytes into the create request. Publishing rides the IDE deploy workflow instead of a separate
+  one: the publish job runs first only when `packages/**` changed (or via the workflow_dispatch
+  `publish` input), the publish script verifies the registry, and the build pins the versions it
+  just published. §4.1/§4.2 follow.
 - v1.32 — Published packages (D-164). The framework packages publish to public npm under the
   organization scope `@facilis.dev`; every `@facilis/*` name in this spec is now
   `@facilis.dev/*` (imports, generated-project template, vendored tarballs, lockfile). Outside the
@@ -409,11 +418,15 @@ changes in the config's optional `nitro` section. Route files live under `server
 `routes/` at project root.
 
 Every `@facilis.dev/*` dependency in `package.json` is an **exact version installed from npm**,
-like any other dependency (D-166): the IDE build injects the release version through
-`FACILIS_PACKAGES_VERSION` and the template pins every framework package to it (a dev build
-without the variable pins the `0.1.0` fallback). The generated tree therefore carries no
-`vendor/` directory and no tarball-path shim — `scripts/` holds only `check-pm.mjs` — and npm
-fetches the framework packages when the project installs.
+like any other dependency (D-166, D-198): each package carries its released version in
+`packages/*/package.json`, the IDE build reads those manifests at build time and compiles a
+per-package minimum table (`__FACILIS_MINIMUM_PACKAGES__`), and the template pins every framework
+package to its own committed version. Opening a project whose pins fall below that table does
+not boot silently: the IDE blocks and offers an explicit update through the upgrade engine
+(D-065/D-070); `file:`/`workspace:` pins (dev-local, D-196) and projects without framework
+dependencies pass. The generated tree therefore carries no `vendor/` directory and no
+tarball-path shim — `scripts/` holds only `check-pm.mjs` — and npm fetches the framework packages
+when the project installs. A dev build keeps the local route unchanged (D-196).
 
 `db/migrations/` and its `meta/` journal are not part of the generated project: DDL is a release
 artifact generated from the tag pair, never a directory the app carries (D-158). The dev boot
