@@ -1,9 +1,10 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issue #57).
 //
-// This file is the composition root: search, the stats-ribbon filter, zen mode, selection and the
-// AI focus. The analysis lifecycle lives in useProjectGraphAnalysis, the saved layout in
-// useProjectGraphLayout, and the chrome in ProjectGraphShell / ProjectGraphHud / StatsRibbon.
+// This file is the composition root: the stats-ribbon filter, zen mode and the AI focus. The
+// analysis lifecycle lives in useProjectGraphAnalysis, the URL-synced view (search, selection,
+// mode, lenses) in useProjectGraphViewState — which composes the saved-layout hook — and the
+// chrome in ProjectGraphShell / ProjectGraphHud / StatsRibbon.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -29,7 +30,7 @@ import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
-import { useProjectGraphLayout } from "./useProjectGraphLayout";
+import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
@@ -42,15 +43,23 @@ export function ProjectGraphPanel() {
     root,
     indexReady,
   );
-  const [query, setQuery] = useState("");
   const [zenState, dispatchZen] = useReducer(zenReducer, INITIAL_ZEN);
   const zen = zenState.zen;
   const [filter, setFilter] = useState(EMPTY_STATS_FILTER);
   const [fitNonce, setFitNonce] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // The React Flow instance, lifted only so the HUD zoom buttons can drive it (issue #57).
   const [flow, setFlow] = useState<{ zoomIn: () => void; zoomOut: () => void } | null>(null);
-  const graph = useProjectGraphLayout(c, root);
+  // The addressable view (issue #58): query/selection live in the URL-synced state, which also
+  // composes the layout hook. knownNodeIds lets a deep link drop ids this project does not have.
+  const knownNodeIds = useMemo(
+    () => (analysis === null ? null : new Set(analysis.graph.nodes.map((node) => node.id))),
+    [analysis],
+  );
+  const viewState = useProjectGraphViewState(c, root, knownNodeIds);
+  const graph = viewState.graph;
+  const { query, selection: selectedNodeId } = viewState.state;
+  const setQuery = viewState.setQuery;
+  const setSelectedNodeId = viewState.setSelection;
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
@@ -160,7 +169,8 @@ export function ProjectGraphPanel() {
   if (root === null) state = { kind: "no-project" };
   else if (!indexReady) state = { kind: "loading" };
   else if (error !== null) state = { kind: "error", error };
-  else if (view === null || !layoutLoaded) state = { kind: "loading" };
+  // ready gates the canvas until a deep link has restored, so it mounts on the restored viewport.
+  else if (view === null || !layoutLoaded || !viewState.ready) state = { kind: "loading" };
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
   const stats = view?.stats ?? null;
