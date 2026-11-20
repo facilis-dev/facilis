@@ -7,7 +7,7 @@ import {
   type AstNode,
 } from "../ast/node.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
-import { staticString, type StaticContext } from "../static-eval.ts";
+import type { StaticContext } from "../static-eval.ts";
 import type {
   CheckFact,
   Diagnostic,
@@ -24,8 +24,8 @@ import {
   type DslResolver,
   type DslSymbol,
 } from "./schema-dsl.ts";
-import { plainColumn, readIndex } from "./schema-indexes.ts";
-import { renderSqlTemplate } from "./schema-sql.ts";
+import { readCheck, readPrimaryKey, readUniqueConstraint } from "./schema-constraints.ts";
+import { readIndex } from "./schema-indexes.ts";
 
 /** Policy helpers are read by schema-policies.ts; the extras scan must not double-report them. */
 const POLICY_HELPERS = new Set([
@@ -50,13 +50,19 @@ export interface TableExtrasScan {
   readonly indexes: readonly IndexFact[];
   readonly checks: readonly CheckFact[];
   readonly uniqueConstraints: readonly UniqueConstraintFact[];
+  /**
+   * Ordered Drizzle property keys of a table-level `primaryKey({ columns })`; null when the
+   * table declares none (column-level `.primaryKey()` then applies). A present-but-unreadable
+   * key is [] plus an unsupported entry, never a silent fall back to the column level.
+   */
+  readonly primaryKey: readonly string[] | null;
   readonly unsupported: readonly UnsupportedDeclarationFact[];
   readonly unknown: readonly UnknownFact[];
   readonly diagnostics: readonly Diagnostic[];
 }
 
 function emptyScan(): TableExtrasScan {
-  return { indexes: [], checks: [], uniqueConstraints: [], unsupported: [], unknown: [], diagnostics: [] };
+  return { indexes: [], checks: [], uniqueConstraints: [], primaryKey: null, unsupported: [], unknown: [], diagnostics: [] };
 }
 
 interface MethodCall {
@@ -133,81 +139,7 @@ function calleeLabel(callee: unknown): string {
   return identifierName(node) ?? memberName(node) ?? "extras entry";
 }
 
-
-function readCheck(
-  call: ExtrasCall,
-  input: TableExtrasInput,
-  context: StaticContext,
-  tableParam: string | null,
-): CheckFact {
-  const source = nodeRef(input.file, call.base);
-  const unknowns: UnknownFact[] = [];
-  const args = callArguments(call.base);
-  const nameResult = staticString(args[0], context);
-  const name = nameResult.ok ? nameResult.value : "unknown";
-  if (!nameResult.ok) unknowns.push(schemaUnknown("check name is not a static string", source));
-  if (args[1] === undefined) {
-    unknowns.push(schemaUnknown('check "' + name + '" has no expression', source));
-    return { name, expression: null, source, unknown: unknowns };
-  }
-  const rendered = renderSqlTemplate(args[1], {
-    context,
-    resolver: input.resolver,
-    tableParam,
-    tableName: input.tableName,
-    columns: input.columns,
-    allowExpressions: true,
-  });
-  if (rendered.sql === null) {
-    unknowns.push(
-      schemaUnknown('check "' + name + '" is not a readable sql template: ' + (rendered.reason ?? ""), source),
-    );
-  }
-  return { name, expression: rendered.sql, source, unknown: unknowns };
-}
-
-function readUniqueConstraint(
-  call: ExtrasCall,
-  input: TableExtrasInput,
-  context: StaticContext,
-  tableParam: string | null,
-): UniqueConstraintFact {
-  const source = nodeRef(input.file, call.base);
-  const unknowns: UnknownFact[] = [];
-  const nameResult = staticString(callArguments(call.base)[0], context);
-  const name = nameResult.ok ? nameResult.value : "unknown";
-  if (!nameResult.ok) unknowns.push(schemaUnknown("unique constraint name is not a static string", source));
-  let elements: readonly AstNode[] = [];
-  let clauseSeen = false;
-  for (const entry of call.methods) {
-    if (entry.name === "on") {
-      if (clauseSeen) {
-        unknowns.push(schemaUnknown("unique constraint has more than one column clause", source));
-        continue;
-      }
-      clauseSeen = true;
-      elements = entry.args;
-      continue;
-    }
-    unknowns.push(
-      schemaUnknown('unique constraint method ".' + entry.name + '" is not modeled', source),
-    );
-  }
-  if (!clauseSeen) unknowns.push(schemaUnknown("unique constraint has no on() column clause", source));
-  const columns: string[] = [];
-  for (const element of elements) {
-    const node = unwrapExpression(element);
-    const column = node === undefined ? null : plainColumn(node, tableParam, input.columns);
-    if (column === null) {
-      unknowns.push(schemaUnknown("unique constraint column is not a plain table column", source));
-      return { name, columns: [], source, unknown: unknowns };
-    }
-    columns.push(column);
-  }
-  return { name, columns, source, unknown: unknowns };
-}
-
-/** Extras entries that are not index/check/unique/policy are unreadable declarations, never noise. */
+/** Extras entries that are not index/check/unique/policy/primaryKey are unreadable, never noise. */
 export function buildTableExtras(input: TableExtrasInput): TableExtrasScan {
   if (input.extras === undefined) return emptyScan();
   const callback = extrasCallback(input.extras);
@@ -221,6 +153,7 @@ export function buildTableExtras(input: TableExtrasInput): TableExtrasScan {
   const indexes: IndexFact[] = [];
   const checks: CheckFact[] = [];
   const uniqueConstraints: UniqueConstraintFact[] = [];
+  let primaryKey: string[] | null = null;
   const unsupported: UnsupportedDeclarationFact[] = [];
   const unknown: UnknownFact[] = [];
   for (const entry of entries) {
@@ -270,8 +203,20 @@ export function buildTableExtras(input: TableExtrasInput): TableExtrasScan {
       if (fact.unknown.length > 0) unsupported.push({ construct: "unique", name: fact.name });
       continue;
     }
-    // pgPolicy is read by schema-policies.ts; table-level primaryKey() is out of this change.
-    if (symbol.name === "pgPolicy" || symbol.name === "primaryKey") continue;
+    // pgPolicy is read by schema-policies.ts, so the extras scan must not double-report it.
+    if (symbol.name === "pgPolicy") continue;
+    if (symbol.name === "primaryKey") {
+      // The runtime keeps the first table-level key; a second one is a broken declaration.
+      if (primaryKey !== null) {
+        unknown.push(schemaUnknown("table declares more than one primaryKey", nodeRef(input.file, chain.base)));
+        continue;
+      }
+      const key = readPrimaryKey(chain, input, callback.param);
+      primaryKey = [...key.columns];
+      unknown.push(...key.unknown);
+      if (key.unknown.length > 0) unsupported.push({ construct: "primary_key", name: input.tableName });
+      continue;
+    }
     unknown.push(
       schemaUnknown('table extras call "' + symbol.name + '" is outside the documented DSL', nodeRef(input.file, chain.base)),
     );
@@ -280,6 +225,7 @@ export function buildTableExtras(input: TableExtrasInput): TableExtrasScan {
     indexes,
     checks,
     uniqueConstraints,
+    primaryKey,
     unsupported,
     unknown,
     diagnostics: schemaDiagnostics(unknown),

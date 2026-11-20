@@ -12,7 +12,9 @@ import {
   pgEnum,
   pgPolicy,
   pgTable,
+  primaryKey,
   text,
+  timestamp,
   unique,
   uniqueIndex,
   uuid,
@@ -45,6 +47,18 @@ const documents = pgTable(
   ],
 ).enableRLS();
 
+// A composite table-level primaryKey, the shape the auth tables use (role_permissions,
+// user_roles, auth_identities): no column carries .primaryKey(), the key lives in extras.
+const memberships = pgTable(
+  "memberships",
+  {
+    userId: uuid("user_id").notNull(),
+    roleId: text("role_id").notNull(),
+    grantedAt: timestamp("granted_at").defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.roleId] })],
+);
+
 function fromSource(source: string) {
   const analysis = analyzeProject({ files: new Map([["db/schema.ts", source]]), parser });
   return schemaSnapshotFromAnalysis(analysis);
@@ -73,6 +87,16 @@ const SOURCE = [
   "]).enableRLS();",
 ].join("\n");
 
+const MEMBERSHIPS_SOURCE = [
+  'import { pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";',
+  "",
+  'export const memberships = pgTable("memberships", {',
+  '  userId: uuid("user_id").notNull(),',
+  '  roleId: text("role_id").notNull(),',
+  '  grantedAt: timestamp("granted_at").defaultNow(),',
+  "}, (table) => [primaryKey({ columns: [table.userId, table.roleId] })]);",
+].join("\n");
+
 const NOTES = [
   "",
   'export const notes = pgTable("notes", {',
@@ -87,7 +111,7 @@ describe("schemaSnapshotFromAnalysis", () => {
   let db: FacilisDb;
 
   beforeAll(async () => {
-    db = await createDb({ schema: { documents } });
+    db = await createDb({ schema: { documents, memberships } });
   }, 30_000);
 
   afterAll(async () => {
@@ -131,6 +155,34 @@ describe("schemaSnapshotFromAnalysis", () => {
     expect(mappedTable?.columns.map(columnShape)).toEqual(runtimeTable?.columns.map(columnShape));
     expect(mappedTable?.primaryKey).toEqual(runtimeTable?.primaryKey);
     expect(mappedTable?.rlsEnabled).toBe(runtimeTable?.rlsEnabled);
+  });
+
+  it("round-trips a composite table-level primaryKey and marks its member columns", async () => {
+    const mapped = fromSource(MEMBERSHIPS_SOURCE);
+    const runtime = await schemaSnapshot(db);
+    const mappedTable = mapped.tables.find((table) => table.name === "memberships");
+    const runtimeTable = runtime.tables.find((table) => table.name === "memberships");
+    expect(mappedTable?.primaryKey).toEqual(["user_id", "role_id"]);
+    expect(mappedTable?.primaryKey).toEqual(runtimeTable?.primaryKey);
+    const pkByName = (columns: readonly { name: string; isPrimaryKey: boolean }[]) =>
+      Object.fromEntries(columns.map((column) => [column.name, column.isPrimaryKey]));
+    expect(pkByName(mappedTable?.columns ?? [])).toEqual(pkByName(runtimeTable?.columns ?? []));
+    expect(pkByName(mappedTable?.columns ?? [])).toEqual({
+      user_id: true,
+      role_id: true,
+      granted_at: false,
+    });
+  });
+
+  it("snapshots only the enums a column references, like the runtime", () => {
+    const source = [
+      'import { pgEnum, pgTable, text, uuid } from "drizzle-orm/pg-core";',
+      'export const used = pgEnum("used_enum", ["x"]);',
+      'export const unused = pgEnum("unused_enum", ["y"]);',
+      'export const t = pgTable("t", { id: uuid("id").primaryKey(), u: used("u") });',
+    ].join("\n");
+    const mapped = fromSource(source);
+    expect(mapped.enums).toEqual([{ name: "used_enum", values: ["x"] }]);
   });
 
   it("carries a single-expression index as SQL and a partial index as unsupported", () => {
