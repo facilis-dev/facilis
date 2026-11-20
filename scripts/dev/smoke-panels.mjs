@@ -7,6 +7,7 @@
 // the git refs out of the VFS. No mocking and no network: this is the same UI a developer uses.
 
 import { runScmChecks } from "./smoke-scm.mjs";
+import { runGraphHudChecks } from "./smoke-graph-hud.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -161,6 +162,8 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "project graph: pages rendered",
   );
   await page.screenshot(ARTIFACTS + "/05b-project-graph.png");
+  // Issue #57: full-bleed canvas, floating HUD, zen mode and counter filters at fixed viewports.
+  await runGraphHudChecks({ page, record, ARTIFACTS });
 
   // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar reads the
   // schema and the console posts through the preview proxy. Clicking the active activity

@@ -40,7 +40,9 @@ export function ProjectGraphInspector({
   return (
     <aside
       data-testid="project-graph-inspector"
-      className="flex w-80 shrink-0 flex-col border-l bg-sidebar text-xs"
+      // An overlay, not a flex sibling (issue #57): the shell positions it over the canvas,
+      // so opening it never resizes the graph. Popover surface, role tokens only (D-044).
+      className="flex h-full w-80 flex-col overflow-hidden rounded-md border border-border bg-popover text-xs shadow-lg"
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">

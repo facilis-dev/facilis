@@ -1,9 +1,8 @@
 // The project-graph canvas: React Flow over the pure view model. The node cards live in
 // ProjectGraphNodes.tsx, the note cards in ProjectGraphNote.tsx, the edges and their pointer
 // handling in ProjectGraphEdge.tsx and the geometry in graph-edge-geometry.ts, so this file
-// only maps the view to the library and wires the interactions (reactive drag, note placement,
-// double-click source, viewport, fit, edge curves).
-//
+// only maps the view to the library and wires the interactions. Fit/zoom viewport effects
+// live in use-project-graph-fit.ts; the HUD supplies fit padding and zoom/fit events (#57).
 // Nodes are controlled locally so a drag follows the pointer on every move; the final position
 // is committed to the saved layout only on drag stop, so the parent cannot reset a drag.
 //
@@ -14,8 +13,8 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  Controls,
   MarkerType,
+  MiniMap,
   ReactFlow,
   applyNodeChanges,
   type EdgeMouseHandler,
@@ -27,6 +26,7 @@ import {
   type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
+import { t } from "@/i18n";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
@@ -42,8 +42,10 @@ import {
   type ProjectFlowNode,
 } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
+import type { FitPadding } from "./graph-hud-padding";
 import { edgeStyleFor } from "./project-graph-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { useProjectGraphFit, type GraphZoomRequest } from "./use-project-graph-fit";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
@@ -53,6 +55,10 @@ export function ProjectGraphCanvas({
   addNoteNonce,
   viewport,
   fitNonce,
+  fitPadding,
+  zoomRequest,
+  hudVisible,
+  inspectorOpen,
   edgeCurves,
   focus,
   selectedNodeId,
@@ -72,6 +78,10 @@ export function ProjectGraphCanvas({
   addNoteNonce: number;
   viewport: GraphViewport | null;
   fitNonce: number;
+  fitPadding: FitPadding;
+  zoomRequest: GraphZoomRequest | null;
+  hudVisible: boolean;
+  inspectorOpen: boolean;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
   focus: ProjectGraphFocusState | null;
   selectedNodeId: string | null;
@@ -91,7 +101,7 @@ export function ProjectGraphCanvas({
     ProjectFlowEdge
   > | null>(null);
   // Edge selection is local: it drives only the curve handle, so it never enters the saved
-  // layout and cannot fight the parent's `view` round-trip.
+  // layout and cannot fight the parent's view round-trip.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const moved = useRef(false);
 
@@ -150,29 +160,14 @@ export function ProjectGraphCanvas({
   const onNodesChange: OnNodesChange<ProjectFlowNode> = useCallback((changes) => {
     setNodes((current) => applyNodeChanges(changes, current));
   }, []);
-
-  // The fit button and the initial layout both live above this component; only an explicit
-  // request (fitNonce > 0) refits, so a refresh does not throw away a saved viewport.
-  useEffect(() => {
-    if (instance === null || fitNonce <= 0) return;
-    instance.fitView({ padding: 0.15, duration: 200 });
-  }, [fitNonce, instance]);
-
-  // A focus request names nodes that must exist in state before fitView can frame them, so the
-  // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
-  // from refitting: `nodes` is a dependency only so a request made mid-build lands on a later
-  // pass, not on every pointer move.
-  const fittedFocus = useRef<ProjectGraphFocusState | null>(null);
-  useEffect(() => {
-    if (instance === null || focus === null || !focus.zoom) return;
-    if (fittedFocus.current === focus) return;
-    const targets = nodes
-      .filter((node) => focus.nodeIds.has(node.id))
-      .map((node) => ({ id: node.id }));
-    if (targets.length === 0) return;
-    fittedFocus.current = focus;
-    void instance.fitView({ nodes: targets, padding: 0.15, duration: 200 });
-  }, [focus, instance, nodes]);
+  useProjectGraphFit(instance, {
+    fitNonce,
+    fitPadding,
+    focus,
+    nodes,
+    zoomRequest,
+    autoFit: viewport === null,
+  });
 
   // Adding a note is an event, not state: only a nonce change creates one, so a click made
   // while the canvas is not rendered cannot materialize a note on the next mount. The panel
@@ -277,8 +272,6 @@ export function ProjectGraphCanvas({
         }}
         onMoveStart={onMoveStart}
         onMoveEnd={onMoveEnd}
-        fitView={viewport === null}
-        fitViewOptions={{ padding: 0.15 }}
         defaultViewport={viewport === null ? { x: 0, y: 0, zoom: 1 } : viewport}
         nodesConnectable={false}
         zoomOnDoubleClick={false}
@@ -287,7 +280,19 @@ export function ProjectGraphCanvas({
         maxZoom={2}
       >
         <Background color="var(--border)" gap={20} />
-        <Controls showInteractive={false} />
+        {/* The bottom-right HUD chart: the shell's zoom/fit cluster sits just below (bottom-11
+            clears it). It yields to the inspector overlay and hides in zen mode like all HUD. */}
+        {hudVisible && !inspectorOpen && (
+          <MiniMap
+            position="bottom-right"
+            pannable
+            zoomable
+            ariaLabel={t("projectGraph.minimap")}
+            nodeColor="var(--muted-foreground)"
+            maskColor="var(--background)"
+            className="!bottom-11 !right-2 !h-24 !w-36 rounded-md border border-border bg-popover shadow-md"
+          />
+        )}
       </ReactFlow>
     </div>
   );
