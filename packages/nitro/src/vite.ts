@@ -8,6 +8,7 @@ import type { Analysis } from "@facilis.dev/analyze";
 import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
+import { facilisDevMetrics } from "./vite-dev-metrics.ts";
 import type { RouteMetadataMap } from "./types.ts";
 import { RESOLVED_OPENAPI_META_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
 
@@ -129,7 +130,9 @@ export function facilis(): FacilisPlugins {
     },
   };
 
-  return [plugin, ...nitro()];
+  // The dev-only metrics client (D-200) rides along in serve mode; `apply: "serve"`
+  // keeps it out of every production build.
+  return [plugin, facilisDevMetrics(), ...nitro()];
 }
 
 /** True for a file the analyzer reads, excluding generated and dependency directories. */
