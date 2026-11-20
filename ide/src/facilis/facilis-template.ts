@@ -25,9 +25,9 @@ export type { FacilisManifest, TemplateAsset } from "./template-types";
 /**
  * The @facilis.dev packages a generated project declares (D-166).
  *
- * They install from the public npm registry at the exact version this build pins
- * (frameworkPackagesVersion) — ordinary published dependencies (D-164), not inlined
- * tarballs.
+ * They install from the public npm registry at each package's own released version
+ * (frameworkPackageMinimums, D-198) — ordinary published dependencies (D-164), not
+ * inlined tarballs.
  *
  * "ui" is absent: the v1 component kit was removed (D-096), and template v2 copies its
  * primitives into the project (src/components/ui) instead of shipping a package.
@@ -60,8 +60,8 @@ export function createFacilisTemplate(): ProjectTemplate {
     entry: "src/app.tsx",
     hmr: true,
     reload: false,
-    // The @facilis.dev/* deps are ordinary registry dependencies pinned to one exact
-    // version (see fullstack-files.ts), so the install needs no pre-step.
+    // The @facilis.dev/* deps are ordinary registry dependencies, each pinned to its
+    // own exact version (see fullstack-files.ts), so the install needs no pre-step.
     install: "npm install",
     // In the VM the in-process runner makes Nitro own the listener and front Vite, so
     // the single origin the preview targets is the nitro dev-server port, not 5173.

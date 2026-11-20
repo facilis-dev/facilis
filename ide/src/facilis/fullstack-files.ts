@@ -1,8 +1,8 @@
 // The wrappers of the full-stack template (Nitro + PGlite + React): the generated
 // package.json, its tsconfig include and its README.
 //
-// The @facilis.dev/* framework packages install from the public npm registry at the exact
-// version this build pins (frameworkPackagesVersion, D-166). They are ordinary published
+// The @facilis.dev/* framework packages install from the public npm registry at each
+// package's own released version (frameworkPackageMinimums, D-166/D-198). They are ordinary published
 // dependencies, not file: tarballs: the generated project keeps working once it leaves the
 // IDE, and there is nothing binary to ship beside the sources. The v1 UI kit was removed
 // (D-096): template v2 copies its primitives into src/components/ui.
@@ -10,9 +10,10 @@
 // Everything else the project contains comes from examples/todo-app (example-template.ts);
 // this file only writes what cannot: the npm wrapper package.json and the standalone README.
 
-import { frameworkPackagesVersion } from "@/deploy/current";
+import { frameworkPackageMinimums } from "@/deploy/current";
 import { examplePackageJson } from "./example-template";
 import { localPackageSpec, localPackagesEnabled } from "./local-packages";
+import { publishedFrameworkPin } from "./package-minimums";
 import { PROJECT_PACKAGE_MANAGER, VM_OVERRIDES, vmDevDependencies } from "./template-files";
 
 type ExamplePackage = {
@@ -40,8 +41,8 @@ in the project.
 
 ## Package manager
 
-npm. The @facilis.dev/* packages install from the npm registry, pinned to one
-exact published version:
+npm. The @facilis.dev/* packages install from the npm registry, each pinned to
+its own exact published version:
 
     npm run dev
 
@@ -64,14 +65,14 @@ export function fullstackPackageJson(
   const example = JSON.parse(exampleSource) as ExamplePackage;
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies)) {
-    // Release path: exact, never a range — the deploy pipeline injects the published version
-    // this IDE was built against (D-166). Dev local path (issue #41, D-196): a file: spec
-    // naming the copy the create pipeline writes into vendor/facilis/, so npm installs the
-    // workspace package without a registry. `local` defaults to the compiled build flag.
+    // Release path: exact, never a range — each package pins its own committed version
+    // (D-166/D-198). Dev local path (issue #41, D-196): a file: spec naming the copy the
+    // create pipeline writes into vendor/facilis/, so npm installs the workspace package
+    // without a registry. `local` defaults to the compiled build flag.
     dependencies[name] = name.startsWith("@facilis.dev/")
       ? local
         ? localPackageSpec(name)
-        : frameworkPackagesVersion
+        : publishedFrameworkPin(name, frameworkPackageMinimums)
       : spec;
   }
   // Nitro 3.0.260903-beta imports a dozen packages it lists only in its devDependencies —
@@ -129,7 +130,7 @@ export function fullstackPackageJson(
         dependencies,
         devDependencies,
         // The @facilis.dev packages need no override: they are published dependencies at
-        // one exact version, so npm resolves their interdeps from the registry like any
+        // exact versions, so npm resolves their interdeps from the registry like any
         // other package.
         overrides: VM_OVERRIDES,
       },

@@ -35,6 +35,7 @@ import type { ProjectManifest } from "./project-manifest";
 import { templateForCreate, templateForStoredId } from "../facilis/templates";
 import type { CreateProjectOptions } from "../facilis/templates";
 import { projectAdmitted } from "../facilis/admission";
+import { frameworkRunGate } from "../facilis/framework-gate";
 import { markBoot } from "./boot-marks";
 import {
   advance,
@@ -1636,9 +1637,8 @@ export class IdeController {
     }
   }
 
-  // Open a previously-created project (Home recents or the ?project= tab boot). A click
-  // during boot queues on whenKernelReady instead of being dropped, and the per-root
-  // guard collapses repeated clicks into one restore replay + workspace open.
+  // Open a previously-created project (Home recents or the ?project= tab boot). Clicks
+  // during boot queue on whenKernelReady; the per-root guard collapses repeats into one open.
   async openProject(meta: ProjectMeta) {
     await this.whenKernelReady();
     const root = normDir(meta.rootPath);
@@ -1654,9 +1654,8 @@ export class IdeController {
         this.removeProjectMeta(root);
         return;
       }
-      // Only a Facilis project gets a registered manifest - and, in a managed build, only one
-      // that carries a valid .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Anything else still
-      // opens, but Run drops into a shell rather than executing an unvetted project.
+      // Only a Facilis project gets a registered manifest — in managed, only one with a valid
+      // .facilis/facilis.app.json (MANAGED-DEPLOYMENT.md §8). Others open; Run drops to a shell.
       const descriptor = templateForStoredId(meta.template);
       if (descriptor !== undefined && (await projectAdmitted(this.bridge, root))) {
         const template = await descriptor.load();
@@ -1682,31 +1681,32 @@ export class IdeController {
     });
   }
 
-  // Run a project: open a shell in its dir and auto-run install && dev. Re-uses
-  // the existing run terminal if it's still alive.
+  // Run: the D-198 gate checks framework pins first, then a shell auto-runs install && dev.
   runProject(rootPath: string) {
     const root = normDir(rootPath);
-    const manifest = this.folderManifests.get(root);
-    const running = this.runningProjects.get(root);
-    if (running && running.terminalId && this.terminals.has(running.terminalId)) {
-      if (running.port) this.preview.pointPreview(running.port);
-      return;
-    }
-    if (!manifest) {
-      // No known dev command — just drop the user into a shell in the project.
-      this.openTerminalIn(root);
-      return;
-    }
-    markBoot("install-start");
-    warmRegistryConnection();
-    const tid = this.terminals.newShellTerminal({
-      cwd: root,
-      run: manifest.dev,
-      label: manifest.dev,
-      activate: false,
+    void frameworkRunGate(this.bridge, root, () => {
+      const manifest = this.folderManifests.get(root);
+      const running = this.runningProjects.get(root);
+      if (running && running.terminalId && this.terminals.has(running.terminalId)) {
+        if (running.port) this.preview.pointPreview(running.port);
+        return;
+      }
+      if (!manifest) {
+        // No known dev command — just drop the user into a shell in the project.
+        this.openTerminalIn(root);
+        return;
+      }
+      markBoot("install-start");
+      warmRegistryConnection();
+      const tid = this.terminals.newShellTerminal({
+        cwd: root,
+        run: manifest.dev,
+        label: manifest.dev,
+        activate: false,
+      });
+      this.runningProjects.set(root, { terminalId: tid, port: null });
+      this.beginRunPhase(root);
     });
-    this.runningProjects.set(root, { terminalId: tid, port: null });
-    this.beginRunPhase(root);
   }
 
   // ── run narration ──────────────────────────────────────────────────────────

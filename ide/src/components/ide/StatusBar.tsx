@@ -19,7 +19,7 @@ import TriangleAlert from "~icons/lucide/triangle-alert";
 import GitBranch from "~icons/lucide/git-branch";
 import Package from "~icons/lucide/package";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { frameworkPackagesVersion } from "@/deploy/current";
+import { frameworkPackageMinimums } from "@/deploy/current";
 import { t, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +34,7 @@ import { downloadSnapshot } from "@/vv/perf-report";
 import { terminalTail } from "@/vv/perf-samples";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
 import { StatusBarPanels, StatusBarRun } from "./StatusBarRuntime";
+import { FrameworkGateDialog } from "./FrameworkGateDialog";
 import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
 import { useIde } from "./useIde";
 
@@ -54,6 +55,11 @@ export function StatusBar() {
   const [picker, setPicker] = useState<StatusPicker>(null);
   const device = useSyncExternalStore(subscribeDeviceHealth, getDeviceHealth);
   const [capturing, setCapturing] = useState(false);
+  // D-198: the core minimum is the compact readout; the tooltip names every package.
+  const coreMinimum = frameworkPackageMinimums["@facilis.dev/core"] ?? t("updates.unknown");
+  const minimumsList = Object.entries(frameworkPackageMinimums)
+    .map(([name, version]) => name.replace("@facilis.dev/", "") + "@" + version)
+    .join(", ");
   // Sampled once per session, then again when the first preview paints: the boot time is
   // only known afterwards, and it is the signal that says "this device is the problem".
   // The perf sampler rides along: it probes the FS once a second while a boot is in flight,
@@ -147,12 +153,13 @@ export function StatusBar() {
           <TriangleAlert className="ml-1 size-3.5" />
           {warnings}
         </StatusItem>
-        {/* The @facilis.dev/* version this build pins new projects to (D-166). It is a
-            build-time literal, so without this readout the answer exists only in the
-            deploy log — and "which packages does this IDE expect?" became a real question. */}
-        <StatusItem label={t("status.frameworkPackages", { version: frameworkPackagesVersion })}>
+        {/* The per-package @facilis.dev/* minimums this build requires (D-166/D-198):
+            the core minimum is the compact readout, the tooltip lists every package. */}
+        <StatusItem
+          label={t("status.frameworkPackages", { version: coreMinimum, packages: minimumsList })}
+        >
           <Package className="size-3.5" />
-          <span>{frameworkPackagesVersion}</span>
+          <span>{coreMinimum}</span>
         </StatusItem>
         {/* Run/Stop, and the panel's door: both are always visible, so a run never
             needs the terminal and the terminal never needs the title bar (D-124). */}
@@ -191,6 +198,7 @@ export function StatusBar() {
         <StatusBarPanels />
       </div>
       <StatusBarPickers open={picker} onClose={() => setPicker(null)} />
+      <FrameworkGateDialog />
     </>
   );
 }

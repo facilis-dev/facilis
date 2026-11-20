@@ -1,10 +1,10 @@
 // The project-vs-build update indicator (D-065, APP-UPDATES.md §3).
 //
-// Read-only for now: it compares the active project's marker with this build's version
-// and opens a panel. The recipe engine is the next step, so an outdated project says so
-// instead of offering a button that would claim an upgrade it cannot perform.
+// A read-only indicator: it compares the active project's marker and framework pins
+// (D-198) with this build and opens a panel listing the steps. The apply action ships
+// with the boot gate (framework-gate.ts), which reuses the same engine.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import CircleArrowUp from "~icons/lucide/circle-arrow-up";
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { approvedBaseline, checkProject } from "@/facilis/app-status";
+import { getFrameworkGate, subscribeFrameworkGate } from "@/facilis/framework-gate";
 import { UPDATE_RECIPES } from "@/facilis/update-recipes";
 import type { UpgradePlan } from "@/facilis/upgrade/plan";
 import { t } from "@/i18n";
@@ -25,6 +26,9 @@ export function ProjectUpdateBadge({ root }: { root: string | null }) {
   const { c } = useIde();
   const [plan, setPlan] = useState<UpgradePlan | null>(null);
   const [open, setOpen] = useState(false);
+  // D-198: re-check when the boot gate resolves (an applied update fixes the pins this
+  // badge reports on); the gate store is the only event that changes the plan in place.
+  const gate = useSyncExternalStore(subscribeFrameworkGate, getFrameworkGate);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +44,7 @@ export function ProjectUpdateBadge({ root }: { root: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [c, root]);
+  }, [c, root, gate]);
 
   if (plan === null || (plan.status !== "outdated" && plan.status !== "ahead")) return null;
   const outdated = plan.status === "outdated";

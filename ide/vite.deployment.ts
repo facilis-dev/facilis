@@ -6,6 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import type { Plugin, ResolvedConfig } from "vite";
 import {
@@ -19,10 +20,10 @@ import {
 import { DEPLOYMENT_CONFIG_ENV, deploymentFromEnv } from "./src/deploy/load.ts";
 import { PROVIDER_BASE_URLS } from "./src/deploy/provider-hosts.ts";
 import type { ResolvedDeployment } from "./src/deploy/types.ts";
+import { readPackageMinimums } from "./build/package-minimums.ts";
 import { gitProxyDevPlugin } from "./vite.git-proxy.ts";
 
 const ENV_VERSION = "FACILIS_ENV_VERSION";
-const PACKAGES_VERSION = "FACILIS_PACKAGES_VERSION";
 
 /** The virtual modules a managed build substitutes for the import implementation (D-063). */
 const GIT_IMPORT_OFF = "\0facilis:git-import-off";
@@ -201,6 +202,9 @@ function gitNetworkStub(deployment: ResolvedDeployment): Plugin {
 export function deploymentPlugin(): Plugin[] {
   const loaded = loadDeployment();
   const version = process.env[ENV_VERSION] ?? "0.0.0";
+  // D-198: the minimum table is the committed packages/*/package.json versions, read at
+  // config time so dev, build and Vitest all compile the same literal.
+  const minimums = readPackageMinimums(fileURLToPath(new URL("../packages", import.meta.url)));
   let resolved: ResolvedConfig | null = null;
 
   return [
@@ -215,9 +219,9 @@ export function deploymentPlugin(): Plugin[] {
         const define: Record<string, string> = {
           __FACILIS_DEPLOYMENT__: JSON.stringify(loaded.deployment),
           __FACILIS_ENV_VERSION__: JSON.stringify(version),
-          // The exact published @facilis.dev/* version new projects pin (D-164): the
-          // deploy pipeline sets it, and a local build falls back to the current release.
-          __FACILIS_PACKAGES_VERSION__: JSON.stringify(process.env[PACKAGES_VERSION] || "0.1.0"),
+          // The released @facilis.dev/* versions, one per package (D-166/D-198): new
+          // projects pin each dep to its own version, and the boot gate enforces them.
+          __FACILIS_MINIMUM_PACKAGES__: JSON.stringify(minimums),
           // Dev-only local workspace packages (issue #41, D-196): true only for a real dev
           // server, never a production build, and never under Vitest (which also runs in
           // serve mode) so unit tests stay in the release/npm mode by default.

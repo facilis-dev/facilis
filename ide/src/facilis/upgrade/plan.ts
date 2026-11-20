@@ -70,6 +70,8 @@ export async function planUpgrade(input: {
   projectVersion: string | null;
   currentVersion: string;
   recipes?: readonly UpdateRecipe[];
+  /** D-198: targets required by the framework pins, independent of the marker version. */
+  requiredTargets?: readonly string[];
   read: ProjectRead;
 }): Promise<UpgradePlan> {
   const recipes = input.recipes ?? [];
@@ -78,6 +80,7 @@ export async function planUpgrade(input: {
     projectVersion: input.projectVersion,
     currentVersion: input.currentVersion,
     recipes,
+    requiredTargets: input.requiredTargets,
   });
   const byTarget = new Map(recipes.map((recipe) => [recipe.to, recipe]));
   // \`original\` is what the project had before any step; \`overlay\` is the state a later

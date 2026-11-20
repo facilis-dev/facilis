@@ -81,9 +81,15 @@ export function planUpdate(input: {
   projectVersion: string | null;
   currentVersion: string;
   recipes?: readonly RecipeRange[];
+  /**
+   * Recipe targets that must run regardless of the marker comparison (D-198): the
+   * framework-minimum step is required by the project's package.json pins, not by its
+   * environment version, so a current or marker-less project can still need it.
+   */
+  requiredTargets?: readonly string[];
 }): UpdatePlan {
   const { projectVersion, currentVersion } = input;
-  const status = updateStatus(projectVersion, currentVersion);
+  let status = updateStatus(projectVersion, currentVersion);
   const recipes = input.recipes ?? [];
   const steps: UpdateStep[] = [];
   if (projectVersion !== null && (status === "outdated" || status === "current")) {
@@ -94,7 +100,17 @@ export function planUpdate(input: {
         steps.push({ from: recipe.from, to: recipe.to });
       }
     }
-    steps.sort((a, b) => compareVersions(a.to, b.to) ?? 0);
   }
+  let forced = false;
+  for (const target of input.requiredTargets ?? []) {
+    if (steps.some((step) => step.to === target)) continue;
+    const recipe = recipes.find((entry) => entry.to === target);
+    if (recipe === undefined) continue; // the build ships no such recipe: nothing to force
+    steps.push({ from: recipe.from, to: recipe.to });
+    forced = true;
+  }
+  steps.sort((a, b) => compareVersions(a.to, b.to) ?? 0);
+  // A required step is an available update even when the marker says current/ahead/unknown.
+  if (forced && status !== "outdated") status = "outdated";
   return { status, projectVersion, currentVersion, steps };
 }

@@ -11,7 +11,7 @@ import { webAccessFor, type WebPolicy } from "./web-policy.ts";
 
 declare const __FACILIS_DEPLOYMENT__: ResolvedDeployment | undefined;
 declare const __FACILIS_ENV_VERSION__: string | undefined;
-declare const __FACILIS_PACKAGES_VERSION__: string | undefined;
+declare const __FACILIS_MINIMUM_PACKAGES__: Record<string, string> | undefined;
 
 export const deployment: ResolvedDeployment =
   typeof __FACILIS_DEPLOYMENT__ !== "undefined" ? __FACILIS_DEPLOYMENT__ : openDeployment();
@@ -21,13 +21,16 @@ export const environmentVersion: string =
   typeof __FACILIS_ENV_VERSION__ !== "undefined" ? __FACILIS_ENV_VERSION__ : "0.0.0";
 
 /**
- * The published @facilis.dev/* version new projects pin (D-164, D-166).
+ * The released @facilis.dev/* versions this build requires, per package (D-164, D-166/D-198).
  *
- * The deploy pipeline injects the exact published version at build time; a template must
- * never float a range, because the packages move in lockstep with this IDE.
+ * Compiled from each package's own package.json at build time: new projects pin each
+ * dependency to its package's exact version, and the boot gate refuses pins below these
+ * minimums.
+ * Versions may diverge — there is no lockstep number. The empty fallback only covers an
+ * unbundled import; every Vite path (dev, build, Vitest) compiles the table in.
  */
-export const frameworkPackagesVersion: string =
-  typeof __FACILIS_PACKAGES_VERSION__ !== "undefined" ? __FACILIS_PACKAGES_VERSION__ : "0.1.0";
+export const frameworkPackageMinimums: Record<string, string> =
+  typeof __FACILIS_MINIMUM_PACKAGES__ !== "undefined" ? __FACILIS_MINIMUM_PACKAGES__ : {};
 
 export const isManaged: boolean = deployment.profile === "managed";
 

@@ -213,7 +213,7 @@ export const en = {
   // ── status bar ───────────────────────────────────────────────────────────
   "status.branch": "Current branch",
   "status.frameworkPackages":
-    "This build pins @facilis.dev/* to {version} — new projects install exactly that",
+    "Minimum @facilis.dev/* versions this build requires (core {version}) — new projects pin each package exactly: {packages}",
   "status.goToLine": "Go to Line/Column",
   "status.indent": "Select indentation",
   "status.language": "Select language mode",
