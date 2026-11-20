@@ -194,4 +194,20 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.ribbon.edges": "Archi",
   "projectGraph.ribbon.filterKind": "Filtra per {label}",
   "projectGraph.ribbon.filterEdges": "Mostra o nascondi tutti gli archi",
+
+  // ── feature clusters (issue #62) ─────────────────────────────────────────
+  "projectGraph.cluster.other": "Altro",
+  "projectGraph.cluster.otherHint": "Nodi che l'analisi non ha raggruppato in una funzionalità.",
+  "projectGraph.cluster.toggle": "Raggruppa per funzionalità",
+  "projectGraph.cluster.toggleHint":
+    "Raggruppa i nodi in cluster di funzionalità (G). Attivo di default oltre 40 nodi.",
+  "projectGraph.cluster.drillUp": "Sali di un livello (Esc)",
+  "projectGraph.cluster.drillHint": "Doppio clic per mettere a fuoco il cluster; Esc per salire.",
+  "projectGraph.cluster.collapse": "Comprimi il cluster",
+  "projectGraph.cluster.expand": "Espandi il cluster",
+  "projectGraph.cluster.collapseHint": "Comprimi o espandi questo cluster (C).",
+  "projectGraph.cluster.nodes": "{count} nodi",
+  "projectGraph.cluster.crossing": "{count} collegamenti attraverso il confine",
+  "projectGraph.cluster.edgeCount": "×{count}",
+  "projectGraph.cluster.frameLabel": "Cluster di funzionalità {label}",
 };

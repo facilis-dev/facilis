@@ -1,16 +1,16 @@
-// The project-graph canvas: React Flow over the pure view model. Cards, notes, edges and their
-// geometry live in ProjectGraphNodes/Note/Edge.tsx and graph-edge-geometry.ts, so this file only
-// maps the view to the library and wires the interactions (drag, note placement, double-click
-// source, viewport, fit, edge curves). Nodes are controlled locally so a drag follows the pointer;
-// the position commits to the saved layout only on drag stop, so the parent cannot reset a drag.
-// fitView padding comes from the measured HUD (issue #57); chrome and edges use role tokens
-// (XYFLOW_THEME_TOKENS, D-043/D-044), never raw palette values.
+// The project-graph canvas: React Flow over the pure view model. Cards, cluster frames, notes,
+// edges and their geometry live in ProjectGraphNodes/ClusterNode/Note/Edge.tsx and the
+// graph-edge modules, so this file only maps the view to the library and wires the interactions
+// (drag, note placement, double-click source/drill, viewport, fit, edge curves). Nodes are
+// controlled locally so a drag follows the pointer; the position commits to the saved layout
+// only on drag stop, so the parent cannot reset a drag. Cluster children drag in frame-relative
+// coordinates (parentId + extent) and commit absolute ones. fitView padding comes from the
+// measured HUD (issue #57); chrome and edges use role tokens (D-043/D-044).
 
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  MarkerType,
   ReactFlow,
   applyNodeChanges,
   type EdgeMouseHandler,
@@ -26,20 +26,13 @@ import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import {
-  PROJECT_GRAPH_EDGE_TYPE,
-  PROJECT_GRAPH_EDGE_TYPES,
-  type ProjectFlowEdge,
-} from "./ProjectGraphEdge";
-import {
-  LINK_SOURCE_HANDLE_ID,
-  LINK_TARGET_HANDLE_ID,
-  PROJECT_GRAPH_NODE_TYPES,
-  type ProjectFlowNode,
-} from "./ProjectGraphNodes";
+import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
+import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
+import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
-import { edgeStyleFor } from "./project-graph-edges";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
+import { buildProjectGraphFlowNodes, type ProjectGraphDrill } from "./project-graph-flow-nodes";
+import { useGraphFitEffects } from "./useGraphFitEffects";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
@@ -53,10 +46,13 @@ export function ProjectGraphCanvas({
   fitNonce,
   edgeCurves,
   focus,
+  drill,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
   onToggleCollapse,
+  onToggleClusterCollapse,
+  onDrillCluster,
   onOpenNode,
   onViewportChange,
   onEdgeCurveChange,
@@ -74,10 +70,13 @@ export function ProjectGraphCanvas({
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
   focus: ProjectGraphFocusState | null;
+  drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
   onToggleCollapse: (id: string) => void;
+  onToggleClusterCollapse: (id: string) => void;
+  onDrillCluster: (id: string) => void;
   onOpenNode: (node: ProjectGraphNode) => void;
   onViewportChange: (viewport: GraphViewport) => void;
   onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
@@ -96,29 +95,18 @@ export function ProjectGraphCanvas({
   const moved = useRef(false);
 
   // The collapse callback travels through a ref so node data does not depend on the parent's
-  // function identity: a parent re-render must not rebuild the cards mid-drag.
-  const onToggleCollapseRef = useRef(onToggleCollapse);
+  // function identity: a parent re-render must not rebuild the cards mid-drag. The cluster
+  // actions (issue #62) and the note actions follow the same rule.
+  const actions = useRef({ onToggleCollapse, onToggleClusterCollapse, onDrillCluster, onCreateNote, onEditNote, onDeleteNote });
   useEffect(() => {
-    onToggleCollapseRef.current = onToggleCollapse;
-  }, [onToggleCollapse]);
-  const toggleCollapse = useCallback((id: string) => {
-    onToggleCollapseRef.current(id);
-  }, []);
-  // Same reasoning for the note actions: the note card holds its editor state, so a changed
-  // function identity would rebuild its data and could interrupt a drag or an edit.
-  const noteActions = useRef({ onCreateNote, onEditNote, onDeleteNote });
-  useEffect(() => {
-    noteActions.current = { onCreateNote, onEditNote, onDeleteNote };
-  }, [onCreateNote, onEditNote, onDeleteNote]);
-  const createNote = useCallback((position: { x: number; y: number }) => {
-    noteActions.current.onCreateNote(position);
-  }, []);
-  const editNote = useCallback((id: string, text: string) => {
-    noteActions.current.onEditNote(id, text);
-  }, []);
-  const deleteNote = useCallback((id: string) => {
-    noteActions.current.onDeleteNote(id);
-  }, []);
+    actions.current = { onToggleCollapse, onToggleClusterCollapse, onDrillCluster, onCreateNote, onEditNote, onDeleteNote };
+  }, [onToggleCollapse, onToggleClusterCollapse, onDrillCluster, onCreateNote, onEditNote, onDeleteNote]);
+  const toggleCollapse = useCallback((id: string) => actions.current.onToggleCollapse(id), []);
+  const toggleClusterCollapse = useCallback((id: string) => actions.current.onToggleClusterCollapse(id), []);
+  const drillCluster = useCallback((id: string) => actions.current.onDrillCluster(id), []);
+  const createNote = useCallback((position: { x: number; y: number }) => actions.current.onCreateNote(position), []);
+  const editNote = useCallback((id: string, text: string) => actions.current.onEditNote(id, text), []);
+  const deleteNote = useCallback((id: string) => actions.current.onDeleteNote(id), []);
 
   // The mapping itself lives in project-graph-flow-nodes: this file keeps the React Flow wiring.
   const buildNodes = useCallback(
@@ -133,11 +121,14 @@ export function ProjectGraphCanvas({
         previous,
         selectedNodeId,
         focus,
+        drill,
         onToggleCollapse: toggleCollapse,
+        onToggleClusterCollapse: toggleClusterCollapse,
+        onDrillCluster: drillCluster,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus],
+    [toggleCollapse, toggleClusterCollapse, drillCluster, editNote, deleteNote, selectedNodeId, focus, drill],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -158,21 +149,7 @@ export function ProjectGraphCanvas({
     instance.fitView({ padding: toFlowPadding(fitPadding), duration: 200 });
   }, [fitNonce, instance, fitPadding]);
 
-  // A focus request names nodes that must exist in state before fitView can frame them, so the
-  // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
-  // from refitting: `nodes` is a dependency only so a request made mid-build lands on a later
-  // pass, not on every pointer move.
-  const fittedFocus = useRef<ProjectGraphFocusState | null>(null);
-  useEffect(() => {
-    if (instance === null || focus === null || !focus.zoom) return;
-    if (fittedFocus.current === focus) return;
-    const targets = nodes
-      .filter((node) => focus.nodeIds.has(node.id))
-      .map((node) => ({ id: node.id }));
-    if (targets.length === 0) return;
-    fittedFocus.current = focus;
-    void instance.fitView({ nodes: targets, padding: toFlowPadding(fitPadding), duration: 200 });
-  }, [focus, instance, nodes, fitPadding]);
+  useGraphFitEffects(instance, nodes, focus, drill, fitPadding);
 
   // Adding a note is an event, not state: only a nonce change creates one, so a click made
   // while the canvas is not rendered cannot materialize a note on the next mount. The panel
@@ -195,28 +172,15 @@ export function ProjectGraphCanvas({
 
   const edges = useMemo<ProjectFlowEdge[]>(
     () =>
-      view.edges.map((edge) => {
-        const style = edgeStyleFor(edge);
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: LINK_SOURCE_HANDLE_ID,
-          targetHandle: LINK_TARGET_HANDLE_ID,
-          type: PROJECT_GRAPH_EDGE_TYPE,
-          selected: edge.id === selectedEdgeId,
-          data: {
-            kind: edge.kind,
-            ...(edge.access === undefined ? {} : { access: edge.access }),
-            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
-            curve: edgeCurves[edge.id] ?? null,
-            onCurveChange: onEdgeCurveChange,
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
-        };
+      buildProjectGraphFlowEdges({
+        view,
+        edgeCurves,
+        selectedEdgeId,
+        focus,
+        drill,
+        onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
+    [view, edgeCurves, selectedEdgeId, focus, drill, onEdgeCurveChange],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
@@ -228,21 +192,35 @@ export function ProjectGraphCanvas({
     onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
-    const position = { x: node.position.x, y: node.position.y };
-    if (node.type === NOTE_NODE_TYPE) onMoveNote(node.id, position);
-    else onMoveNode(node.id, position);
+    if (node.type === NOTE_NODE_TYPE) {
+      onMoveNote(node.id, { x: node.position.x, y: node.position.y });
+      return;
+    }
+    // A cluster child drags frame-relative but commits absolute: the saved layout (v3) keeps
+    // one coordinate space whether or not grouping is on.
+    const frame = view.clusters.find((cluster) => cluster.id === node.parentId);
+    const position =
+      frame === undefined
+        ? { x: node.position.x, y: node.position.y }
+        : { x: frame.position.x + node.position.x, y: frame.position.y + node.position.y };
+    onMoveNode(node.id, position);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor from the card; it has no source file to open.
+    // A note opens its own editor from the card; a cluster drills down (issue #62); any other
+    // card opens its source file.
     if (node.type === NOTE_NODE_TYPE) return;
+    if (node.type === CLUSTER_NODE_TYPE) {
+      drillCluster(node.id);
+      return;
+    }
     const target = view.nodes.find((entry) => entry.id === node.id);
     if (target !== undefined) onOpenNode(target);
   };
   const onMoveStart: OnMoveStart = (event) => {
     // A fitView transition has no source event, so this is how a programmatic move is told from
-    // a user's. While a focus is active such a move is the focus fit, and it must not be saved:
-    // the layout keeps the viewport the user chose (D-171 persists no focus state).
-    if (event === null && focus !== null) return;
+    // a user's. While a focus or a drill is active such a move is their fit, and it must not be
+    // saved: the layout keeps the viewport the user chose (D-171 persists no focus state).
+    if (event === null && (focus !== null || drill !== null)) return;
     moved.current = true;
   };
   const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {

@@ -23,6 +23,7 @@ import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
+import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphStatsRibbon } from "./ProjectGraphStatsRibbon";
 
 export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
@@ -54,6 +55,10 @@ export interface ProjectGraphHudProps {
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
+  groupEnabled: boolean;
+  drillKey: string | null;
+  onToggleGroupBy: () => void;
+  onDrillUp: () => void;
 }
 
 const CLUSTER =
@@ -72,7 +77,12 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         className={CLUSTER + " top-2 left-2 max-w-[60%]"}
       >
         <Network className="size-3.5 shrink-0 text-brand" />
-        <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
+        <ProjectGraphHudClusters
+          enabled={props.groupEnabled}
+          drillKey={props.drillKey}
+          onToggleGroupBy={props.onToggleGroupBy}
+          onDrillUp={props.onDrillUp}
+        />
         <div
           data-testid="graph-hud-mode-slot"
           aria-label={t("projectGraph.hud.modeSlot")}

@@ -10,6 +10,8 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { isClusterGroupingEnabled } from "@/facilis/graph-clusters";
+import type { GraphClusterInput } from "@/facilis/graph-types";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
@@ -29,6 +31,7 @@ import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphSta
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -78,7 +81,8 @@ export function ProjectGraphPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [zen]);
   useEffect(() => {
-    if (focus === null || zen) return;
+    // A drill-down owns Esc before the AI focus does (issue #62): up one level first.
+    if (focus === null || zen || viewState.state.drill !== null) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       const target = event.target;
@@ -93,8 +97,20 @@ export function ProjectGraphPanel() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [focus, zen]);
+  }, [focus, zen, viewState.state.drill]);
 
+  // The group-by lens (issue #62): auto follows the analysis node count, the user's explicit
+  // choice wins. The collapse set and the drill are URL view state, never .facilis/graph/.
+  const nodeCount = analysis?.graph.nodes.length ?? 0;
+  const groupEnabled = isClusterGroupingEnabled(viewState.state.groupBy, nodeCount);
+  const clusterInput = useMemo<GraphClusterInput>(
+    () => ({
+      enabled: groupEnabled,
+      collapsed: viewState.state.collapsedClusters,
+      forceExpanded: viewState.state.drill === null ? [] : [viewState.state.drill],
+    }),
+    [groupEnabled, viewState.state.collapsedClusters, viewState.state.drill],
+  );
   const view = useMemo(
     () =>
       analysis === null
@@ -107,9 +123,11 @@ export function ProjectGraphPanel() {
             collapsed: layout.collapsed,
             query,
             kinds: filter.kinds,
+            clusters: clusterInput,
           }),
-    [analysis, layout, query, filter],
+    [analysis, layout, query, filter, clusterInput],
   );
+  const clusters = useProjectGraphClusters(viewState, view, nodeCount, zen);
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -186,12 +204,15 @@ export function ProjectGraphPanel() {
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
+        drill={clusters.drill}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
         onSelectNode={setSelectedNodeId}
         onMoveNode={graph.moveNode}
         onToggleCollapse={graph.toggleCollapsed}
+        onToggleClusterCollapse={clusters.toggleCollapse}
+        onDrillCluster={clusters.drillInto}
         onOpenNode={openNode}
         onViewportChange={graph.changeViewport}
         onEdgeCurveChange={graph.changeEdgeCurve}
@@ -237,6 +258,10 @@ export function ProjectGraphPanel() {
               state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
             }
             onResetLayout={resetLayout}
+            groupEnabled={groupEnabled}
+            drillKey={clusters.drillCluster?.key ?? null}
+            onToggleGroupBy={clusters.toggleGroupBy}
+            onDrillUp={clusters.drillUp}
           />
         )
       }

@@ -13,6 +13,11 @@ import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  CLUSTER_NODE_TYPE,
+  ClusterGraphNode,
+  type ProjectClusterFlowNode,
+} from "./ProjectGraphClusterNode";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
@@ -32,8 +37,11 @@ export type ProjectAnalysisFlowNode = Node<
   "page" | "route" | "table" | "view" | "workflow"
 >;
 
-/** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
-export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
+/** The canvas's node union: analysis cards, cluster frames (issue #62) and notes (D-126). */
+export type ProjectFlowNode =
+  | ProjectAnalysisFlowNode
+  | ProjectClusterFlowNode
+  | ProjectNoteFlowNode;
 
 // The canvas and the custom edge import the handle ids from here; they are re-exported so the
 // node files stay the single entry point for the canvas.
@@ -260,5 +268,6 @@ export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   table: TableGraphNode,
   view: ViewGraphNode,
   workflow: WorkflowGraphNode,
+  [CLUSTER_NODE_TYPE]: ClusterGraphNode,
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
 };

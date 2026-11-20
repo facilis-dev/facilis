@@ -28,6 +28,7 @@ import { routeEdge } from "@/facilis/graph-edge-routing";
 import { GRAPH_CARD_SIZES } from "@/facilis/graph-layout-engine";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
+import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -38,6 +39,8 @@ export type ProjectGraphEdgeData = {
   readonly access?: "elevated";
   /** False when an AI focus request (D-171) names other edges: the edge is drawn faint. */
   readonly focused?: boolean;
+  /** How many crossings this boundary bundle stands for (issue #62); absent means one. */
+  readonly count?: number;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -51,6 +54,7 @@ interface MeasuredNode {
   readonly measured?: { readonly width?: number; readonly height?: number };
   readonly width?: number;
   readonly height?: number;
+  readonly data?: unknown;
 }
 
 /** Card sizes before React Flow reports a measurement; the engine's sizes are the fallback. */
@@ -86,6 +90,16 @@ function obstacleRects(nodeLookup: ReadonlyMap<string, MeasuredNode>): readonly 
   if (cached !== undefined) return cached;
   const rects: Rect[] = [];
   for (const node of nodeLookup.values()) {
+    // An expanded frame is a container, not a card: edges between its children route inside
+    // it. A collapsed super-node is a card again and routes around it (issue #62).
+    if (node.type === CLUSTER_NODE_TYPE) {
+      const data: unknown = node.data;
+      const cluster =
+        typeof data === "object" && data !== null && "cluster" in data
+          ? (data.cluster as { collapsed?: boolean } | undefined)
+          : undefined;
+      if (cluster?.collapsed !== true) continue;
+    }
     const rect = rectFor(node);
     if (rect !== null) rects.push(rect);
   }
@@ -228,6 +242,23 @@ export function ProjectGraphEdge({
         style={pathStyle}
         interactionWidth={24}
       />
+      {(data?.count ?? 1) > 1 ? (
+        // The boundary bundle's count (issue #62): a halo keeps it readable over any edge.
+        <text
+          x={geometry.midpoint.x}
+          y={geometry.midpoint.y - 8}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={9}
+          fill="var(--muted-foreground)"
+          stroke="var(--background)"
+          strokeWidth={3}
+          paintOrder="stroke"
+          className="pointer-events-none"
+        >
+          {t("projectGraph.cluster.edgeCount", { count: data?.count ?? 1 })}
+        </text>
+      ) : null}
       {selected === true && data !== undefined ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>
