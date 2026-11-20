@@ -68,17 +68,26 @@ the epic's design rules and non-goals are binding for every child.
 When an agent selects an `agent:ready` epic:
 
 1. Read the epic body as the plan: the suggested order decides which child is actionable
-   next, and a child whose prerequisites are still open is not actionable yet.
-2. Pick the first actionable child in plan order that is open and unassigned, and claim the
-   **child** (`gh issue edit <child> --add-assignee @me`) — never the epic. The epic stays
-   unassigned so the next run can take the next child.
+   next. A prerequisite is satisfied when its child is closed **or its pull request is
+   open**: development stacks, it does not wait for the merge. Only a prerequisite still
+   in progress (assigned, no pull request) blocks a child.
+2. Pick the first actionable child in plan order that is open, unassigned and has no open
+   pull request, and claim the **child** (`gh issue edit <child> --add-assignee @me`) —
+   never the epic, and never a child already implemented by an open pull request. The epic
+   stays unassigned so the next run can take the next child.
 3. Develop the child like any other issue: its acceptance criteria plus the epic's rules.
-4. Open the pull request with `Closes #<child>`. Never `Closes` the epic: it closes only when
-   every child is closed (or explicitly descoped in its body). GitHub checks the task-list
-   box automatically when the child closes.
+   When a prerequisite has an open pull request, branch from that PR's head branch
+   (**stacked development**) instead of `main`; with several stacked prerequisites use the
+   last one in the chain.
+4. Open the pull request with `Closes #<child>` — never `Closes` the epic, which closes only
+   when every child is closed (or explicitly descoped in its body). A stacked pull request
+   targets the prerequisite's branch (`gh pr create --base <branch>`) and says so in its
+   description; when the prerequisite merges, retarget it to `main` (GitHub does this
+   automatically if the base branch is deleted). GitHub checks the epic's task-list box
+   automatically when the child closes.
 
-An epic whose children are all closed or assigned has nothing to do: skip it and select the
-next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
+An epic whose children are all closed, in review or in progress has nothing to do: skip it
+and select the next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
 unassign); only a blocker that invalidates the whole plan removes `agent:ready` from the epic.
 
 ## Labels
