@@ -36,7 +36,7 @@ import {
 } from "@/facilis/graph-layout";
 import { subscribeGraphLayoutChanged } from "@/facilis/graph-live";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import type { ProjectGraphSaveState } from "./ProjectGraphToolbar";
+import type { ProjectGraphSaveState } from "./ProjectGraphHud";
 
 export interface ProjectGraphLayout {
   readonly layout: GraphLayoutFile;

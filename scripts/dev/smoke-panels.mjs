@@ -162,6 +162,187 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   );
   await page.screenshot(ARTIFACTS + "/05b-project-graph.png");
 
+  // ── Full-bleed canvas + floating HUD (issue #57) ──────────────────────────────
+  // The canvas fills the tab; the HUD clusters float over it (absolute), so they never subtract
+  // from the canvas rect. Acceptance is measured at two fixed viewports with nothing selected.
+  const CANVAS_RATIO =
+    '(() => { const panel = document.querySelector("[data-testid=project-graph-panel]");' +
+    ' const canvas = document.querySelector("[data-testid=project-graph-canvas]");' +
+    " if (!panel || !canvas) return null;" +
+    " const p = panel.getBoundingClientRect(); const c = canvas.getBoundingClientRect();" +
+    " if (p.width < 2 || p.height < 2) return null;" +
+    " return { ratio: (c.width * c.height) / (p.width * p.height) }; })()";
+  const CANVAS_RECT =
+    '(() => { const c = document.querySelector("[data-testid=project-graph-canvas]");' +
+    " if (!c) return null; const r = c.getBoundingClientRect();" +
+    " return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; })()";
+  const setViewport = (width, height) =>
+    page.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+  // (1) >=95% of the tab area at 1024x768 (HUD icon-only) and 1920x1080 (HUD labelled).
+  for (const [width, height] of [
+    [1024, 768],
+    [1920, 1080],
+  ]) {
+    await setViewport(width, height);
+    await sleep(500);
+    const ratio = await page.evaluate(CANVAS_RATIO);
+    record(
+      ratio !== null && ratio.ratio >= 0.95,
+      "project graph: canvas full-bleed >=95% at " + width + "x" + height,
+      ratio === null ? "canvas/panel not mounted" : "ratio=" + ratio.ratio.toFixed(3),
+    );
+  }
+
+  // (4) Every HUD control is a named, keyboard-reachable button/input; clusters are role=toolbar.
+  const a11y = await page.evaluate(
+    '(() => { const hud = document.querySelector("[data-testid=graph-hud]"); if (!hud) return null;' +
+      ' const toolbars = hud.querySelectorAll("[role=toolbar]").length;' +
+      ' const buttons = [...hud.querySelectorAll("button")];' +
+      ' const unnamed = buttons.filter((b) => !(b.getAttribute("aria-label") || "").trim() && !(b.textContent || "").trim()).length;' +
+      ' const inputs = [...hud.querySelectorAll("input")];' +
+      ' const unnamedInputs = inputs.filter((i) => !(i.getAttribute("aria-label") || "").trim()).length;' +
+      " return { toolbars, buttons: buttons.length, unnamed, unnamedInputs }; })()",
+  );
+  record(
+    a11y !== null &&
+      a11y.toolbars >= 3 &&
+      a11y.buttons > 0 &&
+      a11y.unnamed === 0 &&
+      a11y.unnamedInputs === 0,
+    "project graph: HUD controls named and grouped as toolbars",
+    JSON.stringify(a11y),
+  );
+
+  // (2) Selecting a node opens the inspector as an overlay: the canvas rect must not move/resize.
+  const before = await page.evaluate(CANVAS_RECT);
+  const clickedNode = await page.evaluate(
+    '(() => { const n = document.querySelector("[data-testid=project-graph-table]");' +
+      ' if (!n) return "NOTFOUND"; n.click(); return "OK"; })()',
+  );
+  const inspectorShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=project-graph-inspector]"))',
+    5000,
+  );
+  const after = await page.evaluate(CANVAS_RECT);
+  const stable =
+    before !== null &&
+    after !== null &&
+    before.x === after.x &&
+    before.y === after.y &&
+    before.w === after.w &&
+    before.h === after.h;
+  record(
+    clickedNode === "OK" && inspectorShown && stable,
+    "project graph: selection opens overlay with no canvas resize",
+    "click=" +
+      clickedNode +
+      " inspector=" +
+      inspectorShown +
+      " before=" +
+      JSON.stringify(before) +
+      " after=" +
+      JSON.stringify(after),
+  );
+  // Close the inspector so it does not shadow the fit check below.
+  await page.evaluate(
+    '(() => { const b = document.querySelector("[data-testid=project-graph-inspector] button");' +
+      " if (b) b.click(); })()",
+  );
+  await sleep(200);
+
+  // (3) fitView parks no node under a HUD zone: padding comes from the measured cluster rects.
+  record(
+    (await page.evaluate(clickTestId("graph-hud-fit"))) === "OK",
+    "project graph: fit button clicked",
+  );
+  await sleep(500);
+  const fitClear = await page.evaluate(
+    '(() => { const zones = [...document.querySelectorAll("[data-hud-zone]")].map((z) => z.getBoundingClientRect());' +
+      ' const nodes = [...document.querySelectorAll(".react-flow__node")].map((n) => n.getBoundingClientRect());' +
+      " let overlaps = 0;" +
+      " for (const n of nodes) for (const z of zones) {" +
+      "   const w = Math.min(n.right, z.right) - Math.max(n.left, z.left);" +
+      "   const h = Math.min(n.bottom, z.bottom) - Math.max(n.top, z.top);" +
+      "   if (w > 2 && h > 2) overlaps++;" +
+      " } return { nodes: nodes.length, zones: zones.length, overlaps }; })()",
+  );
+  record(
+    fitClear !== null && fitClear.nodes > 0 && fitClear.zones > 0 && fitClear.overlaps === 0,
+    "project graph: fit leaves no node under a HUD zone",
+    JSON.stringify(fitClear),
+  );
+
+  // (4) Zen hides the HUD (canvas stays full-bleed); Esc restores it.
+  record(
+    (await page.evaluate(clickTestId("graph-hud-zen"))) === "OK",
+    "project graph: zen toggled on",
+  );
+  const hudHidden = await waitFor(page, '!document.querySelector("[data-testid=graph-hud]")', 5000);
+  const zenRatio = await page.evaluate(CANVAS_RATIO);
+  record(
+    hudHidden && zenRatio !== null && zenRatio.ratio >= 0.95,
+    "project graph: zen hides HUD, canvas stays full-bleed",
+    "hidden=" + hudHidden + " ratio=" + (zenRatio === null ? "null" : zenRatio.ratio.toFixed(3)),
+  );
+  await pressKey(page, "Escape", "Escape", 27);
+  const hudRestored = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-hud]"))',
+    5000,
+  );
+  record(hudRestored, "project graph: Esc restores the HUD");
+
+  // (5) Stats counters filter the graph and expose aria-pressed.
+  const pressed = (testId) =>
+    '(() => { const b = document.querySelector("[data-testid=' +
+    testId +
+    ']");' +
+    ' return b ? b.getAttribute("aria-pressed") : "NOTFOUND"; })()';
+  await page.evaluate(clickTestId("graph-stat-table"));
+  const tablePressed = await waitFor(page, pressed("graph-stat-table") + ' === "true"', 5000);
+  const isolated = await waitFor(
+    page,
+    'document.querySelectorAll("[data-testid=project-graph-route]").length === 0',
+    5000,
+  );
+  record(
+    tablePressed && isolated,
+    "project graph: stats counter filters kinds with aria-pressed",
+    "pressed=" + tablePressed + " routesHidden=" + isolated,
+  );
+  await page.evaluate(clickTestId("graph-stat-table"));
+  await waitFor(
+    page,
+    'document.querySelectorAll("[data-testid=project-graph-route]").length > 0',
+    5000,
+  );
+  await page.evaluate(clickTestId("graph-stat-edges"));
+  const edgesPressed = await waitFor(page, pressed("graph-stat-edges") + ' === "true"', 5000);
+  const edgesHidden = await waitFor(
+    page,
+    'document.querySelectorAll(".react-flow__edge").length === 0',
+    5000,
+  );
+  record(
+    edgesPressed && edgesHidden,
+    "project graph: edges counter hides edges with aria-pressed",
+    "pressed=" + edgesPressed + " edgesHidden=" + edgesHidden,
+  );
+  await page.evaluate(clickTestId("graph-stat-edges"));
+  await waitFor(page, 'document.querySelectorAll(".react-flow__edge").length > 0', 5000);
+  await page.screenshot(ARTIFACTS + "/05c-project-graph-hud.png");
+
+  // Restore the default viewport for the remaining panel checks.
+  await page.send("Emulation.clearDeviceMetricsOverride", {});
+  await sleep(300);
+
   // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar reads the
   // schema and the console posts through the preview proxy. Clicking the active activity
   // collapses the sidebar, so click only when it is not mounted (see the retry button). ──
