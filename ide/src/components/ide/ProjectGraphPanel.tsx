@@ -20,10 +20,12 @@ import {
   toggleEdgesFilter,
   toggleKindFilter,
 } from "@/facilis/graph-stats-filter";
+import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
+import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useHudFitPadding } from "./useHudFitPadding";
@@ -118,6 +120,8 @@ export function ProjectGraphPanel() {
     if (analysis === null || !layoutLoaded) return;
     pruneCurves(new Set(analysis.graph.edges.map((edge) => edge.id)));
   }, [analysis, layoutLoaded, pruneCurves]);
+  // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
+  const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
@@ -186,6 +190,7 @@ export function ProjectGraphPanel() {
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
+        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -228,8 +233,18 @@ export function ProjectGraphPanel() {
             filter={filter}
             onToggleKind={toggleKind}
             onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
-            hiddenEdgeKinds={layout.hiddenEdges}
-            onToggleEdgeKind={graph.toggleEdgeKind}
+            lensChips={
+              <ProjectGraphLensChips
+                disabled={stats === null}
+                edgeCounts={edgeCounts}
+                hiddenEdgeKinds={layout.hiddenEdges}
+                isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+                onIsolatedEdgeKindsChange={viewState.setIsolatedEdgeKinds}
+                onHideEdgeKind={graph.toggleEdgeKind}
+                activeLenses={viewState.state.activeLenses}
+                onActiveLensesChange={viewState.setActiveLenses}
+              />
+            }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
             // With no canvas on screen the HUD must still place the first note at a fixed origin.

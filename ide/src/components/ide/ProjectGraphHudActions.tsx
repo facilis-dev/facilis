@@ -1,14 +1,13 @@
-// The HUD "actions and filters" menu (issue #57): the old toolbar's second row (seven edge-kind
-// filters, table visibility) plus the layout actions (add note, reset), folded into one dropdown
-// so the floating top-right cluster stays compact. Role tokens only (D-044); every label via t().
-// Each labelled section sits in a Group: Base UI's GroupLabel throws outside one (issue #52).
+// The HUD actions menu (issue #57): the layout actions (add note, reset) and table visibility,
+// folded into one dropdown so the floating top-right cluster stays compact. The seven edge-kind
+// filters moved to the canvas lens chips (issue #63). Role tokens only (D-044); every label via
+// t(). Each labelled section sits in a Group: Base UI's GroupLabel throws outside one (issue #52).
 
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import SlidersHorizontal from "~icons/lucide/sliders-horizontal";
 import StickyNote from "~icons/lucide/sticky-note";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -19,10 +18,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { t, type MessageKey } from "@/i18n";
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "@/facilis/graph-layout";
+import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
-import { GRAPH_EDGE_LABEL_KEYS, GRAPH_EDGE_STYLES } from "./project-graph-edges";
 
 /** The owner's order: narrowest first, "all" last (D-179). */
 const TABLE_VISIBILITY_OPTIONS: readonly GraphTableVisibility[] = ["project", "used", "all"];
@@ -39,16 +36,12 @@ function isTableVisibility(value: unknown): value is GraphTableVisibility {
 
 export function ProjectGraphHudActions({
   stats,
-  hiddenEdgeKinds,
-  onToggleEdgeKind,
   tableVisibility,
   onTableVisibilityChange,
   onAddNote,
   onResetLayout,
 }: {
   stats: ProjectGraphStats | null;
-  hiddenEdgeKinds: readonly GraphEdgeKind[];
-  onToggleEdgeKind: (kind: GraphEdgeKind, hidden: boolean) => void;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -74,23 +67,6 @@ export function ProjectGraphHudActions({
             <RotateCcw />
             {t("projectGraph.resetLayout")}
           </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>{t("projectGraph.filters")}</DropdownMenuLabel>
-          {GRAPH_EDGE_KINDS.map((kind) => (
-            <DropdownMenuCheckboxItem
-              key={kind}
-              checked={!hiddenEdgeKinds.includes(kind)}
-              onCheckedChange={(checked) => onToggleEdgeKind(kind, !checked)}
-            >
-              <span
-                className="inline-block h-0.5 w-3 shrink-0 rounded"
-                style={{ background: GRAPH_EDGE_STYLES[kind].stroke }}
-              />
-              {t(GRAPH_EDGE_LABEL_KEYS[kind])}
-            </DropdownMenuCheckboxItem>
-          ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
