@@ -106,11 +106,13 @@ function contractExpression(base) {
     '  const inserted = await post("api/todos", { title: title });',
     '  const listed = await json("api/todos");',
     "  const containsTitle = Array.isArray(listed.body) && listed.body.some((row) => row && row.title === title);",
+    "  const warningList = manifest.body && Array.isArray(manifest.body.warnings) ? manifest.body.warnings : [];",
     "  const warnings = manifest.body && Array.isArray(manifest.body.warnings) ? manifest.body.warnings.length : null;",
     '  const revision = manifest.body && typeof manifest.body.revision === "string" ? manifest.body.revision : "";',
     "  const paths = openapi.body && openapi.body.paths;",
     '  const operation = paths && paths["/api/todos"] && paths["/api/todos"].get;',
     "  return {",
+    "    warningEntries: warningList.slice(0, 20),",
     '    health: health.ok ? "ok" : "error:" + health.status,',
     '    manifest: manifest.ok ? "ok" : "error:" + manifest.status,',
     '    warnings: warnings === null ? "missing" : String(warnings),',
@@ -269,7 +271,13 @@ export async function runFacilisChecks({ page, check, ARTIFACTS }) {
     typeof revision === "string" ? "revision=" + revision : "value=(missing)",
   );
 
-  const diagnostics = { previewSrc: snapshot.src, dataset };
+  // The warning bodies, not only the count: a red check must say which declarations
+  // the manifest flagged (issue #106 triage).
+  const diagnostics = {
+    previewSrc: snapshot.src,
+    dataset,
+    warningEntries: values.warningEntries ?? [],
+  };
   const anyFailure = checks.some((entry) => !entry.ok);
   if (anyFailure) {
     diagnostics.timedOut = contract === null;

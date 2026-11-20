@@ -216,6 +216,10 @@ could drift from the jobs it runs.
 - `ctx.workflows` and `ctx.tasks` sit on `defineAuthorizedHandler` next to `ctx.jobs` and are
   bound to the request's policy-scoped transaction (`bindScope`), for the same single-connection
   reason (JOBS.md §6, §8).
+- A route that calls the services declares their tables in `dbTables` (`facilis_tasks`;
+  `facilis_workflows` + `facilis_tasks`): the analyzer counts service calls as usage of that fixed
+  surface, so an accurate declaration raises no `route-table-unused` warning (D-199). The runtime
+  guard does not wrap the service stores; the declaration documents the real access.
 - `decide` is a compare-and-set: `UPDATE … WHERE id = $1 AND status = 'pending'`; it returns the
   updated `TaskRecord` or rejects with `task_not_found`, `task_already_decided` or
   `task_expired`. It records the flag (`decided_by` from the authenticated context,

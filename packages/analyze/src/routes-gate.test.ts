@@ -77,6 +77,8 @@ function reasonFor(diagnostics: readonly Diagnostic[], code: string, file: strin
 interface AppScan {
   readonly routeFiles: number;
   readonly violations: readonly string[];
+  /** Declared-but-unused warnings: the shipped apps must boot with zero (D-199). */
+  readonly unused: readonly string[];
 }
 
 /** Run the analyzer over one app and report every route that breaks invariant 1 or 2. */
@@ -89,6 +91,7 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
   const relations = buildRouteRelationFacts(graph, routeFacts.routes, schema.tables, views.views);
   const bySourceFile = new Map(routeFacts.routes.map((route) => [route.sourceFile, route]));
   const violations: string[] = [];
+  const unused: string[] = [];
   let routeFiles = 0;
   for (const path of graph.files.keys()) {
     if (!ROUTE_DIRS.some((routeDir) => path.startsWith(routeDir))) continue;
@@ -112,11 +115,15 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
     }
   }
   for (const diagnostic of relations.diagnostics) {
-    if (!RELATION_ERROR_CODES.has(diagnostic.code)) continue;
     const file = diagnostic.source?.file ?? "unknown";
+    if (diagnostic.code === "route-table-unused") {
+      unused.push(label + "/" + file + ": " + diagnostic.message);
+      continue;
+    }
+    if (!RELATION_ERROR_CODES.has(diagnostic.code)) continue;
     violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
   }
-  return { routeFiles, violations };
+  return { routeFiles, violations, unused };
 }
 
 function writeSource(root: string, path: string, source: string): void {
@@ -144,6 +151,14 @@ describe("SEC-12 route gate", () => {
       violations,
       "handwritten routes violate invariants 1-2:\n" + violations.join("\n"),
     ).toEqual([]);
+  });
+
+  it("ships no declared-but-unused table in examples/ and starter/ (D-199)", () => {
+    const apps = ["examples", "starter"].flatMap((group) => appsWithRoutes(join(REPO_ROOT, group)));
+    expect(apps.length, "no app with server routes under examples/ or starter/").toBeGreaterThan(0);
+    const parser = createOxcParser();
+    const unused = apps.flatMap((app) => scanApp(app, relative(REPO_ROOT, app), parser).unused);
+    expect(unused, "route-table-unused warnings:\n" + unused.join("\n")).toEqual([]);
   });
 
   it("flags deliberately broken handwritten routes", () => {

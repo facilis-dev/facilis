@@ -19,6 +19,9 @@ export interface ViewFact {
   readonly unknown: readonly UnknownFact[];
 }
 
+/** A framework service API with a fixed table surface (D-135, D-199). */
+export type ServiceKind = "tasks" | "workflows";
+
 /** One relation (table or view) a route reaches through a db client. */
 export interface RouteRelationUse {
   readonly name: string;
@@ -41,6 +44,13 @@ export interface RouteElevationUsage {
   readonly opaque: boolean;
 }
 
+/** A call into a framework service API (ctx.tasks / ctx.workflows), D-199. */
+export interface RouteServiceUse {
+  readonly service: ServiceKind;
+  /** The call site, so a finding can jump to the expression. */
+  readonly source: SourceRef;
+}
+
 /** Static db usage of one route handler, following project-local helper calls (D-157). */
 export interface RouteRelationsFact {
   /** Relations reached through ctx.db outside elevations, deduplicated by name. */
@@ -52,6 +62,12 @@ export interface RouteRelationsFact {
   /** A project-external callee received the route's db client, so usage is incomplete. */
   readonly opaque: boolean;
   readonly elevations: readonly RouteElevationUsage[];
+  /**
+   * Service API call sites (D-199). Their fixed table surface counts as usage for
+   * route-table-unused, but not for route-table-undeclared: the runtime guard wraps
+   * ctx.db and the elevations, while the service stores are framework code (D-135).
+   */
+  readonly services: readonly RouteServiceUse[];
 }
 
 /** Usage of a route the pass cannot scan (invalid wrapper): explicitly empty, not unknown. */
@@ -61,4 +77,5 @@ export const EMPTY_ROUTE_RELATIONS: RouteRelationsFact = {
   rawSql: [],
   opaque: false,
   elevations: [],
+  services: [],
 };
