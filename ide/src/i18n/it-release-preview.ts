@@ -34,6 +34,7 @@ export const releasePreviewIt: Partial<Record<MessageKey, string>> = {
     "Il motore di rilascio non ha potuto confrontare i due snapshot.",
 
   "releasePreview.summary.title": "Riepilogo dei rischi",
+  "releasePreview.summary.risk": "Rischio complessivo",
   "releasePreview.summary.schema":
     "tabelle +{addedTables}/-{droppedTables} · colonne +{addedColumns}/-{droppedColumns} · policy +{addedPolicies}/-{droppedPolicies}",
   "releasePreview.risk.safe": "Sicuro",
@@ -41,10 +42,15 @@ export const releasePreviewIt: Partial<Record<MessageKey, string>> = {
   "releasePreview.risk.destructive": "Distruttivo",
   "releasePreview.risk.breaking": "Rompente",
 
-  "releasePreview.statements.title": "Statement di migrazione",
-  "releasePreview.statements.empty": "Nessun file di migrazione aggiunto tra i due ref.",
-  "releasePreview.statements.table": "Tabella {table}",
-  "releasePreview.statements.generated": "generato {at}",
+  "releasePreview.plan.title": "Piano dello schema",
+  "releasePreview.plan.empty": "Nessuna modifica allo schema tra i due ref.",
+  "releasePreview.plan.failedClosed":
+    "Il piano fallisce chiuso — nessun SQL viene rilasciato finché questi problemi non sono risolti.",
+  "releasePreview.plan.requires": "richiede {requirements}",
+  "releasePreview.plan.destructive": "Batch distruttivi: {ids}",
+  "releasePreview.planProblem.unsupported_declaration": "Dichiarazione non supportata: {construct}",
+  "releasePreview.planProblem.unsupported_change": "Modifica non supportata: {construct}",
+  "releasePreview.planProblem.policy_unsafe": "Modifica policy non sicura: {construct}",
 
   "releasePreview.api.title": "Differenze API",
   "releasePreview.api.added": "Route aggiunte",
@@ -75,10 +81,8 @@ export const releasePreviewIt: Partial<Record<MessageKey, string>> = {
 
   "releasePreview.warnings.title": "Avvisi",
   "releasePreview.warnings.empty": "Nessun avviso.",
-  "releasePreview.warning.pending_migrations_on_target":
-    "La migrazione {path} non è stata applicata al database di destinazione",
   "releasePreview.warning.destructive_without_backfill":
-    "Modifica distruttiva su {table} senza uno step di backfill",
+    "Il batch distruttivo {batch} viene rilasciato senza uno step di backfill",
   "releasePreview.warning.policy_broadened": "La policy {policy} è più ampia di prima",
 
   "releasePreview.codeLive.title": "Codice ↔ DB live",

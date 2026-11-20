@@ -1,42 +1,32 @@
 import { describe, expect, it } from "vitest";
 
+import type { SchemaSnapshot, TableSnapshot } from "@facilis.dev/db";
+
 import type { GitRef, ReleasePreview } from "./release.ts";
 import {
   buildReleasePreview,
   type ReleaseRouteFact,
   type ReleaseSnapshot,
-  type ReleaseTableFact,
 } from "./release-preview.ts";
+import {
+  baseSnapshot,
+  column,
+  makeTable,
+  policyFor,
+  TENANT_PREDICATE,
+  todosTable,
+  updateColumn,
+  usersTable,
+  withTable,
+} from "./schema-plan/fixtures.ts";
+import { planSchema } from "./schema-plan/plan.ts";
 
 const FROM: GitRef = { kind: "commit", ref: "HEAD~1", oid: "1111111111111111" };
 const TO: GitRef = { kind: "commit", ref: "HEAD", oid: "2222222222222222" };
+const EMPTY: SchemaSnapshot = { tables: [], enums: [] };
 
-function table(
-  name: string,
-  columns: string[],
-  policies: string[] = [],
-  scoped = false,
-  rlsEnabled = scoped,
-): ReleaseTableFact {
-  return {
-    name,
-    columns,
-    policies: policies.map((policy) => ({ name: policy })),
-    rlsEnabled,
-    scoped,
-  };
-}
-
-function snapshot(
-  tables: ReleaseTableFact[],
-  routes: ReleaseRouteFact[] = [],
-  migrations: { path: string; sql: string }[] = [],
-): ReleaseSnapshot {
-  return { schema: { tables }, routes, migrations };
-}
-
-function migration(path: string, sql: string): { path: string; sql: string } {
-  return { path, sql };
+function snapshot(schema: SchemaSnapshot, routes: ReleaseRouteFact[] = []): ReleaseSnapshot {
+  return { schema, routes };
 }
 
 function route(overrides: Partial<ReleaseRouteFact> = {}): ReleaseRouteFact {
@@ -48,61 +38,112 @@ function route(overrides: Partial<ReleaseRouteFact> = {}): ReleaseRouteFact {
   };
 }
 
-describe("buildReleasePreview", () => {
-  it("summarises added and dropped schema objects", () => {
-    const before = snapshot([table("todos", ["id", "title"], ["tenant_isolation"], true)]);
-    const after = snapshot([
-      table("todos", ["id", "done"], ["tenant_isolation"], true),
-      table("notes", ["id", "body"], ["tenant_isolation"], true),
-    ]);
-    const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
+function previewOf(
+  before: SchemaSnapshot,
+  after: SchemaSnapshot,
+  routes: ReleaseRouteFact[] = [],
+): ReleasePreview {
+  return buildReleasePreview({ from: FROM, to: TO, before: snapshot(before), after: snapshot(after, routes) });
+}
+
+/** todos with one column dropped, one retyped and one added: the add/drop/change pair. */
+function changedTodos(): TableSnapshot {
+  const retyped = updateColumn(todosTable(), "title", { type: "varchar" });
+  return {
+    ...retyped,
+    columns: [
+      ...retyped.columns.filter((entry) => entry.name !== "note"),
+      column("priority", { type: "integer" }),
+    ],
+  };
+}
+
+describe("buildReleasePreview schema lens", () => {
+  // Acceptance (a): for the same snapshot pair the IDE plan IS the artifact plan.
+  const pairs: readonly (readonly [string, SchemaSnapshot, SchemaSnapshot])[] = [
+    ["empty -> declared", EMPTY, baseSnapshot()],
+    ["add table", baseSnapshot(), withTable(baseSnapshot(), makeTable("notes", { columns: [column("id"), column("body")] }))],
+    ["drop table", baseSnapshot(), { tables: [usersTable()], enums: [] }],
+    ["add/drop/change columns", baseSnapshot(), withTable(baseSnapshot(), changedTodos())],
+    ["identical", baseSnapshot(), baseSnapshot()],
+  ];
+  it.each(pairs)("equals planSchema(from, to): %s", (_name, before, after) => {
+    const preview = previewOf(before, after);
+    expect(preview.schema.plan).toEqual(planSchema(before, after));
+  });
+
+  it("renders the empty -> declared plan as shippable batches", () => {
+    const preview = previewOf(EMPTY, baseSnapshot());
+    expect(preview.schema.plan.problems).toEqual([]);
+    expect(preview.schema.plan.batches.length).toBeGreaterThan(0);
+    expect(preview.schema.plan.batches[0]?.id).toMatch(/^001-/);
+    expect(preview.schema.plan.risk).not.toBe("breaking");
+    expect(preview.schema.summary.addedTables).toBe(2);
+  });
+
+  it("summarises added, dropped and altered schema objects", () => {
+    const retyped = updateColumn(todosTable(), "title", { type: "varchar" });
+    const after = withTable(
+      withTable(baseSnapshot(), {
+        ...retyped,
+        columns: retyped.columns.filter((entry) => entry.name !== "note"),
+        policies: [policyFor("tenant_isolation", "todos", "true")],
+      }),
+      makeTable("notes", {
+        columns: [column("id"), column("body")],
+        policies: [policyFor("notes_scope", "notes", TENANT_PREDICATE)],
+      }),
+    );
+    // The scoped-policy regression fails the plan closed; the summary still reports it all.
+    const preview = previewOf(baseSnapshot(), after);
     expect(preview.schema.summary).toEqual({
       addedTables: 1,
       droppedTables: 0,
-      addedColumns: 3,
+      addedColumns: 2,
       droppedColumns: 1,
-      alteredColumns: 0,
+      alteredColumns: 1,
       addedPolicies: 1,
-      droppedPolicies: 0,
-      alteredPolicies: 0,
+      droppedPolicies: 1,
+      alteredPolicies: 1,
     });
   });
 
-  it("keeps only the migrations that ship, classified statement by statement", () => {
-    const before = snapshot(
-      [table("todos", ["id"])],
-      [],
-      [migration("db/migrations/0001_init.sql", "CREATE TABLE todos (id uuid);")],
+  it("fails closed on an unsupported declaration: problems, no batches, no SQL", () => {
+    const after = withTable(
+      baseSnapshot(),
+      makeTable("weird", {
+        columns: [column("id")],
+        unsupported: [{ construct: "index", name: "weird_partial_idx" }],
+      }),
     );
-    const after = snapshot(
-      [table("todos", ["id", "done"])],
-      [],
-      [
-        migration("db/migrations/0001_init.sql", "CREATE TABLE todos (id uuid);"),
-        migration(
-          "db/migrations/0002_done.sql",
-          "ALTER TABLE todos ADD COLUMN done boolean NOT NULL; DROP TABLE notes;",
-        ),
-      ],
-    );
-    const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
-    expect(preview.schema.statements).toHaveLength(2);
-    expect(preview.schema.statements[0]).toMatchObject({
-      kind: "add_column",
-      risk: "careful",
-      affectedTable: "todos",
-    });
-    expect(preview.schema.statements[1]).toMatchObject({ kind: "drop_table", risk: "destructive" });
+    const preview = previewOf(baseSnapshot(), after);
+    expect(preview.schema.plan).toEqual(planSchema(baseSnapshot(), after));
+    expect(preview.schema.plan.problems).toEqual([
+      { code: "unsupported_declaration", table: "weird", construct: "index:weird_partial_idx" },
+    ]);
+    expect(preview.schema.plan.batches).toEqual([]);
+    expect(preview.schema.plan.destructive).toEqual([]);
   });
 
-  it("lifts a drop to breaking when a route still reads the entity", () => {
-    const before = snapshot([table("todos", ["id", "title"])]);
-    const after = snapshot(
-      [table("todos", ["id"])],
-      [route({ dbColumns: ["todos.title"] })],
-      [migration("db/migrations/0002_drop_title.sql", "ALTER TABLE todos DROP COLUMN title;")],
+  it("fails closed on an identity column the v1 generator cannot render", () => {
+    const after = withTable(
+      baseSnapshot(),
+      makeTable("counters", { columns: [column("id", { identity: "always" })] }),
     );
-    const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
+    const preview = previewOf(baseSnapshot(), after);
+    expect(preview.schema.plan.problems).toEqual([
+      { code: "unsupported_declaration", table: "counters", column: "id", construct: "identity:id" },
+    ]);
+    expect(preview.schema.plan.batches).toEqual([]);
+  });
+
+  it("keeps a drop in use by routes in the breaking lens, never in the plan risk", () => {
+    const before = baseSnapshot();
+    const after = withTable(baseSnapshot(), {
+      ...todosTable(),
+      columns: todosTable().columns.filter((entry) => entry.name !== "title"),
+    });
+    const preview = previewOf(before, after, [route({ dbColumns: ["todos.title"] })]);
     expect(preview.breaking).toEqual([
       expect.objectContaining({
         kind: "dropped_column_in_use",
@@ -111,40 +152,71 @@ describe("buildReleasePreview", () => {
         routes: [{ method: "GET", path: "/api/todos" }],
       }),
     ]);
-    expect(preview.schema.statements[0]?.risk).toBe("breaking");
+    // The plan stays the artifact plan: risk is destructive, no batch is lifted to breaking.
+    expect(preview.schema.plan).toEqual(planSchema(before, after));
+    expect(preview.schema.plan.risk).toBe("destructive");
+    expect(preview.schema.plan.batches.some((batch) => batch.risk === "breaking")).toBe(false);
   });
 
-  it("reports the security diff and flags RLS been disabled", () => {
-    const before = snapshot([table("todos", ["id"], ["tenant_isolation"], true)]);
-    const after = snapshot([
-      table("todos", ["id"], ["tenant_isolation", "owner_isolation"], true, false),
-      table("notes", ["id"], ["notes_scope"], true),
-    ]);
-    const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
-    expect(preview.security.policiesAdded.map((policy) => policy.name)).toEqual([
-      "owner_isolation",
-      "notes_scope",
-    ]);
+  it("reports the security diff from the declared policies and RLS flags", () => {
+    const before = baseSnapshot();
+    const after = withTable(baseSnapshot(), {
+      ...todosTable(),
+      rlsEnabled: false,
+      policies: [...todosTable().policies, policyFor("extra_read", "todos", TENANT_PREDICATE)],
+    });
+    const preview = previewOf(before, after);
+    expect(preview.security.policiesAdded.map((policy) => policy.name)).toEqual(["extra_read"]);
+    expect(preview.security.policiesAdded[0]?.sql).toContain("CREATE POLICY");
     expect(preview.security.rlsDisabled).toEqual([{ table: "todos" }]);
+    // Disabling RLS on a scoped table is unsafe: the plan fails closed alongside the lens.
+    expect(preview.schema.plan.problems).toEqual([
+      { code: "policy_unsafe", table: "todos", construct: "rls" },
+    ]);
+  });
+
+  it("warns per destructive batch, per dropped policy and per broadened clause", () => {
+    // The policy changes sit on a non-scoped table: on a scoped table the planner would
+    // fail the release closed (policy_unsafe) and there would be no batches to warn about.
+    const logs = makeTable("logs", {
+      columns: [column("id")],
+      policies: [
+        policyFor("logs_read", "logs", TENANT_PREDICATE),
+        policyFor("logs_write", "logs", TENANT_PREDICATE),
+      ],
+    });
+    const before: SchemaSnapshot = {
+      tables: [usersTable(), todosTable(), logs, makeTable("archive", { columns: [column("id")] })],
+      enums: [],
+    };
+    const after: SchemaSnapshot = {
+      tables: [usersTable(), todosTable(), { ...logs, policies: [policyFor("logs_read", "logs", "true")] }],
+      enums: [],
+    };
+    const preview = previewOf(before, after);
+    expect(preview.schema.plan.problems).toEqual([]);
+    const dropBatch = preview.schema.plan.batches.find((batch) => batch.sql.startsWith("DROP TABLE"));
+    expect(dropBatch).toBeDefined();
+    expect(preview.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "destructive_without_backfill", related: dropBatch?.id }),
+        expect.objectContaining({ kind: "policy_broadened", related: "logs.logs_write" }),
+        expect.objectContaining({ kind: "policy_broadened", related: "logs.logs_read" }),
+      ]),
+    );
   });
 
   it("diffs routes by method and path, flagging changed known fields", () => {
-    const before = snapshot(
-      [],
-      [
-        route({ permission: "todos:read", dbTables: ["todos"] }),
-        route({ method: "POST", path: "/api/todos", dbTables: ["todos"] }),
-        route({ method: "DELETE", path: "/api/todos/:id", dbTables: ["todos"] }),
-      ],
-    );
-    const after = snapshot(
-      [],
-      [
-        route({ permission: ["todos:read", "todos:write"], dbTables: ["todos"] }),
-        route({ method: "PATCH", path: "/api/todos/:id", dbTables: ["todos"] }),
-        route({ method: "GET", path: "/api/notes" }),
-      ],
-    );
+    const before = snapshot(EMPTY, [
+      route({ permission: "todos:read", dbTables: ["todos"] }),
+      route({ method: "POST", path: "/api/todos", dbTables: ["todos"] }),
+      route({ method: "DELETE", path: "/api/todos/:id", dbTables: ["todos"] }),
+    ]);
+    const after = snapshot(EMPTY, [
+      route({ permission: ["todos:read", "todos:write"], dbTables: ["todos"] }),
+      route({ method: "PATCH", path: "/api/todos/:id", dbTables: ["todos"] }),
+      route({ method: "GET", path: "/api/notes" }),
+    ]);
     const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
     expect(preview.api?.added.map((entry) => entry.method + " " + entry.path)).toEqual([
       "GET /api/notes",
@@ -158,8 +230,8 @@ describe("buildReleasePreview", () => {
   });
 
   it("carries rawSql into route refs and flags a change only when both refs know it", () => {
-    const before = snapshot([], [route({ rawSql: false })]);
-    const after = snapshot([], [route({ rawSql: true })]);
+    const before = snapshot(EMPTY, [route({ rawSql: false })]);
+    const after = snapshot(EMPTY, [route({ rawSql: true })]);
     const current = buildReleasePreview({ from: FROM, to: TO, before, after });
     expect(current.api?.changed).toEqual([
       expect.objectContaining({
@@ -168,69 +240,19 @@ describe("buildReleasePreview", () => {
         after: expect.objectContaining({ rawSql: true }),
       }),
     ]);
-
     // A route parsed from a filename has no rawSql: unknown never reads as "changed".
-    const unknown = snapshot([], [route()]);
+    const unknown = snapshot(EMPTY, [route()]);
     const legacy = buildReleasePreview({ from: FROM, to: TO, before: unknown, after });
     expect(legacy.api?.changed).toEqual([]);
   });
 
-  it("collects pending-migration and destructive warnings", () => {
-    const after = snapshot(
-      [table("todos", ["id"])],
-      [],
-      [
-        migration(
-          "db/migrations/0002_cleanup.sql",
-          "DROP TABLE old_todos; DROP POLICY old_policy ON todos;",
-        ),
-      ],
-    );
-    const preview = buildReleasePreview({
-      from: FROM,
-      to: TO,
-      before: snapshot([table("todos", ["id"])]),
-      after,
-      pendingMigrations: ["db/migrations/0002_cleanup.sql"],
-    });
-    expect(preview.warnings.map((warning) => warning.kind).toSorted()).toEqual([
-      "destructive_without_backfill",
-      "pending_migrations_on_target",
-      "policy_broadened",
-    ]);
-  });
-
-  it("reports a broadened policy when the scoping clause disappears", () => {
-    const before = snapshot([
-      {
-        ...table("todos", ["id"]),
-        policies: [
-          {
-            name: "tenant_isolation",
-            sql: "USING (tenant_id = current_setting('app.tenant_id')::uuid)",
-          },
-        ],
-      },
-    ]);
-    const after = snapshot([
-      {
-        ...table("todos", ["id"]),
-        policies: [{ name: "tenant_isolation", sql: "USING (true)" }],
-      },
-    ]);
-    const preview = buildReleasePreview({ from: FROM, to: TO, before, after });
-    expect(preview.security.policiesChanged[0]?.direction).toBe("broadened");
-    expect(preview.warnings.some((warning) => warning.kind === "policy_broadened")).toBe(true);
-  });
-
   it("is empty and deterministic for identical snapshots", () => {
-    const files = [migration("db/migrations/0001_init.sql", "CREATE TABLE todos (id uuid);")];
-    const snapshotValue = snapshot([table("todos", ["id"])], [route()], files);
+    const value = snapshot(baseSnapshot(), [route()]);
     const preview = buildReleasePreview({
       from: FROM,
       to: TO,
-      before: snapshotValue,
-      after: snapshotValue,
+      before: value,
+      after: value,
       generatedAt: "2026-11-02T00:00:00.000Z",
     });
     expect(preview).toEqual<ReleasePreview>({
@@ -238,7 +260,7 @@ describe("buildReleasePreview", () => {
       to: TO,
       generatedAt: "2026-11-02T00:00:00.000Z",
       schema: {
-        statements: [],
+        plan: { batches: [], risk: "safe", destructive: [], problems: [] },
         summary: {
           addedTables: 0,
           droppedTables: 0,

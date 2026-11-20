@@ -145,13 +145,9 @@ export function WarningSection({ view }: { view: ReleasePreviewView }) {
 
 function warningMessage(warning: ReleaseWarning): string {
   switch (warning.kind) {
-    case "pending_migrations_on_target":
-      return rt("releasePreview.warning.pending_migrations_on_target", {
-        path: warning.related ?? "",
-      });
     case "destructive_without_backfill":
       return rt("releasePreview.warning.destructive_without_backfill", {
-        table: warning.related ?? "",
+        batch: warning.related ?? "",
       });
     case "policy_broadened":
       return rt("releasePreview.warning.policy_broadened", { policy: warning.related ?? "" });

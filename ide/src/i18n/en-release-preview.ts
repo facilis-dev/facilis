@@ -34,6 +34,7 @@ export const releasePreviewEn = {
   "releasePreview.problem.engine": "The release engine could not diff the two snapshots.",
 
   "releasePreview.summary.title": "Risk summary",
+  "releasePreview.summary.risk": "Overall risk",
   "releasePreview.summary.schema":
     "tables +{addedTables}/-{droppedTables} · columns +{addedColumns}/-{droppedColumns} · policies +{addedPolicies}/-{droppedPolicies}",
   "releasePreview.risk.safe": "Safe",
@@ -41,10 +42,15 @@ export const releasePreviewEn = {
   "releasePreview.risk.destructive": "Destructive",
   "releasePreview.risk.breaking": "Breaking",
 
-  "releasePreview.statements.title": "Migration statements",
-  "releasePreview.statements.empty": "No migration file was added between the two refs.",
-  "releasePreview.statements.table": "Table {table}",
-  "releasePreview.statements.generated": "generated {at}",
+  "releasePreview.plan.title": "Schema plan",
+  "releasePreview.plan.empty": "No schema change between the two refs.",
+  "releasePreview.plan.failedClosed":
+    "The plan fails closed — no SQL ships until these problems are resolved.",
+  "releasePreview.plan.requires": "requires {requirements}",
+  "releasePreview.plan.destructive": "Destructive batches: {ids}",
+  "releasePreview.planProblem.unsupported_declaration": "Unsupported declaration: {construct}",
+  "releasePreview.planProblem.unsupported_change": "Unsupported change: {construct}",
+  "releasePreview.planProblem.policy_unsafe": "Unsafe policy change: {construct}",
 
   "releasePreview.api.title": "API diff",
   "releasePreview.api.added": "Added routes",
@@ -75,10 +81,8 @@ export const releasePreviewEn = {
 
   "releasePreview.warnings.title": "Warnings",
   "releasePreview.warnings.empty": "No warnings.",
-  "releasePreview.warning.pending_migrations_on_target":
-    "Migration {path} has not been applied to the target database",
   "releasePreview.warning.destructive_without_backfill":
-    "Destructive change on {table} with no backfill step",
+    "Destructive batch {batch} ships with no backfill step",
   "releasePreview.warning.policy_broadened": "Policy {policy} is broader than before",
 
   "releasePreview.codeLive.title": "Code ↔ Live DB",

@@ -6134,6 +6134,18 @@ seed quando `facilis.config.ts` cambia ruoli/permessi: il seed e' generato al ri
 il controllo fail-closed sull'auth leggibile. Restano di P5 la riconciliazione dev live -> dichiarato
 e la rimozione del replay delle migrazioni dal boot.
 
+**Implementation note (2026-11-20, issue #48).** Il lens schema del Release Preview e' ora il piano
+generato: `buildReleasePreview` chiama `planSchema(from, to)` sui due `SchemaSnapshot` dichiarati
+(fatti analyzer via `schemaSnapshotFromAnalysis`, #47) e il pannello mostra batch (SQL + rischio per
+batch), rischio del piano, id dei batch distruttivi e problemi; un piano con problemi fallisce chiuso
+e non presenta SQL. Il rischio del piano non e' mai `breaking`: il lens breaking (drop ancora letti
+dalle route) solleva il rischio complessivo mostrato, il piano resta quello dell'artefatto. Rimossi
+`ReleaseMigrationFile`, le letture di `db/migrations` nel preview, `pending_migrations_on_target`,
+lo splitter SQL e il classificatore di statement (il preview era l'ultimo consumatore). I lens
+security/breaking/API consumano le tabelle dello snapshot (colonne con tipo, policy con SQL renderizzato);
+il sottopath browser-safe `@facilis.dev/core/release` raggiunge `planSchema` senza codice runtime Node
+(dipendenza da `@facilis.dev/db` solo di tipo). SPEC §7.7/§11.3 aggiornati al contratto implementato.
+
 ### D-159 — Un rilascio e' un tag piu' un artefatto immutabile; il deploy applica artefatti con un ledger e un fingerprint
 **Status:** accepted (2026-11-10)
 
