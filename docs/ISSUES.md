@@ -55,7 +55,7 @@ assignee is an agent or a human.
 
 ## Labels
 
-The repository owns two labels beyond GitHub's defaults. Their definition is
+The repository owns three labels beyond GitHub's defaults. Their definition is
 `scripts/sync-labels.mjs` — the single source of truth — and applying it is idempotent:
 
 ```sh
@@ -66,6 +66,7 @@ pnpm labels:sync -- --dry-run
 | Label | Meaning |
 | --- | --- |
 | `task` | Internal work: refactor, docs, tooling or CI. |
+| `epic` | A larger effort tracked as a parent of child issues (for example #56). |
 | `agent:ready` | Fully specified and ready for an AI agent to implement. |
 
 ## Pull requests
