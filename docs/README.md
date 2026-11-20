@@ -6,7 +6,8 @@ Start with one of these three, depending on the question:
   release tooling, acceptance criteria. This is the source of truth; other docs may explain it.
 - **Where is the system today?** [STATUS.md](./STATUS.md) — what ships, what is open, what is
   retired, and the commands that prove it.
-- **Why is it like this?** [DECISIONS.md](./DECISIONS.md) — the ADR log and the open-items table.
+- **Why is it like this?** [DECISIONS.md](./DECISIONS.md) — the ADR reading guide and the
+  open-items table; each decision is one file in [decisions/](./decisions/).
 
 ## Contract and state
 
@@ -14,7 +15,8 @@ Start with one of these three, depending on the question:
 |---|---|
 | [SPEC.md](./SPEC.md) | The contract. If it disagrees with anything else, it wins. |
 | [STATUS.md](./STATUS.md) | Current state: implemented, open, retired, evidence. |
-| [DECISIONS.md](./DECISIONS.md) | Decision log (D-001…D-160) and the "Open" table (O-001…O-020). |
+| [DECISIONS.md](./DECISIONS.md) | Decision log: reading guide and the "Open" table (O-001…O-020). |
+| [decisions/](./decisions/README.md) | One file per decision (D-001…D-201) with a generated index; gated by `pnpm lint`. |
 | [../AGENTS.md](../AGENTS.md) | Conventions for working in this repository. |
 
 ## Environment and operation
@@ -68,7 +70,8 @@ feasibility study.
 ## How the docs work
 
 - Every document starts with its declared status (implemented / accepted / proposed / historical).
-- A contract change updates SPEC.md and DECISIONS.md in the same change; a move or rename updates
-  this map.
+- A contract change updates SPEC.md and adds a decision in the same change — one file in
+  `decisions/` plus `pnpm decisions:index`, not an edit to the shared log; a move or rename
+  updates this map.
 - Historical material goes to **archive/** instead of being rewritten, so the reasoning survives
   without slowing a reader down.

@@ -430,7 +430,7 @@ when the project installs. A dev build keeps the local route unchanged (D-196).
 
 `db/migrations/` and its `meta/` journal are not part of the generated project: DDL is a release
 artifact generated from the tag pair, never a directory the app carries (D-158). The dev boot
-materializes the declaration in `db/schema.ts`; nothing replays committed SQL (D-193/D-197).
+materializes the declaration in `db/schema.ts`; nothing replays committed SQL (D-193/D-201).
 
 ---
 
