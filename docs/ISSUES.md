@@ -85,6 +85,12 @@ When an agent selects an `agent:ready` epic:
    description; when the prerequisite merges, retarget it to `main` (GitHub does this
    automatically if the base branch is deleted). GitHub checks the epic's task-list box
    automatically when the child closes.
+5. Keep the stack close to `main`: before stacking new work on a chain, and when resolving
+   a stacked PR's conflicts, align the chain bottom-up — rebase each PR from the root onto
+   its updated base (`main` for the root), gates green, `--force-with-lease` push — so the
+   stack does not drift while reviews are pending. If an alignment rebase hits an uncertain
+   conflict, abort it, comment on that PR and leave the higher PRs on their current base;
+   never guess a semantic resolution.
 
 An epic whose children are all closed, in review or in progress has nothing to do: skip it
 and select the next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
