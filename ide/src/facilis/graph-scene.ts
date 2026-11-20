@@ -10,8 +10,8 @@ import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
 import { edgeGeometry, nodeRect, selfLoopGeometry, type Rect } from "./graph-edge-geometry";
 import { routeEdge } from "./graph-edge-routing";
 import { GRAPH_CARD_SIZES } from "./graph-layout-engine";
-import type { GraphLayoutFile } from "./graph-layout-file";
-import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./graph-types";
+import type { GraphLayoutFile, GraphPosition } from "./graph-layout-file";
+import type { ProjectGraphEdge, ProjectGraphView } from "./graph-types";
 
 /** The engine's card sizes are the scene's sizes: one source of truth keeps the two in sync. */
 const CARD_SIZES = GRAPH_CARD_SIZES;
@@ -48,7 +48,14 @@ export interface GraphSceneRect {
 
 export interface GraphSceneNode {
   readonly id: string;
-  readonly kind: GraphNodeKind;
+  /** "cluster" is a collapsed super-node (issue #62); the rest are the analysis cards. */
+  readonly kind: GraphNodeKind | "cluster";
+  readonly label: string;
+  readonly rect: GraphSceneRect;
+}
+
+/** An expanded cluster frame (issue #62): an outline the cards sit inside, never an obstacle. */
+export interface GraphSceneFrame {
   readonly label: string;
   readonly rect: GraphSceneRect;
 }
@@ -64,6 +71,7 @@ export interface GraphScene {
   readonly width: number;
   readonly height: number;
   readonly nodes: readonly GraphSceneNode[];
+  readonly frames: readonly GraphSceneFrame[];
   readonly edges: readonly GraphSceneEdge[];
   /** True when a cap dropped nodes or edges from the picture. */
   readonly truncated: boolean;
@@ -75,15 +83,6 @@ function byId(left: { readonly id: string }, right: { readonly id: string }): nu
 
 function edgeStyleOf(edge: ProjectGraphEdge, palette: GraphScenePalette): GraphSceneEdgeStyle {
   return edge.access === "elevated" ? palette.elevated : palette.edges[edge.kind];
-}
-
-function rectFor(node: ProjectGraphNode, origin: { readonly x: number; readonly y: number }): Rect {
-  const size = CARD_SIZES[node.kind];
-  return nodeRect(
-    { x: node.position.x - origin.x, y: node.position.y - origin.y },
-    size.width,
-    size.height,
-  );
 }
 
 function edgePath(
@@ -108,45 +107,69 @@ export function buildGraphScene(
   layout: GraphLayoutFile,
   palette: GraphScenePalette,
 ): GraphScene {
-  const nodes = [...view.nodes].toSorted(byId);
-  const selectedNodes = nodes.slice(0, MAX_SCENE_NODES);
+  // Collapsed super-nodes are cards in the picture (their id anchors the boundary edges);
+  // expanded frames are outlines around the cards, never obstacles (issue #62).
+  const superNodes = view.clusters
+    .filter((cluster) => cluster.collapsed)
+    .map((cluster) => ({
+      id: cluster.id,
+      kind: "cluster" as const,
+      label: cluster.label,
+      position: cluster.position,
+      size: cluster.size,
+    }));
+  const frames = view.clusters.filter((cluster) => !cluster.collapsed);
+  const cards = [
+    ...view.nodes.map((node) => ({
+      id: node.id,
+      kind: node.kind,
+      label: node.label,
+      position: node.position,
+      size: CARD_SIZES[node.kind],
+    })),
+    ...superNodes,
+  ].toSorted(byId);
+  const selectedNodes = cards.slice(0, MAX_SCENE_NODES);
   const included = new Set(selectedNodes.map((node) => node.id));
   const edges = view.edges
     .filter((edge) => included.has(edge.source) && included.has(edge.target))
     .toSorted(byId);
   const selectedEdges = edges.slice(0, MAX_SCENE_EDGES);
-  const truncated = selectedNodes.length < nodes.length || selectedEdges.length < edges.length;
-  if (selectedNodes.length === 0) {
-    return { width: 0, height: 0, nodes: [], edges: [], truncated };
+  const truncated = selectedNodes.length < cards.length || selectedEdges.length < edges.length;
+  if (selectedNodes.length === 0 && frames.length === 0) {
+    return { width: 0, height: 0, nodes: [], frames: [], edges: [], truncated };
   }
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-  for (const node of selectedNodes) {
-    const size = CARD_SIZES[node.kind];
-    minX = Math.min(minX, node.position.x);
-    minY = Math.min(minY, node.position.y);
-    maxX = Math.max(maxX, node.position.x + size.width);
-    maxY = Math.max(maxY, node.position.y + size.height);
+  const boxes = [
+    ...selectedNodes,
+    ...frames.map((frame) => ({ position: frame.position, size: frame.size })),
+  ];
+  for (const box of boxes) {
+    minX = Math.min(minX, box.position.x);
+    minY = Math.min(minY, box.position.y);
+    maxX = Math.max(maxX, box.position.x + box.size.width);
+    maxY = Math.max(maxY, box.position.y + box.size.height);
   }
   const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING };
+  const toSceneRect = (position: GraphPosition, size: { width: number; height: number }) => ({
+    x: position.x - origin.x,
+    y: position.y - origin.y,
+    width: size.width,
+    height: size.height,
+  });
   const rects = new Map<string, Rect>();
   const sceneNodes: GraphSceneNode[] = selectedNodes.map((node) => {
-    const rect = rectFor(node, origin);
+    const rect = nodeRect({ x: node.position.x - origin.x, y: node.position.y - origin.y }, node.size.width, node.size.height);
     rects.set(node.id, rect);
-    return {
-      id: node.id,
-      kind: node.kind,
-      label: node.label,
-      rect: {
-        x: rect.center.x - rect.width / 2,
-        y: rect.center.y - rect.height / 2,
-        width: rect.width,
-        height: rect.height,
-      },
-    };
+    return { id: node.id, kind: node.kind, label: node.label, rect: toSceneRect(node.position, node.size) };
   });
+  const sceneFrames: GraphSceneFrame[] = frames.map((frame) => ({
+    label: frame.label,
+    rect: toSceneRect(frame.position, frame.size),
+  }));
   const obstacles = [...rects.values()];
   const sceneEdges: GraphSceneEdge[] = selectedEdges.map((edge) => {
     const style = edgeStyleOf(edge, palette);
@@ -167,6 +190,7 @@ export function buildGraphScene(
     width: Math.ceil(maxX - minX + SCENE_PADDING * 2),
     height: Math.ceil(maxY - minY + SCENE_PADDING * 2),
     nodes: sceneNodes,
+    frames: sceneFrames,
     edges: sceneEdges,
     truncated,
   };

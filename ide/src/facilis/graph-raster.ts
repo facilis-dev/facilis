@@ -28,6 +28,25 @@ const LABEL_FONT = "500 11px ui-sans-serif, system-ui, sans-serif";
 const KIND_FONT = "9px ui-sans-serif, system-ui, sans-serif";
 const LABEL_INSET = 8;
 
+/** Cluster frames (issue #62): an outline with its label, painted under everything else. */
+function paintFrames(
+  context: CanvasRenderingContext2D,
+  scene: GraphScene,
+  palette: GraphScenePalette,
+): void {
+  for (const frame of scene.frames) {
+    const { x, y, width, height } = frame.rect;
+    context.beginPath();
+    context.roundRect(x, y, width, height, CARD_RADIUS);
+    context.strokeStyle = palette.border;
+    context.stroke();
+    context.fillStyle = palette.muted;
+    context.font = KIND_FONT;
+    context.textBaseline = "middle";
+    context.fillText(frame.label, x + LABEL_INSET, y + 12, Math.max(0, width - LABEL_INSET * 2));
+  }
+}
+
 function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene): void {
   context.lineWidth = EDGE_WIDTH;
   context.lineCap = "round";
@@ -73,6 +92,7 @@ function paint(
 ): void {
   context.fillStyle = palette.background;
   context.fillRect(0, 0, scene.width, scene.height);
+  paintFrames(context, scene, palette);
   paintEdges(context, scene);
   paintNodes(context, scene, palette);
 }

@@ -153,7 +153,14 @@ function subsetOf(view: ProjectGraphView, request: GraphCaptureRequest): Project
   const edges = view.edges.filter((edge) => selected.has(edge.source) && selected.has(edge.target));
   // The subset keeps the parent's auto-layout size: the scene re-derives its own bounds from
   // the cards it actually draws, and layoutSize describes the layout the subset came from.
-  return { nodes, edges, stats: view.stats, layoutSize: view.layoutSize };
+  // Only whole frames survive the cut (a partial frame would mislabel its membership); a
+  // collapsed super-node survives when an edge brought its cluster id along (issue #62).
+  const clusters = view.clusters.filter((cluster) =>
+    cluster.collapsed
+      ? selected.has(cluster.id)
+      : cluster.nodeIds.every((id) => selected.has(id)),
+  );
+  return { nodes, edges, clusters, stats: view.stats, layoutSize: view.layoutSize };
 }
 
 export function createGraphViewAccess(

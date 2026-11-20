@@ -147,13 +147,10 @@ function bounds(rows: readonly PlacedRow[]): { width: number; height: number } {
 /**
  * Pick the target height whose wrapped bounding box sits closest to 16:9. The un-wrapped height
  * is a candidate too, so a small graph stays one column per layer instead of fragmenting.
- * Ties break on the smaller area, then the smaller target: same input, same output.
+ * Ties break on the smaller area, then the smaller target: same input, same output. Shared by
+ * the row layers and the cluster boxes (issue #62) so both wrap under the same rule.
  */
-function choosePlacement(layers: readonly GraphLayoutLayer[]): PlacedRow[] {
-  const natural = Math.max(
-    1,
-    ...layers.map((layer) => layer.rows.reduce((sum, row) => sum + rowHeight(row), 0)),
-  );
+function chooseWithTarget(natural: number, place: (targetHeight: number) => PlacedRow[]): PlacedRow[] {
   const targets = [natural];
   for (let height = MIN_TARGET_HEIGHT; height <= MAX_TARGET_HEIGHT; height += TARGET_HEIGHT_STEP) {
     targets.push(height);
@@ -163,7 +160,7 @@ function choosePlacement(layers: readonly GraphLayoutLayer[]): PlacedRow[] {
   let bestArea = Number.POSITIVE_INFINITY;
   let bestTarget = Number.POSITIVE_INFINITY;
   for (const target of targets) {
-    const rows = placeAll(layers, target);
+    const rows = place(target);
     const { width, height } = bounds(rows);
     if (width === 0 || height === 0) return rows;
     const score = Math.abs(width / height - TARGET_RATIO);
@@ -182,6 +179,14 @@ function choosePlacement(layers: readonly GraphLayoutLayer[]): PlacedRow[] {
   return best;
 }
 
+function choosePlacement(layers: readonly GraphLayoutLayer[]): PlacedRow[] {
+  const natural = Math.max(
+    1,
+    ...layers.map((layer) => layer.rows.reduce((sum, row) => sum + rowHeight(row), 0)),
+  );
+  return chooseWithTarget(natural, (target) => placeAll(layers, target));
+}
+
 /** Lay the ordered layers out; pinned positions override the auto ones for ids that exist. */
 export function layoutGraph(
   layers: readonly GraphLayoutLayer[],
@@ -198,5 +203,66 @@ export function layoutGraph(
       positions.set(id, { x: position.x, y: position.y });
     }
   }
+  return { positions, width, height };
+}
+
+/** A cluster frame or super-node box (issue #62): explicit size, no kind pitch. */
+export interface GraphLayoutBox {
+  readonly id: string;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** Blank space between two cluster boxes stacked in one sub-column. */
+const BOX_GAP = 72;
+
+/**
+ * Wrap variable-size boxes into serpentine sub-columns near 16:9, the cluster analogue of
+ * placeLayer: each sub-column is as wide as its widest box, odd columns mirror bottom-up so
+ * neighbouring clusters meet at short edges. Deterministic for a fixed box order.
+ */
+function placeBoxes(boxes: readonly GraphLayoutBox[], targetHeight: number): PlacedRow[] {
+  if (boxes.length === 0) return [];
+  const columns: GraphLayoutBox[][] = [];
+  let current: GraphLayoutBox[] = [];
+  let used = 0;
+  for (const box of boxes) {
+    const next = used === 0 ? box.height : used + BOX_GAP + box.height;
+    if (current.length > 0 && next > targetHeight) {
+      columns.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(box);
+    used = used === 0 ? box.height : used + BOX_GAP + box.height;
+  }
+  if (current.length > 0) columns.push(current);
+  const placed: PlacedRow[] = [];
+  let x = 0;
+  columns.forEach((column, index) => {
+    const slotWidth = Math.max(...column.map((box) => box.width));
+    const columnHeight =
+      column.reduce((sum, box) => sum + box.height, 0) + BOX_GAP * (column.length - 1);
+    let cursor = 0;
+    for (const box of column) {
+      const y = index % 2 === 0 ? cursor : columnHeight - cursor - box.height;
+      placed.push({ id: box.id, x, y, width: box.width, height: box.height });
+      cursor += box.height + BOX_GAP;
+    }
+    x += slotWidth + SUB_COLUMN_GAP;
+  });
+  return placed;
+}
+
+/** Lay cluster boxes out in order; the achieved bounds frame the whole clustered graph. */
+export function layoutBoxes(boxes: readonly GraphLayoutBox[]): GraphLayoutResult {
+  const natural = Math.max(
+    1,
+    boxes.reduce((sum, box) => sum + box.height, 0) + BOX_GAP * Math.max(0, boxes.length - 1),
+  );
+  const rows = chooseWithTarget(natural, (target) => placeBoxes(boxes, target));
+  const { width, height } = bounds(rows);
+  const positions = new Map<string, GraphPosition>();
+  for (const row of rows) positions.set(row.id, { x: row.x, y: row.y });
   return { positions, width, height };
 }

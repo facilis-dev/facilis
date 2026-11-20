@@ -166,8 +166,51 @@ describe("buildGraphScene", () => {
       width: 0,
       height: 0,
       nodes: [],
+      frames: [],
       edges: [],
       truncated: false,
     });
   });
 });
+
+
+describe("buildGraphScene with clusters (issue #62)", () => {
+  const graph = graphOf([PAGE, GET, TODOS], [PAGE_ROUTE, ROUTE_TABLE]);
+
+  it("draws an expanded frame around every member card", () => {
+    const clustered = buildProjectGraphView({ graph, clusters: { enabled: true, collapsed: [] } });
+    const scene = buildGraphScene(clustered, emptyGraphLayout(), palette);
+    expect(scene.frames).toHaveLength(clustered.clusters.length);
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    for (const cluster of clustered.clusters) {
+      const frame = scene.frames.find((entry) => entry.label === cluster.label);
+      expect(frame).toBeDefined();
+      if (frame === undefined) continue;
+      for (const id of cluster.nodeIds) {
+        const rect = byId.get(id)?.rect;
+        expect(rect).toBeDefined();
+        if (rect === undefined) continue;
+        expect(rect.x).toBeGreaterThanOrEqual(frame.rect.x);
+        expect(rect.y).toBeGreaterThanOrEqual(frame.rect.y);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(frame.rect.x + frame.rect.width);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(frame.rect.y + frame.rect.height);
+      }
+    }
+  });
+
+  it("a collapsed super-node replaces its children and anchors the boundary edge", () => {
+    const clustered = buildProjectGraphView({
+      graph,
+      clusters: { enabled: true, collapsed: ["cluster:api/api"] },
+    });
+    const scene = buildGraphScene(clustered, emptyGraphLayout(), palette);
+    const superNode = scene.nodes.find((node) => node.kind === "cluster");
+    expect(superNode?.id).toBe("cluster:api/api");
+    expect(scene.nodes.some((node) => node.id === GET.id)).toBe(false);
+    expect(scene.nodes.some((node) => node.id === PAGE.id)).toBe(false);
+    // The route-table crossing survives, re-anchored to the super-node border.
+    expect(scene.edges).toHaveLength(1);
+    expect(scene.frames.map((frame) => frame.label)).toEqual(["db"]);
+  });
+});
+
