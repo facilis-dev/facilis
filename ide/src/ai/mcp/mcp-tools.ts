@@ -2,7 +2,7 @@
 //
 // An MCP server's tools become ordinary PTC tools: `mcp_<server>_<tool>`, with a rendered
 // signature so the model can call them with one object argument. Results are lossless JSON and
-// capped: an MCP tool is remote, its payload is data, and the program still has a 5 s budget.
+// capped: an MCP tool is remote, its payload is data, and the program still has a 30 s budget.
 
 import type { PtcJson, PtcToolSpec } from "../ptc/protocol";
 import type { McpCallResult, McpServerConfig, McpToolInfo } from "./mcp-client";

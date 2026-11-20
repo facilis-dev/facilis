@@ -5,7 +5,7 @@
 // page loads it in a sandbox="allow-scripts" iframe and speaks the postMessage protocol.
 //
 // Proves: the result comes back, the tool RPC round-trips, the worker's fetch is blocked
-// by CSP, a program that would loop for >5s is killed by the runner timeout, the iframe
+// by CSP, a program that would loop for >30s is killed by the timeout guard, the iframe
 // main thread keeps relaying while the worker is stuck, and a fresh sandbox works after a
 // termination. Needs the repo Chromium (pnpm ide:browser, docs/DEV.md).
 //
@@ -147,7 +147,7 @@ const HOST_PAGE = `<!doctype html>
         record("worker fetch is blocked by CSP", value.net === "blocked", JSON.stringify(value.net));
         record("the iframe origin is opaque", probe.origin === "null", String(probe.origin));
 
-        // A loop far longer than the 5 s contract; 600 ms is the harness's budget. While it
+        // A loop far longer than the 30 s contract; 600 ms is the harness's budget. While it
         // runs the iframe main thread must still answer: the program is in the worker.
         var busyFrame = await createChild();
         var busyRun = runProgram(busyFrame, "while (true) {}", 600);
@@ -156,7 +156,7 @@ const HOST_PAGE = `<!doctype html>
         var busy = await busyRun;
         record("the iframe main thread answers during a busy program", pong.ok && pong.ms < 500, "pong=" + JSON.stringify(pong));
         record(
-          "a >5s loop is terminated by the runner timeout",
+          "a >30s loop is terminated by the timeout guard",
           busy.outcome.ok === false && busy.outcome.error && busy.outcome.error.kind === "timeout" && busy.elapsedMs < 4000,
           JSON.stringify(busy.outcome) + " after " + busy.elapsedMs + "ms",
         );

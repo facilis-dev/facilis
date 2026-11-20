@@ -317,7 +317,7 @@ node scripts/dev/check-ptc-runner.mjs
 
 It serves the real `ide/public/ptc-runner.html` with the production CSP/COOP/COEP headers and
 asserts the result comes back, the tool RPC round-trips, the worker's `fetch` is blocked, the
-iframe origin is opaque and still relays while a program is stuck, a >5 s loop is terminated,
+iframe origin is opaque and still relays while a program is stuck, a >30 s loop is terminated,
 and a fresh sandbox works afterwards. Script: `scripts/dev/check-ptc-runner.mjs`.
 
 ### 5.1 Several projects at once — `scripts/dev/smoke-multitab.mjs`

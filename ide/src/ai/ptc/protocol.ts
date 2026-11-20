@@ -24,7 +24,8 @@ export type PtcJson = null | boolean | number | string | PtcJson[] | { [key: str
  */
 export const MAX_PROGRAM_CHARS = 16_000;
 export const MAX_TOOL_RESULT_CHARS = 64_000;
-export const RUN_TIMEOUT_MS = 5_000;
+/** 30 s (D-108 amendment, issue #43): sized for the work a program does, not one tool call. */
+export const RUN_TIMEOUT_MS = 30_000;
 /** Arguments are echoed into the trace; cap them so one call cannot flood the UI/log. */
 export const MAX_TRACE_ARGS_CHARS = 2_000;
 

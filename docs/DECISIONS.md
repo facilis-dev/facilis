@@ -3650,8 +3650,9 @@ lossless JSON; the final answer is still the existing `AIResponse`, its patches 
 - **Protocol (PTC pure):** one JSON object per turn, `script` XOR `patches`; the program is an
   async function body with `tools` as the only injected global; the run outcome (value or typed
   error) goes back as one user turn. Bounds: 6 script turns per message, 32 tool calls per
-  program, 5 s wall, per-result and per-turn caps (D-108 later removed the counters; the 5 s wall
-  and the size caps remain). No native function-calling mode in phase 1.
+  program, 5 s wall, per-result and per-turn caps (D-108 later removed the counters; the wall
+  clock and the size caps remain — the wall is 30 s since D-108's 2026-11-19 amendment,
+  issue #43). No native function-calling mode in phase 1.
 - **Sandbox:** sandboxed iframe (opaque origin) + one blob Worker per program; the iframe relays
   `{ id, tool, args }` to the IDE, which enforces path/secret/capability policy, caps and
   logging, and can drop the frame when the worker is unresponsive. The runner page is served
@@ -4000,11 +4001,22 @@ progress, not a budget: `ChatState.patchParts = { part }` and `ChatState.repair 
 and the i18n labels lost their `/{max}` placeholders.
 
 **Kept, deliberately, because they bound resources rather than the conversation:** the sandbox's
-per-program wall clock (`RUN_TIMEOUT_MS`, 5 s), the program source cap (`MAX_PROGRAM_CHARS`,
+per-program wall clock (`RUN_TIMEOUT_MS`, 30 s — raised from 5 s by the amendment below), the
+program source cap (`MAX_PROGRAM_CHARS`,
 16 KB), the run-result cap (`MAX_TOOL_RESULT_CHARS`, 64 KB), the trace-argument cap, and the
 finding/echo caps above. The user's Stop button aborts the provider request and the sandbox.
 `HISTORY_LIMIT = 20` in `chat-session.ts` stays too: it bounds how much conversation is
 *replayed* on the next message, not how long the current turn may run.
+
+**Amendment (2026-11-19, issue #43).** The wall clock is raised from 5 s to 30 s
+(`RUN_TIMEOUT_MS = 30_000`). 5 s was sized for a program that calls one tool; the work a program
+actually does — multi-file reads and searches on a cold VFS, a remote MCP call whose HTTP timeout
+is 15 s (D-118) — legitimately outlives it, and the kill cost a full provider round trip per
+retry. It remains a resource guard, not a quota: one fresh iframe per program, termination on
+timeout, the caps above and the Stop button are unchanged. With 30 s, the MCP HTTP timeout is the
+binding bound for a remote call again, so the prompt no longer asks for one call per program.
+Verification: `ptc/runner.test.ts` (fake clock: a ~10 s program completes, >30 s times out),
+`mcp/mcp-program-clock.test.ts` (an 8 s MCP call completes inside a program), `prompt-mcp.test.ts`.
 
 **Rejected alternatives.** *A very high counter* (say 100 calls) produces the same dead end later;
 the user asked for validity to be the gate, not a bigger number. *Applying a partial set when the
@@ -4536,6 +4548,12 @@ discover-once), `mcp-executor.test.ts` (merge and routing), `prompt.test.ts` (th
 only with an MCP tool); live probe against `https://mcp.deepwiki.com/mcp` (initialize, tools/list,
 tools/call over 2025-06-18). Remaining: settings UI, managed allowlist, per-tool enablement,
 OAuth-protected servers.
+
+**Amendment (2026-11-19, issue #43).** With the program wall clock raised to 30 s (D-108), the
+15 s per-request timeout is the binding bound for a remote call again: a remote call no longer
+has to be the program's main work, and the prompt's "one call per program" rule is retired — the
+section now says a remote call is slower than a file read but need not be the program's only
+work. Nothing else changes: results stay data, capped, and never write the project.
 
 ### D-119 — Logs are JSONL files: access, error and audit share one pipeline
 
