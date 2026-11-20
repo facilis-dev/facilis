@@ -96,6 +96,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     config: config.facts,
     routes: routeRelations.routes,
     tables: schema.tables,
+    enums: schema.enums,
     relations: schema.relations,
     views: views.views,
     pages: pages.pages,

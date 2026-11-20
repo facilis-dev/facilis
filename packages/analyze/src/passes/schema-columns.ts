@@ -270,6 +270,9 @@ export function buildColumnFact(input: ColumnInput): ColumnResult {
     }
   }
   if (array && type !== "unknown") type += "[]";
+  // Postgres primary keys are NOT NULL, and Drizzle's runtime column carries that too; the
+  // snapshot round-trip must not report a nullable PK.
+  if (primaryKey) notNull = true;
 
   const column: ColumnFact = {
     property: input.property,

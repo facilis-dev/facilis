@@ -33,8 +33,12 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "@facilis.dev/db": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "drizzle-orm": "0.45.4",
     "oxc-parser": "0.157.0",
     "oxlint": "catalog:",
     "typescript": "catalog:",

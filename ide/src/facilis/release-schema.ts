@@ -6,7 +6,8 @@
 // The caller supplies the analyzer because the browser runs it in a worker: this module
 // stays pure apart from the reads it is handed.
 
-import type { Analysis } from "@facilis.dev/analyze";
+import { schemaSnapshotFromAnalysis, type Analysis } from "@facilis.dev/analyze";
+import type { SchemaSnapshot } from "@facilis.dev/core";
 import { isAnalysisPath } from "./analyze-files";
 import type { ProjectAnalysisResult } from "./project-analysis";
 import type { ReleaseTableFact } from "./release-engine";
@@ -44,6 +45,22 @@ export function schemaSourcePaths(files: readonly string[]): string[] {
   return files.filter(isSchemaSourcePath).toSorted((left, right) => left.localeCompare(right));
 }
 
+/** Load the schema sources at a ref and run the analyzer over them. */
+async function analyzeSchemaSources(
+  paths: readonly string[],
+  readText: (file: string) => Promise<string | null>,
+  analyze: SchemaAnalyzer,
+): Promise<ProjectAnalysisResult> {
+  const sources = new Map<string, string>();
+  for (const file of paths) {
+    // One read at a time: a fan-out floods the kernel worker's single-threaded fs queue.
+    // oxlint-disable-next-line no-await-in-loop
+    const text = await readText(file);
+    if (text !== null && text.length > 0) sources.set(file, text);
+  }
+  return analyze(sources);
+}
+
 /**
  * The declared tables at a ref. Null when the analyzer cannot run: diffing a schema whose
  * tables were silently dropped would invent migrations, so an unknown schema fails closed.
@@ -53,20 +70,27 @@ export async function readReleaseSchema(
   readText: (file: string) => Promise<string | null>,
   analyze: SchemaAnalyzer,
 ): Promise<ReleaseTableFact[] | null> {
-  const sources = new Map<string, string>();
-  for (const file of paths) {
-    // One read at a time: a fan-out floods the kernel worker's single-threaded fs queue.
-    // oxlint-disable-next-line no-await-in-loop
-    const text = await readText(file);
-    if (text !== null && text.length > 0) sources.set(file, text);
-  }
-  const result = await analyze(sources);
+  const result = await analyzeSchemaSources(paths, readText, analyze);
   return result.ok ? releaseTablesFromAnalysis(result.analysis) : null;
 }
 
 /**
+ * The declared schema at a ref in the shape planSchema consumes (issue #47): the plan needs
+ * the full snapshot - indexes, checks, unique constraints, enums and policy SQL - not the
+ * reduced release diff table list. Null fails closed, exactly like readReleaseSchema.
+ */
+export async function readReleaseSnapshot(
+  paths: readonly string[],
+  readText: (file: string) => Promise<string | null>,
+  analyze: SchemaAnalyzer,
+): Promise<SchemaSnapshot | null> {
+  const result = await analyzeSchemaSources(paths, readText, analyze);
+  return result.ok ? schemaSnapshotFromAnalysis(result.analysis) : null;
+}
+
+/**
  * Map the analyzer's schema facts to the Release Preview contract. Columns stay Drizzle
- * property names (the old reader's domain) and policies stay names; `scoped` is the
+ * property names (the old reader's domain) and policies stay names; scoped is the
  * analyzer's config-driven scope, not a column-name heuristic.
  */
 export function releaseTablesFromAnalysis(analysis: Analysis): ReleaseTableFact[] {

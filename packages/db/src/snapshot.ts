@@ -81,7 +81,12 @@ export interface EnumSnapshot {
  * (D-158: an unsupported declaration fails the release, never degrades silently).
  */
 export interface UnsupportedDeclarationSnapshot {
-  construct: "index" | "foreign_key";
+  /**
+   * The declaration's kind. `check`, `unique` and `policy` are reached by the source
+   * analyzer (#47), which can read a declaration whose SQL it cannot render faithfully:
+   * the plan fails those closed like an advanced index shape.
+   */
+  construct: "index" | "foreign_key" | "check" | "unique" | "policy";
   name: string;
 }
 

@@ -1,3 +1,4 @@
+import type { EnumFact, RelationFact, TableFact } from "./types-schema.ts";
 import type { JobFact, JobRelationsFact } from "./types-jobs.ts";
 import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
@@ -52,77 +53,25 @@ export interface ConfigFacts {
 }
 
 // ── schema ──────────────────────────────────────────────────────────────────────────
+// The schema-facing shapes live in types-schema.ts (the 300-line split); they are re-exported
+// here so every existing `from "./types.ts"` import keeps working.
 
-export type ColumnDefaultKind = "literal" | "now" | "random" | "unknown";
-
-export interface ColumnDefaultFact {
-  readonly kind: ColumnDefaultKind;
-  readonly value: string | null;
-}
-
-export interface ForeignKeyFact {
-  readonly columns: readonly string[];
-  readonly targetTable: string;
-  readonly targetColumns: readonly string[];
-  readonly onDelete: string | null;
-  readonly onUpdate: string | null;
-  readonly source: SourceRef;
-}
-
-export interface ColumnFact {
-  /** Drizzle property key in the table object (the dbColumns domain). */
-  readonly property: string;
-  /** SQL column name (first literal argument of the builder, or the property key). */
-  readonly name: string;
-  readonly builder: string;
-  /** Display type derived from the builder and its arguments. */
-  readonly type: string;
-  readonly notNull: boolean;
-  readonly primaryKey: boolean;
-  readonly unique: boolean;
-  readonly default: ColumnDefaultFact | null;
-  readonly source: SourceRef;
-  readonly unknown: readonly UnknownFact[];
-}
-
-export type PolicyCommand = "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "ALL";
-
-export interface PolicyFact {
-  readonly name: string;
-  readonly command: PolicyCommand;
-  readonly restrictive: boolean;
-  readonly source: SourceRef;
-  readonly unknown: readonly UnknownFact[];
-}
-
-export interface ScopeFact {
-  readonly column: string;
-  readonly kind: "tenant" | "owner";
-}
-
-export interface TableFact {
-  readonly name: string;
-  /** TypeScript binding holding the table, when declared as a const. */
-  readonly binding: string | null;
-  readonly columns: readonly ColumnFact[];
-  readonly primaryKey: readonly string[];
-  readonly foreignKeys: readonly ForeignKeyFact[];
-  readonly policies: readonly PolicyFact[];
-  readonly rlsEnabled: boolean;
-  readonly scope: ScopeFact | null;
-  readonly source: SourceRef;
-  readonly unknown: readonly UnknownFact[];
-}
-
-export interface RelationFact {
-  readonly from: string;
-  readonly to: string;
-  readonly cardinality: "one" | "many";
-  readonly fields: readonly string[];
-  readonly references: readonly string[];
-  readonly source: SourceRef;
-  readonly unknown: readonly UnknownFact[];
-}
+export type {
+  CheckFact,
+  ColumnDefaultFact,
+  ColumnDefaultKind,
+  ColumnFact,
+  EnumFact,
+  ForeignKeyFact,
+  IndexFact,
+  PolicyCommand,
+  PolicyFact,
+  RelationFact,
+  ScopeFact,
+  TableFact,
+  UniqueConstraintFact,
+  UnsupportedDeclarationFact,
+} from "./types-schema.ts";
 
 // ── routes ─────────────────────────────────────────────────────────────────────────
 
@@ -281,6 +230,8 @@ export interface Analysis {
   readonly config: ConfigFacts;
   readonly routes: readonly RouteFact[];
   readonly tables: readonly TableFact[];
+  /** `pgEnum` types declared by the schema files, deduped by name (the SchemaSnapshot enums). */
+  readonly enums: readonly EnumFact[];
   readonly relations: readonly RelationFact[];
   /** Declarative views (D-157): facts, and graph nodes since D-160. */
   readonly views: readonly ViewFact[];

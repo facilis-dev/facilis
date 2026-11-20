@@ -1378,7 +1378,12 @@ interface IndexSnapshot {
 interface CheckSnapshot { name: string; expression: string }   // expression already rendered as SQL
 interface UniqueConstraintSnapshot { name: string; columns: string[] }
 interface EnumSnapshot { name: string; values: string[] }
-interface UnsupportedDeclarationSnapshot { construct: "index" | "foreign_key"; name: string }
+interface UnsupportedDeclarationSnapshot {
+  // check/unique/policy are reached only by the source analyzer (#47): a declaration whose
+  // SQL cannot be rendered faithfully fails the plan closed, like an advanced index shape
+  construct: "index" | "foreign_key" | "check" | "unique" | "policy"
+  name: string
+}
 
 interface ForeignKeySnapshot {
   columns: string[]

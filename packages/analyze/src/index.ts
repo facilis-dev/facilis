@@ -18,6 +18,8 @@ export type { PathAlias } from "./path-resolver.ts";
 export type { Parser, ParseError, ParsedModule } from "./parser.ts";
 export { diagnostic, error, info, warning } from "./diagnostics.ts";
 export { computeRevision } from "./revision.ts";
+// The plan-shaped view of the schema facts (the Release Preview's planSchema input, #47).
+export { schemaSnapshotFromAnalysis } from "./schema-snapshot.ts";
 // The one id spelling shared by graph nodes and edges (D-092), for UI joins by node id.
 export { pageId, routeId, tableId, viewId, workflowId } from "./graph-ids.ts";
 export type { TransportSpec } from "./passes/clients.ts";
