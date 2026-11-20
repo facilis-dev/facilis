@@ -33,6 +33,7 @@ function makeSession(tabs: PreviewTab[]) {
       state = { ...state, ...patch };
     },
     keepPrefixPorts: () => [],
+    activeFolderPort: () => null,
     status: () => undefined,
     endRunPhase: () => undefined,
   };

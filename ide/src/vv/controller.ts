@@ -525,8 +525,8 @@ export class IdeController {
     this.set({ ports: this.kernelPorts.list() });
   }
 
-  // The Preview panel's window onto the controller: its four snapshot fields,
-  // the keep-prefix ports of the running projects, and two status hooks.
+  // The Preview panel's window onto the controller: its four snapshot fields, the
+  // running projects' ports (keep-prefix and active-folder), and two status hooks.
   private previewHost(): PreviewHost {
     return {
       state: () => ({
@@ -544,6 +544,7 @@ export class IdeController {
         if (patch.previewCollapsed !== undefined) next.previewCollapsed = patch.previewCollapsed;
         this.set(next);
       },
+      activeFolderPort: (root) => this.runningProjects.get(root)?.port ?? null,
       keepPrefixPorts: () => {
         const ports: number[] = [];
         for (const [dir, r] of this.runningProjects) {

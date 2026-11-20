@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type { KernelBridge } from "./kernel";
 import { markBoot } from "./boot-marks";
 import { PreviewCdp } from "./preview-cdp";
-import { openPreviewWindow } from "./preview-popout";
+import { openPreviewWindow, pickExternalPort } from "./preview-popout";
 import { closedOtherTabs, closedTab, closedTabsToRight, previewTabForPort } from "./preview-tabs";
 import { parsePreviewAddress, previewPathSuffix, previewSrcFor } from "./preview-url";
 import { PreviewDevtools } from "./preview-devtools";
@@ -43,6 +43,7 @@ export interface PreviewHost {
   }): void;
   /** Ports that serve UNDER /preview/<port>/ (keep-prefix templates). */
   keepPrefixPorts(): number[];
+  activeFolderPort(root: string): number | null; // the folder's running app, if up
   /** A transient status-bar message. */
   status(text: string): void;
   /** The app painted: stop narrating the run. */
@@ -229,13 +230,19 @@ export class PreviewSession {
       /* cross-origin */
     }
   }
-  openPreviewExternal(id: string) {
+  /** False when the tab has no port or the browser blocked the pop-up. */
+  openPreviewExternal(id: string): boolean {
     const tab = this.state.tabs.find((entry) => entry.id === id);
-    if (tab?.port != null) openPreviewWindow(this.bridge, tab.port);
+    return tab?.port != null ? openPreviewWindow(this.bridge, tab.port) : false;
   }
 
-  openExternalPreview(port: number) {
-    openPreviewWindow(this.bridge, port);
+  openExternalPreview(port: number): boolean {
+    return openPreviewWindow(this.bridge, port);
+  }
+
+  externalPreviewPort(root: string | null, ports: readonly { port: number }[]): number | null {
+    const folder = root === null ? null : this.host.activeFolderPort(root);
+    return pickExternalPort(folder, this.activePreviewTab()?.port ?? null, ports);
   }
 
   // Relay an inbound ws/SSE frame to any preview opened in its OWN tab. Those tabs
