@@ -22,7 +22,6 @@ export const projectGraphEn = {
   "projectGraph.saved": "Layout saved",
   "projectGraph.saveFailed": "Could not save the layout: {error}",
   "projectGraph.search": "Search nodes…",
-  "projectGraph.filters": "Edges",
   "projectGraph.edge.fk": "Foreign key",
   "projectGraph.edge.relation": "Relation",
   "projectGraph.edge.routeTable": "Route → table",
@@ -182,7 +181,6 @@ export const projectGraphEn = {
   "projectGraph.hud.actions": "Graph actions",
   "projectGraph.hud.view": "View controls",
   "projectGraph.hud.modeSlot": "Graph mode",
-  "projectGraph.hud.lensSlot": "Lens chips",
   "projectGraph.hud.minimapSlot": "Minimap",
   "projectGraph.ribbon.label": "Graph statistics",
   "projectGraph.ribbon.pages": "Pages",
@@ -193,4 +191,21 @@ export const projectGraphEn = {
   "projectGraph.ribbon.edges": "Edges",
   "projectGraph.ribbon.filterKind": "Filter by {label}",
   "projectGraph.ribbon.filterEdges": "Show or hide all edges",
+
+  // ── lens chips + edge-kind isolation (issue #63) ─────────────────────────────
+  "projectGraph.lens.label": "Lenses and edge kinds",
+  "projectGraph.lens.collapse": "Lenses",
+  "projectGraph.lens.contract": "Contract",
+  "projectGraph.lens.data": "Data",
+  "projectGraph.lens.runtime": "Runtime",
+  "projectGraph.lens.agent": "Agent",
+  "projectGraph.lens.impact": "Impact",
+  "projectGraph.lens.roles": "Roles",
+  "projectGraph.lens.secondary": "secondary",
+  "projectGraph.lens.limitHint":
+    "One dominant lens plus one secondary only — deactivate a lens first.",
+  "projectGraph.chip.edgeHint":
+    "Isolate {label} (click), add to the set (Shift+click), hide (Alt+click)",
+  "projectGraph.chip.lensHint": "Activate the {label} lens; the newest active lens is dominant",
+  "projectGraph.chip.hidden": "hidden",
 } as const;

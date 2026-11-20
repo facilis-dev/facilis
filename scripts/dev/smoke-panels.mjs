@@ -339,6 +339,134 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await waitFor(page, 'document.querySelectorAll(".react-flow__edge").length > 0', 5000);
   await page.screenshot(ARTIFACTS + "/05c-project-graph-hud.png");
 
+  // ── Lens chips + edge-kind isolation (issue #63) ─────────────────────────────
+  // The chips dock bottom-left: click isolates (opacity only, never a removal), Alt-click hides
+  // (the ribbon keeps the hidden count), a third lens is refused with a hint, arrows roam.
+  const EDGE_DIM =
+    '(() => { const paths = [...document.querySelectorAll(".react-flow__edge path:not(.react-flow__edge-interaction)")];' +
+    " if (paths.length === 0) return null;" +
+    " const ops = paths.map((p) => Number(getComputedStyle(p).opacity));" +
+    " return { total: paths.length, dim: ops.filter((o) => o <= 0.11).length, bright: ops.filter((o) => o >= 0.9).length }; })()";
+  const NODE_RECTS =
+    '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => { const r = n.getBoundingClientRect();' +
+    ' return Math.round(r.x) + ":" + Math.round(r.y); }).join(","))()';
+  const chipCount = await page.evaluate(
+    'document.querySelectorAll("[data-graph-chip]").length',
+  );
+  record(chipCount === 13, "project graph: 7 edge-kind + 6 lens chips docked", "chips=" + chipCount);
+
+  const beforeIso = await page.evaluate(EDGE_DIM);
+  const nodesBefore = await page.evaluate(NODE_RECTS);
+  await page.evaluate(clickTestId("graph-chip-edge-route-table"));
+  const isoPressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  const duringIso = await page.evaluate(EDGE_DIM);
+  const nodesDuring = await page.evaluate(NODE_RECTS);
+  record(
+    isoPressed &&
+      beforeIso !== null &&
+      duringIso !== null &&
+      duringIso.total === beforeIso.total &&
+      duringIso.dim > 0 &&
+      duringIso.bright > 0 &&
+      nodesBefore === nodesDuring,
+    "project graph: isolation dims other kinds without removing edges or moving nodes",
+    "pressed=" + isoPressed + " before=" + JSON.stringify(beforeIso) + " during=" + JSON.stringify(duringIso),
+  );
+  // The isolation rides the gv URL parameter (issue #58): shareable and reload-safe.
+  const isoInUrl = await waitFor(
+    page,
+    '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
+    ' try { const v = JSON.parse(gv); return Array.isArray(v.i) && v.i.length === 1 && v.i[0] === "route-table"; } catch { return false; } })()',
+    5000,
+  );
+  record(isoInUrl, "project graph: isolation persisted in the view-state URL");
+  await page.evaluate(clickTestId("graph-chip-edge-route-table"));
+  const isoCleared = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
+  const afterIso = await page.evaluate(EDGE_DIM);
+  record(
+    isoCleared && afterIso !== null && afterIso.dim === 0,
+    "project graph: second click clears the isolation",
+    "pressed=" + isoCleared + " after=" + JSON.stringify(afterIso),
+  );
+
+  // Alt-click hides the kind; the ribbon's hidden counter stays available, then alt-click restores.
+  const altClick = (testId) =>
+    "(() => { const b = document.querySelector('[data-testid=" +
+    JSON.stringify(testId) +
+    "]'); if (!b) return 'NOTFOUND';" +
+    " b.dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true })); return 'OK'; })()";
+  const edgesBeforeHide = await page.evaluate(EDGE_DIM);
+  await page.evaluate(altClick("graph-chip-edge-route-table"));
+  const hiddenShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-hidden-count]"))',
+    5000,
+  );
+  const edgesAfterHide = await page.evaluate(EDGE_DIM);
+  record(
+    hiddenShown &&
+      edgesBeforeHide !== null &&
+      edgesAfterHide !== null &&
+      edgesAfterHide.total < edgesBeforeHide.total,
+    "project graph: alt-click hides a kind and the hidden count stays available",
+    "counter=" + hiddenShown + " before=" + JSON.stringify(edgesBeforeHide) + " after=" + JSON.stringify(edgesAfterHide),
+  );
+  await page.evaluate(altClick("graph-chip-edge-route-table"));
+  await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
+
+  // Keyboard: arrows roam the chips, Alt+Space hides, Space isolates (trusted CDP keys).
+  // route-table is the kind the demo project certainly has (its routes declare dbTables).
+  await page.evaluate('document.querySelector("[data-testid=graph-chip-edge-route-table]").focus()');
+  await pressKey(page, "ArrowRight", "ArrowRight", 39);
+  const roved = await page.evaluate(
+    'document.activeElement?.getAttribute("data-testid") === "graph-chip-edge-page-route"',
+  );
+  await pressKey(page, "ArrowLeft", "ArrowLeft", 37);
+  await pressKey(page, " ", "Space", 32, 1); // Alt+Space hides the focused kind
+  const altSpaceHidden = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-hidden-count]"))',
+    5000,
+  );
+  await pressKey(page, " ", "Space", 32, 1);
+  await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
+  await pressKey(page, " ", "Space", 32); // plain Space isolates
+  const spacePressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  await pressKey(page, " ", "Space", 32);
+  await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
+  record(
+    roved && altSpaceHidden && spacePressed,
+    "project graph: chips keyboard-reachable (arrows, Space, Alt+Space)",
+    "roved=" + roved + " altSpace=" + altSpaceHidden + " space=" + spacePressed,
+  );
+
+  // Lenses: the second demotes the first to secondary; a third is refused with a visible hint.
+  await page.evaluate(clickTestId("graph-chip-lens-contract"));
+  await waitFor(page, pressed("graph-chip-lens-contract") + ' === "true"', 5000);
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  const secondaryMarked = await waitFor(
+    page,
+    '(() => { const c = document.querySelector("[data-testid=graph-chip-lens-contract]");' +
+    ' return c !== null && (c.textContent || "").includes("secondary"); })()',
+    5000,
+  );
+  await page.evaluate(clickTestId("graph-chip-lens-runtime"));
+  const hintShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-lens-hint]"))',
+    5000,
+  );
+  const runtimeRefused = await page.evaluate(pressed("graph-chip-lens-runtime"));
+  record(
+    secondaryMarked && hintShown && runtimeRefused === "false",
+    "project graph: second lens demotes the first, third refused with a hint",
+    "secondary=" + secondaryMarked + " hint=" + hintShown + " runtime=" + runtimeRefused,
+  );
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  await page.evaluate(clickTestId("graph-chip-lens-contract"));
+  await waitFor(page, pressed("graph-chip-lens-contract") + ' === "false"', 5000);
+  await page.screenshot(ARTIFACTS + "/05d-project-graph-chips.png");
+
   // Restore the default viewport for the remaining panel checks.
   await page.send("Emulation.clearDeviceMetricsOverride", {});
   await sleep(300);

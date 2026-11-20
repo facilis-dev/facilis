@@ -1,8 +1,10 @@
 // The stats ribbon (issue #57): the old footer's counters, now a compact HUD cluster in the
 // bottom-left zone. Each counter is a filter button with an active state (aria-pressed): the five
-// node-kind counters isolate kinds, the edges counter hides every edge. The lens-chips slot beside
-// it stays empty — a later issue fills it; this module owns the slot, not the lens logic.
+// node-kind counters isolate kinds, the edges counter hides every edge. The lens chips (issue
+// #63) dock beside the counters through the slot this module owns; the hidden-edges badge keeps
+// the hidden count available when a chip alt-click hides a kind.
 
+import type { ReactNode } from "react";
 import Eye from "~icons/lucide/eye";
 import File from "~icons/lucide/file";
 import GitBranch from "~icons/lucide/git-branch";
@@ -46,11 +48,14 @@ export function ProjectGraphStatsRibbon({
   filter,
   onToggleKind,
   onToggleEdges,
+  lensChips,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
   onToggleKind: (kind: GraphNodeKind) => void;
   onToggleEdges: () => void;
+  /** The lens chips (issue #63), docked in the bottom-left slot beside the counters. */
+  lensChips: ReactNode;
 }) {
   return (
     <div
@@ -104,14 +109,18 @@ export function ProjectGraphStatsRibbon({
           <GitBranch />
           <span className="tabular-nums text-foreground">{stats?.edges ?? 0}</span>
           <span className="hidden xl:inline">{t("projectGraph.ribbon.edges")}</span>
+          {stats !== null && stats.hiddenEdges > 0 ? (
+            <span
+              data-testid="graph-hidden-count"
+              className="rounded border border-border px-0.5 text-[9px] tabular-nums"
+            >
+              {t("projectGraph.hiddenEdges", { count: stats.hiddenEdges })}
+            </span>
+          ) : null}
         </Button>
       </div>
-      {/* Lens-chips SLOT: owned here, filled by a later issue. Left intentionally empty. */}
-      <div
-        data-testid="graph-hud-lens-slot"
-        aria-label={t("projectGraph.hud.lensSlot")}
-        className="hidden"
-      />
+      {/* Lens-chips slot (issue #57), filled by issue #63. */}
+      {lensChips}
     </div>
   );
 }

@@ -13,14 +13,15 @@ const NODE_BASE =
 
 /**
  * The card frame classes. A card recedes when the search excludes it or when an AI focus (D-171)
- * names other nodes; a single opacity class keeps the two dims from stacking into an unreadable
- * card.
+ * names other nodes; edge-kind isolation (issue #63) recedes it further to 10%. A single opacity
+ * class keeps the dims from stacking into an unreadable card.
  */
 export function nodeClass(
   selected: boolean,
   matched: boolean,
   dragging: boolean,
   focused: boolean,
+  isolated: boolean,
 ): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
@@ -29,7 +30,8 @@ export function nodeClass(
       : "hover:border-ring";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
   const dimmed = !matched || !focused;
-  return NODE_BASE + elevation + " " + border + (dimmed ? " opacity-40" : "");
+  const opacity = isolated ? " opacity-10" : dimmed ? " opacity-40" : "";
+  return NODE_BASE + elevation + " " + border + opacity;
 }
 
 /**

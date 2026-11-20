@@ -10,7 +10,6 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  MarkerType,
   ReactFlow,
   applyNodeChanges,
   type EdgeMouseHandler,
@@ -23,22 +22,14 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import {
-  PROJECT_GRAPH_EDGE_TYPE,
-  PROJECT_GRAPH_EDGE_TYPES,
-  type ProjectFlowEdge,
-} from "./ProjectGraphEdge";
-import {
-  LINK_SOURCE_HANDLE_ID,
-  LINK_TARGET_HANDLE_ID,
-  PROJECT_GRAPH_NODE_TYPES,
-  type ProjectFlowNode,
-} from "./ProjectGraphNodes";
+import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
+import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
-import { edgeStyleFor } from "./project-graph-edges";
+import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
@@ -53,6 +44,7 @@ export function ProjectGraphCanvas({
   fitNonce,
   edgeCurves,
   focus,
+  isolatedEdgeKinds,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -74,6 +66,8 @@ export function ProjectGraphCanvas({
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
   focus: ProjectGraphFocusState | null;
+  /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
+  isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -133,11 +127,12 @@ export function ProjectGraphCanvas({
         previous,
         selectedNodeId,
         focus,
+        isolatedEdgeKinds,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -193,30 +188,18 @@ export function ProjectGraphCanvas({
     );
   }, [addNoteNonce, instance, createNote]);
 
+  // The mapping lives in project-graph-flow-edges: focus and isolation dimming are data there.
   const edges = useMemo<ProjectFlowEdge[]>(
     () =>
-      view.edges.map((edge) => {
-        const style = edgeStyleFor(edge);
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: LINK_SOURCE_HANDLE_ID,
-          targetHandle: LINK_TARGET_HANDLE_ID,
-          type: PROJECT_GRAPH_EDGE_TYPE,
-          selected: edge.id === selectedEdgeId,
-          data: {
-            kind: edge.kind,
-            ...(edge.access === undefined ? {} : { access: edge.access }),
-            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
-            curve: edgeCurves[edge.id] ?? null,
-            onCurveChange: onEdgeCurveChange,
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
-        };
+      buildProjectGraphFlowEdges({
+        view,
+        edgeCurves,
+        selectedEdgeId,
+        focus,
+        isolatedEdgeKinds,
+        onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
+    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, isolatedEdgeKinds],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {

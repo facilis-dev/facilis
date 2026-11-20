@@ -6,6 +6,7 @@
 // A drag in flight wins over the saved layout: merging against the previous node list keeps its
 // position (and React Flow's own state) while the pointer is down; only drag stop commits.
 
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphNote } from "@/facilis/graph-types";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
@@ -20,6 +21,8 @@ export interface ProjectFlowNodesInput {
   readonly selectedNodeId: string | null;
   /** The active AI focus (D-171), or null when every card is equally bright. */
   readonly focus: ProjectGraphFocusState | null;
+  /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
+  readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly onToggleCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
@@ -31,6 +34,7 @@ export function buildProjectGraphFlowNodes({
   previous,
   selectedNodeId,
   focus,
+  isolatedEdgeKinds,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
@@ -50,6 +54,18 @@ export function buildProjectGraphFlowNodes({
   // nothing is focused or it is part of the focus.
   const isFocused = (id: string): boolean =>
     focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false);
+  // Isolation (issue #63) keeps every card in place and dims the ones no isolated edge touches:
+  // opacity only, so positions, selection and the graph bounds never move.
+  const isolationActive = isolatedEdgeKinds.length > 0;
+  const isolatedEndpoints = isolationActive
+    ? new Set(
+        view.edges
+          .filter((edge) => isolatedEdgeKinds.includes(edge.kind))
+          .flatMap((edge) => [edge.source, edge.target]),
+      )
+    : null;
+  const isIsolated = (id: string): boolean =>
+    isolationActive && !(isolatedEndpoints?.has(id) ?? false);
   const analysis = view.nodes.map((node) => {
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {
@@ -60,6 +76,7 @@ export function buildProjectGraphFlowNodes({
         node,
         collapsed: node.collapsed,
         focused: isFocused(node.id),
+        isolated: isIsolated(node.id),
         onToggleCollapse,
       },
       draggable: true,
@@ -80,7 +97,13 @@ export function buildProjectGraphFlowNodes({
       id: note.id,
       type: NOTE_NODE_TYPE,
       position: { x: note.x, y: note.y },
-      data: { note, focused: isFocused(note.id), onEditNote, onDeleteNote },
+      data: {
+        note,
+        focused: isFocused(note.id),
+        isolated: isolationActive,
+        onEditNote,
+        onDeleteNote,
+      },
       draggable: true,
     };
     if (current === undefined || current.type !== NOTE_NODE_TYPE) return base;

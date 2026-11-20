@@ -39,6 +39,7 @@ describe("graph view state round-trips", () => {
     const full = state({
       mode: "timeline",
       activeLenses: ["impact", "contract", "roles"],
+      isolatedEdgeKinds: ["fk", "page-link"],
       selection: "table:予定表",
       focus: ["page:/設定", "route:GET /api/検索", "table:café"],
       filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "project" },
@@ -55,6 +56,23 @@ describe("graph view state round-trips", () => {
       const next = state({ filters: { hiddenEdgeKinds: kinds, tableVisibility: "all" } });
       expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
     }
+  });
+
+  it("round-trips every edge-kind isolation set (all 128 subsets), canonically ordered", () => {
+    for (let mask = 0; mask < 1 << GRAPH_EDGE_KINDS.length; mask += 1) {
+      const kinds = GRAPH_EDGE_KINDS.filter((_, index) => (mask & (1 << index)) !== 0);
+      const next = state({ isolatedEdgeKinds: kinds.toReversed() });
+      const decoded = decodeGraphViewState(encodeGraphViewState(next));
+      expect(decoded.isolatedEdgeKinds).toEqual(kinds);
+    }
+  });
+
+  it("encodes isolation under i and omits it when empty", () => {
+    expect(encodeGraphViewState(state({ isolatedEdgeKinds: ["relation", "fk"] }))).toBe(
+      '{"i":["fk","relation"]}',
+    );
+    expect(encodeGraphViewState(state({ isolatedEdgeKinds: [] }))).toBe("");
+    expect(decodeGraphViewState('{"i":["bogus",3]}').isolatedEdgeKinds).toEqual([]);
   });
 
   it("round-trips every mode and every single lens", () => {
