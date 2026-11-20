@@ -11,7 +11,6 @@ import ChevronDown from "~icons/lucide/chevron-down";
 import History from "~icons/lucide/history";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -23,8 +22,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
+import type { CommitGenerator } from "@/ai/commit-generation";
 import type { GitChange, RepoState, ScmSession } from "@/vv/scm-session";
 import { IconBtn, Row, Section, relTime } from "./SourceControlParts";
+import { SourceControlCommitBox } from "./SourceControlCommitBox";
 
 /**
  * One repository's header, commit box, change sections and history. Pulled out of
@@ -40,6 +41,8 @@ export function RepoSection({
   onOpenFile,
   onOpenGraph,
   onCommit,
+  configured,
+  generate,
   onNewBranch,
   onDiscard,
   onDiscardAll,
@@ -53,12 +56,14 @@ export function RepoSection({
   onOpenFile: (ch: GitChange) => void;
   onOpenGraph: () => void;
   onCommit: () => void;
+  /** The chat's provider/model/key are present: the generate control can run. */
+  configured: boolean;
+  generate: CommitGenerator["generate"];
   onNewBranch: () => void;
   onDiscard: (ch: GitChange) => void;
   onDiscardAll: () => void;
 }) {
   const changedCount = repo.staged.length + repo.changes.length;
-  const canCommit = !!repo.commitMessage.trim() && !repo.busy && changedCount > 0;
   const showBody = !collapsible || !collapsed;
 
   return (
@@ -69,7 +74,7 @@ export function RepoSection({
           <button
             className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-accent"
             onClick={onToggle}
-            title={collapsed ? "Expand" : "Collapse"}
+            title={collapsed ? t("scm.expand") : t("scm.collapse")}
           >
             <ChevronDown className={cn("size-4 transition-transform", collapsed && "-rotate-90")} />
           </button>
@@ -89,14 +94,14 @@ export function RepoSection({
                 }
               >
                 <GitBranch className="size-3 shrink-0" />
-                <span className="truncate">{repo.currentBranch ?? "(detached)"}</span>
+                <span className="truncate">{repo.currentBranch ?? t("scm.detached")}</span>
                 <ChevronDown className="size-3 shrink-0 opacity-60" />
               </TooltipTrigger>
-              <TooltipContent side="bottom">Switch / create branch</TooltipContent>
+              <TooltipContent side="bottom">{t("scm.switchBranch")}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="min-w-52">
               <DropdownMenuGroup>
-                <DropdownMenuLabel>Branches</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("scm.branches")}</DropdownMenuLabel>
                 {repo.branches.map((b) => (
                   <DropdownMenuItem
                     key={b}
@@ -112,7 +117,7 @@ export function RepoSection({
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onNewBranch}>
-                <Plus className="size-4" /> Create new branch…
+                <Plus className="size-4" /> {t("scm.createBranch")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -124,7 +129,7 @@ export function RepoSection({
           </IconBtn>
         )}
 
-        <IconBtn label="Refresh" onClick={() => void scm.refresh()} disabled={repo.busy}>
+        <IconBtn label={t("scm.refresh")} onClick={() => void scm.refresh()} disabled={repo.busy}>
           <RefreshCw className={cn("size-3.5", repo.busy && "animate-spin")} />
         </IconBtn>
         {changedCount > 0 && (
@@ -137,34 +142,24 @@ export function RepoSection({
       {showBody && (
         <div className="border-t">
           {repo.checking && !repo.isRepo ? (
-            <div className="p-3 text-xs text-muted-foreground">Checking for a repository…</div>
+            <div className="p-3 text-xs text-muted-foreground">{t("scm.checkingRepo")}</div>
           ) : !repo.isRepo ? (
             <div className="flex flex-col gap-3 p-3 text-xs leading-relaxed text-muted-foreground">
-              <p>
-                This project is not a git repository. Initialize one to track changes, commit, and
-                branch — all locally in your browser.
-              </p>
+              <p>{t("scm.notRepo")}</p>
               <Button size="sm" disabled={repo.busy} onClick={() => void scm.init(repo.root)}>
-                <GitBranch className="size-4" /> Initialize Repository
+                <GitBranch className="size-4" /> {t("scm.initRepo")}
               </Button>
             </div>
           ) : (
             <>
-              {/* commit box */}
-              <div className="flex flex-col gap-1.5 p-2">
-                <Textarea
-                  value={repo.commitMessage}
-                  onChange={(e) => scm.setCommitMessage(repo.root, e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canCommit) onCommit();
-                  }}
-                  placeholder={`Message (⌘Enter to commit on "${repo.currentBranch ?? "HEAD"}")`}
-                  className="min-h-16 resize-none text-xs"
-                />
-                <Button size="sm" disabled={!canCommit} onClick={onCommit}>
-                  <Check className="size-4" /> Commit
-                </Button>
-              </div>
+              {/* commit box: the one place a generated message lands, and it never commits */}
+              <SourceControlCommitBox
+                repo={repo}
+                scm={scm}
+                configured={configured}
+                generate={generate}
+                onCommit={onCommit}
+              />
 
               {repo.error && (
                 <div className="border-t bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
@@ -173,12 +168,12 @@ export function RepoSection({
               )}
 
               <Section
-                title="Staged Changes"
+                title={t("scm.stagedChanges")}
                 count={repo.staged.length}
                 actions={
                   repo.staged.length > 0 && (
                     <IconBtn
-                      label="Unstage all"
+                      label={t("scm.unstageAll")}
                       onClick={() => void scm.unstageAll(repo.root)}
                       disabled={repo.busy}
                     >
@@ -193,7 +188,7 @@ export function RepoSection({
                       <FilePenLine className="size-3.5" />
                     </IconBtn>
                     <IconBtn
-                      label="Unstage"
+                      label={t("scm.unstage")}
                       onClick={() => void scm.unstage(repo.root, ch)}
                       disabled={repo.busy}
                     >
@@ -204,20 +199,20 @@ export function RepoSection({
               </Section>
 
               <Section
-                title="Changes"
+                title={t("scm.changes")}
                 count={repo.changes.length}
                 actions={
                   repo.changes.length > 0 && (
                     <>
                       <IconBtn
-                        label="Discard all changes"
+                        label={t("scm.discardAll")}
                         onClick={onDiscardAll}
                         disabled={repo.busy}
                       >
                         <RotateCcw className="size-3.5" />
                       </IconBtn>
                       <IconBtn
-                        label="Stage all changes"
+                        label={t("scm.stageAll")}
                         onClick={() => void scm.stageAll(repo.root)}
                         disabled={repo.busy}
                       >
@@ -233,14 +228,14 @@ export function RepoSection({
                       <FilePenLine className="size-3.5" />
                     </IconBtn>
                     <IconBtn
-                      label="Discard changes"
+                      label={t("scm.discardChanges")}
                       onClick={() => onDiscard(ch)}
                       disabled={repo.busy}
                     >
                       <RotateCcw className="size-3.5" />
                     </IconBtn>
                     <IconBtn
-                      label="Stage changes"
+                      label={t("scm.stageChanges")}
                       onClick={() => void scm.stage(repo.root, ch)}
                       disabled={repo.busy}
                     >
@@ -251,12 +246,12 @@ export function RepoSection({
               </Section>
 
               {repo.staged.length === 0 && repo.changes.length === 0 && (
-                <div className="p-3 text-xs text-muted-foreground">No changes.</div>
+                <div className="p-3 text-xs text-muted-foreground">{t("scm.noChanges")}</div>
               )}
 
               {repo.history.length > 0 && (
                 <Section
-                  title="History"
+                  title={t("scm.history")}
                   count={repo.history.length}
                   icon={<History className="size-3.5" />}
                 >

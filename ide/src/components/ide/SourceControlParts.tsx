@@ -2,15 +2,16 @@ import type { ReactNode } from "react";
 import GitBranch from "~icons/lucide/git-branch";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { t, type MessageKey } from "@/i18n";
 import { FileIcon } from "./fileIcon";
 import type { ChangeLetter, GitChange } from "@/vv/scm-session";
 
 /** Single-letter change badges: the word is the tooltip, the letter the compact mark. */
-const LETTER_TITLE: Record<ChangeLetter, string> = {
-  A: "Added",
-  M: "Modified",
-  D: "Deleted",
-  U: "Untracked",
+const LETTER_KEY: Record<ChangeLetter, MessageKey> = {
+  A: "scm.letter.added",
+  M: "scm.letter.modified",
+  D: "scm.letter.deleted",
+  U: "scm.letter.untracked",
 };
 const LETTER_CLASS: Record<ChangeLetter, string> = {
   A: "text-success",
@@ -31,7 +32,7 @@ export function Panel({ children }: { children: ReactNode }) {
     <div className="flex h-full flex-col overflow-hidden bg-sidebar text-sm">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <GitBranch className="size-4" />
-        <span className="flex-1">Source Control</span>
+        <span className="flex-1">{t("scm.title")}</span>
       </div>
       {children}
     </div>
@@ -96,7 +97,7 @@ export function Row({
         </span>
         <span
           className={cn("w-3 text-center text-xs font-semibold", LETTER_CLASS[ch.letter])}
-          title={LETTER_TITLE[ch.letter]}
+          title={t(LETTER_KEY[ch.letter])}
         >
           {ch.letter}
         </span>
@@ -137,9 +138,9 @@ export function IconBtn({
 export function relTime(seconds: number): string {
   if (!seconds) return "";
   const diff = Date.now() / 1000 - seconds;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("recent.justNow");
+  if (diff < 3600) return t("recent.minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("recent.hoursAgo", { n: Math.floor(diff / 3600) });
+  if (diff < 2592000) return t("recent.daysAgo", { n: Math.floor(diff / 86400) });
   return new Date(seconds * 1000).toLocaleDateString();
 }

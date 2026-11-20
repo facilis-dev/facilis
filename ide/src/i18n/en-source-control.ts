@@ -1,12 +1,64 @@
-// Source Control + diff-tab strings (D-088), spread into `en` in en.ts.
+// Source Control + diff-tab strings (D-088/D-197), spread into `en` in en.ts.
 //
-// The SCM panel is upstream-inherited and still carries its original labels (see the
-// retrofit table in ide/I18N.md); these keys cover what this fork adds to it — the diff
-// tab label, the row actions — so the new controls ship translated from their first
-// commit (D-043).
+// The SCM panel was upstream-inherited; the commit box (D-197) is now a Facilis module and its
+// labels, the repo section and the panel dialogs were migrated with it. Every string the
+// Source Control surface renders lives here, so a theme/locale change never leaves a literal.
 export const sourceControlEn = {
+  "scm.title": "Source Control",
+  "scm.openProject": "Open a project to use Source Control.",
   "scm.openFile": "Open file",
   "scm.openDiff": "Open diff",
+  "scm.expand": "Expand",
+  "scm.collapse": "Collapse",
+  "scm.detached": "(detached)",
+  "scm.switchBranch": "Switch / create branch",
+  "scm.branches": "Branches",
+  "scm.createBranch": "Create new branch…",
+  "scm.createBranchTitle": "Create branch",
+  "scm.createBranchDescription": "Branch off the current HEAD and switch to it.",
+  "scm.create": "Create",
+  "scm.refresh": "Refresh",
+  "scm.checkingRepo": "Checking for a repository…",
+  "scm.notRepo":
+    "This project is not a git repository. Initialize one to track changes, commit, and branch — all locally in your browser.",
+  "scm.initRepo": "Initialize Repository",
+  "scm.messagePlaceholder": "Message (⌘Enter to commit on \"{branch}\")",
+  "scm.commit": "Commit",
+  "scm.generate": "Generate",
+  "scm.generating": "Generating…",
+  "scm.generateHint": "Generate a commit message from the changes with the configured model.",
+  "scm.generate.noModel":
+    "Configure an AI provider in the chat settings to generate a commit message.",
+  "scm.generate.empty": "There is nothing to describe, or the model returned no message.",
+  "scm.generate.failed": "The commit message could not be generated. Try again.",
+  "scm.generate.confirm": "Replace your message with the generated one?",
+  "scm.generate.replace": "Replace",
+  "scm.generate.keep": "Keep mine",
+  "scm.stagedChanges": "Staged Changes",
+  "scm.unstageAll": "Unstage all",
+  "scm.unstage": "Unstage",
+  "scm.changes": "Changes",
+  "scm.discardAll": "Discard All",
+  "scm.stageAll": "Stage all changes",
+  "scm.discardChanges": "Discard changes",
+  "scm.stageChanges": "Stage changes",
+  "scm.noChanges": "No changes.",
+  "scm.history": "History",
+  "scm.letter.added": "Added",
+  "scm.letter.modified": "Modified",
+  "scm.letter.deleted": "Deleted",
+  "scm.letter.untracked": "Untracked",
+  "scm.identityTitle": "Set your git identity",
+  "scm.identityDescription":
+    "Used as the author of your commits. Stored locally in this browser.",
+  "scm.identityName": "Your name",
+  "scm.identitySave": "Save & commit",
+  "scm.discardOneTitle": "Discard changes to {name}?",
+  "scm.discardOneDescription":
+    "This is irreversible — the file is restored to its last committed state.",
+  "scm.discard": "Discard",
+  "scm.discardAllTitle": "Discard all {n} changes?",
+  "scm.discardAllDescription": "This is irreversible — all unstaged changes are reverted.",
   "diff.workingTree": "(Working Tree)",
   "diff.empty": "No changes against HEAD for this file.",
 } as const;
