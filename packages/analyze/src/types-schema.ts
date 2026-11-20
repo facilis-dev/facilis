@@ -104,7 +104,7 @@ export interface UniqueConstraintFact {
 
 /** A declaration the snapshot cannot read faithfully (D-158: fail the release, never drop it). */
 export interface UnsupportedDeclarationFact {
-  readonly construct: "index" | "foreign_key" | "check" | "unique" | "policy";
+  readonly construct: "index" | "foreign_key" | "check" | "unique" | "policy" | "primary_key";
   readonly name: string;
 }
 

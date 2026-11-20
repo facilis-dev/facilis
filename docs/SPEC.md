@@ -1379,9 +1379,10 @@ interface CheckSnapshot { name: string; expression: string }   // expression alr
 interface UniqueConstraintSnapshot { name: string; columns: string[] }
 interface EnumSnapshot { name: string; values: string[] }
 interface UnsupportedDeclarationSnapshot {
-  // check/unique/policy are reached only by the source analyzer (#47): a declaration whose
-  // SQL cannot be rendered faithfully fails the plan closed, like an advanced index shape
-  construct: "index" | "foreign_key" | "check" | "unique" | "policy"
+  // check/unique/policy/primary_key are reached only by the source analyzer (#47): a
+  // declaration whose SQL or columns cannot be rendered faithfully fails the plan closed,
+  // like an advanced index shape
+  construct: "index" | "foreign_key" | "check" | "unique" | "policy" | "primary_key"
   name: string
 }
 

@@ -246,3 +246,66 @@ describe("schema facts: policies", () => {
     expect(users.unsupported.filter((entry) => entry.construct === "policy")).toHaveLength(2);
   });
 });
+
+describe("schema facts: composite primary keys", () => {
+  const PK_HEADER = 'import { pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";\n';
+
+  it("reads a table-level primaryKey as ordered property keys, winning over column level", () => {
+    const result = factsOf(
+      PK_HEADER +
+        [
+          'export const memberships = pgTable("memberships", {',
+          '  id: uuid("id").primaryKey(),',
+          '  userId: uuid("user_id").notNull(),',
+          '  roleId: text("role_id").notNull(),',
+          "}, (table) => [primaryKey({ columns: [table.userId, table.roleId] })]);",
+        ].join("\n"),
+    );
+    const memberships = table(result, "memberships");
+    expect(memberships.primaryKey).toEqual(["userId", "roleId"]);
+    expect(memberships.unsupported).toEqual([]);
+  });
+
+  it("fails closed on an unreadable primaryKey instead of dropping it", () => {
+    const result = factsOf(
+      PK_HEADER +
+        [
+          'export const memberships = pgTable("memberships", {',
+          '  userId: uuid("user_id").notNull(),',
+          "}, (table) => [primaryKey({ columns: dynamicColumns })]);",
+        ].join("\n"),
+    );
+    const memberships = table(result, "memberships");
+    expect(memberships.primaryKey).toEqual([]);
+    expect(memberships.unsupported).toEqual([
+      expect.objectContaining({ construct: "primary_key", name: "memberships" }),
+    ]);
+  });
+});
+
+describe("schema facts: enums beyond db/", () => {
+  it("collects an enum declared in a re-exported source outside db/", () => {
+    const files = new Map([
+      ["db/schema.ts", 'export { things } from "../lib/tables";'],
+      [
+        "lib/tables.ts",
+        [
+          'import { pgEnum, pgTable, text } from "drizzle-orm/pg-core";',
+          'export const kind = pgEnum("kind", ["a", "b"]);',
+          'export const things = pgTable("things", {',
+          '  id: text("id").primaryKey(),',
+          '  kind: kind("kind"),',
+          "});",
+        ].join("\n"),
+      ],
+    ]);
+    const graph = createModuleGraph({ files, parser });
+    const result = buildSchemaFacts(graph, fixtureConfig());
+    expect(result.tables.map((entry) => entry.name)).toEqual(["things"]);
+    expect(result.enums.map((entry) => entry.name)).toEqual(["kind"]);
+    expect(result.enums[0]).toMatchObject({ name: "kind", values: ["a", "b"] });
+    expect(
+      table(result, "things").columns.find((column) => column.property === "kind")?.type,
+    ).toBe("kind");
+  });
+});

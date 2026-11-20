@@ -167,9 +167,11 @@ function buildTableDraft(input: {
     name,
     binding,
     columns: columns.map((entry) => entry.column),
-    primaryKey: columns
-      .filter((entry) => entry.column.primaryKey)
-      .map((entry) => entry.column.property),
+    // A table-level primaryKey({ columns }) wins over column-level .primaryKey(), exactly as
+    // the runtime's primaryKeyColumns does; null means none was declared.
+    primaryKey:
+      extrasScan.primaryKey ??
+      columns.filter((entry) => entry.column.primaryKey).map((entry) => entry.column.property),
     foreignKeys: [],
     indexes: extrasScan.indexes,
     checks: extrasScan.checks,

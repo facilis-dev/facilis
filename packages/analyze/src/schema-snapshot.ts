@@ -56,13 +56,15 @@ function columnDefault(column: ColumnFact): string | null {
   return null;
 }
 
-function columnSnapshot(column: ColumnFact): ColumnSnapshot {
+function columnSnapshot(column: ColumnFact, primaryKey: ReadonlySet<string>): ColumnSnapshot {
   return {
     name: column.name,
     type: column.type,
     notNull: column.notNull,
     default: columnDefault(column),
-    isPrimaryKey: column.primaryKey,
+    // A composite (table-level) PK marks its members even though they carry no .primaryKey(),
+    // mirroring the runtime's column.primary || primaryKey.includes(column.name).
+    isPrimaryKey: column.primaryKey || primaryKey.has(column.property),
     isUnique: column.unique,
   };
 }
@@ -149,10 +151,11 @@ function tableSnapshot(table: TableFact): TableSnapshot {
     failClosed({ construct: "check", name: check.name });
     return [];
   });
+  const primaryKey = new Set(table.primaryKey);
   return {
     name: table.name,
     rlsEnabled: table.rlsEnabled,
-    columns: table.columns.map(columnSnapshot),
+    columns: table.columns.map((column) => columnSnapshot(column, primaryKey)),
     foreignKeys: table.foreignKeys.map(foreignKeySnapshot),
     policies: table.policies.map((policy) => {
       // An unreadable policy predicate must fail the plan closed; a null USING with no
@@ -186,16 +189,30 @@ function enumSnapshot(fact: EnumFact): EnumSnapshot {
   return { name: fact.name, values: [...fact.values] };
 }
 
+/** Enum types a column actually references; the runtime snapshot only carries those. */
+function referencedEnumNames(tables: readonly TableSnapshot[]): Set<string> {
+  const names = new Set<string>();
+  for (const table of tables) {
+    for (const column of table.columns) names.add(column.type.replace(/\[\]$/, ""));
+  }
+  return names;
+}
+
 /**
  * The declared schema at one ref, in the shape `planSchema` consumes. Tables and enums are
  * ordered by name so two refs compare deterministically.
  */
 export function schemaSnapshotFromAnalysis(analysis: Analysis): SchemaSnapshot {
+  const tables = analysis.tables
+    .map(tableSnapshot)
+    .toSorted((left, right) => left.name.localeCompare(right.name));
+  // The analyzer reports every declared enum; the runtime snapshot only carries the ones a
+  // column references, so filter to those to keep the two projections identical.
+  const referenced = referencedEnumNames(tables);
   return {
-    tables: analysis.tables
-      .map(tableSnapshot)
-      .toSorted((left, right) => left.name.localeCompare(right.name)),
+    tables,
     enums: analysis.enums
+      .filter((fact) => referenced.has(fact.name))
       .map(enumSnapshot)
       .toSorted((left, right) => left.name.localeCompare(right.name)),
   };

@@ -60,7 +60,13 @@ export function buildSchemaFacts(graph: ModuleGraph, config: ConfigFacts): Schem
     diagnostics.push(...scan.diagnostics);
   }
 
-  const enumScan = collectEnumFacts(graph, files);
+  // Enums follow the same files the table walk visits: db/** plus the framework sources
+  // reached by re-export, so an enum declared outside db/ is not silently missing.
+  const enumFiles = [...visitedFiles]
+    .map((path) => graph.file(path))
+    .filter((file): file is ProjectFile => file !== undefined)
+    .toSorted((left, right) => left.path.localeCompare(right.path));
+  const enumScan = collectEnumFacts(graph, enumFiles);
   diagnostics.push(...enumScan.diagnostics);
 
   const drafts = dedupeDrafts(collected);

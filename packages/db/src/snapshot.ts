@@ -82,11 +82,11 @@ export interface EnumSnapshot {
  */
 export interface UnsupportedDeclarationSnapshot {
   /**
-   * The declaration's kind. `check`, `unique` and `policy` are reached by the source
-   * analyzer (#47), which can read a declaration whose SQL it cannot render faithfully:
-   * the plan fails those closed like an advanced index shape.
+   * The declaration's kind. `check`, `unique`, `policy` and `primary_key` are reached by
+   * the source analyzer (#47), which can read a declaration whose SQL or columns it cannot
+   * render faithfully: the plan fails those closed like an advanced index shape.
    */
-  construct: "index" | "foreign_key" | "check" | "unique" | "policy";
+  construct: "index" | "foreign_key" | "check" | "unique" | "policy" | "primary_key";
   name: string;
 }
 
