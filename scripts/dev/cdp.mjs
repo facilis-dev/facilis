@@ -125,8 +125,8 @@ export async function connect(wsUrl) {
   return { ws, send, on: (listener) => listeners.add(listener), close: () => ws.close() };
 }
 
-export async function openPage(client, url) {
-  const { targetId } = await client.send("Target.createTarget", { url: "about:blank" });
+/** Attach to an existing page target (e.g. a tab another page opened) and instrument it. */
+export async function attachPage(client, targetId) {
   const { sessionId } = await client.send("Target.attachToTarget", { targetId, flatten: true });
   const send = (method, params = {}) => client.send(method, params, sessionId);
   await send("Page.enable");
@@ -182,7 +182,6 @@ export async function openPage(client, url) {
     }
   });
 
-  await send("Page.navigate", { url });
   const evaluate = async (expression) => {
     const result = await send("Runtime.evaluate", {
       expression,
@@ -210,4 +209,11 @@ export async function openPage(client, url) {
     failedRequests,
     downloads,
   };
+}
+
+export async function openPage(client, url) {
+  const { targetId } = await client.send("Target.createTarget", { url: "about:blank" });
+  const page = await attachPage(client, targetId);
+  await page.send("Page.navigate", { url });
+  return page;
 }

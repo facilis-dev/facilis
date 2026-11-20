@@ -2,7 +2,7 @@
 //
 // This is the acceptance run for the "several projects at once" feature. It drives the
 // real Studio through CDP and asserts the four things that only break with two tabs:
-//   1. each tab's preview is served by ITS kernel (both dev servers bind 5173 in their
+//   1. each tab's preview is served by ITS kernel (both dev servers bind 3000 in their
 //      own VM, so the port in the URL identifies nothing — the SW routes by preview frame);
 //   2. the per-origin OPFS index survives two kernels mirroring into it (a write in one
 //      tab used to drop the other tab's whole project from the index);
@@ -31,7 +31,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, openPage } from "./cdp.mjs";
+import { attachPage, launchChrome, openPage } from "./cdp.mjs";
 import { pruneSmokeArtifacts } from "./run-artifacts.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -53,6 +53,13 @@ const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser
 const ALPHA = "/home/user/projects/alpha";
 const BETA = "/home/user/projects/beta";
 const GAMMA = "/home/user/projects/gamma";
+
+// The creation path the IDE ships (D-051/D-168), not a vanilla Vite template: alpha is
+// the default todo project (its preview is the login page) and beta is the static
+// showcase (its preview is the studio home). The two previews must stay DIFFERENT so
+// content proves which kernel served the frame — both manifests bind port 3000.
+const TODO_PREVIEW = /Log in/;
+const SHOWCASE_PREVIEW = /We design brands people remember/;
 
 const failures = [];
 const checks = [];
@@ -166,6 +173,21 @@ async function preview(page) {
   );
 }
 
+// The Facilis app boots through a session probe and a redirect: the first paint can be
+// the shell with an EMPTY outlet (Navigate renders nothing while /login mounts), so the
+// content is polled until it settles — a vanilla template's static first paint hid this.
+async function waitForPreview(page, pattern, limitMs, label) {
+  const until = Date.now() + limitMs;
+  let last = { found: false, text: "", src: "" };
+  while (Date.now() < until) {
+    last = await preview(page);
+    if (last.found && pattern.test(last.text)) return last;
+    await sleep(500);
+  }
+  console.log("TIMEOUT " + label);
+  return last;
+}
+
 async function reloadPreview(page) {
   return page.evaluate(
     "(() => { const f = [...document.querySelectorAll('iframe')].find((f) => /preview/.test(f.src || ''));" +
@@ -174,17 +196,23 @@ async function reloadPreview(page) {
 }
 
 // `dir` is optional so a check can prove the label follows the DIRECTORY, not the form
-// name: the tab is given one and then labelled by the other (D-035).
-async function createProject(page, name, runInit, dir) {
+// name: the tab is given one and then labelled by the other (D-035). `template` is the
+// registry key (D-168); omitted means the default todo template, exactly like Home.
+async function createProject(page, name, runInit, dir, template) {
   const target = dir ? JSON.stringify(dir) : "c.defaultDirFor(" + JSON.stringify(name) + ")";
+  const input =
+    "{ dir, runInit: " +
+    (runInit ? "true" : "false") +
+    (template ? ", template: " + JSON.stringify(template) : "") +
+    " }";
   return page.evaluate(
     "(async () => { const c = window.__ide;" +
       " const dir = " +
       target +
       ";" +
-      " await c.createProject({ dir, runInit: " +
-      (runInit ? "true" : "false") +
-      " });" +
+      " await c.createProject(" +
+      input +
+      ");" +
       " return dir; })()",
   );
 }
@@ -257,7 +285,7 @@ async function main() {
   });
   const tabs = [];
   try {
-    // ---- tab A: a React project, running -----------------------------------
+    // ---- tab A: the default todo project, running -----------------------------------
     const tabA = await openPage(chrome.client, dev.url);
     tabs.push(tabA);
     check(await waitFor(tabA, KERNEL_READY, BOOT_TIMEOUT_MS, "A kernel"), "tab A boots its kernel");
@@ -278,17 +306,15 @@ async function main() {
       "A preview",
     );
     check(paintedA, "tab A runs alpha and paints its preview");
-    const prevA = await preview(tabA);
+    const prevA = await waitForPreview(tabA, TODO_PREVIEW, 30000, "A login content");
     check(
-      prevA.found && /Vite \+ React/.test(prevA.text),
-      "tab A preview is the React app",
+      prevA.found && TODO_PREVIEW.test(prevA.text),
+      "tab A preview is the todo app's login page",
       prevA.text.slice(0, 60),
     );
 
     // The run belongs to the open folder: alpha's row is what the replacement has to clear.
-    const alphaPorts = await tabA.evaluate(
-      "window.__ide.getSnapshot().ports.map((p) => p.port)",
-    );
+    const alphaPorts = await tabA.evaluate("window.__ide.getSnapshot().ports.map((p) => p.port)");
     check(alphaPorts.length === 1, "alpha's dev server is in the Ports view", String(alphaPorts));
 
     // A second project, created here and RUN: it must reach OPFS (so tab B can open it)
@@ -296,7 +322,7 @@ async function main() {
     // (D-035): beta REPLACES alpha in this tab instead of stacking a second root, and the
     // replaced project's run goes with its folder — no phantom Ports row (two live
     // listeners would bind two ports) and no preview tab bound to a server that is gone.
-    const dirB = await createProject(tabA, "beta", true);
+    const dirB = await createProject(tabA, "beta", true, undefined, "showcase");
     check(dirB === BETA, "tab A creates beta", dirB);
     const afterBeta = await snapshot(tabA);
     check(
@@ -317,9 +343,7 @@ async function main() {
       "beta preview",
     );
     check(betaUp, "beta runs after replacing alpha in the same tab");
-    const betaPorts = await tabA.evaluate(
-      "window.__ide.getSnapshot().ports.map((p) => p.port)",
-    );
+    const betaPorts = await tabA.evaluate("window.__ide.getSnapshot().ports.map((p) => p.port)");
     check(
       betaPorts.length === 1,
       "the replaced project's dev server stopped: one Ports row, not two",
@@ -406,37 +430,37 @@ async function main() {
       "B preview",
     );
     check(paintedB, "tab B runs beta and paints its preview");
-    const prevB = await preview(tabB);
+    const prevB = await waitForPreview(tabB, SHOWCASE_PREVIEW, 30000, "B showcase content");
     check(
-      prevB.found && /Vite \+ Vue/.test(prevB.text),
-      "tab B preview is the Vue app",
+      prevB.found && SHOWCASE_PREVIEW.test(prevB.text),
+      "tab B preview is the showcase app",
       prevB.text.slice(0, 60),
     );
     const snapB = await snapshot(tabB);
     check(/beta/.test(snapB.docTitle), "tab B's browser title names beta", snapB.docTitle);
 
     // ---- routing: both previews still theirs, after both kernels exist ----
-    const prevA2 = await preview(tabA);
-    check(/Vite \+ React/.test(prevA2.text), "tab A preview stays the React app with B running");
-    check(!/Vite \+ Vue/.test(prevA2.text), "tab A did not pick up tab B's kernel");
+    const prevA2 = await waitForPreview(tabA, TODO_PREVIEW, 30000, "A content with B running");
+    check(TODO_PREVIEW.test(prevA2.text), "tab A preview stays the todo app with B running");
+    check(!SHOWCASE_PREVIEW.test(prevA2.text), "tab A did not pick up tab B's kernel");
     await reloadPreview(tabA);
     await sleep(5000);
-    const prevA3 = await preview(tabA);
+    const prevA3 = await waitForPreview(tabA, TODO_PREVIEW, 30000, "A reloaded content");
     check(
-      /Vite \+ React/.test(prevA3.text) && !/Vite \+ Vue/.test(prevA3.text),
+      TODO_PREVIEW.test(prevA3.text) && !SHOWCASE_PREVIEW.test(prevA3.text),
       "a reloaded preview in tab A is served by tab A's kernel",
       prevA3.text.slice(0, 60),
     );
     await reloadPreview(tabB);
     await sleep(5000);
-    const prevB2 = await preview(tabB);
+    const prevB2 = await waitForPreview(tabB, SHOWCASE_PREVIEW, 30000, "B reloaded content");
     check(
-      /Vite \+ Vue/.test(prevB2.text) && !/Vite \+ React/.test(prevB2.text),
+      SHOWCASE_PREVIEW.test(prevB2.text) && !TODO_PREVIEW.test(prevB2.text),
       "a reloaded preview in tab B is served by tab B's kernel",
       prevB2.text.slice(0, 60),
     );
-    await tabA.screenshot(path.join(ARTIFACTS, "01-tab-a-react.png"));
-    await tabB.screenshot(path.join(ARTIFACTS, "02-tab-b-vue.png"));
+    await tabA.screenshot(path.join(ARTIFACTS, "01-tab-a-todo.png"));
+    await tabB.screenshot(path.join(ARTIFACTS, "02-tab-b-showcase.png"));
 
     // ---- one project, one tab ---------------------------------------------
     const tabC = await openPage(chrome.client, projectUrl(dev.url, ALPHA));
@@ -547,13 +571,21 @@ async function main() {
       "after a reload beta comes back when its tab opens it",
     );
     const betaPkg = await readText(tabB, BETA + "/package.json");
+    // beta is the static showcase: its package.json carries the frontend deps and no
+    // @facilis.dev/* framework pin (D-168) — the bytes prove which template was restored.
     check(
-      typeof betaPkg === "string" && betaPkg.includes('"vue"'),
+      typeof betaPkg === "string" &&
+        betaPkg.includes('"react"') &&
+        !betaPkg.includes('"@facilis.dev/'),
       "the project is its real contents (bytes from OPFS, not just the directory)",
     );
     // ---- "Open in a new tab" from Home ------------------------------------
     const dirG = await createProject(tabA, "gamma", false);
     check(dirG === GAMMA, "tab A creates gamma", dirG);
+    // The opened tab finds gamma on OPFS, so flush the write-behind mirror first (as
+    // for beta): ensureProjectOnDisk gives a concurrent flush ~1.2 s, and a tab that
+    // finds nothing drops the project from the registry (removeProjectMeta).
+    await flushMirror(tabA);
     await closeFolder(tabA, GAMMA);
     await tabA.evaluate("window.__ide.goHome()");
     const rowButton = "Boolean(document.querySelector(\"[aria-label='Open gamma in a new tab']\"))";
@@ -581,6 +613,28 @@ async function main() {
       "the button opens a tab whose URL names gamma",
       opened ? opened.url : "no target",
     );
+    // Property 4 is "boots straight onto that project", not just "names it in the URL":
+    // attach to the opened tab and wait for the folder. Then close it — its run would
+    // be a third in-VM install the remaining checks do not need.
+    if (opened) {
+      const tabG = await attachPage(chrome.client, opened.targetId);
+      check(
+        await waitFor(tabG, KERNEL_READY, BOOT_TIMEOUT_MS, "gamma tab kernel"),
+        "the opened tab boots its own kernel",
+      );
+      check(
+        await waitFor(
+          tabG,
+          "window.__ide.getSnapshot().workspaceFolders.some((f) => f.rootPath === " +
+            JSON.stringify(GAMMA) +
+            ")",
+          60000,
+          "gamma tab opens",
+        ),
+        "the opened tab boots into gamma",
+      );
+      await chrome.client.send("Target.closeTarget", { targetId: opened.targetId });
+    }
 
     // ---- the registry is per origin, and no tab may write a stale list ------
     // Tab B booted before gamma existed: its in-memory list is stale. A create there

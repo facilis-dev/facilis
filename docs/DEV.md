@@ -339,18 +339,22 @@ kernel, dev server and preview; `?project=<rootPath>` makes a tab reopen — and
 project after a reload; the same project cannot be open in two tabs (a Web Lock, surfaced as
 a toast), and a tab holds exactly one project (opening a second replaces the first, and the
 label is the folder name, never a create-form name). The smoke asserts, in order: two kernels
-boot; tab A runs a React project and paints its preview; creating beta in tab A replaces alpha
-and labels the tab by the folder; tab B is opened at `?project=<beta>` and paints the **Vue**
-project; both previews survive a forced reload on **their own** kernel (both dev servers bind
-5173, so the port identifies nothing); a third tab pointed at tab A's project is refused and
-leaves no folder open; the boot restore is scoped (D-036 — a reloaded tab hydrates only the
+boot; tab A runs the default **todo** project and paints its login-page preview; creating beta
+in tab A replaces alpha and labels the tab by the folder; tab B is opened at `?project=<beta>`
+and paints the static **showcase** project — the two shipped template kinds (D-168), whose
+different content is what proves the routing; both previews survive a forced reload on **their
+own** kernel (both dev servers bind 3000, so the port identifies nothing); a third tab pointed
+at tab A's project is refused and leaves no folder open; the boot restore is scoped (D-036 — a reloaded tab hydrates only the
 project it opens: its real bytes come back, and a project it never opened stays out of its
 VFS); one tab's write does not erase the other tab's paths from the shared OPFS index; Home's
-"Open in a new tab" button opens a tab whose URL names the project; a project created with a
-form name different from its directory is labelled by the directory; and the recent-projects
-registry keeps every tab's projects. Exit code is non-zero on any failure. Reference run on
-16 cores: 41 checks, ~4 min (two in-VM installs); artifacts (screenshots + `report.json`)
-under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the same retention as §5.
+"Open in a new tab" button opens a tab whose URL names the project and which boots into it
+(the mirror is flushed first, so the opened tab finds the project on OPFS instead of calling
+it gone and dropping it from the registry); a project created with a form name different from
+its directory is labelled by the directory; and the recent-projects registry keeps every
+tab's projects. Exit code is non-zero on any failure. Reference run on 16 cores: 53 checks,
+~2 min (two in-VM installs; the opened tab's run is closed before it installs); artifacts
+(screenshots + `report.json`) under `$FACILIS_TOOLING_DIR/smoke-multitab/<epoch-ms>/`, with the
+same retention as §5.
 
 ### 5.2 A performance snapshot from the tab that is hanging — status bar **Snapshot**
 
