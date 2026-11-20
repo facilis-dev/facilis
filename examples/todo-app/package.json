@@ -10,8 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "lint": "oxlint src server db",
-    "db:generate": "drizzle-kit generate"
+    "lint": "oxlint src server db"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
@@ -42,7 +41,6 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
-    "drizzle-kit": "0.31.11",
     "oxlint": "catalog:",
     "tailwindcss": "4.3.5",
     "typescript": "catalog:",

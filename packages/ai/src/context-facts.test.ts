@@ -10,7 +10,6 @@ describe("buildProjectContext", () => {
     expect(context.config.permissions).toEqual(["todos:read", "todos:write"]);
     expect(context.config.roles.user).toEqual(["todos:read", "todos:write"]);
     expect(context.config.defaultRole).toBe("user");
-    expect(context.config.migrationsDir).toBe("db/migrations");
   });
 
   it("maps the analyzer schema facts with Drizzle property names", () => {

@@ -68,7 +68,7 @@ export function validatePatch(
     errors.push(...rlsErrors(state));
     errors.push(...importResolveErrors(state, context));
     warnings.push(...i18nWarnings(state));
-    errors.push(...migrationErrors(patches, state));
+    errors.push(...migrationErrors(patches));
     errors.push(...destructiveErrors(state, options.requiresConfirmation === true));
     errors.push(...roleConfigSyncErrors(patches, state));
     warnings.push(...routeDescriptionWarnings(state));

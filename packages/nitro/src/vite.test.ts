@@ -16,7 +16,7 @@ type Listener = (event: string, file: string) => void;
 const CONFIG_SOURCE = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
-  db: { mode: "pglite", migrationsDir: "db/migrations", tenantColumns: ["tenantId"], ownerColumns: ["ownerId"] },
+  db: { mode: "pglite", tenantColumns: ["tenantId"], ownerColumns: ["ownerId"] },
   i18n: { defaultLocale: "en", locales: ["en"] },
   auth: {
     permissions: ["todos:read"],

@@ -33,7 +33,6 @@ describe("buildConfigFacts", () => {
     expect(facts.defaultRole).toBe("user");
     expect(facts.defaultLocale).toBe("en");
     expect(facts.locales).toEqual(["en", "it"]);
-    expect(facts.migrationsDir).toBe("db/migrations");
     expect(facts.tenantColumns).toEqual(["tenantId"]);
     expect(facts.ownerColumns).toEqual(["ownerId"]);
     expect(facts.unknown).toEqual([]);
@@ -48,7 +47,6 @@ describe("buildConfigFacts", () => {
       }),
     );
     expect(diagnostics).toEqual([]);
-    expect(facts.migrationsDir).toBe("./drizzle");
     expect(facts.tenantColumns).toEqual(["tenantId"]);
     expect(facts.ownerColumns).toEqual(["ownerId"]);
     expect(facts.defaultLocale).toBe("en");
@@ -113,7 +111,6 @@ describe("buildConfigFacts", () => {
     const { facts, diagnostics } = buildConfigFacts(graphOf({ "src/index.ts": "export {};" }));
     expect(facts.parsed).toBe(false);
     expect(diagnostics.map((item) => item.code)).toEqual(["config-missing"]);
-    expect(facts.migrationsDir).toBe("./drizzle");
   });
 
   it("validates permissions, roles and the default locale", () => {

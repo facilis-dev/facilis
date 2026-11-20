@@ -12,6 +12,7 @@ import {
 import {
   apiClients,
   apiTokens,
+  authEmailVerifications,
   authIdentities,
   authSsoStates,
   rolePermissions,
@@ -21,14 +22,15 @@ import {
   users,
 } from "@facilis.dev/auth";
 
-// Appendix D step 2: the project schema re-exports the auth tables so drizzle-kit
-// generates them together with the application tables. The job queue, the manual tasks, the
+// Appendix D step 2: the project schema re-exports the auth tables so the declaration
+// carries them together with the application tables. The job queue, the manual tasks, the
 // workflows and the binary-file metadata are framework state the project owns the DDL for,
 // so they are re-exported the same way (D-107, D-135, D-053), and the API-client tables are
 // auth state (V3a).
 export {
   apiClients,
   apiTokens,
+  authEmailVerifications,
   authIdentities,
   authSsoStates,
   facilisFiles,

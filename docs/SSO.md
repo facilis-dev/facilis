@@ -277,7 +277,7 @@ For each provider:
 ## 8. Example app
 
 `examples/todo-app` is the starter contract: `db/schema.ts` re-exports the two auth tables,
-`db/migrations/0004_auth_sso.sql` creates them with RLS and tenant defaults, and
+whose declaration carries RLS and tenant defaults (the dev boot materializes it, D-193), and
 `src/pages/login.tsx` renders one button per configured provider (only when the list is
 non-empty) plus the translated `?sso_error` message. The app's login/register/logout routes
 write their own audit events (`auth:login`, `auth:register`, `auth:logout`) without emails or

@@ -29,7 +29,6 @@ const CONFIG_FILE = "facilis.config.ts";
 const CORE_SPECIFIER = "@facilis.dev/core";
 // Mirrors packages/core/src/config.ts. The analyzer is browser-safe and must not import the
 // server package, so the defaults are restated here and covered by a test.
-const DEFAULT_MIGRATIONS_DIR = "./drizzle";
 const DEFAULT_TENANT_COLUMNS = ["tenantId"];
 const DEFAULT_OWNER_COLUMNS = ["ownerId"];
 const DEFAULT_LOCALE = "en";
@@ -49,7 +48,6 @@ function configDefaults(): ConfigFacts {
     defaultRole: null,
     defaultLocale: DEFAULT_LOCALE,
     locales: [...DEFAULT_LOCALES],
-    migrationsDir: DEFAULT_MIGRATIONS_DIR,
     tenantColumns: [...DEFAULT_TENANT_COLUMNS],
     ownerColumns: [...DEFAULT_OWNER_COLUMNS],
     unknown: [],
@@ -254,10 +252,6 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
       i18n === null
         ? base.locales
         : stringArrayField(i18n, "locales", base.locales, unknown, i18nRef),
-    migrationsDir:
-      db === null
-        ? base.migrationsDir
-        : (stringField(db, "migrationsDir", base.migrationsDir, unknown, at) ?? base.migrationsDir),
     tenantColumns:
       db === null
         ? base.tenantColumns

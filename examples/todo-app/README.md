@@ -152,8 +152,6 @@ session-authenticated. Upload failures reuse the `errors.*` catalogue
 
 ```
 db/schema.ts             todos + re-exported auth tables/facilis_jobs/facilis_files, RLS, enableRLS
-db/migrations/           0000: DDL + policies; 0001: tenant defaults + role seed; 0002: facilis_jobs;
-                         0003: facilis_files + todo_files (policies included)
 server/jobs/             defineJob definitions loaded through #facilis/jobs (D-107)
 server/routes/api/...    defineAuthorizedHandler only (todos, attachments, auth, jobs)
 src/main.tsx             bootstrap: theme + i18n + router
@@ -206,15 +204,8 @@ token-less 400 and tampered-token 404, delete), a future-scheduled job that is e
 inspected, cancelled and observed as `cancelled` without racing the scheduler,
 input-validation 400s and anonymous 401.
 
-```bash
-# regenerate the DDL after a schema change (db/schema.ts re-exports framework tables too;
-# the seed migration 0001_seed_roles.sql is generated from the config):
-pnpm db:generate
-```
-
-**Transitional (D-158).** The example still carries the old authored migration files. The target
-model has no authored `db/migrations`: the release pipeline generates the SQL at release time from
-the previous and new tag (no database access) and the deploy applies it as an immutable artifact
-with a ledger and schema fingerprints. P5 of
-[docs/MIGRATION-PLAN.md](../../docs/MIGRATION-PLAN.md) retires this directory and `meta/`, and
-`drizzle-kit` stays only as a CI test oracle.
+**Schema (D-158/D-193).** The example ships no DDL. Editing `db/schema.ts` is the change: the dev
+boot materializes the declaration in PGlite, and a release pipeline renders the tag -> tag SQL
+(no database access) for the deploy to apply as an immutable artifact with a ledger and schema
+fingerprints. `db/schema.test.ts` asserts the declaration's RLS policies, tenant default and
+re-exported framework tables.

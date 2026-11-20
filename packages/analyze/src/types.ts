@@ -46,7 +46,6 @@ export interface ConfigFacts {
   readonly defaultRole: string | null;
   readonly defaultLocale: string | null;
   readonly locales: readonly string[];
-  readonly migrationsDir: string;
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
   readonly unknown: readonly UnknownFact[];

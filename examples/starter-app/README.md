@@ -15,8 +15,8 @@ pnpm dev
 ```
 
 One process: Vite serves the client and mounts Nitro on the same origin (spec §10.6). Without
-`FACILIS_DATABASE_URL`/`DATABASE_URL` the runtime uses in-memory PGlite and applies
-`db/migrations` at boot.
+`FACILIS_DATABASE_URL`/`DATABASE_URL` the runtime uses in-memory PGlite and materializes the
+schema declared in `db/schema.ts` at boot (D-193).
 
 ## What it ships
 
@@ -35,8 +35,7 @@ The bootstrap admin (`FACILIS_INITIAL_ADMIN` + `FACILIS_INITIAL_ADMIN_TOKEN`) cl
 
 ```
 server/routes/api/auth/  login, logout, register, session handlers
-db/schema.ts             the auth tables the project owns the DDL for
-db/migrations/           committed SQL applied at boot; db:generate updates it from the schema
+db/schema.ts             the auth tables the project owns the DDL for; the dev boot materializes it
 src/app.tsx              explicit route table + session provider + Toaster
 src/pages/               one file per route (login, register, dashboard, not-found)
 src/layouts/             project-owned shells (app header, split auth panel)
@@ -46,10 +45,11 @@ locales/en.json, it.json flat i18n keys, exact parity
 facilis.config.ts        roles/permissions/db/i18n/logging (SPEC Appendix B)
 ```
 
-After editing `db/schema.ts`, run `pnpm db:generate` and review the SQL it appends to
-`db/migrations` (drizzle-kit is a developer tool, never part of CI or of the runtime).
+Editing `db/schema.ts` is the whole schema change: the dev boot reconciles the database from
+the declaration (D-193), and a release renders the SQL for a deploy. There is no migration file
+to generate or commit.
 
-Add a feature by adding a table to `db/schema.ts`, its migration SQL, an authorized handler
+Add a feature by adding a table to `db/schema.ts`, an authorized handler
 under `server/routes/api/` (`defineAuthorizedHandler` with `dbTables` and Zod input), a page
 in `src/pages/`, and its route in `src/app.tsx`. Every user-facing string goes through `t()`
 with a key in both catalogues.

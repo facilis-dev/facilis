@@ -59,9 +59,10 @@ describe("generated starter contract", () => {
     expect(route).toContain("ownerId: auth.userId");
   });
 
-  it("declares the tenant column default and ships its migration", () => {
+  it("declares the tenant column default in the schema", () => {
+    // D-193: the declaration is what the dev boot materializes; there is no SQL file.
     expect(files["db/schema.ts"]).toContain("tenantId: tenantColumn()");
-    expect(files["db/migrations/0001_tenant_default.sql"]).toContain("SET DEFAULT nullif(");
+    expect(files).not.toHaveProperty("db/migrations/0001_tenant_default.sql");
   });
 
   it("wires binary storage into the config, package and schema", () => {
@@ -74,13 +75,9 @@ describe("generated starter contract", () => {
     };
     // Published from npm at the version the build pins (D-166), never a file: tarball.
     expect(pkg.dependencies["@facilis.dev/storage"]).toBe("0.1.0");
+    // The link table and its restrictive policies are declared, not authored as SQL.
     expect(files["db/schema.ts"]).toContain("fileLinks(todos");
-    const migration = Object.keys(files).find((path) => path.startsWith("db/migrations/0003_"));
-    expect(migration, "missing the file-link migration").toBeDefined();
-    const sql = files[migration ?? ""];
-    expect(sql).toContain("facilis_files");
-    expect(sql).toContain("todo_files");
-    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
+    expect(files["db/schema.ts"]).toContain("facilisFiles");
   });
 
   it("uploads through the framework helper and reads blobs token-only", () => {
@@ -95,12 +92,11 @@ describe("generated starter contract", () => {
     expect(download).toContain("sendStoredFile(");
   });
 
-  it("gives the registration default role the write permission and seeds it", () => {
+  it("gives the registration default role the write permission the boot seeds", () => {
     // The queue is RLS-gated by permissions (D-145), so the starter's default role carries
-    // them too: the template config and the seed migration must stay in lockstep.
+    // them too; the dev boot seeds roles/permissions from this same config (D-193).
     expect(config).toMatch(/user: \["todos:read", "todos:write", "jobs:read", "jobs:exec"\]/);
-    expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'todos:write')");
-    expect(files["db/migrations/0001_seed_roles.sql"]).toContain("('user', 'jobs:read')");
+    expect(files).not.toHaveProperty("db/migrations/0001_seed_roles.sql");
   });
 
   it("keeps the starter free of test instrumentation", () => {

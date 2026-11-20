@@ -4,7 +4,6 @@ export default defineConfig({
   release: { ref: "main" },
   db: {
     mode: "pglite",
-    migrationsDir: "db/migrations",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
   },

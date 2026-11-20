@@ -1,7 +1,7 @@
 // The starter template is the empty full-stack app (D-168): the standard login surface and
 // nothing else. These assertions are the drift guard for examples/starter-app, which the
-// IDE inlines at build time: the generated project must get its auth routes, schema,
-// migrations and login pages, the VM-only Nitro runner, and none of the todo demo.
+// IDE inlines at build time: the generated project must get its auth routes, schema and
+// login pages, the VM-only Nitro runner, and none of the todo demo.
 
 import { describe, expect, it } from "vitest";
 import { createStarterTemplate } from "./starter-template";
@@ -24,7 +24,7 @@ type PackageJson = {
 const pkg = JSON.parse(files["package.json"]) as PackageJson;
 
 describe("starter template", () => {
-  it("carries the example's login client, auth server routes, schema and migrations", () => {
+  it("carries the example's login client, auth server routes and schema", () => {
     expect(paths).toEqual(
       expect.arrayContaining([
         "index.html",
@@ -42,7 +42,6 @@ describe("starter template", () => {
         "server/routes/api/auth/logout.post.ts",
         "server/routes/api/auth/session.get.ts",
         "db/schema.ts",
-        "db/migrations/0000_auth_tables.sql",
         "locales/en.json",
         "locales/it.json",
       ]),
@@ -55,7 +54,7 @@ describe("starter template", () => {
     expect(paths).not.toContain("src/pages/todos.tsx");
     expect(paths.some((path) => path.startsWith("server/routes/api/todos/"))).toBe(false);
     expect(paths.some((path) => path.startsWith("server/jobs/"))).toBe(false);
-    expect(paths).not.toContain("db/migrations/0003_fearless_shiver_man.sql");
+    expect(paths.some((path) => path.startsWith("db/migrations/"))).toBe(false);
     expect(files["db/schema.ts"]).not.toContain("todos");
     expect(files["db/schema.ts"]).not.toContain("facilisFiles");
   });

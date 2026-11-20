@@ -61,17 +61,18 @@ export function rlsErrors(state: EffectiveState): ValidationError[] {
   return errors;
 }
 
+// The directory is fixed: the folder is retired from generated projects (D-158), so it is not
+// configurable and must not come back through the project config.
+const RETIRED_MIGRATIONS_DIR = "db/migrations";
+
 /**
  * Rule 14: DDL is generated, never authored (D-158). The release pipeline renders the SQL
  * from the schema diff between two tags, so a hand-written file under the migrations
  * directory can neither be reproduced from the tags nor reviewed as a schema change. A
  * write there is refused before anything lands; the schema is the only input.
  */
-export function migrationErrors(
-  patches: readonly FilePatch[],
-  state: EffectiveState,
-): ValidationError[] {
-  const directory = normalizeProjectPath(state.migrationsDir).replace(/\/+$/, "");
+export function migrationErrors(patches: readonly FilePatch[]): ValidationError[] {
+  const directory = RETIRED_MIGRATIONS_DIR;
   const authored = patches.find((patch) => {
     const path = normalizeProjectPath(patch.path);
     if (!path.startsWith(directory + "/")) return false;

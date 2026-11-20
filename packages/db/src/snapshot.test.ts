@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -29,6 +30,9 @@ const documents = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     title: text("title").notNull().default("untitled"),
+    // Drizzle carries the JS value; the snapshot must render it as a SQL literal the
+    // planner can execute (a bare {} is not valid DDL).
+    meta: jsonb("meta").notNull().default({}),
     tenantId: uuid("tenant_id").notNull(),
     ownerId: uuid("owner_id").notNull(),
     authorId: uuid("author_id")
@@ -97,6 +101,11 @@ describe("schemaSnapshot", () => {
       type: "text",
       notNull: true,
       default: "'untitled'",
+    });
+    expect(byName.get("meta")).toMatchObject({
+      type: "jsonb",
+      notNull: true,
+      default: "'{}'::jsonb",
     });
     expect(byName.get("author_id")).toMatchObject({ type: "uuid", notNull: true });
   });

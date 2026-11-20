@@ -6,7 +6,6 @@ export default defineConfig({
   // DATABASE_URL) and the runtime opens Postgres instead (D-068).
   db: {
     mode: "pglite",
-    migrationsDir: "db/migrations",
     tenantColumns: ["tenantId", "tenant_id"],
     ownerColumns: ["ownerId", "owner_id", "userId", "user_id"],
   },
