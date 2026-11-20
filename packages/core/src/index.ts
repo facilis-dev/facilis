@@ -241,12 +241,9 @@ export type {
 
 export { buildReleasePreview } from "./release-preview.ts";
 export type {
-  ReleaseMigrationFile,
-  ReleasePolicyFact,
   ReleasePreviewInput,
   ReleaseRouteFact,
   ReleaseSnapshot,
-  ReleaseTableFact,
 } from "./release-preview.ts";
 export type {
   ApiDiff,
@@ -254,8 +251,6 @@ export type {
   ApiRouteRef,
   BreakingChange,
   GitRef,
-  MigrationStatement,
-  MigrationStatementKind,
   PolicyChange,
   ReleasePolicySnapshot,
   ReleasePreview,

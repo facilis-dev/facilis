@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { GitRef, MigrationStatement, ReleasePreview } from "./release-engine";
+import type {
+  BreakingChange,
+  GitRef,
+  ReleasePreview,
+  RiskClass,
+  SchemaPlan,
+  SchemaPlanBatch,
+} from "./release-engine";
 import {
   buildReleaseView,
   changedRouteLabel,
@@ -17,16 +24,38 @@ function ref(name: string, kind: GitRef["kind"] = "branch"): GitRef {
   return { kind, ref: name, oid: OID };
 }
 
-function statement(risk: MigrationStatement["risk"]): MigrationStatement {
+function batch(id: string, risk: RiskClass): SchemaPlanBatch {
+  return { id, sql: 'ALTER TABLE "x" ADD COLUMN "y" text', risk };
+}
+
+function plan(overrides: Partial<SchemaPlan> = {}): SchemaPlan {
   return {
-    sql: "ALTER TABLE x ADD COLUMN y text",
-    kind: "add_column",
-    risk,
-    affectedTable: "x",
-    affectedColumns: ["y"],
-    reason: "test fixture",
+    batches: [batch("001-a", "safe"), batch("002-b", "careful"), batch("003-c", "destructive")],
+    risk: "destructive",
+    destructive: ["003-c"],
+    problems: [],
+    ...overrides,
   };
 }
+
+const BREAKING: BreakingChange = {
+  kind: "dropped_column_in_use",
+  table: "x",
+  column: "y",
+  routes: [{ method: "GET", path: "/api/x" }],
+  message: "GET /api/x reads x.y",
+};
+
+const ZERO_SUMMARY = {
+  addedTables: 0,
+  droppedTables: 0,
+  addedColumns: 0,
+  droppedColumns: 0,
+  alteredColumns: 0,
+  addedPolicies: 0,
+  droppedPolicies: 0,
+  alteredPolicies: 0,
+};
 
 function preview(overrides: Partial<ReleasePreview> = {}): ReleasePreview {
   return {
@@ -34,21 +63,12 @@ function preview(overrides: Partial<ReleasePreview> = {}): ReleasePreview {
     to: ref("WORKTREE", "commit"),
     generatedAt: "2026-11-02T00:00:00.000Z",
     schema: {
-      statements: [statement("safe"), statement("careful"), statement("destructive"), statement("breaking")],
-      summary: {
-        addedTables: 1,
-        droppedTables: 0,
-        addedColumns: 2,
-        droppedColumns: 0,
-        alteredColumns: 0,
-        addedPolicies: 0,
-        droppedPolicies: 0,
-        alteredPolicies: 0,
-      },
+      plan: plan(),
+      summary: { ...ZERO_SUMMARY, addedTables: 1, addedColumns: 2 },
     },
     api: { added: [{ method: "GET", path: "/api/x" }], removed: [], changed: [] },
     security: { policiesAdded: [], policiesDropped: [], policiesChanged: [], rlsDisabled: [] },
-    breaking: [],
+    breaking: [BREAKING],
     warnings: [],
     ...overrides,
   };
@@ -59,13 +79,41 @@ function refs(patch: Partial<ReleaseRefInventory> = {}): ReleaseRefInventory {
 }
 
 describe("buildReleaseView", () => {
-  it("counts the statements per risk class and keeps the engine's sections", () => {
+  it("counts batch risks, lifts the overall risk with the breaking lens", () => {
     const view = buildReleaseView(preview());
+    // 3 batches + 1 breaking change: the breaking chip counts the lens, not a batch.
     expect(view.counts).toEqual({ safe: 1, careful: 1, destructive: 1, breaking: 1, total: 4 });
-    expect(view.statements).toHaveLength(4);
+    expect(view.plan.batches).toHaveLength(3);
+    expect(view.risk).toBe("breaking");
     expect(view.api.added).toHaveLength(1);
     expect(view.empty).toBe(false);
     expect(view.summary.addedTables).toBe(1);
+  });
+
+  it("keeps the plan verbatim and shows the plan risk when nothing is breaking", () => {
+    const source = preview({ breaking: [] });
+    const view = buildReleaseView(source);
+    expect(view.plan).toEqual(source.schema.plan);
+    expect(view.risk).toBe("destructive");
+    expect(view.counts.breaking).toBe(0);
+    expect(view.plan.destructive).toEqual(["003-c"]);
+  });
+
+  it("fails closed: problems render, no batch is presented as shippable", () => {
+    const failed = plan({
+      batches: [],
+      risk: "safe",
+      destructive: [],
+      problems: [{ code: "unsupported_declaration", table: "x", construct: "index:x_partial" }],
+    });
+    const view = buildReleaseView(
+      preview({ schema: { plan: failed, summary: ZERO_SUMMARY }, api: null, breaking: [] }),
+    );
+    expect(view.plan.problems).toHaveLength(1);
+    expect(view.plan.batches).toEqual([]);
+    expect(view.counts.total).toBe(0);
+    // A fail-closed plan is never "nothing changed".
+    expect(view.empty).toBe(false);
   });
 
   it("treats a missing API diff as an empty one", () => {
@@ -76,24 +124,17 @@ describe("buildReleaseView", () => {
   it("is empty only when nothing at all changed", () => {
     const empty = preview({
       schema: {
-        statements: [],
-        summary: {
-          addedTables: 0,
-          droppedTables: 0,
-          addedColumns: 0,
-          droppedColumns: 0,
-          alteredColumns: 0,
-          addedPolicies: 0,
-          droppedPolicies: 0,
-          alteredPolicies: 0,
-        },
+        plan: { batches: [], risk: "safe", destructive: [], problems: [] },
+        summary: ZERO_SUMMARY,
       },
       api: null,
+      breaking: [],
     });
     expect(buildReleaseView(empty).empty).toBe(true);
     const declaredOnly = preview({
-      schema: { statements: [], summary: { ...empty.schema.summary, addedTables: 1 } },
+      schema: { plan: empty.schema.plan, summary: { ...ZERO_SUMMARY, addedTables: 1 } },
       api: null,
+      breaking: [],
     });
     expect(buildReleaseView(declaredOnly).empty).toBe(false);
   });

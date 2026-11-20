@@ -6,6 +6,8 @@
  * without pulling the diff code in.
  */
 
+import type { SchemaPlan } from "./schema-plan/types.ts";
+
 export interface GitRef {
   readonly kind: "commit" | "branch" | "tag";
   readonly ref: string;
@@ -13,30 +15,6 @@ export interface GitRef {
 }
 
 export type RiskClass = "safe" | "careful" | "destructive" | "breaking";
-
-export type MigrationStatementKind =
-  | "add_table"
-  | "drop_table"
-  | "add_column"
-  | "drop_column"
-  | "alter_column"
-  | "add_index"
-  | "drop_index"
-  | "add_policy"
-  | "drop_policy"
-  | "alter_policy"
-  | "add_fk"
-  | "drop_fk"
-  | "other";
-
-export interface MigrationStatement {
-  readonly sql: string;
-  readonly kind: MigrationStatementKind;
-  readonly risk: RiskClass;
-  readonly affectedTable: string | null;
-  readonly affectedColumns: readonly string[];
-  readonly reason: string;
-}
 
 export interface SchemaDiffSummary {
   readonly addedTables: number;
@@ -49,8 +27,16 @@ export interface SchemaDiffSummary {
   readonly alteredPolicies: number;
 }
 
+/**
+ * The schema lens (D-158/D-159, issue #48): the generated tag -> tag plan, verbatim from
+ * `planSchema` over the two declared snapshots — the same batches the release artifact
+ * carries, so the preview never presents SQL that will not ship. `plan.risk` is never
+ * `breaking`: route cross-checks live in the breaking lens, and the panel lifts the
+ * displayed overall risk when a breaking change is present. A plan with problems fails
+ * closed (`batches` empty); the preview renders the problems, never partial SQL.
+ */
 export interface SchemaDiff {
-  readonly statements: readonly MigrationStatement[];
+  readonly plan: SchemaPlan;
   readonly summary: SchemaDiffSummary;
 }
 
@@ -124,9 +110,13 @@ export interface BreakingChange {
   readonly message: string;
 }
 
+/**
+ * The preview has no approval flow (approval is a release act bound to the artifact's
+ * planHash, D-159): it warns about destructive batches that ship without a backfill step
+ * and about policies that broaden access. `related` names the batch id or table.policy.
+ */
 export interface ReleaseWarning {
-  readonly kind:
-    "pending_migrations_on_target" | "destructive_without_backfill" | "policy_broadened";
+  readonly kind: "destructive_without_backfill" | "policy_broadened";
   readonly message: string;
   readonly related?: string;
 }

@@ -10,11 +10,12 @@ import type {
   ApiRouteRef,
   BreakingChange,
   GitRef,
-  MigrationStatement,
   ReleasePreview,
   ReleaseWarning,
   RiskClass,
   SchemaDiffSummary,
+  SchemaPlan,
+  SchemaPlanBatch,
   SecurityDiff,
 } from "./release-engine";
 
@@ -123,8 +124,15 @@ export interface ReleasePreviewView {
   readonly to: GitRef;
   readonly generatedAt: string;
   readonly summary: SchemaDiffSummary;
+  /** The generated plan verbatim (D-158): batches, plan risk, destructive ids, problems. */
+  readonly plan: SchemaPlan;
   readonly counts: ReleaseRiskCounts;
-  readonly statements: readonly MigrationStatement[];
+  /**
+   * The displayed overall risk. planSchema never emits "breaking" (P4 owns routes), so the
+   * breaking lens lifts it here: a drop a route still reads is breaking for the user, even
+   * though the artifact batch that ships it is only destructive.
+   */
+  readonly risk: RiskClass;
   readonly api: ApiDiff;
   readonly security: SecurityDiff;
   readonly breaking: readonly BreakingChange[];
@@ -137,14 +145,16 @@ const EMPTY_API: ApiDiff = { added: [], removed: [], changed: [] };
 
 export function buildReleaseView(preview: ReleasePreview): ReleasePreviewView {
   const api = preview.api ?? EMPTY_API;
-  const counts = countRisks(preview.schema.statements);
+  const plan = preview.schema.plan;
+  const counts = countRisks(plan.batches, preview.breaking.length);
   return {
     from: preview.from,
     to: preview.to,
     generatedAt: preview.generatedAt,
     summary: preview.schema.summary,
+    plan,
     counts,
-    statements: preview.schema.statements,
+    risk: preview.breaking.length > 0 ? "breaking" : plan.risk,
     api,
     security: preview.security,
     breaking: preview.breaking,
@@ -153,10 +163,16 @@ export function buildReleaseView(preview: ReleasePreview): ReleasePreviewView {
   };
 }
 
-function countRisks(statements: readonly MigrationStatement[]): ReleaseRiskCounts {
+/**
+ * Summary chips: safe/careful/destructive count plan batches; "breaking" counts the
+ * breaking lens's changes (the plan itself never carries that risk). A fail-closed plan
+ * has no batches, so its problems surface through the plan section, not the counts.
+ */
+function countRisks(batches: readonly SchemaPlanBatch[], breakingCount: number): ReleaseRiskCounts {
   const counts: Record<RiskClass, number> = { safe: 0, careful: 0, destructive: 0, breaking: 0 };
-  for (const statement of statements) counts[statement.risk] += 1;
-  return { ...counts, total: statements.length };
+  for (const batch of batches) counts[batch.risk] += 1;
+  counts.breaking = breakingCount;
+  return { ...counts, total: batches.length + breakingCount };
 }
 
 function isEmpty(preview: ReleasePreview, api: ApiDiff, counts: ReleaseRiskCounts): boolean {
@@ -178,6 +194,7 @@ function isEmpty(preview: ReleasePreview, api: ApiDiff, counts: ReleaseRiskCount
   return (
     declared === 0 &&
     counts.total === 0 &&
+    preview.schema.plan.problems.length === 0 &&
     api.added.length === 0 &&
     api.removed.length === 0 &&
     api.changed.length === 0 &&

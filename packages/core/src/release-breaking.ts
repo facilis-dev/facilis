@@ -1,14 +1,16 @@
 // Breaking-change detection for a release preview (SPEC §11.3): a drop is only
-// "breaking" when a route still reads the entity, so the engine marks exactly the
-// statements that will take the running app down.
+// "breaking" when a route still reads the entity. The generated plan's risk is never
+// "breaking" (P4 owns routes, D-158); this lens is what lifts the displayed overall risk.
 
-import type { BreakingChange, MigrationStatement, SchemaDiffSummary } from "./release.ts";
+import type { BreakingChange, SchemaDiffSummary } from "./release.ts";
 import type { ReleaseRouteFact } from "./release-preview.ts";
 
 export interface ReleaseDeclaredDiff {
   readonly summary: SchemaDiffSummary;
   readonly droppedTables: readonly string[];
   readonly droppedColumns: readonly { readonly table: string; readonly column: string }[];
+  /** Policies declared before and absent after: dropped without being recreated. */
+  readonly droppedPolicies: readonly { readonly table: string; readonly policy: string }[];
 }
 
 // ── breaking changes ───────────────────────────────────────────────────────────────
@@ -66,18 +68,4 @@ function routesUsingColumn(
   return routes
     .filter((route) => (route.dbColumns ?? []).includes(reference))
     .map((route) => ({ method: route.method.toUpperCase(), path: route.path }));
-}
-
-export function liftBreakingRisk(
-  statement: MigrationStatement,
-  breaking: readonly BreakingChange[],
-): MigrationStatement {
-  const risk = breaking.some(
-    (change) =>
-      change.table === statement.affectedTable &&
-      (change.kind === "dropped_table_in_use"
-        ? statement.kind === "drop_table"
-        : change.column !== undefined && statement.affectedColumns.includes(change.column)),
-  );
-  return risk ? { ...statement, risk: "breaking" } : statement;
 }

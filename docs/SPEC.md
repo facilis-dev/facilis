@@ -471,19 +471,17 @@ export type {
   PolicySnapshot,
 } from "./manifest"
 
-// Release tooling (D-086: the engine is browser-safe so the Studio imports it)
+// Release tooling (D-086: the engine is browser-safe so the Studio imports it;
+// the schema lens is planSchema over the declared snapshots, D-158/D-159, issue #48)
 export { buildReleasePreview } from "./release-preview"
 export type {
-  ReleaseMigrationFile,
   ReleasePreviewInput,
   ReleaseRouteFact,
   ReleaseSnapshot,
-  ReleaseTableFact,
 } from "./release-preview"
 export type {
   ReleasePreview,
   SchemaDiff,
-  MigrationStatement,
   RiskClass,
   ApiDiff,
   ApiRouteChange,
@@ -1622,7 +1620,7 @@ interface GitRef {
 }
 
 interface SchemaDiff {
-  statements: MigrationStatement[]
+  plan: SchemaPlan
   summary: {
     addedTables: number; droppedTables: number
     addedColumns: number; droppedColumns: number; alteredColumns: number
@@ -1632,19 +1630,31 @@ interface SchemaDiff {
 
 type RiskClass = "safe" | "careful" | "destructive" | "breaking"
 
-interface MigrationStatement {
-  sql: string
-  kind:
-    | "add_table" | "drop_table"
-    | "add_column" | "drop_column" | "alter_column"
-    | "add_index" | "drop_index"
-    | "add_policy" | "drop_policy" | "alter_policy"
-    | "add_fk" | "drop_fk"
-    | "other"
+// The generated tag -> tag plan (packages/core/src/schema-plan), verbatim: the same
+// batches the release artifact carries (D-158/D-159). The preview never reclassifies it.
+interface SchemaPlan {
+  batches: SchemaPlanBatch[]
+  risk: RiskClass               // max of the batch risks; never "breaking" (the breaking lens owns routes)
+  destructive: string[]         // ids of the destructive batches: the artifact's approval list
+  problems: SchemaPlanProblem[] // non-empty => batches empty; the release fails closed
+}
+
+interface SchemaPlanBatch {
+  id: string                    // stable order-derived id, e.g. "001-create-table-users"
+  sql: string                   // one statement; batches run in array order
   risk: RiskClass
-  affectedTable: string | null
-  affectedColumns: string[]
-  reason: string
+  requires?: string[]           // deploy preconditions, e.g. "no_null_rows:todos.done"
+}
+
+type SchemaPlanProblemCode =
+  | "unsupported_declaration" | "unsupported_change" | "policy_unsafe"
+
+interface SchemaPlanProblem {
+  code: SchemaPlanProblemCode
+  table?: string
+  column?: string
+  construct?: string            // machine token: "index:<name>", "check:<name>", "enum:<name>",
+                                // "identity:<column>", "generated:<column>", "primary_key", "rls"
 }
 
 interface ApiDiff {
@@ -1687,9 +1697,9 @@ interface BreakingChange {
 }
 
 interface ReleaseWarning {
-  kind: "destructive_without_approval" | "destructive_without_backfill" | "policy_broadened"
+  kind: "destructive_without_backfill" | "policy_broadened"
   message: string
-  related?: string
+  related?: string              // the batch id, or "table.policy"
 }
 ```
 
@@ -1698,6 +1708,14 @@ pipeline runs produces SQL batches and risk from the two declared snapshots, wit
 access**. It **fails closed** wherever the analyzer cannot resolve a declaration, and the CI
 artifact for the tag is authoritative; the preview never presents SQL that will not ship. This
 supersedes the D-086 premise that the preview could not synthesize SQL (D-158/D-159).
+
+The plan's risk is never `breaking`: drops that routes still read are reported by the breaking
+lens, and the panel lifts the **displayed overall risk** to `breaking` when that lens is
+non-empty (the artifact plan itself stays verbatim). The preview has no approval flow — approval
+is a release act bound to the artifact's `planHash` (D-159); it warns about destructive batches
+that ship without a backfill step (`destructive_without_backfill`, `related` = batch id) and
+about policies that broaden access (`policy_broadened`, `related` = `table.policy`). Policy
+clause visibility comes from the snapshots' rendered policy SQL, not from migration files.
 
 ### 7.8 Studio-Only Types
 
@@ -2931,14 +2949,16 @@ Four diff lenses, one engine:
 | origin/main ↔ Tag | Remote vs release ref | What changed since last release? |
 | Code ↔ Live DB | `db/schema.ts` vs live catalog | In sync? (dev-only engine: `diffSchemaSnapshots`, D-083) |
 
-**Risk classification per statement:**
+**Risk classification per batch:**
 
 - 🟢 Safe: add nullable column, add table, add index, add policy
 - 🟡 Careful: non-null without default, add UNIQUE, rename
 - 🟠 Destructive: drop column/table, narrow type, tighten RLS
-- 🔴 Breaking: drops referenced by routes (cross-checked with `x-db-columns`)
+- 🔴 Breaking: drops referenced by routes — the breaking lens, never a plan risk; the panel
+  lifts the displayed overall risk when the lens is non-empty (the plan stays the artifact plan)
 
-**Status (2026-11-05; amended to the generated-plan model 2026-11-10, D-158/D-159).** The schema
+**Status (2026-11-05; amended to the generated-plan model 2026-11-10, D-158/D-159; implemented
+2026-11-20, issue #48).** The schema
 lens computes the **tag → HEAD generated plan** with the same pure `planSchema` renderer the
 release pipeline runs: it reads `db/schema.ts` and `facilis.config.ts` out of the git tree
 (isomorphic-git, no boot, O-008 resolved) and shows the SQL batches plus their risk. The plan uses

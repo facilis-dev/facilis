@@ -11,23 +11,17 @@
 
 import type { FsClient } from "isomorphic-git";
 import type { IdeController } from "@/vv/controller";
-import type {
-  GitRef,
-  ReleaseMigrationFile,
-  ReleaseRouteFact,
-  ReleaseSnapshot,
-} from "./release-engine";
+import type { GitRef, ReleaseRouteFact, ReleaseSnapshot } from "./release-engine";
 import type { ReleaseRefInventory } from "./release-preview-model";
 import { mergeRouteMetadata, routesFromFiles } from "./release-routes";
 import {
   isSchemaSourcePath,
-  readReleaseSchema,
+  readReleaseSnapshot,
   schemaSourcePaths,
   type SchemaAnalyzer,
 } from "./release-schema";
 
 const ROUTES_DIR = "server/routes/";
-const MIGRATIONS_DIR = "db/migrations/";
 
 type GitModule = typeof import("isomorphic-git");
 
@@ -95,9 +89,10 @@ function classifyRef(
 }
 
 /**
- * The declared schema, route files and migrations at `ref`. Null when the ref does not
- * resolve, the repository is missing, or an unreadable tree or failed analysis makes the
- * snapshot meaningless (a diff must never see tables that were silently dropped).
+ * The declared schema and route files at `ref`. Null when the ref does not resolve, the
+ * repository is missing, or an unreadable tree or failed analysis makes the snapshot
+ * meaningless (a diff must never see tables that were silently dropped). db/migrations is
+ * never read: the schema lens is the generated plan over the declared snapshots (#48).
  */
 export async function readSnapshotAt(
   root: string,
@@ -172,39 +167,22 @@ interface SnapshotSource {
 }
 
 async function assembleSnapshot(source: SnapshotSource): Promise<ReleaseSnapshot | null> {
-  const tables = await readReleaseSchema(
+  const schema = await readReleaseSnapshot(
     schemaSourcePaths(source.files),
     source.readText,
     source.analyze,
   );
-  if (tables === null) return null;
+  if (schema === null) return null;
   const routes =
     source.routeMetadata === undefined
       ? [...source.routes]
       : mergeRouteMetadata(source.routes, source.routeMetadata);
-  const migrations: ReleaseMigrationFile[] = [];
-  for (const file of migrationFiles(source.files)) {
-    // One read at a time: a fan-out floods the kernel worker's single-threaded fs queue.
-    // oxlint-disable-next-line no-await-in-loop
-    const sql = await source.readText(file);
-    if (sql !== null && sql.length > 0) migrations.push({ path: file, sql });
-  }
-  return { schema: { tables }, routes, migrations };
+  return { schema, routes };
 }
 
-/** Only the files a snapshot reads: schema sources, route modules and migrations. */
+/** Only the files a snapshot reads: the schema DSL sources and the route modules. */
 function relevantFiles(files: readonly string[]): string[] {
-  return files.filter(
-    (file) => isSchemaSourcePath(file) || file.startsWith(ROUTES_DIR) || isMigration(file),
-  );
-}
-
-function migrationFiles(files: readonly string[]): string[] {
-  return files.filter(isMigration).toSorted((left, right) => left.localeCompare(right));
-}
-
-function isMigration(file: string): boolean {
-  return file.startsWith(MIGRATIONS_DIR) && file.endsWith(".sql");
+  return files.filter((file) => isSchemaSourcePath(file) || file.startsWith(ROUTES_DIR));
 }
 
 // ── lazy git loading ──────────────────────────────────────────────────────────────

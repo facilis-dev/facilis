@@ -4,8 +4,9 @@
 side) is pending. P5 landed on 2026-11-18 (D-193): rules 14/16 block authored DDL, and the dev
 boot reconciles the declared schema additively (with confirmed drops only). P6 landed on
 2026-11-19 (D-197): the dev migration replay, the duplicated SQL splitter, the examples' SQL and
-`drizzle.config.ts`/`db:generate` are gone, so a project ships only its declaration; the Release
-Preview migration-file lens is replaced by the tag -> tag plan in P4 (#48). §2–§3 are the design
+`drizzle.config.ts`/`db:generate` are gone, so a project ships only its declaration. The P4 preview
+slice landed on 2026-11-20 (#48): the Release Preview schema lens is the generated tag -> tag plan;
+the CI `facilis release plan` step of P4 is still pending. §2–§3 are the design
 reference behind SPEC §2/§7.7/§11.3;
 §8–§9 are historical checklists.
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
@@ -282,7 +283,7 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 - Amend SPEC §2/§7.7/§8.3/§8.4.2/§9.3/§11.3/Appendix D; PATTERNS §5; APP-UPDATES §5; POSTGRES §4;
   the example README.
 - Done in this branch. SPEC states the target contract: P4 makes the preview lens and its types
-  match it, P5 the validator rules and the runtime.
+  match it (done 2026-11-20, #48), P5 the validator rules and the runtime.
 - Exit: docs reviewed; no code.
 
 ### P1 - Snapshots, digest, artifact format
@@ -319,6 +320,9 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
   the release; tag discipline documented (a deployable release is a tag with an artifact).
 - Release Preview: replace the migration-file lens with the generated tag -> HEAD plan (no DB);
   fail closed where the analyzer cannot resolve a declaration; keep the code <-> live lens (dev).
+  *Landed 2026-11-20 (#48): the lens is `planSchema` over the two declared snapshots; the panel
+  renders batches, per-batch and plan risk, destructive ids and fail-closed problems; the
+  migration-file lens, the SQL splitter and the statement classifier are gone.*
 - Exit: a tag produces a reviewed artifact; the IDE shows the same plan with no DB access.
 
 ### P5 - Dev/upgrade convergence and retirement of authored DDL

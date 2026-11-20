@@ -33,6 +33,7 @@ interface NodeFs {
   mkdtemp(prefix: string): Promise<string>;
   rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
   writeFile(path: string, data: string): Promise<void>;
+  readFile(path: string, options?: { encoding?: string }): Promise<string | Uint8Array>;
 }
 const loadNode = (specifier: string): Promise<unknown> => import(specifier);
 const path = (await loadNode("node:path")) as NodePath;
@@ -65,8 +66,22 @@ export const todos = pgTable("todos", {
 `;
 const ROUTE_FILE = "server/routes/api/todos/index.get.ts";
 const ROUTE = 'export default defineAuthorizedHandler({ dbTables: ["todos"] }, () => []);\n';
-const MIGRATION_FILE = "db/migrations/0001_add_done.sql";
-const MIGRATION = 'ALTER TABLE "todos" ADD COLUMN "done" boolean NOT NULL;\n';
+const MIGRATION_FILE = "db/migrations/0001_drop_todos.sql";
+// Deliberately contradicts the declaration: if the preview still read migration files,
+// this SQL would leak into the lens. The schema lens is the declared snapshot only (#48).
+const MIGRATION = 'DROP TABLE "todos";\n';
+
+/** Records every path isomorphic-git reads, so a test can prove db/migrations is untouched. */
+function watchReads(sink: string[]): FsClient {
+  const watched = {
+    ...nodeFs,
+    readFile: async (filepath: string, options?: { encoding?: string }) => {
+      sink.push(String(filepath));
+      return nodeFs.readFile(filepath, options);
+    },
+  };
+  return watched as unknown as FsClient;
+}
 
 async function write(root: string, file: string, source: string): Promise<void> {
   await mkdir(dirname(join(root, file)), { recursive: true });
@@ -121,13 +136,17 @@ describe("release git reader", () => {
 
     const snapshot = await readSnapshotAt(root, "HEAD", fs, analyze);
     expect(snapshot?.schema.tables.map((table) => table.name)).toEqual(["todos"]);
-    expect(snapshot?.schema.tables[0]?.columns).toEqual(["id", "title"]);
+    expect(snapshot?.schema.tables[0]?.columns.map((column) => column.name)).toEqual([
+      "id",
+      "title",
+    ]);
     expect(snapshot?.routes.map((route) => route.method + " " + route.path)).toEqual([
       "GET /api/todos",
     ]);
     expect(snapshot?.routes[0]?.sourceFile).toBe(ROUTE_FILE);
     expect(snapshot?.routes[0]?.permission).toBeUndefined();
-    expect(snapshot?.migrations).toEqual([]);
+    // The snapshot is the declared schema plus routes: no migration-file side channel.
+    expect(Object.keys(snapshot ?? {}).toSorted()).toEqual(["routes", "schema"]);
   });
 
   it("keeps each ref's own snapshot and resolves tags", async () => {
@@ -148,12 +167,23 @@ describe("release git reader", () => {
     expect((await listReleaseRefs(root, fs)).tags).toEqual(["v0.1.0"]);
 
     const old = await readSnapshotAt(root, "v0.1.0", fs, analyze);
-    const tip = await readSnapshotAt(root, "HEAD", fs, analyze);
-    expect(old?.schema.tables[0]?.columns).toEqual(["id", "title"]);
-    expect(tip?.schema.tables[0]?.columns).toEqual(["id", "title", "done"]);
-    expect(old?.migrations).toEqual([]);
-    expect(tip?.migrations.map((migration) => migration.path)).toEqual([MIGRATION_FILE]);
-    expect(tip?.migrations[0]?.sql).toContain("ADD COLUMN");
+    const reads: string[] = [];
+    const tip = await readSnapshotAt(root, "HEAD", watchReads(reads), analyze);
+    expect(old?.schema.tables[0]?.columns.map((column) => column.name)).toEqual(["id", "title"]);
+    expect(tip?.schema.tables[0]?.columns.map((column) => column.name)).toEqual([
+      "id",
+      "title",
+      "done",
+    ]);
+    // Acceptance (b): isomorphic-git reads blobs as .git/objects/<oid>, so prove it at that
+    // level — the schema blob is read, the committed migration blob never is, and its
+    // contradictory SQL cannot reach the lens. The declaration is the only schema source.
+    const objectPath = (oid: string): string =>
+      ".git/objects/" + oid.slice(0, 2) + "/" + oid.slice(2);
+    const schemaBlob = await git.hashBlob({ object: SCHEMA_V2 });
+    const migrationBlob = await git.hashBlob({ object: MIGRATION });
+    expect(reads.some((path) => path.endsWith(objectPath(schemaBlob.oid)))).toBe(true);
+    expect(reads.filter((path) => path.endsWith(objectPath(migrationBlob.oid)))).toEqual([]);
   });
 
   it("turns missing refs and non-repositories into empty data, never exceptions", async () => {

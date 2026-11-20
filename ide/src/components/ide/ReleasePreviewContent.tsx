@@ -161,6 +161,10 @@ function RiskSummary({ view }: { view: ReleasePreviewView }) {
   const summary = view.summary;
   return (
     <Section title={rt("releasePreview.summary.title")}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground">{rt("releasePreview.summary.risk")}</span>
+        <RiskBadge risk={view.risk} />
+      </div>
       <div className="flex flex-wrap gap-2">
         {RISK_ORDER.map((risk) => (
           <span key={risk} className="inline-flex items-center gap-1">
@@ -169,6 +173,11 @@ function RiskSummary({ view }: { view: ReleasePreviewView }) {
           </span>
         ))}
       </div>
+      {view.plan.destructive.length > 0 && (
+        <p className="break-words font-mono text-[10px] text-destructive">
+          {rt("releasePreview.plan.destructive", { ids: view.plan.destructive.join(", ") })}
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground">
         {rt("releasePreview.summary.schema", {
           addedTables: summary.addedTables,

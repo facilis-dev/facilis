@@ -1,23 +1,19 @@
-import { analyzeProject, type Analysis } from "@facilis.dev/analyze";
+import { analyzeProject, schemaSnapshotFromAnalysis } from "@facilis.dev/analyze";
+import type { SchemaSnapshot, TableSnapshot } from "@facilis.dev/core";
 import { describe, expect, it } from "vitest";
 import { exampleProjectFiles } from "./example-template";
 import { createBrowserOxcParser } from "./oxc-browser";
-import type { ReleaseTableFact } from "./release-engine";
-import {
-  readReleaseSnapshot,
-  releaseTablesFromAnalysis,
-  schemaSourcePaths,
-} from "./release-schema";
+import { readReleaseSnapshot, schemaSourcePaths } from "./release-schema";
 
 const parser = createBrowserOxcParser();
 
-function tablesOf(files: Readonly<Record<string, string>>): ReleaseTableFact[] {
-  const analysis: Analysis = analyzeProject({ files: new Map(Object.entries(files)), parser });
-  return releaseTablesFromAnalysis(analysis);
+function snapshotOf(files: Readonly<Record<string, string>>): SchemaSnapshot {
+  const analysis = analyzeProject({ files: new Map(Object.entries(files)), parser });
+  return schemaSnapshotFromAnalysis(analysis);
 }
 
-function table(files: Readonly<Record<string, string>>, name: string): ReleaseTableFact {
-  const found = tablesOf(files).find((entry) => entry.name === name);
+function table(files: Readonly<Record<string, string>>, name: string): TableSnapshot {
+  const found = snapshotOf(files).tables.find((entry) => entry.name === name);
   if (found === undefined) throw new Error(name + " missing from the analysis");
   return found;
 }
@@ -25,24 +21,42 @@ function table(files: Readonly<Record<string, string>>, name: string): ReleaseTa
 describe("release schema facts", () => {
   it("reads the schema the template actually ships", () => {
     const files = { "db/schema.ts": exampleProjectFiles()["db/schema.ts"] ?? "" };
-    expect(tablesOf(files).map((entry) => entry.name)).toEqual(["todos", "todo_files"]);
-    expect(table(files, "todos")).toEqual({
-      name: "todos",
-      columns: ["id", "tenantId", "ownerId", "title", "done", "dueDate", "createdAt"],
-      policies: [{ name: "tenant_isolation" }, { name: "owner_isolation" }],
-      rlsEnabled: true,
-      scoped: true,
-    });
+    expect(snapshotOf(files).tables.map((entry) => entry.name)).toEqual(["todo_files", "todos"]);
+    const todos = table(files, "todos");
+    expect(todos.columns.map((column) => column.name)).toEqual([
+      "id",
+      "tenant_id",
+      "owner_id",
+      "title",
+      "done",
+      "due_date",
+      "created_at",
+    ]);
+    expect(todos.policies.map((policy) => policy.name)).toEqual([
+      "tenant_isolation",
+      "owner_isolation",
+    ]);
+    // The snapshot carries the rendered policy SQL the plan and the security lens consume.
+    expect(todos.policies[0]?.sql).toContain("CREATE POLICY");
+    expect(todos.rlsEnabled).toBe(true);
+    expect(todos.scopeColumn).toEqual({ name: "tenant_id", kind: "tenant" });
     // fileLinks(todos, …) is synthesized by the analyzer (D-053/D-116): the parent FK plus
     // the attach FK, the tenant policy and the parent_access policy that inherits the
     // parent's RLS through EXISTS.
-    expect(table(files, "todo_files")).toEqual({
-      name: "todo_files",
-      columns: ["id", "parentId", "fileId", "tenantId", "createdAt"],
-      policies: [{ name: "tenant_isolation" }, { name: "parent_access" }],
-      rlsEnabled: true,
-      scoped: true,
-    });
+    const todoFiles = table(files, "todo_files");
+    expect(todoFiles.columns.map((column) => column.name)).toEqual([
+      "id",
+      "todo_id",
+      "file_id",
+      "tenant_id",
+      "created_at",
+    ]);
+    expect(todoFiles.policies.map((policy) => policy.name)).toEqual([
+      "tenant_isolation",
+      "parent_access",
+    ]);
+    expect(todoFiles.rlsEnabled).toBe(true);
+    expect(todoFiles.scopeColumn).toEqual({ name: "tenant_id", kind: "tenant" });
   });
 
   it("expands the @facilis.dev/db policy helpers and named pgPolicy calls", () => {
@@ -68,12 +82,11 @@ export const notes = pgTable("notes", { id: uuid("id") });
       "owner_isolation",
     ]);
     expect(documents.rlsEnabled).toBe(false);
-    expect(documents.scoped).toBe(true);
-    expect(table(files, "notes")).toMatchObject({
-      rlsEnabled: false,
-      scoped: false,
-      columns: ["id"],
-    });
+    expect(documents.scopeColumn).toEqual({ name: "tenant_id", kind: "tenant" });
+    const notes = table(files, "notes");
+    expect(notes.rlsEnabled).toBe(false);
+    expect(notes.scopeColumn).toBeUndefined();
+    expect(notes.columns.map((column) => column.name)).toEqual(["id"]);
   });
 
   it("ignores commented-out and quoted pgTable lookalikes", () => {
@@ -86,8 +99,8 @@ import { pgTable, uuid } from "drizzle-orm/pg-core";
 export const real = pgTable("real", { id: uuid("id"), ownerId: uuid("owner_id") });
 `,
     };
-    expect(tablesOf(files).map((entry) => entry.name)).toEqual(["real"]);
-    expect(table(files, "real").scoped).toBe(true);
+    expect(snapshotOf(files).tables.map((entry) => entry.name)).toEqual(["real"]);
+    expect(table(files, "real").scopeColumn).toEqual({ name: "owner_id", kind: "owner" });
   });
 
   it("selects the db/ DSL sources and the config that tunes the scope columns", () => {
@@ -113,7 +126,7 @@ export const first = pgTable("same", { id: uuid("id") });
 export const second = pgTable("same", { id: uuid("id") });
 `,
     };
-    expect(tablesOf(files)).toHaveLength(1);
+    expect(snapshotOf(files).tables).toHaveLength(1);
   });
 
   it("reads the full snapshot the schema plan consumes", async () => {
@@ -134,5 +147,15 @@ export const second = pgTable("same", { id: uuid("id") });
       "owner_isolation",
     ]);
     expect(todos?.columns.map((column) => column.name)).toContain("tenant_id");
+  });
+
+  it("fails closed when the analyzer cannot run", async () => {
+    const snapshot = await readReleaseSnapshot(
+      ["db/schema.ts"],
+      async () => 'export const x = 1;',
+      async () => ({ ok: false, error: "no parser" }),
+    );
+    // A schema with silently missing tables would invent a plan, so it is "unreadable".
+    expect(snapshot).toBeNull();
   });
 });

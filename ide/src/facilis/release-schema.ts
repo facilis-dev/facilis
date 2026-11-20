@@ -6,11 +6,10 @@
 // The caller supplies the analyzer because the browser runs it in a worker: this module
 // stays pure apart from the reads it is handed.
 
-import { schemaSnapshotFromAnalysis, type Analysis } from "@facilis.dev/analyze";
-import type { SchemaSnapshot } from "@facilis.dev/core";
+import { schemaSnapshotFromAnalysis } from "@facilis.dev/analyze";
 import { isAnalysisPath } from "./analyze-files";
 import type { ProjectAnalysisResult } from "./project-analysis";
-import type { ReleaseTableFact } from "./release-engine";
+import type { SchemaSnapshot } from "./release-engine";
 
 const CONFIG_FILE = "facilis.config.ts";
 const SCHEMA_DIR = "db/";
@@ -62,22 +61,11 @@ async function analyzeSchemaSources(
 }
 
 /**
- * The declared tables at a ref. Null when the analyzer cannot run: diffing a schema whose
- * tables were silently dropped would invent migrations, so an unknown schema fails closed.
- */
-export async function readReleaseSchema(
-  paths: readonly string[],
-  readText: (file: string) => Promise<string | null>,
-  analyze: SchemaAnalyzer,
-): Promise<ReleaseTableFact[] | null> {
-  const result = await analyzeSchemaSources(paths, readText, analyze);
-  return result.ok ? releaseTablesFromAnalysis(result.analysis) : null;
-}
-
-/**
- * The declared schema at a ref in the shape planSchema consumes (issue #47): the plan needs
- * the full snapshot - indexes, checks, unique constraints, enums and policy SQL - not the
- * reduced release diff table list. Null fails closed, exactly like readReleaseSchema.
+ * The declared schema at a ref in the shape planSchema consumes (issue #47, lens wired in
+ * #48): the full snapshot - columns with types, indexes, checks, unique constraints, enums
+ * and policy SQL. Null when the analyzer cannot run: diffing a schema whose tables were
+ * silently dropped would invent a plan, so an unknown schema fails closed. Unreadable
+ * declarations ride along as `unsupported` entries and fail the plan itself closed.
  */
 export async function readReleaseSnapshot(
   paths: readonly string[],
@@ -86,19 +74,4 @@ export async function readReleaseSnapshot(
 ): Promise<SchemaSnapshot | null> {
   const result = await analyzeSchemaSources(paths, readText, analyze);
   return result.ok ? schemaSnapshotFromAnalysis(result.analysis) : null;
-}
-
-/**
- * Map the analyzer's schema facts to the Release Preview contract. Columns stay Drizzle
- * property names (the old reader's domain) and policies stay names; scoped is the
- * analyzer's config-driven scope, not a column-name heuristic.
- */
-export function releaseTablesFromAnalysis(analysis: Analysis): ReleaseTableFact[] {
-  return analysis.tables.map((table) => ({
-    name: table.name,
-    columns: table.columns.map((column) => column.property),
-    policies: table.policies.map((policy) => ({ name: policy.name })),
-    rlsEnabled: table.rlsEnabled,
-    scoped: table.scope !== null,
-  }));
 }

@@ -284,7 +284,8 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     record(
       await waitFor(
         page,
-        "Boolean(document.querySelector('[data-testid=\"release-statement\"]')) || " +
+        "Boolean(document.querySelector('[data-testid=\"release-batch\"]')) || " +
+          "Boolean(document.querySelector('[data-testid=\"release-plan-failed\"]')) || " +
           "Boolean(document.querySelector('[data-testid=\"release-preview-content\"]'))",
         30000,
       ),
