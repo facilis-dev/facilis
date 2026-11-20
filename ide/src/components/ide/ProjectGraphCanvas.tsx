@@ -1,36 +1,42 @@
-// The project-graph canvas: React Flow over the pure view model. Cards, notes, edges and their
-// geometry live in ProjectGraphNodes/Note/Edge.tsx and graph-edge-geometry.ts, so this file only
-// maps the view to the library and wires the interactions (drag, note placement, double-click
-// source, viewport, fit, edge curves). Nodes are controlled locally so a drag follows the pointer;
-// the position commits to the saved layout only on drag stop, so the parent cannot reset a drag.
-// fitView padding comes from the measured HUD (issue #57); chrome and edges use role tokens
-// (XYFLOW_THEME_TOKENS, D-043/D-044), never raw palette values.
+// The project-graph canvas: React Flow over the pure view model. Cards, notes and edges live in
+// ProjectGraphNodes/Note/Edge.tsx; the details satellite and its session pins (issue #59) in
+// useProjectGraphDetails; the instance-driven effects in useProjectGraphCanvasEffects. This file
+// only wires the interactions: nodes are controlled locally so a drag follows the pointer and
+// commits to the saved layout only on drag stop. fitView padding comes from the measured HUD
+// (issue #57); chrome and edges use role tokens (XYFLOW_THEME_TOKENS, D-043/D-044).
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type Dispatch } from "react";
 import {
   Background,
-  MarkerType,
   ReactFlow,
-  applyNodeChanges,
   type EdgeMouseHandler,
   type NodeMouseHandler,
+  type OnMove,
   type OnMoveEnd,
   type OnMoveStart,
   type OnNodeDrag,
-  type OnNodesChange,
   type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphViewport } from "@/facilis/graph-layout";
+import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
-import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
 import {
-  PROJECT_GRAPH_EDGE_TYPE,
-  PROJECT_GRAPH_EDGE_TYPES,
-  type ProjectFlowEdge,
-} from "./ProjectGraphEdge";
+  detailsLinkEdgeId,
+  satelliteNodeId,
+  type PinnedDetailsAction,
+  type PinnedDetailsCard,
+} from "@/facilis/graph-satellite";
+import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
+import { PROJECT_GRAPH_EDGE_TYPES } from "./ProjectGraphEdge";
+import {
+  DETAILS_LINK_EDGE_TYPE,
+  ProjectGraphDetailsLinkEdge,
+  type ProjectCanvasEdge,
+} from "./ProjectGraphDetailsLinkEdge";
+import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import {
   LINK_SOURCE_HANDLE_ID,
   LINK_TARGET_HANDLE_ID,
@@ -38,10 +44,17 @@ import {
   type ProjectFlowNode,
 } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
-import { edgeStyleFor } from "./project-graph-edges";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
+import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
+import { useProjectGraphDetails, type PinRequest } from "./useProjectGraphDetails";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
+
+// Module scope: React Flow rebuilds its internals when the registry identity changes.
+const EDGE_TYPES = {
+  ...PROJECT_GRAPH_EDGE_TYPES,
+  [DETAILS_LINK_EDGE_TYPE]: ProjectGraphDetailsLinkEdge,
+};
 
 export function ProjectGraphCanvas({
   view,
@@ -64,10 +77,21 @@ export function ProjectGraphCanvas({
   onMoveNote,
   onEditNote,
   onDeleteNote,
+  details,
+  sources,
+  nodeLabel,
+  sheetMode,
+  sheetHeight,
+  containerWidth,
+  pinned,
+  dispatchPinned,
+  pinRequest,
+  onOpenFileAt,
+  onOpenPreview,
 }: {
   view: ProjectGraphView;
   fitPadding: HudFitPadding;
-  onInstance: (instance: ReactFlowInstance<ProjectFlowNode, ProjectFlowEdge>) => void;
+  onInstance: (instance: ReactFlowInstance<ProjectFlowNode, ProjectCanvasEdge>) => void;
   notes: readonly GraphNote[];
   addNoteNonce: number;
   viewport: GraphViewport | null;
@@ -85,31 +109,38 @@ export function ProjectGraphCanvas({
   onMoveNote: (id: string, position: { x: number; y: number }) => void;
   onEditNote: (id: string, text: string) => void;
   onDeleteNote: (id: string) => void;
+  details: ReadonlyMap<string, NodeDetails>;
+  sources: ReadonlyMap<string, string>;
+  nodeLabel: (id: string) => string | null;
+  sheetMode: boolean;
+  sheetHeight: number;
+  containerWidth: number;
+  pinned: readonly PinnedDetailsCard[];
+  dispatchPinned: Dispatch<PinnedDetailsAction>;
+  pinRequest: PinRequest | null;
+  onOpenFileAt: (file: string, line: number) => void;
+  onOpenPreview: (path: string) => void;
 }) {
   const [instance, setInstance] = useState<ReactFlowInstance<
     ProjectFlowNode,
-    ProjectFlowEdge
+    ProjectCanvasEdge
   > | null>(null);
-  // Edge selection is local: it drives only the curve handle, so it never enters the saved
-  // layout and cannot fight the parent's `view` round-trip.
+  // Edge selection is local: it drives only the curve handle, never the saved layout.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const moved = useRef(false);
+  const wrapper = useRef<HTMLDivElement>(null);
 
   // The collapse callback travels through a ref so node data does not depend on the parent's
   // function identity: a parent re-render must not rebuild the cards mid-drag.
   const onToggleCollapseRef = useRef(onToggleCollapse);
-  useEffect(() => {
-    onToggleCollapseRef.current = onToggleCollapse;
-  }, [onToggleCollapse]);
+  onToggleCollapseRef.current = onToggleCollapse;
   const toggleCollapse = useCallback((id: string) => {
     onToggleCollapseRef.current(id);
   }, []);
   // Same reasoning for the note actions: the note card holds its editor state, so a changed
   // function identity would rebuild its data and could interrupt a drag or an edit.
   const noteActions = useRef({ onCreateNote, onEditNote, onDeleteNote });
-  useEffect(() => {
-    noteActions.current = { onCreateNote, onEditNote, onDeleteNote };
-  }, [onCreateNote, onEditNote, onDeleteNote]);
+  noteActions.current = { onCreateNote, onEditNote, onDeleteNote };
   const createNote = useCallback((position: { x: number; y: number }) => {
     noteActions.current.onCreateNote(position);
   }, []);
@@ -120,121 +151,92 @@ export function ProjectGraphCanvas({
     noteActions.current.onDeleteNote(id);
   }, []);
 
-  // The mapping itself lives in project-graph-flow-nodes: this file keeps the React Flow wiring.
-  const buildNodes = useCallback(
-    (
-      next: ProjectGraphView,
-      nextNotes: readonly GraphNote[],
-      previous: readonly ProjectFlowNode[],
-    ): ProjectFlowNode[] =>
-      buildProjectGraphFlowNodes({
-        view: next,
-        notes: nextNotes,
-        previous,
-        selectedNodeId,
-        focus,
-        onToggleCollapse: toggleCollapse,
-        onEditNote: editNote,
-        onDeleteNote: deleteNote,
-      }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus],
+  const { nodes, onNodesChange, onViewportMove, activeAnchorId, movePinned } =
+    useProjectGraphDetails({
+      view,
+      notes,
+      focus,
+      selectedNodeId,
+      sheetMode,
+      pinned,
+      dispatchPinned,
+      pinRequest,
+      details,
+      sources,
+      nodeLabel,
+      instance,
+      wrapperRef: wrapper,
+      containerWidth,
+      onSelectNode,
+      onOpenFileAt,
+      onOpenPreview,
+      onToggleCollapse: toggleCollapse,
+      onEditNote: editNote,
+      onDeleteNote: deleteNote,
+    });
+
+  const sheet = useMemo(
+    () => (sheetMode ? { height: sheetHeight, selectedNodeId } : null),
+    [sheetMode, sheetHeight, selectedNodeId],
   );
+  useProjectGraphCanvasEffects({
+    instance,
+    wrapperRef: wrapper,
+    fitNonce,
+    fitPadding,
+    focus,
+    nodes,
+    addNoteNonce,
+    createNote,
+    sheet,
+  });
 
-  const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
+  const edges = useMemo<ProjectCanvasEdge[]>(() => {
+    const analysis = buildProjectGraphFlowEdges({
+      view,
+      edgeCurves,
+      selectedEdgeId,
+      focus,
+      onEdgeCurveChange,
+    });
+    if (activeAnchorId === null) return analysis;
+    return [
+      ...analysis,
+      {
+        id: detailsLinkEdgeId(activeAnchorId),
+        source: activeAnchorId,
+        target: satelliteNodeId(activeAnchorId),
+        sourceHandle: LINK_SOURCE_HANDLE_ID,
+        targetHandle: LINK_TARGET_HANDLE_ID,
+        type: DETAILS_LINK_EDGE_TYPE,
+        data: {},
+        focusable: false,
+        selectable: false,
+      },
+    ];
+  }, [view, edgeCurves, selectedEdgeId, focus, onEdgeCurveChange, activeAnchorId]);
 
-  // The view is the saved layout plus the analysis; re-sync on every change but keep a drag.
-  useEffect(() => {
-    setNodes((current) => buildNodes(view, notes, current));
-  }, [view, notes, buildNodes]);
-
-  const onNodesChange: OnNodesChange<ProjectFlowNode> = useCallback((changes) => {
-    setNodes((current) => applyNodeChanges(changes, current));
-  }, []);
-
-  // The fit button and the initial layout both live above this component; only an explicit
-  // request (fitNonce > 0) refits, so a refresh does not throw away a saved viewport.
-  useEffect(() => {
-    if (instance === null || fitNonce <= 0) return;
-    instance.fitView({ padding: toFlowPadding(fitPadding), duration: 200 });
-  }, [fitNonce, instance, fitPadding]);
-
-  // A focus request names nodes that must exist in state before fitView can frame them, so the
-  // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
-  // from refitting: `nodes` is a dependency only so a request made mid-build lands on a later
-  // pass, not on every pointer move.
-  const fittedFocus = useRef<ProjectGraphFocusState | null>(null);
-  useEffect(() => {
-    if (instance === null || focus === null || !focus.zoom) return;
-    if (fittedFocus.current === focus) return;
-    const targets = nodes
-      .filter((node) => focus.nodeIds.has(node.id))
-      .map((node) => ({ id: node.id }));
-    if (targets.length === 0) return;
-    fittedFocus.current = focus;
-    void instance.fitView({ nodes: targets, padding: toFlowPadding(fitPadding), duration: 200 });
-  }, [focus, instance, nodes, fitPadding]);
-
-  // Adding a note is an event, not state: only a nonce change creates one, so a click made
-  // while the canvas is not rendered cannot materialize a note on the next mount. The panel
-  // only increments the nonce; the flow position of the viewport centre is computed here.
-  const lastAddNonce = useRef(addNoteNonce);
-  const wrapper = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (addNoteNonce === lastAddNonce.current || instance === null) return;
-    const element = wrapper.current;
-    if (element === null) return;
-    lastAddNonce.current = addNoteNonce;
-    const rect = element.getBoundingClientRect();
-    createNote(
-      instance.screenToFlowPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      }),
-    );
-  }, [addNoteNonce, instance, createNote]);
-
-  const edges = useMemo<ProjectFlowEdge[]>(
-    () =>
-      view.edges.map((edge) => {
-        const style = edgeStyleFor(edge);
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: LINK_SOURCE_HANDLE_ID,
-          targetHandle: LINK_TARGET_HANDLE_ID,
-          type: PROJECT_GRAPH_EDGE_TYPE,
-          selected: edge.id === selectedEdgeId,
-          data: {
-            kind: edge.kind,
-            ...(edge.access === undefined ? {} : { access: edge.access }),
-            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
-            curve: edgeCurves[edge.id] ?? null,
-            onCurveChange: onEdgeCurveChange,
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
-        };
-      }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
-  );
-
-  const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
+  const onEdgeClick: EdgeMouseHandler<ProjectCanvasEdge> = (_event, edge) => {
     setSelectedEdgeId(edge.id);
     onSelectNode(null);
   };
   const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
+    // A click inside the satellite keeps the selection: it is the selection's own detail.
+    if (node.type === DETAILS_NODE_TYPE) return;
     setSelectedEdgeId(null);
     onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
     const position = { x: node.position.x, y: node.position.y };
     if (node.type === NOTE_NODE_TYPE) onMoveNote(node.id, position);
-    else onMoveNode(node.id, position);
+    else if (node.type === DETAILS_NODE_TYPE) {
+      // Only a pinned card drags on its own, and only into session state — never the layout.
+      if (node.data.pinned) movePinned(node.id, position);
+    } else onMoveNode(node.id, position);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor from the card; it has no source file to open.
-    if (node.type === NOTE_NODE_TYPE) return;
+    // A note opens its own editor; the satellite has no source file of its own.
+    if (node.type === NOTE_NODE_TYPE || node.type === DETAILS_NODE_TYPE) return;
     const target = view.nodes.find((entry) => entry.id === node.id);
     if (target !== undefined) onOpenNode(target);
   };
@@ -245,6 +247,7 @@ export function ProjectGraphCanvas({
     if (event === null && focus !== null) return;
     moved.current = true;
   };
+  const onMove: OnMove = (_event, next: Viewport) => onViewportMove(next);
   const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {
     if (!moved.current) return;
     moved.current = false;
@@ -256,15 +259,15 @@ export function ProjectGraphCanvas({
       ref={wrapper}
       data-testid="project-graph-canvas"
       // Dragging a node or box-selecting must not paint card text as selected; the note editor
-      // opts back in with select-text.
+      // and the details body opt back in with select-text.
       style={{ userSelect: "none" }}
       className={"h-full min-h-0 " + XYFLOW_THEME_TOKENS}
     >
-      <ReactFlow<ProjectFlowNode, ProjectFlowEdge>
+      <ReactFlow<ProjectFlowNode, ProjectCanvasEdge>
         nodes={nodes}
         edges={edges}
         nodeTypes={PROJECT_GRAPH_NODE_TYPES}
-        edgeTypes={PROJECT_GRAPH_EDGE_TYPES}
+        edgeTypes={EDGE_TYPES}
         onInit={(inst) => {
           setInstance(inst);
           onInstance(inst);
@@ -279,6 +282,7 @@ export function ProjectGraphCanvas({
           onSelectNode(null);
         }}
         onMoveStart={onMoveStart}
+        onMove={onMove}
         onMoveEnd={onMoveEnd}
         fitView={viewport === null}
         fitViewOptions={{ padding: toFlowPadding(fitPadding) }}

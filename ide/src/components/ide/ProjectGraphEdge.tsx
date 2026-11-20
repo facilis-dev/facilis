@@ -54,7 +54,8 @@ const FALLBACK_SIZE: Record<string, { readonly width: number; readonly height: n
 };
 const DEFAULT_SIZE = { width: 220, height: 48 };
 
-function fallbackSize(type: string | undefined): {
+/** Card sizes before measurement; shared with the satellite placement (issue #59). */
+export function cardFallbackSize(type: string | undefined): {
   readonly width: number;
   readonly height: number;
 } {
@@ -62,9 +63,10 @@ function fallbackSize(type: string | undefined): {
   return FALLBACK_SIZE[type] ?? DEFAULT_SIZE;
 }
 
-function rectFor(node: InternalProjectNode | undefined): Rect | null {
+/** The card rect the floating edges anchor to; shared with the details connector (#59). */
+export function internalNodeRect(node: InternalProjectNode | undefined): Rect | null {
   if (node === undefined) return null;
-  const fallback = fallbackSize(node.type);
+  const fallback = cardFallbackSize(node.type);
   return nodeRect(
     node.internals.positionAbsolute,
     node.measured.width ?? node.width ?? fallback.width,
@@ -87,10 +89,10 @@ function resolveGeometry(
     },
     curve,
   );
-  const sourceRect = rectFor(sourceNode);
+  const sourceRect = internalNodeRect(sourceNode);
   if (sourceRect === null) return fallback;
   if (source === target) return selfLoopGeometry(sourceRect, curve);
-  const targetRect = rectFor(targetNode);
+  const targetRect = internalNodeRect(targetNode);
   if (targetRect === null) return fallback;
   return edgeGeometry(floatingAnchors(sourceRect, targetRect, EDGE_ENDPOINT_GAP), curve);
 }

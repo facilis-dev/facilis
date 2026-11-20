@@ -250,6 +250,84 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       " after=" +
       JSON.stringify(after),
   );
+  // ── Details satellite (issue #59): the inspector body is an in-canvas node anchored beside
+  // the card with a dashed connector; Esc closes it; a pin keeps it while another node is
+  // selected; below 1200px the same body renders as a bottom sheet. ──
+  // The breakpoint reads the editor area, not the window: with the explorer and chat open the
+  // canvas is ~750px even at 1920, so emulate a wide viewport to reach satellite mode.
+  await setViewport(3200, 1200);
+  await sleep(500);
+  const anchored = await page.evaluate(
+    '(() => { const sat = document.querySelector("[data-testid=project-graph-details]");' +
+      ' const card = document.querySelector("[data-testid=project-graph-table]");' +
+      " if (!sat || !card) return null;" +
+      " const s = sat.getBoundingClientRect(); const c = card.getBoundingClientRect();" +
+      ' const side = s.left >= c.right + 8 ? "right" : s.right <= c.left - 8 ? "left" : "overlap";' +
+      " const overlapY = Math.min(s.bottom, c.bottom) - Math.max(s.top, c.top);" +
+      " return { side, overlapY }; })()",
+  );
+  record(
+    anchored !== null && anchored.side !== "overlap" && anchored.overlapY > 0,
+    "project graph: satellite anchored beside the card without overlap",
+    JSON.stringify(anchored),
+  );
+  const connector = await page.evaluate(
+    'Boolean(document.querySelector("[data-testid=project-graph-details-link] path"))',
+  );
+  record(connector, "project graph: satellite connector drawn", String(connector));
+  // Focus is trapped inside the satellite, so a real Esc lands on its own handler. The
+  // emulated resize above can blur the page, so put focus back inside before the key.
+  await page.evaluate(
+    '(() => { const s = document.querySelector("[data-testid=project-graph-details]");' +
+      ' const b = s && s.querySelector("button"); if (b) b.focus(); })()',
+  );
+  await pressKey(page, "Escape", "Escape", 27);
+  const closedByEsc = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=project-graph-inspector]")',
+    3000,
+  );
+  record(closedByEsc, "project graph: Esc closes the satellite", String(closedByEsc));
+  // Pin keeps the card in place while another node is selected; unpin removes it.
+  await page.evaluate(clickTestId("project-graph-table"));
+  await waitFor(page, 'Boolean(document.querySelector("[data-testid=project-graph-details]"))', 3000);
+  await page.evaluate(
+    '(() => { const b = document.querySelectorAll("[data-testid=project-graph-inspector] button")[1];' +
+      " if (b) b.click(); })()",
+  );
+  const pinnedShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=project-graph-details-pinned]"))',
+    3000,
+  );
+  // Frame every card so the second selection certainly lands on a rendered node.
+  await page.evaluate(clickTestId("graph-hud-fit"));
+  await sleep(500);
+  await page.evaluate(clickTestId("project-graph-page"));
+  const compare = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=project-graph-details-pinned]")) && ' +
+      'Boolean(document.querySelector("[data-testid=project-graph-details]"))',
+    3000,
+  );
+  record(
+    pinnedShown && compare,
+    "project graph: pin keeps the card while another node is selected",
+    "pinned=" + pinnedShown + " compare=" + compare,
+  );
+  await page.evaluate(
+    '(() => { const p = document.querySelector("[data-testid=project-graph-details-pinned]");' +
+      ' if (!p) return; const b = p.querySelectorAll("[data-testid=project-graph-inspector] button")[1];' +
+      " if (b) b.click(); })()",
+  );
+  const unpinned = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=project-graph-details-pinned]")',
+    3000,
+  );
+  record(unpinned, "project graph: unpin removes the pinned card", String(unpinned));
+  await setViewport(1920, 1080);
+  await sleep(500);
   // Close the inspector so it does not shadow the fit check below.
   await page.evaluate(
     '(() => { const b = document.querySelector("[data-testid=project-graph-inspector] button");' +
@@ -338,6 +416,55 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await page.evaluate(clickTestId("graph-stat-edges"));
   await waitFor(page, 'document.querySelectorAll(".react-flow__edge").length > 0', 5000);
   await page.screenshot(ARTIFACTS + "/05c-project-graph-hud.png");
+
+  // ── Bottom sheet (issue #59): below 1200px the details render as a sheet overlay — never a
+  // layout sibling — and the selected node stays visible above it. ──
+  await setViewport(1024, 768);
+  await sleep(500);
+  await page.evaluate(clickTestId("graph-hud-fit"));
+  await sleep(500);
+  const sheetBefore = await page.evaluate(CANVAS_RECT);
+  await page.evaluate(clickTestId("project-graph-table"));
+  const sheetShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=project-graph-details-sheet]"))',
+    5000,
+  );
+  await sleep(500); // let the reveal pan settle before measuring
+  const sheetState = await page.evaluate(
+    '(() => { const sheet = document.querySelector("[data-testid=project-graph-details-sheet]");' +
+      ' const sat = document.querySelector("[data-testid=project-graph-details]");' +
+      ' const card = document.querySelector("[data-testid=project-graph-table]");' +
+      " if (!sheet || !card) return null;" +
+      " const s = sheet.getBoundingClientRect(); const c = card.getBoundingClientRect();" +
+      " return { satellite: Boolean(sat), cardClear: c.bottom <= s.top + 2," +
+      " handle: Boolean(sheet.querySelector('[role=separator]')) }; })()",
+  );
+  const sheetAfter = await page.evaluate(CANVAS_RECT);
+  const sheetStable =
+    sheetBefore !== null &&
+    sheetAfter !== null &&
+    sheetBefore.x === sheetAfter.x &&
+    sheetBefore.y === sheetAfter.y &&
+    sheetBefore.w === sheetAfter.w &&
+    sheetBefore.h === sheetAfter.h;
+  record(
+    sheetShown &&
+      sheetState !== null &&
+      !sheetState.satellite &&
+      sheetState.cardClear &&
+      sheetState.handle &&
+      sheetStable,
+    "project graph: narrow viewport renders a bottom sheet that keeps the node visible",
+    JSON.stringify({ sheetShown, sheetState, sheetStable }),
+  );
+  await pressKey(page, "Escape", "Escape", 27);
+  const sheetClosed = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=project-graph-details-sheet]")',
+    3000,
+  );
+  record(sheetClosed, "project graph: Esc closes the bottom sheet", String(sheetClosed));
 
   // Restore the default viewport for the remaining panel checks.
   await page.send("Emulation.clearDeviceMetricsOverride", {});
