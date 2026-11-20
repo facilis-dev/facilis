@@ -18,6 +18,11 @@ const LABELS = [
     description: "Internal work: refactor, docs, tooling or CI.",
   },
   {
+    name: "epic",
+    color: "5319e7",
+    description: "Epic: a larger effort tracked through child issues.",
+  },
+  {
     name: "agent:ready",
     color: "0e8a16",
     description: "Fully specified and ready for an AI agent to implement.",
