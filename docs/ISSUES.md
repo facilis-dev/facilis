@@ -50,8 +50,36 @@ to invalidate the criteria.
    acceptance criteria — stop, comment with the concrete blocker, unassign yourself and
    remove `agent:ready` so the next agent does not repeat the attempt.
 
+An `agent:ready` issue labelled `epic` is a plan: the claim and the pull request target one
+of its children, never the epic itself — see [Epics](#epics).
+
 Assignment wins over the label: a labelled issue with an assignee is taken, whether the
 assignee is an agent or a human.
+
+## Epics
+
+An issue labelled `epic` is a plan, not a work item: it describes a larger effort and tracks
+its children as a task list (`- [ ] #NNN`) in its body, grouped by phase and followed by a
+suggested order. The children are ordinary issues (`bug`, `enhancement`, `task`) and
+**intentionally carry no `agent:ready` label**: tagging them would let an agent pick a child
+out of plan order. The epic's own `agent:ready` label is the hand-off for the whole plan, and
+the epic's design rules and non-goals are binding for every child.
+
+When an agent selects an `agent:ready` epic:
+
+1. Read the epic body as the plan: the suggested order decides which child is actionable
+   next, and a child whose prerequisites are still open is not actionable yet.
+2. Pick the first actionable child in plan order that is open and unassigned, and claim the
+   **child** (`gh issue edit <child> --add-assignee @me`) — never the epic. The epic stays
+   unassigned so the next run can take the next child.
+3. Develop the child like any other issue: its acceptance criteria plus the epic's rules.
+4. Open the pull request with `Closes #<child>`. Never `Closes` the epic: it closes only when
+   every child is closed (or explicitly descoped in its body). GitHub checks the task-list
+   box automatically when the child closes.
+
+An epic whose children are all closed or assigned has nothing to do: skip it and select the
+next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
+unassign); only a blocker that invalidates the whole plan removes `agent:ready` from the epic.
 
 ## Labels
 
@@ -66,7 +94,7 @@ pnpm labels:sync -- --dry-run
 | Label | Meaning |
 | --- | --- |
 | `task` | Internal work: refactor, docs, tooling or CI. |
-| `epic` | A larger effort tracked as a parent of child issues (for example #56). |
+| `epic` | A larger effort tracked as a parent of child issues (for example #56); with `agent:ready` it hands the whole plan to an agent — see [Epics](#epics). |
 | `agent:ready` | Fully specified and ready for an AI agent to implement. |
 
 ## Pull requests
