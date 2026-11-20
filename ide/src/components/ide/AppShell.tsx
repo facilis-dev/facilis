@@ -29,6 +29,7 @@ import { PushRemoteDialog } from "./PushRemoteDialog";
 import { ScaffoldTemplateDialog } from "./ScaffoldTemplateDialog";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
+import { DEBUG_PANEL_ENABLED } from "@/facilis/debug-panel-flag";
 import { isWordWrapChord } from "@/vv/editor-prefs";
 
 export function AppShell() {
@@ -196,7 +197,7 @@ export function AppShell() {
                 <div data-tour="sidebar" className="h-full min-h-0">
                   {snap.activeView === "search" ? (
                     <SearchPane />
-                  ) : snap.activeView === "debug" ? (
+                  ) : DEBUG_PANEL_ENABLED && snap.activeView === "debug" ? (
                     <DebugPanel />
                   ) : snap.activeView === "scm" ? (
                     <SourceControlPanel />

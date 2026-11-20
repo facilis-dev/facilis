@@ -14,7 +14,7 @@ export const tourEn = {
     "A Facilis project opens here: pages, routes, tables and views as one graph. Drag a node to arrange it, double-click to open its source.",
   "tour.step.activity.title": "The activity bar",
   "tour.step.activity.body":
-    "This is how you change surface: workspace, search, git, run and debug, data, release, logs and AI chat. The graph stays one click away.",
+    "This is how you change surface: workspace, search, git, data, release, logs and AI chat. The graph stays one click away.",
   "tour.step.explorer.title": "Files, at a glance",
   "tour.step.explorer.body":
     "The Explorer is the classic map of the project: every file with its git state and the right icon. It also handles drag-and-drop and rename.",
