@@ -11,12 +11,28 @@
 import type { FilePatch } from "@facilis.dev/ai";
 import type { IdeController } from "@/vv/controller";
 import { applyPatch, type ApplyPatchResult } from "./apply-patch";
+import { getRuntimeMetrics, type RouteRuntimeMetrics } from "./runtime-metrics";
+import {
+  disableRuntimeMetrics,
+  enableRuntimeMetrics,
+  runtimeMetricsSession,
+} from "./runtime-metrics-wire";
 
 export interface FacilisDevHandle {
   applyPatch(input: {
     patches: readonly FilePatch[];
     manifestBase?: string;
   }): Promise<ApplyPatchResult>;
+  /**
+   * The runtime metrics seam (D-200) the graph runtime lens (#72) will drive: enable
+   * with the route templates derived from the manifest, read the windowed buffer,
+   * disable to sleep the injected client. Dev-only, like the whole handle.
+   */
+  runtimeMetrics: {
+    enable(routes: readonly string[]): boolean;
+    disable(): void;
+    snapshot(): RouteRuntimeMetrics[];
+  };
 }
 
 export function installFacilisDevHandle(controller: IdeController): void {
@@ -30,6 +46,15 @@ export function installFacilisDevHandle(controller: IdeController): void {
         patches: input.patches,
         manifestBase: input.manifestBase,
       });
+    },
+    runtimeMetrics: {
+      enable(routes) {
+        const session = runtimeMetricsSession(controller.bridge, controller.preview);
+        if (session === null) return false;
+        return enableRuntimeMetrics(session, routes);
+      },
+      disable: disableRuntimeMetrics,
+      snapshot: () => getRuntimeMetrics().snapshot(),
     },
   };
   // oxlint-disable-next-line no-underscore-dangle -- dev-only handle mirrors window.__ide.
