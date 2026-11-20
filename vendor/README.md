@@ -72,6 +72,40 @@ gates ignore `vendor/` entirely.
    Wasm first with `pnpm ide:wasm` if the fork touched a Rust crate).
 4. Update the pinned commit here and in `ide/README.md`.
 
+## Verification (2026-11-20, pin `d2a8d52` / `facilis/main` = upstream v1.3.4 + 1 post-release commit + 20 fork commits)
+
+The pin moves from `daceb39` (`v1.3.1-19`) to `d2a8d52` (`v1.3.4-21-gd2a8d52`): the fork's
+2026-11-20 realignment onto upstream `9372e5e` — v1.3.2 (manifest-report rules extracted into
+`packages/core/manifest-report.js`), v1.3.3 (a UNIX-socket file stays in place while its server
+listens; COEP/CORP headers on the preview token redirect; `probe-xpipe` in CI), v1.3.4 (`file:`
+URLs with a query/hash get their own module; web streams get Node's closed-promise semantics)
+and the post-release `spike-web-globals` Node 22 fix. The fork history was rewritten, so the old
+pin is no longer an ancestor of `facilis/main` (it survives as the fork's local backup ref):
+the bump is a deliberate checkout of the new sha, not a merge. The 19 fork-only commits replayed
+byte-identical (mirror lane, `deferRestoreRoots`/`deferCacheFiles`, pnpm-env isolation); the
+20th is the fork's realignment record. No contract change downstream.
+
+The only `packages/studio` change between the pins is `public/sw.js` (+15/−1): the preview
+token redirect is now a 302 carrying `Cross-Origin-Embedder-Policy: require-corp` /
+`Cross-Origin-Resource-Policy: same-origin` instead of `Response.redirect()` (the WebKit
+blank-preview fix). `ide/public/sw.js` was synced with that change and keeps the D-132 persisted
+preview-routing patch — the diff was reviewed against both pins. The D-037 deferred-cache
+hydration gate in `packages/core/src/workers/fs-worker.ts` is byte-identical between the pins,
+the fork-only `BootOptions` surface (`deferRestoreRoots`, `deferCacheFiles`, `mirrorLane`) is
+intact, and the IDE still boots with `mirrorLane: true` (D-188). No Rust crate changed, but
+`pnpm ide:wasm` was re-run with `--force` per `docs/DEV.md` after the bump; the packers did not
+change either, so the npm 12.2.1 / pnpm 11.28.9 lockstep (D-032/D-180) is untouched.
+
+| Check | Result |
+|---|---|
+| `git submodule status` | clean at `d2a8d52…` (`v1.3.4-21-gd2a8d52`), no worktree edits |
+| `pnpm lint` | 0 errors / 331 pre-existing warnings; `check-file-length` OK (931 files, 9 baseline entries); theme gate OK |
+| `pnpm typecheck` | 21/21 tasks |
+| `pnpm test` | 21/21 tasks + 23 script tests; the IDE suite: 179 files / 1505 tests, 1 skipped |
+| `pnpm build` | 13/13 tasks |
+| `pnpm ide:smoke` | **green**, 87 checks / 0 failures: boot, create, install, preview paint, health/manifest/OpenAPI/401/session/db roundtrip with **0 manifest warnings**, IntelliSense, A8/A10/A12, write, chat, panels, local-package install. The known reds recorded at the previous pin did not recur |
+| `pnpm ide:smoke:multitab` | **green**, 53/53: per-tab preview routing across reloads (the D-132/#4 class), one-project-per-tab Web Lock, scoped OPFS restore, deferred cache hydration, read-merge-write registry |
+
 ## Verification (2026-11-15, pin `daceb39` / `facilis/main` = upstream v1.3.1 + 19 fork commits)
 
 The pin moves from v1.3.0 (`0a1eea1`) to `v1.3.1-19-gdaceb39`: upstream's v1.3.1 release
