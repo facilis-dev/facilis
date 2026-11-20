@@ -1,20 +1,15 @@
-// The project-graph canvas: React Flow over the pure view model. The node cards live in
-// ProjectGraphNodes.tsx, the note cards in ProjectGraphNote.tsx, the edges and their pointer
-// handling in ProjectGraphEdge.tsx and the geometry in graph-edge-geometry.ts, so this file
-// only maps the view to the library and wires the interactions (reactive drag, note placement,
-// double-click source, viewport, fit, edge curves).
-//
-// Nodes are controlled locally so a drag follows the pointer on every move; the final position
-// is committed to the saved layout only on drag stop, so the parent cannot reset a drag.
-//
-// The chrome follows the theme through XYFLOW_THEME_TOKENS (D-044); edge colours are role
-// tokens too, never raw palette values (D-043).
+// The project-graph canvas: React Flow over the pure view model. Cards, notes, edges and their
+// geometry live in ProjectGraphNodes/Note/Edge.tsx and graph-edge-geometry.ts, so this file only
+// maps the view to the library and wires the interactions (drag, note placement, double-click
+// source, viewport, fit, edge curves). Nodes are controlled locally so a drag follows the pointer;
+// the position commits to the saved layout only on drag stop, so the parent cannot reset a drag.
+// fitView padding comes from the measured HUD (issue #57); chrome and edges use role tokens
+// (XYFLOW_THEME_TOKENS, D-043/D-044), never raw palette values.
 
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  Controls,
   MarkerType,
   ReactFlow,
   applyNodeChanges,
@@ -27,6 +22,7 @@ import {
   type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
+import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
@@ -49,6 +45,8 @@ import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export function ProjectGraphCanvas({
   view,
+  fitPadding,
+  onInstance,
   notes,
   addNoteNonce,
   viewport,
@@ -68,6 +66,8 @@ export function ProjectGraphCanvas({
   onDeleteNote,
 }: {
   view: ProjectGraphView;
+  fitPadding: HudFitPadding;
+  onInstance: (instance: ReactFlowInstance<ProjectFlowNode, ProjectFlowEdge>) => void;
   notes: readonly GraphNote[];
   addNoteNonce: number;
   viewport: GraphViewport | null;
@@ -155,8 +155,8 @@ export function ProjectGraphCanvas({
   // request (fitNonce > 0) refits, so a refresh does not throw away a saved viewport.
   useEffect(() => {
     if (instance === null || fitNonce <= 0) return;
-    instance.fitView({ padding: 0.15, duration: 200 });
-  }, [fitNonce, instance]);
+    instance.fitView({ padding: toFlowPadding(fitPadding), duration: 200 });
+  }, [fitNonce, instance, fitPadding]);
 
   // A focus request names nodes that must exist in state before fitView can frame them, so the
   // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
@@ -171,8 +171,8 @@ export function ProjectGraphCanvas({
       .map((node) => ({ id: node.id }));
     if (targets.length === 0) return;
     fittedFocus.current = focus;
-    void instance.fitView({ nodes: targets, padding: 0.15, duration: 200 });
-  }, [focus, instance, nodes]);
+    void instance.fitView({ nodes: targets, padding: toFlowPadding(fitPadding), duration: 200 });
+  }, [focus, instance, nodes, fitPadding]);
 
   // Adding a note is an event, not state: only a nonce change creates one, so a click made
   // while the canvas is not rendered cannot materialize a note on the next mount. The panel
@@ -265,7 +265,10 @@ export function ProjectGraphCanvas({
         edges={edges}
         nodeTypes={PROJECT_GRAPH_NODE_TYPES}
         edgeTypes={PROJECT_GRAPH_EDGE_TYPES}
-        onInit={setInstance}
+        onInit={(inst) => {
+          setInstance(inst);
+          onInstance(inst);
+        }}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
         onNodeDoubleClick={onNodeDoubleClick}
@@ -278,7 +281,7 @@ export function ProjectGraphCanvas({
         onMoveStart={onMoveStart}
         onMoveEnd={onMoveEnd}
         fitView={viewport === null}
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: toFlowPadding(fitPadding) }}
         defaultViewport={viewport === null ? { x: 0, y: 0, zoom: 1 } : viewport}
         nodesConnectable={false}
         zoomOnDoubleClick={false}
@@ -287,7 +290,6 @@ export function ProjectGraphCanvas({
         maxZoom={2}
       >
         <Background color="var(--border)" gap={20} />
-        <Controls showInteractive={false} />
       </ReactFlow>
     </div>
   );

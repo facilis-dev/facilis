@@ -40,7 +40,8 @@ export function ProjectGraphInspector({
   return (
     <aside
       data-testid="project-graph-inspector"
-      className="flex w-80 shrink-0 flex-col border-l bg-sidebar text-xs"
+      // An overlay, not a flex sibling (issue #57): selecting a node must not resize the canvas.
+      className="absolute inset-y-2 right-2 z-20 flex w-80 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg border border-border bg-sidebar text-xs shadow-lg"
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">

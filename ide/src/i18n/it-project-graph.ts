@@ -13,8 +13,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.openProjectFirst": "Apri un progetto per vedere il suo grafo.",
   "projectGraph.empty": "Niente da disegnare.",
   "projectGraph.emptyHint": "Pagine, route, tabelle e viste compaiono qui dopo l'analisi.",
-  "projectGraph.fullscreen": "Schermo intero",
-  "projectGraph.exitFullscreen": "Esci dallo schermo intero",
   "projectGraph.clearFocus": "Rimuovi focus",
   "projectGraph.clearFocusHint":
     "L'AI ha evidenziato una parte del grafo: rimuovi il focus per vedere di nuovo tutto (Esc).",
@@ -40,13 +38,10 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.tableVisibility.all": "Tutte le tabelle",
   "projectGraph.tableVisibility.hint":
     "Le tabelle di sistema sono quelle caricate dai moduli @facilis. Scegli se disegnare tutte le tabelle, solo quelle usate dal progetto o nessuna di sistema.",
-  "projectGraph.stats":
-    "{pages} pagine · {routes} route · {tables} tabelle · {views} viste · {workflows} workflow · {edges} archi",
   "projectGraph.hiddenEdges": "{count} nascosti",
   "projectGraph.hiddenNodes": "{count} nodi nascosti",
   "projectGraph.matches": "{count} trovati",
   "projectGraph.noMatches": "Nessun nodo corrisponde alla ricerca.",
-  "projectGraph.legend": "Legenda",
   "projectGraph.hint":
     "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente. Clicca un arco per curvarlo, poi trascina il punto centrale. Scorri per lo zoom, trascina lo sfondo per spostarti.",
   "projectGraph.curveHint": "Trascina per curvare il collegamento; doppio clic per raddrizzarlo",
@@ -176,4 +171,27 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
   "projectGraph.fk.onUpdate": "on update {action}",
+
+  // ── HUD a tutto schermo (issue #57) ────────────────────────────────────────
+  "projectGraph.zen": "Modalità zen",
+  "projectGraph.exitZen": "Esci dalla modalità zen",
+  "projectGraph.zenHint": "Nascondi i controlli per una tela pulita. Premi Esc per ripristinarli.",
+  "projectGraph.zoomIn": "Ingrandisci",
+  "projectGraph.zoomOut": "Riduci",
+  "projectGraph.actionsMenu": "Azioni e filtri",
+  "projectGraph.hud.overview": "Panoramica del grafo",
+  "projectGraph.hud.actions": "Azioni del grafo",
+  "projectGraph.hud.view": "Controlli vista",
+  "projectGraph.hud.modeSlot": "Modalità grafo",
+  "projectGraph.hud.lensSlot": "Chip lente",
+  "projectGraph.hud.minimapSlot": "Minimappa",
+  "projectGraph.ribbon.label": "Statistiche del grafo",
+  "projectGraph.ribbon.pages": "Pagine",
+  "projectGraph.ribbon.routes": "Route",
+  "projectGraph.ribbon.tables": "Tabelle",
+  "projectGraph.ribbon.views": "Viste",
+  "projectGraph.ribbon.workflows": "Workflow",
+  "projectGraph.ribbon.edges": "Archi",
+  "projectGraph.ribbon.filterKind": "Filtra per {label}",
+  "projectGraph.ribbon.filterEdges": "Mostra o nascondi tutti gli archi",
 };
