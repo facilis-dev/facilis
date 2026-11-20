@@ -193,4 +193,9 @@ export const projectGraphEn = {
   "projectGraph.ribbon.edges": "Edges",
   "projectGraph.ribbon.filterKind": "Filter by {label}",
   "projectGraph.ribbon.filterEdges": "Show or hide all edges",
+
+  // ── semantic zoom LOD (issue #60) ─────────────────────────────────────────
+  "projectGraph.lod.edgeCount": "{count} edges",
+  "projectGraph.lod.note": "note",
+  "projectGraph.lod.lines": "{count} lines",
 } as const;

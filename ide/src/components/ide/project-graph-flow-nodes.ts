@@ -50,6 +50,15 @@ export function buildProjectGraphFlowNodes({
   // nothing is focused or it is part of the focus.
   const isFocused = (id: string): boolean =>
     focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false);
+  // The chip's edge count is a fact of the visible view (epic rule 5): each edge counts once
+  // per endpoint, a self-loop once. Computed here so every card reads it from its data.
+  const edgeCounts = new Map<string, number>();
+  for (const edge of view.edges) {
+    edgeCounts.set(edge.source, (edgeCounts.get(edge.source) ?? 0) + 1);
+    if (edge.target !== edge.source) {
+      edgeCounts.set(edge.target, (edgeCounts.get(edge.target) ?? 0) + 1);
+    }
+  }
   const analysis = view.nodes.map((node) => {
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {
@@ -60,6 +69,7 @@ export function buildProjectGraphFlowNodes({
         node,
         collapsed: node.collapsed,
         focused: isFocused(node.id),
+        edgeCount: edgeCounts.get(node.id) ?? 0,
         onToggleCollapse,
       },
       draggable: true,

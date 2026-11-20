@@ -25,7 +25,8 @@ const EDGE_WIDTH = 1.5;
 const EDGE_DASH = [5, 3] as const;
 const CARD_RADIUS = 6;
 const LABEL_FONT = "500 11px ui-sans-serif, system-ui, sans-serif";
-const KIND_FONT = "9px ui-sans-serif, system-ui, sans-serif";
+// Matches the full card's >= 10 px base text (issue #60) so the screenshot and the canvas agree.
+const KIND_FONT = "10px ui-sans-serif, system-ui, sans-serif";
 const LABEL_INSET = 8;
 
 function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene): void {

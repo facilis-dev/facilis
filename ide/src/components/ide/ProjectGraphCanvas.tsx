@@ -38,6 +38,7 @@ import {
   type ProjectFlowNode,
 } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
+import { ProjectGraphZoomVar } from "./ProjectGraphZoomVar";
 import { edgeStyleFor } from "./project-graph-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -289,6 +290,7 @@ export function ProjectGraphCanvas({
         minZoom={0.05}
         maxZoom={2}
       >
+        <ProjectGraphZoomVar target={wrapper} />
         <Background color="var(--border)" gap={20} />
       </ReactFlow>
     </div>

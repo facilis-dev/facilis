@@ -7,13 +7,14 @@ import { useRef, useState, type CSSProperties, type MouseEvent, type PointerEven
 import {
   BaseEdge,
   useInternalNode,
-  useViewport,
+  useStoreApi,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
   type InternalNode,
 } from "@xyflow/react";
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
+import { GRAPH_NODE_SIZES } from "@/facilis/graph-node-size";
 import { t } from "@/i18n";
 import {
   EDGE_ENDPOINT_GAP,
@@ -28,6 +29,7 @@ import {
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
+import { useGraphLod } from "./use-graph-lod";
 
 /** The one custom edge type; registered at module scope by the canvas. */
 export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
@@ -45,21 +47,17 @@ export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_ED
 
 type InternalProjectNode = InternalNode<ProjectFlowNode>;
 
-/** Card widths from the Tailwind classes, used before React Flow reports a measurement. */
-const FALLBACK_SIZE: Record<string, { readonly width: number; readonly height: number }> = {
-  page: { width: 224, height: 157 },
-  route: { width: 256, height: 60 },
-  table: { width: 240, height: 80 },
-  view: { width: 240, height: 80 },
-};
+/** The shared full-card footprints (graph-node-size.ts), used before React Flow measures. */
 const DEFAULT_SIZE = { width: 220, height: 48 };
 
 function fallbackSize(type: string | undefined): {
   readonly width: number;
   readonly height: number;
 } {
-  if (type === undefined) return DEFAULT_SIZE;
-  return FALLBACK_SIZE[type] ?? DEFAULT_SIZE;
+  // The node type is the kind string for analysis cards; notes fall back to the default.
+  if (type !== undefined && type in GRAPH_NODE_SIZES)
+    return GRAPH_NODE_SIZES[type as GraphNodeKind];
+  return DEFAULT_SIZE;
 }
 
 function rectFor(node: InternalProjectNode | undefined): Rect | null {
@@ -128,7 +126,10 @@ export function ProjectGraphEdge({
 }: EdgeProps<ProjectFlowEdge>) {
   const sourceNode = useInternalNode<ProjectFlowNode>(source);
   const targetNode = useInternalNode<ProjectFlowNode>(target);
-  const { zoom } = useViewport();
+  // The level, not the raw zoom: a zoom gesture re-renders the edge only at a threshold. The
+  // drag math reads the live zoom from the store on demand instead of subscribing per frame.
+  const level = useGraphLod();
+  const store = useStoreApi();
   const [draft, setDraft] = useState<GraphCurve | null>(null);
   const [hovered, setHovered] = useState(false);
   const drag = useRef<DragState | null>(null);
@@ -150,7 +151,9 @@ export function ProjectGraphEdge({
   const highlighted = selected === true || hovered;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
-    strokeWidth: highlighted ? 2.5 : 1.5,
+    // Chip simplification (issue #60): thinner strokes; labels are never drawn on the canvas
+    // (the model's edge label lives in the inspector) and bend handles are suppressed below.
+    strokeWidth: level === "chip" ? 1 : highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Focus dims the edges it does not name with opacity, not a colour: the theme still owns
@@ -176,14 +179,14 @@ export function ProjectGraphEdge({
     const state = drag.current;
     if (state === null || state.pointerId !== event.pointerId) return;
     event.stopPropagation();
-    setDraft(pointFromEvent(event, state, zoom));
+    setDraft(pointFromEvent(event, state, store.getState().transform[2]));
   };
   const onHandlePointerUp = (event: PointerEvent<SVGCircleElement>) => {
     const state = drag.current;
     if (state === null || state.pointerId !== event.pointerId) return;
     event.stopPropagation();
     drag.current = null;
-    data?.onCurveChange(id, pointFromEvent(event, state, zoom));
+    data?.onCurveChange(id, pointFromEvent(event, state, store.getState().transform[2]));
     setDraft(null);
   };
   const onHandlePointerCancel = () => {
@@ -197,14 +200,19 @@ export function ProjectGraphEdge({
   };
 
   return (
-    <g onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <g
+      data-lod={level}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <BaseEdge
         path={geometry.path}
         markerEnd={markerEnd}
         style={pathStyle}
         interactionWidth={24}
       />
-      {selected === true && data !== undefined ? (
+      {/* No bend handles at chip (criterion 5): the edge stays clickable, just not bendable. */}
+      {level !== "chip" && selected === true && data !== undefined ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>
           {/* Invisible hit target: a 5px dot is too small to grab at a fitted zoom. */}
