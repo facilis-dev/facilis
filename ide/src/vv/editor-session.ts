@@ -8,6 +8,7 @@ import type { DebugSession } from "./debug-session";
 import type { EditorLanguage } from "./editor-language";
 import type { EditorStatus } from "./editor-status";
 import { monacoThemeFor, type UiTheme } from "./terminal-theme";
+import { DEBUG_PANEL_ENABLED } from "@/facilis/debug-panel-flag";
 
 /**
  * The one node every Monaco editor here reparents its overflowing widgets into
@@ -163,8 +164,8 @@ export class EditorSession {
       // turn off Monaco's built-in "drop text into the buffer" behavior.
       dropIntoEditor: { enabled: false },
       // Breakpoint debugger: the glyph margin hosts breakpoint dots + the paused
-      // arrow, and a click there toggles a breakpoint (see DebugSession).
-      glyphMargin: true,
+      // arrow (see DebugSession). Gated with the panel until the SSR seam (D-201).
+      glyphMargin: DEBUG_PANEL_ENABLED,
       // Don't over-reserve the line-number column (Monaco defaults to 5 chars,
       // which right-aligns single digits and leaves a big gap to their left).
       lineNumbersMinChars: 2,
@@ -177,8 +178,7 @@ export class EditorSession {
       fixedOverflowWidgets: true,
       overflowWidgetsDomNode: overflowWidgetsNode(),
     });
-    // Breakpoint debugger: wire gutter breakpoints + paused-line decorations.
-    this.host.debug.attachEditor(this.codeEditor, monaco);
+    if (DEBUG_PANEL_ENABLED) this.host.debug.attachEditor(this.codeEditor, monaco);
     this.codeEditor.onDidChangeModelContent(() => this.host.language.enableIntelligence());
     this.wireStatus(this.codeEditor);
     // Seed the language service with any folders indexed before the editor was

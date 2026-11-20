@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { t, type MessageKey } from "@/i18n";
 import { chatStoreFor } from "@/ai/chat-host";
+import { DEBUG_PANEL_ENABLED } from "@/facilis/debug-panel-flag";
 import { useIde } from "./useIde";
 
 function ActBtn({
@@ -128,9 +129,11 @@ export function ActivityBar() {
       <ActBtn label={t("activity.logs")} active={shown("logs")} onClick={() => select("logs")}>
         <ScrollText className="size-5" />
       </ActBtn>
-      <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
-        <Bug className="size-5" />
-      </ActBtn>
+      {DEBUG_PANEL_ENABLED && (
+        <ActBtn label={t("activity.debug")} active={shown("debug")} onClick={() => select("debug")}>
+          <Bug className="size-5" />
+        </ActBtn>
+      )}
       <ActBtn
         label={t("activity.chat")}
         active={shown("chat")}
