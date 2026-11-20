@@ -189,6 +189,11 @@ export interface ProjectGraphViewInput {
   readonly tableVisibility?: GraphTableVisibility;
   readonly collapsed?: Readonly<Record<string, boolean>>;
   readonly query?: string;
+  /**
+   * Stats-ribbon kind isolation (issue #57): when non-empty, only these node kinds are drawn.
+   * An explicit user filter, separate from D-179 table visibility; it never changes hiddenNodes.
+   */
+  readonly kinds?: readonly GraphNodeKind[];
 }
 
 export interface ProjectGraphView {
