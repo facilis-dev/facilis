@@ -12,9 +12,9 @@ name: Deploy IDE
 #
 # This is the single release workflow (D-164): when the tree has something to publish — packages/
 # or tsconfig.base.json differs from the last release tag (D-183/D-184) — it publishes the
-# @facilis.dev packages first, then builds the IDE against that exact version. Publishing rides
-# the deploy instead of racing it in a parallel workflow, which could deploy an IDE pinned to a
-# version npm does not serve yet (or to an older one).
+# @facilis.dev packages at their committed versions first (D-198), then builds the IDE, which
+# reads those same manifests itself. Publishing rides the deploy instead of racing it in a
+# parallel workflow, which could deploy an IDE pinned to versions npm does not serve yet.
 # The upload authenticates with npm trusted publishing (OIDC), not a stored token: the job
 # mints a short-lived GitHub identity token, the npm CLI exchanges it for a publish credential,
 # and provenance is attached automatically. There is no NPM_TOKEN secret to leak or rotate.
@@ -39,10 +39,6 @@ on:
         description: "Force a publish even when packages/ has not changed since the last release tag"
         type: boolean
         default: false
-      version:
-        description: "Publish this exact version (default: the next patch after npm latest). Use it for a minor/major release."
-        type: string
-        default: ""
 
 concurrency:
   group: deploy-ide-${{ github.ref }}
@@ -117,8 +113,9 @@ jobs:
             echo "not publishing: packages/ matches $last"
             changed=false
           else
-            # A diff we cannot compute lands here too: publishing an extra patch is harmless,
-            # deploying an IDE against packages older than the commit is not.
+            # A diff we cannot compute lands here too: attempting a publish is safe — the
+            # script refuses versions already on npm (D-198) — while deploying an IDE against
+            # packages older than the commit is not.
             echo "publishing: packages/ changed since $last"
             changed=true
           fi
@@ -158,25 +155,25 @@ jobs:
           fi
           echo "node $(node --version), npm $npm_version, OIDC token available: publishing with trusted publishing (provenance is automatic)"
 
+      # Each package publishes exactly its committed version (D-198); a minor/major release
+      # is a manifest edit in a PR. Outputs: version = headline, set = name->version ledger.
       - name: Publish
         id: publish
         if: steps.packages.outputs.changed == 'true'
-        env:
-          # Empty on a push event; a workflow_dispatch can name the version, which is how a
-          # minor/major release happens (the default bump is a patch).
-          FACILIS_PUBLISH_VERSION: ${{ inputs.version }}
         run: node scripts/publish-packages.mjs --skip-build
 
-      # The tag is the git-visible ledger of what npm serves (D-183): one release per
-      # published version, at the commit that produced it, with notes generated from the
-      # merged PRs. It runs right after the publish, so a later failure (the IDE build, the
-      # Pages deploy) still leaves the tag that explains the npm state. An existing release
-      # is left alone, so re-running the job is safe.
-      - name: Tag and release the published version
+      # The tag is the git-visible ledger of what npm serves (D-183, amended by D-198): the
+      # tag names the released SET by its headline version, at the commit that produced it,
+      # and the release notes carry the full name@version ledger plus the generated PR notes.
+      # It runs right after the publish, so a later failure (the IDE build, the Pages deploy)
+      # still leaves the tag that explains the npm state. An existing release is left alone,
+      # so re-running the job is safe.
+      - name: Tag and release the published set
         if: steps.packages.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.publish.outputs.version }}
+          RELEASE_SET: ${{ steps.publish.outputs.set }}
         run: |
           set -eu
           tag="v$VERSION"
@@ -184,29 +181,24 @@ jobs:
             echo "release $tag already exists; nothing to do"
             exit 0
           fi
-          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          # Render and verify the ledger with the publish script's own tested helpers.
+          ledger=$(node --input-type=module -e '
+            import { renderReleaseLedger } from "./scripts/publish-packages.mjs";
+            const set = Object.entries(JSON.parse(process.env.RELEASE_SET)).map(([name, version]) => ({ name, version }));
+            console.log(renderReleaseLedger(set));
+          ')
+          notes=$(printf 'Published set (D-198):\n\n%s\n' "$ledger")
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes --notes "$notes"
+          body=$(gh release view "$tag" --json body --jq .body)
+          printf '%s' "$body" | node --input-type=module -e '
+            import fs from "node:fs";
+            import { verifyReleaseLedger } from "./scripts/publish-packages.mjs";
+            const set = Object.entries(JSON.parse(process.env.RELEASE_SET)).map(([name, version]) => ({ name, version }));
+            const { ok, missing } = verifyReleaseLedger(fs.readFileSync(0, "utf8"), set);
+            if (!ok) { console.error("::error::release notes do not name the published set: " + missing.join(", ")); process.exit(1); }
+            console.log("release notes name every published name@version");
+          '
           echo "released $tag at $GITHUB_SHA"
-
-      # The IDE installs the exact packages version: this run's release when it published,
-      # otherwise the latest already on npm. Never a range — the version is pinned at build time.
-      - name: Resolve the @facilis.dev packages version
-        id: framework-version
-        env:
-          PUBLISHED_VERSION: ${{ steps.publish.outputs.version }}
-        run: |
-          version="${PUBLISHED_VERSION:-}"
-          if [ -z "$version" ]; then
-            if ! version=$(npm view @facilis.dev/core version 2>/dev/null); then
-              echo "::error::no published @facilis.dev/core version was found on npm: publish the packages first (workflow_dispatch with publish=true, or a push that changes packages/)"
-              exit 1
-            fi
-          fi
-          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::the @facilis.dev packages version '$version' is not a plain semver (dist-tag or registry problem)"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Building the IDE against @facilis.dev packages $version"
 
       # Account state the operator should never create by hand. Idempotent: the first run
       # creates the project, every later run reads it back. It runs before the long build so
@@ -256,12 +248,11 @@ jobs:
 
       # The hosted build's deployment config (D-077/D-082): the open profile plus the public
       # GitHub App client id for device-flow sign-in. Public by design, not a secret.
-      # FACILIS_PACKAGES_VERSION pins the generated project's framework deps to the version
-      # this run published (or verified on npm), so the deployed IDE never installs anything else.
+      # The build reads packages/*/package.json itself and compiles the per-package minimum
+      # table (D-198), so the deployed IDE pins exactly the committed versions.
       - name: Build the IDE
         env:
           FACILIS_DEPLOY_CONFIG: ${{ github.workspace }}/deploy/ide.facilis.dev.json
-          FACILIS_PACKAGES_VERSION: ${{ steps.framework-version.outputs.version }}
         run: pnpm --filter @facilis.dev/ide build:app
 
       - name: Deploy to Cloudflare Pages

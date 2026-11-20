@@ -18,8 +18,10 @@ pnpm ide:browser          # only needed for the headless smoke run
 pnpm ide:dev              # http://localhost:5173
 ```
 
-The `@facilis.dev/*` dependencies come from npm at the exact version the IDE build pins
-(`FACILIS_PACKAGES_VERSION`, D-166) — there is no local vendoring step.
+A release build pins the `@facilis.dev/*` dependencies to the versions committed in
+`packages/*/package.json` and installs them from npm (D-166, D-198). A dev build
+(`pnpm ide:dev`) instead vendores the workspace packages locally by default (D-196), so the
+demo exercises the checkout's code; `FACILIS_IDE_LOCAL_PACKAGES=0` opts back into npm.
 
 Start from a **fresh browser profile** (or a private window with no stored site data) so the
 timings below are honest.

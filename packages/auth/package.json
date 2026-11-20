@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/auth",
-  "version": "0.0.0",
+  "version": "0.1.10",
   "type": "module",
   "description": "Facilis authentication and RBAC primitives: sessions, role expansion, permission checks.",
   "license": "MIT",

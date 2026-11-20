@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/storage",
-  "version": "0.0.0",
+  "version": "0.1.10",
   "type": "module",
   "description": "Facilis binary storage: content-addressed blobs, local dev + S3-compatible drivers, signed URLs.",
   "license": "MIT",
