@@ -8,6 +8,7 @@
 // tool's focus and the user's selection live and clear independently (criterion 6).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
@@ -31,6 +32,7 @@ import { useProjectGraphLayout, type ProjectGraphLayout } from "./useProjectGrap
 interface GraphViewLocalState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
+  readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
@@ -39,6 +41,7 @@ interface GraphViewLocalState {
 const DEFAULT_LOCAL: GraphViewLocalState = {
   mode: DEFAULT_GRAPH_VIEW_STATE.mode,
   activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
+  isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
@@ -52,6 +55,7 @@ export interface ProjectGraphViewState {
   readonly ready: boolean;
   readonly setMode: (mode: GraphViewMode) => void;
   readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
+  readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
@@ -119,6 +123,7 @@ export function useProjectGraphViewState(
     setLocal({
       mode: pending.mode,
       activeLenses: pending.activeLenses,
+      isolatedEdgeKinds: pending.isolatedEdgeKinds,
       selection:
         pending.selection !== null && knownNodeIds.has(pending.selection)
           ? pending.selection
@@ -157,6 +162,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setIsolatedEdgeKinds = useCallback(
+    (kinds: readonly GraphEdgeKind[]) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, isolatedEdgeKinds: kinds }));
+    },
+    [cancelRestore],
+  );
   const setSelection = useCallback(
     (id: string | null) => {
       cancelRestore();
@@ -190,6 +202,7 @@ export function useProjectGraphViewState(
     () => ({
       mode: local.mode,
       activeLenses: local.activeLenses,
+      isolatedEdgeKinds: local.isolatedEdgeKinds,
       selection: local.selection,
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
@@ -227,5 +240,15 @@ export function useProjectGraphViewState(
     [],
   );
 
-  return { graph, state, ready, setMode, setActiveLenses, setSelection, setUserFocus, setQuery };
+  return {
+    graph,
+    state,
+    ready,
+    setMode,
+    setActiveLenses,
+    setIsolatedEdgeKinds,
+    setSelection,
+    setUserFocus,
+    setQuery,
+  };
 }
