@@ -4,7 +4,8 @@
  * - route-table-undeclared (error): used and not declared in dbTables;
  * - route-table-unused (warning): declared and not used — suppressed when a project-external
  *   callee received the client or db.execute is present, where the declaration stays
- *   authoritative (the runtime guard is the enforcement);
+ *   authoritative (the runtime guard is the enforcement). Service API calls (ctx.tasks /
+ *   ctx.workflows) count as usage of their fixed table surface (D-199);
  * - route-table-unresolved (error): dynamic/unresolvable relation expression;
  * - route-raw-sql (error): db.execute without rawSql: true;
  * - route-elevation-undeclared (error): used inside an elevation outside its tables option.
@@ -13,11 +14,15 @@
 import { error, warning } from "../diagnostics.ts";
 import type { RouteRelationsFact } from "../types-relations.ts";
 import type { Diagnostic, RouteFact } from "../types.ts";
+import { SERVICE_TABLES } from "./route-services.ts";
 
 function usedNames(usage: RouteRelationsFact): ReadonlySet<string> {
   const names = new Set(usage.used.map((use) => use.name));
   for (const elevation of usage.elevations) {
     for (const use of elevation.used) names.add(use.name);
+  }
+  for (const use of usage.services) {
+    for (const name of SERVICE_TABLES[use.service]) names.add(name);
   }
   return names;
 }

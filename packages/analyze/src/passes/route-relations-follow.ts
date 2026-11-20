@@ -140,7 +140,7 @@ export function handleElevation(
   }
   const env = new Map<string, DbClient>(scope.env);
   const param = identifierName(nodeArray(callback, "params")[0]);
-  if (param !== undefined) env.set(param, { elevation: index });
+  if (param !== undefined) env.set(param, { elevation: index, service: null });
   visit(body, { ...scope, env, elevation: index, depth: scope.depth + 1 });
   return true;
 }

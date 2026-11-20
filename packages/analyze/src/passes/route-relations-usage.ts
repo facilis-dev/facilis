@@ -9,6 +9,8 @@ import type {
   RouteElevationUsage,
   RouteRelationUse,
   RouteRelationsFact,
+  RouteServiceUse,
+  ServiceKind,
 } from "../types-relations.ts";
 import type { ElevationKind, SourceRef } from "../types.ts";
 import type { DbClient, RelationIndex } from "./route-relation-resolve.ts";
@@ -29,6 +31,8 @@ export interface MutableUsage {
   readonly rawSql: SourceRef[];
   opaque: boolean;
   readonly elevations: MutableElevation[];
+  /** Service API call sites, deduplicated by service (D-199). */
+  readonly services: Map<ServiceKind, SourceRef>;
 }
 
 /** One handler or project-local helper call frame. */
@@ -53,7 +57,14 @@ export interface RelationScope {
 }
 
 export function createUsage(): MutableUsage {
-  return { used: new Map(), unresolved: [], rawSql: [], opaque: false, elevations: [] };
+  return {
+    used: new Map(),
+    unresolved: [],
+    rawSql: [],
+    opaque: false,
+    elevations: [],
+    services: new Map(),
+  };
 }
 
 function bucket(scope: RelationScope): MutableElevation | MutableUsage {
@@ -64,6 +75,18 @@ function bucket(scope: RelationScope): MutableElevation | MutableUsage {
 export function addUse(scope: RelationScope, name: string, source: SourceRef): void {
   const target = bucket(scope);
   if (!target.used.has(name)) target.used.set(name, source);
+}
+
+/**
+ * A service API use belongs to the route even inside an elevation callback: the runtime
+ * binds ctx.tasks/ctx.workflows to the request transaction, not the elevated one (D-199).
+ */
+export function addServiceUse(
+  scope: RelationScope,
+  service: ServiceKind,
+  source: SourceRef,
+): void {
+  if (!scope.usage.services.has(service)) scope.usage.services.set(service, source);
 }
 
 export function addUnresolved(scope: RelationScope, source: SourceRef): void {
@@ -88,11 +111,16 @@ function freezeElevation(elevation: MutableElevation): RouteElevationUsage {
 }
 
 export function freezeUsage(usage: MutableUsage): RouteRelationsFact {
+  const services: RouteServiceUse[] = [...usage.services].map(([service, source]) => ({
+    service,
+    source,
+  }));
   return {
     used: [...usage.used].map(([name, source]) => ({ name, source })),
     unresolved: [...usage.unresolved],
     rawSql: [...usage.rawSql],
     opaque: usage.opaque,
     elevations: usage.elevations.map(freezeElevation),
+    services,
   };
 }

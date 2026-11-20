@@ -11,6 +11,8 @@ export type { AnalyzeInput } from "./analyze.ts";
 export { buildProjectGraph } from "./graph.ts";
 export type { GraphInput } from "./graph.ts";
 export { ROUTE_DESCRIPTION_MAX_CHARS } from "./passes/route-description.ts";
+// The fixed service -> table surface (D-199), shared with AI validator rule 18.
+export { SERVICE_TABLES } from "./passes/route-services.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";

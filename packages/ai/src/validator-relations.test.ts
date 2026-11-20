@@ -85,6 +85,23 @@ describe("rule 18 route-table-declared", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("does not warn about service tables used through ctx.tasks (D-199)", () => {
+    const route =
+      'import { defineAuthorizedHandler } from "@facilis.dev/core";\n' +
+      "export default defineAuthorizedHandler(\n" +
+      '  { permission: ["todos:read"], dbTables: ["facilis_tasks"], description: "Pending task inbox." },\n' +
+      '  async (_event, { tasks }) => tasks.list({ status: "pending" }),\n' +
+      ");\n";
+    const schema =
+      SCHEMA +
+      'import { facilisTasks } from "@facilis.dev/db";\nexport { facilisTasks };\n';
+    const { result } = validate([create(ROUTE + "tasks.get.ts", route)], {
+      sources: { "db/schema.ts": schema },
+    });
+    expect(rulesOf(result.errors)).not.toContain("route-table-declared");
+    expect(result.warnings.filter((entry) => entry.rule === "route-table-declared")).toEqual([]);
+  });
+
   it("rejects db.execute without rawSql: true and accepts it with the flag", () => {
     const withoutFlag = validate([create(ROUTE + "raw.get.ts", rawRoute(""))]);
     expect(findings(withoutFlag.result).join("\n")).toContain("rawSql: true");

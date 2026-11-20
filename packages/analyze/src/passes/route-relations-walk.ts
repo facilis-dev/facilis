@@ -23,9 +23,11 @@ import { sourceRef } from "../source.ts";
 import type { RouteRelationsFact } from "../types-relations.ts";
 import type { ElevationKind, SourceRef } from "../types.ts";
 import { followFunction, handleElevation } from "./route-relations-follow.ts";
+import { serviceKindOf } from "./route-services.ts";
 import {
   createUsage,
   freezeUsage,
+  addServiceUse,
   addUnresolved,
   addUse,
   markOpaque,
@@ -132,6 +134,13 @@ function handleCall(node: AstNode, scope: RelationScope): boolean {
   if (callee?.type === "MemberExpression") {
     const name = memberName(callee);
     const object = unwrapExpression(callee.object);
+    // A call on a service handle (tasks.list, ctx.workflows.start, ...) touches the
+    // service's fixed table surface (D-199); the method name does not change it.
+    const client = clientOf(object, scope.env, scope.contextName);
+    if (client !== null && client.service !== null) {
+      addServiceUse(scope, client.service, refOf(scope, node));
+      return false;
+    }
     if (name === "execute" && chainClient(object, scope.env, scope.contextName) !== null) {
       scope.usage.rawSql.push(refOf(scope, node));
       return false;
@@ -207,7 +216,10 @@ function functionScope(
       if (value?.type === "AssignmentPattern") value = unwrapExpression(value.left);
       const local = identifierName(unwrapExpression(value));
       if (local === undefined) continue;
+      const service = serviceKindOf(name);
       if (name === "db") env.set(local, ROUTE_CLIENT);
+      // Destructured service handle (D-199); the job pass drops service uses.
+      else if (service !== null) env.set(local, { elevation: null, service });
       else if (seed.elevations) {
         const kind = elevationKind(name);
         if (kind !== null) elevationFns.set(local, kind);

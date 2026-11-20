@@ -23,15 +23,19 @@ import {
 import { walk } from "../ast/walk.ts";
 import { localInitializer } from "../module-info.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
+import type { ServiceKind } from "../types-relations.ts";
 import type { TableFact, ViewFact } from "../types.ts";
+import { serviceKindOf } from "./route-services.ts";
 import { findDeclaration } from "./static-read.ts";
 
 export interface DbClient {
   /** Elevation index in RouteRelationsFact.elevations; null is the route's ctx.db. */
   readonly elevation: number | null;
+  /** The framework service API this handle denotes (D-199); null is a plain db client. */
+  readonly service: ServiceKind | null;
 }
 
-export const ROUTE_CLIENT: DbClient = { elevation: null };
+export const ROUTE_CLIENT: DbClient = { elevation: null, service: null };
 export type ClientEnv = ReadonlyMap<string, DbClient>;
 
 export type RelationResolution =
@@ -151,10 +155,14 @@ export function clientOf(
     const local = identifierName(expression);
     return local === undefined ? null : (env.get(local) ?? null);
   }
-  if (expression.type === "MemberExpression" && memberName(expression) === "db") {
+  if (expression.type === "MemberExpression") {
     const object = unwrapExpression(expression.object);
-    if (object?.type === "Identifier" && identifierName(object) === contextName)
-      return ROUTE_CLIENT;
+    if (object?.type === "Identifier" && identifierName(object) === contextName) {
+      const name = memberName(expression);
+      if (name === "db") return ROUTE_CLIENT;
+      const service = serviceKindOf(name);
+      if (service !== null) return { elevation: null, service };
+    }
   }
   return null;
 }

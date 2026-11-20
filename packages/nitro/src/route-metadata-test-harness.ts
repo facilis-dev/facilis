@@ -15,7 +15,7 @@ export function routeFact(
     rawSql: false,
     dbTables: [],
     dbColumns: [],
-    relations: { used: [], unresolved: [], rawSql: [], opaque: false, elevations: [] },
+    relations: { used: [], unresolved: [], rawSql: [], opaque: false, elevations: [], services: [] },
     description: null,
     input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,

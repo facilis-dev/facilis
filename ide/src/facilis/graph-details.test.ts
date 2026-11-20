@@ -48,7 +48,15 @@ function routeFact(overrides: Partial<RouteFact> = {}): RouteFact {
 }
 
 function emptyRelations(overrides: Partial<RouteRelationsFact> = {}): RouteRelationsFact {
-  return { used: [], unresolved: [], rawSql: [], opaque: false, elevations: [], ...overrides };
+  return {
+    used: [],
+    unresolved: [],
+    rawSql: [],
+    opaque: false,
+    elevations: [],
+    services: [],
+    ...overrides,
+  };
 }
 
 function columnFact(overrides: Partial<ColumnFact> = {}): ColumnFact {

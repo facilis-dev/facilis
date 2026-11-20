@@ -251,3 +251,104 @@ describe("route relation usage (D-157)", () => {
     expect(codes(relations.diagnostics)).toEqual([]);
   });
 });
+
+describe("service API usage (D-199)", () => {
+  it("counts a destructured ctx.tasks call as usage of facilis_tasks", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks"] }',
+        'async (_event, { tasks }) => tasks.list({ status: "pending" })',
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.used).toEqual([]);
+    expect(relations.routes[0]?.relations.services.map((use) => use.service)).toEqual(["tasks"]);
+  });
+
+  it("counts ctx.workflows as usage of facilis_workflows and facilis_tasks", () => {
+    const { relations } = scan(
+      "server/routes/api/workflows/index.post.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_workflows", "facilis_tasks"] }',
+        'async (_event, ctx) => ctx.workflows.start("purge-completed-todos", {})',
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.services.map((use) => use.service)).toEqual(["workflows"]);
+  });
+
+  it("does not extend the undeclared error to the service surface", () => {
+    // The runtime guard wraps ctx.db and the elevations, not the service stores: a route
+    // that declares only facilis_workflows keeps no finding either way (D-199).
+    const { relations } = scan(
+      "server/routes/api/workflows/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_workflows"] }',
+        "async (_event, { workflows }) => workflows.list()",
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+  });
+
+  it("follows a local alias of the service handle", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks"] }',
+        "async (_event, ctx) => { const inbox = ctx.tasks; return inbox.list(); }",
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.services.map((use) => use.service)).toEqual(["tasks"]);
+  });
+
+  it("follows a renamed destructuring of the service handle", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks"] }',
+        "async (_event, { tasks: inbox }) => inbox.list()",
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.services.map((use) => use.service)).toEqual(["tasks"]);
+  });
+
+  it("follows the service handle into a project-local helper", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks"] }',
+        "async (_event, { tasks }) => pending(tasks)",
+      ) +
+        "function pending(service: { list: () => unknown }): unknown { return service.list(); }\n",
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.services.map((use) => use.service)).toEqual(["tasks"]);
+  });
+
+  it("still warns about a declaration the service use does not cover", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks", "todos"] }',
+        'async (_event, { tasks }) => tasks.list({ status: "pending" })',
+      ),
+    );
+    expect(codes(relations.diagnostics)).toEqual(["route-table-unused"]);
+    expect(relations.diagnostics[0]?.message).toContain('"todos"');
+  });
+
+  it("stays opaque when a project-external callee receives the service handle", () => {
+    const { relations } = scan(
+      "server/routes/api/tasks/index.get.ts",
+      handler(
+        '{ permission: [], dbTables: ["facilis_tasks"] }',
+        "async (_event, { tasks }) => JSON.stringify(tasks)",
+      ),
+    );
+    expect(relations.diagnostics).toEqual([]);
+    expect(relations.routes[0]?.relations.opaque).toBe(true);
+  });
+});

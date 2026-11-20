@@ -11,6 +11,8 @@
  * usage is opaque or raw SQL is present, where the declaration stays authoritative).
  */
 
+import { SERVICE_TABLES } from "@facilis.dev/analyze";
+
 import type { EffectiveState } from "../overlay.ts";
 import type { RouteRelationsFact, ValidationError } from "../types.ts";
 
@@ -49,6 +51,11 @@ function usedNames(usage: RouteRelationsFact): ReadonlySet<string> {
   const names = new Set(usage.used.map((use) => use.name));
   for (const elevation of usage.elevations) {
     for (const use of elevation.used) names.add(use.name);
+  }
+  // Service calls count as usage of the fixed surface (D-199); a pre-D-199 IDE snapshot
+  // carries no services field, hence the fallback.
+  for (const use of usage.services ?? []) {
+    for (const name of SERVICE_TABLES[use.service]) names.add(name);
   }
   return names;
 }

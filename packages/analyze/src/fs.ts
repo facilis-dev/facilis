@@ -24,9 +24,12 @@ export function loadProjectFiles(
 ): Map<string, string> {
   const scopes = options.nodeModuleScopes ?? ["@facilis.dev"];
   const files = new Map<string, string>();
-  const walk = (directory: string, relativeDirectory: string): void => {
+  const walk = (directory: string, relativeDirectory: string, framework = false): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (ALWAYS_SKIPPED.has(entry.name)) continue;
+      // A framework install ships built code: a vendored (D-196) or registry package has
+      // no src/, so its dist/ is the source the static passes read (D-199) — unlike the
+      // project's own build output, which stays skipped.
+      if (ALWAYS_SKIPPED.has(entry.name) && !(framework && entry.name === "dist")) continue;
       const full = join(directory, entry.name);
       const path =
         relativeDirectory.length === 0 ? entry.name : relativeDirectory + "/" + entry.name;
@@ -42,11 +45,11 @@ export function loadProjectFiles(
             } catch {
               continue;
             }
-            walk(scopeDirectory, path + "/" + scope);
+            walk(scopeDirectory, path + "/" + scope, true);
           }
           continue;
         }
-        walk(full, path);
+        walk(full, path, framework);
         continue;
       }
       if (!isFile) continue;
