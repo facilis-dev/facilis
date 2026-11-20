@@ -13,6 +13,7 @@ import {
   DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
   encodeGraphViewState,
+  type GraphEdgeConcentration,
   type GraphLensId,
   type GraphViewMode,
   type GraphViewState,
@@ -34,6 +35,7 @@ interface GraphViewLocalState {
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
+  readonly edgeConcentration: GraphEdgeConcentration;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -42,6 +44,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
+  edgeConcentration: DEFAULT_GRAPH_VIEW_STATE.edgeConcentration,
 };
 
 export interface ProjectGraphViewState {
@@ -55,6 +58,7 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
+  readonly setEdgeConcentration: (value: GraphEdgeConcentration) => void;
 }
 
 /**
@@ -125,6 +129,7 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      edgeConcentration: pending.edgeConcentration,
     });
     restoreView({
       hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
@@ -178,6 +183,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setEdgeConcentration = useCallback(
+    (edgeConcentration: GraphEdgeConcentration) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, edgeConcentration }));
+    },
+    [cancelRestore],
+  );
 
   const collapsedIds = useMemo(
     () =>
@@ -196,6 +208,7 @@ export function useProjectGraphViewState(
       collapsed: collapsedIds,
       viewport: layout.viewport ?? null,
       query: local.query,
+      edgeConcentration: local.edgeConcentration,
     }),
     [local, layout.hiddenEdges, layout.tableVisibility, layout.viewport, collapsedIds],
   );
@@ -227,5 +240,15 @@ export function useProjectGraphViewState(
     [],
   );
 
-  return { graph, state, ready, setMode, setActiveLenses, setSelection, setUserFocus, setQuery };
+  return {
+    graph,
+    state,
+    ready,
+    setMode,
+    setActiveLenses,
+    setSelection,
+    setUserFocus,
+    setQuery,
+    setEdgeConcentration,
+  };
 }

@@ -10,7 +10,6 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  MarkerType,
   ReactFlow,
   applyNodeChanges,
   type EdgeMouseHandler,
@@ -22,29 +21,26 @@ import {
   type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
+import { isHubArtefactId } from "@/facilis/graph-edge-hubs";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import {
-  PROJECT_GRAPH_EDGE_TYPE,
-  PROJECT_GRAPH_EDGE_TYPES,
-  type ProjectFlowEdge,
-} from "./ProjectGraphEdge";
-import {
-  LINK_SOURCE_HANDLE_ID,
-  LINK_TARGET_HANDLE_ID,
-  PROJECT_GRAPH_NODE_TYPES,
-  type ProjectFlowNode,
-} from "./ProjectGraphNodes";
+import type { GraphEdgeConcentration } from "@/facilis/graph-view-state";
+import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
+import { PROJECT_GRAPH_NODE_TYPES_WITH_HUBS } from "./ProjectGraphHubNode";
+import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
-import { edgeStyleFor } from "./project-graph-edges";
+import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { buildHubFlowNodes, resolveDragCommit, resolveNodeClick } from "./project-graph-hub-flow";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+import { useProjectGraphHubs } from "./useProjectGraphHubs";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export function ProjectGraphCanvas({
   view,
+  concentration,
   fitPadding,
   onInstance,
   notes,
@@ -66,6 +62,7 @@ export function ProjectGraphCanvas({
   onDeleteNote,
 }: {
   view: ProjectGraphView;
+  concentration: GraphEdgeConcentration;
   fitPadding: HudFitPadding;
   onInstance: (instance: ReactFlowInstance<ProjectFlowNode, ProjectFlowEdge>) => void;
   notes: readonly GraphNote[];
@@ -94,6 +91,11 @@ export function ProjectGraphCanvas({
   // layout and cannot fight the parent's `view` round-trip.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const moved = useRef(false);
+  // Hub expansion and hover are session-scoped (issue #64); only the threshold is URL state.
+  const { overlay, isolation, activeHover, toggleHub, hoverHub } = useProjectGraphHubs(
+    view,
+    concentration,
+  );
 
   // The collapse callback travels through a ref so node data does not depend on the parent's
   // function identity: a parent re-render must not rebuild the cards mid-drag.
@@ -126,18 +128,21 @@ export function ProjectGraphCanvas({
       next: ProjectGraphView,
       nextNotes: readonly GraphNote[],
       previous: readonly ProjectFlowNode[],
-    ): ProjectFlowNode[] =>
-      buildProjectGraphFlowNodes({
+    ): ProjectFlowNode[] => [
+      ...buildProjectGraphFlowNodes({
         view: next,
         notes: nextNotes,
         previous,
         selectedNodeId,
         focus,
+        isolation,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus],
+      ...buildHubFlowNodes(overlay, next, activeHover, focus, isolation, toggleHub, hoverHub),
+    ],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolation, overlay, activeHover, toggleHub, hoverHub],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -193,43 +198,40 @@ export function ProjectGraphCanvas({
     );
   }, [addNoteNonce, instance, createNote]);
 
+  // The overlay maps real edges, hub edges and trunk lanes to flow edges (issue #64).
   const edges = useMemo<ProjectFlowEdge[]>(
     () =>
-      view.edges.map((edge) => {
-        const style = edgeStyleFor(edge);
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: LINK_SOURCE_HANDLE_ID,
-          targetHandle: LINK_TARGET_HANDLE_ID,
-          type: PROJECT_GRAPH_EDGE_TYPE,
-          selected: edge.id === selectedEdgeId,
-          data: {
-            kind: edge.kind,
-            ...(edge.access === undefined ? {} : { access: edge.access }),
-            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
-            curve: edgeCurves[edge.id] ?? null,
-            onCurveChange: onEdgeCurveChange,
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
-        };
+      buildProjectGraphFlowEdges({
+        overlay,
+        edgeCurves,
+        selectedEdgeId,
+        focus,
+        isolation,
+        onCurveChange: onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
+    [overlay, edgeCurves, selectedEdgeId, focus, isolation, onEdgeCurveChange],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
+    // Hub artefacts are never selected: no curve handle, no id in the saved layout.
+    if (isHubArtefactId(edge.id)) return;
     setSelectedEdgeId(edge.id);
     onSelectNode(null);
   };
   const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
+    const action = resolveNodeClick(node.type);
+    if (action === "toggle-hub") {
+      toggleHub(node.id);
+      return;
+    }
     setSelectedEdgeId(null);
-    onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
+    onSelectNode(action === "clear" ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
+    const commit = resolveDragCommit(node.type);
+    if (commit === "none") return;
     const position = { x: node.position.x, y: node.position.y };
-    if (node.type === NOTE_NODE_TYPE) onMoveNote(node.id, position);
+    if (commit === "note") onMoveNote(node.id, position);
     else onMoveNode(node.id, position);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
@@ -263,7 +265,7 @@ export function ProjectGraphCanvas({
       <ReactFlow<ProjectFlowNode, ProjectFlowEdge>
         nodes={nodes}
         edges={edges}
-        nodeTypes={PROJECT_GRAPH_NODE_TYPES}
+        nodeTypes={PROJECT_GRAPH_NODE_TYPES_WITH_HUBS}
         edgeTypes={PROJECT_GRAPH_EDGE_TYPES}
         onInit={(inst) => {
           setInstance(inst);

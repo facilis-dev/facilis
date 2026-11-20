@@ -191,3 +191,35 @@ describe("graph view state degradation", () => {
     expect(decodeGraphViewState(big)).toEqual(DEFAULT_GRAPH_VIEW_STATE);
   });
 });
+
+describe("edge concentration threshold (issue #64)", () => {
+  it("defaults to 4 and encodes the default to nothing (a clean URL)", () => {
+    expect(DEFAULT_GRAPH_VIEW_STATE.edgeConcentration).toBe(4);
+    expect(encodeGraphViewState(state())).toBe("");
+  });
+
+  it("round-trips off and 8 through the compact codec", () => {
+    for (const edgeConcentration of ["off", 8] as const) {
+      const next = state({ edgeConcentration });
+      expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
+    }
+    expect(encodeGraphViewState(state({ edgeConcentration: "off" }))).toBe('{"e":"off"}');
+    expect(encodeGraphViewState(state({ edgeConcentration: 8 }))).toBe('{"e":8}');
+  });
+
+  it("round-trips alongside every other field", () => {
+    const full = state({
+      mode: "matrix",
+      activeLenses: ["data"],
+      query: "tasks",
+      edgeConcentration: "off",
+    });
+    expect(decodeGraphViewState(encodeGraphViewState(full))).toEqual(full);
+  });
+
+  it("degrades unknown threshold values to the default", () => {
+    for (const raw of ['{"e":5}', '{"e":"4"}', '{"e":null}', '{"e":{}}', '{"e":true}']) {
+      expect(decodeGraphViewState(raw).edgeConcentration).toBe(4);
+    }
+  });
+});

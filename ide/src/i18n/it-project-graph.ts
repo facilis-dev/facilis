@@ -194,4 +194,18 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.ribbon.edges": "Archi",
   "projectGraph.ribbon.filterKind": "Filtra per {label}",
   "projectGraph.ribbon.filterEdges": "Mostra o nascondi tutti gli archi",
+
+  // ── concentrazione degli archi (issue #64) ─────────────────────────────────
+  "projectGraph.hud.concentration": "Concentrazione degli archi",
+  "projectGraph.concentration.off": "off",
+  "projectGraph.concentration.setOff": "Disattiva la concentrazione degli archi",
+  "projectGraph.concentration.setThreshold":
+    "Concentra quando più di {count} rotte condividono una tabella",
+  "projectGraph.concentration.hint":
+    "Un grande ventaglio di rotte diventa un hub con il conteggio; i gruppi piccoli condividono un tronco. Clicca un hub per espandere i suoi archi.",
+  "projectGraph.hub.aria": "{count} rotte verso {target}",
+  "projectGraph.hub.hint": "Clicca per espandere i singoli archi",
+  "projectGraph.hub.hintExpanded": "Clicca per riconcentrare gli archi nell’hub",
+  "projectGraph.hub.countLabel": "{count} rotte",
+  "projectGraph.hub.routesTitle": "Rotte ({count})",
 };

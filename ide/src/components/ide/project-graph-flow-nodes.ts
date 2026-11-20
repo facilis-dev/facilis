@@ -6,6 +6,7 @@
 // A drag in flight wins over the saved layout: merging against the previous node list keeps its
 // position (and React Flow's own state) while the pointer is down; only drag stop commits.
 
+import type { HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphNote } from "@/facilis/graph-types";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
@@ -20,6 +21,8 @@ export interface ProjectFlowNodesInput {
   readonly selectedNodeId: string | null;
   /** The active AI focus (D-171), or null when every card is equally bright. */
   readonly focus: ProjectGraphFocusState | null;
+  /** Hub hover isolation (issue #64): only the hub's routes and target stay bright. */
+  readonly isolation: HubIsolation | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
@@ -31,6 +34,7 @@ export function buildProjectGraphFlowNodes({
   previous,
   selectedNodeId,
   focus,
+  isolation,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
@@ -46,10 +50,11 @@ export function buildProjectGraphFlowNodes({
             .filter((edge) => focus.edgeIds.has(edge.id))
             .flatMap((edge) => [edge.source, edge.target]),
         );
-  // The canvas dims by this flag instead of knowing the request: a card is bright when either
-  // nothing is focused or it is part of the focus.
+  // The canvas dims by this flag instead of knowing the request: a card is bright when every
+  // active isolation (AI focus, hub hover) names it.
   const isFocused = (id: string): boolean =>
-    focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false);
+    (focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false)) &&
+    (isolation === null || isolation.nodeIds.has(id));
   const analysis = view.nodes.map((node) => {
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {

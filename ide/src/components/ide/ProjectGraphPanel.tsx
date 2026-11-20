@@ -180,6 +180,7 @@ export function ProjectGraphPanel() {
     ) : view !== null ? (
       <ProjectGraphCanvas
         view={view}
+        concentration={viewState.state.edgeConcentration}
         fitPadding={fitPadding}
         onInstance={setFlow}
         viewport={layout.viewport ?? null}
@@ -237,6 +238,8 @@ export function ProjectGraphPanel() {
               state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
             }
             onResetLayout={resetLayout}
+            concentration={viewState.state.edgeConcentration}
+            onConcentrationChange={viewState.setEdgeConcentration}
           />
         )
       }

@@ -24,10 +24,12 @@ import {
   type Point,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
+import { resolveTrunkGeometry } from "@/facilis/graph-edge-bundles";
 import { routeEdge } from "@/facilis/graph-edge-routing";
 import { GRAPH_CARD_SIZES } from "@/facilis/graph-layout-engine";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
+import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -36,9 +38,17 @@ export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
 export type ProjectGraphEdgeData = {
   readonly kind: GraphEdgeKind;
   readonly access?: "elevated";
-  /** False when an AI focus request (D-171) names other edges: the edge is drawn faint. */
+  /** False when an AI focus (D-171) or a hub hover (#64) names other edges: drawn faint. */
   readonly focused?: boolean;
   readonly curve: GraphCurve | null;
+  /** Shared trunk lane (#64): the edge splits from the group only at its ends. */
+  readonly trunkLane?: number;
+  /** Bundled edges hide the curve handle: bending one member would break the trunk. */
+  readonly bundled?: boolean;
+  /** A label chip at the midpoint: expanded hub edges show their real label. */
+  readonly label?: string | null;
+  /** The thick hub->target edge (#64): its label is the route count. */
+  readonly hubCount?: number;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
 
@@ -101,6 +111,7 @@ function resolveGeometry(
   positions: { sourceX: number; sourceY: number; targetX: number; targetY: number },
   curve: GraphCurve | null,
   obstacles: readonly Rect[],
+  trunkLane?: number,
 ): EdgeGeometry {
   const fallback: EdgeGeometry = edgeGeometry(
     {
@@ -114,6 +125,12 @@ function resolveGeometry(
   if (source === target) return selfLoopGeometry(sourceRect, curve);
   const targetRect = rectFor(targetNode);
   if (targetRect === null) return fallback;
+  if (trunkLane !== undefined) {
+    // Re-check the lane against the measured cards: a taller card than the layout fallback
+    // must never end up under the trunk, so a dirty lane falls back to the normal router.
+    const trunk = resolveTrunkGeometry(sourceRect, targetRect, trunkLane, curve, obstacles);
+    if (trunk !== null) return trunk;
+  }
   return routeEdge(sourceRect, targetRect, { obstacles, curve });
 }
 
@@ -166,15 +183,21 @@ export function ProjectGraphEdge({
     { sourceX, sourceY, targetX, targetY },
     curve,
     obstacleRects(nodeLookup),
+    data?.trunkLane,
   );
   const edgeStyle = edgeStyleFor({
     kind,
     ...(data?.access === undefined ? {} : { access: data.access }),
   });
   const highlighted = selected === true || hovered;
+  // The hub's count edge is the one thick stroke on the canvas (issue #64).
+  const label =
+    data?.hubCount !== undefined
+      ? t("projectGraph.hub.countLabel", { count: data.hubCount })
+      : (data?.label ?? null);
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
-    strokeWidth: highlighted ? 2.5 : 1.5,
+    strokeWidth: data?.hubCount !== undefined ? 3 : highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Focus dims the edges it does not name with opacity, not a colour: the theme still owns
@@ -228,7 +251,8 @@ export function ProjectGraphEdge({
         style={pathStyle}
         interactionWidth={24}
       />
-      {selected === true && data !== undefined ? (
+      {label !== null ? <ProjectGraphEdgeLabel midpoint={geometry.midpoint} text={label} /> : null}
+      {selected === true && data !== undefined && data.bundled !== true ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>
           {/* Invisible hit target: a 5px dot is too small to grab at a fitted zoom. */}

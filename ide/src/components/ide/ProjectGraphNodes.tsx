@@ -13,6 +13,7 @@ import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import type { ProjectHubFlowNode } from "./ProjectGraphHubNode";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
@@ -32,8 +33,8 @@ export type ProjectAnalysisFlowNode = Node<
   "page" | "route" | "table" | "view" | "workflow"
 >;
 
-/** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
-export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
+/** The canvas's node union: analysis cards, free-floating notes (D-126) and hub chips (#64). */
+export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode | ProjectHubFlowNode;
 
 // The canvas and the custom edge import the handle ids from here; they are re-exported so the
 // node files stay the single entry point for the canvas.

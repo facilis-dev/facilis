@@ -13,7 +13,9 @@ import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { isKindActive, type GraphStatsFilter } from "@/facilis/graph-stats-filter";
+import type { GraphEdgeConcentration } from "@/facilis/graph-view-state";
 import { Button } from "@/components/ui/button";
+import { ProjectGraphConcentrationChip } from "./ProjectGraphConcentrationChip";
 
 const KIND_ICONS: Record<GraphNodeKind, typeof File> = {
   page: File,
@@ -46,11 +48,15 @@ export function ProjectGraphStatsRibbon({
   filter,
   onToggleKind,
   onToggleEdges,
+  concentration,
+  onConcentrationChange,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
   onToggleKind: (kind: GraphNodeKind) => void;
   onToggleEdges: () => void;
+  concentration: GraphEdgeConcentration;
+  onConcentrationChange: (value: GraphEdgeConcentration) => void;
 }) {
   return (
     <div
@@ -106,6 +112,9 @@ export function ProjectGraphStatsRibbon({
           <span className="hidden xl:inline">{t("projectGraph.ribbon.edges")}</span>
         </Button>
       </div>
+      {/* Edge-concentration threshold (issue #64): shares the floating cluster so it wraps
+          with the ribbon at narrow widths instead of overlapping it. */}
+      <ProjectGraphConcentrationChip concentration={concentration} onChange={onConcentrationChange} />
       {/* Lens-chips SLOT: owned here, filled by a later issue. Left intentionally empty. */}
       <div
         data-testid="graph-hud-lens-slot"

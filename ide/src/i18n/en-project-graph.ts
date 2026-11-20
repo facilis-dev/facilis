@@ -193,4 +193,18 @@ export const projectGraphEn = {
   "projectGraph.ribbon.edges": "Edges",
   "projectGraph.ribbon.filterKind": "Filter by {label}",
   "projectGraph.ribbon.filterEdges": "Show or hide all edges",
+
+  // ── edge concentration (issue #64) ─────────────────────────────────────────
+  "projectGraph.hud.concentration": "Edge concentration",
+  "projectGraph.concentration.off": "off",
+  "projectGraph.concentration.setOff": "Turn off edge concentration",
+  "projectGraph.concentration.setThreshold":
+    "Concentrate when more than {count} routes share a table",
+  "projectGraph.concentration.hint":
+    "High route fan-outs become a hub with a count; smaller ones share a trunk. Click a hub to expand its edges.",
+  "projectGraph.hub.aria": "{count} routes to {target}",
+  "projectGraph.hub.hint": "Click to expand the individual edges",
+  "projectGraph.hub.hintExpanded": "Click to re-concentrate the edges into the hub",
+  "projectGraph.hub.countLabel": "{count} routes",
+  "projectGraph.hub.routesTitle": "Routes ({count})",
 } as const;

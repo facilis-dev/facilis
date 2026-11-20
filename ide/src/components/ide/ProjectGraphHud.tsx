@@ -22,6 +22,7 @@ import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
+import type { GraphEdgeConcentration } from "@/facilis/graph-view-state";
 import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
 import { ProjectGraphStatsRibbon } from "./ProjectGraphStatsRibbon";
 
@@ -54,6 +55,8 @@ export interface ProjectGraphHudProps {
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
+  concentration: GraphEdgeConcentration;
+  onConcentrationChange: (value: GraphEdgeConcentration) => void;
 }
 
 const CLUSTER =
@@ -188,6 +191,8 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         filter={props.filter}
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
+        concentration={props.concentration}
+        onConcentrationChange={props.onConcentrationChange}
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}
