@@ -1,12 +1,7 @@
-// The project graph's addressable view (issue #58): composes the saved-layout hook with the
-// panel-local view fields (mode, lenses, selection, user focus, query, cluster mode/collapse/
-// drill) and keeps the tab URL in sync through the gv parameter. Restoring a deep link never
-// writes .facilis: layout-derived fields go through the layout hook's non-persisting
-// restoreView, and URL writes wait until the restore has landed so defaults cannot clobber a
-// shared link. The cluster fields (issue #62) are view state only — never .facilis/graph/.
-//
-// The AI focus (D-171) stays a separate overlay: this hook never touches graph-focus.ts, so a
-// tool's focus and the user's selection live and clear independently (criterion 6).
+// The project graph's addressable view (issue #58): the saved-layout hook plus the panel-local
+// fields, URL-synced through gv. A deep-link restore never writes .facilis (restoreView carries
+// layout fields; URL writes wait so defaults cannot clobber a shared link). Cluster fields (#62)
+// are view state only; the AI focus (D-171) stays a separate, independently cleared overlay.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
@@ -39,6 +34,7 @@ interface GraphViewLocalState {
   readonly focus: readonly string[];
   readonly query: string;
   readonly edgeConcentration: GraphEdgeConcentration;
+  readonly bridges: boolean;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -52,6 +48,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
   edgeConcentration: DEFAULT_GRAPH_VIEW_STATE.edgeConcentration,
+  bridges: DEFAULT_GRAPH_VIEW_STATE.bridges,
 };
 
 export interface ProjectGraphViewState {
@@ -70,6 +67,7 @@ export interface ProjectGraphViewState {
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
   readonly setEdgeConcentration: (value: GraphEdgeConcentration) => void;
+  readonly setBridges: (bridges: boolean) => void;
   readonly setGroupBy: (groupBy: GraphGroupBy) => void;
   readonly setCollapsedClusters: (ids: readonly string[]) => void;
   readonly setDrill: (id: string | null) => void;
@@ -167,6 +165,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setBridges = useCallback(
+    (bridges: boolean) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, bridges }));
+    },
+    [cancelRestore],
+  );
 
   const collapsedIds = useMemo(
     () =>
@@ -191,6 +196,7 @@ export function useProjectGraphViewState(
       viewport: layout.viewport ?? null,
       query: local.query,
       edgeConcentration: local.edgeConcentration,
+      bridges: local.bridges,
     }),
     [
       local,
@@ -257,6 +263,7 @@ export function useProjectGraphViewState(
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
       edgeConcentration: pending.edgeConcentration,
+      bridges: pending.bridges,
     });
     // Cluster ids are derived, not analysis ids: they restore unfiltered and the clusters hook
     // drops the ones no current cluster carries (issue #62).
@@ -284,6 +291,7 @@ export function useProjectGraphViewState(
     setUserFocus,
     setQuery,
     setEdgeConcentration,
+    setBridges,
     setGroupBy: clusterView.setGroupBy,
     setCollapsedClusters: clusterView.setCollapsedClusters,
     setDrill: clusterView.setDrill,

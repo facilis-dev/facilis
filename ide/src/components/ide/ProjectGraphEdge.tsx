@@ -1,35 +1,38 @@
 // The project-graph edge: a custom React Flow edge anchored to the cards' nearest ports and
 // routed orthogonally around every card (issue #61), whose midpoint handle bends it, and which
-// loops back onto its own card for self-edges. The geometry is pure (graph-ports.ts,
-// graph-edge-routing.ts); this module is the React part — the internal-node hooks, pointer
-// capture and the theme role tokens (D-043/D-044).
+// loops back onto its own card for self-edges. Long edges arrive as a bridge spec (issue #65)
+// and arc above/below the band with a labelled apex; hover/focus raises one bridge and dims the
+// rest. The geometry is pure (graph-ports.ts, graph-edge-routing.ts, graph-edge-bridges.ts);
+// this module is the React part — hooks, pointer capture and role tokens (D-043/D-044).
 
-import { useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   BaseEdge,
   useInternalNode,
   useStore,
-  useStoreApi,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
 } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
+import { bridgeGeometry, type BridgeSpec } from "@/facilis/graph-bridge-geometry";
+import { resolveTrunkGeometry } from "@/facilis/graph-edge-bundles";
 import {
   edgeGeometry,
   selfLoopGeometry,
   type EdgeGeometry,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
-import { resolveTrunkGeometry } from "@/facilis/graph-edge-bundles";
+import { bridgeApexLabel, bridgeAriaLabel } from "@/facilis/graph-edge-labels";
 import { routeEdge } from "@/facilis/graph-edge-routing";
 import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { curveFromPointer, type EdgeCurveDragState } from "./project-graph-edge-drag";
+import { ProjectGraphBridgeLabel } from "./ProjectGraphBridgeLabel";
+import { ProjectGraphEdgeHandle } from "./ProjectGraphEdgeHandle";
 import { internalNodeRect, obstacleRects, type MeasuredNode } from "./project-graph-edge-rects";
 import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
-import { edgeStyleFor } from "./project-graph-edges";
+import { BRIDGE_DIM_OPACITY, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
 
@@ -62,6 +65,11 @@ export type ProjectGraphEdgeData = {
   readonly label?: string | null;
   /** The thick hub->target edge (issue #64): its label is the route count. */
   readonly hubCount?: number;
+  /** The bridge spec when this edge arcs over the band (issue #65); absent = orthogonal. */
+  readonly bridge?: BridgeSpec | null;
+  /** True while another bridge is hovered/focused: this one dims (hover isolation). */
+  readonly bridgeDimmed?: boolean;
+  readonly onBridgeHover?: (edgeId: string | null) => void;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -118,34 +126,40 @@ export function ProjectGraphEdge({
   // The level, not the raw zoom: a zoom gesture re-renders the edge only at a threshold. The
   // drag math reads the live zoom from the store on demand instead of subscribing per frame.
   const level = useGraphLod();
-  const store = useStoreApi();
   const [draft, setDraft] = useState<GraphCurve | null>(null);
   const [hovered, setHovered] = useState(false);
-  const drag = useRef<EdgeCurveDragState | null>(null);
 
   const kind: GraphEdgeKind = data?.kind ?? "relation";
   const curve = draft ?? data?.curve ?? null;
-  const geometry = resolveGeometry(
-    sourceNode,
-    targetNode,
-    source,
-    target,
-    { sourceX, sourceY, targetX, targetY },
-    curve,
-    obstacleRects(nodeLookup),
-    data?.trunkLane,
-  );
+  // A saved or in-progress curve unbundles the edge: explicit user intent wins (issue #65).
+  const bridge = curve === null ? (data?.bridge ?? null) : null;
+  const geometry =
+    bridge !== null
+      ? bridgeGeometry(bridge)
+      : resolveGeometry(
+          sourceNode,
+          targetNode,
+          source,
+          target,
+          { sourceX, sourceY, targetX, targetY },
+          curve,
+          obstacleRects(nodeLookup),
+          data?.trunkLane,
+        );
   const edgeStyle = edgeStyleFor({
     kind,
     ...(data?.access === undefined ? {} : { access: data.access }),
   });
   const highlighted = selected === true || hovered;
+  const bridgeDimmed = bridge !== null && data?.bridgeDimmed === true;
+  const apexLabel = bridge !== null ? bridgeApexLabel({ label: bridge.label, kind }) : null;
   // The hub's count edge is the one thick stroke on the canvas (issue #64); the expanded
   // members show their real label, the count edge its route count (counter-scaled, rule 4).
+  // A bridged edge carries its label at the apex instead — never twice (issue #65).
   const label =
     data?.hubCount !== undefined
       ? t("projectGraph.hub.countLabel", { count: data.hubCount })
-      : level !== "chip"
+      : bridge === null && level !== "chip"
         ? (data?.label ?? null)
         : null;
   const pathStyle: CSSProperties = {
@@ -156,59 +170,30 @@ export function ProjectGraphEdge({
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
-    // wins so the two never stack into an invisible line. Opacity, not colour: the theme still
-    // owns the stroke. The AI focus no longer dims — it halos below (aiOutlined).
+    // wins so the channels never stack into an invisible line. Bridge hover isolation (issue
+    // #65) is the weakest channel at 25%. Opacity, not colour: the theme still owns the
+    // stroke. The AI focus never dims — it halos below (aiOutlined).
     ...(data?.dimmed === true
       ? { opacity: 0.1 }
       : data?.userDimmed === true || data?.drillDimmed === true || data?.hubDimmed === true
         ? { opacity: 0.12 }
-        : {}),
+        : bridgeDimmed
+          ? { opacity: BRIDGE_DIM_OPACITY }
+          : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
   };
-
-  const onHandlePointerDown = (event: PointerEvent<SVGCircleElement>) => {
-    if (data === undefined) return;
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const base = data.curve ?? { x: 0, y: 0 };
-    drag.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      base,
-    };
-    setDraft(base);
+  // Hover and keyboard focus do the same thing: raise this bridge, dim the rest (issue #65).
+  const raiseBridge = () => {
+    setHovered(true);
+    if (bridge !== null) data?.onBridgeHover?.(id);
   };
-  const onHandlePointerMove = (event: PointerEvent<SVGCircleElement>) => {
-    const state = drag.current;
-    if (state === null || state.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    setDraft(curveFromPointer(event, state, store.getState().transform[2]));
-  };
-  const onHandlePointerUp = (event: PointerEvent<SVGCircleElement>) => {
-    const state = drag.current;
-    if (state === null || state.pointerId !== event.pointerId) return;
-    event.stopPropagation();
-    drag.current = null;
-    data?.onCurveChange(id, curveFromPointer(event, state, store.getState().transform[2]));
-    setDraft(null);
-  };
-  const onHandlePointerCancel = () => {
-    drag.current = null;
-    setDraft(null);
-  };
-  const onHandleDoubleClick = (event: MouseEvent<SVGCircleElement>) => {
-    event.stopPropagation();
-    data?.onCurveChange(id, null);
-    setDraft(null);
+  const lowerBridge = () => {
+    setHovered(false);
+    if (bridge !== null) data?.onBridgeHover?.(null);
   };
 
   return (
-    <g
-      data-lod={level}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
+    <g data-lod={level} onMouseEnter={raiseBridge} onMouseLeave={lowerBridge}>
       {/* The AI focus channel (D-171, issue #66): a brand halo under the kind-coloured stroke,
           visible even when the user focus dims the edge — the two channels compose. */}
       {data?.aiOutlined === true ? (
@@ -227,7 +212,26 @@ export function ProjectGraphEdge({
         markerEnd={markerEnd}
         style={pathStyle}
         interactionWidth={24}
+        {...(bridge !== null && apexLabel !== null
+          ? {
+              // The path itself is the focusable, announced mark: the apex text is decorative.
+              tabIndex: 0,
+              role: "img",
+              "aria-label": bridgeAriaLabel(apexLabel),
+              className: "outline-none",
+              onFocus: raiseBridge,
+              onBlur: lowerBridge,
+            }
+          : {})}
       />
+      {bridge !== null && apexLabel !== null ? (
+        <ProjectGraphBridgeLabel
+          apex={bridge.apex}
+          label={apexLabel}
+          visible={level !== "chip" || highlighted}
+          dimmed={bridgeDimmed}
+        />
+      ) : null}
       {(data?.count ?? 1) > 1 ? (
         // The boundary bundle's count (issue #62): a halo keeps it readable over any edge, and
         // the counter-scaled size keeps it above the 7 px floor at every zoom (epic rule 4).
@@ -256,35 +260,17 @@ export function ProjectGraphEdge({
         />
       ) : null}
       {/* No bend handles at chip (criterion 5) or on a bundled member (issue #64): the edge
-          stays clickable, just not bendable. */}
+          stays clickable, just not bendable. On a bridge the handle sits at the apex; dragging
+          it saves a curve and restores the orthogonal rendering (issue #65). */}
       {level !== "chip" && selected === true && data !== undefined && data.bundled !== true ? (
-        <g className="cursor-grab active:cursor-grabbing">
-          <title>{t("projectGraph.curveHint")}</title>
-          {/* Invisible hit target: a 5px dot is too small to grab at a fitted zoom. */}
-          <circle
-            className="nodrag nopan touch-none"
-            cx={geometry.midpoint.x}
-            cy={geometry.midpoint.y}
-            r={14}
-            fill="transparent"
-            stroke="none"
-            style={{ pointerEvents: "all" }}
-            onPointerDown={onHandlePointerDown}
-            onPointerMove={onHandlePointerMove}
-            onPointerUp={onHandlePointerUp}
-            onPointerCancel={onHandlePointerCancel}
-            onDoubleClick={onHandleDoubleClick}
-          />
-          <circle
-            cx={geometry.midpoint.x}
-            cy={geometry.midpoint.y}
-            r={5}
-            fill="var(--background)"
-            stroke={edgeStyle.stroke}
-            strokeWidth={1.5}
-            className="pointer-events-none"
-          />
-        </g>
+        <ProjectGraphEdgeHandle
+          edgeId={id}
+          midpoint={geometry.midpoint}
+          stroke={edgeStyle.stroke}
+          baseCurve={data.curve}
+          onCurveChange={data.onCurveChange}
+          onDraft={setDraft}
+        />
       ) : null}
     </g>
   );

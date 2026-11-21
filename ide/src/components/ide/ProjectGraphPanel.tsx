@@ -116,8 +116,7 @@ export function ProjectGraphPanel() {
   const { userFocus, focusSummary } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
   const { selectedNode, selectedEdges, details, nodeLabels, nodeLabel, closeDetails } =
     useProjectGraphSelection(view, selectedNodeId, analysis, setSelectedNodeId);
-  // Esc: zen → isolate → selection → drill → AI focus; Enter isolates, G/C drive the clusters
-  // (issues #66, #62). One listener owns every graph key.
+  // Esc ladder + Enter/G/C/E/B (issues #66, #62, #64, #65): one listener owns every graph key.
   useProjectGraphEscape({
     zen,
     isolatedNode,
@@ -132,6 +131,7 @@ export function ProjectGraphPanel() {
     onCollapseCluster: clusters.collapseActive,
     onCycleConcentration: () =>
       viewState.setEdgeConcentration(cycleEdgeConcentration(viewState.state.edgeConcentration)),
+    onToggleBridges: () => viewState.setBridges(!viewState.state.bridges),
   });
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
@@ -190,6 +190,7 @@ export function ProjectGraphPanel() {
         viewport={layout.viewport ?? null}
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
+        bridges={viewState.state.bridges}
         focus={focus}
         userFocus={userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}

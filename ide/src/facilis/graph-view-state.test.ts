@@ -329,3 +329,27 @@ describe("edge concentration threshold (issue #64)", () => {
     expect(cycleEdgeConcentration(8)).toBe("off");
   });
 });
+
+describe("bridges lens toggle (issue #65)", () => {
+  it("defaults to enabled and omits the default from the URL", () => {
+    expect(DEFAULT_GRAPH_VIEW_STATE.bridges).toBe(true);
+    expect(encodeGraphViewState(state({ bridges: true }))).toBe("");
+    expect(encodeGraphViewState(state({ bridges: false }))).toBe('{"b":false}');
+  });
+
+  it("round-trips the toggle off and back on", () => {
+    const off = state({ bridges: false, query: "todos" });
+    const decoded = decodeGraphViewState(encodeGraphViewState(off));
+    expect(decoded).toEqual(off);
+    expect(decodeGraphViewState(encodeGraphViewState(state({ bridges: true })))).toEqual(
+      DEFAULT_GRAPH_VIEW_STATE,
+    );
+  });
+
+  it("degrades hostile bridge values to the default (on)", () => {
+    for (const raw of ['{"b":true}', '{"b":0}', '{"b":"false"}', '{"b":null}', '{"b":{}}']) {
+      expect(decodeGraphViewState(raw).bridges).toBe(true);
+    }
+    expect(decodeGraphViewState('{"b":false}').bridges).toBe(false);
+  });
+});

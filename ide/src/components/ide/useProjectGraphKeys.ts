@@ -1,7 +1,7 @@
 // The graph canvas's keyboard surface (issue #66, epic #56 rule 6): Esc clears one layer at a
 // time (the panel resolves the order through graphEscapeAction), Enter isolates the selection,
-// G toggles feature grouping, C collapses the active cluster (issue #62) and E cycles the
-// edge-concentration threshold (issue #64). Typing targets
+// G toggles feature grouping, C collapses the active cluster (issue #62), E cycles the
+// edge-concentration threshold (issue #64) and B toggles the bridges lens (issue #65). Typing targets
 // keep their keys — the note editor cancels its own edit with Esc — and native controls keep
 // Enter for their own activation, so the canvas shortcut never steals a button's click. The
 // handlers travel through a ref so the document listener is attached exactly once.
@@ -17,6 +17,8 @@ export interface ProjectGraphKeys {
   readonly onCollapseCluster?: () => void;
   /** E: cycle the edge-concentration threshold off/4/8 (issue #64). */
   readonly onCycleConcentration?: () => void;
+  /** B: toggle the bridges lens for long edges (issue #65). */
+  readonly onToggleBridges?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -43,11 +45,33 @@ export function useProjectGraphKeys({
   onToggleGroupBy,
   onCollapseCluster,
   onCycleConcentration,
+  onToggleBridges,
 }: ProjectGraphKeys): void {
-  const handlers = useRef({ onEscape, onEnter, onToggleGroupBy, onCollapseCluster, onCycleConcentration });
+  const handlers = useRef({
+    onEscape,
+    onEnter,
+    onToggleGroupBy,
+    onCollapseCluster,
+    onCycleConcentration,
+    onToggleBridges,
+  });
   useEffect(() => {
-    handlers.current = { onEscape, onEnter, onToggleGroupBy, onCollapseCluster, onCycleConcentration };
-  }, [onEscape, onEnter, onToggleGroupBy, onCollapseCluster, onCycleConcentration]);
+    handlers.current = {
+      onEscape,
+      onEnter,
+      onToggleGroupBy,
+      onCollapseCluster,
+      onCycleConcentration,
+      onToggleBridges,
+    };
+  }, [
+    onEscape,
+    onEnter,
+    onToggleGroupBy,
+    onCollapseCluster,
+    onCycleConcentration,
+    onToggleBridges,
+  ]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isTypingTarget(event.target)) return;
@@ -67,6 +91,8 @@ export function useProjectGraphKeys({
         handlers.current.onCollapseCluster?.();
       } else if (event.key === "e" || event.key === "E") {
         handlers.current.onCycleConcentration?.();
+      } else if (event.key === "b" || event.key === "B") {
+        handlers.current.onToggleBridges?.();
       }
     };
     document.addEventListener("keydown", onKey);

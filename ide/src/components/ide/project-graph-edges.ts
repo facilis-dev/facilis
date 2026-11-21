@@ -1,8 +1,11 @@
 // Edge presentation shared by the project-graph canvas, its filters and its legend: one
-// stroke per edge kind, plus the catalogue key that names it. Role tokens only (D-043/044).
+// stroke per edge kind. Role tokens only (D-043/044). The catalogue keys and the bridge apex
+// text live in graph-edge-labels.ts so the screenshot scene can share them; re-exported here
+// for the existing filter/legend call sites.
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import type { MessageKey } from "@/i18n";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
+
+export { GRAPH_EDGE_LABEL_KEYS } from "@/facilis/graph-edge-labels";
 
 export interface GraphEdgeStyle {
   readonly stroke: string;
@@ -29,12 +32,5 @@ export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): G
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
 }
 
-export const GRAPH_EDGE_LABEL_KEYS: Record<GraphEdgeKind, MessageKey> = {
-  fk: "projectGraph.edge.fk",
-  relation: "projectGraph.edge.relation",
-  "route-table": "projectGraph.edge.routeTable",
-  "page-route": "projectGraph.edge.pageRoute",
-  "page-link": "projectGraph.edge.pageLink",
-  "route-view": "projectGraph.edge.routeView",
-  "view-base": "projectGraph.edge.viewBase",
-};
+/** Dimmed opacity for bridges while another bridge is hovered/focused (issue #65). */
+export const BRIDGE_DIM_OPACITY = 0.25;

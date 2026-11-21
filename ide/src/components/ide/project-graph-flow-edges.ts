@@ -13,6 +13,7 @@
 
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { BridgeSpec } from "@/facilis/graph-bridge-geometry";
 import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
@@ -37,6 +38,11 @@ export interface ProjectFlowEdgesInput {
   readonly drill: ProjectGraphDrill | null;
   /** Hub hover isolation (issue #64), composed with the other dimming channels. */
   readonly hubIsolation: HubIsolation | null;
+  /** The bridge plan (issue #65): keyed by real edge id; hub artefacts never bridge. */
+  readonly bridges: ReadonlyMap<string, BridgeSpec>;
+  /** The raised bridge (hover/keyboard focus); every other bridge dims while it is up. */
+  readonly hoveredBridgeId: string | null;
+  readonly onBridgeHover: (edgeId: string | null) => void;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
 
@@ -55,6 +61,9 @@ export function buildProjectGraphFlowEdges({
   isolatedEdgeKinds,
   drill,
   hubIsolation,
+  bridges,
+  hoveredBridgeId,
+  onBridgeHover,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
@@ -99,6 +108,10 @@ export function buildProjectGraphFlowEdges({
     const style = edgeStyleFor(edge);
     const target = render.type === "hub-source" ? render.hubId : edge.target;
     const lane = render.type === "real" ? overlay.bundleLanes.get(edge.id) : undefined;
+    // A trunk member keeps its shared lane; the plan already excluded it (issue #65 composing
+    // #64). Hub stubs are the hub's geometry, never bridged.
+    const bridge =
+      render.type === "real" && lane === undefined ? (bridges.get(edge.id) ?? null) : null;
     return {
       id: edge.id,
       source: edge.source,
@@ -121,6 +134,10 @@ export function buildProjectGraphFlowEdges({
         ...(render.type === "real" && render.showLabel && edge.label !== null
           ? { label: edge.label }
           : {}),
+        bridge,
+        // Hover isolation: while one bridge is raised, every other bridge dims (issue #65).
+        bridgeDimmed: bridge !== null && hoveredBridgeId !== null && hoveredBridgeId !== edge.id,
+        ...(bridge === null ? {} : { onBridgeHover }),
         onCurveChange: onEdgeCurveChange,
       },
       markerEnd: marker(style.stroke),

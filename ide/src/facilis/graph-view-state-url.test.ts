@@ -166,3 +166,28 @@ describe("2 KB URL budget for a 500-node project", () => {
     expect(new URLSearchParams(search).get("project")).toBe("/home/user/projects/big-app");
   });
 });
+
+describe("bridges toggle through the URL (issue #65)", () => {
+  it("carries the off state through the gv parameter and back", () => {
+    const off = state({ bridges: false });
+    const search = withGraphViewParam("?project=%2Fp", encodeGraphViewState(off));
+    const raw = readGraphViewParam(search);
+    expect(raw).toBe('{"b":false}');
+    expect(decodeGraphViewState(raw)).toEqual(off);
+  });
+
+  it("keeps the URL clean for the default (bridges on)", () => {
+    expect(graphViewSearch("?project=p&gv=stale", state({ bridges: true }))).toBe("project=p");
+  });
+
+  it("round-trips the toggle alongside the rest of the view", () => {
+    const full = state({
+      bridges: false,
+      mode: "matrix",
+      query: "todos",
+      selection: "table:todos",
+    });
+    const search = graphViewSearch("?project=p", full);
+    expect(decodeGraphViewState(readGraphViewParam(search))).toEqual(full);
+  });
+});

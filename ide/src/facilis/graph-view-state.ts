@@ -21,6 +21,10 @@ import {
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
 import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "./graph-runtime";
 
+// The bridge lens threshold lives in the geometry module; re-exported here so the view-state
+// surface names it too (issue #65: toggle + threshold are the lens's addressable contract).
+export { BRIDGE_LENGTH_THRESHOLD } from "./graph-edge-bridges";
+
 /** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
 
@@ -44,7 +48,9 @@ export const DEFAULT_EDGE_CONCENTRATION: GraphEdgeConcentration = 4;
 /** The E shortcut (epic rule 6): cycles the chip order off -> 4 -> 8 -> off. */
 export function cycleEdgeConcentration(value: GraphEdgeConcentration): GraphEdgeConcentration {
   const index = EDGE_CONCENTRATIONS.indexOf(value);
-  return EDGE_CONCENTRATIONS[(index + 1) % EDGE_CONCENTRATIONS.length] ?? DEFAULT_EDGE_CONCENTRATION;
+  return (
+    EDGE_CONCENTRATIONS[(index + 1) % EDGE_CONCENTRATIONS.length] ?? DEFAULT_EDGE_CONCENTRATION
+  );
 }
 
 export interface GraphViewFilters {
@@ -87,6 +93,8 @@ export interface GraphViewState {
   readonly viewport: GraphViewport | null;
   readonly query: string;
   readonly edgeConcentration: GraphEdgeConcentration;
+  /** The bridges lens (issue #65): long edges arc above/below the layers. On by default. */
+  readonly bridges: boolean;
 }
 
 /** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
@@ -107,6 +115,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   viewport: null,
   query: "",
   edgeConcentration: DEFAULT_EDGE_CONCENTRATION,
+  bridges: true,
 };
 
 const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
@@ -170,6 +179,8 @@ export function encodeGraphViewState(state: GraphViewState): string {
   }
   if (state.query !== "") out.q = state.query;
   if (state.edgeConcentration !== DEFAULT_EDGE_CONCENTRATION) out.e = state.edgeConcentration;
+  // Only the off state is encoded: bridges on is the default, so it stays out of the URL.
+  if (!state.bridges) out.b = false;
   return Object.keys(out).length === 0 ? "" : JSON.stringify(out);
 }
 
@@ -276,5 +287,7 @@ export function decodeGraphViewState(
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
     edgeConcentration: readConcentration(parsed.e),
+    // Only a strict false disables the lens; hostile values degrade to the default (on).
+    bridges: parsed.b !== false,
   };
 }

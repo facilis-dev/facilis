@@ -25,6 +25,7 @@ export interface ProjectGraphEscapeInput {
   readonly onToggleGroupBy: () => void;
   readonly onCollapseCluster: () => void;
   readonly onCycleConcentration: () => void;
+  readonly onToggleBridges: () => void;
 }
 
 export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
@@ -43,5 +44,6 @@ export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
     onToggleGroupBy: input.onToggleGroupBy,
     onCollapseCluster: input.onCollapseCluster,
     onCycleConcentration: input.onCycleConcentration,
+    onToggleBridges: input.onToggleBridges,
   });
 }

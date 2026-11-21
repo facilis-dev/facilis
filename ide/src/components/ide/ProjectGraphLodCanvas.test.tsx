@@ -124,6 +124,8 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     viewport: { x: 0, y: 0, zoom: 0.2 },
     fitNonce: 0,
     edgeCurves: {},
+    // Bridges off: the LOD probe measures the orthogonal geometry alone (issue #65).
+    bridges: false,
     focus: null,
     userFocus: null,
     isolatedEdgeKinds: [],

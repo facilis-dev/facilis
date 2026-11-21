@@ -22,13 +22,12 @@ import { PROJECT_GRAPH_EDGE_TYPES } from "./ProjectGraphEdge";
 import {
   DETAILS_LINK_EDGE_TYPE,
   ProjectGraphDetailsLinkEdge,
-  detailsLinkEdge,
   type ProjectCanvasEdge,
 } from "./ProjectGraphDetailsLinkEdge";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { ProjectGraphZoomVar } from "./ProjectGraphZoomVar";
-import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import { useProjectGraphEdges } from "./useProjectGraphEdges";
 import { useGraphFitEffects } from "./useGraphFitEffects";
 import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
 import { useProjectGraphDetails, type PinRequest } from "./useProjectGraphDetails";
@@ -53,6 +52,7 @@ export function ProjectGraphCanvas({
   viewport,
   fitNonce,
   edgeCurves,
+  bridges,
   focus,
   userFocus,
   isolatedEdgeKinds,
@@ -92,6 +92,8 @@ export function ProjectGraphCanvas({
   viewport: GraphViewport | null;
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
+  /** The bridges lens (issue #65): false restores every orthogonal route. */
+  bridges: boolean;
   focus: ProjectGraphFocusState | null;
   /** The selection's closure (issue #66): the dimming channel, null when nothing is selected. */
   userFocus: GraphReachability | null;
@@ -201,32 +203,23 @@ export function ProjectGraphCanvas({
   // The AI focus and drill-down fits compose with the canvas effects on the same instance.
   useGraphFitEffects(instance, nodes, focus, drill, fitPadding);
 
-  const edges = useMemo<ProjectCanvasEdge[]>(() => {
-    const analysis = buildProjectGraphFlowEdges({
-      overlay: hubs.overlay,
-      edgeCurves,
-      selectedEdgeId,
-      focus,
-      userFocus,
-      isolatedEdgeKinds,
-      drill,
-      hubIsolation: hubs.isolation,
-      onEdgeCurveChange,
-    });
-    if (activeAnchorId === null) return analysis;
-    return [...analysis, detailsLinkEdge(activeAnchorId)];
-  }, [
-    hubs.overlay,
-    hubs.isolation,
+  // The edge list owns the bridge plan and its hover isolation (issue #65); the satellite
+  // connector stays cubic dashed and never bridges (F.1).
+  const edges = useProjectGraphEdges({
+    nodes,
+    edges: view.edges,
+    overlay: hubs.overlay,
+    hubIsolation: hubs.isolation,
     edgeCurves,
     selectedEdgeId,
     focus,
     userFocus,
     isolatedEdgeKinds,
     drill,
-    onEdgeCurveChange,
+    bridges,
     activeAnchorId,
-  ]);
+    onEdgeCurveChange,
+  });
 
   const {
     onEdgeClick,

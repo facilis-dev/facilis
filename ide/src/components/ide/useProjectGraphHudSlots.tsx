@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphClosureSummary } from "@/facilis/graph-user-focus";
+import { ProjectGraphBridgeChip } from "./ProjectGraphBridgeChip";
 import { ProjectGraphConcentrationChip } from "./ProjectGraphConcentrationChip";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
@@ -66,6 +67,12 @@ export function useProjectGraphHudSlots({
         <ProjectGraphConcentrationChip
           concentration={viewState.state.edgeConcentration}
           onChange={viewState.setEdgeConcentration}
+        />
+        {/* The bridges lens (issue #65) docks in the same row: a plain toggle like the
+            concentration chip, not an activeLenses lens — its state rides the gv key b. */}
+        <ProjectGraphBridgeChip
+          bridges={viewState.state.bridges}
+          onToggle={() => viewState.setBridges(!viewState.state.bridges)}
         />
       </>
     ),

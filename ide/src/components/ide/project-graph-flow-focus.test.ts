@@ -113,6 +113,9 @@ const buildEdges = (
     isolatedEdgeKinds: [],
     drill: null,
     hubIsolation: null,
+    bridges: new Map(),
+    hoveredBridgeId: null,
+    onBridgeHover: () => {},
     onEdgeCurveChange: () => {},
   });
 

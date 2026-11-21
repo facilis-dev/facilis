@@ -28,6 +28,9 @@ const LABEL_FONT = "500 11px ui-sans-serif, system-ui, sans-serif";
 // Matches the full card's >= 10 px base text (issue #60) so the screenshot and the canvas agree.
 const KIND_FONT = "10px ui-sans-serif, system-ui, sans-serif";
 const LABEL_INSET = 8;
+/** The bridge apex text (issue #65), lifted like the canvas label's -1.3em of its 10 px font. */
+const BRIDGE_FONT = "500 10px ui-sans-serif, system-ui, sans-serif";
+const BRIDGE_LABEL_LIFT = 13;
 /** The AI outline channel (issue #66): a brand halo under the stroke, a frame around the card. */
 const OUTLINE_EDGE_WIDTH = 5;
 const OUTLINE_CARD_WIDTH = 2;
@@ -54,7 +57,11 @@ function paintFrames(
   }
 }
 
-function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene, outline: string): void {
+function paintEdges(
+  context: CanvasRenderingContext2D,
+  scene: GraphScene,
+  palette: GraphScenePalette,
+): void {
   context.lineWidth = EDGE_WIDTH;
   context.lineCap = "round";
   context.lineJoin = "round";
@@ -64,7 +71,7 @@ function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene, outlin
     // the user focus dims the edge itself (criterion 5).
     if (edge.outlined) {
       context.globalAlpha = OUTLINE_OPACITY;
-      context.strokeStyle = outline;
+      context.strokeStyle = palette.outline;
       context.lineWidth = OUTLINE_EDGE_WIDTH;
       context.setLineDash([]);
       context.stroke(path);
@@ -74,6 +81,20 @@ function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene, outlin
     context.lineWidth = EDGE_WIDTH;
     context.setLineDash(edge.dashed ? [...EDGE_DASH] : []);
     context.stroke(path);
+    // The bridge apex label, where the canvas draws it (issue #65): same text, same spot,
+    // dimmed with its edge.
+    if (edge.bridge !== undefined) {
+      context.fillStyle = palette.muted;
+      context.font = BRIDGE_FONT;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(
+        edge.bridge.label,
+        edge.bridge.apex.x,
+        edge.bridge.apex.y - BRIDGE_LABEL_LIFT,
+      );
+      context.textAlign = "left";
+    }
   }
   context.setLineDash([]);
   context.globalAlpha = 1;
@@ -129,7 +150,7 @@ function paint(
   context.fillStyle = palette.background;
   context.fillRect(0, 0, scene.width, scene.height);
   paintFrames(context, scene, palette);
-  paintEdges(context, scene, palette.outline);
+  paintEdges(context, scene, palette);
   paintNodes(context, scene, palette);
 }
 

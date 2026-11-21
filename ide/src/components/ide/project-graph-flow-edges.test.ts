@@ -3,9 +3,17 @@
 // focus (issue #66) and the AI outline are independent channels the edge composes with it.
 import { describe, expect, it } from "vitest";
 import type { GraphEdge } from "@facilis.dev/analyze";
+import type { BridgeSpec } from "@/facilis/graph-bridge-geometry";
 import { deriveEdgeHubOverlay, hubEdgeIdFor, hubIdFor } from "@/facilis/graph-edge-hubs";
 import { buildProjectGraphView } from "@/facilis/graph-model";
-import { GET, PROJECTS, TODOS, graphOf, routeNode, tableNode } from "@/facilis/graph-model.test-fixtures";
+import {
+  GET,
+  PROJECTS,
+  TODOS,
+  graphOf,
+  routeNode,
+  tableNode,
+} from "@/facilis/graph-model.test-fixtures";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
@@ -30,6 +38,9 @@ const build = (
     isolatedEdgeKinds,
     drill: null,
     hubIsolation: null,
+    bridges: new Map(),
+    hoveredBridgeId: null,
+    onBridgeHover: () => {},
     onEdgeCurveChange: () => {},
   });
 
@@ -84,6 +95,9 @@ describe("buildProjectGraphFlowEdges", () => {
       isolatedEdgeKinds: [],
       drill: null,
       hubIsolation: null,
+      bridges: new Map(),
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
       onEdgeCurveChange: () => {},
     });
     expect(edges[0]?.selected).toBe(true);
@@ -111,6 +125,9 @@ describe("buildProjectGraphFlowEdges clusters (issue #62)", () => {
       isolatedEdgeKinds: [],
       drill: null,
       hubIsolation: null,
+      bridges: new Map(),
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
       onEdgeCurveChange: () => {},
     });
     expect(edges.length).toBe(clustered.edges.length);
@@ -139,6 +156,9 @@ describe("buildProjectGraphFlowEdges clusters (issue #62)", () => {
       isolatedEdgeKinds: [],
       drill,
       hubIsolation: null,
+      bridges: new Map(),
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
       onEdgeCurveChange: () => {},
     });
     const inside = (id: string) => id === frame.id || frame.nodeIds.includes(id);
@@ -189,6 +209,9 @@ function buildOverlay(
     isolatedEdgeKinds: [],
     drill: null,
     hubIsolation,
+    bridges: new Map(),
+    hoveredBridgeId: null,
+    onBridgeHover: () => {},
     onEdgeCurveChange: () => {},
   });
 }
@@ -270,3 +293,128 @@ describe("buildProjectGraphFlowEdges concentration (issue #64)", () => {
   });
 });
 
+// The bridge lens mapping (issue #65): the spec and the hover-isolation dimming ride on the
+// real edges' data. Hub artefacts and trunk members never bridge — the lens composes #64's
+// geometry instead of duplicating it — and the drawn endpoints never move (epic rule 2).
+const bridgeSpec = (edgeId: string, label: string | null = null): BridgeSpec => ({
+  edgeId,
+  side: "above",
+  source: { x: 0, y: 0 },
+  target: { x: 100, y: 0 },
+  control: { x: 24, y: -96 },
+  apex: { x: 37, y: -48 },
+  radius: 48,
+  label,
+});
+
+describe("buildProjectGraphFlowEdges bridges (issue #65)", () => {
+  const plan = new Map([
+    ["e1", bridgeSpec("e1")],
+    ["e2", bridgeSpec("e2", "one")],
+  ]);
+  const buildBridged = (hoveredBridgeId: string | null, bridges = plan) =>
+    buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(view, "off", new Set()),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      hubIsolation: null,
+      bridges,
+      hoveredBridgeId,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+
+  it("attaches the bridge spec to bridged edges only", () => {
+    const edges = buildBridged(null);
+    expect(edges[0]?.data?.bridge?.edgeId).toBe("e1");
+    expect(edges[1]?.data?.bridge?.label).toBe("one");
+    expect(edges[2]?.data?.bridge).toBeNull();
+    expect(edges[0]?.data?.bridgeDimmed).toBe(false);
+  });
+
+  it("dims every bridge except the hovered one (criterion 4)", () => {
+    const edges = buildBridged("e1");
+    expect(edges[0]?.data?.bridgeDimmed).toBe(false);
+    expect(edges[1]?.data?.bridgeDimmed).toBe(true);
+    // A non-bridge edge is never dimmed through the bridge state.
+    expect(edges[2]?.data?.bridgeDimmed).toBe(false);
+  });
+
+  it("never bridges hub artefacts, even if a stale plan names them", () => {
+    const stale = new Map([
+      [hubEdgeId, bridgeSpec(hubEdgeId)],
+      ["route-table:0", bridgeSpec("route-table:0")],
+    ]);
+    const edges = buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(fanOut(10), 4, new Set()),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      hubIsolation: null,
+      bridges: stale,
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+    // The thick count edge carries no bridge field; the route->hub stub stays orthogonal.
+    expect(edges.find((edge) => edge.id === hubEdgeId)?.data?.bridge).toBeUndefined();
+    expect(edges.find((edge) => edge.id === "route-table:0")?.data?.bridge).toBeNull();
+  });
+
+  it("never bridges a trunk-bundled member: the shared lane wins", () => {
+    const stale = new Map([["route-table:0", bridgeSpec("route-table:0")]]);
+    const edges = buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(fanOut(3), 4, new Set()),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      hubIsolation: null,
+      bridges: stale,
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+    const member = edges.find((edge) => edge.id === "route-table:0");
+    expect(member?.data?.bridge).toBeNull();
+    expect(member?.data?.trunkLane).toBeTypeOf("number");
+  });
+
+  it("bridges the real edges of an expanded hub (they are no longer concentrated)", () => {
+    const expandedPlan = new Map([["route-table:0", bridgeSpec("route-table:0", "dbTables")]]);
+    const edges = buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(fanOut(10), 4, new Set([hubId])),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      hubIsolation: null,
+      bridges: expandedPlan,
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+    expect(edges.find((edge) => edge.id === "route-table:0")?.data?.bridge?.edgeId).toBe(
+      "route-table:0",
+    );
+  });
+
+  it("never moves an edge's endpoints when the lens toggles (spatial constancy)", () => {
+    const plain = buildBridged(null, new Map());
+    const bridged = buildBridged(null);
+    expect(bridged.map((edge) => [edge.id, edge.source, edge.target])).toEqual(
+      plain.map((edge) => [edge.id, edge.source, edge.target]),
+    );
+  });
+});

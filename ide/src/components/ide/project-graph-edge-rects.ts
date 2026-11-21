@@ -5,12 +5,14 @@
 // geometry. Satellite and pinned details cards are nodes in the lookup too, so analysis edges
 // never route across an open details card. Cluster frames (issue #62) are containers, not
 // obstacles: edges between their children route inside them; a collapsed super-node is a card
-// again and routes around it.
+// again and routes around it. The bridge planner (issue #65) reads the same cards from the
+// controlled node list through flowNodeRects, so both see one geometry.
 
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { nodeRect, type Point, type Rect } from "@/facilis/graph-edge-geometry";
 import { GRAPH_NODE_SIZES } from "@/facilis/graph-node-size";
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
+import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The structural shape a rect needs: an endpoint hook result or a nodeLookup entry. */
 export interface MeasuredNode {
@@ -48,9 +50,9 @@ export function internalNodeRect(node: MeasuredNode | undefined): Rect | null {
 }
 
 /** The cluster fact a frame node carries, narrowed from the unknown React Flow data. */
-function clusterFact(
-  node: MeasuredNode,
-): { collapsed: boolean; size: { width: number; height: number } | null } | null {
+function clusterFact(node: {
+  readonly data?: unknown;
+}): { collapsed: boolean; size: { width: number; height: number } | null } | null {
   const data: unknown = node.data;
   if (typeof data !== "object" || data === null || !("cluster" in data)) return null;
   const raw: unknown = (data as { cluster: unknown }).cluster;
@@ -91,5 +93,46 @@ export function obstacleRects(nodeLookup: ReadonlyMap<string, MeasuredNode>): re
     if (rect !== null) rects.push(rect);
   }
   obstacleCache.set(nodeLookup, rects);
+  return rects;
+}
+
+/**
+ * The same rects keyed by id from the controlled node list: the canvas plans bridges with
+ * these, so a drag (which updates positions live) replans against the moving cards (issue
+ * #65). Cluster children carry frame-relative positions, so the frame's origin is added back;
+ * an expanded frame stays a container, exactly like obstacleRects.
+ */
+export function flowNodeRects(nodes: readonly ProjectFlowNode[]): ReadonlyMap<string, Rect> {
+  const origins = new Map(nodes.map((node) => [node.id, node.position]));
+  const rects = new Map<string, Rect>();
+  for (const node of nodes) {
+    const parent = node.parentId === undefined ? undefined : origins.get(node.parentId);
+    const position =
+      parent === undefined
+        ? node.position
+        : { x: node.position.x + parent.x, y: node.position.y + parent.y };
+    if (node.type === CLUSTER_NODE_TYPE) {
+      const cluster = clusterFact(node);
+      if (cluster === null || !cluster.collapsed) continue;
+      rects.set(
+        node.id,
+        nodeRect(
+          position,
+          cluster.size?.width ?? DEFAULT_SIZE.width,
+          cluster.size?.height ?? DEFAULT_SIZE.height,
+        ),
+      );
+      continue;
+    }
+    const fallback = cardFallbackSize(node.type);
+    rects.set(
+      node.id,
+      nodeRect(
+        position,
+        node.measured?.width ?? node.width ?? fallback.width,
+        node.measured?.height ?? node.height ?? fallback.height,
+      ),
+    );
+  }
   return rects;
 }
