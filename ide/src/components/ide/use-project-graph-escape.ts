@@ -4,8 +4,8 @@
 // the isolate is dim-only, F.6: double-click keeps opening the source), G toggles the cluster
 // layout mode and C collapses the active cluster (issue #62). Replaces the separate
 // zen/details/focus Esc handlers so one keypress clears exactly one layer; E cycles the
-// edge-concentration threshold (issue #64); typing targets and
-// the details dialog's own Esc trap keep their keys (the dialog stops propagation).
+// edge-concentration threshold (issue #64); M toggles topology ↔ matrix (issue #67); typing
+// targets and the details dialog's own Esc trap keep their keys (the dialog stops propagation).
 
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { graphEscapeAction } from "@/facilis/graph-user-focus";
@@ -26,6 +26,7 @@ export interface ProjectGraphEscapeInput {
   readonly onCollapseCluster: () => void;
   readonly onCycleConcentration: () => void;
   readonly onToggleBridges: () => void;
+  readonly onToggleMode: () => void;
 }
 
 export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
@@ -45,5 +46,6 @@ export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
     onCollapseCluster: input.onCollapseCluster,
     onCycleConcentration: input.onCycleConcentration,
     onToggleBridges: input.onToggleBridges,
+    onToggleMode: input.onToggleMode,
   });
 }

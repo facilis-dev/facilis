@@ -10,9 +10,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { initI18n, setLocale } from "@/i18n";
 import { EMPTY_STATS_FILTER } from "@/facilis/graph-stats-filter";
+import type { GraphViewMode } from "@/facilis/graph-view-state";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 
-function markup(slots: { lensChips?: ReactNode; runtimeControls?: ReactNode } = {}): string {
+function markup(
+  slots: { lensChips?: ReactNode; runtimeControls?: ReactNode; mode?: GraphViewMode } = {},
+): string {
   return renderToStaticMarkup(
     <ProjectGraphHud
       stats={null}
@@ -41,6 +44,8 @@ function markup(slots: { lensChips?: ReactNode; runtimeControls?: ReactNode } = 
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
       tableVisibility="project"
       onTableVisibilityChange={vi.fn()}
+      mode={slots.mode ?? "topology"}
+      onModeChange={vi.fn()}
       onAddNote={vi.fn()}
       onResetLayout={vi.fn()}
     />,
@@ -123,5 +128,29 @@ describe("ProjectGraphHud bottom dock (issue 144)", () => {
       expect(at).toBeGreaterThan(leftAt);
       expect(at).toBeLessThan(rightAt);
     }
+  });
+});
+
+describe("ProjectGraphHud mode switcher (issue #67)", () => {
+  it("fills the top-left mode slot with named, keyboard-reachable topology/matrix buttons", () => {
+    const html = markup();
+    const slot = openingTag(html, "graph-hud-mode-slot");
+    expect(slot).toContain('role="group"');
+    expect(slot).not.toContain("hidden");
+    const slotAt = html.indexOf('data-testid="graph-hud-mode-slot"');
+    for (const id of ["graph-hud-mode-topology", "graph-hud-mode-matrix"]) {
+      const at = html.indexOf('data-testid="' + id + '"');
+      expect(at).toBeGreaterThan(slotAt);
+      expect(openingTag(html, id)).toMatch(/aria-label="[^"]+"/);
+    }
+    // Topology is the drawn mode by default: its button is the pressed one.
+    expect(openingTag(html, "graph-hud-mode-topology")).toContain('aria-pressed="true"');
+    expect(openingTag(html, "graph-hud-mode-matrix")).toContain('aria-pressed="false"');
+  });
+
+  it("moves the pressed state with the shared view-state mode", () => {
+    const html = markup({ mode: "matrix" });
+    expect(openingTag(html, "graph-hud-mode-topology")).toContain('aria-pressed="false"');
+    expect(openingTag(html, "graph-hud-mode-matrix")).toContain('aria-pressed="true"');
   });
 });

@@ -68,14 +68,24 @@ export function useProjectGraphClusters(
   const drillUp = useCallback(() => setDrill(null), [setDrill]);
 
   // A reload or a re-analysis can leave ids no current cluster carries: drop them silently so
-  // the URL never accumulates ghosts (the decoder cannot check derived ids itself).
+  // the URL never accumulates ghosts (the decoder cannot check derived ids itself). Matrix mode
+  // builds a cluster-free view (issue #67: clusters are a topology concern), so the prune must
+  // skip it — the carried collapse/drill ids survive the visit and apply again in topology.
   useEffect(() => {
-    if (view === null) return;
+    if (view === null || state.mode === "matrix") return;
     const ids = new Set(clusters.map((cluster) => cluster.id));
     if (state.drill !== null && !ids.has(state.drill)) setDrill(null);
     const kept = state.collapsedClusters.filter((id) => ids.has(id));
     if (kept.length !== state.collapsedClusters.length) setCollapsedClusters(kept);
-  }, [view, clusters, state.drill, state.collapsedClusters, setDrill, setCollapsedClusters]);
+  }, [
+    view,
+    clusters,
+    state.mode,
+    state.drill,
+    state.collapsedClusters,
+    setDrill,
+    setCollapsedClusters,
+  ]);
 
   return {
     enabled,

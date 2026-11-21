@@ -1,15 +1,15 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
 // Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), the
-// runtime lens (issue #72), pinned details. Analysis: useProjectGraphAnalysis; URL view:
-// useProjectGraphViewState; closure: useProjectGraphUserFocus; keys: useProjectGraphEscape.
+// runtime lens (issue #72), pinned details, and the topology/matrix mode switch (issue #67).
+// Analysis: useProjectGraphAnalysis; URL view: useProjectGraphViewState; closure:
+// useProjectGraphUserFocus; keys: useProjectGraphEscape.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView } from "@/facilis/graph-model";
 import { clusterInputFor } from "@/facilis/graph-clusters";
-import { clearGraphFocus } from "@/facilis/graph-focus";
 import {
   INITIAL_PINNED_DETAILS,
   SHEET_BREAKPOINT,
@@ -18,18 +18,14 @@ import {
   pinnedDetailsReducer,
 } from "@/facilis/graph-satellite";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
-import {
-  EMPTY_STATS_FILTER,
-  effectiveHiddenEdgeKinds,
-  toggleEdgesFilter,
-  toggleKindFilter,
-} from "@/facilis/graph-stats-filter";
+import { EMPTY_STATS_FILTER, effectiveHiddenEdgeKinds } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { cycleEdgeConcentration } from "@/facilis/graph-view-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
-import { ProjectGraphHud } from "./ProjectGraphHud";
+import { ProjectGraphHudSlot } from "./ProjectGraphHudSlot";
+import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
 import { RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
@@ -73,7 +69,6 @@ export function ProjectGraphPanel() {
   const graph = viewState.graph;
   const { query, selection: selectedNodeId, isolatedNode } = viewState.state;
   const { openNode, openFileAt } = useProjectGraphOpen(c, root);
-  const setQuery = viewState.setQuery;
   const setSelectedNodeId = viewState.setSelection;
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
@@ -95,6 +90,10 @@ export function ProjectGraphPanel() {
   // The cluster layout MODE (issue #62, F.4): auto follows the analysis node count (on above
   // 40), the user's explicit choice wins; collapse/drill ride the URL, never .facilis/graph/.
   const nodeCount = analysis?.graph.nodes.length ?? 0;
+  // Matrix mode (issue #67) pivots routes × tables: clusters are a topology concern, so the
+  // matrix view skips them and every route/table stays an addressable row/column. The carried
+  // collapse/drill ids survive the visit (useProjectGraphClusters skips its prune in matrix).
+  const matrixMode = viewState.state.mode === "matrix";
   const view = useMemo(
     () =>
       analysis === null
@@ -107,9 +106,9 @@ export function ProjectGraphPanel() {
             collapsed: layout.collapsed,
             query,
             kinds: filter.kinds,
-            clusters: clusterInputFor(viewState.state, nodeCount),
+            clusters: matrixMode ? undefined : clusterInputFor(viewState.state, nodeCount),
           }),
-    [analysis, layout, query, filter, viewState.state, nodeCount],
+    [analysis, layout, query, filter, viewState.state, nodeCount, matrixMode],
   );
   const clusters = useProjectGraphClusters(viewState, view, nodeCount);
   // Focus-and-context (issue #66): derived dimming closure; isolate persists it in the URL (F.5).
@@ -132,6 +131,7 @@ export function ProjectGraphPanel() {
     onCycleConcentration: () =>
       viewState.setEdgeConcentration(cycleEdgeConcentration(viewState.state.edgeConcentration)),
     onToggleBridges: () => viewState.setBridges(!viewState.state.bridges),
+    onToggleMode: () => viewState.setMode(matrixMode ? "topology" : "matrix"),
   });
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
@@ -182,46 +182,58 @@ export function ProjectGraphPanel() {
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
     ) : view !== null ? (
-      <ProjectGraphCanvas
-        view={view}
-        concentration={viewState.state.edgeConcentration}
-        fitPadding={fitPadding}
-        onInstance={setFlow}
-        viewport={layout.viewport ?? null}
-        fitNonce={fitNonce}
-        edgeCurves={layout.edgeCurves}
-        bridges={viewState.state.bridges}
-        focus={focus}
-        userFocus={userFocus}
-        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-        drill={clusters.drill}
-        notes={graph.notes}
-        addNoteNonce={graph.addNoteNonce}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={setSelectedNodeId}
-        onMoveNode={graph.moveNode}
-        onToggleCollapse={graph.toggleCollapsed}
-        onToggleClusterCollapse={clusters.toggleCollapse}
-        onDrillCluster={clusters.drillInto}
-        onOpenNode={openNode}
-        onViewportChange={graph.changeViewport}
-        onEdgeCurveChange={graph.changeEdgeCurve}
-        onCreateNote={graph.createNote}
-        onMoveNote={graph.moveNote}
-        onEditNote={graph.editNote}
-        onDeleteNote={graph.deleteNote}
-        details={details}
-        sources={sources}
-        nodeLabel={nodeLabel}
-        sheetMode={sheetMode}
-        sheetHeight={clampSheetHeight(sheetHeight, containerSize.height)}
-        containerWidth={containerSize.width}
-        pinned={pinned}
-        dispatchPinned={dispatchPinned}
-        pinRequest={pinRequest}
-        onOpenFileAt={openFileAt}
-        onOpenPreview={(path) => openPageInPreview(c, path)}
-      />
+      matrixMode ? (
+        <ProjectGraphMatrixSurface
+          view={view}
+          sort={viewState.state.matrixSort}
+          onSortChange={viewState.setMatrixSort}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onExitMatrix={() => viewState.setMode("topology")}
+          userFocus={userFocus}
+        />
+      ) : (
+        <ProjectGraphCanvas
+          view={view}
+          concentration={viewState.state.edgeConcentration}
+          fitPadding={fitPadding}
+          onInstance={setFlow}
+          viewport={layout.viewport ?? null}
+          fitNonce={fitNonce}
+          edgeCurves={layout.edgeCurves}
+          bridges={viewState.state.bridges}
+          focus={focus}
+          userFocus={userFocus}
+          isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          drill={clusters.drill}
+          notes={graph.notes}
+          addNoteNonce={graph.addNoteNonce}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onMoveNode={graph.moveNode}
+          onToggleCollapse={graph.toggleCollapsed}
+          onToggleClusterCollapse={clusters.toggleCollapse}
+          onDrillCluster={clusters.drillInto}
+          onOpenNode={openNode}
+          onViewportChange={graph.changeViewport}
+          onEdgeCurveChange={graph.changeEdgeCurve}
+          onCreateNote={graph.createNote}
+          onMoveNote={graph.moveNote}
+          onEditNote={graph.editNote}
+          onDeleteNote={graph.deleteNote}
+          details={details}
+          sources={sources}
+          nodeLabel={nodeLabel}
+          sheetMode={sheetMode}
+          sheetHeight={clampSheetHeight(sheetHeight, containerSize.height)}
+          containerWidth={containerSize.width}
+          pinned={pinned}
+          dispatchPinned={dispatchPinned}
+          pinRequest={pinRequest}
+          onOpenFileAt={openFileAt}
+          onOpenPreview={(path) => openPageInPreview(c, path)}
+        />
+      )
     ) : null;
 
   return (
@@ -229,44 +241,30 @@ export function ProjectGraphPanel() {
       <ProjectGraphShell
         containerRef={containerRef}
         hud={
-          zen ? null : (
-            <ProjectGraphHud
-              stats={stats}
-              query={query}
-              onQueryChange={setQuery}
-              saveState={graph.saveState}
-              saveError={graph.saveError}
-              onSave={graph.saveNow}
-              onRefresh={refresh}
-              refreshing={loading}
-              zen={zen}
-              onToggleZen={() => dispatchZen({ type: "toggle" })}
-              focusActive={focus !== null}
-              onClearFocus={clearGraphFocus}
-              errors={errors}
-              warnings={warnings}
-              onFit={fit}
-              onZoomIn={() => flow?.zoomIn()}
-              onZoomOut={() => flow?.zoomOut()}
-              filter={filter}
-              onToggleKind={(kind) => setFilter((current) => toggleKindFilter(current, kind))}
-              onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
-              lensChips={hudSlots.lensChips}
-              focusBar={hudSlots.focusBar}
-              runtimeControls={hudSlots.runtimeControls}
-              clusterControls={hudSlots.clusterControls}
-              tableVisibility={layout.tableVisibility}
-              onTableVisibilityChange={graph.changeTableVisibility}
-              // With no canvas on screen the HUD must still place the first note at a fixed origin.
-              onAddNote={
-                state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
-              }
-              onResetLayout={resetLayout}
-            />
-          )
+          <ProjectGraphHudSlot
+            zen={zen}
+            onToggleZen={() => dispatchZen({ type: "toggle" })}
+            viewState={viewState}
+            graph={graph}
+            slots={hudSlots}
+            stats={stats}
+            filter={filter}
+            onFilterChange={setFilter}
+            errors={errors}
+            warnings={warnings}
+            onRefresh={refresh}
+            refreshing={loading}
+            focusActive={focus !== null}
+            onFit={fit}
+            flow={flow}
+            onResetLayout={resetLayout}
+            canvasActive={state === null}
+          />
         }
         sheet={
-          sheetMode && selectedNode !== null ? (
+          // F.7 (issue #67): in matrix mode the sheet is the details overlay at ALL widths —
+          // there is no canvas, so there is no satellite; the selection contract is unchanged.
+          (sheetMode || matrixMode) && selectedNode !== null ? (
             <ProjectGraphDetailsSheet
               node={selectedNode}
               edges={selectedEdges}
@@ -275,6 +273,7 @@ export function ProjectGraphPanel() {
               nodeLabel={nodeLabel}
               height={clampSheetHeight(sheetHeight, containerSize.height)}
               pinned={pinned.some((card) => card.nodeId === selectedNode.id)}
+              canPin={!matrixMode}
               onHeightChange={setSheetHeight}
               onClose={closeDetails}
               onTogglePin={() =>

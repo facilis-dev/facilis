@@ -29,6 +29,8 @@ export interface ProjectGraphInspectorProps {
   pinned: boolean;
   /** True in the bottom sheet, where the body fills the width instead of the 320px card. */
   fill?: boolean;
+  /** False in matrix mode (issue #67, F.7): pinning places a CANVAS card, and there is no canvas. */
+  canPin?: boolean;
   onClose: () => void;
   onTogglePin: () => void;
   onOpenFileAt: (file: string, line: number) => void;
@@ -44,6 +46,7 @@ export function ProjectGraphInspector({
   nodeLabel,
   pinned,
   fill = false,
+  canPin = true,
   onClose,
   onTogglePin,
   onOpenFileAt,
@@ -76,16 +79,18 @@ export function ProjectGraphInspector({
         >
           <X />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t(pinned ? "projectGraph.unpinDetails" : "projectGraph.pinDetails")}
-          title={t(pinned ? "projectGraph.unpinDetails" : "projectGraph.pinDetails")}
-          aria-pressed={pinned}
-          onClick={onTogglePin}
-        >
-          {pinned ? <PinOff /> : <Pin />}
-        </Button>
+        {canPin && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t(pinned ? "projectGraph.unpinDetails" : "projectGraph.pinDetails")}
+            title={t(pinned ? "projectGraph.unpinDetails" : "projectGraph.pinDetails")}
+            aria-pressed={pinned}
+            onClick={onTogglePin}
+          >
+            {pinned ? <PinOff /> : <Pin />}
+          </Button>
+        )}
       </div>
       {/* nowheel: the wheel scrolls the details, not the canvas zoom; nodrag keeps a pinned
           card's drag on its header; select-text so ids and snippets can be copied. */}

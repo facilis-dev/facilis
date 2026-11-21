@@ -50,6 +50,7 @@ describe("graph view state round-trips", () => {
       collapsed: ["table:予定表", "view:active_todos"],
       viewport: { x: 120.25, y: -40.5, zoom: 0.875 },
       query: "検索 todos 🎉 café",
+      matrixSort: "degree",
     });
     expect(decodeGraphViewState(encodeGraphViewState(full))).toEqual(full);
   });
@@ -124,6 +125,15 @@ describe("graph view state round-trips", () => {
       const next = state({ activeLenses: [lens] });
       expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
     }
+  });
+
+  it("encodes the matrix sort under ms and omits the default (issue #67)", () => {
+    expect(encodeGraphViewState(state({ matrixSort: "degree" }))).toBe('{"ms":"degree"}');
+    expect(encodeGraphViewState(state({ matrixSort: "path" }))).toBe("");
+    expect(decodeGraphViewState('{"ms":"bogus"}').matrixSort).toBe("path");
+    expect(decodeGraphViewState('{"ms":7}').matrixSort).toBe("path");
+    const next = state({ mode: "matrix", matrixSort: "degree" });
+    expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
   });
 
   it("keeps lens order (the first lens is the dominant one) and deduplicates ids", () => {

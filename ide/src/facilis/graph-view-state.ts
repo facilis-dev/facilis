@@ -18,6 +18,7 @@ import {
   roundCoordinate,
   type GraphViewport,
 } from "./graph-layout-file";
+import { GRAPH_MATRIX_SORTS, type GraphMatrixSort } from "./graph-matrix";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
 import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "./graph-runtime";
 
@@ -25,7 +26,7 @@ import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "
 // surface names it too (issue #65: toggle + threshold are the lens's addressable contract).
 export { BRIDGE_LENGTH_THRESHOLD } from "./graph-edge-bridges";
 
-/** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
+/** How the graph is drawn. Matrix landed in #67; timeline is a later child (#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
 
 /**
@@ -95,6 +96,8 @@ export interface GraphViewState {
   readonly edgeConcentration: GraphEdgeConcentration;
   /** The bridges lens (issue #65): long edges arc above/below the layers. On by default. */
   readonly bridges: boolean;
+  /** Matrix row order (issue #67); only meaningful in matrix mode, carried like the mode. */
+  readonly matrixSort: GraphMatrixSort;
 }
 
 /** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
@@ -116,6 +119,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   query: "",
   edgeConcentration: DEFAULT_EDGE_CONCENTRATION,
   bridges: true,
+  matrixSort: "path",
 };
 
 const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
@@ -178,6 +182,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
     out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
   }
   if (state.query !== "") out.q = state.query;
+  if (state.matrixSort !== "path") out.ms = state.matrixSort;
   if (state.edgeConcentration !== DEFAULT_EDGE_CONCENTRATION) out.e = state.edgeConcentration;
   // Only the off state is encoded: bridges on is the default, so it stays out of the URL.
   if (!state.bridges) out.b = false;
@@ -286,6 +291,7 @@ export function decodeGraphViewState(
     drill: readSelection(parsed.d),
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
+    matrixSort: GRAPH_MATRIX_SORTS.find((sort) => sort === parsed.ms) ?? "path",
     edgeConcentration: readConcentration(parsed.e),
     // Only a strict false disables the lens; hostile values degrade to the default (on).
     bridges: parsed.b !== false,

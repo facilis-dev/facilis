@@ -2,72 +2,34 @@
 // fields, URL-synced through gv. A deep-link restore never writes .facilis (restoreView carries
 // layout fields; URL writes wait so defaults cannot clobber a shared link). Cluster fields (#62)
 // are view state only; the AI focus (D-171) stays a separate, independently cleared overlay.
+// The field setters live in use-graph-view-setters.ts (300-line split); the matrix sort (#67)
+// is one more panel-local field, carried by the same restore/URL lifecycle.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import type { RuntimeWindow } from "@/facilis/graph-runtime";
 import type { IdeController } from "@/vv/controller";
 import {
-  DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
   encodeGraphViewState,
-  type GraphEdgeConcentration,
   type GraphGroupBy,
-  type GraphLensId,
-  type GraphViewMode,
   type GraphViewState,
 } from "@/facilis/graph-view-state";
 import { graphViewRootAction, readGraphViewParam } from "@/facilis/graph-view-state-url";
 import { useGraphClusterViewState } from "./use-graph-cluster-view-state";
+import {
+  DEFAULT_GRAPH_VIEW_LOCAL,
+  useGraphViewSetters,
+  type GraphViewLocalState,
+  type GraphViewSetters,
+} from "./use-graph-view-setters";
 import { useGraphViewUrlSync } from "./use-graph-view-url-sync";
 import { useProjectGraphLayout, type ProjectGraphLayout } from "./useProjectGraphLayout";
 
-/** The fields the panel owns; filters/collapsed/viewport are read from the layout object. */
-interface GraphViewLocalState {
-  readonly mode: GraphViewMode;
-  readonly activeLenses: readonly GraphLensId[];
-  readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
-  readonly runtimeWindow: RuntimeWindow;
-  readonly runtimeLive: boolean;
-  readonly isolatedNode: string | null;
-  readonly selection: string | null;
-  readonly focus: readonly string[];
-  readonly query: string;
-  readonly edgeConcentration: GraphEdgeConcentration;
-  readonly bridges: boolean;
-}
-
-const DEFAULT_LOCAL: GraphViewLocalState = {
-  mode: DEFAULT_GRAPH_VIEW_STATE.mode,
-  activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
-  isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
-  runtimeWindow: DEFAULT_GRAPH_VIEW_STATE.runtimeWindow,
-  runtimeLive: DEFAULT_GRAPH_VIEW_STATE.runtimeLive,
-  isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
-  selection: DEFAULT_GRAPH_VIEW_STATE.selection,
-  focus: DEFAULT_GRAPH_VIEW_STATE.focus,
-  query: DEFAULT_GRAPH_VIEW_STATE.query,
-  edgeConcentration: DEFAULT_GRAPH_VIEW_STATE.edgeConcentration,
-  bridges: DEFAULT_GRAPH_VIEW_STATE.bridges,
-};
-
-export interface ProjectGraphViewState {
+export interface ProjectGraphViewState extends GraphViewSetters {
   /** The composed layout hook: positions, notes and the persisting setters stay as they were. */
   readonly graph: ProjectGraphLayout;
   readonly state: GraphViewState;
   /** False only while a deep link waits for the layout and analysis to restore onto. */
   readonly ready: boolean;
-  readonly setMode: (mode: GraphViewMode) => void;
-  readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
-  readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
-  readonly setRuntimeWindow: (window: RuntimeWindow) => void;
-  readonly setRuntimeLive: (live: boolean) => void;
-  readonly setIsolatedNode: (id: string | null) => void;
-  readonly setSelection: (id: string | null) => void;
-  readonly setUserFocus: (ids: readonly string[]) => void;
-  readonly setQuery: (query: string) => void;
-  readonly setEdgeConcentration: (value: GraphEdgeConcentration) => void;
-  readonly setBridges: (bridges: boolean) => void;
   readonly setGroupBy: (groupBy: GraphGroupBy) => void;
   readonly setCollapsedClusters: (ids: readonly string[]) => void;
   readonly setDrill: (id: string | null) => void;
@@ -80,7 +42,7 @@ export function useProjectGraphViewState(
 ): ProjectGraphViewState {
   const graph = useProjectGraphLayout(controller, root);
   const { layout, layoutLoaded, restoreView } = graph;
-  const [local, setLocal] = useState<GraphViewLocalState>(DEFAULT_LOCAL);
+  const [local, setLocal] = useState<GraphViewLocalState>(DEFAULT_GRAPH_VIEW_LOCAL);
   const [ready, setReady] = useState(false);
   // Which root the current URL state belongs to; null until a project adopts the parameter.
   const urlRoot = useRef<string | null>(null);
@@ -95,83 +57,7 @@ export function useProjectGraphViewState(
   }, []);
   const clusterView = useGraphClusterViewState(cancelRestore);
 
-  const setMode = useCallback(
-    (mode: GraphViewMode) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, mode }));
-    },
-    [cancelRestore],
-  );
-  const setActiveLenses = useCallback(
-    (lenses: readonly GraphLensId[]) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, activeLenses: lenses }));
-    },
-    [cancelRestore],
-  );
-  const setIsolatedEdgeKinds = useCallback(
-    (kinds: readonly GraphEdgeKind[]) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, isolatedEdgeKinds: kinds }));
-    },
-    [cancelRestore],
-  );
-  const setRuntimeWindow = useCallback(
-    (window: RuntimeWindow) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, runtimeWindow: window }));
-    },
-    [cancelRestore],
-  );
-  const setRuntimeLive = useCallback(
-    (live: boolean) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, runtimeLive: live }));
-    },
-    [cancelRestore],
-  );
-  const setIsolatedNode = useCallback(
-    (id: string | null) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, isolatedNode: id }));
-    },
-    [cancelRestore],
-  );
-  const setSelection = useCallback(
-    (id: string | null) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, selection: id }));
-    },
-    [cancelRestore],
-  );
-  const setUserFocus = useCallback(
-    (ids: readonly string[]) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, focus: ids }));
-    },
-    [cancelRestore],
-  );
-  const setQuery = useCallback(
-    (query: string) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, query }));
-    },
-    [cancelRestore],
-  );
-  const setEdgeConcentration = useCallback(
-    (edgeConcentration: GraphEdgeConcentration) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, edgeConcentration }));
-    },
-    [cancelRestore],
-  );
-  const setBridges = useCallback(
-    (bridges: boolean) => {
-      cancelRestore();
-      setLocal((current) => ({ ...current, bridges }));
-    },
-    [cancelRestore],
-  );
+  const setters = useGraphViewSetters(cancelRestore, setLocal);
 
   const collapsedIds = useMemo(
     () =>
@@ -195,6 +81,7 @@ export function useProjectGraphViewState(
       ...clusterView.local,
       viewport: layout.viewport ?? null,
       query: local.query,
+      matrixSort: local.matrixSort,
       edgeConcentration: local.edgeConcentration,
       bridges: local.bridges,
     }),
@@ -223,7 +110,7 @@ export function useProjectGraphViewState(
     urlRoot.current = root;
     if (action === "reset") {
       pendingRestore.current = null;
-      setLocal(DEFAULT_LOCAL);
+      setLocal(DEFAULT_GRAPH_VIEW_LOCAL);
       clusterView.reset();
       resetUrl();
       setReady(true);
@@ -262,6 +149,7 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      matrixSort: pending.matrixSort,
       edgeConcentration: pending.edgeConcentration,
       bridges: pending.bridges,
     });
@@ -281,17 +169,7 @@ export function useProjectGraphViewState(
     graph,
     state,
     ready,
-    setMode,
-    setActiveLenses,
-    setIsolatedEdgeKinds,
-    setRuntimeWindow,
-    setRuntimeLive,
-    setIsolatedNode,
-    setSelection,
-    setUserFocus,
-    setQuery,
-    setEdgeConcentration,
-    setBridges,
+    ...setters,
     setGroupBy: clusterView.setGroupBy,
     setCollapsedClusters: clusterView.setCollapsedClusters,
     setDrill: clusterView.setDrill,

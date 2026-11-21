@@ -1,5 +1,7 @@
 // The bottom sheet (issue #59): below SHEET_BREAKPOINT the details render here instead of the
 // in-canvas satellite — still an overlay, never a layout sibling, so the canvas keeps its rect.
+// In matrix mode (issue #67, F.7) it is the details overlay at ALL widths: there is no canvas,
+// so there is no satellite to place.
 // The drag handle resizes the sheet within the canvas (session state); the body is the same
 // inspector the satellite uses. Esc closes and returns focus to the selected card.
 
@@ -20,6 +22,8 @@ export interface ProjectGraphDetailsSheetProps {
   nodeLabel: (id: string) => string | null;
   height: number;
   pinned: boolean;
+  /** False in matrix mode (issue #67, F.7): the sheet is the only details surface, no canvas. */
+  canPin?: boolean;
   onHeightChange: (height: number) => void;
   onClose: () => void;
   onTogglePin: () => void;
@@ -36,6 +40,7 @@ export function ProjectGraphDetailsSheet({
   nodeLabel,
   height,
   pinned,
+  canPin = true,
   onHeightChange,
   onClose,
   onTogglePin,
@@ -99,6 +104,7 @@ export function ProjectGraphDetailsSheet({
           sources={sources}
           nodeLabel={nodeLabel}
           pinned={pinned}
+          canPin={canPin}
           fill
           onClose={onClose}
           onTogglePin={onTogglePin}

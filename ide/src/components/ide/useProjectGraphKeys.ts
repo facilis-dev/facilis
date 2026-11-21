@@ -1,7 +1,8 @@
 // The graph canvas's keyboard surface (issue #66, epic #56 rule 6): Esc clears one layer at a
 // time (the panel resolves the order through graphEscapeAction), Enter isolates the selection,
 // G toggles feature grouping, C collapses the active cluster (issue #62), E cycles the
-// edge-concentration threshold (issue #64) and B toggles the bridges lens (issue #65). Typing targets
+// edge-concentration threshold (issue #64), B toggles the bridges lens (issue #65) and M
+// toggles topology ↔ matrix (issue #67). Typing targets
 // keep their keys — the note editor cancels its own edit with Esc — and native controls keep
 // Enter for their own activation, so the canvas shortcut never steals a button's click. The
 // handlers travel through a ref so the document listener is attached exactly once.
@@ -19,6 +20,8 @@ export interface ProjectGraphKeys {
   readonly onCycleConcentration?: () => void;
   /** B: toggle the bridges lens for long edges (issue #65). */
   readonly onToggleBridges?: () => void;
+  /** M: toggle topology ↔ matrix (issue #67); typing targets keep the letter for their input. */
+  readonly onToggleMode?: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -46,6 +49,7 @@ export function useProjectGraphKeys({
   onCollapseCluster,
   onCycleConcentration,
   onToggleBridges,
+  onToggleMode,
 }: ProjectGraphKeys): void {
   const handlers = useRef({
     onEscape,
@@ -54,6 +58,7 @@ export function useProjectGraphKeys({
     onCollapseCluster,
     onCycleConcentration,
     onToggleBridges,
+    onToggleMode,
   });
   useEffect(() => {
     handlers.current = {
@@ -63,6 +68,7 @@ export function useProjectGraphKeys({
       onCollapseCluster,
       onCycleConcentration,
       onToggleBridges,
+      onToggleMode,
     };
   }, [
     onEscape,
@@ -71,6 +77,7 @@ export function useProjectGraphKeys({
     onCollapseCluster,
     onCycleConcentration,
     onToggleBridges,
+    onToggleMode,
   ]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -93,6 +100,8 @@ export function useProjectGraphKeys({
         handlers.current.onCycleConcentration?.();
       } else if (event.key === "b" || event.key === "B") {
         handlers.current.onToggleBridges?.();
+      } else if (event.key === "m" || event.key === "M") {
+        handlers.current.onToggleMode?.();
       }
     };
     document.addEventListener("keydown", onKey);
