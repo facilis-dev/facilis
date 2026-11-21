@@ -18,7 +18,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, openPage } from "./cdp.mjs";
+import { launchChrome, openPage, withTimeout } from "./cdp.mjs";
 import { pruneSmokeArtifacts } from "./run-artifacts.mjs";
 import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
@@ -36,6 +36,10 @@ const argValue = (name, fallback) => {
 const URL_ = argValue("url", process.env.STUDIO_URL || "");
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 300000);
+// Per-poll deadline for the mark/condition waits: a renderer whose main thread is
+// blocked natively never answers evaluate, so one poll must fail the run with
+// diagnostics instead of hanging inside the (much longer) overall wait budget.
+const POLL_TIMEOUT_MS = Number(process.env.SMOKE_POLL_TIMEOUT_MS || 60000);
 const PORT = Number(process.env.SMOKE_PORT || 5199);
 const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-artifacts");
 const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
@@ -48,6 +52,10 @@ const SYSROOT = process.env.FACILIS_BROWSER_SYSROOT || path.join(TOOLING, "brows
 const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser/fonts.conf");
 
 const failures = [];
+// Cleanup handles for the abort path: a thrown wedge diagnostic must not leak this
+// run's browser and dev server into the next one.
+let activeChrome = null;
+let activeDevChild = null;
 let facilisReport = null;
 let intellisenseReport = null;
 let writeReport = null;
@@ -146,6 +154,7 @@ async function main() {
   }
 
   const dev = await startDevServer();
+  activeDevChild = dev.child;
   console.log("studio url: " + dev.url);
   const response = await fetch(dev.url);
   check(
@@ -166,13 +175,59 @@ async function main() {
     sysroot: fs.existsSync(SYSROOT) ? SYSROOT : "",
     fontconfigFile: fs.existsSync(FONTCONFIG) ? FONTCONFIG : "",
   });
+  activeChrome = chrome;
   const page = await openPage(chrome.client, dev.url);
 
   const marks = async () => (await page.evaluate("window.__vvBoot || []")).map((mark) => mark.name);
+  // Last successful reads, kept for the wedge diagnostics: once the renderer stops
+  // answering, neither the marks nor the URL can be queried any more.
+  let lastMarks = [];
+  let lastUrl = dev.url;
+  const reportWedge = async (what, cause) => {
+    const lines = [
+      "SMOKE WEDGE while waiting for " + what,
+      "cause: " + (cause && cause.message ? cause.message : String(cause)),
+      "url: " + lastUrl,
+      "last marks: " + (lastMarks.length > 0 ? lastMarks.join(", ") : "(none)"),
+    ];
+    try {
+      const shot = path.join(ARTIFACTS, "wedge.png");
+      await page.screenshot(shot, 10000);
+      lines.push("wedge screenshot: " + shot);
+    } catch (error) {
+      lines.push(
+        "wedge screenshot failed: " + (error && error.message ? error.message : String(error)),
+      );
+    }
+    const tail = page.consoleEntries.slice(-8).map((entry) => entry.type + ": " + entry.text);
+    if (tail.length > 0) lines.push("console tail:\n" + tail.join("\n"));
+    const text = lines.join("\n");
+    fs.writeFileSync(path.join(ARTIFACTS, "wedge-diagnostics.txt"), text + "\n");
+    console.error("\n" + text);
+    throw new Error("smoke wedged waiting for " + what + " — diagnostics in " + ARTIFACTS);
+  };
+  const pollEvaluate = async (expression, what) => {
+    try {
+      return await withTimeout(
+        page.evaluate(expression),
+        POLL_TIMEOUT_MS,
+        "evaluate (" + what + ")",
+      );
+    } catch (error) {
+      if (error && error.timedOut) await reportWedge(what, error);
+      throw error;
+    }
+  };
   const waitForMark = async (name, limitMs) => {
     const until = Date.now() + limitMs;
     while (Date.now() < until) {
-      if ((await marks()).includes(name)) return true;
+      const state = await pollEvaluate(
+        "({ marks: (window.__vvBoot || []).map((m) => m.name), url: location.href })",
+        "mark " + name,
+      );
+      lastMarks = state.marks;
+      lastUrl = state.url;
+      if (state.marks.includes(name)) return true;
       await sleep(250);
     }
     return false;
@@ -192,7 +247,7 @@ async function main() {
   const waitFor = async (expression, limitMs) => {
     const until = Date.now() + limitMs;
     while (Date.now() < until) {
-      if (await page.evaluate(expression)) return true;
+      if (await pollEvaluate(expression, "condition " + expression.slice(0, 120))) return true;
       await sleep(250);
     }
     return false;
@@ -572,4 +627,16 @@ async function main() {
   console.log("\nSMOKE PASSED — artifacts in " + ARTIFACTS);
 }
 
-await main();
+await main().catch((error) => {
+  console.error("\nSMOKE ABORTED: " + (error && error.stack ? error.stack : String(error)));
+  if (activeChrome) {
+    try {
+      activeChrome.client.close();
+    } catch {
+      /* socket already gone */
+    }
+    activeChrome.child.kill("SIGKILL");
+  }
+  stopDevServer(activeDevChild);
+  process.exit(1);
+});
