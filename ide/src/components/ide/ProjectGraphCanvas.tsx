@@ -1,16 +1,14 @@
-// The project-graph canvas: React Flow over the pure view model. Cards, cluster frames, notes
-// and edges live in ProjectGraphNodes/ClusterNode/Note/Edge.tsx; the details satellite and its
-// session pins (issue #59) in useProjectGraphDetails; the pointer interactions in
-// use-project-graph-interactions; the instance-driven effects in useProjectGraphCanvasEffects
-// and useGraphFitEffects. This file only wires the library: a drag commits to the saved layout
-// only on drag stop, cluster children drag frame-relative and commit absolute (issue #62).
-// fitView padding comes from the measured HUD (issue #57); role tokens only (XYFLOW_THEME_TOKENS).
+// The project-graph canvas: React Flow over the pure view model. Cards, edges, the details
+// satellite (useProjectGraphDetails), the pointer interactions and the instance effects live in
+// their own modules; this file only wires the library. A drag commits the saved layout on stop,
+// cluster children drag frame-relative (issue #62); fitView uses the measured HUD (issue #57).
 
 import "@xyflow/react/dist/style.css";
 import { useMemo, useRef, useState, type Dispatch } from "react";
 import { Background, ReactFlow, type ReactFlowInstance } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
@@ -65,6 +63,7 @@ export function ProjectGraphCanvas({
   contract,
   data,
   turn,
+  impact,
   drill,
   selectedNodeId,
   onSelectNode,
@@ -114,6 +113,8 @@ export function ProjectGraphCanvas({
   data: ProjectFlowDataState;
   /** The agent lens overlay (issue #73); null draws exactly as without it (clean tree/off). */
   turn: TurnOverlay | null;
+  /** The impact simulation overlay (issue #74): colour/badges/dimming only, never positions. */
+  impact: ImpactOverlay | null;
   /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
   drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
@@ -145,14 +146,13 @@ export function ProjectGraphCanvas({
     ProjectFlowNode,
     ProjectCanvasEdge
   > | null>(null);
-  // Edge selection is local: it drives only the curve handle, never the saved layout.
+  // Edge selection is local: it drives the curve handle, never the saved layout.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
   // Hub expansion and hover are session-scoped (issue #64); only the threshold is URL state.
   const hubs = useProjectGraphHubs(view, concentration);
 
-  // The card actions are ref-stabilized in their own hook so a parent re-render cannot rebuild
-  // the cards mid-drag; the hook keeps the why with the mechanism.
+  // Ref-stabilized card actions: a parent re-render cannot rebuild a card mid-drag.
   const { toggleCollapse, createNote, editNote, deleteNote } = useProjectGraphStableActions(
     onToggleCollapse,
     onCreateNote,
@@ -170,6 +170,7 @@ export function ProjectGraphCanvas({
       contract,
       data,
       turn,
+      impact,
       drill,
       hubs,
       selectedNodeId,
@@ -209,8 +210,7 @@ export function ProjectGraphCanvas({
   // The AI focus and drill-down fits compose with the canvas effects on the same instance.
   useGraphFitEffects(instance, nodes, focus, drill, fitPadding);
 
-  // The edge list owns the bridge plan and its hover isolation (issue #65); the satellite
-  // connector stays cubic dashed and never bridges (F.1).
+  // The edge list owns the bridge plan and its hover isolation (#65); the satellite stays cubic.
   const edges = useProjectGraphEdges({
     nodes,
     edges: view.edges,
@@ -223,6 +223,7 @@ export function ProjectGraphCanvas({
     isolatedEdgeKinds,
     data,
     turn,
+    impact,
     drill,
     bridges,
     activeAnchorId,
@@ -257,8 +258,7 @@ export function ProjectGraphCanvas({
     <div
       ref={wrapper}
       data-testid="project-graph-canvas"
-      // Dragging a node or box-selecting must not paint card text as selected; the note editor
-      // and the details body opt back in with select-text.
+      // A drag or box-select must not paint card text as selected; note/details opt back in.
       style={{ userSelect: "none" }}
       className={"h-full min-h-0 " + XYFLOW_THEME_TOKENS}
     >

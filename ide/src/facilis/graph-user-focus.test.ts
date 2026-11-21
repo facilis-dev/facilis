@@ -98,6 +98,7 @@ function closureOf(id: string): GraphReachability {
 describe("graphEscapeAction", () => {
   const ctx = {
     zen: false,
+    impactActive: false,
     isolatedNode: null,
     selection: null,
     drill: null,
@@ -109,7 +110,14 @@ describe("graphEscapeAction", () => {
   });
 
   it("clears one layer at a time: isolate, then selection, then AI focus", () => {
-    const all = { zen: false, isolatedNode: "a", selection: "a", drill: null, aiFocusActive: true };
+    const all = {
+      zen: false,
+      impactActive: false,
+      isolatedNode: "a",
+      selection: "a",
+      drill: null,
+      aiFocusActive: true,
+    };
     expect(graphEscapeAction(all)).toBe("exit-isolate");
     expect(graphEscapeAction({ ...all, isolatedNode: null })).toBe("clear-selection");
     expect(graphEscapeAction({ ...all, isolatedNode: null, selection: null })).toBe(
@@ -124,12 +132,49 @@ describe("graphEscapeAction", () => {
     expect(
       graphEscapeAction({
         zen: true,
+        impactActive: true,
         isolatedNode: "a",
         selection: "a",
         drill: null,
         aiFocusActive: true,
       }),
     ).toBe("exit-zen");
+  });
+
+  it("exits the impact simulation before isolation, selection and AI focus (issue #74)", () => {
+    const all = {
+      zen: false,
+      impactActive: true,
+      isolatedNode: "a",
+      selection: "a",
+      drill: null,
+      aiFocusActive: true,
+    };
+    expect(graphEscapeAction(all)).toBe("exit-impact");
+    expect(graphEscapeAction({ ...all, impactActive: false })).toBe("exit-isolate");
+    expect(graphEscapeAction({ ...all, impactActive: false, isolatedNode: null })).toBe(
+      "clear-selection",
+    );
+    expect(
+      graphEscapeAction({
+        ...all,
+        impactActive: false,
+        isolatedNode: null,
+        selection: null,
+      }),
+    ).toBe("clear-ai-focus");
+  });
+
+  it("exiting impact keeps the selection and isolation: only the lens goes (criterion 5)", () => {
+    const action = graphEscapeAction({ ...ctx, impactActive: true, selection: "a" });
+    expect(action).toBe("exit-impact");
+    // The panel removes only the impact lens and its column; the next Esc still sees them all.
+    expect(graphEscapeAction({ ...ctx, impactActive: false, selection: "a" })).toBe(
+      "clear-selection",
+    );
+    expect(
+      graphEscapeAction({ ...ctx, impactActive: true, isolatedNode: "a", selection: "a" }),
+    ).toBe("exit-impact");
   });
 
   it("the drill owns Esc after the selection and before the AI focus (issue #62)", () => {

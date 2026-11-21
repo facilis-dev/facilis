@@ -6,7 +6,7 @@
 // #63) dock beside the counters through the slot this module owns; the hidden-edges badge keeps
 // the hidden count available when a chip alt-click hides a kind.
 
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 import Eye from "~icons/lucide/eye";
 import File from "~icons/lucide/file";
 import GitBranch from "~icons/lucide/git-branch";
@@ -18,6 +18,8 @@ import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { isKindActive, type GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { Button } from "@/components/ui/button";
+import { ImpactLensContext } from "./ProjectGraphImpactContext";
+import { ProjectGraphImpactBar } from "./ProjectGraphImpactBar";
 
 const KIND_ICONS: Record<GraphNodeKind, typeof File> = {
   page: File,
@@ -71,6 +73,10 @@ export function ProjectGraphStatsRibbon({
   /** The agent lens's turn-diff segment (issue #73), or null when the lens is inactive. */
   turnRibbon: ReactNode;
 }) {
+  // The impact lens (issue #74) docks its aria-live line in this #150 row; the context gives it
+  // the hook's HUD state without adding one prop to the HUD stack, and it renders null while
+  // the lens is inactive so the ribbon is byte-identical.
+  const impact = useContext(ImpactLensContext);
   return (
     <div
       data-testid="graph-hud-bottom-left"
@@ -143,6 +149,8 @@ export function ProjectGraphStatsRibbon({
       {dataRibbon}
       {/* Turn-diff slot (issue #73): counters, base ref and the unmapped disclosure. */}
       {turnRibbon}
+      {/* Impact slot (issue #74): the aria-live cascade counters and the exit affordance. */}
+      {impact !== null && <ProjectGraphImpactBar hud={impact.hud} onExit={impact.exit} />}
     </div>
   );
 }

@@ -13,7 +13,9 @@ import Table2 from "~icons/lucide/table-2";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker } from "@/facilis/graph-model";
 import {
+  ImpactTargetBadge,
   LinkHandles,
+  NeverReadBadge,
   TurnBadge,
   UnknownBadge,
   nodeClass,
@@ -79,6 +81,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
           data.turn,
+          data.impactDimmed,
         ) + " relative w-60"
       }
     >
@@ -90,6 +93,8 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           </span>
           {data.turn != null && <TurnBadge turn={data.turn} />}
           {table.unknown && <UnknownBadge />}
+          {data.impactTarget && <ImpactTargetBadge secondary={data.impactSecondary} />}
+          {data.neverRead && <NeverReadBadge secondary={data.impactSecondary} />}
           <button
             type="button"
             className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
@@ -196,6 +201,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
             edgeCount={data.edgeCount}
             level={level}
             turn={data.turn}
+            neverRead={data.neverRead}
           />
         </GraphLodOverlay>
       )}

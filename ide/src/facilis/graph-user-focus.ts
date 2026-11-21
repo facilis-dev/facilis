@@ -17,6 +17,8 @@ export const USER_FOCUS_OPACITY = 0.12;
 
 export interface GraphEscapeContext {
   readonly zen: boolean;
+  /** The impact lens (issue #74): a simulation overlay, cleared before isolation/selection. */
+  readonly impactActive: boolean;
   readonly isolatedNode: string | null;
   readonly selection: string | null;
   /** The drilled-into cluster (issue #62), or null at the root level. */
@@ -25,15 +27,24 @@ export interface GraphEscapeContext {
 }
 
 export type GraphEscapeAction =
-  "exit-zen" | "exit-isolate" | "clear-selection" | "exit-drill" | "clear-ai-focus" | null;
+  | "exit-zen"
+  | "exit-impact"
+  | "exit-isolate"
+  | "clear-selection"
+  | "exit-drill"
+  | "clear-ai-focus"
+  | null;
 
 /**
- * Esc clears one layer at a time, biggest mode first: zen, then isolation (the full graph
- * returns to full brightness in ONE step), then the selection, then the cluster drill-down
- * (issue #62: up one level before the AI focus), then the AI focus. Null means nothing to clear.
+ * Esc clears one layer at a time, biggest mode first: zen, then the impact simulation (only the
+ * lens and its column go — selection, positions and every other dimming layer stay), then
+ * isolation (the full graph returns to full brightness in ONE step), then the selection, then
+ * the cluster drill-down (issue #62: up one level before the AI focus), then the AI focus. Null
+ * means nothing to clear.
  */
 export function graphEscapeAction(context: GraphEscapeContext): GraphEscapeAction {
   if (context.zen) return "exit-zen";
+  if (context.impactActive) return "exit-impact";
   if (context.isolatedNode !== null) return "exit-isolate";
   if (context.selection !== null) return "clear-selection";
   if (context.drill !== null) return "exit-drill";

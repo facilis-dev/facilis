@@ -34,6 +34,8 @@ const SUCCESS = "border-success/50 text-success";
 export function compactBadges(
   node: ProjectGraphNode,
   turn: TurnNodeChrome | null = null,
+  /** The impact lens's never-read observation (issue #74): a muted lens mark, LOD-safe. */
+  neverRead = false,
 ): ReactNode {
   const badge =
     turn === null ? null : (
@@ -47,6 +49,9 @@ export function compactBadges(
   return (
     <>
       {badge}
+      {neverRead ? (
+        <GraphLodBadge tone={NEUTRAL}>{t("projectGraph.impact.neverRead")}</GraphLodBadge>
+      ) : null}
       {kindBadges(node)}
     </>
   );

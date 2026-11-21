@@ -13,12 +13,16 @@ import { useProjectGraphKeys } from "./useProjectGraphKeys";
 
 export interface ProjectGraphEscapeInput {
   readonly zen: boolean;
+  /** The impact lens (issue #74): Esc drops the simulation before isolation/selection. */
+  readonly impactActive: boolean;
   readonly isolatedNode: string | null;
   readonly selection: string | null;
   /** The drilled-into cluster id (issue #62), or null at the root level. */
   readonly drill: string | null;
   readonly aiFocusActive: boolean;
   readonly onExitZen: () => void;
+  /** Removes only the impact lens and its column (issue #74, criterion 5). */
+  readonly onExitImpact: () => void;
   readonly onClearSelection: () => void;
   readonly setIsolatedNode: (id: string | null) => void;
   readonly onDrillUp: () => void;
@@ -34,6 +38,7 @@ export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
     onEscape: () => {
       const action = graphEscapeAction(input);
       if (action === "exit-zen") input.onExitZen();
+      else if (action === "exit-impact") input.onExitImpact();
       else if (action === "exit-isolate") input.setIsolatedNode(null);
       else if (action === "clear-selection") input.onClearSelection();
       else if (action === "exit-drill") input.onDrillUp();

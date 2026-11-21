@@ -26,6 +26,7 @@ export interface GraphViewLocalState {
   readonly runtimeLive: boolean;
   readonly isolatedNode: string | null;
   readonly selection: string | null;
+  readonly impactColumn: string | null;
   readonly focus: readonly string[];
   readonly query: string;
   readonly edgeConcentration: GraphEdgeConcentration;
@@ -42,6 +43,7 @@ export const DEFAULT_GRAPH_VIEW_LOCAL: GraphViewLocalState = {
   runtimeLive: DEFAULT_GRAPH_VIEW_STATE.runtimeLive,
   isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
+  impactColumn: DEFAULT_GRAPH_VIEW_STATE.impactColumn,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
   edgeConcentration: DEFAULT_GRAPH_VIEW_STATE.edgeConcentration,
@@ -58,6 +60,8 @@ export interface GraphViewSetters {
   readonly setRuntimeLive: (live: boolean) => void;
   readonly setIsolatedNode: (id: string | null) => void;
   readonly setSelection: (id: string | null) => void;
+  /** The impact lens's simulated column property (issue #74); null clears it. */
+  readonly setImpactColumn: (property: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
   readonly setEdgeConcentration: (value: GraphEdgeConcentration) => void;
@@ -125,6 +129,13 @@ export function useGraphViewSetters(
     },
     [cancelRestore, setLocal],
   );
+  const setImpactColumn = useCallback(
+    (property: string | null) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, impactColumn: property }));
+    },
+    [cancelRestore, setLocal],
+  );
   const setUserFocus = useCallback(
     (ids: readonly string[]) => {
       cancelRestore();
@@ -169,6 +180,7 @@ export function useGraphViewSetters(
     setRuntimeLive,
     setIsolatedNode,
     setSelection,
+    setImpactColumn,
     setUserFocus,
     setQuery,
     setEdgeConcentration,

@@ -7,6 +7,7 @@ import type { Dispatch, RefObject } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { NodeDetails } from "@/facilis/graph-details";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
@@ -41,6 +42,8 @@ export interface UseProjectGraphDetailsInput {
   data: ProjectFlowDataState;
   /** The agent lens overlay (issue #73): tombstones at last-known positions, never a move. */
   turn: TurnOverlay | null;
+  /** The impact simulation overlay (issue #74): opacity/badges/danger strokes, never a move. */
+  impact: ImpactOverlay | null;
   /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
   drill: ProjectGraphDrill | null;
   /** The concentration overlay + session hub state (issue #64); its chips join the node list. */

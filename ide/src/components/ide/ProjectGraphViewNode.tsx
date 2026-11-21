@@ -10,6 +10,7 @@ import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
 import {
+  ImpactTargetBadge,
   LinkHandles,
   TurnBadge,
   UnknownBadge,
@@ -63,6 +64,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
           data.turn,
+          data.impactDimmed,
         ) + " relative w-60"
       }
     >
@@ -77,6 +79,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           </span>
           {data.turn != null && <TurnBadge turn={data.turn} />}
           {view.unknown && <UnknownBadge />}
+          {data.impactTarget && <ImpactTargetBadge secondary={data.impactSecondary} />}
           {view.tables.length > 0 && (
             <button
               type="button"

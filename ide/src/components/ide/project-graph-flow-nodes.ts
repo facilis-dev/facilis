@@ -17,6 +17,7 @@
 import type { Diagnostic, GraphEdgeKind } from "@facilis.dev/analyze";
 import { nodeMatchesAudit, type AuditFilterId } from "@/facilis/graph-contract";
 import type { HubIsolation } from "@/facilis/graph-edge-hubs";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import { lensRole } from "@/facilis/graph-lens-state";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
@@ -81,6 +82,8 @@ export interface ProjectFlowNodesInput {
   readonly data?: ProjectFlowDataState;
   /** The agent lens overlay (issue #73); absent/null/inactive draws exactly as without it. */
   readonly turn?: TurnOverlay | null;
+  /** The impact simulation overlay (issue #74); absent/null means the lens is inactive. */
+  readonly impact?: ImpactOverlay | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onToggleClusterCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
@@ -100,6 +103,7 @@ export function buildProjectGraphFlowNodes({
   contract,
   data,
   turn = null,
+  impact = null,
   onToggleCollapse,
   onToggleClusterCollapse,
   onEditNote,
@@ -149,6 +153,9 @@ export function buildProjectGraphFlowNodes({
     : null;
   const isIsolated = (id: string): boolean =>
     isolationActive && !(isolatedEndpoints?.has(id) ?? false);
+  // The impact lens (issue #74) dims everything outside target + dependents; without a target
+  // it only badges never-read tables, so no card dims against a ghost. Opacity only, as ever.
+  const impactDimming = impact !== null && impact.targetId !== null;
   // The contract lens's audit filters (issue #69) dim like isolation: opacity only, the view
   // model never learns about them, so positions hold (epic rule 2). Notes and cluster frames
   // are not contract subjects — only the analysis cards carry the channel.
@@ -230,6 +237,10 @@ export function buildProjectGraphFlowNodes({
         isolated: isIsolated(node.id),
         auditDimmed:
           auditActive && !nodeMatchesAudit(node, nodeDiagnostics?.get(node.id) ?? [], auditFilters),
+        impactTarget: impact?.targetId === node.id,
+        impactDimmed: impactDimming && !(impact?.keepNodeIds.has(node.id) ?? false),
+        neverRead: impact?.neverReadTableIds.has(node.id) ?? false,
+        impactSecondary: impact?.secondary ?? false,
         turn: chrome,
         dataRole,
         compactData,
@@ -263,8 +274,10 @@ export function buildProjectGraphFlowNodes({
       data: {
         note,
         focused: isFocused(note.id),
-        // Notes are not analysis cards: they always recede while an isolation is active.
+        // Notes are not analysis cards: they always recede while an isolation is active; an
+        // impact simulation (issue #74) dims them too, since no cascade can name a note.
         isolated: isolationActive,
+        impactDimmed: impactDimming,
         onEditNote,
         onDeleteNote,
       },

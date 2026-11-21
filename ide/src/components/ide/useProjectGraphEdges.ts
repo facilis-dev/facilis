@@ -6,6 +6,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve, ProjectGraphEdge } from "@/facilis/graph-types";
 import type { TurnOverlay } from "@/facilis/graph-turn-diff";
@@ -34,6 +35,8 @@ export interface ProjectGraphEdgesInput {
   readonly bridges: boolean;
   /** The agent lens overlay (issue #73); null draws exactly as without it. */
   readonly turn: TurnOverlay | null;
+  /** The impact simulation overlay (issue #74); null draws exactly as without it. */
+  readonly impact: ImpactOverlay | null;
   readonly activeAnchorId: string | null;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
@@ -52,6 +55,7 @@ export function useProjectGraphEdges({
   drill,
   bridges,
   turn,
+  impact,
   activeAnchorId,
   onEdgeCurveChange,
 }: ProjectGraphEdgesInput): ProjectCanvasEdge[] {
@@ -73,6 +77,7 @@ export function useProjectGraphEdges({
       hubIsolation,
       bridges: bridgePlan,
       turn,
+      impact,
       hoveredBridgeId,
       onBridgeHover,
       onEdgeCurveChange,
@@ -91,6 +96,7 @@ export function useProjectGraphEdges({
     drill,
     bridgePlan,
     turn,
+    impact,
     hoveredBridgeId,
     onBridgeHover,
     onEdgeCurveChange,

@@ -76,6 +76,7 @@ export function useProjectGraphViewState(
       runtimeLive: local.runtimeLive,
       isolatedNode: local.isolatedNode,
       selection: local.selection,
+      impactColumn: local.impactColumn,
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
       collapsed: collapsedIds,
@@ -149,6 +150,9 @@ export function useProjectGraphViewState(
         pending.selection !== null && knownNodeIds.has(pending.selection)
           ? pending.selection
           : null,
+      // A column property, not a node id: the impact hook drops it when the selected table
+      // does not have it (the analysis, not the URL, knows the columns).
+      impactColumn: pending.impactColumn,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
       matrixSort: pending.matrixSort,

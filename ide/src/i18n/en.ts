@@ -20,6 +20,7 @@ import { projectGraphMatrixEn } from "./en-project-graph-matrix";
 import { projectGraphContractEn } from "./en-project-graph-contract";
 import { projectGraphDataEn } from "./en-project-graph-data";
 import { projectGraphTurnEn } from "./en-project-graph-turn";
+import { projectGraphImpactEn } from "./en-project-graph-impact";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
@@ -202,6 +203,7 @@ export const en = {
   ...projectGraphContractEn,
   ...projectGraphDataEn,
   ...projectGraphTurnEn,
+  ...projectGraphImpactEn,
   ...dataExplorerEn,
   ...dataQueryEn,
   ...releasePreviewEn,

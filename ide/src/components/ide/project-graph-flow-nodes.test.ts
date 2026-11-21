@@ -11,7 +11,13 @@ import {
   type GraphTurnDiff,
   type TurnOverlay,
 } from "@/facilis/graph-turn-diff";
-import { buildProjectGraphView, type ProjectGraphView } from "@/facilis/graph-model";
+import {
+  buildProjectGraphView,
+  type ProjectGraphNode,
+  type ProjectGraphView,
+} from "@/facilis/graph-model";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
+import type { ProjectGraphEdge } from "@/facilis/graph-types";
 import { reachabilityClosure, type GraphReachability } from "@/facilis/graph-reachability";
 import {
   GET,
@@ -647,5 +653,152 @@ describe("buildProjectGraphFlowNodes turn-diff", () => {
     }
     // The tombstoned node keeps its last-known position; it simply draws as a tombstone.
     expect(lens.get(TODOS.id)).toEqual(baseline.get(TODOS.id));
+  });
+});
+
+// ── Impact simulation (issue #74) ─────────────────────────────────────────────────────────
+// The overlay's node contract on a minimal three-table fixture: the target, its dependents and
+// the never-read observation are DATA; nothing moves or disappears (epic rule 2).
+
+const IMPACT_NODE = (id: string, x: number): ProjectGraphNode => ({
+  id,
+  kind: "table",
+  label: id,
+  sourceFile: null,
+  position: { x, y: 10 },
+  data: {
+    kind: "table",
+    table: id,
+    columns: [],
+    rlsEnabled: true,
+    framework: false,
+    scope: null,
+    policies: [],
+    unknown: false,
+  },
+  matched: true,
+  collapsed: false,
+});
+
+const IMPACT_EDGE = (
+  id: string,
+  kind: ProjectGraphEdge["kind"],
+  source: string,
+  target: string,
+): ProjectGraphEdge => ({ id, kind, source, target, label: null });
+
+const IMPACT_VIEW: ProjectGraphView = {
+  nodes: [IMPACT_NODE("a", 0), IMPACT_NODE("b", 100), IMPACT_NODE("c", 200)],
+  edges: [IMPACT_EDGE("e1", "fk", "a", "b"), IMPACT_EDGE("e2", "relation", "b", "c")],
+  clusters: [],
+  layoutSize: { width: 0, height: 0 },
+  stats: {
+    pages: 0,
+    routes: 0,
+    tables: 3,
+    views: 0,
+    workflows: 0,
+    edges: 2,
+    hiddenEdges: 0,
+    hiddenNodes: 0,
+    matches: 3,
+    unknownNodes: 0,
+    pageLinks: 0,
+    elevatedEdges: 0,
+  },
+};
+
+describe("buildProjectGraphFlowNodes impact simulation (issue #74)", () => {
+  const overlay: ImpactOverlay = {
+    targetId: "a",
+    keepNodeIds: new Set(["a", "b"]),
+    brokenEdgeIds: new Set(["e1"]),
+    neverReadTableIds: new Set(["c"]),
+    secondary: false,
+  };
+  const withImpact = (impact: ImpactOverlay | null) =>
+    buildProjectGraphFlowNodes({
+      view: IMPACT_VIEW,
+      notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }],
+      previous: [],
+      selectedNodeId: "a",
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      hubIsolation: null,
+      impact,
+      onToggleCollapse: () => {},
+      onToggleClusterCollapse: () => {},
+      onEditNote: () => {},
+      onDeleteNote: () => {},
+    });
+
+  const tableCard = (nodes: readonly ProjectFlowNode[], id: string) => {
+    const node = nodes.find((entry) => entry.id === id);
+    if (node === undefined || node.type !== "table") throw new Error("table card missing " + id);
+    return node;
+  };
+  const noteCard = (nodes: readonly ProjectFlowNode[], id: string) => {
+    const node = nodes.find((entry) => entry.id === id);
+    if (node === undefined || node.type !== "note") throw new Error("note card missing " + id);
+    return node;
+  };
+
+  it("badges the target, keeps dependents bright and dims the rest — positions untouched", () => {
+    const nodes = withImpact(overlay);
+    expect(tableCard(nodes, "a").data).toMatchObject({ impactTarget: true, impactDimmed: false });
+    expect(tableCard(nodes, "b").data).toMatchObject({ impactTarget: false, impactDimmed: false });
+    expect(tableCard(nodes, "c").data).toMatchObject({ impactDimmed: true, neverRead: true });
+    // Spatial constancy (epic rule 2): the overlay never moves or removes a card.
+    expect(nodes).toHaveLength(4);
+    expect(tableCard(nodes, "c").position).toEqual({ x: 200, y: 10 });
+    expect(tableCard(nodes, "a").selected).toBe(true);
+    expect(noteCard(nodes, "note-1").data.impactDimmed).toBe(true);
+  });
+
+  it("without a target only badges never-read tables: nothing dims against a ghost", () => {
+    const nodes = withImpact({ ...overlay, targetId: null, keepNodeIds: new Set<string>() });
+    const cards = nodes.filter((node) => node.id !== "note-1");
+    expect(
+      cards.every((node) =>
+        node.type !== "note" && node.type !== "table" ? true : node.data.impactDimmed === false,
+      ),
+    ).toBe(true);
+    expect(tableCard(nodes, "c").data.neverRead).toBe(true);
+  });
+
+  it("restores the exact pre-simulation rendering inputs when the lens exits (criterion 5)", () => {
+    // Stable callbacks: two builds must differ only in the overlay, not in function identity.
+    const noop = () => {};
+    const base = {
+      view: IMPACT_VIEW,
+      notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }],
+      previous: [],
+      selectedNodeId: "c",
+      focus: null,
+      userFocus: null,
+      drill: null,
+      hubIsolation: null,
+      onToggleCollapse: noop,
+      onToggleClusterCollapse: noop,
+      onEditNote: noop,
+      onDeleteNote: noop,
+    };
+    const before = buildProjectGraphFlowNodes({ ...base, isolatedEdgeKinds: [] });
+    buildProjectGraphFlowNodes({ ...base, isolatedEdgeKinds: [], impact: overlay });
+    expect(buildProjectGraphFlowNodes({ ...base, isolatedEdgeKinds: [] })).toEqual(before);
+    // The overlay composes with the other dimming channels without mutating them: removing it
+    // returns the identical isolation-only picture, byte for byte.
+    const isolatedBefore = buildProjectGraphFlowNodes({ ...base, isolatedEdgeKinds: ["fk"] });
+    const isolatedDuring = buildProjectGraphFlowNodes({
+      ...base,
+      isolatedEdgeKinds: ["fk"],
+      impact: overlay,
+    });
+    expect(isolatedDuring).not.toEqual(isolatedBefore);
+    expect(
+      buildProjectGraphFlowNodes({ ...base, isolatedEdgeKinds: ["fk"], impact: null }),
+    ).toEqual(isolatedBefore);
   });
 });

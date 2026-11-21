@@ -80,6 +80,12 @@ export interface GraphViewState {
    */
   readonly isolatedNode: string | null;
   readonly selection: string | null;
+  /**
+   * The column property simulated inside the selected table (issue #74); meaningful only with
+   * the impact lens active. A property key, not a node id — the hook drops it when it is not a
+   * column of the selected table.
+   */
+  readonly impactColumn: string | null;
   /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
   readonly focus: readonly string[];
   readonly filters: GraphViewFilters;
@@ -108,6 +114,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   runtimeLive: false,
   isolatedNode: null,
   selection: null,
+  impactColumn: null,
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
   collapsed: [],
@@ -162,6 +169,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
   if (state.runtimeLive) out.rl = true;
   if (state.isolatedNode !== null && state.isolatedNode !== "") out.n = state.isolatedNode;
   if (state.selection !== null && state.selection !== "") out.s = state.selection;
+  if (state.impactColumn !== null && state.impactColumn !== "") out.k = state.impactColumn;
   const focus = uniqueStrings(state.focus);
   if (focus.length > 0) out.f = focus;
   // Canonical edge-kind order on both sides: decode(encode(s)) is stable for any input order.
@@ -265,6 +273,9 @@ export function decodeGraphViewState(
     runtimeLive: parsed.rl === true,
     isolatedNode: readSelection(parsed.n, knownNodeIds),
     selection: readSelection(parsed.s, knownNodeIds),
+    // A column property, not a node id: it is checked against the selected table's columns by
+    // the impact hook, never against knownNodeIds.
+    impactColumn: readSelection(parsed.k),
     focus: readIds(parsed.f, knownNodeIds),
     filters: {
       hiddenEdgeKinds: readEdgeKinds(parsed.h),

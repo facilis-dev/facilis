@@ -5,20 +5,27 @@
 
 import type { ReactNode } from "react";
 import { ContractLensContext, type ContractLensContextValue } from "./ProjectGraphContractMarks";
+import { ImpactLensContext } from "./ProjectGraphImpactContext";
 import { RuntimeLensContext, type RuntimeLensContextValue } from "./ProjectGraphRuntimeMarks";
+import type { ProjectGraphImpact } from "./useProjectGraphImpact";
 
 export function ProjectGraphLensProviders({
   runtime,
   contract,
+  impact,
   children,
 }: {
   runtime: RuntimeLensContextValue | null;
   contract: ContractLensContextValue | null;
+  /** The impact simulation (issue #74): its satellite section and HUD line read it here. */
+  impact: ProjectGraphImpact;
   children: ReactNode;
 }) {
   return (
     <RuntimeLensContext.Provider value={runtime}>
-      <ContractLensContext.Provider value={contract}>{children}</ContractLensContext.Provider>
+      <ContractLensContext.Provider value={contract}>
+        <ImpactLensContext.Provider value={impact}>{children}</ImpactLensContext.Provider>
+      </ContractLensContext.Provider>
     </RuntimeLensContext.Provider>
   );
 }

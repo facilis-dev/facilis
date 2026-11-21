@@ -135,6 +135,8 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     // The data lens (issue #70) stays inert: no active lens, full LOD.
     data: { activeLenses: [], compactData: false },
     turn: null,
+    // The impact lens (issue #74) stays inert: no simulation, no badges, no dimming.
+    impact: null,
     drill: null,
     selectedNodeId: null,
     onSelectNode,

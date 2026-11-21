@@ -14,6 +14,7 @@ import { projectGraphMatrixIt } from "./it-project-graph-matrix";
 import { projectGraphContractIt } from "./it-project-graph-contract";
 import { projectGraphDataIt } from "./it-project-graph-data";
 import { projectGraphTurnIt } from "./it-project-graph-turn";
+import { projectGraphImpactIt } from "./it-project-graph-impact";
 import { chatIt } from "./it-chat";
 import { logsIt } from "./it-logs";
 import { tourIt } from "./it-tour";
@@ -195,6 +196,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...projectGraphContractIt,
   ...projectGraphDataIt,
   ...projectGraphTurnIt,
+  ...projectGraphImpactIt,
   ...dataExplorerIt,
   ...dataQueryIt,
   ...releasePreviewIt,

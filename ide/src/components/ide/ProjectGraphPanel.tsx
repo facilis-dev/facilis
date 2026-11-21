@@ -1,6 +1,5 @@
-// The project-graph tab (AST graph contract §7, D-126): the one project graph, drawn full-bleed
-// (issues #57, #59). Composition root: filter, zen, AI/user focus (#66), the runtime/contract/
-// data/agent lenses (#72, #69, #70, #73), pinned details, topology/matrix — .facilis only.
+// The project-graph tab (AST graph contract §7, D-126): the one project graph, drawn full-bleed.
+// Composition root: filter, zen, focus, the meaning lenses, details, topology/matrix — .facilis.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
@@ -33,12 +32,12 @@ import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
+import { useProjectGraphImpact } from "./useProjectGraphImpact";
 import { useProjectGraphOpen } from "./use-project-graph-open";
 import { useProjectGraphLenses } from "./useProjectGraphLenses";
 import { useProjectGraphSelection } from "./use-project-graph-selection";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
-
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
@@ -81,11 +80,9 @@ export function ProjectGraphPanel() {
   useEffect(() => {
     if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
   }, [knownNodeIds]);
-
   // Cluster layout MODE (#62, F.4): auto above 40 nodes, explicit choice wins; collapse/drill in gv.
   const nodeCount = analysis?.graph.nodes.length ?? 0;
-  // Matrix mode (#67) pivots routes × tables: clusters are topology-only, so the matrix skips
-  // them and every route/table stays addressable; collapse/drill ids survive (prune is skipped).
+  // Matrix mode (#67) pivots routes × tables: clusters are topology-only, so it skips them.
   const matrixMode = viewState.state.mode === "matrix";
   const view = useMemo(
     () =>
@@ -115,14 +112,18 @@ export function ProjectGraphPanel() {
   );
   const { selectedNode, selectedEdges, details, nodeLabels, nodeLabel, closeDetails } =
     useProjectGraphSelection(view, selectedNodeId, analysis, setSelectedNodeId);
+  // The impact lens (issue #74): a derived overlay, so Esc/exit restores the exact prior view.
+  const impact = useProjectGraphImpact(viewState, view, details);
   // Esc ladder + Enter/G/C/E/B (issues #66, #62, #64, #65): one listener owns every graph key.
   useProjectGraphEscape({
     zen,
+    impactActive: impact.lensActive,
     isolatedNode,
     selection: selectedNodeId,
     drill: viewState.state.drill,
     aiFocusActive: focus !== null,
     onExitZen: () => dispatchZen({ type: "exit" }),
+    onExitImpact: impact.exit,
     onClearSelection: closeDetails,
     setIsolatedNode: viewState.setIsolatedNode,
     onDrillUp: clusters.drillUp,
@@ -142,7 +143,6 @@ export function ProjectGraphPanel() {
   }, [analysis, layoutLoaded, pruneCurves]);
   // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
   const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
-
   const fit = () => {
     remeasure();
     setFitNonce((value) => value + 1);
@@ -159,7 +159,6 @@ export function ProjectGraphPanel() {
   // ready gates the canvas until a deep link has restored, so it mounts on the restored viewport.
   else if (view === null || !layoutLoaded || !viewState.ready) state = { kind: "loading" };
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
-
   const stats = view?.stats ?? null;
   const hudSlots = useProjectGraphHudSlots({
     stats,
@@ -206,6 +205,7 @@ export function ProjectGraphPanel() {
           contract={audit.contract}
           data={data.data}
           turn={turn.overlay}
+          impact={impact.overlay}
           drill={clusters.drill}
           notes={graph.notes}
           addNoteNonce={graph.addNoteNonce}
@@ -238,7 +238,7 @@ export function ProjectGraphPanel() {
     ) : null;
 
   return (
-    <ProjectGraphLensProviders runtime={runtime.context} contract={audit.context}>
+    <ProjectGraphLensProviders runtime={runtime.context} contract={audit.context} impact={impact}>
       <ProjectGraphShell
         containerRef={containerRef}
         hud={

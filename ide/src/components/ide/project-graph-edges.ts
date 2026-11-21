@@ -28,6 +28,17 @@ export const ELEVATED_EDGE_STYLE: GraphEdgeStyle = {
   dashed: false,
 };
 
+/**
+ * The impact lens (issue #74): an edge the simulated removal would break. The danger stroke plus
+ * the 6/3 dash is distinct from every kind dash, every bridge/hub geometry and the turn lens's
+ * muted 2/4 severed line, so the encoding never rests on colour alone (epic rule 6).
+ */
+export const IMPACT_BROKEN_EDGE_STYLE: GraphEdgeStyle = {
+  stroke: "var(--destructive)",
+  dashed: true,
+};
+export const IMPACT_BROKEN_EDGE_DASH = "6 3";
+
 export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): GraphEdgeStyle {
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
 }

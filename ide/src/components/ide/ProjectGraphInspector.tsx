@@ -13,6 +13,8 @@ import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { ProjectGraphDiagnosticsSection } from "./ProjectGraphDiagnosticsSection";
+import { ImpactLensContext } from "./ProjectGraphImpactContext";
+import { ProjectGraphImpactSection } from "./ProjectGraphImpactSection";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphRuntimeSection } from "./ProjectGraphRuntimeSection";
@@ -61,6 +63,9 @@ export function ProjectGraphInspector({
   // The runtime lens (issue #72) travels through context, so the section renders in the
   // satellite, the pinned cards AND the bottom sheet without threading a prop through each.
   const runtime = useContext(RuntimeLensContext);
+  // The impact lens (issue #74) rides the same context: its section appears in the satellite,
+  // the pinned cards, the sheet and matrix mode (F.7) with no intermediate prop.
+  const impact = useContext(ImpactLensContext);
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
   return (
     <div
@@ -104,6 +109,16 @@ export function ProjectGraphInspector({
             floating details surface — no new panel (epic rule 1). In matrix mode the sheet is
             this same body (F.7), so the lens surfaces there too. */}
         <ProjectGraphDiagnosticsSection diagnostics={diagnostics} onOpenFileAt={onOpenFileAt} />
+        {/* The impact simulation (issue #74): read-only, table/view only (it renders null
+            elsewhere), keyboard-reachable lists — never a side panel (epic rule 1). */}
+        {impact !== null && (
+          <ProjectGraphImpactSection
+            node={node}
+            impact={impact.satellite}
+            nodeLabel={nodeLabel}
+            onSelectNode={onSelectNode}
+          />
+        )}
         {node.data.kind === "route" && (
           <>
             {/* The runtime section (issue #72) leads the route details while the lens is active. */}

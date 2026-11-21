@@ -47,6 +47,7 @@ describe("graph view state round-trips", () => {
       runtimeLive: true,
       isolatedNode: "table:予定表",
       selection: "table:予定表",
+      impactColumn: "dueDate",
       focus: ["page:/設定", "route:GET /api/検索", "table:café"],
       filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "project" },
       collapsed: ["table:予定表", "view:active_todos"],
@@ -55,6 +56,17 @@ describe("graph view state round-trips", () => {
       matrixSort: "degree",
     });
     expect(decodeGraphViewState(encodeGraphViewState(full))).toEqual(full);
+  });
+
+  it("encodes the impact column under k and omits it when null (issue #74)", () => {
+    expect(encodeGraphViewState(state({ impactColumn: "dueDate" }))).toBe('{"k":"dueDate"}');
+    expect(encodeGraphViewState(state({ impactColumn: null }))).toBe("");
+    const next = state({
+      activeLenses: ["impact"],
+      selection: "table:todos",
+      impactColumn: "dueDate",
+    });
+    expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
   });
 
   it("round-trips every edge-kind set combination (all 128 subsets)", () => {
@@ -205,6 +217,15 @@ describe("graph view state round-trips", () => {
 });
 
 describe("graph view state degradation", () => {
+  it("degrades a hostile impact column to null instead of throwing (issue #74)", () => {
+    expect(decodeGraphViewState('{"k":42}').impactColumn).toBeNull();
+    expect(decodeGraphViewState('{"k":""}').impactColumn).toBeNull();
+    expect(decodeGraphViewState('{"k":{"property":"dueDate"}}').impactColumn).toBeNull();
+    expect(decodeGraphViewState('{"k":["dueDate"]}').impactColumn).toBeNull();
+    // A column property is not a node id: knownNodeIds never drops a well-formed one.
+    expect(decodeGraphViewState('{"k":"dueDate"}', new Set()).impactColumn).toBe("dueDate");
+  });
+
   it("drops unknown lens ids against the registry", () => {
     const decoded = decodeGraphViewState('{"l":["contract","nope","data","contract"]}');
     expect(decoded.activeLenses).toEqual(["contract", "data"]);

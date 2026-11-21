@@ -37,6 +37,7 @@ export function nodeClass(
   auditDimmed: boolean,
   diagnosticsRing: string,
   turn: TurnNodeChrome | null = null,
+  impactDimmed = false,
 ): string {
   const added = turn?.kind === "added";
   const border = selected
@@ -58,9 +59,11 @@ export function nodeClass(
       : "";
   const surface = added ? " border-dashed bg-card/60" : " bg-card";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
+  // The impact lens (issue #74) dims outsiders exactly like the user focus; the strongest dim
+  // wins, so a simulated removal never stacks into an unreadable card (epic rule 2: opacity only).
   const opacity = isolated
     ? " opacity-10"
-    : !focused
+    : !focused || impactDimmed
       ? " opacity-12"
       : !matched || auditDimmed
         ? " opacity-40"
@@ -145,6 +148,43 @@ export function UnknownBadge() {
   return (
     <span className="shrink-0 rounded border border-warning/50 px-1 text-[10px] text-warning">
       {t("projectGraph.unknown")}
+    </span>
+  );
+}
+
+/**
+ * The impact lens's target marker (issue #74): this card is being simulated as removed. It sits
+ * in the card header INSIDE the footprint sizer, so its flow size never varies with the zoom —
+ * the measured card, every edge anchor and every position stay put (epic rule 2). The full card
+ * only renders above the LOD full threshold, where 9 px flow text stays above the 7 px floor.
+ */
+export function ImpactTargetBadge({ secondary = false }: { secondary?: boolean }) {
+  return (
+    <span
+      data-testid="project-graph-impact-target"
+      title={t("projectGraph.impact.simulatingHint")}
+      className={
+        "shrink-0 rounded border border-destructive/50 bg-destructive/10 px-1 text-[9px] text-destructive" +
+        (secondary ? " opacity-30" : "")
+      }
+    >
+      {t("projectGraph.impact.simulating")}
+    </span>
+  );
+}
+
+/** The impact lens's muted observation: no route reads this table, directly or via a view. */
+export function NeverReadBadge({ secondary = false }: { secondary?: boolean }) {
+  return (
+    <span
+      data-testid="project-graph-never-read"
+      title={t("projectGraph.impact.neverReadHint")}
+      className={
+        "shrink-0 rounded border border-border px-1 text-[9px] text-muted-foreground" +
+        (secondary ? " opacity-30" : "")
+      }
+    >
+      {t("projectGraph.impact.neverRead")}
     </span>
   );
 }

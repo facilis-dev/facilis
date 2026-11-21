@@ -16,18 +16,21 @@ import {
 } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
-import { bridgeGeometry, type BridgeSpec } from "@/facilis/graph-bridge-geometry";
+import { bridgeGeometry } from "@/facilis/graph-bridge-geometry";
 import { bridgeApexLabel, bridgeAriaLabel } from "@/facilis/graph-edge-labels";
 import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { ProjectGraphBridgeLabel } from "./ProjectGraphBridgeLabel";
 import { ElevatedEdgeLabel } from "./ProjectGraphDataMarks";
+import type { ProjectGraphEdgeData } from "./project-graph-edge-data";
 import { ProjectGraphEdgeHandle } from "./ProjectGraphEdgeHandle";
 import { obstacleRects } from "./project-graph-edge-rects";
 import { resolveGeometry } from "./project-graph-edge-resolve";
 import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
 import {
   BRIDGE_DIM_OPACITY,
+  IMPACT_BROKEN_EDGE_DASH,
+  IMPACT_BROKEN_EDGE_STYLE,
   TURN_EDGE_STYLES,
   dataEdgeStyleFor,
   edgeStyleFor,
@@ -41,45 +44,8 @@ export { cardFallbackSize, internalNodeRect } from "./project-graph-edge-rects";
 /** The one custom edge type; registered at module scope by the canvas. */
 export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
 
-export type ProjectGraphEdgeData = {
-  readonly kind: GraphEdgeKind;
-  readonly access?: "elevated";
-  /** True when the user focus (issue #66) closes over other edges: drawn at 12%. */
-  readonly userDimmed?: boolean;
-  /** True when the AI focus (D-171) names this edge: the brand halo channel, never a dim. */
-  readonly aiOutlined?: boolean;
-  /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
-  readonly dimmed?: boolean;
-  /** True when a drill-down (issue #62) names other nodes: drawn at 12%, like the user focus. */
-  readonly drillDimmed?: boolean;
-  /** True when a hub hover (issue #64) names other edges: drawn at 12%, like the user focus. */
-  readonly hubDimmed?: boolean;
-  /** The turn-diff stroke (issue #73): a changed endpoint, or a severed (broken) connection. */
-  readonly turn?: "changed" | "broken";
-  /** True when the agent lens is secondary: its stroke renders at ~30% (epic rule 3). */
-  readonly turnSecondary?: boolean;
-  /** The data lens's role (issue #70); absent or null keeps the base stroke. */
-  readonly dataRole?: "dominant" | "secondary" | null;
-  /** Compact data LOD (issue #70): the elevated label keeps only its lock glyph. */
-  readonly compactData?: boolean;
-  /** How many crossings this boundary bundle stands for (issue #62); absent means one. */
-  readonly count?: number;
-  /** Shared trunk lane (issue #64): the edge splits from the group only at its ends. */
-  readonly trunkLane?: number;
-  /** Bundled edges hide the curve handle: bending one member would break the trunk. */
-  readonly bundled?: boolean;
-  /** A label at the midpoint: expanded hub edges show their real analyzer label. */
-  readonly label?: string | null;
-  /** The thick hub->target edge (issue #64): its label is the route count. */
-  readonly hubCount?: number;
-  /** The bridge spec when this edge arcs over the band (issue #65); absent = orthogonal. */
-  readonly bridge?: BridgeSpec | null;
-  /** True while another bridge is hovered/focused: this one dims (hover isolation). */
-  readonly bridgeDimmed?: boolean;
-  readonly onBridgeHover?: (edgeId: string | null) => void;
-  readonly curve: GraphCurve | null;
-  readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
-};
+// Re-exported so the flow builders and tests keep one import path for the data contract.
+export type { ProjectGraphEdgeData };
 
 export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_EDGE_TYPE>;
 
@@ -122,7 +88,10 @@ export function ProjectGraphEdge({
           data?.trunkLane,
         );
   const edgeInput = { kind, ...(data?.access === undefined ? {} : { access: data.access }) };
-  const edgeStyle = edgeStyleFor(edgeInput);
+  // A broken edge (issue #74) takes the danger stroke over every kind/elevation colour: it is
+  // the simulation's whole point, so it also wins over the turn lens's status encoding.
+  const impactBroken = data?.impactBroken === true;
+  const edgeStyle = impactBroken ? IMPACT_BROKEN_EDGE_STYLE : edgeStyleFor(edgeInput);
   // The data lens (issue #70) overrides width and dash, never the stroke colour: the arrowhead
   // keeps the base style in project-graph-flow-edges, so the two must agree.
   const dataActive = data?.dataRole === "dominant" || data?.dataRole === "secondary";
@@ -132,10 +101,11 @@ export function ProjectGraphEdge({
   // but never the opacity channels: isolation, focus and a secondary lens compose as dims, so
   // the AI outline halo still reads on top (compose, never override).
   const turn = data?.turn;
-  const turnStyle = turn === undefined ? null : TURN_EDGE_STYLES[turn];
+  const turnStyle = turn === undefined || impactBroken ? null : TURN_EDGE_STYLES[turn];
   const stroke = turnStyle === null ? edgeStyle.stroke : turnStyle.stroke;
-  const dash =
-    turnStyle !== null
+  const dash = impactBroken
+    ? IMPACT_BROKEN_EDGE_DASH
+    : turnStyle !== null
       ? turnStyle.dash
       : dataStyle !== null
         ? dataStyle.dash
@@ -143,8 +113,11 @@ export function ProjectGraphEdge({
           ? "5 3"
           : null;
   const baseWidth = highlighted ? 2.5 : 1.5;
-  const strokeWidth =
-    turnStyle !== null
+  const strokeWidth = impactBroken
+    ? highlighted
+      ? 2.5
+      : 2
+    : turnStyle !== null
       ? highlighted
         ? turnStyle.width + 0.5
         : turnStyle.width
@@ -164,21 +137,31 @@ export function ProjectGraphEdge({
       : bridge === null && level !== "chip"
         ? (data?.label ?? null)
         : null;
-  // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
-  // wins so the channels never stack into an invisible line. Bridge hover isolation (issue #65)
-  // is the weakest channel at 25%. Opacity, not colour: the theme still owns the stroke. The AI
-  // focus never dims — it halos below (aiOutlined). A secondary agent lens (issue #73) caps the
-  // turn stroke at 30% without touching any other channel.
-  const dimOpacity =
-    data?.dimmed === true
+  // Isolation (issue #63) dims to 10%, the user focus (issue #66), the drill, the hub hover and
+  // the impact simulation (issue #74) to 12%; the stronger dim wins so the channels never stack
+  // into an invisible line. A broken impact edge never dims — it is the danger mark itself — and
+  // bridge hover (issue #65) is the weakest channel at 25%. Opacity, not colour: the theme still
+  // owns the stroke. The AI focus never dims (it halos below); a secondary agent or impact lens
+  // caps its own mark at 30% without touching the other channels (epic rule 3).
+  const dimOpacity = impactBroken
+    ? 1
+    : data?.dimmed === true
       ? 0.1
-      : data?.userDimmed === true || data?.drillDimmed === true || data?.hubDimmed === true
+      : data?.userDimmed === true ||
+          data?.drillDimmed === true ||
+          data?.hubDimmed === true ||
+          data?.impactDimmed === true
         ? 0.12
         : bridgeDimmed
           ? BRIDGE_DIM_OPACITY
           : 1;
-  const opacity =
-    turn !== undefined && data?.turnSecondary === true ? Math.min(dimOpacity, 0.3) : dimOpacity;
+  const opacity = impactBroken
+    ? data?.impactSecondary === true
+      ? 0.3
+      : 1
+    : turn !== undefined && data?.turnSecondary === true
+      ? Math.min(dimOpacity, 0.3)
+      : dimOpacity;
   const pathStyle: CSSProperties = {
     stroke,
     // Chip simplification (issue #60): thinner strokes and no member labels (the model's edge

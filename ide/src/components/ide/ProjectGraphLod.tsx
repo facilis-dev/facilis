@@ -177,12 +177,15 @@ export function ProjectGraphLodContent({
   edgeCount,
   level,
   turn = null,
+  neverRead = false,
 }: {
   node: ProjectGraphNode;
   edgeCount: number;
   level: Exclude<GraphLodLevel, "full">;
   /** The agent lens's chrome (issue #73): the compact row carries its M/A mark too. */
   turn?: TurnNodeChrome | null;
+  /** The impact lens's never-read badge (issue #74), counter-scaled by the compact row. */
+  neverRead?: boolean;
 }) {
   const Icon = KIND_ICONS[node.kind];
   const icon = <Icon className="shrink-0 text-muted-foreground" style={ICON_STYLE} />;
@@ -198,5 +201,7 @@ export function ProjectGraphLodContent({
       />
     );
   }
-  return <GraphLodCompact icon={icon} name={node.label} badges={compactBadges(node, turn)} />;
+  return (
+    <GraphLodCompact icon={icon} name={node.label} badges={compactBadges(node, turn, neverRead)} />
+  );
 }

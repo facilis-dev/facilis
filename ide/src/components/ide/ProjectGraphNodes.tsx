@@ -50,6 +50,14 @@ export type ProjectFlowData = {
   isolated: boolean;
   /** True when an audit-ribbon filter (issue #69) matches none of this node's counters: 40%. */
   auditDimmed: boolean;
+  /** True when the impact lens (issue #74) simulates removing THIS card: the danger marker. */
+  impactTarget: boolean;
+  /** True when the impact lens dims this card (outside target + dependents): drawn at 12%. */
+  impactDimmed: boolean;
+  /** True while the impact lens badges this table as read by no route (muted observation). */
+  neverRead: boolean;
+  /** True when the impact lens is secondary: its own badges recede to 30% (epic rule 3). */
+  impactSecondary: boolean;
   /** The turn-diff overlay (issue #73); absent/null when the agent lens adds nothing here. */
   turn?: TurnNodeChrome | null;
   /** The data lens's role (issue #70); null when the lens is inactive and no marks draw. */
@@ -106,6 +114,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
           data.turn,
+          data.impactDimmed,
         ) + " relative w-56"
       }
     >

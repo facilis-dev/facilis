@@ -20,13 +20,14 @@ import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { BridgeSpec } from "@/facilis/graph-bridge-geometry";
 import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import { lensRole } from "@/facilis/graph-lens-state";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
 import type { TurnOverlay } from "@/facilis/graph-turn-diff";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
-import { TURN_EDGE_STYLES, edgeStyleFor } from "./project-graph-edges";
+import { IMPACT_BROKEN_EDGE_STYLE, TURN_EDGE_STYLES, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowDataState, ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
@@ -51,6 +52,8 @@ export interface ProjectFlowEdgesInput {
   readonly bridges: ReadonlyMap<string, BridgeSpec>;
   /** The agent lens overlay (issue #73); absent/null/inactive draws exactly as without it. */
   readonly turn?: TurnOverlay | null;
+  /** The impact simulation overlay (issue #74); absent/null means the lens is inactive. */
+  readonly impact?: ImpactOverlay | null;
   /** The raised bridge (hover/keyboard focus); every other bridge dims while it is up. */
   readonly hoveredBridgeId: string | null;
   readonly onBridgeHover: (edgeId: string | null) => void;
@@ -75,6 +78,7 @@ export function buildProjectGraphFlowEdges({
   hubIsolation,
   bridges,
   turn = null,
+  impact = null,
   hoveredBridgeId,
   onBridgeHover,
   onEdgeCurveChange,
@@ -91,6 +95,9 @@ export function buildProjectGraphFlowEdges({
   // The data lens (issue #70) restyles the schema strokes and labels elevated edges; like the
   // dimming channels it is data on the edge, never a removal, so endpoints cannot move.
   const dataRole = lensRole(data?.activeLenses ?? [], "data");
+  // The impact lens (issue #74) only re-colours and dims: a broken edge takes the danger dash,
+  // every other drawn edge recedes to 12% while a target is simulated.
+  const impactDimming = impact !== null && impact.targetId !== null;
   const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
   const marker = (stroke: string) => ({
     type: MarkerType.ArrowClosed,
@@ -101,6 +108,7 @@ export function buildProjectGraphFlowEdges({
   // The dimming/outline flags every drawn edge composes, keyed by the id it is drawn under.
   const flags = (id: string, kind: GraphEdgeKind, source: string, target: string) => {
     const turnKind = turnOf(id);
+    const broken = impact?.brokenEdgeIds.has(id) ?? false;
     return {
       ...(userEdges === null ? {} : { userDimmed: !userEdges.has(id) }),
       ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(id) }),
@@ -109,6 +117,7 @@ export function buildProjectGraphFlowEdges({
       ...(hubIsolation === null ? {} : { hubDimmed: !hubIsolation.edgeIds.has(id) }),
       ...(dataRole === null ? {} : { dataRole, compactData: data?.compactData === true }),
       ...(turnKind === undefined ? {} : { turn: turnKind, turnSecondary }),
+      ...(broken ? { impactBroken: true } : impactDimming ? { impactDimmed: true } : {}),
     };
   };
   const edges = overlay.edges.map((render): ProjectFlowEdge => {
@@ -134,7 +143,8 @@ export function buildProjectGraphFlowEdges({
       };
     }
     const edge = render.edge;
-    const style = edgeStyleFor(edge);
+    const broken = impact?.brokenEdgeIds.has(edge.id) ?? false;
+    const style = broken ? IMPACT_BROKEN_EDGE_STYLE : edgeStyleFor(edge);
     const turnKind = turnOf(edge.id);
     const target = render.type === "hub-source" ? render.hubId : edge.target;
     const lane = render.type === "real" ? overlay.bundleLanes.get(edge.id) : undefined;
@@ -171,12 +181,13 @@ export function buildProjectGraphFlowEdges({
         onCurveChange: onEdgeCurveChange,
       },
       // A broken edge points nowhere: no arrowhead. A changed edge's arrowhead takes its stroke
-      // so the arrow and the line never disagree.
+      // so the arrow and the line never disagree; an impact-broken edge keeps the danger colour
+      // even when the turn lens also marks it changed (issue #74 wins, the arrow follows).
       ...(turnKind === "broken"
         ? {}
         : {
             markerEnd: marker(
-              turnKind === "changed" ? TURN_EDGE_STYLES.changed.stroke : style.stroke,
+              turnKind === "changed" && !broken ? TURN_EDGE_STYLES.changed.stroke : style.stroke,
             ),
           }),
     };
@@ -197,6 +208,8 @@ export function buildProjectGraphFlowEdges({
       ...(edge.access === undefined ? {} : { access: edge.access }),
       ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
       ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
+      // A lens-only severed edge recedes with everything else under a simulation.
+      ...(impactDimming ? { impactDimmed: true } : {}),
       turn: "broken",
       turnSecondary,
       curve: null,

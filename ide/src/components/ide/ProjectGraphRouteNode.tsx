@@ -89,6 +89,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
           data.turn,
+          data.impactDimmed,
         ) + " relative w-64"
       }
     >
