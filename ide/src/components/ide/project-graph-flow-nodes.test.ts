@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { GraphEdge } from "@facilis.dev/analyze";
 import { buildProjectGraphView } from "@/facilis/graph-model";
 import { GET, PAGE, TODOS, WORKFLOW, graphOf } from "@/facilis/graph-model.test-fixtures";
+import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 
 const EDGES: GraphEdge[] = [
@@ -27,7 +28,9 @@ function dataOf(id: string) {
     onDeleteNote: NOOP,
   });
   const node = nodes.find((entry) => entry.id === id);
-  if (node === undefined || node.type === "note") throw new Error("missing node " + id);
+  // Notes and the details satellite carry their own data shapes; only analysis cards have counts.
+  if (node === undefined || node.type === "note" || node.type === DETAILS_NODE_TYPE)
+    throw new Error("missing node " + id);
   return node.data;
 }
 

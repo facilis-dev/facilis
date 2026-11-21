@@ -14,6 +14,7 @@ import { initI18n, setLocale } from "@/i18n";
 import { lodForZoom } from "@/facilis/graph-lod";
 import { GRAPH_NODE_SIZES } from "@/facilis/graph-node-size";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
+import type { NodeDetails } from "@/facilis/graph-details";
 import { buildProjectGraphView, type ProjectGraphView } from "@/facilis/graph-model";
 import { GET, PAGE, TODOS, graphOf } from "@/facilis/graph-model.test-fixtures";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
@@ -31,9 +32,11 @@ const counters = vi.hoisted(() => ({
 // what the canvas registers, so every render below is a render of the production card.
 vi.mock("./ProjectGraphNodes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./ProjectGraphNodes")>();
-  // The route and view cards live in their own modules; the nodes module only registers them.
+  // The route, view and workflow cards live in their own modules; the nodes module only
+  // registers them.
   const { RouteGraphNode } = await import("./ProjectGraphRouteNode");
   const { ViewGraphNode } = await import("./ProjectGraphViewNode");
+  const { WorkflowGraphNode } = await import("./ProjectGraphWorkflowNode");
   type CardProps = Parameters<typeof actual.PageGraphNode>[0];
   const wrap = (name: string, Card: ComponentType<CardProps>): ComponentType<CardProps> => {
     const Counted = (props: CardProps) => {
@@ -46,7 +49,7 @@ vi.mock("./ProjectGraphNodes", async (importOriginal) => {
   const route = wrap("route", RouteGraphNode);
   const table = wrap("table", actual.TableGraphNode);
   const view = wrap("view", ViewGraphNode);
-  const workflow = wrap("workflow", actual.WorkflowGraphNode);
+  const workflow = wrap("workflow", WorkflowGraphNode);
   const { NOTE_NODE_TYPE } = await import("./ProjectGraphNote");
   return {
     ...actual,
@@ -131,6 +134,19 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     onMoveNote: NOOP,
     onEditNote: NOOP,
     onDeleteNote: NOOP,
+    // The details satellite (issue #59) stays inert here: no details, pins or sheet, so the
+    // render counts below measure the LOD alone.
+    details: new Map<string, NodeDetails>(),
+    sources: new Map<string, string>(),
+    nodeLabel: () => null,
+    sheetMode: false,
+    sheetHeight: 0,
+    containerWidth: 4000,
+    pinned: [],
+    dispatchPinned: NOOP,
+    pinRequest: null,
+    onOpenFileAt: NOOP,
+    onOpenPreview: NOOP,
   };
 }
 
