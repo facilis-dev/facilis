@@ -54,6 +54,7 @@ export function ProjectGraphStatsRibbon({
   runtimeControls,
   auditRibbon,
   dataRibbon,
+  turnRibbon,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
@@ -67,6 +68,8 @@ export function ProjectGraphStatsRibbon({
   auditRibbon: ReactNode;
   /** The data lens's summary ribbon (issue #70), or null when the lens is inactive. */
   dataRibbon: ReactNode;
+  /** The agent lens's turn-diff segment (issue #73), or null when the lens is inactive. */
+  turnRibbon: ReactNode;
 }) {
   return (
     <div
@@ -138,6 +141,8 @@ export function ProjectGraphStatsRibbon({
       {auditRibbon}
       {/* Data-ribbon slot (issue #70): the data lens's counters and stroke legend. */}
       {dataRibbon}
+      {/* Turn-diff slot (issue #73): counters, base ref and the unmapped disclosure. */}
+      {turnRibbon}
     </div>
   );
 }

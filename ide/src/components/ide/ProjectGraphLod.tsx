@@ -19,6 +19,7 @@ import {
   type GraphLodLevel,
 } from "@/facilis/graph-lod";
 import type { ProjectGraphNode } from "@/facilis/graph-model";
+import type { TurnNodeChrome } from "@/facilis/graph-turn-diff";
 import { compactBadges } from "./ProjectGraphLodBadges";
 
 const KIND_ICONS: Record<GraphNodeKind, typeof Eye> = {
@@ -175,10 +176,13 @@ export function ProjectGraphLodContent({
   node,
   edgeCount,
   level,
+  turn = null,
 }: {
   node: ProjectGraphNode;
   edgeCount: number;
   level: Exclude<GraphLodLevel, "full">;
+  /** The agent lens's chrome (issue #73): the compact row carries its M/A mark too. */
+  turn?: TurnNodeChrome | null;
 }) {
   const Icon = KIND_ICONS[node.kind];
   const icon = <Icon className="shrink-0 text-muted-foreground" style={ICON_STYLE} />;
@@ -194,5 +198,5 @@ export function ProjectGraphLodContent({
       />
     );
   }
-  return <GraphLodCompact icon={icon} name={node.label} badges={compactBadges(node)} />;
+  return <GraphLodCompact icon={icon} name={node.label} badges={compactBadges(node, turn)} />;
 }

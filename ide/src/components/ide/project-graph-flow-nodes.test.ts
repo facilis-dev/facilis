@@ -6,6 +6,11 @@
 import { describe, expect, it } from "vitest";
 import type { Diagnostic, GraphEdge, GraphEdgeKind } from "@facilis.dev/analyze";
 import { fkNeighbourhood } from "@/facilis/graph-data-lens";
+import {
+  INACTIVE_TURN_DIFF,
+  type GraphTurnDiff,
+  type TurnOverlay,
+} from "@/facilis/graph-turn-diff";
 import { buildProjectGraphView, type ProjectGraphView } from "@/facilis/graph-model";
 import { reachabilityClosure, type GraphReachability } from "@/facilis/graph-reachability";
 import {
@@ -20,6 +25,7 @@ import {
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
 import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import { HUB_NODE_TYPE } from "./ProjectGraphHubNode";
+import { TURN_NODE_TYPE, type ProjectTurnFlowNode } from "./ProjectGraphTurnNode";
 import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
 import { buildProjectGraphFlowNodes, type ProjectFlowDataState } from "./project-graph-flow-nodes";
 
@@ -56,7 +62,8 @@ function dataOf(id: string) {
     node.type === "note" ||
     node.type === DETAILS_NODE_TYPE ||
     node.type === CLUSTER_NODE_TYPE ||
-    node.type === HUB_NODE_TYPE
+    node.type === HUB_NODE_TYPE ||
+    node.type === TURN_NODE_TYPE
   )
     throw new Error("missing node " + id);
   return node.data;
@@ -508,5 +515,137 @@ describe("buildProjectGraphFlowNodes data lens", () => {
     expect(byId.get(A.id)?.data.isolated).toBe(false);
     // The data lens is secondary while contract dominates; both flags coexist on one card.
     expect(cardsOf(composed).find((entry) => entry.id === A.id)?.data.dataRole).toBe("secondary");
+  });
+});
+
+// ── agent turn-diff lens (issue #73): chrome and tombstones as data, never a move ───────────
+
+const buildTurn = (turn: TurnOverlay | null) =>
+  buildProjectGraphFlowNodes({
+    view: VIEW,
+    notes: [],
+    previous: [],
+    selectedNodeId: null,
+    focus: null,
+    userFocus: null,
+    isolatedEdgeKinds: [],
+    drill: null,
+    hubIsolation: null,
+    turn,
+    onToggleCollapse: NOOP,
+    onToggleClusterCollapse: NOOP,
+    onEditNote: NOOP,
+    onDeleteNote: NOOP,
+  });
+
+const overlayOf = (diff: GraphTurnDiff, secondary = false): TurnOverlay => ({ diff, secondary });
+
+function nodeAt(id: string, x: number) {
+  const base = VIEW.nodes[0];
+  if (base === undefined) throw new Error("fixture view is empty");
+  return { ...base, id, label: id, position: { x, y: 10 } };
+}
+
+const TURN: GraphTurnDiff = {
+  ...INACTIVE_TURN_DIFF,
+  active: true,
+  nodeKinds: new Map([
+    [PAGE.id, "modified"],
+    [GET.id, "added"],
+  ]),
+  tombstones: [nodeAt(TODOS.id, 200)],
+  tombstoneIds: new Set([TODOS.id]),
+};
+
+function cardOf(nodes: readonly ProjectFlowNode[], id: string): ProjectAnalysisFlowNode {
+  const found = nodes.find((node) => node.id === id);
+  if (
+    found === undefined ||
+    found.type === TURN_NODE_TYPE ||
+    found.type === "note" ||
+    found.type === DETAILS_NODE_TYPE ||
+    found.type === CLUSTER_NODE_TYPE ||
+    found.type === HUB_NODE_TYPE
+  ) {
+    throw new Error("expected an analysis card: " + id);
+  }
+  return found;
+}
+
+function turnOf(nodes: readonly ProjectFlowNode[], id: string): ProjectTurnFlowNode {
+  const found = nodes.find((node) => node.id === id);
+  if (found === undefined || found.type !== TURN_NODE_TYPE) {
+    throw new Error("expected a turn-diff card: " + id);
+  }
+  return found;
+}
+
+const positionsOfCards = (nodes: readonly ProjectFlowNode[]) =>
+  nodes
+    .filter((node) => node.type !== TURN_NODE_TYPE)
+    .map((node) => node.id + "@" + node.position.x + "," + node.position.y)
+    .toSorted();
+
+describe("buildProjectGraphFlowNodes turn-diff", () => {
+  it("renders exactly as without the lens when the diff is absent or inactive", () => {
+    const plain = buildTurn(null);
+    expect(buildTurn(overlayOf(INACTIVE_TURN_DIFF))).toEqual(plain);
+    expect(plain.every((node) => node.type !== TURN_NODE_TYPE)).toBe(true);
+    for (const id of [PAGE.id, GET.id, TODOS.id, WORKFLOW.id]) {
+      expect(cardOf(plain, id).data.turn).toBeNull();
+    }
+  });
+
+  it("badges changed and added cards and tombstones the stale deleted card in place", () => {
+    const nodes = buildTurn(overlayOf(TURN));
+    expect(cardOf(nodes, PAGE.id).data.turn).toEqual({ kind: "modified", secondary: false });
+    expect(cardOf(nodes, GET.id).data.turn).toEqual({ kind: "added", secondary: false });
+    const todo = VIEW.nodes.find((node) => node.id === TODOS.id);
+    if (todo === undefined) throw new Error("missing fixture node");
+    const tombstone = turnOf(nodes, TODOS.id);
+    // Same id, same position: the hole is visible without re-layout or a duplicate card.
+    expect(tombstone.position).toEqual(todo.position);
+    expect(tombstone.draggable).toBe(false);
+    expect(tombstone.selectable).toBe(false);
+    expect(nodes.filter((node) => node.id === TODOS.id)).toHaveLength(1);
+  });
+
+  it("appends a base-only tombstone at its last-known position, moving nothing", () => {
+    const diff: GraphTurnDiff = {
+      ...INACTIVE_TURN_DIFF,
+      active: true,
+      tombstones: [nodeAt("gone", 500)],
+      tombstoneIds: new Set(["gone"]),
+    };
+    const baseline = buildTurn(null);
+    const nodes = buildTurn(overlayOf(diff));
+    expect(turnOf(nodes, "gone").position).toEqual({ x: 500, y: 10 });
+    // Every live card keeps its exact baseline position (epic rule 2).
+    expect(positionsOfCards(nodes)).toEqual(positionsOfCards(baseline));
+  });
+
+  it("fades the chrome when the lens is secondary (epic rule 3)", () => {
+    const nodes = buildTurn(overlayOf(TURN, true));
+    expect(cardOf(nodes, PAGE.id).data.turn).toEqual({ kind: "modified", secondary: true });
+    expect(turnOf(nodes, TODOS.id).data.secondary).toBe(true);
+  });
+
+  it("parks phase-2 ghosts below the graph and never invents them without a plan", () => {
+    const without = buildTurn(overlayOf(TURN));
+    expect(without.some((node) => node.id.startsWith("turn-ghost:"))).toBe(false);
+    const diff: GraphTurnDiff = { ...TURN, ghosts: [{ path: "src/pages/planned.tsx" }] };
+    const ghost = turnOf(buildTurn(overlayOf(diff)), "turn-ghost:src/pages/planned.tsx");
+    expect(ghost.position.y).toBeGreaterThan(10);
+    expect(ghost.data.turnKind).toBe("planned");
+  });
+
+  it("never moves a live card when the lens activates (spatial constancy)", () => {
+    const baseline = new Map(buildTurn(null).map((node) => [node.id, node.position]));
+    const lens = new Map(buildTurn(overlayOf(TURN)).map((node) => [node.id, node.position]));
+    for (const id of [PAGE.id, GET.id, WORKFLOW.id]) {
+      expect(lens.get(id), id).toEqual(baseline.get(id));
+    }
+    // The tombstoned node keeps its last-known position; it simply draws as a tombstone.
+    expect(lens.get(TODOS.id)).toEqual(baseline.get(TODOS.id));
   });
 });

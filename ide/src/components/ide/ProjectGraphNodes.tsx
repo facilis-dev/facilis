@@ -10,7 +10,8 @@ import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
 import FileCode from "~icons/lucide/file-code";
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphNode } from "@/facilis/graph-model";
-import { LinkHandles, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import type { TurnNodeChrome } from "@/facilis/graph-turn-diff";
+import { LinkHandles, TurnBadge, nodeClass, turnSourceTitle } from "./ProjectGraphNodeChrome";
 import {
   ContractLensContext,
   NodeDiagnosticsMarks,
@@ -30,6 +31,7 @@ import { HUB_NODE_TYPE, ProjectGraphHubNode, type ProjectHubFlowNode } from "./P
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
+import { TURN_NODE_TYPE, TurnDiffNode, type ProjectTurnFlowNode } from "./ProjectGraphTurnNode";
 import { TableGraphNode } from "./ProjectGraphTableNode";
 import { ViewGraphNode } from "./ProjectGraphViewNode";
 import { WorkflowGraphNode } from "./ProjectGraphWorkflowNode";
@@ -48,6 +50,8 @@ export type ProjectFlowData = {
   isolated: boolean;
   /** True when an audit-ribbon filter (issue #69) matches none of this node's counters: 40%. */
   auditDimmed: boolean;
+  /** The turn-diff overlay (issue #73); absent/null when the agent lens adds nothing here. */
+  turn?: TurnNodeChrome | null;
   /** The data lens's role (issue #70); null when the lens is inactive and no marks draw. */
   dataRole: "dominant" | "secondary" | null;
   /** Compact LOD for the data badges (issue #70): below the zoom threshold, glyph+count only. */
@@ -63,13 +67,15 @@ export type ProjectAnalysisFlowNode = Node<
 >;
 
 /** The canvas's node union: analysis cards, cluster frames (issue #62), free-floating notes
- * (D-126), the details satellite with its pinned cards (issue #59) and hub chips (issue #64). */
+ * (D-126), the details satellite with its pinned cards (issue #59), hub chips (issue #64) and
+ * the turn-diff tombstones/ghosts (issue #73: transient overlays at last-known positions). */
 export type ProjectFlowNode =
   | ProjectAnalysisFlowNode
   | ProjectClusterFlowNode
   | ProjectNoteFlowNode
   | ProjectDetailsFlowNode
-  | ProjectHubFlowNode;
+  | ProjectHubFlowNode
+  | ProjectTurnFlowNode;
 
 // The canvas and the custom edge import the handle ids from here; they are re-exported so the
 // node files stay the single entry point for the canvas.
@@ -88,7 +94,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-page"
       data-lod={level}
-      title={sourceTitle(node)}
+      title={turnSourceTitle(node, data.turn)}
       className={
         nodeClass(
           selected,
@@ -99,6 +105,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           data.aiOutlined,
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
         ) + " relative w-56"
       }
     >
@@ -106,6 +113,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         <div className="flex items-center gap-1.5">
           <FileCode className="size-3 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{page.pagePath}</span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
           <span className="rounded border px-1">
@@ -143,7 +151,12 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       )}
       {level !== "full" && (
         <GraphLodOverlay>
-          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
         </GraphLodOverlay>
       )}
       <LinkHandles />
@@ -161,4 +174,5 @@ export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
   [DETAILS_NODE_TYPE]: ProjectGraphDetailsNode,
   [HUB_NODE_TYPE]: ProjectGraphHubNode,
+  [TURN_NODE_TYPE]: TurnDiffNode,
 };

@@ -8,6 +8,7 @@ import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve, ProjectGraphEdge } from "@/facilis/graph-types";
+import type { TurnOverlay } from "@/facilis/graph-turn-diff";
 import { detailsLinkEdge, type ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import type { ProjectFlowDataState, ProjectGraphDrill } from "./project-graph-flow-nodes";
@@ -31,6 +32,8 @@ export interface ProjectGraphEdgesInput {
   readonly drill: ProjectGraphDrill | null;
   /** The bridges lens toggle (issue #65); false restores every orthogonal route. */
   readonly bridges: boolean;
+  /** The agent lens overlay (issue #73); null draws exactly as without it. */
+  readonly turn: TurnOverlay | null;
   readonly activeAnchorId: string | null;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
@@ -48,6 +51,7 @@ export function useProjectGraphEdges({
   data,
   drill,
   bridges,
+  turn,
   activeAnchorId,
   onEdgeCurveChange,
 }: ProjectGraphEdgesInput): ProjectCanvasEdge[] {
@@ -68,6 +72,7 @@ export function useProjectGraphEdges({
       drill,
       hubIsolation,
       bridges: bridgePlan,
+      turn,
       hoveredBridgeId,
       onBridgeHover,
       onEdgeCurveChange,
@@ -85,6 +90,7 @@ export function useProjectGraphEdges({
     data,
     drill,
     bridgePlan,
+    turn,
     hoveredBridgeId,
     onBridgeHover,
     onEdgeCurveChange,

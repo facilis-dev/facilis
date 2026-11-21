@@ -8,6 +8,11 @@
 // back on drag stop. A drag in flight wins over the saved layout: merging against the
 // previous node list keeps its position (and React Flow's own state) while the pointer is
 // down; only drag stop commits.
+//
+// The agent lens's turn diff (issue #73) is data here too: a live card carries its change kind,
+// a deleted base node becomes a tombstone card at its last-known position, and phase-2 ghosts
+// append below the graph (inert while no plan source exists). Nothing moves a live node, and a
+// tombstone is never persisted: the layout only ever learns analysis ids (epic rule 2).
 
 import type { Diagnostic, GraphEdgeKind } from "@facilis.dev/analyze";
 import { nodeMatchesAudit, type AuditFilterId } from "@/facilis/graph-contract";
@@ -17,10 +22,17 @@ import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
 import type { GraphLensId } from "@/facilis/graph-view-state";
+import type { TurnNodeChrome, TurnOverlay } from "@/facilis/graph-turn-diff";
 import { clusterOfNodes } from "@/facilis/graph-clusters";
 import { CLUSTER_NODE_TYPE, type ProjectClusterFlowNode } from "./ProjectGraphClusterNode";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
+import {
+  buildTurnExtras,
+  buildTurnNode,
+  tombstoneIndex,
+  type TurnNodeChannels,
+} from "./project-graph-turn-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 /** The drilled-into cluster (issue #62): its members stay bright, everything else recedes. */
@@ -67,6 +79,8 @@ export interface ProjectFlowNodesInput {
   readonly contract?: ProjectFlowContractState;
   /** The data lens's inputs (issue #70); absent means no lens, no marks. */
   readonly data?: ProjectFlowDataState;
+  /** The agent lens overlay (issue #73); absent/null/inactive draws exactly as without it. */
+  readonly turn?: TurnOverlay | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onToggleClusterCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
@@ -85,6 +99,7 @@ export function buildProjectGraphFlowNodes({
   hubIsolation,
   contract,
   data,
+  turn = null,
   onToggleCollapse,
   onToggleClusterCollapse,
   onEditNote,
@@ -95,6 +110,9 @@ export function buildProjectGraphFlowNodes({
   // the marks' role, the view model never learns about it, so positions hold (epic rule 2).
   const dataRole = lensRole(data?.activeLenses ?? [], "data");
   const compactData = data?.compactData ?? false;
+  // The agent lens (issue #73): the derived diff plus its role fade. Off/inactive adds nothing.
+  const turnDiff = turn?.diff ?? null;
+  const turnSecondary = turn?.secondary ?? false;
   // A request that names only edges outlines their endpoints too: highlighting a connection
   // must mark the two cards it connects (the D-171 semantics, moved to the outline channel).
   const aiEndpoints =
@@ -118,9 +136,13 @@ export function buildProjectGraphFlowNodes({
   // Isolation (issue #63) keeps every card in place and dims the ones no isolated edge touches:
   // opacity only, so positions, selection and the graph bounds never move.
   const isolationActive = isolatedEdgeKinds.length > 0;
+  // A severed turn-diff edge still touches its tombstone: keep it in the isolation set so the
+  // tombstone stays as bright as the broken connection that keeps it on the graph.
+  const isolationEdges =
+    turnDiff !== null && turnDiff.active ? [...view.edges, ...turnDiff.severedEdges] : view.edges;
   const isolatedEndpoints = isolationActive
     ? new Set(
-        view.edges
+        isolationEdges
           .filter((edge) => isolatedEdgeKinds.includes(edge.kind))
           .flatMap((edge) => [edge.source, edge.target]),
       )
@@ -159,7 +181,32 @@ export function buildProjectGraphFlowNodes({
       onToggleCollapse: onToggleClusterCollapse,
     },
   }));
-  const analysis = view.nodes.map((node) => {
+  // Tombstones: deleted base nodes. The id may still be in the live model (a stale analysis),
+  // in which case the live card is replaced in place — same id, same position, no second card.
+  const channels: TurnNodeChannels = {
+    focused: isFocused,
+    isolated: isIsolated,
+    secondary: turnSecondary,
+  };
+  const tombstones = tombstoneIndex(turn);
+  const analysis = view.nodes.map((node): ProjectFlowNode => {
+    // A deleted base node the stale analysis still draws is tombstoned in place, at its live
+    // position — never re-layout, never a second card for the same id (epic rule 2).
+    const tombstone = tombstones?.get(node.id);
+    if (tombstone !== undefined) {
+      return buildTurnNode(
+        node.id,
+        "deleted",
+        node.label,
+        node.sourceFile,
+        node.position,
+        channels,
+      );
+    }
+    const changeKind =
+      turnDiff !== null && turnDiff.active ? turnDiff.nodeKinds.get(node.id) : undefined;
+    const chrome: TurnNodeChrome | null =
+      changeKind === undefined ? null : { kind: changeKind, secondary: turnSecondary };
     const current = existing.get(node.id);
     const clusterId = clusterOf.get(node.id);
     const frame = clusterId === undefined ? undefined : frameOf.get(clusterId);
@@ -183,6 +230,7 @@ export function buildProjectGraphFlowNodes({
         isolated: isIsolated(node.id),
         auditDimmed:
           auditActive && !nodeMatchesAudit(node, nodeDiagnostics?.get(node.id) ?? [], auditFilters),
+        turn: chrome,
         dataRole,
         compactData,
         edgeCount: edgeCounts.get(node.id) ?? 0,
@@ -191,19 +239,18 @@ export function buildProjectGraphFlowNodes({
       draggable: true,
       selected: node.id === selectedNodeId,
     };
-    if (
-      current === undefined ||
-      current.type === NOTE_NODE_TYPE ||
-      current.type === CLUSTER_NODE_TYPE
-    ) {
-      return base;
-    }
+    // A different type for the same id means a lens-only card here (a tombstone in place), so
+    // the previous card's state must not be merged onto a live card's data.
+    if (current === undefined || current.type !== node.kind) return base;
     return {
       ...current,
       ...base,
       position: current.dragging === true ? current.position : base.position,
     };
   });
+
+  // Base-only tombstones come from the clean-tree snapshot; phase-2 ghosts stay inert.
+  const extra = buildTurnExtras(turn, view, channels);
   // Notes are never part of the reachability closure or the AI request (both validate against
   // the analysis view), so they recede with the rest of the graph whenever a focus or drill is
   // active.
@@ -231,5 +278,5 @@ export function buildProjectGraphFlowNodes({
     };
   });
   // Frames first: React Flow paints parents under their compound children.
-  return [...clusterNodes, ...analysis, ...noteNodes];
+  return [...clusterNodes, ...analysis, ...extra, ...noteNodes];
 }

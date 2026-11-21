@@ -2,26 +2,10 @@
 // analysis cards, notes, hub chips and details nodes in one list, kept attached while the anchor
 // drags or the viewport moves. The panel owns the pins; nothing here is persisted.
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type RefObject,
-} from "react";
-import {
-  applyNodeChanges,
-  type OnNodesChange,
-  type ReactFlowInstance,
-  type Viewport,
-} from "@xyflow/react";
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import type { NodeDetails } from "@/facilis/graph-details";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { applyNodeChanges, type OnNodesChange, type Viewport } from "@xyflow/react";
 import type { ProjectGraphView } from "@/facilis/graph-model";
-import type { GraphReachability } from "@/facilis/graph-reachability";
-import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
+import type { PinnedDetailsCard } from "@/facilis/graph-satellite";
 import type { GraphNote } from "@/facilis/graph-types";
 import { focusGraphNode } from "./focus-graph-node";
 import {
@@ -29,63 +13,14 @@ import {
   pinPositionOf,
   repositionDetailsNode,
 } from "./project-graph-details-nodes";
-import {
-  buildProjectGraphFlowNodes,
-  type ProjectFlowContractState,
-  type ProjectFlowDataState,
-  type ProjectGraphDrill,
-} from "./project-graph-flow-nodes";
+import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 import { buildHubFlowNodes } from "./project-graph-hub-flow";
-import type { ProjectGraphHubsState } from "./useProjectGraphHubs";
-import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
+import type { UseProjectGraphDetailsInput } from "./project-graph-details-input";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
-import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+
+export type { PinRequest } from "./project-graph-details-input";
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
-
-export interface PinRequest {
-  readonly nonce: number;
-  readonly nodeId: string;
-}
-
-export interface UseProjectGraphDetailsInput {
-  view: ProjectGraphView;
-  notes: readonly GraphNote[];
-  focus: ProjectGraphFocusState | null;
-  /** The selection's closure (issue #66): the dimming channel, null when nothing is selected. */
-  userFocus: GraphReachability | null;
-  /** Edge kinds isolated by the chips (issue #63): dimming only, never a removal. */
-  isolatedEdgeKinds: readonly GraphEdgeKind[];
-  /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
-  contract: ProjectFlowContractState;
-  /** The data lens's inputs (issue #70): marks on the table/view cards, never a move. */
-  data: ProjectFlowDataState;
-  /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
-  drill: ProjectGraphDrill | null;
-  /** The concentration overlay + session hub state (issue #64); its chips join the node list. */
-  hubs: ProjectGraphHubsState;
-  selectedNodeId: string | null;
-  /** Below the breakpoint the details render as a sheet; no satellite is drawn. */
-  sheetMode: boolean;
-  pinned: readonly PinnedDetailsCard[];
-  dispatchPinned: Dispatch<PinnedDetailsAction>;
-  /** The sheet's pin button asks through a nonce, like the HUD's add-note. */
-  pinRequest: PinRequest | null;
-  details: ReadonlyMap<string, NodeDetails>;
-  sources: ReadonlyMap<string, string>;
-  nodeLabel: (id: string) => string | null;
-  instance: ReactFlowInstance<ProjectFlowNode, ProjectCanvasEdge> | null;
-  wrapperRef: RefObject<HTMLDivElement | null>;
-  /** The panel's measured container width: the side flip and the first placement need it. */
-  containerWidth: number;
-  onSelectNode: (id: string | null) => void;
-  onOpenFileAt: (file: string, line: number) => void;
-  onOpenPreview: (path: string) => void;
-  onToggleCollapse: (id: string) => void;
-  onToggleClusterCollapse: (id: string) => void;
-  onEditNote: (id: string, text: string) => void;
-  onDeleteNote: (id: string) => void;
-}
 
 export function useProjectGraphDetails({
   view,
@@ -95,6 +30,7 @@ export function useProjectGraphDetails({
   isolatedEdgeKinds,
   contract,
   data,
+  turn,
   drill,
   hubs,
   selectedNodeId,
@@ -201,6 +137,7 @@ export function useProjectGraphDetails({
         isolatedEdgeKinds,
         contract,
         data,
+        turn,
         drill,
         hubIsolation: hubs.isolation,
         onToggleCollapse,
@@ -241,6 +178,7 @@ export function useProjectGraphDetails({
       isolatedEdgeKinds,
       contract,
       data,
+      turn,
       drill,
       hubs,
       onToggleCollapse,

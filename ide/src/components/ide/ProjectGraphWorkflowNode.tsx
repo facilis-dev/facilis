@@ -6,7 +6,13 @@ import { useContext } from "react";
 import type { NodeProps } from "@xyflow/react";
 import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import {
   ContractLensContext,
   NodeDiagnosticsMarks,
@@ -36,7 +42,7 @@ export function WorkflowGraphNode({
     <div
       data-testid="project-graph-workflow"
       data-lod={level}
-      title={sourceTitle(node)}
+      title={turnSourceTitle(node, data.turn)}
       className={
         nodeClass(
           selected,
@@ -47,6 +53,7 @@ export function WorkflowGraphNode({
           data.aiOutlined,
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
         ) + " relative w-64"
       }
     >
@@ -56,6 +63,7 @@ export function WorkflowGraphNode({
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
             {workflow.name}
           </span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
           {workflow.unknown && <UnknownBadge />}
           <span className="shrink-0 text-[10px] text-muted-foreground">
             {t("projectGraph.workflow.steps", { count: workflow.steps.length })}
@@ -89,7 +97,12 @@ export function WorkflowGraphNode({
       )}
       {level !== "full" && (
         <GraphLodOverlay>
-          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
         </GraphLodOverlay>
       )}
       <LinkHandles />

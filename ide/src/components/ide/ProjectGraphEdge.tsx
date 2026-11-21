@@ -26,7 +26,12 @@ import { ProjectGraphEdgeHandle } from "./ProjectGraphEdgeHandle";
 import { obstacleRects } from "./project-graph-edge-rects";
 import { resolveGeometry } from "./project-graph-edge-resolve";
 import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
-import { BRIDGE_DIM_OPACITY, dataEdgeStyleFor, edgeStyleFor } from "./project-graph-edges";
+import {
+  BRIDGE_DIM_OPACITY,
+  TURN_EDGE_STYLES,
+  dataEdgeStyleFor,
+  edgeStyleFor,
+} from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
 
@@ -49,6 +54,10 @@ export type ProjectGraphEdgeData = {
   readonly drillDimmed?: boolean;
   /** True when a hub hover (issue #64) names other edges: drawn at 12%, like the user focus. */
   readonly hubDimmed?: boolean;
+  /** The turn-diff stroke (issue #73): a changed endpoint, or a severed (broken) connection. */
+  readonly turn?: "changed" | "broken";
+  /** True when the agent lens is secondary: its stroke renders at ~30% (epic rule 3). */
+  readonly turnSecondary?: boolean;
   /** The data lens's role (issue #70); absent or null keeps the base stroke. */
   readonly dataRole?: "dominant" | "secondary" | null;
   /** Compact data LOD (issue #70): the elevated label keeps only its lock glyph. */
@@ -119,9 +128,31 @@ export function ProjectGraphEdge({
   const dataActive = data?.dataRole === "dominant" || data?.dataRole === "secondary";
   const dataStyle = dataActive ? dataEdgeStyleFor(edgeInput) : null;
   const highlighted = selected === true || hovered;
+  // The turn-diff stroke (issue #73) replaces the kind colour and dash with a status encoding,
+  // but never the opacity channels: isolation, focus and a secondary lens compose as dims, so
+  // the AI outline halo still reads on top (compose, never override).
+  const turn = data?.turn;
+  const turnStyle = turn === undefined ? null : TURN_EDGE_STYLES[turn];
+  const stroke = turnStyle === null ? edgeStyle.stroke : turnStyle.stroke;
+  const dash =
+    turnStyle !== null
+      ? turnStyle.dash
+      : dataStyle !== null
+        ? dataStyle.dash
+        : edgeStyle.dashed
+          ? "5 3"
+          : null;
   const baseWidth = highlighted ? 2.5 : 1.5;
   const strokeWidth =
-    dataStyle === null ? baseWidth : highlighted ? dataStyle.width + 0.5 : dataStyle.width;
+    turnStyle !== null
+      ? highlighted
+        ? turnStyle.width + 0.5
+        : turnStyle.width
+      : dataStyle === null
+        ? baseWidth
+        : highlighted
+          ? dataStyle.width + 0.5
+          : dataStyle.width;
   const bridgeDimmed = bridge !== null && data?.bridgeDimmed === true;
   const apexLabel = bridge !== null ? bridgeApexLabel({ label: bridge.label, kind }) : null;
   // The hub's count edge is the one thick stroke on the canvas (issue #64); the expanded
@@ -133,31 +164,30 @@ export function ProjectGraphEdge({
       : bridge === null && level !== "chip"
         ? (data?.label ?? null)
         : null;
+  // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
+  // wins so the channels never stack into an invisible line. Bridge hover isolation (issue #65)
+  // is the weakest channel at 25%. Opacity, not colour: the theme still owns the stroke. The AI
+  // focus never dims — it halos below (aiOutlined). A secondary agent lens (issue #73) caps the
+  // turn stroke at 30% without touching any other channel.
+  const dimOpacity =
+    data?.dimmed === true
+      ? 0.1
+      : data?.userDimmed === true || data?.drillDimmed === true || data?.hubDimmed === true
+        ? 0.12
+        : bridgeDimmed
+          ? BRIDGE_DIM_OPACITY
+          : 1;
+  const opacity =
+    turn !== undefined && data?.turnSecondary === true ? Math.min(dimOpacity, 0.3) : dimOpacity;
   const pathStyle: CSSProperties = {
-    stroke: edgeStyle.stroke,
+    stroke,
     // Chip simplification (issue #60): thinner strokes and no member labels (the model's edge
     // label lives in the inspector); bend handles are suppressed below.
     strokeWidth: data?.hubCount !== undefined ? 3 : level === "chip" ? 1 : strokeWidth,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
-    // wins so the channels never stack into an invisible line. Bridge hover isolation (issue
-    // #65) is the weakest channel at 25%. Opacity, not colour: the theme still owns the
-    // stroke. The AI focus never dims — it halos below (aiOutlined).
-    ...(data?.dimmed === true
-      ? { opacity: 0.1 }
-      : data?.userDimmed === true || data?.drillDimmed === true || data?.hubDimmed === true
-        ? { opacity: 0.12 }
-        : bridgeDimmed
-          ? { opacity: BRIDGE_DIM_OPACITY }
-          : {}),
-    ...(dataStyle !== null
-      ? dataStyle.dash !== null
-        ? { strokeDasharray: dataStyle.dash }
-        : {}
-      : edgeStyle.dashed
-        ? { strokeDasharray: "5 3" }
-        : {}),
+    ...(opacity < 1 ? { opacity } : {}),
+    ...(dash === null ? {} : { strokeDasharray: dash }),
   };
   // Hover and keyboard focus do the same thing: raise this bridge, dim the rest (issue #65).
   const raiseBridge = () => {
@@ -253,7 +283,7 @@ export function ProjectGraphEdge({
         <ProjectGraphEdgeHandle
           edgeId={id}
           midpoint={geometry.midpoint}
-          stroke={edgeStyle.stroke}
+          stroke={stroke}
           baseCurve={data.curve}
           onCurveChange={data.onCurveChange}
           onDraft={setDraft}

@@ -12,7 +12,13 @@ import ChevronRight from "~icons/lucide/chevron-right";
 import Table2 from "~icons/lucide/table-2";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker } from "@/facilis/graph-model";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import {
   CardMarksStack,
   ContractLensContext,
@@ -61,7 +67,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
     <div
       data-testid="project-graph-table"
       data-lod={level}
-      title={sourceTitle(node)}
+      title={turnSourceTitle(node, data.turn)}
       className={
         nodeClass(
           selected,
@@ -72,6 +78,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           data.aiOutlined,
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
         ) + " relative w-60"
       }
     >
@@ -81,6 +88,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
             {table.table}
           </span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
           {table.unknown && <UnknownBadge />}
           <button
             type="button"
@@ -183,7 +191,12 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       ) : null}
       {level !== "full" && (
         <GraphLodOverlay>
-          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
         </GraphLodOverlay>
       )}
       <LinkHandles />

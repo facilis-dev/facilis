@@ -9,7 +9,13 @@ import ChevronDown from "~icons/lucide/chevron-down";
 import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import {
   CardMarksStack,
   ContractLensContext,
@@ -45,7 +51,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-view"
       data-lod={level}
-      title={sourceTitle(node)}
+      title={turnSourceTitle(node, data.turn)}
       className={
         nodeClass(
           selected,
@@ -56,6 +62,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           data.aiOutlined,
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
         ) + " relative w-60"
       }
     >
@@ -68,6 +75,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           <span className="shrink-0 rounded border px-1 text-[10px] tracking-wide text-muted-foreground uppercase">
             {t("projectGraph.node.view")}
           </span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
           {view.unknown && <UnknownBadge />}
           {view.tables.length > 0 && (
             <button
@@ -174,7 +182,12 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       ) : null}
       {level !== "full" && (
         <GraphLodOverlay>
-          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
         </GraphLodOverlay>
       )}
       <LinkHandles />

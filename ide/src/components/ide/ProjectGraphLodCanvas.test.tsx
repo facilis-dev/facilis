@@ -134,6 +134,7 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     contract: { auditFilters: [], nodeDiagnostics: new Map() },
     // The data lens (issue #70) stays inert: no active lens, full LOD.
     data: { activeLenses: [], compactData: false },
+    turn: null,
     drill: null,
     selectedNodeId: null,
     onSelectNode,

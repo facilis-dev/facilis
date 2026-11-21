@@ -10,6 +10,11 @@
 // a hub hover (issue #64) faints every edge the hub does not name to 12%, and the AI focus
 // (D-171) outlines the edges it names — opacity and outline are separate channels, never a
 // removal, so positions, selection and the graph bounds cannot move.
+//
+// The turn-diff overlay (issue #73) adds a stroke style, never a removal: an edge touching a
+// changed/added endpoint reads "changed"; an edge touching a tombstone reads "broken", and the
+// base edges a deletion severed stay drawn (broken, no arrowhead, not bendable — bending one
+// would write a curve for an edge the analysis no longer has).
 
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
@@ -18,9 +23,10 @@ import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
 import { lensRole } from "@/facilis/graph-lens-state";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
+import type { TurnOverlay } from "@/facilis/graph-turn-diff";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
-import { edgeStyleFor } from "./project-graph-edges";
+import { TURN_EDGE_STYLES, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowDataState, ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
@@ -43,6 +49,8 @@ export interface ProjectFlowEdgesInput {
   readonly hubIsolation: HubIsolation | null;
   /** The bridge plan (issue #65): keyed by real edge id; hub artefacts never bridge. */
   readonly bridges: ReadonlyMap<string, BridgeSpec>;
+  /** The agent lens overlay (issue #73); absent/null/inactive draws exactly as without it. */
+  readonly turn?: TurnOverlay | null;
   /** The raised bridge (hover/keyboard focus); every other bridge dims while it is up. */
   readonly hoveredBridgeId: string | null;
   readonly onBridgeHover: (edgeId: string | null) => void;
@@ -66,10 +74,19 @@ export function buildProjectGraphFlowEdges({
   drill,
   hubIsolation,
   bridges,
+  turn = null,
   hoveredBridgeId,
   onBridgeHover,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
+  const turnDiff = turn?.diff ?? null;
+  const turnSecondary = turn?.secondary ?? false;
+  const turnOf = (edgeId: string): "changed" | "broken" | undefined => {
+    if (turnDiff === null || !turnDiff.active) return undefined;
+    if (turnDiff.brokenEdgeIds.has(edgeId)) return "broken";
+    if (turnDiff.changedEdgeIds.has(edgeId)) return "changed";
+    return undefined;
+  };
   const isolationActive = isolatedEdgeKinds.length > 0;
   // The data lens (issue #70) restyles the schema strokes and labels elevated edges; like the
   // dimming channels it is data on the edge, never a removal, so endpoints cannot move.
@@ -82,15 +99,19 @@ export function buildProjectGraphFlowEdges({
     height: 14,
   });
   // The dimming/outline flags every drawn edge composes, keyed by the id it is drawn under.
-  const flags = (id: string, kind: GraphEdgeKind, source: string, target: string) => ({
-    ...(userEdges === null ? {} : { userDimmed: !userEdges.has(id) }),
-    ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(id) }),
-    ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(kind) } : {}),
-    ...(drill === null ? {} : { drillDimmed: !drillBright({ source, target }, drill) }),
-    ...(hubIsolation === null ? {} : { hubDimmed: !hubIsolation.edgeIds.has(id) }),
-    ...(dataRole === null ? {} : { dataRole, compactData: data?.compactData === true }),
-  });
-  return overlay.edges.map((render) => {
+  const flags = (id: string, kind: GraphEdgeKind, source: string, target: string) => {
+    const turnKind = turnOf(id);
+    return {
+      ...(userEdges === null ? {} : { userDimmed: !userEdges.has(id) }),
+      ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(id) }),
+      ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(kind) } : {}),
+      ...(drill === null ? {} : { drillDimmed: !drillBright({ source, target }, drill) }),
+      ...(hubIsolation === null ? {} : { hubDimmed: !hubIsolation.edgeIds.has(id) }),
+      ...(dataRole === null ? {} : { dataRole, compactData: data?.compactData === true }),
+      ...(turnKind === undefined ? {} : { turn: turnKind, turnSecondary }),
+    };
+  };
+  const edges = overlay.edges.map((render): ProjectFlowEdge => {
     if (render.type === "hub-target") {
       // The one thick count edge: never selected, never bent — its geometry is the hub's.
       const style = edgeStyleFor({ kind: render.kind });
@@ -114,6 +135,7 @@ export function buildProjectGraphFlowEdges({
     }
     const edge = render.edge;
     const style = edgeStyleFor(edge);
+    const turnKind = turnOf(edge.id);
     const target = render.type === "hub-source" ? render.hubId : edge.target;
     const lane = render.type === "real" ? overlay.bundleLanes.get(edge.id) : undefined;
     // A trunk member keeps its shared lane; the plan already excluded it (issue #65 composing
@@ -148,7 +170,38 @@ export function buildProjectGraphFlowEdges({
         ...(bridge === null ? {} : { onBridgeHover }),
         onCurveChange: onEdgeCurveChange,
       },
-      markerEnd: marker(style.stroke),
+      // A broken edge points nowhere: no arrowhead. A changed edge's arrowhead takes its stroke
+      // so the arrow and the line never disagree.
+      ...(turnKind === "broken"
+        ? {}
+        : {
+            markerEnd: marker(
+              turnKind === "changed" ? TURN_EDGE_STYLES.changed.stroke : style.stroke,
+            ),
+          }),
     };
   });
+  if (turnDiff === null || !turnDiff.active || turnDiff.severedEdges.length === 0) return edges;
+  // Base edges a deletion severed: drawn broken so the tombstone's connections stay visible.
+  // Not selectable: the curve handle must never appear on a lens-only edge (no layout write).
+  const severed = turnDiff.severedEdges.map((edge): ProjectFlowEdge => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    sourceHandle: LINK_SOURCE_HANDLE_ID,
+    targetHandle: LINK_TARGET_HANDLE_ID,
+    type: PROJECT_GRAPH_EDGE_TYPE,
+    selectable: false,
+    data: {
+      kind: edge.kind,
+      ...(edge.access === undefined ? {} : { access: edge.access }),
+      ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
+      ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
+      turn: "broken",
+      turnSecondary,
+      curve: null,
+      onCurveChange: onEdgeCurveChange,
+    },
+  }));
+  return [...edges, ...severed];
 }

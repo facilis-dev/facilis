@@ -18,6 +18,7 @@ import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
 import type { GraphEdgeConcentration } from "@/facilis/graph-view-state";
+import type { TurnOverlay } from "@/facilis/graph-turn-diff";
 import { PROJECT_GRAPH_EDGE_TYPES } from "./ProjectGraphEdge";
 import {
   DETAILS_LINK_EDGE_TYPE,
@@ -63,6 +64,7 @@ export function ProjectGraphCanvas({
   isolatedEdgeKinds,
   contract,
   data,
+  turn,
   drill,
   selectedNodeId,
   onSelectNode,
@@ -110,6 +112,8 @@ export function ProjectGraphCanvas({
   contract: ProjectFlowContractState;
   /** The data lens's inputs (issue #70): marks and schema strokes, never a position change. */
   data: ProjectFlowDataState;
+  /** The agent lens overlay (issue #73); null draws exactly as without it (clean tree/off). */
+  turn: TurnOverlay | null;
   /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
   drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
@@ -165,6 +169,7 @@ export function ProjectGraphCanvas({
       isolatedEdgeKinds,
       contract,
       data,
+      turn,
       drill,
       hubs,
       selectedNodeId,
@@ -217,6 +222,7 @@ export function ProjectGraphCanvas({
     userFocus,
     isolatedEdgeKinds,
     data,
+    turn,
     drill,
     bridges,
     activeAnchorId,

@@ -70,3 +70,21 @@ export function dataEdgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">
 
 /** Dimmed opacity for bridges while another bridge is hovered/focused (issue #65). */
 export const BRIDGE_DIM_OPACITY = 0.25;
+
+// ── Agent turn-diff lens (issue #73) ──────────────────────────────────────────────────────
+// The SCM overlay replaces the kind's stroke with a status colour and a distinct dash: changed
+// reads warning with a long dash, broken reads muted with a short gap (a visibly severed line).
+// Width and dash alone carry the meaning too, so the encoding is never colour-only (rule 6).
+// The lens is read-only: these are presentation tokens, nothing here writes git or .facilis.
+
+export interface TurnEdgeStyle {
+  readonly stroke: string;
+  /** null is a solid stroke; otherwise the explicit strokeDasharray. */
+  readonly dash: string | null;
+  readonly width: number;
+}
+
+export const TURN_EDGE_STYLES: Record<"changed" | "broken", TurnEdgeStyle> = {
+  changed: { stroke: "var(--warning)", dash: "7 3", width: 2 },
+  broken: { stroke: "var(--muted-foreground)", dash: "2 4", width: 1.5 },
+};

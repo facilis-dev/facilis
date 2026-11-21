@@ -15,10 +15,12 @@ import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphRuntimeControls } from "./ProjectGraphRuntimeControls";
+import { ProjectGraphTurnRibbon } from "./ProjectGraphTurnRibbon";
 import type { ProjectGraphAudit } from "./useProjectGraphAudit";
 import type { ProjectGraphClusters } from "./useProjectGraphClusters";
 import type { ProjectGraphDataLens } from "./useProjectGraphDataLens";
 import type { ProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
+import type { GraphTurnDiffState } from "./useGraphTurnDiff";
 import type { ProjectGraphViewState } from "./useProjectGraphViewState";
 
 export interface ProjectGraphHudSlots {
@@ -30,6 +32,8 @@ export interface ProjectGraphHudSlots {
   readonly auditRibbon: ReactNode;
   /** null while the data lens is inactive (issue #70): the dock renders as before. */
   readonly dataRibbon: ReactNode;
+  /** null while the agent lens is inactive (issue #73): the dock renders as before. */
+  readonly turnRibbon: ReactNode;
   /** The cluster breadcrumb + group-by toggle (issue #62), in the top-left cluster. */
   readonly clusterControls: ReactNode;
 }
@@ -46,6 +50,7 @@ export function useProjectGraphHudSlots({
   runtime,
   audit,
   data,
+  turn,
   clusters,
 }: {
   stats: ProjectGraphStats | null;
@@ -59,6 +64,7 @@ export function useProjectGraphHudSlots({
   runtime: ProjectGraphRuntimeLens;
   audit: ProjectGraphAudit;
   data: ProjectGraphDataLens;
+  turn: GraphTurnDiffState;
   clusters: ProjectGraphClusters;
 }): ProjectGraphHudSlots {
   const lensChips = useMemo(
@@ -136,6 +142,19 @@ export function useProjectGraphHudSlots({
       ),
     [data, stats],
   );
+  // The turn ribbon (issue #73) docks beside the data ribbon: M/A/D counters, the base ref and
+  // the "not on the graph" disclosure, visible only while the agent lens is active.
+  const turnRibbon = useMemo(
+    () =>
+      turn.role === null ? null : (
+        <ProjectGraphTurnRibbon
+          diff={turn.diff}
+          secondary={turn.role === "secondary"}
+          ready={turn.ready}
+        />
+      ),
+    [turn],
+  );
   const clusterControls = useMemo(
     () => (
       <ProjectGraphHudClusters
@@ -147,5 +166,13 @@ export function useProjectGraphHudSlots({
     ),
     [clusters],
   );
-  return { lensChips, focusBar, runtimeControls, auditRibbon, dataRibbon, clusterControls };
+  return {
+    lensChips,
+    focusBar,
+    runtimeControls,
+    auditRibbon,
+    dataRibbon,
+    turnRibbon,
+    clusterControls,
+  };
 }

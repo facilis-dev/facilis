@@ -1,8 +1,6 @@
-// The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
-// loadProjectAnalysis and drawn full-bleed in the editor area (issues #57, #59). Composition
-// root: filter, zen, AI/user focus (#66), runtime + contract + data lenses (#72, #69, #70),
-// pinned details, topology/matrix switch; hooks: useProjectGraphAnalysis,
-// useProjectGraphViewState, useProjectGraphUserFocus, useProjectGraphEscape — .facilis only.
+// The project-graph tab (AST graph contract §7, D-126): the one project graph, drawn full-bleed
+// (issues #57, #59). Composition root: filter, zen, AI/user focus (#66), the runtime/contract/
+// data/agent lenses (#72, #69, #70, #73), pinned details, topology/matrix — .facilis only.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
@@ -106,8 +104,8 @@ export function ProjectGraphPanel() {
     [analysis, layout, query, filter, viewState.state, nodeCount, matrixMode],
   );
   const clusters = useProjectGraphClusters(viewState, view, nodeCount);
-  // The meaning lenses (issues #72, #69, #70): seam lifecycle, card contexts, audit + data facts.
-  const { runtime, audit, data } = useProjectGraphLenses(c, analysis, view, viewState);
+  // The meaning lenses (#72, #69, #70, #73): seam lifecycle, card contexts, audit/data facts.
+  const { runtime, audit, data, turn } = useProjectGraphLenses(c, analysis, view, viewState);
   // Focus-and-context (#66): dimming closure; the data lens tightens a table selection (#70).
   const { userFocus, focusSummary } = useProjectGraphUserFocus(
     view,
@@ -175,6 +173,7 @@ export function ProjectGraphPanel() {
     runtime,
     audit,
     data,
+    turn,
     clusters,
   });
   const body =
@@ -206,6 +205,7 @@ export function ProjectGraphPanel() {
           isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
           contract={audit.contract}
           data={data.data}
+          turn={turn.overlay}
           drill={clusters.drill}
           notes={graph.notes}
           addNoteNonce={graph.addNoteNonce}

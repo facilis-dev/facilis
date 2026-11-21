@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 import type { GraphEdge } from "@facilis.dev/analyze";
 import type { BridgeSpec } from "@/facilis/graph-bridge-geometry";
 import { deriveEdgeHubOverlay, hubEdgeIdFor, hubIdFor } from "@/facilis/graph-edge-hubs";
+import {
+  INACTIVE_TURN_DIFF,
+  type GraphTurnDiff,
+  type TurnOverlay,
+} from "@/facilis/graph-turn-diff";
 import { buildProjectGraphView } from "@/facilis/graph-model";
 import {
   GET,
@@ -483,5 +488,81 @@ describe("buildProjectGraphFlowEdges data lens", () => {
     });
     expect(edges.map((edge) => edge.data?.dimmed)).toEqual([false, true, true]);
     expect(edges.every((edge) => edge.data?.dataRole === "dominant")).toBe(true);
+  });
+});
+
+// ── agent turn-diff lens (issue #73): a stroke style, never a removal ───────────────────────
+
+const NOOP_EDGE = () => {};
+const buildTurn = (turn: TurnOverlay | null) =>
+  buildProjectGraphFlowEdges({
+    overlay: deriveEdgeHubOverlay(view, "off", new Set()),
+    edgeCurves: {},
+    selectedEdgeId: null,
+    focus: null,
+    userFocus: null,
+    isolatedEdgeKinds: [],
+    drill: null,
+    hubIsolation: null,
+    bridges: new Map(),
+    turn,
+    hoveredBridgeId: null,
+    onBridgeHover: NOOP_EDGE,
+    onEdgeCurveChange: NOOP_EDGE,
+  });
+
+const SEVERED = {
+  id: "e-old",
+  kind: "fk" as const,
+  source: TODOS.id,
+  target: PROJECTS.id,
+  label: null,
+};
+
+const TURN: GraphTurnDiff = {
+  ...INACTIVE_TURN_DIFF,
+  active: true,
+  changedEdgeIds: new Set(["e1"]),
+  brokenEdgeIds: new Set(["e2"]),
+  severedEdges: [SEVERED],
+};
+
+describe("buildProjectGraphFlowEdges turn-diff", () => {
+  it("renders exactly as without the lens when the diff is absent or inactive", () => {
+    expect(buildTurn({ diff: INACTIVE_TURN_DIFF, secondary: false })).toEqual(buildTurn(null));
+    expect(buildTurn(null)).toHaveLength(3);
+    expect(buildTurn(null).every((edge) => edge.data?.turn === undefined)).toBe(true);
+  });
+
+  it("styles changed and broken edges and keeps the severed base edge drawn", () => {
+    const edges = buildTurn({ diff: TURN, secondary: false });
+    expect(edges).toHaveLength(4);
+    const byId = new Map(edges.map((edge) => [edge.id, edge]));
+    expect(byId.get("e1")?.data?.turn).toBe("changed");
+    expect(byId.get("e2")?.data?.turn).toBe("broken");
+    // A broken edge points nowhere: no arrowhead. A changed edge keeps one, in its stroke.
+    expect(byId.get("e2")?.markerEnd).toBeUndefined();
+    expect(byId.get("e1")?.markerEnd).toMatchObject({ color: "var(--warning)" });
+    expect(byId.get("e3")?.data?.turn).toBeUndefined();
+    const severed = byId.get("e-old");
+    expect(severed?.data?.turn).toBe("broken");
+    expect(severed?.selectable).toBe(false);
+    expect(severed?.markerEnd).toBeUndefined();
+    expect(severed?.data?.curve).toBeNull();
+  });
+
+  it("fades only the turn stroke when the lens is secondary (epic rule 3)", () => {
+    const edges = buildTurn({ diff: TURN, secondary: true });
+    const byId = new Map(edges.map((edge) => [edge.id, edge]));
+    expect(byId.get("e1")?.data?.turnSecondary).toBe(true);
+    expect(byId.get("e3")?.data?.turnSecondary).toBeUndefined();
+  });
+
+  it("never changes an edge's endpoints or order when the lens activates (spatial constancy)", () => {
+    const baseline = buildTurn(null);
+    const lens = buildTurn({ diff: TURN, secondary: false }).slice(0, baseline.length);
+    expect(lens.map((edge) => [edge.id, edge.source, edge.target])).toEqual(
+      baseline.map((edge) => [edge.id, edge.source, edge.target]),
+    );
   });
 });

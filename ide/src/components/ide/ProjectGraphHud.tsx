@@ -1,10 +1,8 @@
 // The floating HUD (issue #57): clusters float over the full-bleed canvas, never resizing it.
-// Top-left breadcrumb + topology/matrix mode switcher (issue #67) and top-right search/save/refresh/actions anchor
-// absolutely; the bottom-left stats ribbon + lens chips (issue #63) and the bottom-right minimap
-// SLOT + zoom/fit share one floating dock row (issue #150) so they cannot overlap at narrow widths.
-// The remaining slots are owned here but left empty — later issues fill them. Every control is a named, keyboard-reachable button; clusters are
-// role="toolbar". Below 1280px (xl) button labels collapse to icons. Role tokens only (D-044);
-// every string via t() (D-043).
+// Top-left breadcrumb + mode switcher (#67) and top-right search/save/refresh anchor absolutely;
+// the bottom-left ribbon, lens chips (#63) and lens ribbons and the bottom-right minimap SLOT +
+// zoom/fit share one dock row (#150) so they cannot overlap. Every control is a named, keyboard-
+// reachable button (role="toolbar", labels collapse below 1280px); role tokens only; t() strings.
 
 import type { ReactNode } from "react";
 import Maximize2 from "~icons/lucide/maximize-2";
@@ -59,6 +57,8 @@ export interface ProjectGraphHudProps {
   auditRibbon: ReactNode;
   /** The data lens's summary ribbon (issue #70), or null when the lens is inactive. */
   dataRibbon: ReactNode;
+  /** The agent lens's turn-diff segment (issue #73), or null when the lens is inactive. */
+  turnRibbon: ReactNode;
   /** The selection-context line / isolate exit (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
   /** The cluster breadcrumb + group-by toggle (issue #62); null keeps the plain title. */
@@ -244,6 +244,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
           runtimeControls={props.runtimeControls}
           auditRibbon={props.auditRibbon}
           dataRibbon={props.dataRibbon}
+          turnRibbon={props.turnRibbon}
         />
 
         {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

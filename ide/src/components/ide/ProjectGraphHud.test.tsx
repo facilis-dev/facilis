@@ -50,6 +50,7 @@ function markup(
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
       auditRibbon={slots.auditRibbon ?? null}
       dataRibbon={slots.dataRibbon ?? null}
+      turnRibbon={null}
       tableVisibility="project"
       onTableVisibilityChange={vi.fn()}
       mode={slots.mode ?? "topology"}

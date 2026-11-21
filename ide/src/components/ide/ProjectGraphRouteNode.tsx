@@ -8,7 +8,13 @@ import type { RouteInputFact } from "@facilis.dev/analyze";
 import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import {
   ContractLensContext,
   RouteContractMarks,
@@ -71,7 +77,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
     <div
       data-testid="project-graph-route"
       data-lod={level}
-      title={sourceTitle(node)}
+      title={turnSourceTitle(node, data.turn)}
       className={
         nodeClass(
           selected,
@@ -82,6 +88,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           data.aiOutlined,
           data.auditDimmed,
           contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
         ) + " relative w-64"
       }
     >
@@ -90,6 +97,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
         <div className="flex items-center gap-1.5">
           <MethodBadge method={route.method} />
           <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{route.path}</span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
           {route.unknown && <UnknownBadge />}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -166,7 +174,12 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       )}
       {level !== "full" && (
         <GraphLodOverlay>
-          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
         </GraphLodOverlay>
       )}
       <LinkHandles />

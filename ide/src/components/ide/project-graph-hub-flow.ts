@@ -7,29 +7,26 @@
 // AI focus outlines instead of dimming (D-171, issue #66).
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import {
-  HUB_SIZE,
-  hubEdgeIdFor,
-  type GraphEdgeHub,
-} from "@/facilis/graph-edge-hubs";
+import { HUB_SIZE, hubEdgeIdFor, type GraphEdgeHub } from "@/facilis/graph-edge-hubs";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import { HUB_NODE_TYPE, type ProjectHubFlowNode } from "./ProjectGraphHubNode";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
+import { TURN_NODE_TYPE } from "./ProjectGraphTurnNode";
 import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import type { ProjectGraphHubsState } from "./useProjectGraphHubs";
 
-/** What a node click does: hubs expand, notes clear the selection, cards select. */
+/** What a node click does: hubs expand, notes and turn tombstones clear, cards select. */
 export function resolveNodeClick(nodeType: string | undefined): "toggle-hub" | "clear" | "select" {
   if (nodeType === HUB_NODE_TYPE) return "toggle-hub";
-  if (nodeType === NOTE_NODE_TYPE) return "clear";
+  if (nodeType === NOTE_NODE_TYPE || nodeType === TURN_NODE_TYPE) return "clear";
   return "select";
 }
 
-/** Where a drag stop commits: hub positions are never persisted, so they commit nowhere. */
+/** Where a drag stop commits: hub and tombstone positions are lens-only, never persisted. */
 export function resolveDragCommit(nodeType: string | undefined): "note" | "analysis" | "none" {
-  if (nodeType === HUB_NODE_TYPE) return "none";
+  if (nodeType === HUB_NODE_TYPE || nodeType === TURN_NODE_TYPE) return "none";
   if (nodeType === NOTE_NODE_TYPE) return "note";
   return "analysis";
 }
