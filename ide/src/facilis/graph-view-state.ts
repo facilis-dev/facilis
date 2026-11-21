@@ -18,9 +18,10 @@ import {
   roundCoordinate,
   type GraphViewport,
 } from "./graph-layout-file";
+import { GRAPH_MATRIX_SORTS, type GraphMatrixSort } from "./graph-matrix";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
 
-/** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
+/** How the graph is drawn. Matrix landed in #67; timeline is a later child (#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
 
 /**
@@ -54,6 +55,8 @@ export interface GraphViewState {
   readonly collapsed: readonly string[];
   readonly viewport: GraphViewport | null;
   readonly query: string;
+  /** Matrix row order (issue #67); only meaningful in matrix mode, carried like the mode. */
+  readonly matrixSort: GraphMatrixSort;
 }
 
 /** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
@@ -68,6 +71,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   collapsed: [],
   viewport: null,
   query: "",
+  matrixSort: "path",
 };
 
 const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
@@ -122,6 +126,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
     out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
   }
   if (state.query !== "") out.q = state.query;
+  if (state.matrixSort !== "path") out.ms = state.matrixSort;
   return Object.keys(out).length === 0 ? "" : JSON.stringify(out);
 }
 
@@ -131,6 +136,10 @@ function readMode(value: unknown): GraphViewMode {
 
 function readVisibility(value: unknown): GraphTableVisibility {
   return VISIBILITIES.find((visibility) => visibility === value) ?? "all";
+}
+
+function readMatrixSort(value: unknown): GraphMatrixSort {
+  return GRAPH_MATRIX_SORTS.find((sort) => sort === value) ?? "path";
 }
 
 function readLenses(value: unknown): GraphLensId[] {
@@ -208,5 +217,6 @@ export function decodeGraphViewState(
     collapsed: readIds(parsed.c, knownNodeIds),
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
+    matrixSort: readMatrixSort(parsed.ms),
   };
 }

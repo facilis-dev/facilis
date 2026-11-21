@@ -5,7 +5,7 @@
 // user's focus-and-context highlighting (issue #66). The analysis lifecycle lives in
 // useProjectGraphAnalysis, the URL-synced view (search, selection, mode, lenses, isolation) in
 // useProjectGraphViewState — which composes the saved-layout hook — the derived closure in
-// useProjectGraphUserFocus, the keyboard in useProjectGraphKeys, and the chrome in
+// useProjectGraphUserFocus, the keyboard in useProjectGraphPanelKeys, and the chrome in
 // ProjectGraphShell / ProjectGraphHud / StatsRibbon.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
@@ -14,7 +14,7 @@ import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView, sourcePathFor } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
-import { closureSummary, graphEscapeAction } from "@/facilis/graph-user-focus";
+import { closureSummary } from "@/facilis/graph-user-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import {
@@ -30,13 +30,14 @@ import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
+import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
-import { useProjectGraphKeys } from "./useProjectGraphKeys";
+import { useProjectGraphPanelKeys } from "./useProjectGraphPanelKeys";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -77,24 +78,17 @@ export function ProjectGraphPanel() {
   // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
   const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
 
-  // Esc clears one layer at a time (zen → isolate → selection → AI focus, issue #66); Enter
-  // isolates the selection. Typing targets keep their keys — the hook guards them.
-  useProjectGraphKeys({
-    onEscape: () => {
-      const action = graphEscapeAction({
-        zen,
-        isolatedNode,
-        selection: selectedNodeId,
-        aiFocusActive: focus !== null,
-      });
-      if (action === "exit-zen") dispatchZen({ type: "exit" });
-      else if (action === "exit-isolate") setIsolatedNode(null);
-      else if (action === "clear-selection") setSelectedNodeId(null);
-      else if (action === "clear-ai-focus") clearGraphFocus();
-    },
-    onEnter: () => {
-      if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
-    },
+  // Esc/Enter/"m" semantics (issues #66/#67); typing targets keep their keys — the hooks guard.
+  useProjectGraphPanelKeys({
+    zen,
+    exitZen: () => dispatchZen({ type: "exit" }),
+    isolatedNode,
+    setIsolatedNode,
+    selection: selectedNodeId,
+    setSelection: setSelectedNodeId,
+    aiFocusActive: focus !== null,
+    mode: viewState.state.mode,
+    setMode: viewState.setMode,
   });
 
   const view = useMemo(
@@ -181,30 +175,42 @@ export function ProjectGraphPanel() {
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
     ) : displayView !== null ? (
-      <ProjectGraphCanvas
-        view={displayView}
-        fitPadding={fitPadding}
-        onInstance={setFlow}
-        viewport={layout.viewport ?? null}
-        fitNonce={fitNonce}
-        edgeCurves={layout.edgeCurves}
-        focus={focus}
-        userFocus={userFocus}
-        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-        notes={isolatedNode === null ? graph.notes : []}
-        addNoteNonce={graph.addNoteNonce}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={setSelectedNodeId}
-        onMoveNode={graph.moveNode}
-        onToggleCollapse={graph.toggleCollapsed}
-        onIsolateNode={setIsolatedNode}
-        onViewportChange={graph.changeViewport}
-        onEdgeCurveChange={graph.changeEdgeCurve}
-        onCreateNote={graph.createNote}
-        onMoveNote={graph.moveNote}
-        onEditNote={graph.editNote}
-        onDeleteNote={graph.deleteNote}
-      />
+      viewState.state.mode === "matrix" ? (
+        <ProjectGraphMatrixSurface
+          view={displayView}
+          sort={viewState.state.matrixSort}
+          onSortChange={viewState.setMatrixSort}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onExitMatrix={() => viewState.setMode("topology")}
+          userFocus={userFocus}
+        />
+      ) : (
+        <ProjectGraphCanvas
+          view={displayView}
+          fitPadding={fitPadding}
+          onInstance={setFlow}
+          viewport={layout.viewport ?? null}
+          fitNonce={fitNonce}
+          edgeCurves={layout.edgeCurves}
+          focus={focus}
+          userFocus={userFocus}
+          isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          notes={isolatedNode === null ? graph.notes : []}
+          addNoteNonce={graph.addNoteNonce}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onMoveNode={graph.moveNode}
+          onToggleCollapse={graph.toggleCollapsed}
+          onIsolateNode={setIsolatedNode}
+          onViewportChange={graph.changeViewport}
+          onEdgeCurveChange={graph.changeEdgeCurve}
+          onCreateNote={graph.createNote}
+          onMoveNote={graph.moveNote}
+          onEditNote={graph.editNote}
+          onDeleteNote={graph.deleteNote}
+        />
+      )
     ) : null;
 
   return (
@@ -247,6 +253,8 @@ export function ProjectGraphPanel() {
             }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
+            mode={viewState.state.mode}
+            onModeChange={viewState.setMode}
             focusBar={
               <ProjectGraphFocusBar
                 summary={

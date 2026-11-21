@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
+import type { GraphMatrixSort } from "@/facilis/graph-matrix";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
@@ -37,6 +38,7 @@ interface GraphViewLocalState {
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
+  readonly matrixSort: GraphMatrixSort;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -47,6 +49,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
+  matrixSort: DEFAULT_GRAPH_VIEW_STATE.matrixSort,
 };
 
 export interface ProjectGraphViewState {
@@ -62,6 +65,7 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
+  readonly setMatrixSort: (sort: GraphMatrixSort) => void;
 }
 
 /**
@@ -137,6 +141,7 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      matrixSort: pending.matrixSort,
     });
     restoreView({
       hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
@@ -205,6 +210,14 @@ export function useProjectGraphViewState(
     [cancelRestore],
   );
 
+  const setMatrixSort = useCallback(
+    (sort: GraphMatrixSort) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, matrixSort: sort }));
+    },
+    [cancelRestore],
+  );
+
   const collapsedIds = useMemo(
     () =>
       Object.entries(layout.collapsed)
@@ -224,6 +237,7 @@ export function useProjectGraphViewState(
       collapsed: collapsedIds,
       viewport: layout.viewport ?? null,
       query: local.query,
+      matrixSort: local.matrixSort,
     }),
     [local, layout.hiddenEdges, layout.tableVisibility, layout.viewport, collapsedIds],
   );
@@ -266,5 +280,6 @@ export function useProjectGraphViewState(
     setSelection,
     setUserFocus,
     setQuery,
+    setMatrixSort,
   };
 }

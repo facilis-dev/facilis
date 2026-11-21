@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import Maximize2 from "~icons/lucide/maximize-2";
 import Minimize2 from "~icons/lucide/minimize-2";
 import Network from "~icons/lucide/network";
+import Table2 from "~icons/lucide/table-2";
 import RefreshCw from "~icons/lucide/refresh-cw";
 import Save from "~icons/lucide/save";
 import Scan from "~icons/lucide/scan";
@@ -21,6 +22,7 @@ import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { GraphTableVisibility } from "@/facilis/graph-layout";
+import type { GraphViewMode } from "@/facilis/graph-view-state";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
@@ -55,6 +57,9 @@ export interface ProjectGraphHudProps {
   focusBar: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
+  /** The drawn mode (issue #67); timeline stays a carried mode until #76 renders it. */
+  mode: GraphViewMode;
+  onModeChange: (mode: GraphViewMode) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
 }
@@ -66,7 +71,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
   const { stats, zen } = props;
   return (
     <div data-testid="graph-hud" className="pointer-events-none absolute inset-0 z-10">
-      {/* Top-left: breadcrumb + mode-switcher SLOT (filled by a later issue). */}
+      {/* Top-left: breadcrumb + the topology/matrix mode switcher (issue #67). */}
       <div
         role="toolbar"
         aria-label={t("projectGraph.hud.overview")}
@@ -77,11 +82,35 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         <Network className="size-3.5 shrink-0 text-brand" />
         <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
         {props.focusBar}
-        <div
+        <span
+          role="group"
           data-testid="graph-hud-mode-slot"
           aria-label={t("projectGraph.hud.modeSlot")}
-          className="hidden"
-        />
+          className="flex items-center gap-0.5"
+        >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="graph-hud-mode-topology"
+            aria-pressed={props.mode !== "matrix"}
+            aria-label={t("projectGraph.hud.modeTopology")}
+            title={t("projectGraph.hud.modeHint")}
+            onClick={() => props.onModeChange("topology")}
+          >
+            <Network />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="graph-hud-mode-matrix"
+            aria-pressed={props.mode === "matrix"}
+            aria-label={t("projectGraph.hud.modeMatrix")}
+            title={t("projectGraph.hud.modeHint")}
+            onClick={() => props.onModeChange("matrix")}
+          >
+            <Table2 />
+          </Button>
+        </span>
       </div>
 
       {/* Top-right: search, save state, refresh, zen, actions. */}
