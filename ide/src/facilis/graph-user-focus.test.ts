@@ -84,6 +84,7 @@ const view: ProjectGraphView = {
     pageLinks: 1,
     elevatedEdges: 0,
   },
+  clusters: [],
   layoutSize: { width: 624, height: 167 },
 };
 
@@ -95,14 +96,20 @@ function closureOf(id: string): GraphReachability {
 }
 
 describe("graphEscapeAction", () => {
-  const ctx = { zen: false, isolatedNode: null, selection: null, aiFocusActive: false };
+  const ctx = {
+    zen: false,
+    isolatedNode: null,
+    selection: null,
+    drill: null,
+    aiFocusActive: false,
+  };
 
   it("clears nothing when no layer is active", () => {
     expect(graphEscapeAction(ctx)).toBeNull();
   });
 
   it("clears one layer at a time: isolate, then selection, then AI focus", () => {
-    const all = { zen: false, isolatedNode: "a", selection: "a", aiFocusActive: true };
+    const all = { zen: false, isolatedNode: "a", selection: "a", drill: null, aiFocusActive: true };
     expect(graphEscapeAction(all)).toBe("exit-isolate");
     expect(graphEscapeAction({ ...all, isolatedNode: null })).toBe("clear-selection");
     expect(graphEscapeAction({ ...all, isolatedNode: null, selection: null })).toBe(
@@ -115,8 +122,22 @@ describe("graphEscapeAction", () => {
 
   it("leaves zen first, the bigger mode change", () => {
     expect(
-      graphEscapeAction({ zen: true, isolatedNode: "a", selection: "a", aiFocusActive: true }),
+      graphEscapeAction({
+        zen: true,
+        isolatedNode: "a",
+        selection: "a",
+        drill: null,
+        aiFocusActive: true,
+      }),
     ).toBe("exit-zen");
+  });
+
+  it("the drill owns Esc after the selection and before the AI focus (issue #62)", () => {
+    const drilled = { ...ctx, drill: "cluster:api/todos", aiFocusActive: true };
+    expect(graphEscapeAction(drilled)).toBe("exit-drill");
+    expect(graphEscapeAction({ ...drilled, selection: "a" })).toBe("clear-selection");
+    expect(graphEscapeAction({ ...drilled, isolatedNode: "a" })).toBe("exit-isolate");
+    expect(graphEscapeAction({ ...drilled, drill: null })).toBe("clear-ai-focus");
   });
 
   it("exiting isolation keeps the selection: full brightness returns in one step", () => {

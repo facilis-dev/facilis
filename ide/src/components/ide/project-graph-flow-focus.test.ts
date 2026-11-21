@@ -63,6 +63,7 @@ const view: ProjectGraphView = {
     pageLinks: 0,
     elevatedEdges: 0,
   },
+  clusters: [],
   layoutSize: { width: 656, height: 98 },
 };
 
@@ -90,7 +91,9 @@ const buildNodes = (
     focus,
     userFocus,
     isolatedEdgeKinds: [],
+    drill: null,
     onToggleCollapse: () => {},
+    onToggleClusterCollapse: () => {},
     onEditNote: () => {},
     onDeleteNote: () => {},
   });
@@ -106,6 +109,7 @@ const buildEdges = (
     focus,
     userFocus,
     isolatedEdgeKinds: [],
+    drill: null,
     onEdgeCurveChange: () => {},
   });
 

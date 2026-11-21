@@ -1,23 +1,14 @@
-// The project-graph canvas: React Flow over the pure view model. Cards, notes and edges live in
-// ProjectGraphNodes/Note/Edge.tsx; the details satellite and its session pins (issue #59) in
-// useProjectGraphDetails; the instance-driven effects in useProjectGraphCanvasEffects. This file
-// only wires the interactions: a drag commits to the saved layout only on drag stop. fitView
-// padding comes from the measured HUD (issue #57); role tokens only (XYFLOW_THEME_TOKENS).
+// The project-graph canvas: React Flow over the pure view model. Cards, cluster frames, notes
+// and edges live in ProjectGraphNodes/ClusterNode/Note/Edge.tsx; the details satellite and its
+// session pins (issue #59) in useProjectGraphDetails; the pointer interactions in
+// use-project-graph-interactions; the instance-driven effects in useProjectGraphCanvasEffects
+// and useGraphFitEffects. This file only wires the library: a drag commits to the saved layout
+// only on drag stop, cluster children drag frame-relative and commit absolute (issue #62).
+// fitView padding comes from the measured HUD (issue #57); role tokens only (XYFLOW_THEME_TOKENS).
 
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useRef, useState, type Dispatch } from "react";
-import {
-  Background,
-  ReactFlow,
-  type EdgeMouseHandler,
-  type NodeMouseHandler,
-  type OnMove,
-  type OnMoveEnd,
-  type OnMoveStart,
-  type OnNodeDrag,
-  type ReactFlowInstance,
-  type Viewport,
-} from "@xyflow/react";
+import { Background, ReactFlow, type ReactFlowInstance } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
@@ -33,14 +24,15 @@ import {
   detailsLinkEdge,
   type ProjectCanvasEdge,
 } from "./ProjectGraphDetailsLinkEdge";
-import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
-import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
 import { ProjectGraphZoomVar } from "./ProjectGraphZoomVar";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
+import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import { useGraphFitEffects } from "./useGraphFitEffects";
 import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
 import { useProjectGraphDetails, type PinRequest } from "./useProjectGraphDetails";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+import { useProjectGraphInteractions } from "./use-project-graph-interactions";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 // Module scope: React Flow rebuilds its internals when the registry identity changes.
@@ -61,10 +53,13 @@ export function ProjectGraphCanvas({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  drill,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
   onToggleCollapse,
+  onToggleClusterCollapse,
+  onDrillCluster,
   onOpenNode,
   onViewportChange,
   onEdgeCurveChange,
@@ -97,10 +92,14 @@ export function ProjectGraphCanvas({
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
+  drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
   onToggleCollapse: (id: string) => void;
+  onToggleClusterCollapse: (id: string) => void;
+  onDrillCluster: (id: string) => void;
   onOpenNode: (node: ProjectGraphNode) => void;
   onViewportChange: (viewport: GraphViewport) => void;
   onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
@@ -126,7 +125,6 @@ export function ProjectGraphCanvas({
   > | null>(null);
   // Edge selection is local: it drives only the curve handle, never the saved layout.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const moved = useRef(false);
   const wrapper = useRef<HTMLDivElement>(null);
 
   // The collapse callback travels through a ref so node data does not depend on the parent's
@@ -157,6 +155,7 @@ export function ProjectGraphCanvas({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      drill,
       selectedNodeId,
       sheetMode,
       pinned,
@@ -172,6 +171,7 @@ export function ProjectGraphCanvas({
       onOpenFileAt,
       onOpenPreview,
       onToggleCollapse: toggleCollapse,
+      onToggleClusterCollapse,
       onEditNote: editNote,
       onDeleteNote: deleteNote,
     });
@@ -185,12 +185,13 @@ export function ProjectGraphCanvas({
     wrapperRef: wrapper,
     fitNonce,
     fitPadding,
-    focus,
     nodes,
     addNoteNonce,
     createNote,
     sheet,
   });
+  // The AI focus and drill-down fits compose with the canvas effects on the same instance.
+  useGraphFitEffects(instance, nodes, focus, drill, fitPadding);
 
   const edges = useMemo<ProjectCanvasEdge[]>(() => {
     const analysis = buildProjectGraphFlowEdges({
@@ -200,6 +201,7 @@ export function ProjectGraphCanvas({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      drill,
       onEdgeCurveChange,
     });
     if (activeAnchorId === null) return analysis;
@@ -211,47 +213,33 @@ export function ProjectGraphCanvas({
     focus,
     userFocus,
     isolatedEdgeKinds,
+    drill,
     onEdgeCurveChange,
     activeAnchorId,
   ]);
 
-  const onEdgeClick: EdgeMouseHandler<ProjectCanvasEdge> = (_event, edge) => {
-    setSelectedEdgeId(edge.id);
-    onSelectNode(null);
-  };
-  const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A click inside the satellite keeps the selection: it is the selection's own detail.
-    if (node.type === DETAILS_NODE_TYPE) return;
-    setSelectedEdgeId(null);
-    onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
-  };
-  const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
-    const position = { x: node.position.x, y: node.position.y };
-    if (node.type === NOTE_NODE_TYPE) onMoveNote(node.id, position);
-    else if (node.type === DETAILS_NODE_TYPE) {
-      // Only a pinned card drags on its own, and only into session state — never the layout.
-      if (node.data.pinned) movePinned(node.id, position);
-    } else onMoveNode(node.id, position);
-  };
-  const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor; the satellite has no source file of its own.
-    if (node.type === NOTE_NODE_TYPE || node.type === DETAILS_NODE_TYPE) return;
-    const target = view.nodes.find((entry) => entry.id === node.id);
-    if (target !== undefined) onOpenNode(target);
-  };
-  const onMoveStart: OnMoveStart = (event) => {
-    // A fitView transition has no source event, so this is how a programmatic move is told from
-    // a user's. While a focus is active such a move is the focus fit, and it must not be saved:
-    // the layout keeps the viewport the user chose (D-171 persists no focus state).
-    if (event === null && focus !== null) return;
-    moved.current = true;
-  };
-  const onMove: OnMove = (_event, next: Viewport) => onViewportMove(next);
-  const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {
-    if (!moved.current) return;
-    moved.current = false;
-    onViewportChange({ x: next.x, y: next.y, zoom: next.zoom });
-  };
+  const {
+    onEdgeClick,
+    onNodeClick,
+    onNodeDragStop,
+    onNodeDoubleClick,
+    onMoveStart,
+    onMove,
+    onMoveEnd,
+  } = useProjectGraphInteractions({
+    view,
+    focus,
+    drill,
+    setSelectedEdgeId,
+    onSelectNode,
+    onMoveNode,
+    onMoveNote,
+    movePinned,
+    onOpenNode,
+    onDrillCluster,
+    onViewportChange,
+    onViewportMove,
+  });
 
   return (
     <div

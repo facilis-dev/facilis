@@ -5,10 +5,10 @@
 // useProjectGraphViewState; closure: useProjectGraphUserFocus; keys: useProjectGraphEscape.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView } from "@/facilis/graph-model";
-import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
+import { clusterInputFor } from "@/facilis/graph-clusters";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import {
   INITIAL_PINNED_DETAILS,
@@ -26,7 +26,6 @@ import {
 } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
-import { focusGraphNode } from "./focus-graph-node";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
 import { ProjectGraphHud } from "./ProjectGraphHud";
@@ -38,10 +37,12 @@ import { useProjectGraphEscape } from "./use-project-graph-escape";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
 import { useProjectGraphOpen } from "./use-project-graph-open";
 import { useProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
+import { useProjectGraphSelection } from "./use-project-graph-selection";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -90,21 +91,9 @@ export function ProjectGraphPanel() {
     if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
   }, [knownNodeIds]);
 
-  const closeDetails = useCallback(() => {
-    if (selectedNodeId !== null) focusGraphNode(selectedNodeId);
-    setSelectedNodeId(null);
-  }, [selectedNodeId, setSelectedNodeId]);
-  // Esc: zen → isolate → selection → AI focus; Enter isolates the selection (issue #66).
-  useProjectGraphEscape({
-    zen,
-    isolatedNode,
-    selection: selectedNodeId,
-    aiFocusActive: focus !== null,
-    onExitZen: () => dispatchZen({ type: "exit" }),
-    onClearSelection: closeDetails,
-    setIsolatedNode: viewState.setIsolatedNode,
-  });
-
+  // The cluster layout MODE (issue #62, F.4): auto follows the analysis node count (on above
+  // 40), the user's explicit choice wins; collapse/drill ride the URL, never .facilis/graph/.
+  const nodeCount = analysis?.graph.nodes.length ?? 0;
   const view = useMemo(
     () =>
       analysis === null
@@ -117,11 +106,30 @@ export function ProjectGraphPanel() {
             collapsed: layout.collapsed,
             query,
             kinds: filter.kinds,
+            clusters: clusterInputFor(viewState.state, nodeCount),
           }),
-    [analysis, layout, query, filter],
+    [analysis, layout, query, filter, viewState.state, nodeCount],
   );
+  const clusters = useProjectGraphClusters(viewState, view, nodeCount);
   // Focus-and-context (issue #66): derived dimming closure; isolate persists it in the URL (F.5).
   const { userFocus, focusSummary } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
+  const { selectedNode, selectedEdges, details, nodeLabels, nodeLabel, closeDetails } =
+    useProjectGraphSelection(view, selectedNodeId, analysis, setSelectedNodeId);
+  // Esc: zen → isolate → selection → drill → AI focus; Enter isolates, G/C drive the clusters
+  // (issues #66, #62). One listener owns every graph key.
+  useProjectGraphEscape({
+    zen,
+    isolatedNode,
+    selection: selectedNodeId,
+    drill: viewState.state.drill,
+    aiFocusActive: focus !== null,
+    onExitZen: () => dispatchZen({ type: "exit" }),
+    onClearSelection: closeDetails,
+    setIsolatedNode: viewState.setIsolatedNode,
+    onDrillUp: clusters.drillUp,
+    onToggleGroupBy: clusters.toggleGroupBy,
+    onCollapseCluster: clusters.collapseActive,
+  });
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
   const layoutLoaded = graph.layoutLoaded;
@@ -143,23 +151,6 @@ export function ProjectGraphPanel() {
     graph.resetPositions();
     fit();
   };
-  const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  // Incident edges, both directions: page links and the routes that use a view.
-  const selectedEdges =
-    view?.edges.filter(
-      (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
-    ) ?? [];
-  // The inspector's detail facts live on the Analysis the panel already holds, not on the graph.
-  const details = useMemo<ReadonlyMap<string, NodeDetails>>(
-    () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
-    [analysis],
-  );
-  const nodeLabels = useMemo(
-    () => new Map((view?.nodes ?? []).map((node) => [node.id, node.label] as const)),
-    [view],
-  );
-  const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
-
   // Non-canvas states live in their own component; a notes-only graph is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
@@ -182,6 +173,7 @@ export function ProjectGraphPanel() {
     isolatedNode,
     selectedNodeId,
     runtime,
+    clusters,
   });
   const body =
     state !== null ? (
@@ -197,12 +189,15 @@ export function ProjectGraphPanel() {
         focus={focus}
         userFocus={userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+        drill={clusters.drill}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
         onSelectNode={setSelectedNodeId}
         onMoveNode={graph.moveNode}
         onToggleCollapse={graph.toggleCollapsed}
+        onToggleClusterCollapse={clusters.toggleCollapse}
+        onDrillCluster={clusters.drillInto}
         onOpenNode={openNode}
         onViewportChange={graph.changeViewport}
         onEdgeCurveChange={graph.changeEdgeCurve}
@@ -254,6 +249,7 @@ export function ProjectGraphPanel() {
               lensChips={hudSlots.lensChips}
               focusBar={hudSlots.focusBar}
               runtimeControls={hudSlots.runtimeControls}
+              clusterControls={hudSlots.clusterControls}
               tableVisibility={layout.tableVisibility}
               onTableVisibilityChange={graph.changeTableVisibility}
               // With no canvas on screen the HUD must still place the first note at a fixed origin.

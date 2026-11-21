@@ -14,6 +14,7 @@ import type { GraphCurve } from "@/facilis/graph-types";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { edgeStyleFor } from "./project-graph-edges";
+import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectFlowEdgesInput {
@@ -26,7 +27,15 @@ export interface ProjectFlowEdgesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The active drill-down (issue #62), or null when the whole graph is equally bright. */
+  readonly drill: ProjectGraphDrill | null;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
+}
+
+/** An edge stays bright inside a drill when both ends are members or one is the frame itself. */
+function drillBright(edge: { source: string; target: string }, drill: ProjectGraphDrill): boolean {
+  const inside = (id: string): boolean => id === drill.clusterId || drill.nodeIds.has(id);
+  return inside(edge.source) && inside(edge.target);
 }
 
 export function buildProjectGraphFlowEdges({
@@ -36,6 +45,7 @@ export function buildProjectGraphFlowEdges({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  drill,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
@@ -53,11 +63,15 @@ export function buildProjectGraphFlowEdges({
       data: {
         kind: edge.kind,
         ...(edge.access === undefined ? {} : { access: edge.access }),
+        // A boundary bundle carries its crossing count (issue #62); absent means one edge.
+        ...(edge.count === undefined ? {} : { count: edge.count }),
         // An edge outside the user's closure recedes; the AI outline is independent of it.
         ...(userEdges === null ? {} : { userDimmed: !userEdges.has(edge.id) }),
         ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
         // Isolation faints every other kind to 10%; the edge composes it with the user dim.
         ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
+        // A drill (issue #62) faints the edges leaving the drilled cluster, like the user dim.
+        ...(drill === null ? {} : { drillDimmed: !drillBright(edge, drill) }),
         curve: edgeCurves[edge.id] ?? null,
         onCurveChange: onEdgeCurveChange,
       },

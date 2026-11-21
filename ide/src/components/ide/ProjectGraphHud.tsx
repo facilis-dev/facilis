@@ -55,6 +55,8 @@ export interface ProjectGraphHudProps {
   runtimeControls: ReactNode;
   /** The selection-context line / isolate exit (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
+  /** The cluster breadcrumb + group-by toggle (issue #62); null keeps the plain title. */
+  clusterControls: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -80,7 +82,9 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         className={CLUSTER + " top-2 left-2 max-w-[60%]"}
       >
         <Network className="size-3.5 shrink-0 text-brand" />
-        <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
+        {props.clusterControls ?? (
+          <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
+        )}
         {props.focusBar}
         <div
           data-testid="graph-hud-mode-slot"

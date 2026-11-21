@@ -1,6 +1,7 @@
 // The canvas's instance-driven effects (extracted from ProjectGraphCanvas for the 300-line
-// limit): the fit button, the AI focus fit, the add-note nonce, and the bottom-sheet reveal
-// (issue #59). Each is an event or a guarded request, never a per-frame reaction.
+// limit): the fit button, the add-note nonce, and the bottom-sheet reveal (issue #59). Each is
+// an event or a guarded request, never a per-frame reaction. The AI focus and drill-down fits
+// live in useGraphFitEffects, which composes with this hook on the same instance.
 
 import { useEffect, useRef, type RefObject } from "react";
 import type { ReactFlowInstance, Viewport } from "@xyflow/react";
@@ -10,7 +11,6 @@ import { cardFallbackSize } from "./ProjectGraphEdge";
 import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
-import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface SheetReveal {
   readonly height: number;
@@ -22,7 +22,6 @@ export interface UseProjectGraphCanvasEffectsInput {
   wrapperRef: RefObject<HTMLDivElement | null>;
   fitNonce: number;
   fitPadding: HudFitPadding;
-  focus: ProjectGraphFocusState | null;
   nodes: readonly ProjectFlowNode[];
   addNoteNonce: number;
   createNote: (position: { x: number; y: number }) => void;
@@ -35,7 +34,6 @@ export function useProjectGraphCanvasEffects({
   wrapperRef,
   fitNonce,
   fitPadding,
-  focus,
   nodes,
   addNoteNonce,
   createNote,
@@ -52,22 +50,6 @@ export function useProjectGraphCanvasEffects({
       .map((node) => ({ id: node.id }));
     void instance.fitView({ nodes: targets, padding: toFlowPadding(fitPadding), duration: 200 });
   }, [fitNonce, instance, fitPadding]);
-
-  // A focus request names nodes that must exist in state before fitView can frame them, so the
-  // effect waits for React Flow's instance and for the rebuilt node list. The ref keeps a drag
-  // from refitting: `nodes` is a dependency only so a request made mid-build lands on a later
-  // pass, not on every pointer move.
-  const fittedFocus = useRef<ProjectGraphFocusState | null>(null);
-  useEffect(() => {
-    if (instance === null || focus === null || !focus.zoom) return;
-    if (fittedFocus.current === focus) return;
-    const targets = nodes
-      .filter((node) => focus.nodeIds.has(node.id))
-      .map((node) => ({ id: node.id }));
-    if (targets.length === 0) return;
-    fittedFocus.current = focus;
-    void instance.fitView({ nodes: targets, padding: toFlowPadding(fitPadding), duration: 200 });
-  }, [focus, instance, nodes, fitPadding]);
 
   // Adding a note is an event, not state: only a nonce change creates one, so a click made
   // while the canvas is not rendered cannot materialize a note on the next mount. The panel

@@ -42,9 +42,9 @@ export function graphViewRootAction(
 /**
  * The search string to write for a state, keeping the URL under maxLength (the caller passes
  * the budget left after origin + pathname + hash). When the full snapshot does not fit, the
- * bulkiest view-only fields are shed in order — collapsed ids, then user focus, then query —
- * so a 500-node project's URL stays shareable; shed fields degrade to defaults on the
- * receiving tab. Ids only, never coordinates.
+ * bulkiest view-only fields are shed in order — collapsed ids, collapsed cluster ids, then user
+ * focus, then query — so a 500-node project's URL stays shareable; shed fields degrade to
+ * defaults on the receiving tab. Ids only, never coordinates.
  */
 export function graphViewSearch(
   search: string,
@@ -55,8 +55,9 @@ export function graphViewSearch(
   if (full.length <= maxLength) return full;
   const shed: readonly GraphViewState[] = [
     { ...state, collapsed: [] },
-    { ...state, collapsed: [], focus: [] },
-    { ...state, collapsed: [], focus: [], query: "" },
+    { ...state, collapsed: [], collapsedClusters: [] },
+    { ...state, collapsed: [], collapsedClusters: [], focus: [] },
+    { ...state, collapsed: [], collapsedClusters: [], focus: [], query: "" },
   ];
   for (const step of shed) {
     const next = withGraphViewParam(search, encodeGraphViewState(step));

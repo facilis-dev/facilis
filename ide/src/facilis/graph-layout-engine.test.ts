@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildProjectGraphView } from "./graph-model";
-import { GRAPH_ROW_PITCH, layoutGraph } from "./graph-layout-engine";
+import { GRAPH_ROW_PITCH, layoutBoxes, layoutGraph } from "./graph-layout-engine";
 import { GRAPH_NODE_SIZES } from "./graph-node-size";
 import { exampleProjectGraph, largeProjectGraph } from "./graph-layout.test-fixtures";
 import { graphOf, routeNode } from "./graph-model.test-fixtures";
@@ -132,5 +132,35 @@ describe("reset layout returns to the auto layout", () => {
     for (const node of reset.nodes) {
       expect(node.position).toEqual(auto.positions.get(node.id));
     }
+  });
+});
+
+describe("layoutBoxes (cluster frames, issue #62)", () => {
+  const box = (id: string, width: number, height: number) => ({ id, width, height });
+
+  it("returns an empty layout for no boxes", () => {
+    const layout = layoutBoxes([]);
+    expect(layout.positions.size).toBe(0);
+    expect(layout.width).toBe(0);
+    expect(layout.height).toBe(0);
+  });
+
+  it("keeps a single box at the origin with its own size", () => {
+    const layout = layoutBoxes([box("cluster:a", 300, 200)]);
+    expect(layout.positions.get("cluster:a")).toEqual({ x: 0, y: 0 });
+    expect(layout.width).toBe(300);
+    expect(layout.height).toBe(200);
+  });
+
+  it("wraps tall box sets into sub-columns and stays deterministic", () => {
+    const boxes = Array.from({ length: 12 }, (_unused, index) =>
+      box("cluster:c" + String(index).padStart(2, "0"), 260 + (index % 3) * 40, 300),
+    );
+    const first = layoutBoxes(boxes);
+    const xs = new Set([...first.positions.values()].map((position) => position.x));
+    expect(xs.size).toBeGreaterThan(1);
+    expect(layoutBoxes(boxes)).toEqual(first);
+    expect(first.width).toBeGreaterThanOrEqual(340);
+    expect(first.height).toBeGreaterThanOrEqual(300);
   });
 });

@@ -8,8 +8,10 @@ import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphClosureSummary } from "@/facilis/graph-user-focus";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
+import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphRuntimeControls } from "./ProjectGraphRuntimeControls";
+import type { ProjectGraphClusters } from "./useProjectGraphClusters";
 import type { ProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
 import type { ProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -18,6 +20,8 @@ export interface ProjectGraphHudSlots {
   readonly focusBar: ReactNode;
   /** null while the runtime lens is inactive: the ribbon renders exactly as before. */
   readonly runtimeControls: ReactNode;
+  /** The cluster breadcrumb + group-by toggle (issue #62), in the top-left cluster. */
+  readonly clusterControls: ReactNode;
 }
 
 export function useProjectGraphHudSlots({
@@ -30,6 +34,7 @@ export function useProjectGraphHudSlots({
   isolatedNode,
   selectedNodeId,
   runtime,
+  clusters,
 }: {
   stats: ProjectGraphStats | null;
   edgeCounts: Readonly<Record<GraphEdgeKind, number>>;
@@ -40,6 +45,7 @@ export function useProjectGraphHudSlots({
   isolatedNode: string | null;
   selectedNodeId: string | null;
   runtime: ProjectGraphRuntimeLens;
+  clusters: ProjectGraphClusters;
 }): ProjectGraphHudSlots {
   const lensChips = useMemo(
     () => (
@@ -79,5 +85,16 @@ export function useProjectGraphHudSlots({
       ),
     [runtime],
   );
-  return { lensChips, focusBar, runtimeControls };
+  const clusterControls = useMemo(
+    () => (
+      <ProjectGraphHudClusters
+        enabled={clusters.enabled}
+        drillKey={clusters.drillCluster?.key ?? null}
+        onToggleGroupBy={clusters.toggleGroupBy}
+        onDrillUp={clusters.drillUp}
+      />
+    ),
+    [clusters],
+  );
+  return { lensChips, focusBar, runtimeControls, clusterControls };
 }

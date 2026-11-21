@@ -252,4 +252,21 @@ export const projectGraphEn = {
   "projectGraph.runtime.clientErrors": "{count} client errors (4xx)",
   "projectGraph.runtime.aborted": "{count} aborted",
   "projectGraph.runtime.sparkline": "Requests per bucket over the last {window}",
+
+  // ── feature clusters (issue #62) ─────────────────────────────────────────
+  "projectGraph.cluster.other": "Other",
+  "projectGraph.cluster.otherHint": "Nodes the analysis could not group into a feature.",
+  "projectGraph.cluster.toggle": "Group by feature",
+  "projectGraph.cluster.toggleHint":
+    "Group nodes into feature clusters (G). On by default above 40 nodes.",
+  "projectGraph.cluster.drillUp": "Up one level (Esc)",
+  "projectGraph.cluster.drillHint": "Double-click to focus this cluster; Esc goes back up.",
+  "projectGraph.cluster.collapse": "Collapse cluster",
+  "projectGraph.cluster.expand": "Expand cluster",
+  "projectGraph.cluster.collapseHint": "Collapse or expand this cluster (C).",
+  "projectGraph.cluster.nodes": "{count} nodes",
+  "projectGraph.cluster.crossing": "{count} crossing edges",
+  "projectGraph.cluster.edgeCount": "×{count}",
+  "projectGraph.cluster.frameLabel": "Feature cluster {label}",
+  "projectGraph.cluster.frameKind": "Feature",
 } as const;

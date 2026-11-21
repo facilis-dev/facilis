@@ -1,8 +1,9 @@
 // The project graph's addressable view (issue #58): composes the saved-layout hook with the
-// panel-local view fields (mode, lenses, selection, user focus, query) and keeps the tab URL
-// in sync through the gv parameter. Restoring a deep link never writes .facilis: layout-derived
-// fields go through the layout hook's non-persisting restoreView, and URL writes wait until
-// the restore has landed so defaults cannot clobber a shared link.
+// panel-local view fields (mode, lenses, selection, user focus, query, cluster mode/collapse/
+// drill) and keeps the tab URL in sync through the gv parameter. Restoring a deep link never
+// writes .facilis: layout-derived fields go through the layout hook's non-persisting
+// restoreView, and URL writes wait until the restore has landed so defaults cannot clobber a
+// shared link. The cluster fields (issue #62) are view state only — never .facilis/graph/.
 //
 // The AI focus (D-171) stays a separate overlay: this hook never touches graph-focus.ts, so a
 // tool's focus and the user's selection live and clear independently (criterion 6).
@@ -15,18 +16,14 @@ import {
   DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
   encodeGraphViewState,
+  type GraphGroupBy,
   type GraphLensId,
   type GraphViewMode,
   type GraphViewState,
 } from "@/facilis/graph-view-state";
-import {
-  GRAPH_VIEW_URL_DELAY_MS,
-  GRAPH_VIEW_URL_MAX_LENGTH,
-  graphViewRootAction,
-  graphViewSearch,
-  readGraphViewParam,
-  withGraphViewParam,
-} from "@/facilis/graph-view-state-url";
+import { graphViewRootAction, readGraphViewParam } from "@/facilis/graph-view-state-url";
+import { useGraphClusterViewState } from "./use-graph-cluster-view-state";
+import { useGraphViewUrlSync } from "./use-graph-view-url-sync";
 import { useProjectGraphLayout, type ProjectGraphLayout } from "./useProjectGraphLayout";
 
 /** The fields the panel owns; filters/collapsed/viewport are read from the layout object. */
@@ -69,21 +66,9 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
-}
-
-/**
- * replaceState, never pushState: the view is not a navigation entry. history.state, the hash
- * and every other parameter survive because only the search string is rebuilt.
- */
-function replaceSearch(search: string): void {
-  const url = new URL(location.href);
-  url.search = search;
-  history.replaceState(history.state, "", url.toString());
-}
-
-/** The URL budget left for the search string once origin, pathname and hash are accounted for. */
-function searchBudget(): number {
-  return GRAPH_VIEW_URL_MAX_LENGTH - (location.href.length - location.search.length);
+  readonly setGroupBy: (groupBy: GraphGroupBy) => void;
+  readonly setCollapsedClusters: (ids: readonly string[]) => void;
+  readonly setDrill: (id: string | null) => void;
 }
 
 export function useProjectGraphViewState(
@@ -98,63 +83,6 @@ export function useProjectGraphViewState(
   // Which root the current URL state belongs to; null until a project adopts the parameter.
   const urlRoot = useRef<string | null>(null);
   const pendingRestore = useRef<GraphViewState | null>(null);
-  const lastWritten = useRef<string>("");
-
-  // Adopt the deep link on the first project, reset it on any other root (criterion 5).
-  useEffect(() => {
-    const action = graphViewRootAction(urlRoot.current, root);
-    if (action === "none") return;
-    urlRoot.current = root;
-    if (action === "reset") {
-      pendingRestore.current = null;
-      setLocal(DEFAULT_LOCAL);
-      lastWritten.current = "";
-      setReady(true);
-      replaceSearch(withGraphViewParam(location.search, null));
-      return;
-    }
-    const raw = readGraphViewParam(location.search);
-    lastWritten.current = raw ?? "";
-    if (raw === null || raw === "") {
-      setReady(true);
-      return;
-    }
-    pendingRestore.current = decodeGraphViewState(raw);
-    setReady(false);
-  }, [root]);
-
-  // Apply the decoded view once both gates are up: the layout (so the restore lands on loaded
-  // state) and the analysis (so stale node ids degrade silently instead of selecting ghosts).
-  useEffect(() => {
-    const pending = pendingRestore.current;
-    if (pending === null || !layoutLoaded || knownNodeIds === null) return;
-    pendingRestore.current = null;
-    const collapsed = pending.collapsed.filter((id) => knownNodeIds.has(id));
-    setLocal({
-      mode: pending.mode,
-      activeLenses: pending.activeLenses,
-      isolatedEdgeKinds: pending.isolatedEdgeKinds,
-      runtimeWindow: pending.runtimeWindow,
-      runtimeLive: pending.runtimeLive,
-      isolatedNode:
-        pending.isolatedNode !== null && knownNodeIds.has(pending.isolatedNode)
-          ? pending.isolatedNode
-          : null,
-      selection:
-        pending.selection !== null && knownNodeIds.has(pending.selection)
-          ? pending.selection
-          : null,
-      focus: pending.focus.filter((id) => knownNodeIds.has(id)),
-      query: pending.query,
-    });
-    restoreView({
-      hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
-      tableVisibility: pending.filters.tableVisibility,
-      collapsed: Object.fromEntries(collapsed.map((id) => [id, true])),
-      viewport: pending.viewport,
-    });
-    setReady(true);
-  }, [layoutLoaded, knownNodeIds, restoreView]);
 
   // A user edit before the restore lands wins: the deep link is dropped, not replayed over
   // the edit, and URL writes unlock immediately.
@@ -163,6 +91,7 @@ export function useProjectGraphViewState(
     pendingRestore.current = null;
     setReady(true);
   }, []);
+  const clusterView = useGraphClusterViewState(cancelRestore);
 
   const setMode = useCallback(
     (mode: GraphViewMode) => {
@@ -247,38 +176,86 @@ export function useProjectGraphViewState(
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
       collapsed: collapsedIds,
+      ...clusterView.local,
       viewport: layout.viewport ?? null,
       query: local.query,
     }),
-    [local, layout.hiddenEdges, layout.tableVisibility, layout.viewport, collapsedIds],
+    [
+      local,
+      layout.hiddenEdges,
+      layout.tableVisibility,
+      layout.viewport,
+      collapsedIds,
+      clusterView.local,
+    ],
   );
   const encoded = encodeGraphViewState(state);
-
-  // The URL write: debounced, only when the encoded value changed, and never before the
-  // restore landed or the layout loaded (a snapshot taken mid-load would omit saved fields).
-  useEffect(() => {
-    if (!ready || !layoutLoaded || root === null) return;
-    if (encoded === lastWritten.current) return;
-    const timer = setTimeout(() => {
-      lastWritten.current = encoded;
-      replaceSearch(graphViewSearch(location.search, state, searchBudget()));
-    }, GRAPH_VIEW_URL_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [encoded, ready, layoutLoaded, root, state]);
-
-  // Closing the tab must not drop the last keystroke: flush the pending write synchronously.
-  const latest = useRef({ state, encoded, ready, layoutLoaded, root });
-  latest.current = { state, encoded, ready, layoutLoaded, root };
-  useEffect(
-    () => () => {
-      const snap = latest.current;
-      if (!snap.ready || !snap.layoutLoaded || snap.root === null) return;
-      if (snap.encoded === lastWritten.current) return;
-      lastWritten.current = snap.encoded;
-      replaceSearch(graphViewSearch(location.search, snap.state, searchBudget()));
-    },
-    [],
+  const { markWritten, reset: resetUrl } = useGraphViewUrlSync(
+    state,
+    encoded,
+    ready,
+    layoutLoaded,
+    root,
   );
+
+  // Adopt the deep link on the first project, reset it on any other root (criterion 5).
+  useEffect(() => {
+    const action = graphViewRootAction(urlRoot.current, root);
+    if (action === "none") return;
+    urlRoot.current = root;
+    if (action === "reset") {
+      pendingRestore.current = null;
+      setLocal(DEFAULT_LOCAL);
+      clusterView.reset();
+      resetUrl();
+      setReady(true);
+      return;
+    }
+    const raw = readGraphViewParam(location.search);
+    markWritten(raw ?? "");
+    if (raw === null || raw === "") {
+      setReady(true);
+      return;
+    }
+    pendingRestore.current = decodeGraphViewState(raw);
+    setReady(false);
+  }, [root, clusterView.reset, resetUrl, markWritten]);
+
+  // Apply the decoded view once both gates are up: the layout (so the restore lands on loaded
+  // state) and the analysis (so stale node ids degrade silently instead of selecting ghosts).
+  useEffect(() => {
+    const pending = pendingRestore.current;
+    if (pending === null || !layoutLoaded || knownNodeIds === null) return;
+    pendingRestore.current = null;
+    const collapsed = pending.collapsed.filter((id) => knownNodeIds.has(id));
+    setLocal({
+      mode: pending.mode,
+      activeLenses: pending.activeLenses,
+      isolatedEdgeKinds: pending.isolatedEdgeKinds,
+      runtimeWindow: pending.runtimeWindow,
+      runtimeLive: pending.runtimeLive,
+      isolatedNode:
+        pending.isolatedNode !== null && knownNodeIds.has(pending.isolatedNode)
+          ? pending.isolatedNode
+          : null,
+      selection:
+        pending.selection !== null && knownNodeIds.has(pending.selection)
+          ? pending.selection
+          : null,
+      focus: pending.focus.filter((id) => knownNodeIds.has(id)),
+      query: pending.query,
+    });
+    // Cluster ids are derived, not analysis ids: they restore unfiltered and the clusters hook
+    // drops the ones no current cluster carries (issue #62).
+    clusterView.restore(pending);
+    restoreView({
+      hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
+      tableVisibility: pending.filters.tableVisibility,
+      collapsed: Object.fromEntries(collapsed.map((id) => [id, true])),
+      viewport: pending.viewport,
+    });
+    setReady(true);
+  }, [layoutLoaded, knownNodeIds, restoreView, clusterView.restore]);
 
   return {
     graph,
@@ -293,5 +270,8 @@ export function useProjectGraphViewState(
     setSelection,
     setUserFocus,
     setQuery,
+    setGroupBy: clusterView.setGroupBy,
+    setCollapsedClusters: clusterView.setCollapsedClusters,
+    setDrill: clusterView.setDrill,
   };
 }

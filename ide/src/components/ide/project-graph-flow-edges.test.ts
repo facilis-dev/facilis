@@ -27,6 +27,7 @@ const build = (
     focus,
     userFocus: null,
     isolatedEdgeKinds,
+    drill: null,
     onEdgeCurveChange: () => {},
   });
 
@@ -79,9 +80,69 @@ describe("buildProjectGraphFlowEdges", () => {
       focus: null,
       userFocus: null,
       isolatedEdgeKinds: [],
+      drill: null,
       onEdgeCurveChange: () => {},
     });
     expect(edges[0]?.selected).toBe(true);
     expect(edges[0]?.markerEnd).toMatchObject({ color: "var(--brand)" });
+  });
+});
+
+// The boundary bundle and the drill dimming (issue #62): a collapse aggregates parallel
+// crossings into one counted edge, and a drill faints the edges leaving the drilled cluster —
+// data flags only, never a removal (epic #56 rule 2).
+describe("buildProjectGraphFlowEdges clusters (issue #62)", () => {
+  const graph = graphOf([GET, TODOS, PROJECTS], EDGES);
+  const clustered = buildProjectGraphView({
+    graph,
+    clusters: { enabled: true, collapsed: ["cluster:db"] },
+  });
+
+  it("carries the bundle count as data and keeps every edge drawn", () => {
+    const edges = buildProjectGraphFlowEdges({
+      view: clustered,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill: null,
+      onEdgeCurveChange: () => {},
+    });
+    expect(edges.length).toBe(clustered.edges.length);
+    const bundled = edges.filter((edge) => (edge.data?.count ?? 1) > 1);
+    for (const edge of bundled) {
+      const model = clustered.edges.find((entry) => entry.id === edge.id);
+      expect(edge.data?.count).toBe(model?.count);
+    }
+  });
+
+  it("a drill faints the edges leaving the drilled cluster, positions untouched", () => {
+    const clusterView = buildProjectGraphView({
+      graph,
+      clusters: { enabled: true, collapsed: [] },
+    });
+    const frame = clusterView.clusters.find((cluster) => cluster.nodeIds.includes(GET.id));
+    expect(frame).toBeDefined();
+    if (frame === undefined) return;
+    const drill = { clusterId: frame.id, nodeIds: new Set(frame.nodeIds) };
+    const edges = buildProjectGraphFlowEdges({
+      view: clusterView,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      drill,
+      onEdgeCurveChange: () => {},
+    });
+    const inside = (id: string) => id === frame.id || frame.nodeIds.includes(id);
+    for (const edge of edges) {
+      const bright = inside(edge.source) && inside(edge.target);
+      expect(edge.data?.drillDimmed).toBe(!bright);
+    }
+    // The route-table edge leaves the route's cluster toward the table: it recedes.
+    const leaving = edges.find((edge) => edge.id === "e3");
+    expect(leaving?.data?.drillDimmed).toBe(true);
   });
 });

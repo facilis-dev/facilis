@@ -37,6 +37,7 @@ function markup(slots: { lensChips?: ReactNode; runtimeControls?: ReactNode } = 
       onToggleEdges={vi.fn()}
       lensChips={slots.lensChips ?? <div data-testid="lens-chips-slot" />}
       focusBar={null}
+      clusterControls={null}
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
       tableVisibility="project"
       onTableVisibilityChange={vi.fn()}

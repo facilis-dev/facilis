@@ -252,3 +252,41 @@ describe("graph view state degradation", () => {
     expect(decodeGraphViewState(big)).toEqual(DEFAULT_GRAPH_VIEW_STATE);
   });
 });
+
+describe("graph view state cluster fields (issue #62)", () => {
+  it("round-trips the collapse set, the group-by choice and the drill", () => {
+    const next = state({
+      collapsedClusters: ["cluster:api/todos", "cluster:db"],
+      groupBy: "on",
+      drill: "cluster:api/todos",
+    });
+    const once = decodeGraphViewState(encodeGraphViewState(next));
+    expect(once).toEqual(next);
+    expect(encodeGraphViewState(once)).toBe(encodeGraphViewState(next));
+  });
+
+  it("omits the auto default and deduplicates the collapse ids", () => {
+    expect(encodeGraphViewState(state({ groupBy: "auto" }))).toBe("");
+    const encoded = encodeGraphViewState(
+      state({ collapsedClusters: ["cluster:a", "cluster:a", ""], groupBy: "off" }),
+    );
+    expect(encoded).toBe('{"cc":["cluster:a"],"g":"off"}');
+  });
+
+  it("cluster ids survive knownNodeIds filtering: they are derived, not analysis ids", () => {
+    const raw = encodeGraphViewState(
+      state({ collapsedClusters: ["cluster:api/todos"], drill: "cluster:api/todos" }),
+    );
+    const decoded = decodeGraphViewState(raw, new Set(["table:todos"]));
+    expect(decoded.collapsedClusters).toEqual(["cluster:api/todos"]);
+    expect(decoded.drill).toBe("cluster:api/todos");
+  });
+
+  it("degrades hostile cluster fields to defaults", () => {
+    const hostile = JSON.stringify({ cc: { a: true }, g: "sometimes", d: 42 });
+    const decoded = decodeGraphViewState(hostile);
+    expect(decoded.collapsedClusters).toEqual([]);
+    expect(decoded.groupBy).toBe("auto");
+    expect(decoded.drill).toBeNull();
+  });
+});

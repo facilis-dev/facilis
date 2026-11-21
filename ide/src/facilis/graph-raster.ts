@@ -34,6 +34,26 @@ const OUTLINE_CARD_WIDTH = 2;
 const OUTLINE_CARD_OFFSET = 2.5;
 const OUTLINE_OPACITY = 0.45;
 
+/** Cluster frames (issue #62): an outline with its label, painted under everything else. */
+function paintFrames(
+  context: CanvasRenderingContext2D,
+  scene: GraphScene,
+  palette: GraphScenePalette,
+): void {
+  for (const frame of scene.frames) {
+    const { x, y, width, height } = frame.rect;
+    context.beginPath();
+    context.roundRect(x, y, width, height, CARD_RADIUS);
+    context.strokeStyle = palette.border;
+    context.lineWidth = 1;
+    context.stroke();
+    context.fillStyle = palette.muted;
+    context.font = KIND_FONT;
+    context.textBaseline = "middle";
+    context.fillText(frame.label, x + LABEL_INSET, y + 12, Math.max(0, width - LABEL_INSET * 2));
+  }
+}
+
 function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene, outline: string): void {
   context.lineWidth = EDGE_WIDTH;
   context.lineCap = "round";
@@ -108,6 +128,7 @@ function paint(
 ): void {
   context.fillStyle = palette.background;
   context.fillRect(0, 0, scene.width, scene.height);
+  paintFrames(context, scene, palette);
   paintEdges(context, scene, palette.outline);
   paintNodes(context, scene, palette);
 }

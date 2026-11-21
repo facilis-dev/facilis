@@ -37,6 +37,13 @@ export interface GraphViewFilters {
   readonly tableVisibility: GraphTableVisibility;
 }
 
+/**
+ * The group-by mode switch (issue #62, F.4): "auto" enables clusters above the node threshold,
+ * "on"/"off" are the user's explicit choice. Only the explicit choices travel in the URL.
+ * Clustering is a layout MODE, not a lens: it re-lays auto positions, never saved ones.
+ */
+export type GraphGroupBy = "auto" | "on" | "off";
+
 export interface GraphViewState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
@@ -57,6 +64,11 @@ export interface GraphViewState {
   readonly focus: readonly string[];
   readonly filters: GraphViewFilters;
   readonly collapsed: readonly string[];
+  /** Cluster collapse (issue #62): view state only, never written to .facilis/graph/. */
+  readonly collapsedClusters: readonly string[];
+  readonly groupBy: GraphGroupBy;
+  /** The drilled-into cluster id (breadcrumb); Esc goes up one level. */
+  readonly drill: string | null;
   readonly viewport: GraphViewport | null;
   readonly query: string;
 }
@@ -73,6 +85,9 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
   collapsed: [],
+  collapsedClusters: [],
+  groupBy: "auto",
+  drill: null,
   viewport: null,
   query: "",
 };
@@ -128,6 +143,10 @@ export function encodeGraphViewState(state: GraphViewState): string {
   if (state.filters.tableVisibility !== "all") out.t = state.filters.tableVisibility;
   const collapsed = uniqueStrings(state.collapsed);
   if (collapsed.length > 0) out.c = collapsed;
+  const collapsedClusters = uniqueStrings(state.collapsedClusters);
+  if (collapsedClusters.length > 0) out.cc = collapsedClusters;
+  if (state.groupBy !== "auto") out.g = state.groupBy;
+  if (state.drill !== null && state.drill !== "") out.d = state.drill;
   const viewport = state.viewport;
   if (viewport !== null) {
     out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
@@ -138,6 +157,10 @@ export function encodeGraphViewState(state: GraphViewState): string {
 
 function readMode(value: unknown): GraphViewMode {
   return MODES.find((mode) => mode === value) ?? "topology";
+}
+
+function readGroupBy(value: unknown): GraphGroupBy {
+  return value === "on" || value === "off" ? value : "auto";
 }
 
 function readVisibility(value: unknown): GraphTableVisibility {
@@ -223,6 +246,11 @@ export function decodeGraphViewState(
       tableVisibility: readVisibility(parsed.t),
     },
     collapsed: readIds(parsed.c, knownNodeIds),
+    // Cluster ids are derived ("cluster:<key>"), not analysis node ids: they cannot be checked
+    // against knownNodeIds here; the view drops ids no current cluster carries.
+    collapsedClusters: readIds(parsed.cc),
+    groupBy: readGroupBy(parsed.g),
+    drill: readSelection(parsed.d),
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
   };

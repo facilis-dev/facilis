@@ -14,23 +14,25 @@ import {
   type EdgeProps,
   type EdgeTypes,
 } from "@xyflow/react";
-import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
-import { GRAPH_NODE_SIZES } from "@/facilis/graph-node-size";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import {
   edgeGeometry,
-  nodeRect,
   selfLoopGeometry,
   type EdgeGeometry,
-  type Point,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
 import { routeEdge } from "@/facilis/graph-edge-routing";
+import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { curveFromPointer, type EdgeCurveDragState } from "./project-graph-edge-drag";
+import { internalNodeRect, obstacleRects, type MeasuredNode } from "./project-graph-edge-rects";
 import { edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
+
+// Re-exported so the satellite connector and the canvas effects keep one import path.
+export { cardFallbackSize, internalNodeRect } from "./project-graph-edge-rects";
 
 /** The one custom edge type; registered at module scope by the canvas. */
 export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
@@ -44,65 +46,15 @@ export type ProjectGraphEdgeData = {
   readonly aiOutlined?: boolean;
   /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
   readonly dimmed?: boolean;
+  /** True when a drill-down (issue #62) names other nodes: drawn at 12%, like the user focus. */
+  readonly drillDimmed?: boolean;
+  /** How many crossings this boundary bundle stands for (issue #62); absent means one. */
+  readonly count?: number;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
 
 export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_EDGE_TYPE>;
-
-/** The structural shape a rect needs: an endpoint hook result or a nodeLookup entry. */
-interface MeasuredNode {
-  readonly type?: string;
-  readonly internals: { readonly positionAbsolute: Point };
-  readonly measured?: { readonly width?: number; readonly height?: number };
-  readonly width?: number;
-  readonly height?: number;
-}
-
-/** The shared full-card footprints (graph-node-size.ts), used before React Flow measures. */
-const DEFAULT_SIZE = { width: 220, height: 48 };
-
-/** Card sizes before measurement; shared with the satellite placement (issue #59). */
-export function cardFallbackSize(type: string | undefined): {
-  readonly width: number;
-  readonly height: number;
-} {
-  // The node type is the kind string for analysis cards; notes fall back to the default.
-  if (type !== undefined && type in GRAPH_NODE_SIZES)
-    return GRAPH_NODE_SIZES[type as GraphNodeKind];
-  return DEFAULT_SIZE;
-}
-
-/** The card rect edges anchor to; shared with the cubic details connector (#59, F.1). */
-export function internalNodeRect(node: MeasuredNode | undefined): Rect | null {
-  if (node === undefined) return null;
-  const fallback = cardFallbackSize(node.type);
-  return nodeRect(
-    node.internals.positionAbsolute,
-    node.measured?.width ?? node.width ?? fallback.width,
-    node.measured?.height ?? node.height ?? fallback.height,
-  );
-}
-
-/**
- * One rect list per nodeLookup identity, shared by every edge: a drag or a viewport tick must
- * not rebuild N rects per edge. The lookup is replaced whenever nodes change, so the cache
- * cannot serve stale geometry. Satellite and pinned details cards are nodes in the lookup too,
- * so analysis edges never route across an open details card.
- */
-const obstacleCache = new WeakMap<object, readonly Rect[]>();
-
-function obstacleRects(nodeLookup: ReadonlyMap<string, MeasuredNode>): readonly Rect[] {
-  const cached = obstacleCache.get(nodeLookup);
-  if (cached !== undefined) return cached;
-  const rects: Rect[] = [];
-  for (const node of nodeLookup.values()) {
-    const rect = internalNodeRect(node);
-    if (rect !== null) rects.push(rect);
-  }
-  obstacleCache.set(nodeLookup, rects);
-  return rects;
-}
 
 function resolveGeometry(
   sourceNode: MeasuredNode | undefined,
@@ -179,7 +131,7 @@ export function ProjectGraphEdge({
     // owns the stroke. The AI focus no longer dims — it halos below (aiOutlined).
     ...(data?.dimmed === true
       ? { opacity: 0.1 }
-      : data?.userDimmed === true
+      : data?.userDimmed === true || data?.drillDimmed === true
         ? { opacity: 0.12 }
         : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
@@ -247,6 +199,26 @@ export function ProjectGraphEdge({
         style={pathStyle}
         interactionWidth={24}
       />
+      {(data?.count ?? 1) > 1 ? (
+        // The boundary bundle's count (issue #62): a halo keeps it readable over any edge, and
+        // the counter-scaled size keeps it above the 7 px floor at every zoom (epic rule 4).
+        <text
+          x={geometry.midpoint.x}
+          y={geometry.midpoint.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="var(--muted-foreground)"
+          stroke="var(--background)"
+          paintOrder="stroke"
+          className="pointer-events-none"
+          style={{
+            fontSize: lodScreenPx(9),
+            strokeWidth: lodScreenPx(3),
+          }}
+        >
+          {t("projectGraph.cluster.edgeCount", { count: data?.count ?? 1 })}
+        </text>
+      ) : null}
       {/* No bend handles at chip (criterion 5): the edge stays clickable, just not bendable. */}
       {level !== "chip" && selected === true && data !== undefined ? (
         <g className="cursor-grab active:cursor-grabbing">

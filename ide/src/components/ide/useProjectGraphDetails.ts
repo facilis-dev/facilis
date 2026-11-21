@@ -4,8 +4,21 @@
 // keeps the satellite attached while its anchor drags or the viewport moves, and resolves the
 // pin position from the live canvas. Nothing here is persisted: pins are session-scoped.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject } from "react";
-import { applyNodeChanges, type OnNodesChange, type ReactFlowInstance, type Viewport } from "@xyflow/react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+} from "react";
+import {
+  applyNodeChanges,
+  type OnNodesChange,
+  type ReactFlowInstance,
+  type Viewport,
+} from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphView } from "@/facilis/graph-model";
@@ -18,7 +31,7 @@ import {
 import type { GraphNote } from "@/facilis/graph-types";
 import { focusGraphNode } from "./focus-graph-node";
 import { buildDetailsFlowNodes, repositionDetailsNode } from "./project-graph-details-nodes";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { buildProjectGraphFlowNodes, type ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -38,6 +51,8 @@ export interface UseProjectGraphDetailsInput {
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): dimming only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
+  drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
   /** Below the breakpoint the details render as a sheet; no satellite is drawn. */
   sheetMode: boolean;
@@ -56,6 +71,7 @@ export interface UseProjectGraphDetailsInput {
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onToggleCollapse: (id: string) => void;
+  onToggleClusterCollapse: (id: string) => void;
   onEditNote: (id: string, text: string) => void;
   onDeleteNote: (id: string) => void;
 }
@@ -66,6 +82,7 @@ export function useProjectGraphDetails({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  drill,
   selectedNodeId,
   sheetMode,
   pinned,
@@ -81,6 +98,7 @@ export function useProjectGraphDetails({
   onOpenFileAt,
   onOpenPreview,
   onToggleCollapse,
+  onToggleClusterCollapse,
   onEditNote,
   onDeleteNote,
 }: UseProjectGraphDetailsInput) {
@@ -168,7 +186,11 @@ export function useProjectGraphDetails({
   }, [pinRequest, togglePin]);
 
   const buildNodes = useCallback(
-    (next: ProjectGraphView, nextNotes: readonly GraphNote[], previous: readonly ProjectFlowNode[]) => {
+    (
+      next: ProjectGraphView,
+      nextNotes: readonly GraphNote[],
+      previous: readonly ProjectFlowNode[],
+    ) => {
       const base = buildProjectGraphFlowNodes({
         view: next,
         notes: nextNotes,
@@ -177,7 +199,9 @@ export function useProjectGraphDetails({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        drill,
         onToggleCollapse,
+        onToggleClusterCollapse,
         onEditNote,
         onDeleteNote,
       });
@@ -209,7 +233,9 @@ export function useProjectGraphDetails({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      drill,
       onToggleCollapse,
+      onToggleClusterCollapse,
       onEditNote,
       onDeleteNote,
       pinned,
@@ -254,7 +280,9 @@ export function useProjectGraphDetails({
   // A pan or zoom may flip the satellite's side; the viewport comes from the move event itself.
   const onViewportMove = useCallback(
     (viewport: Viewport) => {
-      setNodes((current) => repositionDetailsNode(current, activeAnchorId, viewport, containerWidth));
+      setNodes((current) =>
+        repositionDetailsNode(current, activeAnchorId, viewport, containerWidth),
+      );
     },
     [activeAnchorId, containerWidth],
   );
