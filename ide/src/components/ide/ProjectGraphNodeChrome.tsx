@@ -68,7 +68,7 @@ export function sourceTitle(node: ProjectGraphNode): string {
 
 export function UnknownBadge() {
   return (
-    <span className="shrink-0 rounded border border-warning/50 px-1 text-[9px] text-warning">
+    <span className="shrink-0 rounded border border-warning/50 px-1 text-[10px] text-warning">
       {t("projectGraph.unknown")}
     </span>
   );

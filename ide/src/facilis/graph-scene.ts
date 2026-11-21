@@ -16,21 +16,14 @@ import {
   type Rect,
 } from "./graph-edge-geometry";
 import type { GraphLayoutFile } from "./graph-layout-file";
+import { GRAPH_NODE_SIZES } from "./graph-node-size";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./graph-types";
 
 /**
- * Card classes (w-56/w-60/w-64 = 224/240/256 px) plus the height each kind's content settles at
- * in the panel; the workflow card is wider than the edge fallback because its class says so.
+ * The shared full-card footprints (graph-node-size.ts). The scene always draws the FULL card:
+ * chip and compact render inside the same footprint on the canvas (issue #60), so the picture
+ * and the live edge anchoring agree at every zoom level — the LOD never changes these sizes.
  */
-const CARD_SIZES: Readonly<
-  Record<GraphNodeKind, { readonly width: number; readonly height: number }>
-> = {
-  page: { width: 224, height: 157 },
-  route: { width: 256, height: 60 },
-  table: { width: 240, height: 80 },
-  view: { width: 240, height: 80 },
-  workflow: { width: 256, height: 64 },
-};
 
 /** Blank space around the drawing (self-loops bulge ~62 px out of a card). */
 const SCENE_PADDING = 72;
@@ -94,7 +87,7 @@ function edgeStyleOf(edge: ProjectGraphEdge, palette: GraphScenePalette): GraphS
 }
 
 function rectFor(node: ProjectGraphNode, origin: { readonly x: number; readonly y: number }): Rect {
-  const size = CARD_SIZES[node.kind];
+  const size = GRAPH_NODE_SIZES[node.kind];
   return nodeRect(
     { x: node.position.x - origin.x, y: node.position.y - origin.y },
     size.width,
@@ -139,7 +132,7 @@ export function buildGraphScene(
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   for (const node of selectedNodes) {
-    const size = CARD_SIZES[node.kind];
+    const size = GRAPH_NODE_SIZES[node.kind];
     minX = Math.min(minX, node.position.x);
     minY = Math.min(minY, node.position.y);
     maxX = Math.max(maxX, node.position.x + size.width);
