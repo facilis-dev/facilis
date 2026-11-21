@@ -58,45 +58,49 @@ assignee is an agent or a human.
 
 ## Epics
 
-An issue labelled `epic` is a plan, not a work item: it describes a larger effort and tracks
-its children. Children are discovered from three sources, in order: the task list
-(`- [ ] #NNN`) in the epic body — the authoritative plan order, grouped by phase with a
-suggested order — native GitHub sub-issues, and membership back-references (`Part of #NNN`)
-in open child bodies, in creation order. The children are ordinary issues (`bug`, `enhancement`, `task`) and
-**intentionally carry no `agent:ready` label**: tagging them would let an agent pick a child
-out of plan order. The epic's own `agent:ready` label is the hand-off for the whole plan, and
-the epic's design rules and non-goals are binding for every child.
+An issue labelled `epic` is a plan, not a work item. **One epic is developed on one branch
+(`feat/epic-<N>-<slug>`) with one pull request**: each child is a commit on that branch,
+announced with a comment on the epic PR, and its issue is closed when implemented. The epic
+PR carries `Closes #<epic>` and closes the epic when it merges; children never get their own
+pull requests.
+
+Children are ordinary issues (`bug`, `enhancement`, `task`) and **intentionally carry no
+`agent:ready` label**: tagging them would let an agent pick a child out of plan order. They
+are discovered from three sources, in order: the task list (`- [ ] #NNN`) in the epic body —
+the authoritative plan order, grouped by phase with a suggested order — native GitHub
+sub-issues, and membership back-references (`Part of #NNN`) in open child bodies, in creation
+order. The epic's own `agent:ready` label is the hand-off for the whole plan, and the epic's
+design rules and non-goals are binding for every child.
 
 When an agent selects an `agent:ready` epic:
 
 1. Read the epic body as the plan: the suggested order decides which child is actionable
-   next. A prerequisite is satisfied when its child is closed **or its pull request is
-   open**: development stacks, it does not wait for the merge. Only a prerequisite still
-   in progress (assigned, no pull request) blocks a child.
-2. Pick the first actionable child in plan order that is open, unassigned and has no open
-   pull request, and claim the **child** (`gh issue edit <child> --add-assignee @me`) —
-   never the epic, and never a child already implemented by an open pull request. The epic
-   stays unassigned so the next run can take the next child.
-3. Develop the child like any other issue: its acceptance criteria plus the epic's rules.
-   When a prerequisite has an open pull request, branch from that PR's head branch
-   (**stacked development**) instead of `main`; with several stacked prerequisites use the
-   last one in the chain.
-4. Open the pull request with `Closes #<child>` — never `Closes` the epic, which closes only
-   when every child is closed (or explicitly descoped in its body). A stacked pull request
-   targets the prerequisite's branch (`gh pr create --base <branch>`) and says so in its
-   description; when the prerequisite merges, retarget it to `main` (GitHub does this
-   automatically if the base branch is deleted). GitHub checks the epic's task-list box
-   automatically when the child closes.
-5. Keep the stack close to `main`: before stacking new work on a chain, and when resolving
-   a stacked PR's conflicts, align the chain bottom-up — rebase each PR from the root onto
-   its updated base (`main` for the root), gates green, `--force-with-lease` push — so the
-   stack does not drift while reviews are pending. If an alignment rebase hits an uncertain
-   conflict, abort it, comment on that PR and leave the higher PRs on their current base;
-   never guess a semantic resolution.
+   next. A prerequisite is satisfied when its child is closed; a prerequisite still in
+   progress (assigned, not closed) blocks the child.
+2. Pick the first actionable child in plan order that is open and unassigned, and claim the
+   **child** (`gh issue edit <child> --add-assignee @me`) — never the epic. All children of
+   one epic serialize on its branch: while a child is in progress, no other child of the
+   same epic starts.
+3. Develop the child on the epic branch (create it from `main` with the first child; reuse
+   it afterwards), keeping the branch aligned to `main` (rebase, gates green,
+   `--force-with-lease` push) so it does not drift while reviews are pending. The child's
+   acceptance criteria plus the epic's rules apply. An uncertain alignment conflict is
+   aborted and commented, never guessed.
+4. Commit referencing the child (`feat(scope): summary (#<child>)`), push, and comment on the
+   epic PR: child implemented, commit, gate evidence. Then close the child issue
+   (`gh issue close <child>`) referencing the epic PR — GitHub checks the epic's task-list
+   box automatically. Open the epic PR with the first child if it does not exist yet
+   (`Closes #<epic>`); never open per-child PRs and never close the epic directly.
 
-An epic whose children are all closed, in review or in progress has nothing to do: skip it
-and select the next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
+An epic whose children are all closed or in progress has nothing to do: skip it and select
+the next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
 unassign); only a blocker that invalidates the whole plan removes `agent:ready` from the epic.
+
+**Legacy stacked epics.** Epics developed before this model may have one pull request per
+child, stacked on each other's branches. They are consolidated first: the stacked branches
+are merged (topological order) into the single epic branch, one epic PR is opened, and the
+stacked PRs are closed with a pointer comment (branches preserved). No new stacked PRs are
+created.
 
 ## Labels
 
