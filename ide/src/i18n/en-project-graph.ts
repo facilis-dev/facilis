@@ -123,6 +123,9 @@ export const projectGraphEn = {
   "projectGraph.routePaths": "Routes",
   "projectGraph.details": "Details",
   "projectGraph.closeDetails": "Close details",
+  "projectGraph.pinDetails": "Pin details",
+  "projectGraph.unpinDetails": "Unpin and close",
+  "projectGraph.detailsSheetHandle": "Drag to resize the details sheet",
   "projectGraph.preview.title": "Static preview",
   "projectGraph.preview.staticNote":
     "Schematic mini-page with placeholder data — never a rendering.",

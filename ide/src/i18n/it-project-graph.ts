@@ -124,6 +124,9 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.routePaths": "Route",
   "projectGraph.details": "Dettagli",
   "projectGraph.closeDetails": "Chiudi i dettagli",
+  "projectGraph.pinDetails": "Fissa i dettagli",
+  "projectGraph.unpinDetails": "Sblocca e chiudi",
+  "projectGraph.detailsSheetHandle": "Trascina per ridimensionare i dettagli",
   "projectGraph.preview.title": "Anteprima statica",
   "projectGraph.preview.staticNote":
     "Mini-pagina schematica con dati segnaposto — mai un rendering.",

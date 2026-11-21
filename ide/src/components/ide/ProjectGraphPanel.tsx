@@ -1,17 +1,22 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
-// loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issue #57).
-//
-// This file is the composition root: the stats-ribbon filter, zen mode and the AI focus. The
-// analysis lifecycle lives in useProjectGraphAnalysis, the URL-synced view (search, selection,
-// mode, lenses) in useProjectGraphViewState — which composes the saved-layout hook — and the
-// chrome in ProjectGraphShell / ProjectGraphHud / StatsRibbon.
-// Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
+// loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
+// Composition root: stats-ribbon filter, zen mode, AI focus, pinned details. The analysis
+// lifecycle lives in useProjectGraphAnalysis, the URL-synced view in useProjectGraphViewState
+// (which composes the saved-layout hook), the chrome in Shell / Hud / StatsRibbon. Nothing here
+// touches the analyzer worker or writes outside the project's .facilis directory.
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
+import {
+  INITIAL_PINNED_DETAILS,
+  SHEET_BREAKPOINT,
+  SHEET_DEFAULT_HEIGHT,
+  clampSheetHeight,
+  pinnedDetailsReducer,
+} from "@/facilis/graph-satellite";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import {
@@ -21,11 +26,14 @@ import {
   toggleKindFilter,
 } from "@/facilis/graph-stats-filter";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
+import { focusGraphNode } from "./focus-graph-node";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
+import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
 import { ProjectGraphHud } from "./ProjectGraphHud";
-import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
+import { useContainerSize } from "./use-container-size";
+import { useDetailsEscape } from "./use-details-escape";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
@@ -49,8 +57,7 @@ export function ProjectGraphPanel() {
   const [fitNonce, setFitNonce] = useState(0);
   // The React Flow instance, lifted only so the HUD zoom buttons can drive it (issue #57).
   const [flow, setFlow] = useState<{ zoomIn: () => void; zoomOut: () => void } | null>(null);
-  // The addressable view (issue #58): query/selection live in the URL-synced state, which also
-  // composes the layout hook. knownNodeIds lets a deep link drop ids this project does not have.
+  // The addressable view (issue #58): URL-synced query/selection; knownNodeIds drops stale ids.
   const knownNodeIds = useMemo(
     () => (analysis === null ? null : new Set(analysis.graph.nodes.map((node) => node.id))),
     [analysis],
@@ -66,9 +73,18 @@ export function ProjectGraphPanel() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
   const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
+  // Details surface by container width (issue #59): sheet below the breakpoint, satellite above.
+  const containerSize = useContainerSize(containerRef);
+  const sheetMode = containerSize.width > 0 && containerSize.width < SHEET_BREAKPOINT;
+  const [sheetHeight, setSheetHeight] = useState(SHEET_DEFAULT_HEIGHT);
+  // Pinned comparison cards are session state; the canvas hook places and drags them.
+  const [pinned, dispatchPinned] = useReducer(pinnedDetailsReducer, INITIAL_PINNED_DETAILS);
+  const [pinRequest, setPinRequest] = useState<{ nonce: number; nodeId: string } | null>(null);
+  useEffect(() => {
+    if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
+  }, [knownNodeIds]);
 
-  // Esc leaves zen first (the bigger mode change); a second Esc then clears an AI focus. Typing
-  // targets keep Escape for themselves (the note editor cancels the edit), so never steal it.
+  // Esc leaves zen first, then clears an AI focus; typing targets keep Escape (note editor).
   useEffect(() => {
     if (!zen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -77,6 +93,11 @@ export function ProjectGraphPanel() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [zen]);
+  const closeDetails = useCallback(() => {
+    if (selectedNodeId !== null) focusGraphNode(selectedNodeId);
+    setSelectedNodeId(null);
+  }, [selectedNodeId, setSelectedNodeId]);
+  useDetailsEscape(selectedNodeId, zen, closeDetails);
   useEffect(() => {
     if (focus === null || zen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -110,8 +131,7 @@ export function ProjectGraphPanel() {
           }),
     [analysis, layout, query, filter],
   );
-  // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
-  // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
+  // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
   const layoutLoaded = graph.layoutLoaded;
   useEffect(() => {
@@ -135,8 +155,7 @@ export function ProjectGraphPanel() {
     if (path !== null) void c.openFile(path);
   };
   const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  // Incident edges, both directions: the page inspector lists page links and the view inspector
-  // reads the routes that use it (incoming route-view edges).
+  // Incident edges, both directions: page links and the routes that use a view.
   const selectedEdges =
     view?.edges.filter(
       (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
@@ -155,16 +174,14 @@ export function ProjectGraphPanel() {
     const path = sourcePathFor(root, file);
     if (path !== null) void c.openFileAt(path, line);
   };
-  // A detail list may name a relation the graph did not draw: selecting an id that has no node
-  // would close the inspector for no reason.
+  // A detail list may name a relation the graph did not draw: ignore ids without a node.
   const selectNode = (id: string) => {
     if (nodeLabels.has(id)) setSelectedNodeId(id);
   };
   const toggleKind = (kind: GraphNodeKind) =>
     setFilter((current) => toggleKindFilter(current, kind));
 
-  // The four non-canvas states live in their own component. Notes are content too: a graph with
-  // only annotations is not "empty" (D-126).
+  // Non-canvas states live in their own component; a notes-only graph is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
   else if (!indexReady) state = { kind: "loading" };
@@ -199,6 +216,17 @@ export function ProjectGraphPanel() {
         onMoveNote={graph.moveNote}
         onEditNote={graph.editNote}
         onDeleteNote={graph.deleteNote}
+        details={details}
+        sources={sources}
+        nodeLabel={nodeLabel}
+        sheetMode={sheetMode}
+        sheetHeight={clampSheetHeight(sheetHeight, containerSize.height)}
+        containerWidth={containerSize.width}
+        pinned={pinned}
+        dispatchPinned={dispatchPinned}
+        pinRequest={pinRequest}
+        onOpenFileAt={openFileAt}
+        onOpenPreview={(path) => openPageInPreview(c, path)}
       />
     ) : null;
 
@@ -240,15 +268,24 @@ export function ProjectGraphPanel() {
           />
         )
       }
-      inspector={
-        selectedNode !== null ? (
-          <ProjectGraphInspector
+      sheet={
+        sheetMode && selectedNode !== null ? (
+          <ProjectGraphDetailsSheet
             node={selectedNode}
             edges={selectedEdges}
             details={details.get(selectedNode.id) ?? null}
             sources={sources}
             nodeLabel={nodeLabel}
-            onClose={() => setSelectedNodeId(null)}
+            height={clampSheetHeight(sheetHeight, containerSize.height)}
+            pinned={pinned.some((card) => card.nodeId === selectedNode.id)}
+            onHeightChange={setSheetHeight}
+            onClose={closeDetails}
+            onTogglePin={() =>
+              setPinRequest((current) => ({
+                nonce: (current?.nonce ?? 0) + 1,
+                nodeId: selectedNode.id,
+              }))
+            }
             onOpenFileAt={openFileAt}
             onOpenPreview={(path) => openPageInPreview(c, path)}
             onSelectNode={selectNode}
