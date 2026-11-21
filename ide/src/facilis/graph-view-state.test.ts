@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AUDIT_FILTER_IDS } from "./graph-contract";
 import { GRAPH_EDGE_KINDS } from "./graph-types";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
@@ -40,6 +41,7 @@ describe("graph view state round-trips", () => {
       mode: "timeline",
       activeLenses: ["impact", "contract", "roles"],
       isolatedEdgeKinds: ["fk", "page-link"],
+      auditFilters: ["protected", "diagnostics"],
       selection: "table:予定表",
       focus: ["page:/設定", "route:GET /api/検索", "table:café"],
       filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "project" },
@@ -173,6 +175,7 @@ describe("graph view state degradation", () => {
     const hostile = JSON.stringify({
       m: 7,
       l: "contract",
+      a: "protected",
       s: { id: "x" },
       f: [1, null, ""],
       h: ["bogus", 3],
@@ -207,5 +210,41 @@ describe("graph view state degradation", () => {
     expect(decodeGraphViewState("x".repeat(5000))).toEqual(DEFAULT_GRAPH_VIEW_STATE);
     const big = JSON.stringify({ q: "a".repeat(5000) });
     expect(decodeGraphViewState(big)).toEqual(DEFAULT_GRAPH_VIEW_STATE);
+  });
+});
+
+describe("graph view state audit filters (issue #69)", () => {
+  it("encodes the pressed counters under a and omits them when empty", () => {
+    expect(encodeGraphViewState(state({ auditFilters: ["diagnostics", "protected"] }))).toBe(
+      '{"a":["protected","diagnostics"]}',
+    );
+    expect(encodeGraphViewState(state({ auditFilters: [] }))).toBe("");
+  });
+
+  it("round-trips every counter set (all 16 subsets), canonically ordered", () => {
+    for (let mask = 0; mask < 1 << AUDIT_FILTER_IDS.length; mask += 1) {
+      const filters = AUDIT_FILTER_IDS.filter((_, index) => (mask & (1 << index)) !== 0);
+      const next = state({ auditFilters: filters.toReversed() });
+      const decoded = decodeGraphViewState(encodeGraphViewState(next));
+      expect(decoded.auditFilters).toEqual(filters);
+      expect(decodeGraphViewState(encodeGraphViewState(decoded))).toEqual(decoded);
+    }
+  });
+
+  it("drops unknown counter ids, non-strings and duplicates against the registry", () => {
+    const decoded = decodeGraphViewState('{"a":["unknown","bogus",3,"unknown","protected"]}');
+    expect(decoded.auditFilters).toEqual(["protected", "unknown"]);
+    expect(decodeGraphViewState('{"a":"unknown"}').auditFilters).toEqual([]);
+    expect(decodeGraphViewState('{"a":[null,{}]}').auditFilters).toEqual([]);
+  });
+
+  it("composes with lenses and isolation in one URL state", () => {
+    const next = state({
+      activeLenses: ["contract"],
+      isolatedEdgeKinds: ["route-table"],
+      auditFilters: ["unknown", "diagnostics"],
+    });
+    const decoded = decodeGraphViewState(encodeGraphViewState(next));
+    expect(decoded).toEqual(next);
   });
 });

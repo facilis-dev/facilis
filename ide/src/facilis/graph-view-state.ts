@@ -18,6 +18,7 @@ import {
   type GraphViewport,
 } from "./graph-layout-file";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
+import { AUDIT_FILTER_IDS, type AuditFilterId } from "./graph-contract";
 
 /** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
@@ -40,6 +41,8 @@ export interface GraphViewState {
   readonly activeLenses: readonly GraphLensId[];
   /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** Audit-ribbon counters pressed as filters (issue #69): dimming only, never a removal. */
+  readonly auditFilters: readonly AuditFilterId[];
   readonly selection: string | null;
   /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
   readonly focus: readonly string[];
@@ -54,6 +57,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   mode: "topology",
   activeLenses: [],
   isolatedEdgeKinds: [],
+  auditFilters: [],
   selection: null,
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
@@ -98,6 +102,10 @@ export function encodeGraphViewState(state: GraphViewState): string {
   const isolatedSet = new Set(state.isolatedEdgeKinds);
   const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
   if (isolated.length > 0) out.i = isolated;
+  // Canonical counter order on both sides, like the edge kinds: round-trips stay stable.
+  const auditSet = new Set(state.auditFilters);
+  const audit = AUDIT_FILTER_IDS.filter((id) => auditSet.has(id));
+  if (audit.length > 0) out.a = audit;
   if (state.selection !== null && state.selection !== "") out.s = state.selection;
   const focus = uniqueStrings(state.focus);
   if (focus.length > 0) out.f = focus;
@@ -134,6 +142,12 @@ function readLenses(value: unknown): GraphLensId[] {
     out.push(entry as GraphLensId);
   }
   return out;
+}
+
+function readAuditFilters(value: unknown): AuditFilterId[] {
+  if (!Array.isArray(value)) return [];
+  const present = new Set(value.filter((entry): entry is string => typeof entry === "string"));
+  return AUDIT_FILTER_IDS.filter((id) => present.has(id));
 }
 
 function readIds(value: unknown, knownNodeIds?: ReadonlySet<string>): string[] {
@@ -189,6 +203,7 @@ export function decodeGraphViewState(
     mode: readMode(parsed.m),
     activeLenses: readLenses(parsed.l),
     isolatedEdgeKinds: readEdgeKinds(parsed.i),
+    auditFilters: readAuditFilters(parsed.a),
     selection: readSelection(parsed.s, knownNodeIds),
     focus: readIds(parsed.f, knownNodeIds),
     filters: {

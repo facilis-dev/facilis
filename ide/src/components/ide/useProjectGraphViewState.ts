@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { AuditFilterId } from "@/facilis/graph-contract";
 import type { IdeController } from "@/vv/controller";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
@@ -33,6 +34,7 @@ interface GraphViewLocalState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  readonly auditFilters: readonly AuditFilterId[];
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
@@ -42,6 +44,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   mode: DEFAULT_GRAPH_VIEW_STATE.mode,
   activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
   isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
+  auditFilters: DEFAULT_GRAPH_VIEW_STATE.auditFilters,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
@@ -56,6 +59,7 @@ export interface ProjectGraphViewState {
   readonly setMode: (mode: GraphViewMode) => void;
   readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
   readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
+  readonly setAuditFilters: (filters: readonly AuditFilterId[]) => void;
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
@@ -124,6 +128,7 @@ export function useProjectGraphViewState(
       mode: pending.mode,
       activeLenses: pending.activeLenses,
       isolatedEdgeKinds: pending.isolatedEdgeKinds,
+      auditFilters: pending.auditFilters,
       selection:
         pending.selection !== null && knownNodeIds.has(pending.selection)
           ? pending.selection
@@ -169,6 +174,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setAuditFilters = useCallback(
+    (filters: readonly AuditFilterId[]) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, auditFilters: filters }));
+    },
+    [cancelRestore],
+  );
   const setSelection = useCallback(
     (id: string | null) => {
       cancelRestore();
@@ -203,6 +215,7 @@ export function useProjectGraphViewState(
       mode: local.mode,
       activeLenses: local.activeLenses,
       isolatedEdgeKinds: local.isolatedEdgeKinds,
+      auditFilters: local.auditFilters,
       selection: local.selection,
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
@@ -247,6 +260,7 @@ export function useProjectGraphViewState(
     setMode,
     setActiveLenses,
     setIsolatedEdgeKinds,
+    setAuditFilters,
     setSelection,
     setUserFocus,
     setQuery,

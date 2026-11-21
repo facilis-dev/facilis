@@ -22,6 +22,7 @@ import {
 } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
+import { ProjectGraphAuditRibbon } from "./ProjectGraphAuditRibbon";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
@@ -31,6 +32,7 @@ import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphSta
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphAudit } from "./useProjectGraphAudit";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -125,6 +127,14 @@ export function ProjectGraphPanel() {
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
+  // The contract lens (issue #69): attached diagnostics, audit counters and the canvas inputs.
+  const audit = useProjectGraphAudit(
+    analysis,
+    view,
+    viewState.state,
+    viewState.setAuditFilters,
+    layout.viewport?.zoom ?? 1,
+  );
 
   const fit = () => {
     remeasure();
@@ -191,6 +201,7 @@ export function ProjectGraphPanel() {
         edgeCurves={layout.edgeCurves}
         focus={focus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+        contract={audit.contract}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -233,6 +244,16 @@ export function ProjectGraphPanel() {
             filter={filter}
             onToggleKind={toggleKind}
             onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
+            auditRibbon={
+              viewState.state.activeLenses.includes("contract") ? (
+                <ProjectGraphAuditRibbon
+                  counts={audit.counts}
+                  filters={viewState.state.auditFilters}
+                  onToggle={audit.onToggle}
+                  disabled={stats === null}
+                />
+              ) : null
+            }
             lensChips={
               <ProjectGraphLensChips
                 disabled={stats === null}
@@ -261,6 +282,7 @@ export function ProjectGraphPanel() {
             node={selectedNode}
             edges={selectedEdges}
             details={details.get(selectedNode.id) ?? null}
+            diagnostics={audit.nodeDiagnostics.get(selectedNode.id) ?? []}
             sources={sources}
             nodeLabel={nodeLabel}
             onClose={() => setSelectedNodeId(null)}

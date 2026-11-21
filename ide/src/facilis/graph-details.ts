@@ -224,3 +224,7 @@ export function buildGraphDetails(analysis: Analysis): ReadonlyMap<string, NodeD
   for (const [id, entry] of pageViewWorkflowDetails(analysis)) details.set(id, entry);
   return details;
 }
+
+// The diagnostics join (issue #69) is the same idea — analyzer facts keyed by node id — but its
+// attribution rules need their own module to keep both files under the 300-line source limit.
+export { buildNodeDiagnostics, worstSeverity } from "./graph-diagnostics";

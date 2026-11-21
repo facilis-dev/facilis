@@ -8,6 +8,7 @@ import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import { RouteContractMarks, contractRingClass } from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 function MethodBadge({ method }: { method: string }) {
@@ -54,7 +55,11 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
     <div
       data-testid="project-graph-route"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.auditDimmed) +
+        (data.contractRole !== null ? contractRingClass(data.diagnostics) : "") +
+        " w-64"
+      }
     >
       <div className="flex items-center gap-1.5">
         <MethodBadge method={route.method} />
@@ -121,6 +126,14 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
             </span>
           ))}
         </div>
+      )}
+      {data.contractRole !== null && (
+        <RouteContractMarks
+          route={route}
+          diagnostics={data.diagnostics}
+          compact={data.compactContract}
+          secondary={data.contractRole === "secondary"}
+        />
       )}
       <LinkHandles />
     </div>

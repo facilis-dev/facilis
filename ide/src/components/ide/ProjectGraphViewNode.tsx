@@ -9,6 +9,7 @@ import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import { ViewContractMarks, contractRingClass } from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 const MAX_VISIBLE_TABLES = 4;
@@ -31,7 +32,11 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-view"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-60"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.auditDimmed) +
+        (data.contractRole !== null ? contractRingClass(data.diagnostics) : "") +
+        " w-60"
+      }
     >
       <div className="flex items-center gap-1.5">
         <Eye className="size-3 shrink-0 text-muted-foreground" />
@@ -115,6 +120,14 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         <p className="mt-0.5 text-[9px] text-muted-foreground">
           {t("projectGraph.moreTables", { count: more })}
         </p>
+      )}
+      {data.contractRole !== null && (
+        <ViewContractMarks
+          view={view}
+          diagnostics={data.diagnostics}
+          compact={data.compactContract}
+          secondary={data.contractRole === "secondary"}
+        />
       )}
       <LinkHandles />
     </div>

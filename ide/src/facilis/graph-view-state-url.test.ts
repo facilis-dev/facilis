@@ -59,6 +59,20 @@ describe("gv parameter merge", () => {
   it("removes gv for the default view so an untouched tab keeps a clean URL", () => {
     expect(graphViewSearch("?project=p&gv=stale", DEFAULT_GRAPH_VIEW_STATE)).toBe("project=p");
   });
+
+  it("round-trips the audit-ribbon filters through the URL like the other filters (issue #69)", () => {
+    const next = state({
+      activeLenses: ["contract"],
+      auditFilters: ["unknown", "diagnostics"],
+      filters: { hiddenEdgeKinds: ["fk"], tableVisibility: "used" },
+    });
+    const search = graphViewSearch("?project=%2Fp&net=1", next);
+    const restored = decodeGraphViewState(readGraphViewParam(search));
+    expect(restored).toEqual(next);
+    const params = new URLSearchParams(search);
+    expect(params.get("project")).toBe("/p");
+    expect(params.get("net")).toBe("1");
+  });
 });
 
 describe("root reset decision", () => {

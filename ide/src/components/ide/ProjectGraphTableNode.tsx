@@ -1,0 +1,145 @@
+// The project-graph table card: the schema object's columns, RLS class, declared grants and
+// scope, plus the contract lens's RLS/policy badges (issue #69). Split from ProjectGraphNodes.tsx
+// (which keeps page and workflow) so every card file stays under the 300-line source limit — the
+// same pattern as the route and view cards. Role tokens only (D-043/D-044).
+
+import type { NodeProps } from "@xyflow/react";
+import ChevronDown from "~icons/lucide/chevron-down";
+import ChevronRight from "~icons/lucide/chevron-right";
+import Table2 from "~icons/lucide/table-2";
+import { t, type MessageKey } from "@/i18n";
+import type { ColumnMarker } from "@/facilis/graph-model";
+import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import { TableContractMarks, contractRingClass } from "./ProjectGraphContractMarks";
+import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
+
+const MAX_VISIBLE_COLUMNS = 8;
+
+/** The card names at most two grants; the inspector's policy list carries the whole set (D-177). */
+const MAX_VISIBLE_POLICIES = 2;
+
+function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
+  if (markers.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {markers.map((marker) => (
+        <span key={marker} className="rounded border px-0.5 text-[8px] leading-tight">
+          {t(("projectGraph.marker." + marker) as MessageKey)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  const node = data.node;
+  const table = node.data.kind === "table" ? node.data : null;
+  if (table === null) return null;
+  const shown = data.collapsed ? [] : table.columns.slice(0, MAX_VISIBLE_COLUMNS);
+  const more = table.columns.length - shown.length;
+  // The restrictive tenant gate is the default class (D-136/D-174): the card names what the
+  // table actually grants, which is the permissive policy beside it (D-177).
+  const grants = table.policies.filter((policy) => !policy.restrictive);
+  const shownPolicies = grants.slice(0, MAX_VISIBLE_POLICIES);
+  return (
+    <div
+      data-testid="project-graph-table"
+      title={sourceTitle(node)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.auditDimmed) +
+        (data.contractRole !== null ? contractRingClass(data.diagnostics) : "") +
+        " w-60"
+      }
+    >
+      <div className="flex items-center gap-1.5">
+        <Table2 className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
+          {table.table}
+        </span>
+        {table.unknown && <UnknownBadge />}
+        <button
+          type="button"
+          className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
+          aria-label={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
+          title={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onToggleCollapse(node.id);
+          }}
+        >
+          {data.collapsed ? (
+            <ChevronRight className="size-3" />
+          ) : (
+            <ChevronDown className="size-3" />
+          )}
+        </button>
+      </div>
+      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
+        {/* RLS is the default class (D-136): the card names only the system-only exception. */}
+        {!table.rlsEnabled && (
+          <span className="rounded border border-border px-1 text-muted-foreground">
+            {t("projectGraph.systemOnly")}
+          </span>
+        )}
+        {shownPolicies.map((policy) => (
+          <span
+            key={policy.name}
+            className="max-w-full truncate rounded border border-border px-1 font-mono"
+            title={policy.name}
+          >
+            {policy.name}
+          </span>
+        ))}
+        {grants.length > shownPolicies.length && (
+          <span className="shrink-0">+{grants.length - shownPolicies.length}</span>
+        )}
+        {table.framework && (
+          <span
+            className="rounded border border-border px-1 text-muted-foreground"
+            title={t("projectGraph.framework")}
+          >
+            {t("projectGraph.framework")}
+          </span>
+        )}
+        {/* The tenant scope is the class default on every app table (D-136/D-174) and stays in the
+            inspector; the card names only the exception, an owner scope. */}
+        {table.scope !== null && table.scope.kind !== "tenant" && (
+          <span className="min-w-0 truncate">
+            {t("projectGraph.scope", {
+              column: table.scope.column,
+              kind: t(("projectGraph.scopeKind." + table.scope.kind) as MessageKey),
+            })}
+          </span>
+        )}
+        <span className="ml-auto shrink-0">
+          {t("projectGraph.columns", { count: table.columns.length })}
+        </span>
+      </div>
+      {shown.length > 0 && (
+        <ul className="mt-1 space-y-0.5 border-t pt-1">
+          {shown.map((column) => (
+            <li key={column.property} className="flex items-center gap-1 text-[9px]">
+              <span className="min-w-0 flex-1 truncate font-mono">{column.property}</span>
+              <span className="shrink-0 truncate text-muted-foreground">{column.type}</span>
+              <ColumnMarkers markers={column.markers} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {more > 0 && (
+        <p className="mt-0.5 text-[9px] text-muted-foreground">
+          {t("projectGraph.moreColumns", { count: more })}
+        </p>
+      )}
+      {data.contractRole !== null && (
+        <TableContractMarks
+          table={table}
+          diagnostics={data.diagnostics}
+          compact={data.compactContract}
+          secondary={data.contractRole === "secondary"}
+        />
+      )}
+      <LinkHandles />
+    </div>
+  );
+}

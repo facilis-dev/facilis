@@ -12,9 +12,10 @@ const NODE_BASE =
   "cursor-pointer select-none rounded-md border bg-card px-2 py-1.5 text-card-foreground ";
 
 /**
- * The card frame classes. A card recedes when the search excludes it or when an AI focus (D-171)
- * names other nodes; edge-kind isolation (issue #63) recedes it further to 10%. A single opacity
- * class keeps the dims from stacking into an unreadable card.
+ * The card frame classes. A card recedes when the search excludes it, when an AI focus (D-171)
+ * names other nodes, or when an audit-ribbon filter (issue #69) matches none of its counters;
+ * edge-kind isolation (issue #63) recedes it further to 10%. A single opacity class keeps the
+ * dims from stacking into an unreadable card.
  */
 export function nodeClass(
   selected: boolean,
@@ -22,6 +23,7 @@ export function nodeClass(
   dragging: boolean,
   focused: boolean,
   isolated: boolean,
+  auditDimmed: boolean,
 ): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
@@ -29,7 +31,7 @@ export function nodeClass(
       ? "border-primary ring-1 ring-ring"
       : "hover:border-ring";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
-  const dimmed = !matched || !focused;
+  const dimmed = !matched || !focused || auditDimmed;
   const opacity = isolated ? " opacity-10" : dimmed ? " opacity-40" : "";
   return NODE_BASE + elevation + " " + border + opacity;
 }

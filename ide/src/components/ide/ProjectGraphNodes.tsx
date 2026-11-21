@@ -1,21 +1,22 @@
-// The project-graph node cards: page, table and workflow, plus the registration of the analysis
-// and note node types (the route card lives in ProjectGraphRouteNode.tsx, the view card in
-// ProjectGraphViewNode.tsx, the note card in ProjectGraphNote.tsx, the shared chrome in
-// ProjectGraphNodeChrome.tsx). Each card names only theme role tokens (D-043/D-044); the
-// geometry lives in graph-model.ts and the canvas only places them.
+// The project-graph node cards: page and workflow, plus the registration of the analysis and
+// note node types (the route card lives in ProjectGraphRouteNode.tsx, the table card in
+// ProjectGraphTableNode.tsx, the view card in ProjectGraphViewNode.tsx, the note card in
+// ProjectGraphNote.tsx, the shared chrome in ProjectGraphNodeChrome.tsx). Each card names only
+// theme role tokens (D-043/D-044); the geometry lives in graph-model.ts and the canvas only
+// places them.
 
+import type { Diagnostic } from "@facilis.dev/analyze";
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
-import ChevronDown from "~icons/lucide/chevron-down";
-import ChevronRight from "~icons/lucide/chevron-right";
 import FileCode from "~icons/lucide/file-code";
-import Table2 from "~icons/lucide/table-2";
 import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
-import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
+import type { ProjectGraphNode } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import { NodeDiagnosticsMarks, contractRingClass } from "./ProjectGraphContractMarks";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
+import { TableGraphNode } from "./ProjectGraphTableNode";
 import { ViewGraphNode } from "./ProjectGraphViewNode";
 
 /** React Flow's data bound wants an object alias, not an interface. */
@@ -26,6 +27,14 @@ export type ProjectFlowData = {
   focused: boolean;
   /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
   isolated: boolean;
+  /** The contract lens's role (issue #69); null when the lens is inactive and no marks draw. */
+  contractRole: "dominant" | "secondary" | null;
+  /** Compact LOD (issue #69): below the zoom threshold the badges keep glyph+count only. */
+  compactContract: boolean;
+  /** True when an audit-ribbon filter matches none of this node's counters: drawn dimmed. */
+  auditDimmed: boolean;
+  /** Analyzer errors/warnings attached to this node (issue #69), in analysis order. */
+  diagnostics: readonly Diagnostic[];
   onToggleCollapse: (id: string) => void;
 };
 
@@ -49,7 +58,11 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-page"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-56"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.auditDimmed) +
+        (data.contractRole !== null ? contractRingClass(data.diagnostics) : "") +
+        " w-56"
+      }
     >
       <div className="flex items-center gap-1.5">
         <FileCode className="size-3 shrink-0 text-muted-foreground" />
@@ -81,124 +94,12 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       {page.preview !== null && page.preview.nodes.length > 0 && (
         <ProjectGraphPageSketch preview={page.preview} className="mt-1.5" />
       )}
-      <LinkHandles />
-    </div>
-  );
-}
-
-const MAX_VISIBLE_COLUMNS = 8;
-
-/** The card names at most two grants; the inspector's policy list carries the whole set (D-177). */
-const MAX_VISIBLE_POLICIES = 2;
-
-function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
-  if (markers.length === 0) return null;
-  return (
-    <span className="flex shrink-0 items-center gap-0.5">
-      {markers.map((marker) => (
-        <span key={marker} className="rounded border px-0.5 text-[8px] leading-tight">
-          {t(("projectGraph.marker." + marker) as MessageKey)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
-  const node = data.node;
-  const table = node.data.kind === "table" ? node.data : null;
-  if (table === null) return null;
-  const shown = data.collapsed ? [] : table.columns.slice(0, MAX_VISIBLE_COLUMNS);
-  const more = table.columns.length - shown.length;
-  // The restrictive tenant gate is the default class (D-136/D-174): the card names what the
-  // table actually grants, which is the permissive policy beside it (D-177).
-  const grants = table.policies.filter((policy) => !policy.restrictive);
-  const shownPolicies = grants.slice(0, MAX_VISIBLE_POLICIES);
-  return (
-    <div
-      data-testid="project-graph-table"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-60"}
-    >
-      <div className="flex items-center gap-1.5">
-        <Table2 className="size-3 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
-          {table.table}
-        </span>
-        {table.unknown && <UnknownBadge />}
-        <button
-          type="button"
-          className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
-          aria-label={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
-          title={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
-          onClick={(event) => {
-            event.stopPropagation();
-            data.onToggleCollapse(node.id);
-          }}
-        >
-          {data.collapsed ? (
-            <ChevronRight className="size-3" />
-          ) : (
-            <ChevronDown className="size-3" />
-          )}
-        </button>
-      </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-        {/* RLS is the default class (D-136): the card names only the system-only exception. */}
-        {!table.rlsEnabled && (
-          <span className="rounded border border-border px-1 text-muted-foreground">
-            {t("projectGraph.systemOnly")}
-          </span>
-        )}
-        {shownPolicies.map((policy) => (
-          <span
-            key={policy.name}
-            className="max-w-full truncate rounded border border-border px-1 font-mono"
-            title={policy.name}
-          >
-            {policy.name}
-          </span>
-        ))}
-        {grants.length > shownPolicies.length && (
-          <span className="shrink-0">+{grants.length - shownPolicies.length}</span>
-        )}
-        {table.framework && (
-          <span
-            className="rounded border border-border px-1 text-muted-foreground"
-            title={t("projectGraph.framework")}
-          >
-            {t("projectGraph.framework")}
-          </span>
-        )}
-        {/* The tenant scope is the class default on every app table (D-136/D-174) and stays in the
-            inspector; the card names only the exception, an owner scope. */}
-        {table.scope !== null && table.scope.kind !== "tenant" && (
-          <span className="min-w-0 truncate">
-            {t("projectGraph.scope", {
-              column: table.scope.column,
-              kind: t(("projectGraph.scopeKind." + table.scope.kind) as MessageKey),
-            })}
-          </span>
-        )}
-        <span className="ml-auto shrink-0">
-          {t("projectGraph.columns", { count: table.columns.length })}
-        </span>
-      </div>
-      {shown.length > 0 && (
-        <ul className="mt-1 space-y-0.5 border-t pt-1">
-          {shown.map((column) => (
-            <li key={column.property} className="flex items-center gap-1 text-[9px]">
-              <span className="min-w-0 flex-1 truncate font-mono">{column.property}</span>
-              <span className="shrink-0 truncate text-muted-foreground">{column.type}</span>
-              <ColumnMarkers markers={column.markers} />
-            </li>
-          ))}
-        </ul>
-      )}
-      {more > 0 && (
-        <p className="mt-0.5 text-[9px] text-muted-foreground">
-          {t("projectGraph.moreColumns", { count: more })}
-        </p>
+      {data.contractRole !== null && (
+        <NodeDiagnosticsMarks
+          diagnostics={data.diagnostics}
+          compact={data.compactContract}
+          secondary={data.contractRole === "secondary"}
+        />
       )}
       <LinkHandles />
     </div>
@@ -221,7 +122,11 @@ export function WorkflowGraphNode({
     <div
       data-testid="project-graph-workflow"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.auditDimmed) +
+        (data.contractRole !== null ? contractRingClass(data.diagnostics) : "") +
+        " w-64"
+      }
     >
       <div className="flex items-center gap-1.5">
         <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />
@@ -250,6 +155,13 @@ export function WorkflowGraphNode({
         <p className="mt-0.5 text-[9px] text-muted-foreground">
           {t("projectGraph.workflow.more", { count: more })}
         </p>
+      )}
+      {data.contractRole !== null && (
+        <NodeDiagnosticsMarks
+          diagnostics={data.diagnostics}
+          compact={data.compactContract}
+          secondary={data.contractRole === "secondary"}
+        />
       )}
       <LinkHandles />
     </div>

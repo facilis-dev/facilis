@@ -30,7 +30,10 @@ import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEd
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import {
+  buildProjectGraphFlowNodes,
+  type ProjectFlowContractState,
+} from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
@@ -45,6 +48,7 @@ export function ProjectGraphCanvas({
   edgeCurves,
   focus,
   isolatedEdgeKinds,
+  contract,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -68,6 +72,8 @@ export function ProjectGraphCanvas({
   focus: ProjectGraphFocusState | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The contract lens's inputs (issue #69): marks, audit dimming and attached diagnostics. */
+  contract: ProjectFlowContractState;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -128,11 +134,12 @@ export function ProjectGraphCanvas({
         selectedNodeId,
         focus,
         isolatedEdgeKinds,
+        contract,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds, contract],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
