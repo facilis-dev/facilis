@@ -1,7 +1,7 @@
 // The project-graph canvas: React Flow over the pure view model. Cards, notes, edges and their
 // geometry live in ProjectGraphNodes/Note/Edge.tsx and graph-edge-geometry.ts, so this file only
 // maps the view to the library and wires the interactions (drag, note placement, double-click
-// source, viewport, fit, edge curves). Nodes are controlled locally so a drag follows the pointer;
+// isolate, viewport, fit, edge curves). Nodes are controlled locally so a drag follows the pointer;
 // the position commits to the saved layout only on drag stop, so the parent cannot reset a drag.
 // fitView padding comes from the measured HUD (issue #57); chrome and edges use role tokens
 // (XYFLOW_THEME_TOKENS, D-043/D-044), never raw palette values.
@@ -24,7 +24,8 @@ import {
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
-import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
+import type { ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
 import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
@@ -44,12 +45,13 @@ export function ProjectGraphCanvas({
   fitNonce,
   edgeCurves,
   focus,
+  userFocus,
   isolatedEdgeKinds,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
   onToggleCollapse,
-  onOpenNode,
+  onIsolateNode,
   onViewportChange,
   onEdgeCurveChange,
   onCreateNote,
@@ -65,14 +67,18 @@ export function ProjectGraphCanvas({
   viewport: GraphViewport | null;
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
+  /** The AI focus (D-171): the outline channel. */
   focus: ProjectGraphFocusState | null;
+  /** The selection's closure (issue #66): the dimming channel, null when nothing is selected. */
+  userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
   onToggleCollapse: (id: string) => void;
-  onOpenNode: (node: ProjectGraphNode) => void;
+  /** Double-click isolates the node's reachability closure (issue #66). */
+  onIsolateNode: (id: string) => void;
   onViewportChange: (viewport: GraphViewport) => void;
   onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
   onCreateNote: (position: { x: number; y: number }) => void;
@@ -127,12 +133,13 @@ export function ProjectGraphCanvas({
         previous,
         selectedNodeId,
         focus,
+        userFocus,
         isolatedEdgeKinds,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, userFocus, isolatedEdgeKinds],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -196,10 +203,11 @@ export function ProjectGraphCanvas({
         edgeCurves,
         selectedEdgeId,
         focus,
+        userFocus,
         isolatedEdgeKinds,
         onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, isolatedEdgeKinds],
+    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, userFocus, isolatedEdgeKinds],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
@@ -216,10 +224,10 @@ export function ProjectGraphCanvas({
     else onMoveNode(node.id, position);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor from the card; it has no source file to open.
+    // A note opens its own editor from the card; an analysis card isolates its context (issue
+    // #66). The source file stays one click away in the inspector's "Open source" affordance.
     if (node.type === NOTE_NODE_TYPE) return;
-    const target = view.nodes.find((entry) => entry.id === node.id);
-    if (target !== undefined) onOpenNode(target);
+    onIsolateNode(node.id);
   };
   const onMoveStart: OnMoveStart = (event) => {
     // A fitView transition has no source event, so this is how a programmatic move is told from

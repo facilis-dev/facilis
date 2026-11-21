@@ -3,11 +3,16 @@
 // interaction effects (the 300-line source limit), and so the focus dimming is decided by this
 // pure mapping rather than by every card.
 //
+// Two focus channels compose here (issue #66): the USER focus (the selection's reachability
+// closure) dims outsiders to 12%; the AI focus (D-171) outlines the cards it names — including
+// the endpoints of an edge-only request — and never dims.
+//
 // A drag in flight wins over the saved layout: merging against the previous node list keeps its
 // position (and React Flow's own state) while the pointer is down; only drag stop commits.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
@@ -19,8 +24,10 @@ export interface ProjectFlowNodesInput {
   /** The nodes already on the canvas: their React Flow state and any in-flight drag survive. */
   readonly previous: readonly ProjectFlowNode[];
   readonly selectedNodeId: string | null;
-  /** The active AI focus (D-171), or null when every card is equally bright. */
+  /** The active AI focus (D-171): the outline channel, or null when nothing is outlined. */
   readonly focus: ProjectGraphFocusState | null;
+  /** The selection's closure (issue #66): the dimming channel, or null when nothing is dimmed. */
+  readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly onToggleCollapse: (id: string) => void;
@@ -34,15 +41,16 @@ export function buildProjectGraphFlowNodes({
   previous,
   selectedNodeId,
   focus,
+  userFocus,
   isolatedEdgeKinds,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
 }: ProjectFlowNodesInput): ProjectFlowNode[] {
   const existing = new Map(previous.map((node) => [node.id, node]));
-  // A request that names only edges keeps their endpoints bright too: highlighting a connection
-  // must not dim the two cards it connects.
-  const focusedEndpoints =
+  // A request that names only edges outlines their endpoints too: highlighting a connection
+  // must mark the two cards it connects (the D-171 semantics, moved to the outline channel).
+  const aiEndpoints =
     focus === null
       ? null
       : new Set(
@@ -50,10 +58,11 @@ export function buildProjectGraphFlowNodes({
             .filter((edge) => focus.edgeIds.has(edge.id))
             .flatMap((edge) => [edge.source, edge.target]),
         );
-  // The canvas dims by this flag instead of knowing the request: a card is bright when either
-  // nothing is focused or it is part of the focus.
-  const isFocused = (id: string): boolean =>
-    focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false);
+  const isAiOutlined = (id: string): boolean =>
+    focus !== null && (focus.nodeIds.has(id) || (aiEndpoints?.has(id) ?? false));
+  // The user focus dims by membership in the closure; no closure means every card is bright.
+  const userNodes = userFocus === null ? null : new Set(userFocus.nodeIds);
+  const isFocused = (id: string): boolean => userNodes === null || userNodes.has(id);
   // Isolation (issue #63) keeps every card in place and dims the ones no isolated edge touches:
   // opacity only, so positions, selection and the graph bounds never move.
   const isolationActive = isolatedEdgeKinds.length > 0;
@@ -76,6 +85,7 @@ export function buildProjectGraphFlowNodes({
         node,
         collapsed: node.collapsed,
         focused: isFocused(node.id),
+        aiOutlined: isAiOutlined(node.id),
         isolated: isIsolated(node.id),
         onToggleCollapse,
       },
@@ -89,8 +99,8 @@ export function buildProjectGraphFlowNodes({
       position: current.dragging === true ? current.position : base.position,
     };
   });
-  // Notes are never filtered by the search or the focus ids, so they are not in any focus set:
-  // they recede with the rest of the graph when a request is active.
+  // Notes are never part of the reachability closure or the AI request (both validate against
+  // the analysis view), so they recede with the rest of the graph whenever a focus is active.
   const noteNodes = notes.map((note) => {
     const current = existing.get(note.id);
     const base: ProjectNoteFlowNode = {

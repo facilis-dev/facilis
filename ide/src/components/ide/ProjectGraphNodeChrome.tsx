@@ -12,9 +12,11 @@ const NODE_BASE =
   "cursor-pointer select-none rounded-md border bg-card px-2 py-1.5 text-card-foreground ";
 
 /**
- * The card frame classes. A card recedes when the search excludes it or when an AI focus (D-171)
- * names other nodes; edge-kind isolation (issue #63) recedes it further to 10%. A single opacity
- * class keeps the dims from stacking into an unreadable card.
+ * The card frame classes. Three independent channels (issue #66): the USER focus dims every
+ * card outside the selection's closure to 12%, edge-kind isolation (issue #63) recedes to 10%,
+ * and a search miss to 40% — the strongest dim wins so they never stack into an unreadable
+ * card. The AI focus (D-171) no longer dims: it OUTLINES the cards it names, in the brand role,
+ * so it stays visible even on a dimmed card and composes with the user's dimming.
  */
 export function nodeClass(
   selected: boolean,
@@ -22,6 +24,7 @@ export function nodeClass(
   dragging: boolean,
   focused: boolean,
   isolated: boolean,
+  aiOutlined: boolean,
 ): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
@@ -29,9 +32,17 @@ export function nodeClass(
       ? "border-primary ring-1 ring-ring"
       : "hover:border-ring";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
-  const dimmed = !matched || !focused;
-  const opacity = isolated ? " opacity-10" : dimmed ? " opacity-40" : "";
-  return NODE_BASE + elevation + " " + border + opacity;
+  const opacity = isolated
+    ? " opacity-10"
+    : !focused
+      ? " opacity-12"
+      : !matched
+        ? " opacity-40"
+        : "";
+  // outline (not ring): the selection already owns the ring, and the offset keeps the two
+  // frames apart when a card is both selected and AI-named.
+  const outline = aiOutlined ? " outline outline-2 outline-offset-2 outline-brand/70" : "";
+  return NODE_BASE + elevation + " " + border + opacity + outline;
 }
 
 /**
@@ -65,7 +76,7 @@ export const LINK_TARGET_HANDLE_ID = "link-target";
 const LINK_HANDLE_STYLE = { width: "1px", height: "1px" };
 
 export function sourceTitle(node: ProjectGraphNode): string {
-  return t("projectGraph.openSource", { source: node.sourceFile ?? node.label });
+  return t("projectGraph.nodeTitle", { source: node.sourceFile ?? node.label });
 }
 
 export function UnknownBadge() {

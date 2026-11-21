@@ -24,7 +24,8 @@ export const NOTE_NODE_TYPE = "note";
 
 export type ProjectNoteFlowData = {
   readonly note: GraphNote;
-  /** False when an AI focus request (D-171) names other nodes: the note is drawn dimmed. */
+  /** False when the user focus (issue #66) is active: notes are never in the closure, so they
+   * recede to 12% with the rest of the graph. The AI focus outlines analysis cards, not notes. */
   readonly focused: boolean;
   /** True while edge-kind isolation (issue #63) is active: notes always recede to 10%. */
   readonly isolated: boolean;
@@ -107,9 +108,9 @@ export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<Pro
           : dragging
             ? "border-primary shadow-lg ring-1 ring-ring"
             : "hover:border-ring") +
-        // The focus dims an annotation like any other card: it names analysis nodes, not notes.
-        // Isolation (issue #63) recedes it further; the stronger dim wins.
-        (data.isolated ? " opacity-10" : data.focused ? "" : " opacity-40")
+        // The user focus dims an annotation like any other card: the closure names analysis
+        // nodes, not notes. Isolation (issue #63) recedes it further; the stronger dim wins.
+        (data.isolated ? " opacity-10" : data.focused ? "" : " opacity-12")
       }
       onDoubleClick={(event) => {
         if (editing) return;

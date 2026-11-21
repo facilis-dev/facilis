@@ -51,6 +51,8 @@ export interface ProjectGraphHudProps {
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the stats ribbon. */
   lensChips: ReactNode;
+  /** The selection-context line / isolate breadcrumb (issue #66), in the top-left cluster. */
+  focusBar: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -74,6 +76,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
       >
         <Network className="size-3.5 shrink-0 text-brand" />
         <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
+        {props.focusBar}
         <div
           data-testid="graph-hud-mode-slot"
           aria-label={t("projectGraph.hud.modeSlot")}
