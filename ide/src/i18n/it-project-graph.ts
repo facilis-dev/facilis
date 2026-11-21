@@ -23,7 +23,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.saved": "Layout salvato",
   "projectGraph.saveFailed": "Impossibile salvare il layout: {error}",
   "projectGraph.search": "Cerca nodi…",
-  "projectGraph.filters": "Archi",
   "projectGraph.edge.fk": "Chiave esterna",
   "projectGraph.edge.relation": "Relazione",
   "projectGraph.edge.routeTable": "Route → tabella",
@@ -186,7 +185,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.hud.actions": "Azioni del grafo",
   "projectGraph.hud.view": "Controlli vista",
   "projectGraph.hud.modeSlot": "Modalità grafo",
-  "projectGraph.hud.lensSlot": "Chip lente",
   "projectGraph.hud.minimapSlot": "Minimappa",
   "projectGraph.ribbon.label": "Statistiche del grafo",
   "projectGraph.ribbon.pages": "Pagine",
@@ -197,4 +195,22 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.ribbon.edges": "Archi",
   "projectGraph.ribbon.filterKind": "Filtra per {label}",
   "projectGraph.ribbon.filterEdges": "Mostra o nascondi tutti gli archi",
+
+  // ── chip lente + isolamento dei tipi di arco (issue #63) ─────────────────────
+  "projectGraph.lens.label": "Lenti e tipi di arco",
+  "projectGraph.lens.collapse": "Lenti",
+  "projectGraph.lens.contract": "Contratto",
+  "projectGraph.lens.data": "Dati",
+  "projectGraph.lens.runtime": "Runtime",
+  "projectGraph.lens.agent": "Agente",
+  "projectGraph.lens.impact": "Impatto",
+  "projectGraph.lens.roles": "Ruoli",
+  "projectGraph.lens.secondary": "secondaria",
+  "projectGraph.lens.limitHint":
+    "Solo una lente dominante più due secondarie: disattiva prima una lente.",
+  "projectGraph.chip.edgeHint":
+    "Isola {label} (clic), aggiungi all'insieme (Maiusc+clic), nascondi (Alt+clic)",
+  "projectGraph.chip.lensHint":
+    "Attiva la lente {label}; la lente attivata più di recente è dominante",
+  "projectGraph.chip.hidden": "nascosto",
 };

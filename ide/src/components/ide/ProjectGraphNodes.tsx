@@ -31,6 +31,8 @@ export type ProjectFlowData = {
   collapsed: boolean;
   /** False when an AI focus request (D-171) names other nodes: the card is drawn dimmed. */
   focused: boolean;
+  /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
+  isolated: boolean;
   /** Edges touching this node in the visible view — the chip's count, derived from the model. */
   edgeCount: number;
   onToggleCollapse: (id: string) => void;
@@ -59,7 +61,7 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-testid="project-graph-page"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-56"}
+      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-56"}
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">
@@ -137,7 +139,7 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-testid="project-graph-table"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-60"}
+      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-60"}
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">

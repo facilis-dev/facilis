@@ -20,6 +20,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
@@ -58,6 +59,7 @@ export function ProjectGraphCanvas({
   fitNonce,
   edgeCurves,
   focus,
+  isolatedEdgeKinds,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -90,6 +92,8 @@ export function ProjectGraphCanvas({
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
   focus: ProjectGraphFocusState | null;
+  /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
+  isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -148,6 +152,7 @@ export function ProjectGraphCanvas({
       view,
       notes,
       focus,
+      isolatedEdgeKinds,
       selectedNodeId,
       sheetMode,
       pinned,
@@ -189,11 +194,12 @@ export function ProjectGraphCanvas({
       edgeCurves,
       selectedEdgeId,
       focus,
+      isolatedEdgeKinds,
       onEdgeCurveChange,
     });
     if (activeAnchorId === null) return analysis;
     return [...analysis, detailsLinkEdge(activeAnchorId)];
-  }, [view, edgeCurves, selectedEdgeId, focus, onEdgeCurveChange, activeAnchorId]);
+  }, [view, edgeCurves, selectedEdgeId, focus, isolatedEdgeKinds, onEdgeCurveChange, activeAnchorId]);
 
   const onEdgeClick: EdgeMouseHandler<ProjectCanvasEdge> = (_event, edge) => {
     setSelectedEdgeId(edge.id);

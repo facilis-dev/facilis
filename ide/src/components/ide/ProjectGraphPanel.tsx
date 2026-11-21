@@ -25,15 +25,18 @@ import {
   toggleEdgesFilter,
   toggleKindFilter,
 } from "@/facilis/graph-stats-filter";
+import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { focusGraphNode } from "./focus-graph-node";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
 import { ProjectGraphHud } from "./ProjectGraphHud";
+import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useContainerSize } from "./use-container-size";
 import { useDetailsEscape } from "./use-details-escape";
+import { useFocusEscape } from "./use-focus-escape";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
@@ -98,23 +101,7 @@ export function ProjectGraphPanel() {
     setSelectedNodeId(null);
   }, [selectedNodeId, setSelectedNodeId]);
   useDetailsEscape(selectedNodeId, zen, closeDetails);
-  useEffect(() => {
-    if (focus === null || zen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target;
-      const typing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
-      if (typing) return;
-      clearGraphFocus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [focus, zen]);
+  useFocusEscape(focus !== null, zen);
 
   const view = useMemo(
     () =>
@@ -138,6 +125,8 @@ export function ProjectGraphPanel() {
     if (analysis === null || !layoutLoaded) return;
     pruneCurves(new Set(analysis.graph.edges.map((edge) => edge.id)));
   }, [analysis, layoutLoaded, pruneCurves]);
+  // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
+  const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
@@ -203,6 +192,7 @@ export function ProjectGraphPanel() {
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
+        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -256,8 +246,18 @@ export function ProjectGraphPanel() {
             filter={filter}
             onToggleKind={toggleKind}
             onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
-            hiddenEdgeKinds={layout.hiddenEdges}
-            onToggleEdgeKind={graph.toggleEdgeKind}
+            lensChips={
+              <ProjectGraphLensChips
+                disabled={stats === null}
+                edgeCounts={edgeCounts}
+                hiddenEdgeKinds={layout.hiddenEdges}
+                isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+                onIsolatedEdgeKindsChange={viewState.setIsolatedEdgeKinds}
+                onHideEdgeKind={graph.toggleEdgeKind}
+                activeLenses={viewState.state.activeLenses}
+                onActiveLensesChange={viewState.setActiveLenses}
+              />
+            }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
             // With no canvas on screen the HUD must still place the first note at a fixed origin.

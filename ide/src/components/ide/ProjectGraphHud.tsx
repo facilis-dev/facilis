@@ -1,10 +1,12 @@
 // The floating HUD (issue #57): four clusters absolutely positioned over the full-bleed canvas,
 // never participating in layout. Top-left breadcrumb + mode-switcher SLOT; top-right search, save
-// state, refresh and actions; bottom-left the stats ribbon + lens-chips SLOT; bottom-right minimap
-// SLOT, zoom and fit. The slots are owned here but left empty — later issues fill them. Every
-// control is a named, keyboard-reachable button; clusters are role="toolbar". Below 1280px (xl)
-// button labels collapse to icons. Role tokens only (D-044); every string via t() (D-043).
+// state, refresh and actions; bottom-left the stats ribbon + the lens chips (issue #63);
+// bottom-right minimap SLOT, zoom and fit. The remaining slots are owned here but left empty —
+// later issues fill them. Every control is a named, keyboard-reachable button; clusters are
+// role="toolbar". Below 1280px (xl) button labels collapse to icons. Role tokens only (D-044);
+// every string via t() (D-043).
 
+import type { ReactNode } from "react";
 import Maximize2 from "~icons/lucide/maximize-2";
 import Minimize2 from "~icons/lucide/minimize-2";
 import Network from "~icons/lucide/network";
@@ -19,7 +21,6 @@ import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { GraphTableVisibility } from "@/facilis/graph-layout";
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
@@ -48,8 +49,8 @@ export interface ProjectGraphHudProps {
   filter: GraphStatsFilter;
   onToggleKind: (kind: GraphNodeKind) => void;
   onToggleEdges: () => void;
-  hiddenEdgeKinds: readonly GraphEdgeKind[];
-  onToggleEdgeKind: (kind: GraphEdgeKind, hidden: boolean) => void;
+  /** The lens chips (issue #63), docked in the bottom-left slot beside the stats ribbon. */
+  lensChips: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -173,8 +174,6 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         </Button>
         <ProjectGraphHudActions
           stats={stats}
-          hiddenEdgeKinds={props.hiddenEdgeKinds}
-          onToggleEdgeKind={props.onToggleEdgeKind}
           tableVisibility={props.tableVisibility}
           onTableVisibilityChange={props.onTableVisibilityChange}
           onAddNote={props.onAddNote}
@@ -182,12 +181,13 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         />
       </div>
 
-      {/* Bottom-left: stats ribbon (filter counters) + lens-chips SLOT. */}
+      {/* Bottom-left: stats ribbon (filter counters) + lens chips (issue #63). */}
       <ProjectGraphStatsRibbon
         stats={stats}
         filter={props.filter}
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
+        lensChips={props.lensChips}
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

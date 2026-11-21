@@ -58,7 +58,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-testid="project-graph-route"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-64"}
+      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-64"}
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">

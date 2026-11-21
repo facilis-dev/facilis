@@ -35,7 +35,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-testid="project-graph-view"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-60"}
+      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-60"}
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">

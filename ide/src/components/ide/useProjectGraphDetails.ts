@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject } from "react";
 import { applyNodeChanges, type OnNodesChange, type ReactFlowInstance, type Viewport } from "@xyflow/react";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import {
@@ -32,6 +33,8 @@ export interface UseProjectGraphDetailsInput {
   view: ProjectGraphView;
   notes: readonly GraphNote[];
   focus: ProjectGraphFocusState | null;
+  /** Edge kinds isolated by the chips (issue #63): dimming only, never a removal. */
+  isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
   /** Below the breakpoint the details render as a sheet; no satellite is drawn. */
   sheetMode: boolean;
@@ -58,6 +61,7 @@ export function useProjectGraphDetails({
   view,
   notes,
   focus,
+  isolatedEdgeKinds,
   selectedNodeId,
   sheetMode,
   pinned,
@@ -167,6 +171,7 @@ export function useProjectGraphDetails({
         previous,
         selectedNodeId,
         focus,
+        isolatedEdgeKinds,
         onToggleCollapse,
         onEditNote,
         onDeleteNote,
@@ -197,6 +202,7 @@ export function useProjectGraphDetails({
     [
       selectedNodeId,
       focus,
+      isolatedEdgeKinds,
       onToggleCollapse,
       onEditNote,
       onDeleteNote,

@@ -39,6 +39,8 @@ export type ProjectGraphEdgeData = {
   readonly access?: "elevated";
   /** False when an AI focus request (D-171) names other edges: the edge is drawn faint. */
   readonly focused?: boolean;
+  /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
+  readonly dimmed?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -188,9 +190,13 @@ export function ProjectGraphEdge({
     strokeWidth: level === "chip" ? 1 : highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    // Focus dims the edges it does not name with opacity, not a colour: the theme still owns
-    // the stroke (D-043).
-    ...(data?.focused === false ? { opacity: 0.25 } : {}),
+    // Isolation (issue #63) dims to 10%, an AI focus to 25%; the stronger dim wins so the two
+    // never stack into an invisible line. Opacity, not colour: the theme still owns the stroke.
+    ...(data?.dimmed === true
+      ? { opacity: 0.1 }
+      : data?.focused === false
+        ? { opacity: 0.25 }
+        : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
   };
 

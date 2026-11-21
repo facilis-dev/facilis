@@ -38,6 +38,8 @@ export interface GraphViewFilters {
 export interface GraphViewState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
+  /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
+  readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly selection: string | null;
   /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
   readonly focus: readonly string[];
@@ -51,6 +53,7 @@ export interface GraphViewState {
 export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   mode: "topology",
   activeLenses: [],
+  isolatedEdgeKinds: [],
   selection: null,
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
@@ -92,6 +95,9 @@ export function encodeGraphViewState(state: GraphViewState): string {
   if (state.mode !== "topology") out.m = state.mode;
   const lenses = uniqueStrings(state.activeLenses);
   if (lenses.length > 0) out.l = lenses;
+  const isolatedSet = new Set(state.isolatedEdgeKinds);
+  const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
+  if (isolated.length > 0) out.i = isolated;
   if (state.selection !== null && state.selection !== "") out.s = state.selection;
   const focus = uniqueStrings(state.focus);
   if (focus.length > 0) out.f = focus;
@@ -182,6 +188,7 @@ export function decodeGraphViewState(
   return {
     mode: readMode(parsed.m),
     activeLenses: readLenses(parsed.l),
+    isolatedEdgeKinds: readEdgeKinds(parsed.i),
     selection: readSelection(parsed.s, knownNodeIds),
     focus: readIds(parsed.f, knownNodeIds),
     filters: {
