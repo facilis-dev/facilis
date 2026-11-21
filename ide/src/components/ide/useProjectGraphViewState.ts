@@ -33,6 +33,7 @@ interface GraphViewLocalState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  readonly isolatedNode: string | null;
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
@@ -42,6 +43,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   mode: DEFAULT_GRAPH_VIEW_STATE.mode,
   activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
   isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
+  isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
@@ -56,6 +58,7 @@ export interface ProjectGraphViewState {
   readonly setMode: (mode: GraphViewMode) => void;
   readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
   readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
+  readonly setIsolatedNode: (id: string | null) => void;
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
@@ -124,6 +127,10 @@ export function useProjectGraphViewState(
       mode: pending.mode,
       activeLenses: pending.activeLenses,
       isolatedEdgeKinds: pending.isolatedEdgeKinds,
+      isolatedNode:
+        pending.isolatedNode !== null && knownNodeIds.has(pending.isolatedNode)
+          ? pending.isolatedNode
+          : null,
       selection:
         pending.selection !== null && knownNodeIds.has(pending.selection)
           ? pending.selection
@@ -169,6 +176,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setIsolatedNode = useCallback(
+    (id: string | null) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, isolatedNode: id }));
+    },
+    [cancelRestore],
+  );
   const setSelection = useCallback(
     (id: string | null) => {
       cancelRestore();
@@ -203,6 +217,7 @@ export function useProjectGraphViewState(
       mode: local.mode,
       activeLenses: local.activeLenses,
       isolatedEdgeKinds: local.isolatedEdgeKinds,
+      isolatedNode: local.isolatedNode,
       selection: local.selection,
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
@@ -247,6 +262,7 @@ export function useProjectGraphViewState(
     setMode,
     setActiveLenses,
     setIsolatedEdgeKinds,
+    setIsolatedNode,
     setSelection,
     setUserFocus,
     setQuery,

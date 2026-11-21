@@ -1,5 +1,6 @@
 // The node mapping's isolation contract (issue #63): a card recedes to 10% when no isolated
 // edge touches it, but its position, selection and identity never change — opacity only.
+// The focus-channel composition (issue #66) lives in project-graph-flow-focus.test.ts.
 import { describe, expect, it } from "vitest";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
@@ -64,6 +65,7 @@ const build = (isolatedEdgeKinds: readonly ("fk" | "relation")[]) =>
     previous: [],
     selectedNodeId: "c",
     focus: null,
+    userFocus: null,
     isolatedEdgeKinds,
     onToggleCollapse: () => {},
     onEditNote: () => {},

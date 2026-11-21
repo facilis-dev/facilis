@@ -1,17 +1,20 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issue #57).
 //
-// This file is the composition root: the stats-ribbon filter, zen mode and the AI focus. The
-// analysis lifecycle lives in useProjectGraphAnalysis, the URL-synced view (search, selection,
-// mode, lenses) in useProjectGraphViewState — which composes the saved-layout hook — and the
-// chrome in ProjectGraphShell / ProjectGraphHud / StatsRibbon.
+// This file is the composition root: the stats-ribbon filter, zen mode, the AI focus and the
+// user's focus-and-context highlighting (issue #66). The analysis lifecycle lives in
+// useProjectGraphAnalysis, the URL-synced view (search, selection, mode, lenses, isolation) in
+// useProjectGraphViewState — which composes the saved-layout hook — the derived closure in
+// useProjectGraphUserFocus, the keyboard in useProjectGraphKeys, and the chrome in
+// ProjectGraphShell / ProjectGraphHud / StatsRibbon.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { buildProjectGraphView, sourcePathFor } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
+import { closureSummary, graphEscapeAction } from "@/facilis/graph-user-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import {
@@ -23,6 +26,7 @@ import {
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
+import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
@@ -32,6 +36,8 @@ import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphKeys } from "./useProjectGraphKeys";
+import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
 export function ProjectGraphPanel() {
@@ -60,6 +66,8 @@ export function ProjectGraphPanel() {
   const viewState = useProjectGraphViewState(c, root, knownNodeIds);
   const graph = viewState.graph;
   const { query, selection: selectedNodeId } = viewState.state;
+  const isolatedNode = viewState.state.isolatedNode;
+  const setIsolatedNode = viewState.setIsolatedNode;
   const setQuery = viewState.setQuery;
   const setSelectedNodeId = viewState.setSelection;
   const layout = graph.layout;
@@ -69,33 +77,25 @@ export function ProjectGraphPanel() {
   // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
   const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
 
-  // Esc leaves zen first (the bigger mode change); a second Esc then clears an AI focus. Typing
-  // targets keep Escape for themselves (the note editor cancels the edit), so never steal it.
-  useEffect(() => {
-    if (!zen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dispatchZen({ type: "exit" });
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [zen]);
-  useEffect(() => {
-    if (focus === null || zen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target;
-      const typing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
-      if (typing) return;
-      clearGraphFocus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [focus, zen]);
+  // Esc clears one layer at a time (zen → isolate → selection → AI focus, issue #66); Enter
+  // isolates the selection. Typing targets keep their keys — the hook guards them.
+  useProjectGraphKeys({
+    onEscape: () => {
+      const action = graphEscapeAction({
+        zen,
+        isolatedNode,
+        selection: selectedNodeId,
+        aiFocusActive: focus !== null,
+      });
+      if (action === "exit-zen") dispatchZen({ type: "exit" });
+      else if (action === "exit-isolate") setIsolatedNode(null);
+      else if (action === "clear-selection") setSelectedNodeId(null);
+      else if (action === "clear-ai-focus") clearGraphFocus();
+    },
+    onEnter: () => {
+      if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
+    },
+  });
 
   const view = useMemo(
     () =>
@@ -112,6 +112,9 @@ export function ProjectGraphPanel() {
           }),
     [analysis, layout, query, filter],
   );
+  // The user's focus-and-context (issue #66): isolation filters the view to one closure, the
+  // selection dims everything outside its own. Both are derived, so the URL alone restores them.
+  const { displayView, userFocus } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -134,15 +137,11 @@ export function ProjectGraphPanel() {
     graph.resetPositions();
     fit();
   };
-  const openNode = (node: ProjectGraphNode) => {
-    const path = sourcePathFor(root, node.sourceFile);
-    if (path !== null) void c.openFile(path);
-  };
-  const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedNode = displayView?.nodes.find((node) => node.id === selectedNodeId) ?? null;
   // Incident edges, both directions: the page inspector lists page links and the view inspector
   // reads the routes that use it (incoming route-view edges).
   const selectedEdges =
-    view?.edges.filter(
+    displayView?.edges.filter(
       (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
     ) ?? [];
   // The inspector's detail facts live on the Analysis the panel already holds, not on the graph.
@@ -151,8 +150,8 @@ export function ProjectGraphPanel() {
     [analysis],
   );
   const nodeLabels = useMemo(
-    () => new Map((view?.nodes ?? []).map((node) => [node.id, node.label] as const)),
-    [view],
+    () => new Map((displayView?.nodes ?? []).map((node) => [node.id, node.label] as const)),
+    [displayView],
   );
   const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
   const openFileAt = (file: string, line: number) => {
@@ -177,27 +176,28 @@ export function ProjectGraphPanel() {
   else if (view === null || !layoutLoaded || !viewState.ready) state = { kind: "loading" };
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
-  const stats = view?.stats ?? null;
+  const stats = displayView?.stats ?? null;
   const body =
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
-    ) : view !== null ? (
+    ) : displayView !== null ? (
       <ProjectGraphCanvas
-        view={view}
+        view={displayView}
         fitPadding={fitPadding}
         onInstance={setFlow}
         viewport={layout.viewport ?? null}
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
+        userFocus={userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-        notes={graph.notes}
+        notes={isolatedNode === null ? graph.notes : []}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
         onSelectNode={setSelectedNodeId}
         onMoveNode={graph.moveNode}
         onToggleCollapse={graph.toggleCollapsed}
-        onOpenNode={openNode}
+        onIsolateNode={setIsolatedNode}
         onViewportChange={graph.changeViewport}
         onEdgeCurveChange={graph.changeEdgeCurve}
         onCreateNote={graph.createNote}
@@ -247,6 +247,20 @@ export function ProjectGraphPanel() {
             }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
+            focusBar={
+              <ProjectGraphFocusBar
+                summary={
+                  displayView === null || userFocus === null
+                    ? null
+                    : closureSummary(displayView, userFocus)
+                }
+                isolatedLabel={isolatedNode === null ? null : nodeLabel(isolatedNode)}
+                onIsolate={() => {
+                  if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
+                }}
+                onExitIsolate={() => setIsolatedNode(null)}
+              />
+            }
             // With no canvas on screen the HUD must still place the first note at a fixed origin.
             onAddNote={
               state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })

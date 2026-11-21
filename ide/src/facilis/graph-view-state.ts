@@ -1,6 +1,7 @@
 // The project graph's addressable view state (issue #58, epic #56 rule 6): one compact URL
-// parameter carries the whole view — mode, lenses, selection, user focus, filters, collapsed
-// clusters, viewport and query — so a tab can be reloaded or shared and land on the same view.
+// parameter carries the whole view — mode, lenses, edge/node isolation, selection, user focus,
+// filters, collapsed clusters, viewport and query — so a tab can be reloaded or shared and land
+// on the same view.
 //
 // Pure by design: no React, no IO, no URL globals. graph-view-state-url.ts merges the encoded
 // value into the tab URL and useProjectGraphViewState.ts owns the lifecycle. The layout file
@@ -40,6 +41,12 @@ export interface GraphViewState {
   readonly activeLenses: readonly GraphLensId[];
   /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /**
+   * Node isolation (issue #66): the temporary subgraph around this node's reachability
+   * closure. Unlike edge isolation this DOES remove cards — the one sanctioned removal, with
+   * a HUD breadcrumb and a one-step Esc restore. Null draws the full graph.
+   */
+  readonly isolatedNode: string | null;
   readonly selection: string | null;
   /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
   readonly focus: readonly string[];
@@ -54,6 +61,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   mode: "topology",
   activeLenses: [],
   isolatedEdgeKinds: [],
+  isolatedNode: null,
   selection: null,
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
@@ -98,6 +106,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
   const isolatedSet = new Set(state.isolatedEdgeKinds);
   const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
   if (isolated.length > 0) out.i = isolated;
+  if (state.isolatedNode !== null && state.isolatedNode !== "") out.n = state.isolatedNode;
   if (state.selection !== null && state.selection !== "") out.s = state.selection;
   const focus = uniqueStrings(state.focus);
   if (focus.length > 0) out.f = focus;
@@ -170,8 +179,8 @@ function readEncodedViewport(value: unknown): GraphViewport | null {
 /**
  * Total function: null, malformed JSON, wrong types and oversized payloads degrade to the
  * default view, never throw. Unknown lens ids are dropped against the registry; when
- * knownNodeIds is provided, selection/focus/collapsed ids missing from it are dropped too
- * (stale ids from another project or an older analysis).
+ * knownNodeIds is provided, selection/isolatedNode/focus/collapsed ids missing from it are
+ * dropped too (stale ids from another project or an older analysis).
  */
 export function decodeGraphViewState(
   raw: string | null,
@@ -189,6 +198,7 @@ export function decodeGraphViewState(
     mode: readMode(parsed.m),
     activeLenses: readLenses(parsed.l),
     isolatedEdgeKinds: readEdgeKinds(parsed.i),
+    isolatedNode: readSelection(parsed.n, knownNodeIds),
     selection: readSelection(parsed.s, knownNodeIds),
     focus: readIds(parsed.f, knownNodeIds),
     filters: {

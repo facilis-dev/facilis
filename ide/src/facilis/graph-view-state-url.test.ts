@@ -59,6 +59,18 @@ describe("gv parameter merge", () => {
   it("removes gv for the default view so an untouched tab keeps a clean URL", () => {
     expect(graphViewSearch("?project=p&gv=stale", DEFAULT_GRAPH_VIEW_STATE)).toBe("project=p");
   });
+
+  it("carries node isolation (issue #66) through the merge and back", () => {
+    const next = state({ isolatedNode: "table:todos", selection: "table:todos" });
+    const search = graphViewSearch("?project=p&net=1", next);
+    const decoded = decodeGraphViewState(readGraphViewParam(search));
+    expect(decoded.isolatedNode).toBe("table:todos");
+    expect(new URLSearchParams(search).get("net")).toBe("1");
+    // Exiting isolation removes only n; the selection stays addressable.
+    const exited = graphViewSearch(search, { ...next, isolatedNode: null });
+    expect(decodeGraphViewState(readGraphViewParam(exited)).isolatedNode).toBeNull();
+    expect(decodeGraphViewState(readGraphViewParam(exited)).selection).toBe("table:todos");
+  });
 });
 
 describe("root reset decision", () => {
@@ -89,6 +101,7 @@ describe("2 KB URL budget for a 500-node project", () => {
   const worst = state({
     mode: "timeline",
     activeLenses: [...GRAPH_LENS_IDS],
+    isolatedNode: nodeIds[9],
     selection: nodeIds[7],
     focus: nodeIds.slice(100, 110),
     filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "used" },
@@ -110,6 +123,7 @@ describe("2 KB URL budget for a 500-node project", () => {
     // The addressable essentials survive; only the bulkiest view-only field is shed.
     expect(decoded.mode).toBe("timeline");
     expect(decoded.activeLenses).toEqual([...GRAPH_LENS_IDS]);
+    expect(decoded.isolatedNode).toBe(nodeIds[9]);
     expect(decoded.selection).toBe(nodeIds[7]);
     expect(decoded.query).toBe(worst.query);
     expect(decoded.filters).toEqual(worst.filters);
