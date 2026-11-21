@@ -28,17 +28,35 @@ const LABEL_FONT = "500 11px ui-sans-serif, system-ui, sans-serif";
 // Matches the full card's >= 10 px base text (issue #60) so the screenshot and the canvas agree.
 const KIND_FONT = "10px ui-sans-serif, system-ui, sans-serif";
 const LABEL_INSET = 8;
+/** The AI outline channel (issue #66): a brand halo under the stroke, a frame around the card. */
+const OUTLINE_EDGE_WIDTH = 5;
+const OUTLINE_CARD_WIDTH = 2;
+const OUTLINE_CARD_OFFSET = 2.5;
+const OUTLINE_OPACITY = 0.45;
 
-function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene): void {
+function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene, outline: string): void {
   context.lineWidth = EDGE_WIDTH;
   context.lineCap = "round";
   context.lineJoin = "round";
   for (const edge of scene.edges) {
+    const path = new Path2D(edge.path);
+    // The halo is drawn first and keeps its own alpha: the AI channel stays visible even when
+    // the user focus dims the edge itself (criterion 5).
+    if (edge.outlined) {
+      context.globalAlpha = OUTLINE_OPACITY;
+      context.strokeStyle = outline;
+      context.lineWidth = OUTLINE_EDGE_WIDTH;
+      context.setLineDash([]);
+      context.stroke(path);
+    }
+    context.globalAlpha = edge.opacity;
     context.strokeStyle = edge.stroke;
+    context.lineWidth = EDGE_WIDTH;
     context.setLineDash(edge.dashed ? [...EDGE_DASH] : []);
-    context.stroke(new Path2D(edge.path));
+    context.stroke(path);
   }
   context.setLineDash([]);
+  context.globalAlpha = 1;
 }
 
 function paintNodes(
@@ -48,12 +66,27 @@ function paintNodes(
 ): void {
   for (const node of scene.nodes) {
     const { x, y, width, height } = node.rect;
+    context.globalAlpha = node.opacity;
     context.beginPath();
     context.roundRect(x, y, width, height, CARD_RADIUS);
     context.fillStyle = palette.card;
     context.fill();
     context.strokeStyle = palette.border;
+    context.lineWidth = 1;
     context.stroke();
+    if (node.outlined) {
+      context.beginPath();
+      context.roundRect(
+        x - OUTLINE_CARD_OFFSET,
+        y - OUTLINE_CARD_OFFSET,
+        width + OUTLINE_CARD_OFFSET * 2,
+        height + OUTLINE_CARD_OFFSET * 2,
+        CARD_RADIUS + OUTLINE_CARD_OFFSET,
+      );
+      context.strokeStyle = palette.outline;
+      context.lineWidth = OUTLINE_CARD_WIDTH;
+      context.stroke();
+    }
     const maxWidth = Math.max(0, width - LABEL_INSET * 2);
     context.fillStyle = palette.text;
     context.font = LABEL_FONT;
@@ -65,6 +98,7 @@ function paintNodes(
     context.fillText(node.kind, x + width - LABEL_INSET, y + height / 2, maxWidth);
     context.textAlign = "left";
   }
+  context.globalAlpha = 1;
 }
 
 function paint(
@@ -74,7 +108,7 @@ function paint(
 ): void {
   context.fillStyle = palette.background;
   context.fillRect(0, 0, scene.width, scene.height);
-  paintEdges(context, scene);
+  paintEdges(context, scene, palette.outline);
   paintNodes(context, scene, palette);
 }
 

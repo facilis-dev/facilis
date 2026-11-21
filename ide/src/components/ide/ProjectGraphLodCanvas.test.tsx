@@ -123,6 +123,7 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     fitNonce: 0,
     edgeCurves: {},
     focus: null,
+    userFocus: null,
     isolatedEdgeKinds: [],
     selectedNodeId: null,
     onSelectNode,

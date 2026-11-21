@@ -9,6 +9,7 @@ import { applyNodeChanges, type OnNodesChange, type ReactFlowInstance, type View
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphReachability } from "@/facilis/graph-reachability";
 import {
   satelliteNodeId,
   type PinnedDetailsAction,
@@ -33,6 +34,8 @@ export interface UseProjectGraphDetailsInput {
   view: ProjectGraphView;
   notes: readonly GraphNote[];
   focus: ProjectGraphFocusState | null;
+  /** The selection's closure (issue #66): the dimming channel, null when nothing is selected. */
+  userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): dimming only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
@@ -61,6 +64,7 @@ export function useProjectGraphDetails({
   view,
   notes,
   focus,
+  userFocus,
   isolatedEdgeKinds,
   selectedNodeId,
   sheetMode,
@@ -171,6 +175,7 @@ export function useProjectGraphDetails({
         previous,
         selectedNodeId,
         focus,
+        userFocus,
         isolatedEdgeKinds,
         onToggleCollapse,
         onEditNote,
@@ -202,6 +207,7 @@ export function useProjectGraphDetails({
     [
       selectedNodeId,
       focus,
+      userFocus,
       isolatedEdgeKinds,
       onToggleCollapse,
       onEditNote,

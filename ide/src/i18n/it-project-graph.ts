@@ -42,7 +42,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.matches": "{count} trovati",
   "projectGraph.noMatches": "Nessun nodo corrisponde alla ricerca.",
   "projectGraph.hint":
-    "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente. Clicca un arco per curvarlo, poi trascina il punto centrale. Scorri per lo zoom, trascina lo sfondo per spostarti.",
+    "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente, Invio per isolare il contesto della selezione. Clicca un arco per curvarlo, poi trascina il punto centrale. Scorri per lo zoom, trascina lo sfondo per spostarti.",
   "projectGraph.curveHint": "Trascina per curvare il collegamento; doppio clic per raddrizzarlo",
   "projectGraph.addNote": "Aggiungi nota",
   "projectGraph.noteEmpty": "Nota vuota — doppio clic per modificare",
@@ -213,4 +213,18 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.chip.lensHint":
     "Attiva la lente {label}; la lente attivata più di recente è dominante",
   "projectGraph.chip.hidden": "nascosto",
+
+  // ── focus-and-context highlighting + dim-only node isolation (issue #66) ────
+  "projectGraph.focus.label": "Contesto della selezione",
+  "projectGraph.focus.reachable": "{count} nodi raggiungibili",
+  "projectGraph.focus.pages": "{count} pagine",
+  "projectGraph.focus.routes": "{count} route",
+  "projectGraph.focus.tables": "{count} tabelle",
+  "projectGraph.focus.views": "{count} viste",
+  "projectGraph.focus.workflows": "{count} workflow",
+  "projectGraph.focus.isolate": "Isola",
+  "projectGraph.focus.isolateHint":
+    "Attenua tutto ciò che è fuori dal contesto raggiungibile della selezione (Invio)",
+  "projectGraph.focus.exitIsolate": "Esci dall'isolamento",
+  "projectGraph.focus.exitIsolateHint": "Ripristina il grafo completo (Esc)",
 };

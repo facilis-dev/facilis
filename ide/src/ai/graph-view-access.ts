@@ -116,6 +116,7 @@ function themePalette(): GraphScenePalette {
     border: cssVar(style, "--border", "#e4e4e7"),
     text: cssVar(style, "--foreground", "#18181b"),
     muted: cssVar(style, "--muted-foreground", "#71717a"),
+    outline: cssVar(style, "--brand", "#2563eb"),
     edges,
     elevated: {
       stroke: cssVar(style, ELEVATED_TOKEN.token, ELEVATED_TOKEN.fallback),

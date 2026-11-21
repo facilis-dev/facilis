@@ -1,9 +1,8 @@
 // The project-graph canvas: React Flow over the pure view model. Cards, notes and edges live in
 // ProjectGraphNodes/Note/Edge.tsx; the details satellite and its session pins (issue #59) in
 // useProjectGraphDetails; the instance-driven effects in useProjectGraphCanvasEffects. This file
-// only wires the interactions: nodes are controlled locally so a drag follows the pointer and
-// commits to the saved layout only on drag stop. fitView padding comes from the measured HUD
-// (issue #57); chrome and edges use role tokens (XYFLOW_THEME_TOKENS, D-043/D-044).
+// only wires the interactions: a drag commits to the saved layout only on drag stop. fitView
+// padding comes from the measured HUD (issue #57); role tokens only (XYFLOW_THEME_TOKENS).
 
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo, useRef, useState, type Dispatch } from "react";
@@ -24,6 +23,7 @@ import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
 import { PROJECT_GRAPH_EDGE_TYPES } from "./ProjectGraphEdge";
@@ -59,6 +59,7 @@ export function ProjectGraphCanvas({
   fitNonce,
   edgeCurves,
   focus,
+  userFocus,
   isolatedEdgeKinds,
   selectedNodeId,
   onSelectNode,
@@ -92,6 +93,8 @@ export function ProjectGraphCanvas({
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
   focus: ProjectGraphFocusState | null;
+  /** The selection's closure (issue #66): the dimming channel, null when nothing is selected. */
+  userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   selectedNodeId: string | null;
@@ -152,6 +155,7 @@ export function ProjectGraphCanvas({
       view,
       notes,
       focus,
+      userFocus,
       isolatedEdgeKinds,
       selectedNodeId,
       sheetMode,
@@ -194,12 +198,22 @@ export function ProjectGraphCanvas({
       edgeCurves,
       selectedEdgeId,
       focus,
+      userFocus,
       isolatedEdgeKinds,
       onEdgeCurveChange,
     });
     if (activeAnchorId === null) return analysis;
     return [...analysis, detailsLinkEdge(activeAnchorId)];
-  }, [view, edgeCurves, selectedEdgeId, focus, isolatedEdgeKinds, onEdgeCurveChange, activeAnchorId]);
+  }, [
+    view,
+    edgeCurves,
+    selectedEdgeId,
+    focus,
+    userFocus,
+    isolatedEdgeKinds,
+    onEdgeCurveChange,
+    activeAnchorId,
+  ]);
 
   const onEdgeClick: EdgeMouseHandler<ProjectCanvasEdge> = (_event, edge) => {
     setSelectedEdgeId(edge.id);

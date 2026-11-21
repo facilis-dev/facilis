@@ -41,7 +41,7 @@ export const projectGraphEn = {
   "projectGraph.matches": "{count} matched",
   "projectGraph.noMatches": "No node matches the search.",
   "projectGraph.hint":
-    "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
+    "Drag a node to move it, double-click to open its source, press Enter to isolate the selection's context. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
   "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
   "projectGraph.addNote": "Add note",
   "projectGraph.noteEmpty": "Empty note — double-click to edit",
@@ -216,4 +216,18 @@ export const projectGraphEn = {
     "Isolate {label} (click), add to the set (Shift+click), hide (Alt+click)",
   "projectGraph.chip.lensHint": "Activate the {label} lens; the newest active lens is dominant",
   "projectGraph.chip.hidden": "hidden",
+
+  // ── focus-and-context highlighting + dim-only node isolation (issue #66) ────
+  "projectGraph.focus.label": "Selection context",
+  "projectGraph.focus.reachable": "{count} nodes reachable",
+  "projectGraph.focus.pages": "{count} pages",
+  "projectGraph.focus.routes": "{count} routes",
+  "projectGraph.focus.tables": "{count} tables",
+  "projectGraph.focus.views": "{count} views",
+  "projectGraph.focus.workflows": "{count} workflows",
+  "projectGraph.focus.isolate": "Isolate",
+  "projectGraph.focus.isolateHint":
+    "Dim everything outside the selection's reachable context (Enter)",
+  "projectGraph.focus.exitIsolate": "Exit isolation",
+  "projectGraph.focus.exitIsolateHint": "Restore the full graph (Esc)",
 } as const;

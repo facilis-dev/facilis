@@ -1,6 +1,6 @@
 // The edge mapping's dimming contract (issue #63): isolation is a data flag, never a removal,
-// so the canvas cannot move a node or change the bounds when a chip isolates a kind. The focus
-// flag stays independent: at this tip it is always a boolean, and the edge composes the two dims.
+// so the canvas cannot move a node or change the bounds when a chip isolates a kind. The user
+// focus (issue #66) and the AI outline are independent channels the edge composes with it.
 import { describe, expect, it } from "vitest";
 import type { GraphEdge } from "@facilis.dev/analyze";
 import { buildProjectGraphView } from "@/facilis/graph-model";
@@ -25,6 +25,7 @@ const build = (
     edgeCurves: {},
     selectedEdgeId: null,
     focus,
+    userFocus: null,
     isolatedEdgeKinds,
     onEdgeCurveChange: () => {},
   });
@@ -35,7 +36,8 @@ describe("buildProjectGraphFlowEdges", () => {
     expect(edges).toHaveLength(3);
     for (const edge of edges) {
       expect(edge.data?.dimmed).toBeUndefined();
-      expect(edge.data?.focused).toBe(true);
+      expect(edge.data?.userDimmed).toBeUndefined();
+      expect(edge.data?.aiOutlined).toBeUndefined();
     }
   });
 
@@ -50,14 +52,14 @@ describe("buildProjectGraphFlowEdges", () => {
     expect(edges.every((edge) => edge.data?.dimmed === false)).toBe(true);
   });
 
-  it("keeps the AI focus flag independent of isolation", () => {
+  it("keeps the AI outline flag independent of isolation", () => {
     const focus: ProjectGraphFocusState = {
       nodeIds: new Set([TODOS.id]),
       edgeIds: new Set(["e2"]),
       zoom: false,
     };
     const edges = build(["fk"], focus);
-    expect(edges.map((edge) => edge.data?.focused)).toEqual([false, true, false]);
+    expect(edges.map((edge) => edge.data?.aiOutlined)).toEqual([false, true, false]);
     expect(edges.map((edge) => edge.data?.dimmed)).toEqual([false, true, true]);
   });
 
@@ -75,6 +77,7 @@ describe("buildProjectGraphFlowEdges", () => {
       edgeCurves: {},
       selectedEdgeId: "e1",
       focus: null,
+      userFocus: null,
       isolatedEdgeKinds: [],
       onEdgeCurveChange: () => {},
     });

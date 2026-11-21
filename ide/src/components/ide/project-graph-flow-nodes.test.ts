@@ -2,6 +2,7 @@
 // counts once per endpoint and a self-loop once; an unconnected node reads zero, never a guess.
 // Edge-kind isolation (issue #63) is opacity only: cards no isolated edge touches recede to 10%,
 // notes always recede, and positions/selection never move (epic rule 2).
+// The focus-channel composition (issue #66) lives in project-graph-flow-focus.test.ts.
 import { describe, expect, it } from "vitest";
 import type { GraphEdge, GraphEdgeKind } from "@facilis.dev/analyze";
 import { buildProjectGraphView } from "@/facilis/graph-model";
@@ -26,6 +27,7 @@ function dataOf(id: string) {
     previous: [],
     selectedNodeId: null,
     focus: null,
+    userFocus: null,
     isolatedEdgeKinds: [],
     onToggleCollapse: NOOP,
     onEditNote: NOOP,
@@ -59,6 +61,7 @@ function buildNodes(isolatedEdgeKinds: readonly GraphEdgeKind[], selectedNodeId:
     previous: [],
     selectedNodeId,
     focus: null,
+    userFocus: null,
     isolatedEdgeKinds,
     onToggleCollapse: NOOP,
     onEditNote: NOOP,

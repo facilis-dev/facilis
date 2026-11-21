@@ -12,6 +12,7 @@ import { routeEdge } from "./graph-edge-routing";
 import type { GraphLayoutFile } from "./graph-layout-file";
 import { GRAPH_NODE_SIZES } from "./graph-node-size";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./graph-types";
+import { USER_FOCUS_OPACITY } from "./graph-user-focus";
 
 /**
  * The shared full-card footprints (graph-node-size.ts). The scene always draws the FULL card:
@@ -38,6 +39,8 @@ export interface GraphScenePalette {
   readonly border: string;
   readonly text: string;
   readonly muted: string;
+  /** The AI focus outline channel (issue #66): the brand role, like the canvas halo. */
+  readonly outline: string;
   readonly edges: Readonly<Record<GraphEdgeKind, GraphSceneEdgeStyle>>;
   readonly elevated: GraphSceneEdgeStyle;
 }
@@ -54,6 +57,10 @@ export interface GraphSceneNode {
   readonly kind: GraphNodeKind;
   readonly label: string;
   readonly rect: GraphSceneRect;
+  /** 1 normally; USER_FOCUS_OPACITY outside the selection's closure (issue #66). */
+  readonly opacity: number;
+  /** The AI focus names this card: the outline channel, composed over any dimming. */
+  readonly outlined: boolean;
 }
 
 export interface GraphSceneEdge {
@@ -61,6 +68,8 @@ export interface GraphSceneEdge {
   readonly path: string;
   readonly stroke: string;
   readonly dashed: boolean;
+  readonly opacity: number;
+  readonly outlined: boolean;
 }
 
 export interface GraphScene {
@@ -74,6 +83,18 @@ export interface GraphScene {
 
 function byId(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id.localeCompare(right.id);
+}
+
+/**
+ * The two focus channels the canvas composes (issue #66), carried into the picture so a
+ * screenshot shows what the user sees: the USER closure dims outsiders, the AI focus outlines
+ * what it names — including the endpoints of an edge-only request, like the canvas does.
+ */
+export interface GraphSceneFocus {
+  readonly userNodes: ReadonlySet<string> | null;
+  readonly userEdges: ReadonlySet<string> | null;
+  readonly aiNodes: ReadonlySet<string>;
+  readonly aiEdges: ReadonlySet<string>;
 }
 
 function edgeStyleOf(edge: ProjectGraphEdge, palette: GraphScenePalette): GraphSceneEdgeStyle {
@@ -110,6 +131,7 @@ export function buildGraphScene(
   view: ProjectGraphView,
   layout: GraphLayoutFile,
   palette: GraphScenePalette,
+  focus: GraphSceneFocus | null = null,
 ): GraphScene {
   const nodes = [...view.nodes].toSorted(byId);
   const selectedNodes = nodes.slice(0, MAX_SCENE_NODES);
@@ -134,6 +156,15 @@ export function buildGraphScene(
     maxY = Math.max(maxY, node.position.y + size.height);
   }
   const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING };
+  // The AI outline also marks the endpoints of a named edge (the D-171 edge-only semantics).
+  const aiNodes = new Set(focus?.aiNodes ?? []);
+  if (focus !== null) {
+    for (const edge of view.edges) {
+      if (!focus.aiEdges.has(edge.id)) continue;
+      aiNodes.add(edge.source);
+      aiNodes.add(edge.target);
+    }
+  }
   const rects = new Map<string, Rect>();
   const sceneNodes: GraphSceneNode[] = selectedNodes.map((node) => {
     const rect = rectFor(node, origin);
@@ -148,6 +179,8 @@ export function buildGraphScene(
         width: rect.width,
         height: rect.height,
       },
+      opacity: focus?.userNodes != null && !focus.userNodes.has(node.id) ? USER_FOCUS_OPACITY : 1,
+      outlined: aiNodes.has(node.id),
     };
   });
   const obstacles = [...rects.values()];
@@ -164,6 +197,8 @@ export function buildGraphScene(
       ),
       stroke: style.stroke,
       dashed: style.dashed,
+      opacity: focus?.userEdges != null && !focus.userEdges.has(edge.id) ? USER_FOCUS_OPACITY : 1,
+      outlined: focus?.aiEdges.has(edge.id) ?? false,
     };
   });
   return {

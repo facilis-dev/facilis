@@ -40,6 +40,7 @@ describe("graph view state round-trips", () => {
       mode: "timeline",
       activeLenses: ["impact", "contract", "roles"],
       isolatedEdgeKinds: ["fk", "page-link"],
+      isolatedNode: "table:予定表",
       selection: "table:予定表",
       focus: ["page:/設定", "route:GET /api/検索", "table:café"],
       filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "project" },
@@ -73,6 +74,17 @@ describe("graph view state round-trips", () => {
     );
     expect(encodeGraphViewState(state({ isolatedEdgeKinds: [] }))).toBe("");
     expect(decodeGraphViewState('{"i":["bogus",3]}').isolatedEdgeKinds).toEqual([]);
+  });
+
+  it("encodes node isolation under n and omits it when null (issue #66)", () => {
+    expect(encodeGraphViewState(state({ isolatedNode: "table:todos" }))).toBe(
+      '{"n":"table:todos"}',
+    );
+    expect(encodeGraphViewState(state({ isolatedNode: null }))).toBe("");
+    expect(decodeGraphViewState('{"n":42}').isolatedNode).toBeNull();
+    expect(decodeGraphViewState('{"n":""}').isolatedNode).toBeNull();
+    const next = state({ isolatedNode: "view:active_todos", selection: "view:active_todos" });
+    expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
   });
 
   it("round-trips every mode and every single lens", () => {
@@ -137,17 +149,19 @@ describe("graph view state degradation", () => {
     expect(decoded.activeLenses).toEqual(["contract", "data"]);
   });
 
-  it("drops selection, focus and collapsed ids missing from knownNodeIds", () => {
+  it("drops selection, isolatedNode, focus and collapsed ids missing from knownNodeIds", () => {
     const known = new Set(["table:todos", "page:/"]);
     const raw = encodeGraphViewState(
       state({
         selection: "table:gone",
+        isolatedNode: "table:gone",
         focus: ["table:todos", "table:gone"],
         collapsed: ["page:/", "view:stale"],
       }),
     );
     const decoded = decodeGraphViewState(raw, known);
     expect(decoded.selection).toBeNull();
+    expect(decoded.isolatedNode).toBeNull();
     expect(decoded.focus).toEqual(["table:todos"]);
     expect(decoded.collapsed).toEqual(["page:/"]);
   });
@@ -155,10 +169,11 @@ describe("graph view state degradation", () => {
   it("keeps ids that exist in knownNodeIds", () => {
     const known = new Set(["table:todos"]);
     const decoded = decodeGraphViewState(
-      '{"s":"table:todos","f":["table:todos"],"c":["table:todos"]}',
+      '{"s":"table:todos","n":"table:todos","f":["table:todos"],"c":["table:todos"]}',
       known,
     );
     expect(decoded.selection).toBe("table:todos");
+    expect(decoded.isolatedNode).toBe("table:todos");
     expect(decoded.focus).toEqual(["table:todos"]);
     expect(decoded.collapsed).toEqual(["table:todos"]);
   });

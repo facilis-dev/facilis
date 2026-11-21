@@ -1,12 +1,15 @@
 // The analysis edges mapped to React Flow (extracted from ProjectGraphCanvas for the 300-line
 // limit): style, selection, focus dimming and the saved curve travel as data, so the custom edge
 // renders without knowing the view. The satellite connector is added separately by the canvas.
-// Edge-kind isolation (issue #63) is a data flag too: opacity only, never a removal, so
-// positions, selection and the graph bounds cannot move.
+// Dimming is data, like a card's: the USER focus (issue #66) faints the edges outside the
+// selection's closure to 12%, edge-kind isolation (issue #63) faints every other kind to 10%,
+// and the AI focus (D-171) outlines the edges it names — opacity and outline are separate
+// channels, never a removal, so positions, selection and the graph bounds cannot move.
 
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
@@ -17,7 +20,10 @@ export interface ProjectFlowEdgesInput {
   readonly view: ProjectGraphView;
   readonly edgeCurves: Readonly<Record<string, GraphCurve>>;
   readonly selectedEdgeId: string | null;
+  /** The active AI focus (D-171): the outline channel, or null when nothing is outlined. */
   readonly focus: ProjectGraphFocusState | null;
+  /** The selection's closure (issue #66): the dimming channel, or null when nothing is dimmed. */
+  readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
@@ -28,10 +34,12 @@ export function buildProjectGraphFlowEdges({
   edgeCurves,
   selectedEdgeId,
   focus,
+  userFocus,
   isolatedEdgeKinds,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
+  const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
   return view.edges.map((edge) => {
     const style = edgeStyleFor(edge);
     return {
@@ -45,9 +53,10 @@ export function buildProjectGraphFlowEdges({
       data: {
         kind: edge.kind,
         ...(edge.access === undefined ? {} : { access: edge.access }),
-        // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-        focused: focus === null ? true : focus.edgeIds.has(edge.id),
-        // Isolation faints every other kind to 10%; the edge composes it with the focus dim.
+        // An edge outside the user's closure recedes; the AI outline is independent of it.
+        ...(userEdges === null ? {} : { userDimmed: !userEdges.has(edge.id) }),
+        ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
+        // Isolation faints every other kind to 10%; the edge composes it with the user dim.
         ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
         curve: edgeCurves[edge.id] ?? null,
         onCurveChange: onEdgeCurveChange,

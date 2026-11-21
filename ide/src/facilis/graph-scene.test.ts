@@ -8,8 +8,11 @@ import {
   MAX_SCENE_EDGES,
   MAX_SCENE_NODES,
   buildGraphScene,
+  type GraphSceneFocus,
   type GraphScenePalette,
 } from "./graph-scene";
+import { reachabilityClosure } from "./graph-reachability";
+import { USER_FOCUS_OPACITY } from "./graph-user-focus";
 
 const palette: GraphScenePalette = {
   background: "#ffffff",
@@ -17,6 +20,7 @@ const palette: GraphScenePalette = {
   border: "#dddddd",
   text: "#111111",
   muted: "#666666",
+  outline: "#2563eb",
   edges: {
     fk: { stroke: "fk-stroke", dashed: false },
     relation: { stroke: "relation-stroke", dashed: true },
@@ -173,5 +177,91 @@ describe("buildGraphScene", () => {
       edges: [],
       truncated: false,
     });
+  });
+});
+
+// The screenshot carries the same two channels the canvas composes (issue #66 criterion 5):
+// the user closure dims outsiders to 12%, the AI focus outlines what it names. D-171 forbids
+// pixel snapshots in Node, so the composition is proved here, on the scene the painter draws.
+describe("buildGraphScene focus overlay", () => {
+  const ABOUT = pageNode("src/pages/about.tsx");
+  const LINK: GraphEdge = {
+    id: "page-link:1",
+    kind: "page-link",
+    source: PAGE.id,
+    target: ABOUT.id,
+    label: null,
+  };
+  const focusView = buildProjectGraphView({
+    graph: graphOf([PAGE, GET, TODOS, ABOUT], [PAGE_ROUTE, ROUTE_TABLE, LINK]),
+    positions: layoutOf().nodes,
+  });
+  const closure = reachabilityClosure(focusView, GET.id);
+  if (closure === null) throw new Error("fixture closure must exist");
+  const userOnly: GraphSceneFocus = {
+    userNodes: new Set(closure.nodeIds),
+    userEdges: new Set(closure.edgeIds),
+    aiNodes: new Set(),
+    aiEdges: new Set(),
+  };
+  const aiOnly: GraphSceneFocus = {
+    userNodes: null,
+    userEdges: null,
+    aiNodes: new Set([ABOUT.id]),
+    aiEdges: new Set([LINK.id]),
+  };
+
+  it("keeps every card and edge bright and unoutlined without an overlay", () => {
+    const scene = buildGraphScene(focusView, layoutOf(), palette);
+    expect(scene.nodes.every((node) => node.opacity === 1 && !node.outlined)).toBe(true);
+    expect(scene.edges.every((edge) => edge.opacity === 1 && !edge.outlined)).toBe(true);
+  });
+
+  it("dims the cards and edges outside the user's closure to 12%", () => {
+    const scene = buildGraphScene(focusView, layoutOf(), palette, userOnly);
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    expect(byId.get(ABOUT.id)?.opacity).toBe(USER_FOCUS_OPACITY);
+    expect(byId.get(GET.id)?.opacity).toBe(1);
+    expect(byId.get(PAGE.id)?.opacity).toBe(1);
+    const link = scene.edges.find((edge) => edge.id === LINK.id);
+    expect(link?.opacity).toBe(USER_FOCUS_OPACITY);
+    expect(scene.edges.find((edge) => edge.id === ROUTE_TABLE.id)?.opacity).toBe(1);
+  });
+
+  it("outlines the AI-named cards and edges without dimming anything", () => {
+    const scene = buildGraphScene(focusView, layoutOf(), palette, aiOnly);
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    expect(byId.get(ABOUT.id)?.outlined).toBe(true);
+    // The named edge's endpoints carry the outline too (the D-171 edge-only semantics).
+    expect(byId.get(PAGE.id)?.outlined).toBe(true);
+    expect(byId.get(GET.id)?.outlined).toBe(false);
+    expect(scene.nodes.every((node) => node.opacity === 1)).toBe(true);
+    expect(scene.edges.find((edge) => edge.id === LINK.id)?.outlined).toBe(true);
+  });
+
+  it("composes both channels: a dimmed card can still carry the AI outline", () => {
+    const both: GraphSceneFocus = {
+      userNodes: userOnly.userNodes,
+      userEdges: userOnly.userEdges,
+      aiNodes: aiOnly.aiNodes,
+      aiEdges: aiOnly.aiEdges,
+    };
+    const scene = buildGraphScene(focusView, layoutOf(), palette, both);
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+    // ABOUT is outside the closure but AI-named: dimmed AND outlined, both channels visible.
+    expect(byId.get(ABOUT.id)?.opacity).toBe(USER_FOCUS_OPACITY);
+    expect(byId.get(ABOUT.id)?.outlined).toBe(true);
+    // PAGE is inside the closure and an AI edge endpoint: bright AND outlined.
+    expect(byId.get(PAGE.id)?.opacity).toBe(1);
+    expect(byId.get(PAGE.id)?.outlined).toBe(true);
+    const link = scene.edges.find((edge) => edge.id === LINK.id);
+    expect(link?.opacity).toBe(USER_FOCUS_OPACITY);
+    expect(link?.outlined).toBe(true);
+  });
+
+  it("stays deterministic with an overlay", () => {
+    const first = buildGraphScene(focusView, layoutOf(), palette, userOnly);
+    const second = buildGraphScene(focusView, layoutOf(), palette, userOnly);
+    expect(second).toEqual(first);
   });
 });

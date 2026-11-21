@@ -29,8 +29,10 @@ import { useGraphLod } from "./use-graph-lod";
 export type ProjectFlowData = {
   node: ProjectGraphNode;
   collapsed: boolean;
-  /** False when an AI focus request (D-171) names other nodes: the card is drawn dimmed. */
+  /** False when the user focus (issue #66) closes over other nodes: the card is drawn at 12%. */
   focused: boolean;
+  /** True when the AI focus (D-171) names this card: the outline channel, never a dim. */
+  aiOutlined: boolean;
   /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
   isolated: boolean;
   /** Edges touching this node in the visible view — the chip's count, derived from the model. */
@@ -61,7 +63,10 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-testid="project-graph-page"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-56"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
+        " relative w-56"
+      }
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">
@@ -139,7 +144,10 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-testid="project-graph-table"
       data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " relative w-60"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
+        " relative w-60"
+      }
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
         <div className="flex items-center gap-1.5">

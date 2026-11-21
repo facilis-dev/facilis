@@ -1,13 +1,13 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
-// Composition root: stats-ribbon filter, zen mode, AI focus, pinned details. The analysis
-// lifecycle lives in useProjectGraphAnalysis, the URL-synced view in useProjectGraphViewState
-// (which composes the saved-layout hook), the chrome in Shell / Hud / StatsRibbon. Nothing here
-// touches the analyzer worker or writes outside the project's .facilis directory.
+// Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), pinned
+// details. Analysis: useProjectGraphAnalysis; URL view: useProjectGraphViewState; closure:
+// useProjectGraphUserFocus; keys: useProjectGraphEscape; chrome: Shell / Hud / StatsRibbon.
+// Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { buildProjectGraphView } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import {
@@ -18,7 +18,6 @@ import {
   pinnedDetailsReducer,
 } from "@/facilis/graph-satellite";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
-import type { GraphNodeKind } from "@facilis.dev/analyze";
 import {
   EMPTY_STATS_FILTER,
   effectiveHiddenEdgeKinds,
@@ -30,17 +29,19 @@ import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { focusGraphNode } from "./focus-graph-node";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
+import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useContainerSize } from "./use-container-size";
-import { useDetailsEscape } from "./use-details-escape";
-import { useFocusEscape } from "./use-focus-escape";
+import { useProjectGraphEscape } from "./use-project-graph-escape";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphOpen } from "./use-project-graph-open";
+import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
 export function ProjectGraphPanel() {
@@ -67,7 +68,8 @@ export function ProjectGraphPanel() {
   );
   const viewState = useProjectGraphViewState(c, root, knownNodeIds);
   const graph = viewState.graph;
-  const { query, selection: selectedNodeId } = viewState.state;
+  const { query, selection: selectedNodeId, isolatedNode } = viewState.state;
+  const { openNode, openFileAt } = useProjectGraphOpen(c, root);
   const setQuery = viewState.setQuery;
   const setSelectedNodeId = viewState.setSelection;
   const layout = graph.layout;
@@ -87,21 +89,20 @@ export function ProjectGraphPanel() {
     if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
   }, [knownNodeIds]);
 
-  // Esc leaves zen first, then clears an AI focus; typing targets keep Escape (note editor).
-  useEffect(() => {
-    if (!zen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dispatchZen({ type: "exit" });
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [zen]);
   const closeDetails = useCallback(() => {
     if (selectedNodeId !== null) focusGraphNode(selectedNodeId);
     setSelectedNodeId(null);
   }, [selectedNodeId, setSelectedNodeId]);
-  useDetailsEscape(selectedNodeId, zen, closeDetails);
-  useFocusEscape(focus !== null, zen);
+  // Esc: zen → isolate → selection → AI focus; Enter isolates the selection (issue #66).
+  useProjectGraphEscape({
+    zen,
+    isolatedNode,
+    selection: selectedNodeId,
+    aiFocusActive: focus !== null,
+    onExitZen: () => dispatchZen({ type: "exit" }),
+    onClearSelection: closeDetails,
+    setIsolatedNode: viewState.setIsolatedNode,
+  });
 
   const view = useMemo(
     () =>
@@ -118,6 +119,8 @@ export function ProjectGraphPanel() {
           }),
     [analysis, layout, query, filter],
   );
+  // Focus-and-context (issue #66): derived dimming closure; isolate persists it in the URL (F.5).
+  const { userFocus, focusSummary } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
   const layoutLoaded = graph.layoutLoaded;
@@ -139,10 +142,6 @@ export function ProjectGraphPanel() {
     graph.resetPositions();
     fit();
   };
-  const openNode = (node: ProjectGraphNode) => {
-    const path = sourcePathFor(root, node.sourceFile);
-    if (path !== null) void c.openFile(path);
-  };
   const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
   // Incident edges, both directions: page links and the routes that use a view.
   const selectedEdges =
@@ -159,16 +158,6 @@ export function ProjectGraphPanel() {
     [view],
   );
   const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
-  const openFileAt = (file: string, line: number) => {
-    const path = sourcePathFor(root, file);
-    if (path !== null) void c.openFileAt(path, line);
-  };
-  // A detail list may name a relation the graph did not draw: ignore ids without a node.
-  const selectNode = (id: string) => {
-    if (nodeLabels.has(id)) setSelectedNodeId(id);
-  };
-  const toggleKind = (kind: GraphNodeKind) =>
-    setFilter((current) => toggleKindFilter(current, kind));
 
   // Non-canvas states live in their own component; a notes-only graph is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
@@ -192,6 +181,7 @@ export function ProjectGraphPanel() {
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
+        userFocus={userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
@@ -244,7 +234,7 @@ export function ProjectGraphPanel() {
             onZoomIn={() => flow?.zoomIn()}
             onZoomOut={() => flow?.zoomOut()}
             filter={filter}
-            onToggleKind={toggleKind}
+            onToggleKind={(kind) => setFilter((current) => toggleKindFilter(current, kind))}
             onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
             lensChips={
               <ProjectGraphLensChips
@@ -256,6 +246,14 @@ export function ProjectGraphPanel() {
                 onHideEdgeKind={graph.toggleEdgeKind}
                 activeLenses={viewState.state.activeLenses}
                 onActiveLensesChange={viewState.setActiveLenses}
+              />
+            }
+            focusBar={
+              <ProjectGraphFocusBar
+                summary={focusSummary}
+                isolated={isolatedNode !== null}
+                selectedNodeId={selectedNodeId}
+                onIsolateChange={viewState.setIsolatedNode}
               />
             }
             tableVisibility={layout.tableVisibility}
@@ -288,7 +286,10 @@ export function ProjectGraphPanel() {
             }
             onOpenFileAt={openFileAt}
             onOpenPreview={(path) => openPageInPreview(c, path)}
-            onSelectNode={selectNode}
+            onSelectNode={(id) => {
+              // A detail list may name a relation the graph did not draw: ignore unknown ids.
+              if (nodeLabels.has(id)) setSelectedNodeId(id);
+            }}
           />
         ) : null
       }

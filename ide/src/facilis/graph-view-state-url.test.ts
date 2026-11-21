@@ -89,6 +89,7 @@ describe("2 KB URL budget for a 500-node project", () => {
   const worst = state({
     mode: "timeline",
     activeLenses: [...GRAPH_LENS_IDS],
+    isolatedNode: nodeIds[9],
     selection: nodeIds[7],
     focus: nodeIds.slice(100, 110),
     filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "used" },
@@ -110,6 +111,7 @@ describe("2 KB URL budget for a 500-node project", () => {
     // The addressable essentials survive; only the bulkiest view-only field is shed.
     expect(decoded.mode).toBe("timeline");
     expect(decoded.activeLenses).toEqual([...GRAPH_LENS_IDS]);
+    expect(decoded.isolatedNode).toBe(nodeIds[9]);
     expect(decoded.selection).toBe(nodeIds[7]);
     expect(decoded.query).toBe(worst.query);
     expect(decoded.filters).toEqual(worst.filters);
