@@ -61,7 +61,6 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "chii": "^1.15.5",
     "chobitsu": "^1.8.6",
-    "happy-dom": "^20.14.6",
     "oxlint": "catalog:",
     "tailwindcss": "^4.3.2",
     "typescript": "catalog:",

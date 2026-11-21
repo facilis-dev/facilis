@@ -11,7 +11,6 @@
 import type { KernelBridge } from "@/vv/kernel";
 import {
   getRuntimeMetrics,
-  notifyRuntimeMetricSamples,
   notifyRuntimeMetrics,
   RUNTIME_METRICS_SOURCE,
 } from "./runtime-metrics";
@@ -87,14 +86,8 @@ export function enableRuntimeMetrics(
   const onMessage = (event: MessageEvent): void => {
     // Origin first (cheap), then the full contract incl. the current kernel token.
     if (!session.isTrustedOrigin(event.origin)) return;
-    // One shared now for the collector and the sample tap (#72): the lens's 5-minute
-    // window must equal collector.snapshot() for the same instant, not a later one.
-    const now = Date.now();
-    const result = collector.ingest(event.data, session.token, now);
-    if (result.ok) {
-      notifyRuntimeMetricSamples(result.samples, now);
-      notifyRuntimeMetrics();
-    }
+    const result = collector.ingest(event.data, session.token);
+    if (result.ok) notifyRuntimeMetrics();
   };
   window.addEventListener("message", onMessage);
   detachListener = () => {

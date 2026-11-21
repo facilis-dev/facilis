@@ -43,7 +43,6 @@ const PALETTE: GraphScenePalette = {
   border: "#ddd",
   text: "#111",
   muted: "#666",
-  outline: "#2563eb",
   edges: {
     fk: { stroke: "#f00", dashed: false },
     relation: { stroke: "#0f0", dashed: true },

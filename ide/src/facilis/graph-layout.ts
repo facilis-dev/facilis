@@ -10,7 +10,6 @@
 // A project written before D-126 has a single `.facilis/graph.json`; it is read once and
 // rewritten as the v3 files on the next save.
 
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import {
   GRAPH_NOTE_PREFIX,
   type GraphLayoutFile,
@@ -114,30 +113,6 @@ export function withCollapsed(
 export function withViewport(layout: GraphLayoutFile, viewport: GraphViewport): GraphLayoutFile {
   if (!Number.isFinite(viewport.zoom) || viewport.zoom <= 0) return layout;
   return { ...layout, viewport };
-}
-
-/** The view fields a deep link restores (issue #58); positions, curves and notes are untouched. */
-export interface GraphViewRestore {
-  readonly hiddenEdgeKinds: readonly GraphEdgeKind[];
-  readonly tableVisibility: GraphTableVisibility;
-  readonly collapsed: Readonly<Record<string, boolean>>;
-  readonly viewport: GraphViewport | null;
-}
-
-/**
- * Replace the view fields wholesale from a decoded URL state. Pure reducer: the layout hook
- * marks the result as already saved so restoring a deep link never writes .facilis (the
- * layout file is a document, the URL is the view — issue #58).
- */
-export function restoreGraphView(layout: GraphLayoutFile, view: GraphViewRestore): GraphLayoutFile {
-  const hidden = new Set(view.hiddenEdgeKinds);
-  return {
-    ...layout,
-    hiddenEdges: GRAPH_EDGE_KINDS.filter((kind) => hidden.has(kind)),
-    tableVisibility: view.tableVisibility,
-    collapsed: { ...view.collapsed },
-    viewport: view.viewport ?? undefined,
-  };
 }
 
 /**
