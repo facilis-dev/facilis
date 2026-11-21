@@ -59,8 +59,10 @@ assignee is an agent or a human.
 ## Epics
 
 An issue labelled `epic` is a plan, not a work item: it describes a larger effort and tracks
-its children as a task list (`- [ ] #NNN`) in its body, grouped by phase and followed by a
-suggested order. The children are ordinary issues (`bug`, `enhancement`, `task`) and
+its children. Children are discovered from three sources, in order: the task list
+(`- [ ] #NNN`) in the epic body — the authoritative plan order, grouped by phase with a
+suggested order — native GitHub sub-issues, and membership back-references (`Part of #NNN`)
+in open child bodies, in creation order. The children are ordinary issues (`bug`, `enhancement`, `task`) and
 **intentionally carry no `agent:ready` label**: tagging them would let an agent pick a child
 out of plan order. The epic's own `agent:ready` label is the hand-off for the whole plan, and
 the epic's design rules and non-goals are binding for every child.
