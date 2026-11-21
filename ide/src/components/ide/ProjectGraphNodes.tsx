@@ -1,8 +1,7 @@
 // The project-graph node cards: page, table and workflow, plus the registration of the analysis
 // and note node types (the route card lives in ProjectGraphRouteNode.tsx, the view card in
 // ProjectGraphViewNode.tsx, the note card in ProjectGraphNote.tsx, the shared chrome in
-// ProjectGraphNodeChrome.tsx). Each card names only theme role tokens (D-043/D-044); the
-// geometry lives in graph-model.ts and the canvas only places them.
+// ProjectGraphNodeChrome.tsx). Role tokens only (D-043/D-044); geometry lives in graph-model.ts.
 
 import type { Node, NodeProps, NodeTypes } from "@xyflow/react";
 import ChevronDown from "~icons/lucide/chevron-down";
@@ -11,8 +10,16 @@ import FileCode from "~icons/lucide/file-code";
 import Table2 from "~icons/lucide/table-2";
 import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
-import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import type { ProjectGraphNode } from "@/facilis/graph-model";
+import {
+  ColumnMarkers,
+  ImpactTargetBadge,
+  LinkHandles,
+  NeverReadBadge,
+  UnknownBadge,
+  nodeClass,
+  sourceTitle,
+} from "./ProjectGraphNodeChrome";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
@@ -28,6 +35,12 @@ export type ProjectFlowData = {
   aiOutlined: boolean;
   /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
   isolated: boolean;
+  /** True when the impact lens (issue #74) simulates removing THIS card: the danger marker. */
+  impactTarget: boolean;
+  /** True when the impact lens dims this card (outside target + dependents): drawn at 12%. */
+  impactDimmed: boolean;
+  /** True while the impact lens badges this table as read by no route (muted observation). */
+  neverRead: boolean;
   onToggleCollapse: (id: string) => void;
 };
 
@@ -39,8 +52,7 @@ export type ProjectAnalysisFlowNode = Node<
 /** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
 export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
 
-// The canvas and the custom edge import the handle ids from here; they are re-exported so the
-// node files stay the single entry point for the canvas.
+// Re-exported so the canvas and the custom edge import handle ids from this one entry point.
 export { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodeChrome";
 
 export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
@@ -52,8 +64,15 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-testid="project-graph-page"
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " w-56"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.impactDimmed,
+        ) + " w-56"
       }
     >
       <div className="flex items-center gap-1.5">
@@ -96,19 +115,6 @@ const MAX_VISIBLE_COLUMNS = 8;
 /** The card names at most two grants; the inspector's policy list carries the whole set (D-177). */
 const MAX_VISIBLE_POLICIES = 2;
 
-function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
-  if (markers.length === 0) return null;
-  return (
-    <span className="flex shrink-0 items-center gap-0.5">
-      {markers.map((marker) => (
-        <span key={marker} className="rounded border px-0.5 text-[8px] leading-tight">
-          {t(("projectGraph.marker." + marker) as MessageKey)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
   const node = data.node;
   const table = node.data.kind === "table" ? node.data : null;
@@ -124,8 +130,15 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-testid="project-graph-table"
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " w-60"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.impactDimmed,
+        ) + " w-60"
       }
     >
       <div className="flex items-center gap-1.5">
@@ -134,6 +147,8 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           {table.table}
         </span>
         {table.unknown && <UnknownBadge />}
+        {data.impactTarget && <ImpactTargetBadge />}
+        {data.neverRead && <NeverReadBadge />}
         <button
           type="button"
           className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
@@ -230,8 +245,15 @@ export function WorkflowGraphNode({
       data-testid="project-graph-workflow"
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " w-64"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.impactDimmed,
+        ) + " w-64"
       }
     >
       <div className="flex items-center gap-1.5">

@@ -11,6 +11,7 @@
 // position (and React Flow's own state) while the pointer is down; only drag stop commits.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
@@ -30,6 +31,8 @@ export interface ProjectFlowNodesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The impact simulation overlay (issue #74); null/absent means the lens is inactive. */
+  readonly impact?: ImpactOverlay | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
@@ -43,6 +46,7 @@ export function buildProjectGraphFlowNodes({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  impact = null,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
@@ -75,6 +79,9 @@ export function buildProjectGraphFlowNodes({
     : null;
   const isIsolated = (id: string): boolean =>
     isolationActive && !(isolatedEndpoints?.has(id) ?? false);
+  // The impact lens (issue #74) dims everything outside target + dependents; without a target
+  // it only badges never-read tables, so no card dims against a ghost. Opacity only, as ever.
+  const impactDimming = impact !== null && impact.targetId !== null;
   const analysis = view.nodes.map((node) => {
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {
@@ -87,6 +94,9 @@ export function buildProjectGraphFlowNodes({
         focused: isFocused(node.id),
         aiOutlined: isAiOutlined(node.id),
         isolated: isIsolated(node.id),
+        impactTarget: impact?.targetId === node.id,
+        impactDimmed: impactDimming && !(impact?.keepNodeIds.has(node.id) ?? false),
+        neverRead: impact?.neverReadTableIds.has(node.id) ?? false,
         onToggleCollapse,
       },
       draggable: true,
@@ -111,6 +121,8 @@ export function buildProjectGraphFlowNodes({
         note,
         focused: isFocused(note.id),
         isolated: isolationActive,
+        // Notes are outside every simulation: they recede with the rest while one is drawn.
+        impactDimmed: impactDimming,
         onEditNote,
         onDeleteNote,
       },

@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
+import { ProjectGraphImpactSection } from "./ProjectGraphImpactSection";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
 import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
 import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
+import type { ImpactSatellite } from "./useProjectGraphImpact";
 
 export interface ProjectGraphInspectorProps {
   node: ProjectGraphNode;
@@ -23,6 +25,8 @@ export interface ProjectGraphInspectorProps {
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
+  /** The impact lens's satellite state (issue #74); the section shows for tables and views. */
+  impact: ImpactSatellite;
 }
 
 export function ProjectGraphInspector({
@@ -35,6 +39,7 @@ export function ProjectGraphInspector({
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
+  impact,
 }: ProjectGraphInspectorProps) {
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
   return (
@@ -58,6 +63,12 @@ export function ProjectGraphInspector({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
+        <ProjectGraphImpactSection
+          node={node}
+          impact={impact}
+          nodeLabel={nodeLabel}
+          onSelectNode={onSelectNode}
+        />
         {node.data.kind === "route" && (
           <ProjectGraphRouteDetails
             {...shared}

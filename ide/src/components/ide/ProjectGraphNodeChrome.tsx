@@ -4,8 +4,8 @@
 // ProjectGraphRouteNode.tsx) can share it without importing each other.
 
 import { Handle, Position } from "@xyflow/react";
-import { t } from "@/i18n";
-import type { ProjectGraphNode } from "@/facilis/graph-model";
+import { t, type MessageKey } from "@/i18n";
+import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
 
 // select-none: dragging a card or box-selecting must not paint the card text as selected.
 const NODE_BASE =
@@ -25,6 +25,7 @@ export function nodeClass(
   focused: boolean,
   isolated: boolean,
   aiOutlined: boolean,
+  impactDimmed = false,
 ): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
@@ -32,9 +33,10 @@ export function nodeClass(
       ? "border-primary ring-1 ring-ring"
       : "hover:border-ring";
   const elevation = dragging ? "shadow-lg" : "shadow-sm";
+  // The impact lens (issue #74) dims outsiders like the user focus; the strongest dim wins.
   const opacity = isolated
     ? " opacity-10"
-    : !focused
+    : !focused || impactDimmed
       ? " opacity-12"
       : !matched
         ? " opacity-40"
@@ -83,6 +85,44 @@ export function UnknownBadge() {
   return (
     <span className="shrink-0 rounded border border-warning/50 px-1 text-[9px] text-warning">
       {t("projectGraph.unknown")}
+    </span>
+  );
+}
+
+/** The column marker chips shared by the table card's rows (moved here to keep cards lean). */
+export function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
+  if (markers.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {markers.map((marker) => (
+        <span key={marker} className="rounded border px-0.5 text-[8px] leading-tight">
+          {t(("projectGraph.marker." + marker) as MessageKey)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The impact lens's target marker (issue #74): this card is being simulated as removed. */
+export function ImpactTargetBadge() {
+  return (
+    <span
+      title={t("projectGraph.impact.simulatingHint")}
+      className="shrink-0 rounded border border-destructive/50 bg-destructive/10 px-1 text-[9px] text-destructive"
+    >
+      {t("projectGraph.impact.simulating")}
+    </span>
+  );
+}
+
+/** The impact lens's muted observation: no route reads this table, directly or via a view. */
+export function NeverReadBadge() {
+  return (
+    <span
+      title={t("projectGraph.impact.neverReadHint")}
+      className="shrink-0 rounded border border-border px-1 text-[9px] text-muted-foreground"
+    >
+      {t("projectGraph.impact.neverRead")}
     </span>
   );
 }

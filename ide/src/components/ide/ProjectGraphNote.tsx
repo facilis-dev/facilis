@@ -29,6 +29,8 @@ export type ProjectNoteFlowData = {
   readonly focused: boolean;
   /** True while edge-kind isolation (issue #63) is active: notes always recede to 10%. */
   readonly isolated: boolean;
+  /** True while an impact simulation (issue #74) dims the graph: notes are never dependents. */
+  readonly impactDimmed?: boolean;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
 };
@@ -110,7 +112,11 @@ export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<Pro
             : "hover:border-ring") +
         // The user focus dims an annotation like any other card: the closure names analysis
         // nodes, not notes. Isolation (issue #63) recedes it further; the stronger dim wins.
-        (data.isolated ? " opacity-10" : data.focused ? "" : " opacity-12")
+        (data.isolated
+          ? " opacity-10"
+          : data.focused && data.impactDimmed !== true
+            ? ""
+            : " opacity-12")
       }
       onDoubleClick={(event) => {
         if (editing) return;

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
@@ -112,5 +113,71 @@ describe("buildProjectGraphFlowEdges", () => {
     });
     expect(edges[0]?.selected).toBe(true);
     expect(edges[0]?.markerEnd).toMatchObject({ color: "var(--brand)" });
+  });
+});
+
+describe("buildProjectGraphFlowEdges impact simulation (issue #74)", () => {
+  const overlay = {
+    targetId: "a",
+    keepNodeIds: new Set(["a", "b"]),
+    brokenEdgeIds: new Set(["e1"]),
+    neverReadTableIds: new Set<string>(),
+  };
+  const withImpact = (impact: ImpactOverlay | null, isolated: readonly ("fk" | "relation")[] = []) =>
+    buildProjectGraphFlowEdges({
+      view,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: isolated,
+      impact,
+      onEdgeCurveChange: () => {},
+    });
+
+  it("marks broken edges for the danger stroke and dims the rest, removing nothing", () => {
+    const edges = withImpact(overlay);
+    expect(edges).toHaveLength(3);
+    expect(edges.map((edge) => edge.data?.impactBroken)).toEqual([true, undefined, undefined]);
+    expect(edges.map((edge) => edge.data?.impactDimmed)).toEqual([undefined, true, true]);
+    expect(edges[0]?.markerEnd).toMatchObject({ color: "var(--destructive)" });
+    expect(edges[1]?.markerEnd).toMatchObject({ color: "var(--info)" });
+  });
+
+  it("without a target no edge is broken or dimmed", () => {
+    const edges = withImpact({ ...overlay, targetId: null, brokenEdgeIds: new Set<string>() });
+    for (const edge of edges) {
+      expect(edge.data?.impactBroken).toBeUndefined();
+      expect(edge.data?.impactDimmed).toBeUndefined();
+    }
+  });
+
+  it("composes with isolation: both flags travel, the renderer lets danger win", () => {
+    const edges = withImpact(overlay, ["relation"]);
+    expect(edges[0]?.data?.dimmed).toBe(true);
+    expect(edges[0]?.data?.impactBroken).toBe(true);
+    expect(edges[1]?.data?.dimmed).toBe(false);
+    expect(edges[1]?.data?.impactDimmed).toBe(true);
+  });
+
+  it("restores the exact pre-simulation edge inputs when the lens exits (criterion 5)", () => {
+    // Stable callback: two builds must differ only in the overlay, not in function identity.
+    const noop = () => {};
+    const base = {
+      view,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      onEdgeCurveChange: noop,
+    };
+    const before = buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: [] });
+    buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: [], impact: overlay });
+    expect(buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: [] })).toEqual(before);
+    const isolatedBefore = buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: ["fk"] });
+    buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: ["fk"], impact: overlay });
+    expect(buildProjectGraphFlowEdges({ ...base, isolatedEdgeKinds: ["fk"] })).toEqual(
+      isolatedBefore,
+    );
   });
 });

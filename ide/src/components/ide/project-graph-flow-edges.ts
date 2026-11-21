@@ -7,10 +7,11 @@
 
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { edgeStyleFor } from "./project-graph-edges";
+import { IMPACT_BROKEN_EDGE_STYLE, edgeStyleFor } from "./project-graph-edges";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -25,6 +26,8 @@ export interface ProjectFlowEdgesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The impact simulation overlay (issue #74); null/absent means the lens is inactive. */
+  readonly impact?: ImpactOverlay | null;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
 
@@ -35,12 +38,15 @@ export function buildProjectGraphFlowEdges({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  impact = null,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
   const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
+  const impactDimming = impact !== null && impact.targetId !== null;
   return view.edges.map((edge) => {
-    const style = edgeStyleFor(edge);
+    const broken = impact?.brokenEdgeIds.has(edge.id) ?? false;
+    const style = broken ? IMPACT_BROKEN_EDGE_STYLE : edgeStyleFor(edge);
     return {
       id: edge.id,
       source: edge.source,
@@ -56,6 +62,8 @@ export function buildProjectGraphFlowEdges({
         ...(userEdges === null ? {} : { userDimmed: !userEdges.has(edge.id) }),
         ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
         ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
+        ...(broken ? { impactBroken: true } : {}),
+        ...(impactDimming && !broken ? { impactDimmed: true } : {}),
         curve: edgeCurves[edge.id] ?? null,
         onCurveChange: onEdgeCurveChange,
       },

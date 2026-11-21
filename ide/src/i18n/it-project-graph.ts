@@ -224,4 +224,29 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
     "Mostra solo il sottografo raggiungibile (Invio, o doppio clic su un nodo)",
   "projectGraph.focus.exitIsolate": "Esci dall'isolamento",
   "projectGraph.focus.exitIsolateHint": "Ripristina il grafo completo (Esc)",
+  // ── lente di simulazione impatto (issue #74) ───────────────────────────────
+  "projectGraph.impact.label": "Simulazione impatto",
+  "projectGraph.impact.section": "Simulazione impatto",
+  "projectGraph.impact.simulate": "Simula rimozione",
+  "projectGraph.impact.simulateHint":
+    "Anteprima di cosa si rompe se questa tabella o vista viene rimossa — il modello non viene mai modificato (Esc per uscire)",
+  "projectGraph.impact.stop": "Ferma simulazione",
+  "projectGraph.impact.exit": "Esci dalla simulazione impatto",
+  "projectGraph.impact.exitHint": "Ripristina la vista precedente (Esc)",
+  "projectGraph.impact.counts": "{routes} route, {views} viste",
+  "projectGraph.impact.hint": "Seleziona una tabella per simularne la rimozione",
+  "projectGraph.impact.simulating": "rimozione simulata",
+  "projectGraph.impact.simulatingHint":
+    "Simulato come rimosso: i dipendenti mantengono il colore, il resto si attenua — nulla viene modificato",
+  "projectGraph.impact.neverRead": "mai letta",
+  "projectGraph.impact.neverReadHint":
+    "Nessuna route legge questa tabella, direttamente o tramite una vista",
+  "projectGraph.impact.routes": "Route interessate",
+  "projectGraph.impact.methodRoutes": "Route {method}",
+  "projectGraph.impact.noDependents": "Nessuna route dipende da questa selezione.",
+  "projectGraph.impact.columns": "Impatto a livello di colonna",
+  "projectGraph.impact.columnNotAnalysed": "l'impatto a livello di colonna non è analizzato",
+  "projectGraph.impact.columnNoDependents": "Nessuna route dichiara questa colonna.",
+  "projectGraph.impact.simulateColumn": "Simula la rimozione della colonna {column}",
+  "projectGraph.impact.stopColumn": "Ferma la simulazione della colonna {column}",
 };

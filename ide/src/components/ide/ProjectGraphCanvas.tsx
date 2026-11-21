@@ -23,6 +23,7 @@ import {
 } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { ImpactOverlay } from "@/facilis/graph-impact";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
@@ -47,6 +48,7 @@ export function ProjectGraphCanvas({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  impact = null,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -73,6 +75,8 @@ export function ProjectGraphCanvas({
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The impact simulation overlay (issue #74): colour/badges/dimming only, never positions. */
+  impact?: ImpactOverlay | null;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -135,11 +139,13 @@ export function ProjectGraphCanvas({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        impact,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, userFocus, isolatedEdgeKinds],
+    // prettier-ignore
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, userFocus, isolatedEdgeKinds, impact],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -205,9 +211,11 @@ export function ProjectGraphCanvas({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        impact,
         onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, userFocus, isolatedEdgeKinds],
+    // prettier-ignore
+    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, userFocus, isolatedEdgeKinds, impact],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {

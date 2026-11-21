@@ -8,7 +8,13 @@ import ChevronDown from "~icons/lucide/chevron-down";
 import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  ImpactTargetBadge,
+  LinkHandles,
+  UnknownBadge,
+  nodeClass,
+  sourceTitle,
+} from "./ProjectGraphNodeChrome";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 const MAX_VISIBLE_TABLES = 4;
@@ -32,8 +38,15 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-testid="project-graph-view"
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " w-60"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.impactDimmed,
+        ) + " w-60"
       }
     >
       <div className="flex items-center gap-1.5">
@@ -45,6 +58,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           {t("projectGraph.node.view")}
         </span>
         {view.unknown && <UnknownBadge />}
+        {data.impactTarget && <ImpactTargetBadge />}
         {view.tables.length > 0 && (
           <button
             type="button"

@@ -55,8 +55,15 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-testid="project-graph-route"
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " w-64"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.impactDimmed,
+        ) + " w-64"
       }
     >
       <div className="flex items-center gap-1.5">

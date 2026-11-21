@@ -25,6 +25,12 @@ export const ELEVATED_EDGE_STYLE: GraphEdgeStyle = {
   dashed: false,
 };
 
+/** The impact lens (issue #74): an edge the simulated removal would break, dashed and danger. */
+export const IMPACT_BROKEN_EDGE_STYLE: GraphEdgeStyle = {
+  stroke: "var(--destructive)",
+  dashed: true,
+};
+
 export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): GraphEdgeStyle {
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
 }

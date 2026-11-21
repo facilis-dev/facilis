@@ -26,7 +26,7 @@ import {
   type Rect,
 } from "@/facilis/graph-edge-geometry";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { edgeStyleFor } from "./project-graph-edges";
+import { IMPACT_BROKEN_EDGE_STYLE, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -41,6 +41,10 @@ export type ProjectGraphEdgeData = {
   readonly aiOutlined?: boolean;
   /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
   readonly dimmed?: boolean;
+  /** True when the impact simulation (issue #74) would break this edge: dashed danger stroke. */
+  readonly impactBroken?: boolean;
+  /** True when the impact simulation dims this edge (not broken): drawn at 12%. */
+  readonly impactDimmed?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -147,10 +151,15 @@ export function ProjectGraphEdge({
     { sourceX, sourceY, targetX, targetY },
     curve,
   );
-  const edgeStyle = edgeStyleFor({
-    kind,
-    ...(data?.access === undefined ? {} : { access: data.access }),
-  });
+  // A broken edge (issue #74) keeps the danger stroke even over the kind/elevation colour:
+  // it is the simulation's whole point, so it also wins over every dimming channel.
+  const edgeStyle =
+    data?.impactBroken === true
+      ? IMPACT_BROKEN_EDGE_STYLE
+      : edgeStyleFor({
+          kind,
+          ...(data?.access === undefined ? {} : { access: data.access }),
+        });
   const highlighted = selected === true || hovered;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
@@ -160,12 +169,16 @@ export function ProjectGraphEdge({
     // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
     // wins so the two never stack into an invisible line. Opacity, not colour: the theme still
     // owns the stroke. The AI focus no longer dims — it halos below (aiOutlined).
-    ...(data?.dimmed === true
-      ? { opacity: 0.1 }
-      : data?.userDimmed === true
-        ? { opacity: 0.12 }
-        : {}),
-    ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
+    ...(data?.impactBroken === true
+      ? {}
+      : data?.dimmed === true
+        ? { opacity: 0.1 }
+        : data?.userDimmed === true || data?.impactDimmed === true
+          ? { opacity: 0.12 }
+          : {}),
+    ...(edgeStyle.dashed
+      ? { strokeDasharray: data?.impactBroken === true ? "6 3" : "5 3" }
+      : {}),
   };
 
   const onHandlePointerDown = (event: PointerEvent<SVGCircleElement>) => {

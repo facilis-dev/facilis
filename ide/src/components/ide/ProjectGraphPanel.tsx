@@ -28,6 +28,7 @@ import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
+import { ProjectGraphImpactBar } from "./ProjectGraphImpactBar";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphShell } from "./ProjectGraphShell";
@@ -36,6 +37,7 @@ import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphImpact } from "./useProjectGraphImpact";
 import { useProjectGraphKeys } from "./useProjectGraphKeys";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
@@ -76,26 +78,6 @@ export function ProjectGraphPanel() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
   const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
-
-  // Esc clears one layer at a time (zen → isolate → selection → AI focus, issue #66); Enter
-  // isolates the selection. Typing targets keep their keys — the hook guards them.
-  useProjectGraphKeys({
-    onEscape: () => {
-      const action = graphEscapeAction({
-        zen,
-        isolatedNode,
-        selection: selectedNodeId,
-        aiFocusActive: focus !== null,
-      });
-      if (action === "exit-zen") dispatchZen({ type: "exit" });
-      else if (action === "exit-isolate") setIsolatedNode(null);
-      else if (action === "clear-selection") setSelectedNodeId(null);
-      else if (action === "clear-ai-focus") clearGraphFocus();
-    },
-    onEnter: () => {
-      if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
-    },
-  });
 
   const view = useMemo(
     () =>
@@ -149,6 +131,29 @@ export function ProjectGraphPanel() {
     () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
     [analysis],
   );
+  // The impact lens (issue #74): a derived overlay, so Esc/exit restores the exact prior view.
+  const impact = useProjectGraphImpact(viewState, displayView, details);
+  // Esc clears one layer at a time (zen → impact → isolate → selection → AI focus); Enter
+  // isolates the selection. Typing targets keep their keys — the hook guards them.
+  useProjectGraphKeys({
+    onEscape: () => {
+      const action = graphEscapeAction({
+        zen,
+        impactActive: impact.lensActive,
+        isolatedNode,
+        selection: selectedNodeId,
+        aiFocusActive: focus !== null,
+      });
+      if (action === "exit-zen") dispatchZen({ type: "exit" });
+      else if (action === "exit-impact") impact.exit();
+      else if (action === "exit-isolate") setIsolatedNode(null);
+      else if (action === "clear-selection") setSelectedNodeId(null);
+      else if (action === "clear-ai-focus") clearGraphFocus();
+    },
+    onEnter: () => {
+      if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
+    },
+  });
   const nodeLabels = useMemo(
     () => new Map((displayView?.nodes ?? []).map((node) => [node.id, node.label] as const)),
     [displayView],
@@ -191,6 +196,7 @@ export function ProjectGraphPanel() {
         focus={focus}
         userFocus={userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+        impact={impact.overlay}
         notes={isolatedNode === null ? graph.notes : []}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -247,6 +253,7 @@ export function ProjectGraphPanel() {
             }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
+            impactBar={<ProjectGraphImpactBar hud={impact.hud} onExit={impact.exit} />}
             focusBar={
               <ProjectGraphFocusBar
                 summary={
@@ -281,6 +288,7 @@ export function ProjectGraphPanel() {
             onOpenFileAt={openFileAt}
             onOpenPreview={(path) => openPageInPreview(c, path)}
             onSelectNode={selectNode}
+            impact={impact.satellite}
           />
         ) : null
       }

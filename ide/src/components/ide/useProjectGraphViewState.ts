@@ -35,6 +35,7 @@ interface GraphViewLocalState {
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   readonly isolatedNode: string | null;
   readonly selection: string | null;
+  readonly impactColumn: string | null;
   readonly focus: readonly string[];
   readonly query: string;
 }
@@ -45,6 +46,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
   isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
+  impactColumn: DEFAULT_GRAPH_VIEW_STATE.impactColumn,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
 };
@@ -60,6 +62,8 @@ export interface ProjectGraphViewState {
   readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
   readonly setIsolatedNode: (id: string | null) => void;
   readonly setSelection: (id: string | null) => void;
+  /** The impact lens's simulated column property (issue #74); null clears it. */
+  readonly setImpactColumn: (property: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
 }
@@ -135,6 +139,9 @@ export function useProjectGraphViewState(
         pending.selection !== null && knownNodeIds.has(pending.selection)
           ? pending.selection
           : null,
+      // A column property, not a node id: the impact hook drops it when the selected table
+      // does not have it (the analysis, not the URL, knows the columns).
+      impactColumn: pending.impactColumn,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
     });
@@ -190,6 +197,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setImpactColumn = useCallback(
+    (property: string | null) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, impactColumn: property }));
+    },
+    [cancelRestore],
+  );
   const setUserFocus = useCallback(
     (ids: readonly string[]) => {
       cancelRestore();
@@ -219,6 +233,7 @@ export function useProjectGraphViewState(
       isolatedEdgeKinds: local.isolatedEdgeKinds,
       isolatedNode: local.isolatedNode,
       selection: local.selection,
+      impactColumn: local.impactColumn,
       focus: local.focus,
       filters: { hiddenEdgeKinds: layout.hiddenEdges, tableVisibility: layout.tableVisibility },
       collapsed: collapsedIds,
@@ -264,6 +279,7 @@ export function useProjectGraphViewState(
     setIsolatedEdgeKinds,
     setIsolatedNode,
     setSelection,
+    setImpactColumn,
     setUserFocus,
     setQuery,
   };

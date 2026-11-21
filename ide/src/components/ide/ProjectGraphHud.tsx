@@ -53,6 +53,8 @@ export interface ProjectGraphHudProps {
   lensChips: ReactNode;
   /** The selection-context line / isolate breadcrumb (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
+  /** The impact-simulation line (issue #74), in the top-left cluster beside the focus bar. */
+  impactBar: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -77,6 +79,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         <Network className="size-3.5 shrink-0 text-brand" />
         <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
         {props.focusBar}
+        {props.impactBar}
         <div
           data-testid="graph-hud-mode-slot"
           aria-label={t("projectGraph.hud.modeSlot")}

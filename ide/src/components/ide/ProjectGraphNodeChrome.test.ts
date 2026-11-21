@@ -59,6 +59,14 @@ describe("nodeClass channels", () => {
     expect(frame({ matched: false, focused: false })).toContain("opacity-12");
   });
 
+  it("dims an impact outsider to 12% and lets the stronger isolation dim win (issue #74)", () => {
+    expect(nodeClass(false, true, false, true, false, false, true)).toContain("opacity-12");
+    expect(nodeClass(false, true, false, true, true, false, true)).toContain("opacity-10");
+    // A search miss (40%) recedes further than the impact dim, like the user focus.
+    expect(nodeClass(false, false, false, true, false, false, true)).toContain("opacity-12");
+    expect(nodeClass(false, true, false, true, false, false, false)).not.toContain("opacity-");
+  });
+
   it("keeps the selection ring under both channels", () => {
     const cls = frame({ selected: true, focused: false, aiOutlined: true });
     expect(cls).toContain("ring-primary");
