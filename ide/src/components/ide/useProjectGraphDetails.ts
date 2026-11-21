@@ -1,8 +1,6 @@
-// The details satellite's session state and the canvas's combined node list (issue #59).
-// The panel owns the pinned cards (so the bottom sheet knows its pin state); this hook owns the
-// node machinery: it builds the analysis cards, the notes and the details nodes in one list,
-// keeps the satellite attached while its anchor drags or the viewport moves, and resolves the
-// pin position from the live canvas. Nothing here is persisted: pins are session-scoped.
+// The details satellite's session state and the canvas's combined node list (issue #59): the
+// analysis cards, notes, hub chips and details nodes in one list, kept attached while the anchor
+// drags or the viewport moves. The panel owns the pins; nothing here is persisted.
 
 import {
   useCallback,
@@ -34,6 +32,7 @@ import {
 import {
   buildProjectGraphFlowNodes,
   type ProjectFlowContractState,
+  type ProjectFlowDataState,
   type ProjectGraphDrill,
 } from "./project-graph-flow-nodes";
 import { buildHubFlowNodes } from "./project-graph-hub-flow";
@@ -59,6 +58,8 @@ export interface UseProjectGraphDetailsInput {
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
   contract: ProjectFlowContractState;
+  /** The data lens's inputs (issue #70): marks on the table/view cards, never a move. */
+  data: ProjectFlowDataState;
   /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
   drill: ProjectGraphDrill | null;
   /** The concentration overlay + session hub state (issue #64); its chips join the node list. */
@@ -93,6 +94,7 @@ export function useProjectGraphDetails({
   userFocus,
   isolatedEdgeKinds,
   contract,
+  data,
   drill,
   hubs,
   selectedNodeId,
@@ -114,8 +116,7 @@ export function useProjectGraphDetails({
   onEditNote,
   onDeleteNote,
 }: UseProjectGraphDetailsInput) {
-  // The panel's inline callbacks change identity on every render; node data must not depend on
-  // that, or every snapshot update would rebuild the cards mid-drag. Refs keep them stable.
+  // Inline callbacks change identity every render; refs keep the cards' data stable mid-drag.
   const callbacks = useRef({ onSelectNode, onOpenFileAt, onOpenPreview, nodeLabel });
   callbacks.current = { onSelectNode, onOpenFileAt, onOpenPreview, nodeLabel };
   const selectNode = useCallback((id: string | null) => callbacks.current.onSelectNode(id), []);
@@ -151,9 +152,7 @@ export function useProjectGraphDetails({
   const nodesRef = useRef<ProjectFlowNode[]>([]);
   const instanceRef = useRef(instance);
   instanceRef.current = instance;
-
-  // Pinning keeps the card where the satellite sits; from the sheet (no satellite) it lands at
-  // the viewport centre, so the comparison card is immediately visible.
+  // Pinning keeps the card where the satellite sits; from the sheet it lands at the centre.
   const resolvePinPosition = useCallback(
     (nodeId: string) =>
       pinPositionOf(nodesRef.current, instanceRef.current, wrapperRef.current, nodeId),
@@ -178,8 +177,7 @@ export function useProjectGraphDetails({
     [dispatchPinned],
   );
 
-  // The sheet's pin button is an event, not state: only a nonce change pins, so a re-render
-  // cannot repeat the last request.
+  // The sheet's pin button is an event: only a nonce change pins, so a re-render cannot repeat.
   const lastPinNonce = useRef(pinRequest?.nonce ?? 0);
   useEffect(() => {
     if (pinRequest === null || pinRequest.nonce === lastPinNonce.current) return;
@@ -202,6 +200,7 @@ export function useProjectGraphDetails({
         userFocus,
         isolatedEdgeKinds,
         contract,
+        data,
         drill,
         hubIsolation: hubs.isolation,
         onToggleCollapse,
@@ -241,6 +240,7 @@ export function useProjectGraphDetails({
       userFocus,
       isolatedEdgeKinds,
       contract,
+      data,
       drill,
       hubs,
       onToggleCollapse,
@@ -286,7 +286,7 @@ export function useProjectGraphDetails({
     },
     [activeAnchorId, containerWidth],
   );
-  // A pan or zoom may flip the satellite's side; the viewport comes from the move event itself.
+  // A pan or zoom may flip the side; the viewport comes from the move event itself.
   const onViewportMove = useCallback(
     (viewport: Viewport) => {
       setNodes((current) =>

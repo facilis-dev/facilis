@@ -10,7 +10,7 @@ import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve, ProjectGraphEdge } from "@/facilis/graph-types";
 import { detailsLinkEdge, type ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
-import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import type { ProjectFlowDataState, ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useProjectGraphBridgePlan } from "./useProjectGraphBridgePlan";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -26,6 +26,8 @@ export interface ProjectGraphEdgesInput {
   readonly focus: ProjectGraphFocusState | null;
   readonly userFocus: GraphReachability | null;
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The data lens's inputs (issue #70): schema strokes and the elevated lock label. */
+  readonly data: ProjectFlowDataState;
   readonly drill: ProjectGraphDrill | null;
   /** The bridges lens toggle (issue #65); false restores every orthogonal route. */
   readonly bridges: boolean;
@@ -43,6 +45,7 @@ export function useProjectGraphEdges({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  data,
   drill,
   bridges,
   activeAnchorId,
@@ -61,6 +64,7 @@ export function useProjectGraphEdges({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      data,
       drill,
       hubIsolation,
       bridges: bridgePlan,
@@ -78,6 +82,7 @@ export function useProjectGraphEdges({
     focus,
     userFocus,
     isolatedEdgeKinds,
+    data,
     drill,
     bridgePlan,
     hoveredBridgeId,

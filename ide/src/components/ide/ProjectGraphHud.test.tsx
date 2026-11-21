@@ -18,6 +18,7 @@ function markup(
     lensChips?: ReactNode;
     runtimeControls?: ReactNode;
     auditRibbon?: ReactNode;
+    dataRibbon?: ReactNode;
     mode?: GraphViewMode;
   } = {},
 ): string {
@@ -48,6 +49,7 @@ function markup(
       clusterControls={null}
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
       auditRibbon={slots.auditRibbon ?? null}
+      dataRibbon={slots.dataRibbon ?? null}
       tableVisibility="project"
       onTableVisibilityChange={vi.fn()}
       mode={slots.mode ?? "topology"}

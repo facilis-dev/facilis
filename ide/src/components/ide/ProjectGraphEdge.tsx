@@ -17,22 +17,16 @@ import {
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import { bridgeGeometry, type BridgeSpec } from "@/facilis/graph-bridge-geometry";
-import { resolveTrunkGeometry } from "@/facilis/graph-edge-bundles";
-import {
-  edgeGeometry,
-  selfLoopGeometry,
-  type EdgeGeometry,
-  type Rect,
-} from "@/facilis/graph-edge-geometry";
 import { bridgeApexLabel, bridgeAriaLabel } from "@/facilis/graph-edge-labels";
-import { routeEdge } from "@/facilis/graph-edge-routing";
 import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { ProjectGraphBridgeLabel } from "./ProjectGraphBridgeLabel";
+import { ElevatedEdgeLabel } from "./ProjectGraphDataMarks";
 import { ProjectGraphEdgeHandle } from "./ProjectGraphEdgeHandle";
-import { internalNodeRect, obstacleRects, type MeasuredNode } from "./project-graph-edge-rects";
+import { obstacleRects } from "./project-graph-edge-rects";
+import { resolveGeometry } from "./project-graph-edge-resolve";
 import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
-import { BRIDGE_DIM_OPACITY, edgeStyleFor } from "./project-graph-edges";
+import { BRIDGE_DIM_OPACITY, dataEdgeStyleFor, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
 
@@ -55,6 +49,10 @@ export type ProjectGraphEdgeData = {
   readonly drillDimmed?: boolean;
   /** True when a hub hover (issue #64) names other edges: drawn at 12%, like the user focus. */
   readonly hubDimmed?: boolean;
+  /** The data lens's role (issue #70); absent or null keeps the base stroke. */
+  readonly dataRole?: "dominant" | "secondary" | null;
+  /** Compact data LOD (issue #70): the elevated label keeps only its lock glyph. */
+  readonly compactData?: boolean;
   /** How many crossings this boundary bundle stands for (issue #62); absent means one. */
   readonly count?: number;
   /** Shared trunk lane (issue #64): the edge splits from the group only at its ends. */
@@ -75,38 +73,6 @@ export type ProjectGraphEdgeData = {
 };
 
 export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_EDGE_TYPE>;
-
-function resolveGeometry(
-  sourceNode: MeasuredNode | undefined,
-  targetNode: MeasuredNode | undefined,
-  source: string,
-  target: string,
-  positions: { sourceX: number; sourceY: number; targetX: number; targetY: number },
-  curve: GraphCurve | null,
-  obstacles: readonly Rect[],
-  trunkLane?: number,
-): EdgeGeometry {
-  const fallback: EdgeGeometry = edgeGeometry(
-    {
-      source: { x: positions.sourceX, y: positions.sourceY },
-      target: { x: positions.targetX, y: positions.targetY },
-    },
-    curve,
-  );
-  const sourceRect = internalNodeRect(sourceNode);
-  if (sourceRect === null) return fallback;
-  if (source === target) return selfLoopGeometry(sourceRect, curve);
-  const targetRect = internalNodeRect(targetNode);
-  if (targetRect === null) return fallback;
-  if (trunkLane !== undefined) {
-    // Re-check the lane against the measured cards (and collapsed cluster frames): a taller
-    // card than the layout fallback must never end up under the trunk, so a dirty lane falls
-    // back to the normal orthogonal router (issue #64).
-    const trunk = resolveTrunkGeometry(sourceRect, targetRect, trunkLane, curve, obstacles);
-    if (trunk !== null) return trunk;
-  }
-  return routeEdge(sourceRect, targetRect, { obstacles, curve });
-}
 
 export function ProjectGraphEdge({
   id,
@@ -146,11 +112,16 @@ export function ProjectGraphEdge({
           obstacleRects(nodeLookup),
           data?.trunkLane,
         );
-  const edgeStyle = edgeStyleFor({
-    kind,
-    ...(data?.access === undefined ? {} : { access: data.access }),
-  });
+  const edgeInput = { kind, ...(data?.access === undefined ? {} : { access: data.access }) };
+  const edgeStyle = edgeStyleFor(edgeInput);
+  // The data lens (issue #70) overrides width and dash, never the stroke colour: the arrowhead
+  // keeps the base style in project-graph-flow-edges, so the two must agree.
+  const dataActive = data?.dataRole === "dominant" || data?.dataRole === "secondary";
+  const dataStyle = dataActive ? dataEdgeStyleFor(edgeInput) : null;
   const highlighted = selected === true || hovered;
+  const baseWidth = highlighted ? 2.5 : 1.5;
+  const strokeWidth =
+    dataStyle === null ? baseWidth : highlighted ? dataStyle.width + 0.5 : dataStyle.width;
   const bridgeDimmed = bridge !== null && data?.bridgeDimmed === true;
   const apexLabel = bridge !== null ? bridgeApexLabel({ label: bridge.label, kind }) : null;
   // The hub's count edge is the one thick stroke on the canvas (issue #64); the expanded
@@ -166,7 +137,7 @@ export function ProjectGraphEdge({
     stroke: edgeStyle.stroke,
     // Chip simplification (issue #60): thinner strokes and no member labels (the model's edge
     // label lives in the inspector); bend handles are suppressed below.
-    strokeWidth: data?.hubCount !== undefined ? 3 : level === "chip" ? 1 : highlighted ? 2.5 : 1.5,
+    strokeWidth: data?.hubCount !== undefined ? 3 : level === "chip" ? 1 : strokeWidth,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
@@ -180,7 +151,13 @@ export function ProjectGraphEdge({
         : bridgeDimmed
           ? { opacity: BRIDGE_DIM_OPACITY }
           : {}),
-    ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
+    ...(dataStyle !== null
+      ? dataStyle.dash !== null
+        ? { strokeDasharray: dataStyle.dash }
+        : {}
+      : edgeStyle.dashed
+        ? { strokeDasharray: "5 3" }
+        : {}),
   };
   // Hover and keyboard focus do the same thing: raise this bridge, dim the rest (issue #65).
   const raiseBridge = () => {
@@ -257,6 +234,16 @@ export function ProjectGraphEdge({
           midpoint={geometry.midpoint}
           text={label}
           above={data?.hubCount === undefined}
+        />
+      ) : null}
+      {/* The elevated lock label (issue #70): above the midpoint so the curve handle stays
+          grabbable; the glyph survives every zoom, the word compacts away (criterion 1). */}
+      {dataActive && data?.access === "elevated" ? (
+        <ElevatedEdgeLabel
+          x={geometry.midpoint.x}
+          y={geometry.midpoint.y - 12}
+          compact={data.compactData === true}
+          secondary={data.dataRole === "secondary"}
         />
       ) : null}
       {/* No bend handles at chip (criterion 5) or on a bundled member (issue #64): the edge

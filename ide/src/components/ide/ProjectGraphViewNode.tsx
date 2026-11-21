@@ -11,10 +11,12 @@ import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
 import {
+  CardMarksStack,
   ContractLensContext,
   ViewContractMarks,
   contractRingClass,
 } from "./ProjectGraphContractMarks";
+import { ViewDataMarks } from "./ProjectGraphDataMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
 import { useGraphLod } from "./use-graph-lod";
@@ -146,14 +148,30 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           </p>
         )}
       </div>
-      {contract !== null && (
+      {contract !== null ? (
         <ViewContractMarks
           view={view}
           diagnostics={diagnostics}
           compact={contract.compact}
           secondary={contract.secondary}
-        />
-      )}
+        >
+          {data.dataRole !== null && (
+            <ViewDataMarks
+              view={view}
+              compact={data.compactData}
+              secondary={data.dataRole === "secondary"}
+            />
+          )}
+        </ViewContractMarks>
+      ) : data.dataRole !== null ? (
+        <CardMarksStack>
+          <ViewDataMarks
+            view={view}
+            compact={data.compactData}
+            secondary={data.dataRole === "secondary"}
+          />
+        </CardMarksStack>
+      ) : null}
       {level !== "full" && (
         <GraphLodOverlay>
           <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />

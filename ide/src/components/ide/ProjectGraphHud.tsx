@@ -57,6 +57,8 @@ export interface ProjectGraphHudProps {
   runtimeControls: ReactNode;
   /** The contract lens's audit ribbon (issue #69), or null when the lens is inactive. */
   auditRibbon: ReactNode;
+  /** The data lens's summary ribbon (issue #70), or null when the lens is inactive. */
+  dataRibbon: ReactNode;
   /** The selection-context line / isolate exit (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
   /** The cluster breadcrumb + group-by toggle (issue #62); null keeps the plain title. */
@@ -241,6 +243,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
           lensChips={props.lensChips}
           runtimeControls={props.runtimeControls}
           auditRibbon={props.auditRibbon}
+          dataRibbon={props.dataRibbon}
         />
 
         {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

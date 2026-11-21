@@ -48,6 +48,10 @@ export type ProjectFlowData = {
   isolated: boolean;
   /** True when an audit-ribbon filter (issue #69) matches none of this node's counters: 40%. */
   auditDimmed: boolean;
+  /** The data lens's role (issue #70); null when the lens is inactive and no marks draw. */
+  dataRole: "dominant" | "secondary" | null;
+  /** Compact LOD for the data badges (issue #70): below the zoom threshold, glyph+count only. */
+  compactData: boolean;
   /** Edges touching this node in the visible view — the chip's count, derived from the model. */
   edgeCount: number;
   onToggleCollapse: (id: string) => void;

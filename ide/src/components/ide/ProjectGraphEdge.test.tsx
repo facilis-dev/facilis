@@ -87,3 +87,46 @@ describe("ProjectGraphEdge bridge rendering", () => {
     expect(html).not.toContain('role="img"');
   });
 });
+describe("ProjectGraphEdge data lens (issue #70)", () => {
+  beforeEach(() => {
+    initI18n();
+    setLocale("en");
+  });
+
+  it("draws the dotted elevated stroke only under the lens", () => {
+    const plain = markup({ access: "elevated", bridge: null });
+    expect(plain).not.toContain("stroke-dasharray:1 3");
+    const lens = markup({ access: "elevated", bridge: null, dataRole: "dominant" });
+    expect(lens).toContain("stroke-dasharray:1 3");
+    // The arrowhead keeps the base elevation colour, so stroke and marker agree.
+    expect(lens).toContain("var(--warning)");
+  });
+
+  it("labels an elevated edge with the lock at every LOD and drops the word when compact", () => {
+    const full = markup({ access: "elevated", bridge: null, dataRole: "dominant" });
+    expect(full).toContain('data-testid="data-edge-lock"');
+    expect(full).toContain(">elevated</text>");
+    const compact = markup({
+      access: "elevated",
+      bridge: null,
+      dataRole: "dominant",
+      compactData: true,
+    });
+    expect(compact).toContain('data-testid="data-edge-lock"');
+    expect(compact).not.toContain(">elevated</text>");
+    // The meaning stays reachable at compact LOD through the title.
+    expect(compact).toContain("Elevated access (audited sudo/system)");
+  });
+
+  it("fades the lock label to 30% when the data lens is secondary", () => {
+    const secondary = markup({
+      access: "elevated",
+      bridge: null,
+      dataRole: "secondary",
+      compactData: false,
+    });
+    expect(secondary).toContain('opacity="0.3"');
+    const dominant = markup({ access: "elevated", bridge: null, dataRole: "dominant" });
+    expect(dominant).toContain('opacity="1"');
+  });
+});

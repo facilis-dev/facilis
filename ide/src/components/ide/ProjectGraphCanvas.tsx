@@ -7,7 +7,7 @@
 // fitView padding comes from the measured HUD (issue #57); role tokens only (XYFLOW_THEME_TOKENS).
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo, useRef, useState, type Dispatch } from "react";
+import { useMemo, useRef, useState, type Dispatch } from "react";
 import { Background, ReactFlow, type ReactFlowInstance } from "@xyflow/react";
 import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
@@ -26,7 +26,11 @@ import {
 } from "./ProjectGraphDetailsLinkEdge";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { ProjectGraphZoomVar } from "./ProjectGraphZoomVar";
-import type { ProjectFlowContractState, ProjectGraphDrill } from "./project-graph-flow-nodes";
+import type {
+  ProjectFlowContractState,
+  ProjectFlowDataState,
+  ProjectGraphDrill,
+} from "./project-graph-flow-nodes";
 import { useProjectGraphEdges } from "./useProjectGraphEdges";
 import { useGraphFitEffects } from "./useGraphFitEffects";
 import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
@@ -34,6 +38,7 @@ import { useProjectGraphDetails, type PinRequest } from "./useProjectGraphDetail
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { useProjectGraphHubs } from "./useProjectGraphHubs";
 import { useProjectGraphInteractions } from "./use-project-graph-interactions";
+import { useProjectGraphStableActions } from "./useProjectGraphStableActions";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 // Module scope: React Flow rebuilds its internals when the registry identity changes.
@@ -57,6 +62,7 @@ export function ProjectGraphCanvas({
   userFocus,
   isolatedEdgeKinds,
   contract,
+  data,
   drill,
   selectedNodeId,
   onSelectNode,
@@ -102,6 +108,8 @@ export function ProjectGraphCanvas({
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
   contract: ProjectFlowContractState;
+  /** The data lens's inputs (issue #70): marks and schema strokes, never a position change. */
+  data: ProjectFlowDataState;
   /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
   drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
@@ -139,26 +147,14 @@ export function ProjectGraphCanvas({
   // Hub expansion and hover are session-scoped (issue #64); only the threshold is URL state.
   const hubs = useProjectGraphHubs(view, concentration);
 
-  // The collapse callback travels through a ref so node data does not depend on the parent's
-  // function identity: a parent re-render must not rebuild the cards mid-drag.
-  const onToggleCollapseRef = useRef(onToggleCollapse);
-  onToggleCollapseRef.current = onToggleCollapse;
-  const toggleCollapse = useCallback((id: string) => {
-    onToggleCollapseRef.current(id);
-  }, []);
-  // Same reasoning for the note actions: the note card holds its editor state, so a changed
-  // function identity would rebuild its data and could interrupt a drag or an edit.
-  const noteActions = useRef({ onCreateNote, onEditNote, onDeleteNote });
-  noteActions.current = { onCreateNote, onEditNote, onDeleteNote };
-  const createNote = useCallback((position: { x: number; y: number }) => {
-    noteActions.current.onCreateNote(position);
-  }, []);
-  const editNote = useCallback((id: string, text: string) => {
-    noteActions.current.onEditNote(id, text);
-  }, []);
-  const deleteNote = useCallback((id: string) => {
-    noteActions.current.onDeleteNote(id);
-  }, []);
+  // The card actions are ref-stabilized in their own hook so a parent re-render cannot rebuild
+  // the cards mid-drag; the hook keeps the why with the mechanism.
+  const { toggleCollapse, createNote, editNote, deleteNote } = useProjectGraphStableActions(
+    onToggleCollapse,
+    onCreateNote,
+    onEditNote,
+    onDeleteNote,
+  );
 
   const { nodes, onNodesChange, onViewportMove, activeAnchorId, movePinned } =
     useProjectGraphDetails({
@@ -168,6 +164,7 @@ export function ProjectGraphCanvas({
       userFocus,
       isolatedEdgeKinds,
       contract,
+      data,
       drill,
       hubs,
       selectedNodeId,
@@ -219,6 +216,7 @@ export function ProjectGraphCanvas({
     focus,
     userFocus,
     isolatedEdgeKinds,
+    data,
     drill,
     bridges,
     activeAnchorId,

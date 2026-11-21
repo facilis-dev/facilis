@@ -5,7 +5,9 @@
 // The focus-channel composition (issue #66) lives in project-graph-flow-focus.test.ts.
 import { describe, expect, it } from "vitest";
 import type { Diagnostic, GraphEdge, GraphEdgeKind } from "@facilis.dev/analyze";
-import { buildProjectGraphView } from "@/facilis/graph-model";
+import { fkNeighbourhood } from "@/facilis/graph-data-lens";
+import { buildProjectGraphView, type ProjectGraphView } from "@/facilis/graph-model";
+import { reachabilityClosure, type GraphReachability } from "@/facilis/graph-reachability";
 import {
   GET,
   PAGE,
@@ -13,12 +15,13 @@ import {
   WORKFLOW,
   graphOf,
   routeNode,
+  tableNode,
 } from "@/facilis/graph-model.test-fixtures";
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
 import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import { HUB_NODE_TYPE } from "./ProjectGraphHubNode";
-import type { ProjectFlowNode } from "./ProjectGraphNodes";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
+import { buildProjectGraphFlowNodes, type ProjectFlowDataState } from "./project-graph-flow-nodes";
 
 const EDGES: GraphEdge[] = [
   { id: "page-route:1", kind: "page-route", source: PAGE.id, target: GET.id, label: null },
@@ -382,5 +385,128 @@ describe("buildProjectGraphFlowNodes contract audit dimming (issue #69)", () => 
       (entry) => entry.id === "note-1",
     );
     expect(note?.data).not.toHaveProperty("auditDimmed");
+  });
+});
+// ── data lens composition (issue #70, epic #56 rules 2-3) ─────────────────────────────────
+
+const A = tableNode("a");
+const B = tableNode("b");
+const C = tableNode("c");
+const ROUTE = routeNode("GET", "/api/a", { dbTables: ["a"] });
+const DATA_EDGES: GraphEdge[] = [
+  { id: "fk1", kind: "fk", source: A.id, target: B.id, label: null },
+  // A relation edge closes the schema mesh (fkNeighbourhood treats fk/relation as schema) but
+  // is not an fk kind, so edge isolation (below) dims C while the data lens still reaches it.
+  { id: "rel2", kind: "relation", source: B.id, target: C.id, label: null },
+  // The route writes a: it is in a's FULL closure but outside the FK neighbourhood, so the
+  // data-lens highlight is strictly stricter than #66's default — and still opacity only.
+  { id: "e3", kind: "route-table", source: ROUTE.id, target: A.id, label: null },
+];
+const DATA_POSITIONS: Record<string, { x: number; y: number }> = {
+  [A.id]: { x: 10, y: 10 },
+  [B.id]: { x: 10, y: 100 },
+  [C.id]: { x: 10, y: 190 },
+  [ROUTE.id]: { x: 300, y: 10 },
+};
+const flatDataView = buildProjectGraphView({ graph: graphOf([ROUTE, A, B, C], DATA_EDGES) });
+const dataView: ProjectGraphView = {
+  ...flatDataView,
+  nodes: flatDataView.nodes.map((entry) => ({
+    ...entry,
+    position: DATA_POSITIONS[entry.id] ?? entry.position,
+  })),
+};
+
+const buildData = (
+  data: ProjectFlowDataState | undefined,
+  userFocus: GraphReachability | null = null,
+  isolatedEdgeKinds: readonly GraphEdgeKind[] = [],
+) =>
+  buildProjectGraphFlowNodes({
+    view: dataView,
+    notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }],
+    previous: [],
+    selectedNodeId: A.id,
+    focus: null,
+    userFocus,
+    isolatedEdgeKinds,
+    drill: null,
+    hubIsolation: null,
+    data,
+    onToggleCollapse: NOOP,
+    onToggleClusterCollapse: NOOP,
+    onEditNote: NOOP,
+    onDeleteNote: NOOP,
+  });
+
+const cardsOf = (nodes: ReturnType<typeof buildData>): ProjectAnalysisFlowNode[] =>
+  nodes.filter((entry): entry is ProjectAnalysisFlowNode => entry.id !== "note-1");
+
+const positionsOf = (nodes: ReturnType<typeof buildData>) =>
+  nodes.map((entry) => entry.id + "@" + entry.position.x + "," + entry.position.y).toSorted();
+
+describe("buildProjectGraphFlowNodes data lens", () => {
+  it("carries no data role when the lens is inactive or absent", () => {
+    for (const entry of cardsOf(buildData(undefined))) {
+      expect(entry.data.dataRole).toBeNull();
+      expect(entry.data.compactData).toBe(false);
+    }
+    for (const entry of cardsOf(buildData({ activeLenses: ["contract"], compactData: true }))) {
+      expect(entry.data.dataRole).toBeNull();
+    }
+  });
+
+  it("assigns the dominant and secondary roles through the shared lens mechanism", () => {
+    const dominant = buildData({ activeLenses: ["data", "contract"], compactData: false });
+    for (const entry of cardsOf(dominant)) expect(entry.data.dataRole).toBe("dominant");
+    const secondary = buildData({ activeLenses: ["contract", "data"], compactData: true });
+    for (const entry of cardsOf(secondary)) {
+      expect(entry.data.dataRole).toBe("secondary");
+      expect(entry.data.compactData).toBe(true);
+    }
+  });
+
+  it("keeps the data marks off the notes: annotations are not schema subjects", () => {
+    const note = buildData({ activeLenses: ["data"], compactData: false }).find(
+      (entry) => entry.id === "note-1",
+    );
+    expect(note?.data).not.toHaveProperty("dataRole");
+  });
+
+  it("dims the FK neighbourhood's outsiders without removing cards or moving positions", () => {
+    const fkFocus = fkNeighbourhood(dataView, A.id);
+    // The route is in the full closure but not in the FK mesh: the lens highlight is stricter.
+    const full = reachabilityClosure(dataView, A.id);
+    expect(full?.nodeIds).toContain(ROUTE.id);
+    expect(fkFocus?.nodeIds).not.toContain(ROUTE.id);
+
+    const baseline = buildData(undefined);
+    const highlighted = buildData({ activeLenses: ["data"], compactData: false }, fkFocus);
+    const byId = new Map(cardsOf(highlighted).map((entry) => [entry.id, entry]));
+    expect(byId.get(A.id)?.data.focused).toBe(true);
+    expect(byId.get(B.id)?.data.focused).toBe(true);
+    expect(byId.get(C.id)?.data.focused).toBe(true);
+    expect(byId.get(ROUTE.id)?.data.focused).toBe(false);
+    // Dimming only: every card survives, at its exact baseline position, selection intact.
+    expect(highlighted).toHaveLength(baseline.length);
+    expect(positionsOf(highlighted)).toEqual(positionsOf(baseline));
+    expect(byId.get(A.id)?.selected).toBe(true);
+  });
+
+  it("holds positions under data lens + edge isolation + lens stacking (criterion 5)", () => {
+    const baseline = buildData(undefined);
+    const fkFocus = fkNeighbourhood(dataView, A.id);
+    const composed = buildData({ activeLenses: ["contract", "data"], compactData: true }, fkFocus, [
+      "fk",
+    ]);
+    expect(positionsOf(composed)).toEqual(positionsOf(baseline));
+    expect(composed).toHaveLength(baseline.length);
+    // Isolation still dims independently: c touches no fk edge, the route neither.
+    const byId = new Map(cardsOf(composed).map((entry) => [entry.id, entry]));
+    expect(byId.get(C.id)?.data.isolated).toBe(true);
+    expect(byId.get(ROUTE.id)?.data.isolated).toBe(true);
+    expect(byId.get(A.id)?.data.isolated).toBe(false);
+    // The data lens is secondary while contract dominates; both flags coexist on one card.
+    expect(cardsOf(composed).find((entry) => entry.id === A.id)?.data.dataRole).toBe("secondary");
   });
 });

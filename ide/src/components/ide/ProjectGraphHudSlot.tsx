@@ -67,6 +67,7 @@ export function ProjectGraphHudSlot(props: ProjectGraphHudSlotProps) {
       focusBar={slots.focusBar}
       runtimeControls={slots.runtimeControls}
       auditRibbon={slots.auditRibbon}
+      dataRibbon={slots.dataRibbon}
       clusterControls={slots.clusterControls}
       tableVisibility={graph.layout.tableVisibility}
       onTableVisibilityChange={graph.changeTableVisibility}

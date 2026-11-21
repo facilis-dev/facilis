@@ -10,12 +10,14 @@ import type { GraphClosureSummary } from "@/facilis/graph-user-focus";
 import { ProjectGraphAuditRibbon } from "./ProjectGraphAuditRibbon";
 import { ProjectGraphBridgeChip } from "./ProjectGraphBridgeChip";
 import { ProjectGraphConcentrationChip } from "./ProjectGraphConcentrationChip";
+import { ProjectGraphDataRibbon } from "./ProjectGraphDataRibbon";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphRuntimeControls } from "./ProjectGraphRuntimeControls";
 import type { ProjectGraphAudit } from "./useProjectGraphAudit";
 import type { ProjectGraphClusters } from "./useProjectGraphClusters";
+import type { ProjectGraphDataLens } from "./useProjectGraphDataLens";
 import type { ProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
 import type { ProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -26,6 +28,8 @@ export interface ProjectGraphHudSlots {
   readonly runtimeControls: ReactNode;
   /** null while the contract lens is inactive (issue #69): the dock renders as before. */
   readonly auditRibbon: ReactNode;
+  /** null while the data lens is inactive (issue #70): the dock renders as before. */
+  readonly dataRibbon: ReactNode;
   /** The cluster breadcrumb + group-by toggle (issue #62), in the top-left cluster. */
   readonly clusterControls: ReactNode;
 }
@@ -41,6 +45,7 @@ export function useProjectGraphHudSlots({
   selectedNodeId,
   runtime,
   audit,
+  data,
   clusters,
 }: {
   stats: ProjectGraphStats | null;
@@ -53,6 +58,7 @@ export function useProjectGraphHudSlots({
   selectedNodeId: string | null;
   runtime: ProjectGraphRuntimeLens;
   audit: ProjectGraphAudit;
+  data: ProjectGraphDataLens;
   clusters: ProjectGraphClusters;
 }): ProjectGraphHudSlots {
   const lensChips = useMemo(
@@ -121,6 +127,15 @@ export function useProjectGraphHudSlots({
       ),
     [audit, stats],
   );
+  // The data ribbon (issue #70) docks beside the audit ribbon: three read-only counters plus the
+  // stroke legend, visible only while the data lens is active.
+  const dataRibbon = useMemo(
+    () =>
+      data.role === null ? null : (
+        <ProjectGraphDataRibbon counts={data.counts} disabled={stats === null} />
+      ),
+    [data, stats],
+  );
   const clusterControls = useMemo(
     () => (
       <ProjectGraphHudClusters
@@ -132,5 +147,5 @@ export function useProjectGraphHudSlots({
     ),
     [clusters],
   );
-  return { lensChips, focusBar, runtimeControls, auditRibbon, clusterControls };
+  return { lensChips, focusBar, runtimeControls, auditRibbon, dataRibbon, clusterControls };
 }

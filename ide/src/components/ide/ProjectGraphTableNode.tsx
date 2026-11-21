@@ -14,10 +14,12 @@ import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker } from "@/facilis/graph-model";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
 import {
+  CardMarksStack,
   ContractLensContext,
   TableContractMarks,
   contractRingClass,
 } from "./ProjectGraphContractMarks";
+import { TableDataMarks } from "./ProjectGraphDataMarks";
 import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
@@ -155,14 +157,30 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           </p>
         )}
       </div>
-      {contract !== null && (
+      {contract !== null ? (
         <TableContractMarks
           table={table}
           diagnostics={diagnostics}
           compact={contract.compact}
           secondary={contract.secondary}
-        />
-      )}
+        >
+          {data.dataRole !== null && (
+            <TableDataMarks
+              table={table}
+              compact={data.compactData}
+              secondary={data.dataRole === "secondary"}
+            />
+          )}
+        </TableContractMarks>
+      ) : data.dataRole !== null ? (
+        <CardMarksStack>
+          <TableDataMarks
+            table={table}
+            compact={data.compactData}
+            secondary={data.dataRole === "secondary"}
+          />
+        </CardMarksStack>
+      ) : null}
       {level !== "full" && (
         <GraphLodOverlay>
           <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />

@@ -1,10 +1,8 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
-// loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
-// Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), the
-// runtime + contract lenses (issues #72, #69), pinned details, and the topology/matrix switch.
-// Analysis: useProjectGraphAnalysis; URL view: useProjectGraphViewState; closure:
-// useProjectGraphUserFocus; keys: useProjectGraphEscape.
-// Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
+// loadProjectAnalysis and drawn full-bleed in the editor area (issues #57, #59). Composition
+// root: filter, zen, AI/user focus (#66), runtime + contract + data lenses (#72, #69, #70),
+// pinned details, topology/matrix switch; hooks: useProjectGraphAnalysis,
+// useProjectGraphViewState, useProjectGraphUserFocus, useProjectGraphEscape — .facilis only.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
@@ -46,8 +44,7 @@ import { useProjectGraphViewState } from "./useProjectGraphViewState";
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
-  // openFolder() publishes the file index asynchronously, so at cold boot this is false while
-  // the graph tab is already open; the analysis must wait, not read the empty snapshot.
+  // openFolder() publishes the index asynchronously: at cold boot the analysis must wait, not read.
   const indexReady = isProjectIndexReady(snap.files, root);
   const { analysis, loading, error, sources, refresh } = useProjectGraphAnalysis(
     c,
@@ -87,12 +84,10 @@ export function ProjectGraphPanel() {
     if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
   }, [knownNodeIds]);
 
-  // The cluster layout MODE (issue #62, F.4): auto follows the analysis node count (on above
-  // 40), the user's explicit choice wins; collapse/drill ride the URL, never .facilis/graph/.
+  // Cluster layout MODE (#62, F.4): auto above 40 nodes, explicit choice wins; collapse/drill in gv.
   const nodeCount = analysis?.graph.nodes.length ?? 0;
-  // Matrix mode (issue #67) pivots routes × tables: clusters are a topology concern, so the
-  // matrix view skips them and every route/table stays an addressable row/column. The carried
-  // collapse/drill ids survive the visit (useProjectGraphClusters skips its prune in matrix).
+  // Matrix mode (#67) pivots routes × tables: clusters are topology-only, so the matrix skips
+  // them and every route/table stays addressable; collapse/drill ids survive (prune is skipped).
   const matrixMode = viewState.state.mode === "matrix";
   const view = useMemo(
     () =>
@@ -111,8 +106,15 @@ export function ProjectGraphPanel() {
     [analysis, layout, query, filter, viewState.state, nodeCount, matrixMode],
   );
   const clusters = useProjectGraphClusters(viewState, view, nodeCount);
-  // Focus-and-context (issue #66): derived dimming closure; isolate persists it in the URL (F.5).
-  const { userFocus, focusSummary } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
+  // The meaning lenses (issues #72, #69, #70): seam lifecycle, card contexts, audit + data facts.
+  const { runtime, audit, data } = useProjectGraphLenses(c, analysis, view, viewState);
+  // Focus-and-context (#66): dimming closure; the data lens tightens a table selection (#70).
+  const { userFocus, focusSummary } = useProjectGraphUserFocus(
+    view,
+    isolatedNode,
+    selectedNodeId,
+    data.fkFocus,
+  );
   const { selectedNode, selectedEdges, details, nodeLabels, nodeLabel, closeDetails } =
     useProjectGraphSelection(view, selectedNodeId, analysis, setSelectedNodeId);
   // Esc ladder + Enter/G/C/E/B (issues #66, #62, #64, #65): one listener owns every graph key.
@@ -161,8 +163,6 @@ export function ProjectGraphPanel() {
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
   const stats = view?.stats ?? null;
-  // The meaning lenses (issues #72, #69): seam lifecycle, card contexts, audit counters.
-  const { runtime, audit } = useProjectGraphLenses(c, analysis, view, viewState);
   const hudSlots = useProjectGraphHudSlots({
     stats,
     edgeCounts,
@@ -174,6 +174,7 @@ export function ProjectGraphPanel() {
     selectedNodeId,
     runtime,
     audit,
+    data,
     clusters,
   });
   const body =
@@ -204,6 +205,7 @@ export function ProjectGraphPanel() {
           userFocus={userFocus}
           isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
           contract={audit.contract}
+          data={data.data}
           drill={clusters.drill}
           notes={graph.notes}
           addNoteNonce={graph.addNoteNonce}
@@ -261,8 +263,7 @@ export function ProjectGraphPanel() {
           />
         }
         sheet={
-          // F.7 (issue #67): in matrix mode the sheet is the details overlay at ALL widths —
-          // there is no canvas, so there is no satellite; the selection contract is unchanged.
+          // F.7 (#67): matrix has no canvas, so the sheet is the details overlay at ALL widths.
           (sheetMode || matrixMode) && selectedNode !== null ? (
             <ProjectGraphDetailsSheet
               node={selectedNode}

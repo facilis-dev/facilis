@@ -12,9 +12,11 @@
 import type { Diagnostic, GraphEdgeKind } from "@facilis.dev/analyze";
 import { nodeMatchesAudit, type AuditFilterId } from "@/facilis/graph-contract";
 import type { HubIsolation } from "@/facilis/graph-edge-hubs";
+import { lensRole } from "@/facilis/graph-lens-state";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
+import type { GraphLensId } from "@/facilis/graph-view-state";
 import { clusterOfNodes } from "@/facilis/graph-clusters";
 import { CLUSTER_NODE_TYPE, type ProjectClusterFlowNode } from "./ProjectGraphClusterNode";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
@@ -25,6 +27,14 @@ import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 export interface ProjectGraphDrill {
   readonly clusterId: string;
   readonly nodeIds: ReadonlySet<string>;
+}
+
+/** The data lens's canvas inputs (issue #70), bundled so the canvas carries one prop. */
+export interface ProjectFlowDataState {
+  /** Active lenses (issue #63 registry): the data lens's role decides the card marks. */
+  readonly activeLenses: readonly GraphLensId[];
+  /** Compact LOD for the data badges: zoom below the threshold. */
+  readonly compactData: boolean;
 }
 
 /** The contract lens's dimming inputs (issue #69), bundled so the canvas carries one prop.
@@ -55,6 +65,8 @@ export interface ProjectFlowNodesInput {
   readonly hubIsolation: HubIsolation | null;
   /** The contract lens's inputs (issue #69); absent means no audit dimming. */
   readonly contract?: ProjectFlowContractState;
+  /** The data lens's inputs (issue #70); absent means no lens, no marks. */
+  readonly data?: ProjectFlowDataState;
   readonly onToggleCollapse: (id: string) => void;
   readonly onToggleClusterCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
@@ -72,12 +84,17 @@ export function buildProjectGraphFlowNodes({
   drill,
   hubIsolation,
   contract,
+  data,
   onToggleCollapse,
   onToggleClusterCollapse,
   onEditNote,
   onDeleteNote,
 }: ProjectFlowNodesInput): ProjectFlowNode[] {
   const existing = new Map(previous.map((node) => [node.id, node]));
+  // The data lens (issue #70) is badges and stroke only, like isolation: this mapping decides
+  // the marks' role, the view model never learns about it, so positions hold (epic rule 2).
+  const dataRole = lensRole(data?.activeLenses ?? [], "data");
+  const compactData = data?.compactData ?? false;
   // A request that names only edges outlines their endpoints too: highlighting a connection
   // must mark the two cards it connects (the D-171 semantics, moved to the outline channel).
   const aiEndpoints =
@@ -166,6 +183,8 @@ export function buildProjectGraphFlowNodes({
         isolated: isIsolated(node.id),
         auditDimmed:
           auditActive && !nodeMatchesAudit(node, nodeDiagnostics?.get(node.id) ?? [], auditFilters),
+        dataRole,
+        compactData,
         edgeCount: edgeCounts.get(node.id) ?? 0,
         onToggleCollapse,
       },

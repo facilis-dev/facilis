@@ -15,6 +15,7 @@ import {
   tableNode,
 } from "@/facilis/graph-model.test-fixtures";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
+import type { ProjectFlowDataState } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 const EDGES: GraphEdge[] = [
@@ -416,5 +417,71 @@ describe("buildProjectGraphFlowEdges bridges (issue #65)", () => {
     expect(bridged.map((edge) => [edge.id, edge.source, edge.target])).toEqual(
       plain.map((edge) => [edge.id, edge.source, edge.target]),
     );
+  });
+});
+// ── data lens composition (issue #70): stroke data, never a removal ──────────────────────
+
+describe("buildProjectGraphFlowEdges data lens", () => {
+  const buildWith = (data?: ProjectFlowDataState) =>
+    buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(view, "off", new Set()),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      data,
+      drill: null,
+      hubIsolation: null,
+      bridges: new Map(),
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+
+  it("carries no data role when the lens is inactive or absent", () => {
+    for (const edge of buildWith()) expect(edge.data?.dataRole).toBeUndefined();
+    for (const edge of buildWith({ activeLenses: ["contract"], compactData: false })) {
+      expect(edge.data?.dataRole).toBeUndefined();
+    }
+  });
+
+  it("stamps the lens role and LOD on every edge without changing identity or endpoints", () => {
+    const baseline = buildWith();
+    const edges = buildWith({ activeLenses: ["contract", "data"], compactData: true });
+    expect(edges).toHaveLength(baseline.length);
+    expect(edges.map((edge) => edge.id)).toEqual(baseline.map((edge) => edge.id));
+    expect(edges.map((edge) => [edge.source, edge.target])).toEqual(
+      baseline.map((edge) => [edge.source, edge.target]),
+    );
+    for (const edge of edges) {
+      expect(edge.data?.dataRole).toBe("secondary");
+      expect(edge.data?.compactData).toBe(true);
+    }
+    const dominant = buildWith({ activeLenses: ["data"], compactData: false });
+    for (const edge of dominant) {
+      expect(edge.data?.dataRole).toBe("dominant");
+      expect(edge.data?.compactData).toBe(false);
+    }
+  });
+
+  it("composes with isolation: both flags ride the same edge", () => {
+    const edges = buildProjectGraphFlowEdges({
+      overlay: deriveEdgeHubOverlay(view, "off", new Set()),
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: ["fk"],
+      data: { activeLenses: ["data"], compactData: false },
+      drill: null,
+      hubIsolation: null,
+      bridges: new Map(),
+      hoveredBridgeId: null,
+      onBridgeHover: () => {},
+      onEdgeCurveChange: () => {},
+    });
+    expect(edges.map((edge) => edge.data?.dimmed)).toEqual([false, true, true]);
+    expect(edges.every((edge) => edge.data?.dataRole === "dominant")).toBe(true);
   });
 });

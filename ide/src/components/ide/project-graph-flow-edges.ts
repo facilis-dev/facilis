@@ -15,12 +15,13 @@ import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { BridgeSpec } from "@/facilis/graph-bridge-geometry";
 import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
+import { lensRole } from "@/facilis/graph-lens-state";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { edgeStyleFor } from "./project-graph-edges";
-import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import type { ProjectFlowDataState, ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectFlowEdgesInput {
@@ -34,6 +35,8 @@ export interface ProjectFlowEdgesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The data lens's inputs (issue #70); absent means no lens, no stroke override. */
+  readonly data?: ProjectFlowDataState;
   /** The active drill-down (issue #62), or null when the whole graph is equally bright. */
   readonly drill: ProjectGraphDrill | null;
   /** Hub hover isolation (issue #64), composed with the other dimming channels. */
@@ -59,6 +62,7 @@ export function buildProjectGraphFlowEdges({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  data,
   drill,
   hubIsolation,
   bridges,
@@ -67,6 +71,9 @@ export function buildProjectGraphFlowEdges({
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
+  // The data lens (issue #70) restyles the schema strokes and labels elevated edges; like the
+  // dimming channels it is data on the edge, never a removal, so endpoints cannot move.
+  const dataRole = lensRole(data?.activeLenses ?? [], "data");
   const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
   const marker = (stroke: string) => ({
     type: MarkerType.ArrowClosed,
@@ -81,6 +88,7 @@ export function buildProjectGraphFlowEdges({
     ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(kind) } : {}),
     ...(drill === null ? {} : { drillDimmed: !drillBright({ source, target }, drill) }),
     ...(hubIsolation === null ? {} : { hubDimmed: !hubIsolation.edgeIds.has(id) }),
+    ...(dataRole === null ? {} : { dataRole, compactData: data?.compactData === true }),
   });
   return overlay.edges.map((render) => {
     if (render.type === "hub-target") {

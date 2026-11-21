@@ -41,16 +41,28 @@ export interface ContractMarksProps {
   readonly compact: boolean;
   /** True when the contract lens is the secondary one: the marks recede to 30% (epic rule 3). */
   readonly secondary: boolean;
+  /** A second lens row (issue #70's data marks) drawn under the contract row in the same stack. */
+  readonly children?: ReactNode;
 }
 
-// The row hangs below the card's unchanged footprint; pointer-events-none keeps drags, clicks
+// The stack hangs below the card's unchanged footprint; pointer-events-none keeps drags, clicks
 // and double-clicks reaching the card itself. Sizes counter-scale like the chip/compact content.
-const MARKS_STYLE: CSSProperties = { gap: lodScreenPx(4), marginTop: lodScreenPx(3) };
+const STACK_STYLE: CSSProperties = { gap: lodScreenPx(3), marginTop: lodScreenPx(3) };
+const ROW_STYLE: CSSProperties = { columnGap: lodScreenPx(4) };
 
-function marksClass(secondary: boolean): string {
+/**
+ * The one overlay stack under a card: a lens row per active meaning lens, so two lenses never
+ * paint their rows on top of each other. Kept outside the LOD sizer so the card's measured
+ * footprint and every node position hold (epic rule 2).
+ */
+export function CardMarksStack({ children }: { children: ReactNode }) {
   return (
-    "pointer-events-none absolute inset-x-0 top-full flex flex-wrap items-center" +
-    (secondary ? " opacity-30" : "")
+    <div
+      className="pointer-events-none absolute inset-x-0 top-full flex flex-col items-start"
+      style={STACK_STYLE}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -64,7 +76,11 @@ function MarksRow({
   children: ReactNode;
 }) {
   return (
-    <div data-testid={testId} className={marksClass(secondary)} style={MARKS_STYLE}>
+    <div
+      data-testid={testId}
+      className={"flex flex-wrap items-center" + (secondary ? " opacity-30" : "")}
+      style={ROW_STYLE}
+    >
       {children}
     </div>
   );
@@ -75,17 +91,21 @@ export function RouteContractMarks({
   diagnostics,
   compact,
   secondary,
+  children,
 }: ContractMarksProps & { route: RouteGraphData; diagnostics: readonly Diagnostic[] }) {
   return (
-    <MarksRow testId="contract-marks-route" secondary={secondary}>
-      <WrapperBadge wrapper={route.wrapper} compact={compact} />
-      <InputBadge input={route.input} unknown={route.unknown} compact={compact} />
-      <TablesBadge count={route.dbTables.length} unknown={route.unknown} compact={compact} />
-      {route.elevations.length > 0 && (
-        <ElevationsBadge elevations={route.elevations} compact={compact} />
-      )}
-      <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
-    </MarksRow>
+    <CardMarksStack>
+      <MarksRow testId="contract-marks-route" secondary={secondary}>
+        <WrapperBadge wrapper={route.wrapper} compact={compact} />
+        <InputBadge input={route.input} unknown={route.unknown} compact={compact} />
+        <TablesBadge count={route.dbTables.length} unknown={route.unknown} compact={compact} />
+        {route.elevations.length > 0 && (
+          <ElevationsBadge elevations={route.elevations} compact={compact} />
+        )}
+        <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
+      </MarksRow>
+      {children}
+    </CardMarksStack>
   );
 }
 
@@ -94,13 +114,17 @@ export function TableContractMarks({
   diagnostics,
   compact,
   secondary,
+  children,
 }: ContractMarksProps & { table: TableGraphData; diagnostics: readonly Diagnostic[] }) {
   return (
-    <MarksRow testId="contract-marks-table" secondary={secondary}>
-      <RlsBadge rlsEnabled={table.rlsEnabled} unknown={table.unknown} compact={compact} />
-      <PoliciesBadge count={table.policies.length} unknown={table.unknown} compact={compact} />
-      <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
-    </MarksRow>
+    <CardMarksStack>
+      <MarksRow testId="contract-marks-table" secondary={secondary}>
+        <RlsBadge rlsEnabled={table.rlsEnabled} unknown={table.unknown} compact={compact} />
+        <PoliciesBadge count={table.policies.length} unknown={table.unknown} compact={compact} />
+        <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
+      </MarksRow>
+      {children}
+    </CardMarksStack>
   );
 }
 
@@ -109,19 +133,24 @@ export function ViewContractMarks({
   diagnostics,
   compact,
   secondary,
+  children,
 }: ContractMarksProps & { view: ViewGraphData; diagnostics: readonly Diagnostic[] }) {
   return (
-    <MarksRow testId="contract-marks-view" secondary={secondary}>
-      <AccessBadge access={view.access} compact={compact} />
-      {/* The permission is unreadable exactly when the access mode is (D-098): null access means
-          the declared permission could not be read, so the badge hatches instead of guessing. */}
-      <ViewPermissionBadge
-        permission={view.permission}
-        unknown={view.access === null}
-        compact={compact}
-      />
-      <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
-    </MarksRow>
+    <CardMarksStack>
+      <MarksRow testId="contract-marks-view" secondary={secondary}>
+        <AccessBadge access={view.access} compact={compact} />
+        {/* The permission is unreadable exactly when the access mode is (D-098): null access
+            means the declared permission could not be read, so the badge hatches instead of
+            guessing. */}
+        <ViewPermissionBadge
+          permission={view.permission}
+          unknown={view.access === null}
+          compact={compact}
+        />
+        <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
+      </MarksRow>
+      {children}
+    </CardMarksStack>
   );
 }
 
@@ -133,9 +162,11 @@ export function NodeDiagnosticsMarks({
 }: ContractMarksProps & { diagnostics: readonly Diagnostic[] }) {
   if (diagnostics.length === 0) return null;
   return (
-    <MarksRow testId="contract-marks-diagnostics" secondary={secondary}>
-      <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
-    </MarksRow>
+    <CardMarksStack>
+      <MarksRow testId="contract-marks-diagnostics" secondary={secondary}>
+        <DiagnosticsBadge diagnostics={diagnostics} compact={compact} />
+      </MarksRow>
+    </CardMarksStack>
   );
 }
 

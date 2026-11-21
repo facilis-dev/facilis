@@ -25,6 +25,11 @@ export function useProjectGraphUserFocus(
   view: ProjectGraphView | null,
   isolatedNode: string | null,
   selectedNodeId: string | null,
+  /**
+   * The data lens's stricter FK closure (issue #70), substituted for the selection's own closure
+   * in the same dimming channel; null keeps #66's behaviour. Isolate still composes with it.
+   */
+  selectionOverride: GraphReachability | null = null,
 ): ProjectGraphUserFocus {
   // A stale id (an analysis refresh removed the node) degrades to "no closure", never to a
   // dim against a ghost: reachabilityClosure returns null for ids outside the visible view.
@@ -38,8 +43,8 @@ export function useProjectGraphUserFocus(
     [view, selectedNodeId],
   );
   const userFocus = useMemo(
-    () => composeUserFocus(isolateClosure, selectionClosure),
-    [isolateClosure, selectionClosure],
+    () => composeUserFocus(isolateClosure, selectionOverride ?? selectionClosure),
+    [isolateClosure, selectionClosure, selectionOverride],
   );
   const focusSummary = useMemo(
     () => (view === null || userFocus === null ? null : closureSummary(view, userFocus)),

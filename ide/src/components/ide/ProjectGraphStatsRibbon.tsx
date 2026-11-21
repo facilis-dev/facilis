@@ -53,6 +53,7 @@ export function ProjectGraphStatsRibbon({
   lensChips,
   runtimeControls,
   auditRibbon,
+  dataRibbon,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
@@ -64,6 +65,8 @@ export function ProjectGraphStatsRibbon({
   runtimeControls: ReactNode;
   /** The contract lens's audit ribbon (issue #69), or null when the lens is inactive. */
   auditRibbon: ReactNode;
+  /** The data lens's summary ribbon (issue #70), or null when the lens is inactive. */
+  dataRibbon: ReactNode;
 }) {
   return (
     <div
@@ -133,6 +136,8 @@ export function ProjectGraphStatsRibbon({
       {runtimeControls}
       {/* Audit-ribbon slot (issue #69): the contract lens's four filter counters. */}
       {auditRibbon}
+      {/* Data-ribbon slot (issue #70): the data lens's counters and stroke legend. */}
+      {dataRibbon}
     </div>
   );
 }
