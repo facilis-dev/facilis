@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { GRAPH_COLUMNS, buildProjectGraphView } from "./graph-model";
+import { buildProjectGraphView } from "./graph-model";
+import { GRAPH_ROW_PITCH, GRAPH_VIEW_GAP } from "./graph-layout-engine";
 import {
   ACTIVE_TODOS,
   GET,
@@ -14,57 +15,68 @@ import {
 } from "./graph-model.test-fixtures";
 
 describe("buildProjectGraphView layout", () => {
-  it("puts pages left, routes in the middle, schema objects right and workflows last", () => {
+  it("keeps the layer order pages, routes, schema objects, workflows left to right", () => {
     const view = buildProjectGraphView({
       graph: graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS, WORKFLOW]),
     });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
-    expect(byId.get(PAGE.id)?.position).toEqual({ x: GRAPH_COLUMNS.page, y: 0 });
-    expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
-    expect(byId.get(TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
-    expect(byId.get(PROJECTS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
-    expect(byId.get(ACTIVE_TODOS.id)?.position.x).toBe(GRAPH_COLUMNS.table);
-    expect(GRAPH_COLUMNS.view).toBe(GRAPH_COLUMNS.table);
-    expect(byId.get(WORKFLOW.id)?.position).toEqual({ x: GRAPH_COLUMNS.workflow, y: 0 });
+    const x = (id: string) => byId.get(id)?.position.x ?? Number.NaN;
+    const y = (id: string) => byId.get(id)?.position.y ?? Number.NaN;
+    expect(x(PAGE.id)).toBeLessThan(x(GET.id));
+    expect(x(GET.id)).toBeLessThan(x(TODOS.id));
+    // Views are schema objects: they share the data layer's column with the tables.
+    expect(x(ACTIVE_TODOS.id)).toBe(x(TODOS.id));
+    expect(x(PROJECTS.id)).toBe(x(TODOS.id));
+    expect(x(TODOS.id)).toBeLessThan(x(WORKFLOW.id));
+    // A small graph stays one sub-column per layer, so every layer starts at the top.
+    // Without FK edges the tables tie-break lexicographically: projects before todos.
+    expect(y(PAGE.id)).toBe(0);
+    expect(y(GET.id)).toBe(0);
+    expect(y(PROJECTS.id)).toBe(0);
+    expect(y(TODOS.id)).toBe(GRAPH_ROW_PITCH.table);
+    expect(y(WORKFLOW.id)).toBe(0);
   });
 
-  it("lays views in the schema column below the tables, behind a gap", () => {
+  it("lays views in the data layer below the tables, behind a gap", () => {
     const graph = graphOf([TODOS, ACTIVE_TODOS]);
     const view = buildProjectGraphView({ graph });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
-    // The table row pitch is 190; the first view row starts after it plus the 56px gap.
-    expect(byId.get(TODOS.id)?.position).toEqual({ x: GRAPH_COLUMNS.table, y: 0 });
-    expect(byId.get(ACTIVE_TODOS.id)?.position).toEqual({ x: GRAPH_COLUMNS.view, y: 246 });
+    expect(byId.get(TODOS.id)?.position).toEqual({ x: 0, y: 0 });
+    expect(byId.get(ACTIVE_TODOS.id)?.position).toEqual({
+      x: 0,
+      y: GRAPH_ROW_PITCH.table + GRAPH_VIEW_GAP,
+    });
     expect(buildProjectGraphView({ graph })).toEqual(view);
   });
 
-  it("orders the view rows deterministically by name, after the tables", () => {
+  it("orders the view rows deterministically by name", () => {
     const alpha = viewNode("alpha");
     const beta = viewNode("beta");
-    const view = buildProjectGraphView({ graph: graphOf([TODOS, beta, alpha]) });
+    const view = buildProjectGraphView({ graph: graphOf([beta, alpha]) });
     const byName = new Map(view.nodes.map((node) => [node.label, node.position]));
-    expect(byName.get("alpha")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 });
-    expect(byName.get("beta")).toEqual({ x: GRAPH_COLUMNS.view, y: 246 + 150 });
+    expect(byName.get("alpha")).toEqual({ x: 0, y: 0 });
+    expect(byName.get("beta")).toEqual({ x: 0, y: GRAPH_ROW_PITCH.view });
+    expect(buildProjectGraphView({ graph: graphOf([beta, alpha]) })).toEqual(view);
   });
 
-  it("orders the workflow column deterministically by name", () => {
+  it("orders the workflow layer deterministically by name", () => {
     const alpha = { ...WORKFLOW, id: "workflow:alpha", label: "alpha" };
     const beta = { ...WORKFLOW, id: "workflow:beta", label: "beta" };
     const view = buildProjectGraphView({ graph: graphOf([beta, alpha]) });
     const byName = new Map(view.nodes.map((node) => [node.label, node.position]));
-    expect(byName.get("alpha")).toEqual({ x: GRAPH_COLUMNS.workflow, y: 0 });
-    expect(byName.get("beta")).toEqual({ x: GRAPH_COLUMNS.workflow, y: 150 });
+    expect(byName.get("alpha")).toEqual({ x: 0, y: 0 });
+    expect(byName.get("beta")).toEqual({ x: 0, y: GRAPH_ROW_PITCH.workflow });
   });
 
-  it("leaves room for the taller route card in the route column", () => {
+  it("leaves room for the taller route card in the route layer", () => {
     const post = routeNode("POST", "/api/todos");
     const view = buildProjectGraphView({ graph: graphOf([GET, post]) });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
-    expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
-    expect(byId.get(post.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 112 });
+    expect(byId.get(GET.id)?.position).toEqual({ x: 0, y: 0 });
+    expect(byId.get(post.id)?.position).toEqual({ x: 0, y: GRAPH_ROW_PITCH.route });
   });
 
-  it("orders the table column by FK dependency, deterministically", () => {
+  it("orders the table layer by FK dependency, deterministically", () => {
     const graph = graphOf(
       [TODOS, PROJECTS],
       [{ id: "fk:1", kind: "fk", source: TODOS.id, target: PROJECTS.id, label: null }],
@@ -92,8 +104,11 @@ describe("buildProjectGraphView layout", () => {
   });
 
   it("applies saved positions over the automatic ones and ignores stale ids", () => {
+    const graph = graphOf([PAGE, GET, TODOS]);
+    const auto = buildProjectGraphView({ graph });
+    const autoGet = auto.nodes.find((node) => node.id === GET.id)?.position;
     const view = buildProjectGraphView({
-      graph: graphOf([PAGE, GET, TODOS]),
+      graph,
       positions: {
         [PAGE.id]: { x: 10, y: 20 },
         [GET.id]: { x: Number.NaN, y: 0 },
@@ -102,7 +117,7 @@ describe("buildProjectGraphView layout", () => {
     });
     const byId = new Map(view.nodes.map((node) => [node.id, node]));
     expect(byId.get(PAGE.id)?.position).toEqual({ x: 10, y: 20 });
-    expect(byId.get(GET.id)?.position).toEqual({ x: GRAPH_COLUMNS.route, y: 0 });
+    expect(byId.get(GET.id)?.position).toEqual(autoGet);
     expect(byId.has("table:stale")).toBe(false);
   });
 

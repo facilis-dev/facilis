@@ -1,31 +1,31 @@
-// The project-graph edge: a custom React Flow edge whose endpoints float on the node cards'
-// borders in every direction, whose midpoint handle bends it, and which loops back onto its own
-// card for self-edges. The geometry is pure (graph-edge-geometry.ts); this module is the React
-// part — the internal-node hooks, pointer capture and the theme role tokens (D-043/D-044).
+// The project-graph edge: a custom React Flow edge anchored to the cards' nearest ports and
+// routed orthogonally around every card (issue #61), whose midpoint handle bends it, and which
+// loops back onto its own card for self-edges. The geometry is pure (graph-ports.ts,
+// graph-edge-routing.ts); this module is the React part — the internal-node hooks, pointer
+// capture and the theme role tokens (D-043/D-044).
 
 import { useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import {
   BaseEdge,
   useInternalNode,
+  useStore,
   useStoreApi,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
-  type InternalNode,
 } from "@xyflow/react";
 import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
 import { GRAPH_NODE_SIZES } from "@/facilis/graph-node-size";
 import { t } from "@/i18n";
 import {
-  EDGE_ENDPOINT_GAP,
   edgeGeometry,
-  floatingAnchors,
   nodeRect,
   selfLoopGeometry,
   type EdgeGeometry,
   type Point,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
+import { routeEdge } from "@/facilis/graph-edge-routing";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
@@ -45,7 +45,14 @@ export type ProjectGraphEdgeData = {
 
 export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_EDGE_TYPE>;
 
-type InternalProjectNode = InternalNode<ProjectFlowNode>;
+/** The structural shape a rect needs: an endpoint hook result or a nodeLookup entry. */
+interface MeasuredNode {
+  readonly type?: string;
+  readonly internals: { readonly positionAbsolute: Point };
+  readonly measured?: { readonly width?: number; readonly height?: number };
+  readonly width?: number;
+  readonly height?: number;
+}
 
 /** The shared full-card footprints (graph-node-size.ts), used before React Flow measures. */
 const DEFAULT_SIZE = { width: 220, height: 48 };
@@ -61,24 +68,45 @@ export function cardFallbackSize(type: string | undefined): {
   return DEFAULT_SIZE;
 }
 
-/** The card rect the floating edges anchor to; shared with the details connector (#59). */
-export function internalNodeRect(node: InternalProjectNode | undefined): Rect | null {
+/** The card rect edges anchor to; shared with the cubic details connector (#59, F.1). */
+export function internalNodeRect(node: MeasuredNode | undefined): Rect | null {
   if (node === undefined) return null;
   const fallback = cardFallbackSize(node.type);
   return nodeRect(
     node.internals.positionAbsolute,
-    node.measured.width ?? node.width ?? fallback.width,
-    node.measured.height ?? node.height ?? fallback.height,
+    node.measured?.width ?? node.width ?? fallback.width,
+    node.measured?.height ?? node.height ?? fallback.height,
   );
 }
 
+/**
+ * One rect list per nodeLookup identity, shared by every edge: a drag or a viewport tick must
+ * not rebuild N rects per edge. The lookup is replaced whenever nodes change, so the cache
+ * cannot serve stale geometry. Satellite and pinned details cards are nodes in the lookup too,
+ * so analysis edges never route across an open details card.
+ */
+const obstacleCache = new WeakMap<object, readonly Rect[]>();
+
+function obstacleRects(nodeLookup: ReadonlyMap<string, MeasuredNode>): readonly Rect[] {
+  const cached = obstacleCache.get(nodeLookup);
+  if (cached !== undefined) return cached;
+  const rects: Rect[] = [];
+  for (const node of nodeLookup.values()) {
+    const rect = internalNodeRect(node);
+    if (rect !== null) rects.push(rect);
+  }
+  obstacleCache.set(nodeLookup, rects);
+  return rects;
+}
+
 function resolveGeometry(
-  sourceNode: InternalProjectNode | undefined,
-  targetNode: InternalProjectNode | undefined,
+  sourceNode: MeasuredNode | undefined,
+  targetNode: MeasuredNode | undefined,
   source: string,
   target: string,
   positions: { sourceX: number; sourceY: number; targetX: number; targetY: number },
   curve: GraphCurve | null,
+  obstacles: readonly Rect[],
 ): EdgeGeometry {
   const fallback: EdgeGeometry = edgeGeometry(
     {
@@ -92,7 +120,7 @@ function resolveGeometry(
   if (source === target) return selfLoopGeometry(sourceRect, curve);
   const targetRect = internalNodeRect(targetNode);
   if (targetRect === null) return fallback;
-  return edgeGeometry(floatingAnchors(sourceRect, targetRect, EDGE_ENDPOINT_GAP), curve);
+  return routeEdge(sourceRect, targetRect, { obstacles, curve });
 }
 
 interface DragState {
@@ -128,6 +156,7 @@ export function ProjectGraphEdge({
 }: EdgeProps<ProjectFlowEdge>) {
   const sourceNode = useInternalNode<ProjectFlowNode>(source);
   const targetNode = useInternalNode<ProjectFlowNode>(target);
+  const nodeLookup = useStore((store) => store.nodeLookup);
   // The level, not the raw zoom: a zoom gesture re-renders the edge only at a threshold. The
   // drag math reads the live zoom from the store on demand instead of subscribing per frame.
   const level = useGraphLod();
@@ -145,6 +174,7 @@ export function ProjectGraphEdge({
     target,
     { sourceX, sourceY, targetX, targetY },
     curve,
+    obstacleRects(nodeLookup),
   );
   const edgeStyle = edgeStyleFor({
     kind,
