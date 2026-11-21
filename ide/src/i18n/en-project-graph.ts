@@ -208,4 +208,22 @@ export const projectGraphEn = {
     "Isolate {label} (click), add to the set (Shift+click), hide (Alt+click)",
   "projectGraph.chip.lensHint": "Activate the {label} lens; the newest active lens is dominant",
   "projectGraph.chip.hidden": "hidden",
+
+  // ── agent turn-diff lens (issue #73) ─────────────────────────────────────────
+  "projectGraph.turnDiff.label": "Turn diff",
+  "projectGraph.turnDiff.changed": "changed",
+  "projectGraph.turnDiff.added": "added",
+  "projectGraph.turnDiff.deleted": "deleted",
+  "projectGraph.turnDiff.counter": "{count} {label}",
+  "projectGraph.turnDiff.base": "base {ref}",
+  "projectGraph.turnDiff.baseHint": "The turn checkpoint: a clean HEAD (D-181)",
+  "projectGraph.turnDiff.clean": "Clean tree — nothing changed this turn",
+  "projectGraph.turnDiff.noGit": "No git checkpoint — the turn diff is unavailable",
+  "projectGraph.turnDiff.unmapped": "{count} not on the graph",
+  "projectGraph.turnDiff.unmappedHint": "Changed files with no node in the current view",
+  "projectGraph.turnDiff.modified": "Modified this turn",
+  "projectGraph.turnDiff.addedNode": "Added this turn",
+  "projectGraph.turnDiff.deletedHint": "Deleted this turn — {source}",
+  "projectGraph.turnDiff.planned": "Planned — not written yet",
+  "projectGraph.turnDiff.plannedHint": "Planned this turn, not written yet — {path}",
 } as const;

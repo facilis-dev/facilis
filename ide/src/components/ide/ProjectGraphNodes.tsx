@@ -12,10 +12,18 @@ import Table2 from "~icons/lucide/table-2";
 import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
 import type { ColumnMarker, ProjectGraphNode } from "@/facilis/graph-model";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import type { TurnNodeChrome } from "@/facilis/graph-turn-diff";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
+import { TURN_NODE_TYPE, TurnDiffNode, type ProjectTurnFlowNode } from "./ProjectGraphTurnNode";
 import { ViewGraphNode } from "./ProjectGraphViewNode";
 
 /** React Flow's data bound wants an object alias, not an interface. */
@@ -26,6 +34,8 @@ export type ProjectFlowData = {
   focused: boolean;
   /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
   isolated: boolean;
+  /** The turn-diff overlay (issue #73), or null when the agent lens adds nothing to this card. */
+  turn: TurnNodeChrome | null;
   onToggleCollapse: (id: string) => void;
 };
 
@@ -35,7 +45,7 @@ export type ProjectAnalysisFlowNode = Node<
 >;
 
 /** The canvas's node union: the analysis cards plus the free-floating notes (D-126). */
-export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
+export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode | ProjectTurnFlowNode;
 
 // The canvas and the custom edge import the handle ids from here; they are re-exported so the
 // node files stay the single entry point for the canvas.
@@ -48,12 +58,16 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
   return (
     <div
       data-testid="project-graph-page"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-56"}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.turn) +
+        " w-56"
+      }
     >
       <div className="flex items-center gap-1.5">
         <FileCode className="size-3 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{page.pagePath}</span>
+        {data.turn !== null && <TurnBadge turn={data.turn} />}
       </div>
       <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
         <span className="rounded border px-1">
@@ -117,14 +131,18 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   return (
     <div
       data-testid="project-graph-table"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-60"}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.turn) +
+        " w-60"
+      }
     >
       <div className="flex items-center gap-1.5">
         <Table2 className="size-3 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
           {table.table}
         </span>
+        {data.turn !== null && <TurnBadge turn={data.turn} />}
         {table.unknown && <UnknownBadge />}
         <button
           type="button"
@@ -220,14 +238,18 @@ export function WorkflowGraphNode({
   return (
     <div
       data-testid="project-graph-workflow"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.turn) +
+        " w-64"
+      }
     >
       <div className="flex items-center gap-1.5">
         <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
           {workflow.name}
         </span>
+        {data.turn !== null && <TurnBadge turn={data.turn} />}
         {workflow.unknown && <UnknownBadge />}
         <span className="shrink-0 text-[9px] text-muted-foreground">
           {t("projectGraph.workflow.steps", { count: workflow.steps.length })}
@@ -263,4 +285,5 @@ export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   view: ViewGraphNode,
   workflow: WorkflowGraphNode,
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
+  [TURN_NODE_TYPE]: TurnDiffNode,
 };

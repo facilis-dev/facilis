@@ -39,6 +39,10 @@ export type ProjectGraphEdgeData = {
   readonly focused?: boolean;
   /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
   readonly dimmed?: boolean;
+  /** The turn-diff stroke (issue #73): changed endpoint, or a severed (broken) connection. */
+  readonly turn?: "changed" | "broken";
+  /** True when the agent lens is secondary: the turn stroke renders at ~30% (epic rule 3). */
+  readonly turnSecondary?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -150,19 +154,29 @@ export function ProjectGraphEdge({
     ...(data?.access === undefined ? {} : { access: data.access }),
   });
   const highlighted = selected === true || hovered;
+  // The turn-diff stroke (issue #73) replaces the kind colour but keeps the theme's roles:
+  // changed reads warning with a long dash, broken reads muted with a short gap (a visibly
+  // severed line). The AI focus and isolation still dim by opacity, so they stay distinct.
+  const turn = data?.turn;
+  const stroke =
+    turn === "changed"
+      ? "var(--warning)"
+      : turn === "broken"
+        ? "var(--muted-foreground)"
+        : edgeStyle.stroke;
+  const dash =
+    turn === "changed" ? "7 3" : turn === "broken" ? "2 4" : edgeStyle.dashed ? "5 3" : null;
+  let opacity = data?.dimmed === true ? 0.1 : data?.focused === false ? 0.25 : 1;
+  if (turn !== undefined && data?.turnSecondary === true) opacity = Math.min(opacity, 0.3);
   const pathStyle: CSSProperties = {
-    stroke: edgeStyle.stroke,
-    strokeWidth: highlighted ? 2.5 : 1.5,
+    stroke,
+    strokeWidth: highlighted ? 2.5 : turn === "changed" ? 2 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Isolation (issue #63) dims to 10%, an AI focus to 25%; the stronger dim wins so the two
     // never stack into an invisible line. Opacity, not colour: the theme still owns the stroke.
-    ...(data?.dimmed === true
-      ? { opacity: 0.1 }
-      : data?.focused === false
-        ? { opacity: 0.25 }
-        : {}),
-    ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
+    ...(opacity < 1 ? { opacity } : {}),
+    ...(dash === null ? {} : { strokeDasharray: dash }),
   };
 
   const onHandlePointerDown = (event: PointerEvent<SVGCircleElement>) => {
@@ -233,7 +247,7 @@ export function ProjectGraphEdge({
             cy={geometry.midpoint.y}
             r={5}
             fill="var(--background)"
-            stroke={edgeStyle.stroke}
+            stroke={stroke}
             strokeWidth={1.5}
             className="pointer-events-none"
           />

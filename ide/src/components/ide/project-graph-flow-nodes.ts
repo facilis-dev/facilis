@@ -5,12 +5,18 @@
 //
 // A drag in flight wins over the saved layout: merging against the previous node list keeps its
 // position (and React Flow's own state) while the pointer is down; only drag stop commits.
+//
+// The turn-diff overlay (issue #73) is data here too: a live card carries its change kind, a
+// deleted base node becomes a tombstone card at its last-known position, and phase-2 ghosts
+// append below the graph. Nothing moves an existing node (epic rule 2).
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphNote } from "@/facilis/graph-types";
+import type { TurnNodeChrome, TurnOverlay } from "@/facilis/graph-turn-diff";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
+import { TURN_NODE_TYPE, type ProjectTurnFlowNode } from "./ProjectGraphTurnNode";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectFlowNodesInput {
@@ -23,6 +29,8 @@ export interface ProjectFlowNodesInput {
   readonly focus: ProjectGraphFocusState | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The agent lens overlay (issue #73); absent/null/inactive draws the graph as without it. */
+  readonly turn?: TurnOverlay | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
@@ -35,10 +43,13 @@ export function buildProjectGraphFlowNodes({
   selectedNodeId,
   focus,
   isolatedEdgeKinds,
+  turn = null,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
 }: ProjectFlowNodesInput): ProjectFlowNode[] {
+  const turnDiff = turn?.diff ?? null;
+  const turnSecondary = turn?.secondary ?? false;
   const existing = new Map(previous.map((node) => [node.id, node]));
   // A request that names only edges keeps their endpoints bright too: highlighting a connection
   // must not dim the two cards it connects.
@@ -55,18 +66,59 @@ export function buildProjectGraphFlowNodes({
   const isFocused = (id: string): boolean =>
     focus === null || focus.nodeIds.has(id) || (focusedEndpoints?.has(id) ?? false);
   // Isolation (issue #63) keeps every card in place and dims the ones no isolated edge touches:
-  // opacity only, so positions, selection and the graph bounds never move.
+  // opacity only, so positions, selection and the graph bounds never move. Severed turn-diff
+  // edges count as touching: a tombstone kept bright by its broken edge is still on the graph.
   const isolationActive = isolatedEdgeKinds.length > 0;
+  const turnActive = turnDiff !== null && turnDiff.active;
+  const isolationEdges = turnActive ? [...view.edges, ...turnDiff.severedEdges] : view.edges;
   const isolatedEndpoints = isolationActive
     ? new Set(
-        view.edges
+        isolationEdges
           .filter((edge) => isolatedEdgeKinds.includes(edge.kind))
           .flatMap((edge) => [edge.source, edge.target]),
       )
     : null;
   const isIsolated = (id: string): boolean =>
     isolationActive && !(isolatedEndpoints?.has(id) ?? false);
-  const analysis = view.nodes.map((node) => {
+
+  const tombstones = turnActive ? new Map(turnDiff.tombstones.map((n) => [n.id, n])) : null;
+  const turnNode = (
+    id: string,
+    turnKind: "deleted" | "planned",
+    label: string,
+    sourceFile: string | null,
+    position: { x: number; y: number },
+  ): ProjectTurnFlowNode => ({
+    id,
+    type: TURN_NODE_TYPE,
+    position,
+    data: {
+      turnKind,
+      label,
+      sourceFile,
+      focused: isFocused(id),
+      isolated: isIsolated(id),
+      secondary: turnSecondary,
+    },
+    // Tombstones and ghosts are hover-only: no drag, no selection, no keyboard stop (criterion:
+    // non-interactive except hover/title), so they can never commit a position or a layout write.
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    deletable: false,
+  });
+
+  const liveIds = new Set(view.nodes.map((node) => node.id));
+  const analysis = view.nodes.map((node): ProjectFlowNode => {
+    // A deleted base node the stale analysis still draws is tombstoned in place, at its live
+    // position — never re-layout, never a second card for the same id.
+    const tombstone = tombstones?.get(node.id);
+    if (tombstone !== undefined) {
+      return turnNode(node.id, "deleted", node.label, node.sourceFile, node.position);
+    }
+    const kind = turnActive ? turnDiff.nodeKinds.get(node.id) : undefined;
+    const chrome: TurnNodeChrome | null =
+      kind === undefined ? null : { kind, secondary: turnSecondary };
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {
       id: node.id,
@@ -77,18 +129,43 @@ export function buildProjectGraphFlowNodes({
         collapsed: node.collapsed,
         focused: isFocused(node.id),
         isolated: isIsolated(node.id),
+        turn: chrome,
         onToggleCollapse,
       },
       draggable: true,
       selected: node.id === selectedNodeId,
     };
-    if (current === undefined || current.type === NOTE_NODE_TYPE) return base;
+    if (current === undefined || current.type !== node.kind) return base;
     return {
       ...current,
       ...base,
       position: current.dragging === true ? current.position : base.position,
     };
   });
+
+  // Base-only tombstones: the analyzer already dropped the node, so its card comes from the
+  // clean-tree snapshot at the last-known position (the hole stays visible, criterion 3).
+  const extra: ProjectTurnFlowNode[] = [];
+  if (tombstones !== null) {
+    for (const [id, node] of tombstones) {
+      if (liveIds.has(id)) continue;
+      extra.push(turnNode(id, "deleted", node.label, node.sourceFile, node.position));
+    }
+  }
+  // Phase-2 ghosts (issue #73): planned paths park below the lowest card, in the pages column.
+  // Phase 1 wires no plan source, so this loop never runs and the bounds never grow.
+  if (turnActive && turnDiff.ghosts.length > 0) {
+    const lowest = Math.max(0, ...view.nodes.map((node) => node.position.y));
+    turnDiff.ghosts.forEach((ghost, index) => {
+      extra.push(
+        turnNode("turn-ghost:" + ghost.path, "planned", ghost.path, null, {
+          x: 0,
+          y: lowest + 200 + index * 120,
+        }),
+      );
+    });
+  }
+
   // Notes are never filtered by the search or the focus ids, so they are not in any focus set:
   // they recede with the rest of the graph when a request is active.
   const noteNodes = notes.map((note) => {
@@ -113,5 +190,5 @@ export function buildProjectGraphFlowNodes({
       position: current.dragging === true ? current.position : base.position,
     };
   });
-  return [...analysis, ...noteNodes];
+  return [...analysis, ...extra, ...noteNodes];
 }

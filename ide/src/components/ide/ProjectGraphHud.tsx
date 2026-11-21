@@ -51,6 +51,8 @@ export interface ProjectGraphHudProps {
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the stats ribbon. */
   lensChips: ReactNode;
+  /** The agent lens's turn-diff segment (issue #73), or null when the lens is not active. */
+  turnDiff: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -188,6 +190,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
         lensChips={props.lensChips}
+        turnDiff={props.turnDiff}
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

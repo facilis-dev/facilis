@@ -7,7 +7,13 @@ import type { RouteInputFact } from "@facilis.dev/analyze";
 import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 function MethodBadge({ method }: { method: string }) {
@@ -53,12 +59,16 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   return (
     <div
       data-testid="project-graph-route"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.turn) +
+        " w-64"
+      }
     >
       <div className="flex items-center gap-1.5">
         <MethodBadge method={route.method} />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{route.path}</span>
+        {data.turn !== null && <TurnBadge turn={data.turn} />}
         {route.unknown && <UnknownBadge />}
       </div>
       <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">

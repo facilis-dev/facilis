@@ -25,10 +25,12 @@ import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphTurnDiff } from "@/facilis/graph-turn-diff";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
 import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
+import { TURN_NODE_TYPE } from "./ProjectGraphTurnNode";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -45,6 +47,8 @@ export function ProjectGraphCanvas({
   edgeCurves,
   focus,
   isolatedEdgeKinds,
+  turnDiff,
+  turnSecondary,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -68,6 +72,10 @@ export function ProjectGraphCanvas({
   focus: ProjectGraphFocusState | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The agent lens overlay (issue #73); null/inactive draws the graph exactly as without it. */
+  turnDiff: GraphTurnDiff | null;
+  /** True when the agent lens is secondary: its chrome renders at ~30% (epic rule 3). */
+  turnSecondary: boolean;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -114,6 +122,12 @@ export function ProjectGraphCanvas({
     noteActions.current.onDeleteNote(id);
   }, []);
 
+  // One stable overlay value keeps the builder deps compact (the 300-line source limit).
+  const turn = useMemo(
+    () => (turnDiff === null ? null : { diff: turnDiff, secondary: turnSecondary }),
+    [turnDiff, turnSecondary],
+  );
+
   // The mapping itself lives in project-graph-flow-nodes: this file keeps the React Flow wiring.
   const buildNodes = useCallback(
     (
@@ -128,11 +142,12 @@ export function ProjectGraphCanvas({
         selectedNodeId,
         focus,
         isolatedEdgeKinds,
+        turn,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds],
+    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, isolatedEdgeKinds, turn],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -197,9 +212,10 @@ export function ProjectGraphCanvas({
         selectedEdgeId,
         focus,
         isolatedEdgeKinds,
+        turn,
         onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, isolatedEdgeKinds],
+    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, isolatedEdgeKinds, turn],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
@@ -208,7 +224,8 @@ export function ProjectGraphCanvas({
   };
   const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
     setSelectedEdgeId(null);
-    onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
+    // Notes and turn-diff cards (tombstones/ghosts) are hover-only: no inspector, no selection.
+    onSelectNode(node.type === NOTE_NODE_TYPE || node.type === TURN_NODE_TYPE ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
     const position = { x: node.position.x, y: node.position.y };
@@ -216,8 +233,9 @@ export function ProjectGraphCanvas({
     else onMoveNode(node.id, position);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor from the card; it has no source file to open.
-    if (node.type === NOTE_NODE_TYPE) return;
+    // A note opens its own editor from the card; a tombstone's file is gone and a ghost was
+    // never written — neither has a source to open.
+    if (node.type === NOTE_NODE_TYPE || node.type === TURN_NODE_TYPE) return;
     const target = view.nodes.find((entry) => entry.id === node.id);
     if (target !== undefined) onOpenNode(target);
   };

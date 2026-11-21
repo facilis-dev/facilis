@@ -28,9 +28,11 @@ import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
+import { ProjectGraphTurnRibbon } from "./ProjectGraphTurnRibbon";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useGraphTurnDiff } from "./useGraphTurnDiff";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -112,6 +114,8 @@ export function ProjectGraphPanel() {
           }),
     [analysis, layout, query, filter],
   );
+  // The agent turn-diff lens (issue #73): the working tree against D-181's HEAD checkpoint.
+  const turn = useGraphTurnDiff(c, root, view, viewState.state.activeLenses);
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -191,6 +195,8 @@ export function ProjectGraphPanel() {
         edgeCurves={layout.edgeCurves}
         focus={focus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+        turnDiff={turn.diff}
+        turnSecondary={turn.role === "secondary"}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -244,6 +250,15 @@ export function ProjectGraphPanel() {
                 activeLenses={viewState.state.activeLenses}
                 onActiveLensesChange={viewState.setActiveLenses}
               />
+            }
+            turnDiff={
+              turn.role === null ? null : (
+                <ProjectGraphTurnRibbon
+                  diff={turn.diff}
+                  secondary={turn.role === "secondary"}
+                  ready={turn.ready}
+                />
+              )
             }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}

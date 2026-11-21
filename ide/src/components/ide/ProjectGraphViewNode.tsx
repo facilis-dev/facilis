@@ -8,7 +8,13 @@ import ChevronDown from "~icons/lucide/chevron-down";
 import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 const MAX_VISIBLE_TABLES = 4;
@@ -30,8 +36,11 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
   return (
     <div
       data-testid="project-graph-view"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-60"}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.turn) +
+        " w-60"
+      }
     >
       <div className="flex items-center gap-1.5">
         <Eye className="size-3 shrink-0 text-muted-foreground" />
@@ -41,6 +50,7 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         <span className="shrink-0 rounded border px-1 text-[8px] tracking-wide text-muted-foreground uppercase">
           {t("projectGraph.node.view")}
         </span>
+        {data.turn !== null && <TurnBadge turn={data.turn} />}
         {view.unknown && <UnknownBadge />}
         {view.tables.length > 0 && (
           <button
