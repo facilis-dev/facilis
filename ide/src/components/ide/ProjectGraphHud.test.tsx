@@ -46,7 +46,11 @@ function markup(
       onToggleEdges={vi.fn()}
       lensChips={slots.lensChips ?? <div data-testid="lens-chips-slot" />}
       focusBar={null}
+      breadcrumbs={<nav data-testid="breadcrumbs-slot" />}
       clusterControls={null}
+      minimap={<div data-testid="minimap-slot-content" />}
+      onOpenPalette={vi.fn()}
+      onOpenSheet={vi.fn()}
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
       auditRibbon={slots.auditRibbon ?? null}
       dataRibbon={slots.dataRibbon ?? null}
@@ -136,6 +140,37 @@ describe("ProjectGraphHud bottom dock (issue 144)", () => {
       const at = html.indexOf('data-testid="' + slot + '"');
       expect(at).toBeGreaterThan(leftAt);
       expect(at).toBeLessThan(rightAt);
+    }
+  });
+});
+
+describe("ProjectGraphHud navigation slots (issue #68)", () => {
+  it("fills the docked minimap slot inside the bottom-right cluster", () => {
+    const html = markup();
+    const rightAt = html.indexOf('data-testid="graph-hud-bottom-right"');
+    const slotAt = html.indexOf('data-testid="graph-hud-minimap-slot"');
+    const contentAt = html.indexOf('data-testid="minimap-slot-content"');
+    expect(slotAt).toBeGreaterThan(rightAt);
+    expect(contentAt).toBeGreaterThan(slotAt);
+    // The slot is no longer hidden: the minimap renders in the dock, not in a side panel.
+    expect(openingTag(html, "graph-hud-minimap-slot")).not.toContain("hidden");
+    // The zoom/fit cluster keeps data-hud-zone so fit padding still measures it.
+    expect(openingTag(html, "graph-hud-bottom-right")).toContain("data-hud-zone");
+  });
+
+  it("renders the breadcrumb trail top-left instead of the static title", () => {
+    const html = markup();
+    const leftAt = html.indexOf('data-testid="graph-hud-top-left"');
+    const breadcrumbsAt = html.indexOf('data-testid="breadcrumbs-slot"');
+    const modeAt = html.indexOf('data-testid="graph-hud-mode-slot"');
+    expect(breadcrumbsAt).toBeGreaterThan(leftAt);
+    expect(breadcrumbsAt).toBeLessThan(modeAt);
+  });
+
+  it("exposes named palette and shortcut-sheet triggers", () => {
+    const html = markup();
+    for (const id of ["graph-hud-palette", "graph-hud-shortcuts"]) {
+      expect(openingTag(html, id)).toMatch(/aria-label="[^"]+"/);
     }
   });
 });

@@ -3,9 +3,12 @@
 // text live in graph-edge-labels.ts so the screenshot scene can share them; re-exported here
 // for the existing filter/legend call sites.
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import { t, type MessageKey } from "@/i18n";
+import { GRAPH_EDGE_LABEL_KEYS } from "@/facilis/graph-edge-labels";
+import type { PaletteCommand } from "@/facilis/graph-palette";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
 
-export { GRAPH_EDGE_LABEL_KEYS } from "@/facilis/graph-edge-labels";
+export { GRAPH_EDGE_LABEL_KEYS };
 
 export interface GraphEdgeStyle {
   readonly stroke: string;
@@ -41,6 +44,16 @@ export const IMPACT_BROKEN_EDGE_DASH = "6 3";
 
 export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): GraphEdgeStyle {
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
+}
+
+/** A palette command's accessible name: the isolate commands interpolate the edge label. */
+export function paletteCommandLabel(command: PaletteCommand): string {
+  if (command.edgeKind !== undefined) {
+    return t(command.labelKey as MessageKey, {
+      label: t(GRAPH_EDGE_LABEL_KEYS[command.edgeKind]),
+    });
+  }
+  return t(command.labelKey as MessageKey);
 }
 
 // ── Data lens (issue #70) ──────────────────────────────────────────────────────────────────

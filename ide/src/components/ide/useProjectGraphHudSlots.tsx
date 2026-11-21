@@ -34,7 +34,7 @@ export interface ProjectGraphHudSlots {
   readonly dataRibbon: ReactNode;
   /** null while the agent lens is inactive (issue #73): the dock renders as before. */
   readonly turnRibbon: ReactNode;
-  /** The cluster breadcrumb + group-by toggle (issue #62), in the top-left cluster. */
+  /** The cluster group-by toggle (issue #62), beside the #128 breadcrumb trail top-left. */
   readonly clusterControls: ReactNode;
 }
 
@@ -159,9 +159,7 @@ export function useProjectGraphHudSlots({
     () => (
       <ProjectGraphHudClusters
         enabled={clusters.enabled}
-        drillKey={clusters.drillCluster?.key ?? null}
         onToggleGroupBy={clusters.toggleGroupBy}
-        onDrillUp={clusters.drillUp}
       />
     ),
     [clusters],

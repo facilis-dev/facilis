@@ -5,23 +5,18 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { buildProjectGraphView } from "@/facilis/graph-model";
 import { clusterInputFor } from "@/facilis/graph-clusters";
-import {
-  INITIAL_PINNED_DETAILS,
-  SHEET_BREAKPOINT,
-  SHEET_DEFAULT_HEIGHT,
-  clampSheetHeight,
-  pinnedDetailsReducer,
-} from "@/facilis/graph-satellite";
+import { SHEET_BREAKPOINT, clampSheetHeight } from "@/facilis/graph-satellite";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import { EMPTY_STATS_FILTER, effectiveHiddenEdgeKinds } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { cycleEdgeConcentration } from "@/facilis/graph-view-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
-import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
+import { ProjectGraphDetailsOverlay } from "./ProjectGraphDetailsOverlay";
 import { ProjectGraphHudSlot } from "./ProjectGraphHudSlot";
 import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
 import { ProjectGraphLensProviders } from "./ProjectGraphLensProviders";
+import { ProjectGraphNavigationOverlays } from "./ProjectGraphNavigationOverlays";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useContainerSize } from "./use-container-size";
@@ -33,7 +28,9 @@ import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
 import { useProjectGraphImpact } from "./useProjectGraphImpact";
+import { useProjectGraphNavigation } from "./useProjectGraphNavigation";
 import { useProjectGraphOpen } from "./use-project-graph-open";
+import { useProjectGraphPinnedDetails } from "./useProjectGraphPinnedDetails";
 import { useProjectGraphLenses } from "./useProjectGraphLenses";
 import { useProjectGraphSelection } from "./use-project-graph-selection";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
@@ -51,9 +48,6 @@ export function ProjectGraphPanel() {
   const [zenState, dispatchZen] = useReducer(zenReducer, INITIAL_ZEN);
   const zen = zenState.zen;
   const [filter, setFilter] = useState(EMPTY_STATS_FILTER);
-  const [fitNonce, setFitNonce] = useState(0);
-  // The React Flow instance, lifted only so the HUD zoom buttons can drive it (issue #57).
-  const [flow, setFlow] = useState<{ zoomIn: () => void; zoomOut: () => void } | null>(null);
   // The addressable view (issue #58): URL-synced query/selection; knownNodeIds drops stale ids.
   const knownNodeIds = useMemo(
     () => (analysis === null ? null : new Set(analysis.graph.nodes.map((node) => node.id))),
@@ -73,13 +67,9 @@ export function ProjectGraphPanel() {
   // Details surface by container width (issue #59): sheet below the breakpoint, satellite above.
   const containerSize = useContainerSize(containerRef);
   const sheetMode = containerSize.width > 0 && containerSize.width < SHEET_BREAKPOINT;
-  const [sheetHeight, setSheetHeight] = useState(SHEET_DEFAULT_HEIGHT);
   // Pinned comparison cards are session state; the canvas hook places and drags them.
-  const [pinned, dispatchPinned] = useReducer(pinnedDetailsReducer, INITIAL_PINNED_DETAILS);
-  const [pinRequest, setPinRequest] = useState<{ nonce: number; nodeId: string } | null>(null);
-  useEffect(() => {
-    if (knownNodeIds !== null) dispatchPinned({ type: "prune", knownNodeIds });
-  }, [knownNodeIds]);
+  const pinnedDetails = useProjectGraphPinnedDetails(knownNodeIds);
+  const { pinned, pinRequest, sheetHeight, pinnedIds } = pinnedDetails;
   // Cluster layout MODE (#62, F.4): auto above 40 nodes, explicit choice wins; collapse/drill in gv.
   const nodeCount = analysis?.graph.nodes.length ?? 0;
   // Matrix mode (#67) pivots routes × tables: clusters are topology-only, so it skips them.
@@ -101,6 +91,24 @@ export function ProjectGraphPanel() {
     [analysis, layout, query, filter, viewState.state, nodeCount, matrixMode],
   );
   const clusters = useProjectGraphClusters(viewState, view, nodeCount);
+  // Navigation (issue #68): palette/sheet, zoom presets, minimap, trail — viewport-only.
+  const navigation = useProjectGraphNavigation({
+    view,
+    selection: selectedNodeId,
+    setSelection: setSelectedNodeId,
+    isolatedNode,
+    setIsolatedNode: viewState.setIsolatedNode,
+    isolatedEdgeKinds: viewState.state.isolatedEdgeKinds,
+    setIsolatedEdgeKinds: viewState.setIsolatedEdgeKinds,
+    mode: viewState.state.mode,
+    setMode: viewState.setMode,
+    clusters,
+    saveNow: graph.saveNow,
+    resetPositions: graph.resetPositions,
+    changeViewport: graph.changeViewport,
+    remeasure,
+    containerRef,
+  });
   // The meaning lenses (#72, #69, #70, #73): seam lifecycle, card contexts, audit/data facts.
   const { runtime, audit, data, turn } = useProjectGraphLenses(c, analysis, view, viewState);
   // Focus-and-context (#66): dimming closure; the data lens tightens a table selection (#70).
@@ -110,11 +118,15 @@ export function ProjectGraphPanel() {
     selectedNodeId,
     data.fkFocus,
   );
-  const { selectedNode, selectedEdges, details, nodeLabels, nodeLabel, closeDetails } =
-    useProjectGraphSelection(view, selectedNodeId, analysis, setSelectedNodeId);
+  const { details, nodeLabels, nodeLabel, closeDetails } = useProjectGraphSelection(
+    view,
+    selectedNodeId,
+    analysis,
+    setSelectedNodeId,
+  );
   // The impact lens (issue #74): a derived overlay, so Esc/exit restores the exact prior view.
   const impact = useProjectGraphImpact(viewState, view, details);
-  // Esc ladder + Enter/G/C/E/B (issues #66, #62, #64, #65): one listener owns every graph key.
+  // Esc ladder + Enter/G/C/E/B/M/F/0/1/2/?/⌘K (#66, #62, #64, #65, #67, #68): one listener.
   useProjectGraphEscape({
     zen,
     impactActive: impact.lensActive,
@@ -133,6 +145,8 @@ export function ProjectGraphPanel() {
       viewState.setEdgeConcentration(cycleEdgeConcentration(viewState.state.edgeConcentration)),
     onToggleBridges: () => viewState.setBridges(!viewState.state.bridges),
     onToggleMode: () => viewState.setMode(matrixMode ? "topology" : "matrix"),
+    navigation,
+    focusScope: containerRef,
   });
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
@@ -143,14 +157,6 @@ export function ProjectGraphPanel() {
   }, [analysis, layoutLoaded, pruneCurves]);
   // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
   const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
-  const fit = () => {
-    remeasure();
-    setFitNonce((value) => value + 1);
-  };
-  const resetLayout = () => {
-    graph.resetPositions();
-    fit();
-  };
   // Non-canvas states live in their own component; a notes-only graph is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
@@ -194,9 +200,9 @@ export function ProjectGraphPanel() {
           view={view}
           concentration={viewState.state.edgeConcentration}
           fitPadding={fitPadding}
-          onInstance={setFlow}
+          onInstance={navigation.onInstance}
           viewport={layout.viewport ?? null}
-          fitNonce={fitNonce}
+          fitNonce={navigation.fitNonce}
           edgeCurves={layout.edgeCurves}
           bridges={viewState.state.bridges}
           focus={focus}
@@ -217,6 +223,7 @@ export function ProjectGraphPanel() {
           onDrillCluster={clusters.drillInto}
           onOpenNode={openNode}
           onViewportChange={graph.changeViewport}
+          onViewportLive={navigation.onViewportLive}
           onEdgeCurveChange={graph.changeEdgeCurve}
           onCreateNote={graph.createNote}
           onMoveNote={graph.moveNote}
@@ -229,7 +236,7 @@ export function ProjectGraphPanel() {
           sheetHeight={clampSheetHeight(sheetHeight, containerSize.height)}
           containerWidth={containerSize.width}
           pinned={pinned}
-          dispatchPinned={dispatchPinned}
+          dispatchPinned={pinnedDetails.dispatchPinned}
           pinRequest={pinRequest}
           onOpenFileAt={openFileAt}
           onOpenPreview={(path) => openPageInPreview(c, path)}
@@ -256,44 +263,37 @@ export function ProjectGraphPanel() {
             onRefresh={refresh}
             refreshing={loading}
             focusActive={focus !== null}
-            onFit={fit}
-            flow={flow}
-            onResetLayout={resetLayout}
+            navigation={navigation}
+            containerRef={containerRef}
             canvasActive={state === null}
           />
         }
         sheet={
           // F.7 (#67): matrix has no canvas, so the sheet is the details overlay at ALL widths.
-          (sheetMode || matrixMode) && selectedNode !== null ? (
-            <ProjectGraphDetailsSheet
-              node={selectedNode}
-              edges={selectedEdges}
-              details={details.get(selectedNode.id) ?? null}
-              diagnostics={audit.nodeDiagnostics.get(selectedNode.id) ?? []}
+          (sheetMode || matrixMode) && selectedNodeId !== null ? (
+            <ProjectGraphDetailsOverlay
+              view={view}
+              selectedNodeId={selectedNodeId}
+              details={details}
+              diagnostics={audit.nodeDiagnostics}
               sources={sources}
+              nodeLabels={nodeLabels}
               nodeLabel={nodeLabel}
               height={clampSheetHeight(sheetHeight, containerSize.height)}
-              pinned={pinned.some((card) => card.nodeId === selectedNode.id)}
+              pinned={pinnedIds.includes(selectedNodeId)}
               canPin={!matrixMode}
-              onHeightChange={setSheetHeight}
+              onHeightChange={pinnedDetails.setSheetHeight}
               onClose={closeDetails}
-              onTogglePin={() =>
-                setPinRequest((current) => ({
-                  nonce: (current?.nonce ?? 0) + 1,
-                  nodeId: selectedNode.id,
-                }))
-              }
+              onPinRequest={pinnedDetails.requestPin}
               onOpenFileAt={openFileAt}
-              onOpenPreview={(path) => openPageInPreview(c, path)}
-              onSelectNode={(id) => {
-                // A detail list may name a relation the graph did not draw: ignore unknown ids.
-                if (nodeLabels.has(id)) setSelectedNodeId(id);
-              }}
+              onSelectNode={setSelectedNodeId}
+              controller={c}
             />
           ) : null
         }
       >
         {body}
+        <ProjectGraphNavigationOverlays navigation={navigation} />
       </ProjectGraphShell>
     </ProjectGraphLensProviders>
   );

@@ -42,6 +42,8 @@ export interface ProjectGraphInteractionsInput {
   onDrillCluster: (id: string) => void;
   onViewportChange: (viewport: GraphViewport) => void;
   onViewportMove: (viewport: Viewport) => void;
+  /** Live viewport (issue #68): the minimap follows a pan/zoom before it is committed. */
+  onViewportLive?: (viewport: GraphViewport) => void;
 }
 
 export function useProjectGraphInteractions({
@@ -58,6 +60,7 @@ export function useProjectGraphInteractions({
   onDrillCluster,
   onViewportChange,
   onViewportMove,
+  onViewportLive,
 }: ProjectGraphInteractionsInput) {
   const moved = useRef(false);
 
@@ -120,8 +123,12 @@ export function useProjectGraphInteractions({
     if (event === null && (focus !== null || drill !== null)) return;
     moved.current = true;
   };
-  const onMove: OnMove = (_event, next: Viewport) => onViewportMove(next);
+  const onMove: OnMove = (_event, next: Viewport) => {
+    onViewportMove(next);
+    onViewportLive?.({ x: next.x, y: next.y, zoom: next.zoom });
+  };
   const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {
+    onViewportLive?.({ x: next.x, y: next.y, zoom: next.zoom });
     if (!moved.current) return;
     moved.current = false;
     onViewportChange({ x: next.x, y: next.y, zoom: next.zoom });

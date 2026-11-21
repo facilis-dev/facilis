@@ -1,9 +1,11 @@
 // The HUD composition slot (issue #57), extracted from ProjectGraphPanel so the composition
 // root stays under the 300-line source limit as modes land. Owns the zen gate and wires the
 // floating clusters: the mode switcher (issue #67) rides the shared view state like every other
-// HUD control, so canvas ↔ matrix is one URL-synced switch, never a parallel state.
+// HUD control, so canvas ↔ matrix is one URL-synced switch, never a parallel state; the
+// navigation surface (issue #68) fills the minimap slot (docked, issue #150) and the top-left
+// breadcrumb trail with the cluster group-by toggle, and opens the palette/shortcut sheet.
 
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import {
@@ -11,9 +13,12 @@ import {
   toggleKindFilter,
   type GraphStatsFilter,
 } from "@/facilis/graph-stats-filter";
+import { ProjectGraphBreadcrumbs } from "./ProjectGraphBreadcrumbs";
 import { ProjectGraphHud } from "./ProjectGraphHud";
+import { ProjectGraphMinimap } from "./ProjectGraphMinimap";
 import type { ProjectGraphHudSlots } from "./useProjectGraphHudSlots";
 import type { ProjectGraphLayout } from "./useProjectGraphLayout";
+import type { ProjectGraphNavigation } from "./useProjectGraphNavigation";
 import type { ProjectGraphViewState } from "./useProjectGraphViewState";
 
 export interface ProjectGraphHudSlotProps {
@@ -22,6 +27,10 @@ export interface ProjectGraphHudSlotProps {
   viewState: ProjectGraphViewState;
   graph: ProjectGraphLayout;
   slots: ProjectGraphHudSlots;
+  /** The navigation surface (issue #68): minimap, breadcrumbs, palette and shortcut sheet. */
+  navigation: ProjectGraphNavigation;
+  /** The canvas container the minimap reads for the visible-world rectangle. */
+  containerRef: RefObject<HTMLDivElement | null>;
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
   onFilterChange: Dispatch<SetStateAction<GraphStatsFilter>>;
@@ -30,16 +39,12 @@ export interface ProjectGraphHudSlotProps {
   onRefresh: () => void;
   refreshing: boolean;
   focusActive: boolean;
-  onFit: () => void;
-  /** The React Flow instance, lifted only so the zoom buttons can drive it (issue #57). */
-  flow: { zoomIn: () => void; zoomOut: () => void } | null;
-  onResetLayout: () => void;
   /** False while a non-canvas state view is up: the first note then lands at a fixed origin. */
   canvasActive: boolean;
 }
 
 export function ProjectGraphHudSlot(props: ProjectGraphHudSlotProps) {
-  const { viewState, graph, slots, filter, onFilterChange } = props;
+  const { viewState, graph, slots, filter, onFilterChange, navigation } = props;
   if (props.zen) return null;
   return (
     <ProjectGraphHud
@@ -57,9 +62,9 @@ export function ProjectGraphHudSlot(props: ProjectGraphHudSlotProps) {
       onClearFocus={clearGraphFocus}
       errors={props.errors}
       warnings={props.warnings}
-      onFit={props.onFit}
-      onZoomIn={() => props.flow?.zoomIn()}
-      onZoomOut={() => props.flow?.zoomOut()}
+      onFit={navigation.fit}
+      onZoomIn={() => navigation.flow?.zoomIn()}
+      onZoomOut={() => navigation.flow?.zoomOut()}
       filter={filter}
       onToggleKind={(kind) => onFilterChange((current) => toggleKindFilter(current, kind))}
       onToggleEdges={() => onFilterChange((current) => toggleEdgesFilter(current))}
@@ -69,7 +74,25 @@ export function ProjectGraphHudSlot(props: ProjectGraphHudSlotProps) {
       auditRibbon={slots.auditRibbon}
       dataRibbon={slots.dataRibbon}
       turnRibbon={slots.turnRibbon}
+      breadcrumbs={
+        <ProjectGraphBreadcrumbs
+          trail={navigation.trail}
+          onNavigate={navigation.navigateBreadcrumb}
+        />
+      }
       clusterControls={slots.clusterControls}
+      // The minimap is a canvas affordance: matrix mode has no viewport to draw.
+      minimap={
+        viewState.state.mode === "matrix" ? null : (
+          <ProjectGraphMinimap
+            nodes={navigation.minimapNodes}
+            viewport={navigation.liveViewport}
+            containerRef={props.containerRef}
+            onPan={navigation.panTo}
+            onPanEnd={navigation.panEnd}
+          />
+        )
+      }
       tableVisibility={graph.layout.tableVisibility}
       onTableVisibilityChange={graph.changeTableVisibility}
       mode={viewState.state.mode}
@@ -77,7 +100,9 @@ export function ProjectGraphHudSlot(props: ProjectGraphHudSlotProps) {
       onAddNote={
         props.canvasActive ? () => graph.createNote({ x: 120, y: 120 }) : graph.requestAddNote
       }
-      onResetLayout={props.onResetLayout}
+      onResetLayout={navigation.resetLayout}
+      onOpenPalette={navigation.openPalette}
+      onOpenSheet={navigation.openSheet}
     />
   );
 }

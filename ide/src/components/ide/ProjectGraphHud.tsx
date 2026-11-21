@@ -1,19 +1,14 @@
 // The floating HUD (issue #57): clusters float over the full-bleed canvas, never resizing it.
-// Top-left breadcrumb + mode switcher (#67) and top-right search/save/refresh anchor absolutely;
-// the bottom-left ribbon, lens chips (#63) and lens ribbons and the bottom-right minimap SLOT +
-// zoom/fit share one dock row (#150) so they cannot overlap. Every control is a named, keyboard-
-// reachable button (role="toolbar", labels collapse below 1280px); role tokens only; t() strings.
+// Top-left the breadcrumb trail (issue #68, project → cluster → node) + the mode switcher (#67);
+// top-right search/save/refresh/palette/actions (ProjectGraphHudTopRight); the bottom-left
+// ribbon, lens chips (#63) and lens ribbons and the bottom-right minimap SLOT + zoom/fit share
+// one dock row (#150) so they cannot overlap. Every control is a named, keyboard-reachable
+// button (role="toolbar", labels collapse below 1280px); role tokens only; t() strings.
 
 import type { ReactNode } from "react";
-import Maximize2 from "~icons/lucide/maximize-2";
-import Minimize2 from "~icons/lucide/minimize-2";
 import Network from "~icons/lucide/network";
-import Table2 from "~icons/lucide/table-2";
-import RefreshCw from "~icons/lucide/refresh-cw";
-import Save from "~icons/lucide/save";
 import Scan from "~icons/lucide/scan";
-import ScanEye from "~icons/lucide/scan-eye";
-import TriangleAlert from "~icons/lucide/triangle-alert";
+import Table2 from "~icons/lucide/table-2";
 import ZoomIn from "~icons/lucide/zoom-in";
 import ZoomOut from "~icons/lucide/zoom-out";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
@@ -23,10 +18,10 @@ import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphViewMode } from "@/facilis/graph-view-state";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
-import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
+import { ProjectGraphHudTopRight, type ProjectGraphSaveState } from "./ProjectGraphHudTopRight";
 import { ProjectGraphStatsRibbon } from "./ProjectGraphStatsRibbon";
 
-export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
+export type { ProjectGraphSaveState };
 
 export interface ProjectGraphHudProps {
   stats: ProjectGraphStats | null;
@@ -61,8 +56,12 @@ export interface ProjectGraphHudProps {
   turnRibbon: ReactNode;
   /** The selection-context line / isolate exit (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
-  /** The cluster breadcrumb + group-by toggle (issue #62); null keeps the plain title. */
+  /** The project → cluster → node trail (issue #68), replacing the static title top-left. */
+  breadcrumbs: ReactNode;
+  /** The cluster group-by toggle (issue #62), beside the trail it groups around. */
   clusterControls: ReactNode;
+  /** The minimap (issue #68), docked in the bottom-right cluster beside zoom and fit. */
+  minimap: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   /** The drawn mode (issue #67); timeline stays a carried mode until #76 renders it. */
@@ -70,6 +69,9 @@ export interface ProjectGraphHudProps {
   onModeChange: (mode: GraphViewMode) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
+  /** Palette / shortcut-sheet triggers (issue #68); the keys work in zen too, the HUD hides. */
+  onOpenPalette: () => void;
+  onOpenSheet: () => void;
 }
 
 // The cluster box without positioning: the top clusters anchor absolutely, while the two bottom
@@ -79,10 +81,10 @@ const CLUSTER_BOX =
 const CLUSTER = CLUSTER_BOX + " absolute";
 
 export function ProjectGraphHud(props: ProjectGraphHudProps) {
-  const { stats, zen } = props;
+  const { stats } = props;
   return (
     <div data-testid="graph-hud" className="pointer-events-none absolute inset-0 z-10">
-      {/* Top-left: breadcrumb + the topology/matrix mode switcher (issue #67). */}
+      {/* Top-left: the project → cluster → node trail (issues #62/#68) + mode switcher (#67). */}
       <div
         role="toolbar"
         aria-label={t("projectGraph.hud.overview")}
@@ -91,9 +93,8 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         className={CLUSTER + " top-2 left-2 max-w-[60%]"}
       >
         <Network className="size-3.5 shrink-0 text-brand" />
-        {props.clusterControls ?? (
-          <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
-        )}
+        {props.breadcrumbs}
+        {props.clusterControls}
         {props.focusBar}
         <span
           role="group"
@@ -126,111 +127,36 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         </span>
       </div>
 
-      {/* Top-right: search, save state, refresh, zen, actions. */}
-      <div
-        role="toolbar"
-        aria-label={t("projectGraph.hud.actions")}
-        data-testid="graph-hud-top-right"
-        data-hud-zone
+      <ProjectGraphHudTopRight
         className={CLUSTER + " top-2 right-2 max-w-[calc(100%-1rem)] flex-wrap justify-end"}
-      >
-        <input
-          type="search"
-          value={props.query}
-          onChange={(event) => props.onQueryChange(event.target.value)}
-          placeholder={t("projectGraph.search")}
-          aria-label={t("projectGraph.search")}
-          data-testid="graph-hud-search"
-          className="h-6 w-28 rounded border border-border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring xl:w-44"
-        />
-        <span
-          data-testid="graph-hud-save-state"
-          title={props.saveError ?? undefined}
-          className={
-            "hidden text-[10px] xl:inline " +
-            (props.saveState === "error" ? "text-destructive" : "text-muted-foreground")
-          }
-        >
-          {props.saveState === "saving"
-            ? t("projectGraph.saving")
-            : props.saveState === "saved"
-              ? t("projectGraph.saved")
-              : props.saveState === "error"
-                ? t("projectGraph.saveFailed", { error: props.saveError ?? "" })
-                : ""}
-        </span>
-        {(props.errors > 0 || props.warnings > 0) && (
-          <span
-            title={t("projectGraph.diagnostics")}
-            className="flex items-center gap-1 rounded border border-warning/50 px-1.5 py-0.5 text-[10px] text-warning"
-          >
-            <TriangleAlert className="size-3" />
-            <span className="hidden xl:inline">
-              {t("projectGraph.diagnosticErrors", { count: props.errors })} /{" "}
-              {t("projectGraph.diagnosticWarnings", { count: props.warnings })}
-            </span>
-          </span>
-        )}
-        {props.focusActive && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            data-testid="graph-hud-clear-focus"
-            className="border border-brand/50 bg-brand/10 text-brand hover:bg-brand/20 hover:text-brand"
-            aria-label={t("projectGraph.clearFocus")}
-            title={t("projectGraph.clearFocusHint")}
-            onClick={props.onClearFocus}
-          >
-            <ScanEye />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-save"
-          aria-label={t("projectGraph.save")}
-          title={t("projectGraph.save")}
-          disabled={stats === null || props.saveState === "saving"}
-          onClick={props.onSave}
-        >
-          <Save />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-refresh"
-          aria-label={t("projectGraph.refresh")}
-          title={t("projectGraph.refresh")}
-          disabled={props.refreshing}
-          onClick={props.onRefresh}
-        >
-          <RefreshCw className={props.refreshing ? "animate-spin" : undefined} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-zen"
-          aria-pressed={zen}
-          aria-label={zen ? t("projectGraph.exitZen") : t("projectGraph.zen")}
-          title={t("projectGraph.zenHint")}
-          onClick={props.onToggleZen}
-        >
-          {zen ? <Minimize2 /> : <Maximize2 />}
-        </Button>
-        <ProjectGraphHudActions
-          stats={stats}
-          tableVisibility={props.tableVisibility}
-          onTableVisibilityChange={props.onTableVisibilityChange}
-          onAddNote={props.onAddNote}
-          onResetLayout={props.onResetLayout}
-        />
-      </div>
+        stats={stats}
+        query={props.query}
+        onQueryChange={props.onQueryChange}
+        saveState={props.saveState}
+        saveError={props.saveError}
+        onSave={props.onSave}
+        onRefresh={props.onRefresh}
+        refreshing={props.refreshing}
+        zen={props.zen}
+        onToggleZen={props.onToggleZen}
+        focusActive={props.focusActive}
+        onClearFocus={props.onClearFocus}
+        errors={props.errors}
+        warnings={props.warnings}
+        onOpenPalette={props.onOpenPalette}
+        onOpenSheet={props.onOpenSheet}
+        tableVisibility={props.tableVisibility}
+        onTableVisibilityChange={props.onTableVisibilityChange}
+        onAddNote={props.onAddNote}
+        onResetLayout={props.onResetLayout}
+      />
 
-      {/* Bottom dock (issue #150): the stats ribbon + lens chips (left) and zoom/fit (right) share
-          one floating row. The left cluster wraps within the space the right leaves (min-w-0) and
-          the right never shrinks, so the two can never overlap however narrow the canvas gets. The
-          row is a query container (@container): on a narrow canvas the lens chips collapse to their
-          popover button (@md) so the ribbon stays compact instead of wrapping into a tall column. */}
+      {/* Bottom dock (issue #150): the stats ribbon + lens chips (left) and the minimap + zoom/fit
+          (right) share one floating row. The left cluster wraps within the space the right leaves
+          (min-w-0) and the right never shrinks, so the two can never overlap however narrow the
+          canvas gets. The row is a query container (@container): on a narrow canvas the lens chips
+          collapse to their popover button (@md) so the ribbon stays compact instead of wrapping
+          into a tall column. */}
       <div
         data-hud-dock
         className="@container pointer-events-none absolute inset-x-2 bottom-2 flex items-end justify-between gap-2"
@@ -247,7 +173,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
           turnRibbon={props.turnRibbon}
         />
 
-        {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}
+        {/* Bottom-right: the minimap SLOT (issue #68), zoom, fit. */}
         <div
           role="toolbar"
           aria-label={t("projectGraph.hud.view")}
@@ -258,8 +184,10 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
           <div
             data-testid="graph-hud-minimap-slot"
             aria-label={t("projectGraph.hud.minimapSlot")}
-            className="hidden"
-          />
+            className="flex items-center"
+          >
+            {props.minimap}
+          </div>
           <Button
             variant="ghost"
             size="icon-sm"

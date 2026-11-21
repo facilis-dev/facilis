@@ -1,7 +1,5 @@
-// The project-graph canvas: React Flow over the pure view model. Cards, edges, the details
-// satellite (useProjectGraphDetails), the pointer interactions and the instance effects live in
-// their own modules; this file only wires the library. A drag commits the saved layout on stop,
-// cluster children drag frame-relative (issue #62); fitView uses the measured HUD (issue #57).
+// The project-graph canvas: React Flow over the pure view model. Cards, edges, the satellite,
+// the interactions and the effects live in their own modules; this file wires the library.
 
 import "@xyflow/react/dist/style.css";
 import { useMemo, useRef, useState, type Dispatch } from "react";
@@ -73,6 +71,7 @@ export function ProjectGraphCanvas({
   onDrillCluster,
   onOpenNode,
   onViewportChange,
+  onViewportLive,
   onEdgeCurveChange,
   onCreateNote,
   onMoveNote,
@@ -107,13 +106,12 @@ export function ProjectGraphCanvas({
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
-  /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
+  /** The contract lens (issue #69): audit dimming + the diagnostics join. */
   contract: ProjectFlowContractState;
-  /** The data lens's inputs (issue #70): marks and schema strokes, never a position change. */
+  /** The data lens (issue #70): marks and schema strokes, never a position change. */
   data: ProjectFlowDataState;
-  /** The agent lens overlay (issue #73); null draws exactly as without it (clean tree/off). */
+  /** The agent/impact lens overlays (#73/#74): marks and dimming, never positions. */
   turn: TurnOverlay | null;
-  /** The impact simulation overlay (issue #74): colour/badges/dimming only, never positions. */
   impact: ImpactOverlay | null;
   /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
   drill: ProjectGraphDrill | null;
@@ -125,6 +123,8 @@ export function ProjectGraphCanvas({
   onDrillCluster: (id: string) => void;
   onOpenNode: (node: ProjectGraphNode) => void;
   onViewportChange: (viewport: GraphViewport) => void;
+  /** Live viewport during any move (issue #68): the minimap reflects it before the commit. */
+  onViewportLive?: (viewport: GraphViewport) => void;
   onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
   onCreateNote: (position: { x: number; y: number }) => void;
   onMoveNote: (id: string, position: { x: number; y: number }) => void;
@@ -151,7 +151,6 @@ export function ProjectGraphCanvas({
   const wrapper = useRef<HTMLDivElement>(null);
   // Hub expansion and hover are session-scoped (issue #64); only the threshold is URL state.
   const hubs = useProjectGraphHubs(view, concentration);
-
   // Ref-stabilized card actions: a parent re-render cannot rebuild a card mid-drag.
   const { toggleCollapse, createNote, editNote, deleteNote } = useProjectGraphStableActions(
     onToggleCollapse,
@@ -207,7 +206,7 @@ export function ProjectGraphCanvas({
     createNote,
     sheet,
   });
-  // The AI focus and drill-down fits compose with the canvas effects on the same instance.
+  // The AI-focus and drill fits compose with the canvas effects on the same instance.
   useGraphFitEffects(instance, nodes, focus, drill, fitPadding);
 
   // The edge list owns the bridge plan and its hover isolation (#65); the satellite stays cubic.
@@ -252,6 +251,7 @@ export function ProjectGraphCanvas({
     onDrillCluster,
     onViewportChange,
     onViewportMove,
+    onViewportLive,
   });
 
   return (

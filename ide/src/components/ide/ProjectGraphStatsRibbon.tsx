@@ -7,35 +7,15 @@
 // the hidden count available when a chip alt-click hides a kind.
 
 import { useContext, type ReactNode } from "react";
-import Eye from "~icons/lucide/eye";
-import File from "~icons/lucide/file";
 import GitBranch from "~icons/lucide/git-branch";
-import Route from "~icons/lucide/route";
-import Table from "~icons/lucide/table";
-import Workflow from "~icons/lucide/workflow";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
-import { t, type MessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { isKindActive, type GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { Button } from "@/components/ui/button";
 import { ImpactLensContext } from "./ProjectGraphImpactContext";
 import { ProjectGraphImpactBar } from "./ProjectGraphImpactBar";
-
-const KIND_ICONS: Record<GraphNodeKind, typeof File> = {
-  page: File,
-  route: Route,
-  table: Table,
-  view: Eye,
-  workflow: Workflow,
-};
-
-const KIND_LABEL_KEYS: Record<GraphNodeKind, MessageKey> = {
-  page: "projectGraph.ribbon.pages",
-  route: "projectGraph.ribbon.routes",
-  table: "projectGraph.ribbon.tables",
-  view: "projectGraph.ribbon.views",
-  workflow: "projectGraph.ribbon.workflows",
-};
+import { GRAPH_NODE_KIND_ICONS, GRAPH_NODE_KIND_LABEL_KEYS } from "./project-graph-kind-tokens";
 
 const KIND_STAT_KEY: Record<GraphNodeKind, keyof ProjectGraphStats> = {
   page: "pages",
@@ -90,8 +70,8 @@ export function ProjectGraphStatsRibbon({
         className="flex flex-wrap items-center gap-0.5"
       >
         {KIND_ORDER.map((kind) => {
-          const Icon = KIND_ICONS[kind];
-          const label = t(KIND_LABEL_KEYS[kind]);
+          const Icon = GRAPH_NODE_KIND_ICONS[kind];
+          const label = t(GRAPH_NODE_KIND_LABEL_KEYS[kind]);
           const active = isKindActive(filter, kind);
           const count = stats === null ? 0 : stats[KIND_STAT_KEY[kind]];
           return (
