@@ -4,6 +4,7 @@
 // and positions/selection never move. The class strings are proved in
 // ProjectGraphNodeChrome.test.ts; the browser gate proves the pixels.
 import { describe, expect, it } from "vitest";
+import { deriveEdgeHubOverlay } from "@/facilis/graph-edge-hubs";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import { reachabilityClosure, type GraphReachability } from "@/facilis/graph-reachability";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
@@ -92,6 +93,7 @@ const buildNodes = (
     userFocus,
     isolatedEdgeKinds: [],
     drill: null,
+    hubIsolation: null,
     onToggleCollapse: () => {},
     onToggleClusterCollapse: () => {},
     onEditNote: () => {},
@@ -103,20 +105,22 @@ const buildEdges = (
   focus: ProjectGraphFocusState | null = null,
 ) =>
   buildProjectGraphFlowEdges({
-    view,
+    overlay: deriveEdgeHubOverlay(view, "off", new Set()),
     edgeCurves: {},
     selectedEdgeId: null,
     focus,
     userFocus,
     isolatedEdgeKinds: [],
     drill: null,
+    hubIsolation: null,
     onEdgeCurveChange: () => {},
   });
 
 /** The analysis card's data; notes carry no outline channel (they are not AI-addressable). */
 function cardData(nodes: readonly ProjectFlowNode[], id: string): ProjectFlowData {
   const found = nodes.find((n) => n.id === id);
-  if (found === undefined || !("aiOutlined" in found.data)) throw new Error("not a card: " + id);
+  if (found === undefined || !("aiOutlined" in found.data) || !("node" in found.data))
+    throw new Error("not a card: " + id);
   return found.data;
 }
 

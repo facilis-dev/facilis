@@ -3,7 +3,8 @@
 // (zen → isolate → selection → drill → AI focus), Enter isolates the selection's closure (F.5:
 // the isolate is dim-only, F.6: double-click keeps opening the source), G toggles the cluster
 // layout mode and C collapses the active cluster (issue #62). Replaces the separate
-// zen/details/focus Esc handlers so one keypress clears exactly one layer; typing targets and
+// zen/details/focus Esc handlers so one keypress clears exactly one layer; E cycles the
+// edge-concentration threshold (issue #64); typing targets and
 // the details dialog's own Esc trap keep their keys (the dialog stops propagation).
 
 import { clearGraphFocus } from "@/facilis/graph-focus";
@@ -23,6 +24,7 @@ export interface ProjectGraphEscapeInput {
   readonly onDrillUp: () => void;
   readonly onToggleGroupBy: () => void;
   readonly onCollapseCluster: () => void;
+  readonly onCycleConcentration: () => void;
 }
 
 export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
@@ -40,5 +42,6 @@ export function useProjectGraphEscape(input: ProjectGraphEscapeInput): void {
     },
     onToggleGroupBy: input.onToggleGroupBy,
     onCollapseCluster: input.onCollapseCluster,
+    onCycleConcentration: input.onCycleConcentration,
   });
 }

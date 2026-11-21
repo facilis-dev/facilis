@@ -22,6 +22,7 @@ import {
   ProjectGraphDetailsNode,
   type ProjectDetailsFlowNode,
 } from "./ProjectGraphDetailsNode";
+import { HUB_NODE_TYPE, ProjectGraphHubNode, type ProjectHubFlowNode } from "./ProjectGraphHubNode";
 import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
@@ -51,9 +52,13 @@ export type ProjectAnalysisFlowNode = Node<
 >;
 
 /** The canvas's node union: analysis cards, cluster frames (issue #62), free-floating notes
- * (D-126) and the details satellite with its pinned cards (issue #59). */
+ * (D-126), the details satellite with its pinned cards (issue #59) and hub chips (issue #64). */
 export type ProjectFlowNode =
-  ProjectAnalysisFlowNode | ProjectClusterFlowNode | ProjectNoteFlowNode | ProjectDetailsFlowNode;
+  | ProjectAnalysisFlowNode
+  | ProjectClusterFlowNode
+  | ProjectNoteFlowNode
+  | ProjectDetailsFlowNode
+  | ProjectHubFlowNode;
 
 // The canvas and the custom edge import the handle ids from here; they are re-exported so the
 // node files stay the single entry point for the canvas.
@@ -256,4 +261,5 @@ export const PROJECT_GRAPH_NODE_TYPES: NodeTypes = {
   [CLUSTER_NODE_TYPE]: ClusterGraphNode,
   [NOTE_NODE_TYPE]: ProjectGraphNoteNode,
   [DETAILS_NODE_TYPE]: ProjectGraphDetailsNode,
+  [HUB_NODE_TYPE]: ProjectGraphHubNode,
 };

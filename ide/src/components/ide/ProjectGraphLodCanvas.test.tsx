@@ -119,6 +119,8 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     onInstance: NOOP,
     notes: [],
     addNoteNonce: 0,
+    // Concentration off: the LOD probe measures the cards alone, no hub artefacts (#64).
+    concentration: "off" as const,
     viewport: { x: 0, y: 0, zoom: 0.2 },
     fitNonce: 0,
     edgeCurves: {},

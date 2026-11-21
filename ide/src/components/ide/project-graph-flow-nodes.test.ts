@@ -9,6 +9,7 @@ import { buildProjectGraphView } from "@/facilis/graph-model";
 import { GET, PAGE, TODOS, WORKFLOW, graphOf } from "@/facilis/graph-model.test-fixtures";
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
 import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
+import { HUB_NODE_TYPE } from "./ProjectGraphHubNode";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
 
@@ -31,19 +32,21 @@ function dataOf(id: string) {
     userFocus: null,
     isolatedEdgeKinds: [],
     drill: null,
+    hubIsolation: null,
     onToggleCollapse: NOOP,
     onToggleClusterCollapse: NOOP,
     onEditNote: NOOP,
     onDeleteNote: NOOP,
   });
   const node = nodes.find((entry) => entry.id === id);
-  // Notes, frames and the details satellite carry their own data shapes; only analysis cards
-  // have counts.
+  // Notes, frames, hubs and the details satellite carry their own data shapes; only analysis
+  // cards have counts.
   if (
     node === undefined ||
     node.type === "note" ||
     node.type === DETAILS_NODE_TYPE ||
-    node.type === CLUSTER_NODE_TYPE
+    node.type === CLUSTER_NODE_TYPE ||
+    node.type === HUB_NODE_TYPE
   )
     throw new Error("missing node " + id);
   return node.data;
@@ -73,6 +76,7 @@ function buildNodes(isolatedEdgeKinds: readonly GraphEdgeKind[], selectedNodeId:
     userFocus: null,
     isolatedEdgeKinds,
     drill: null,
+    hubIsolation: null,
     onToggleCollapse: NOOP,
     onToggleClusterCollapse: NOOP,
     onEditNote: NOOP,
@@ -82,7 +86,12 @@ function buildNodes(isolatedEdgeKinds: readonly GraphEdgeKind[], selectedNodeId:
 
 function cardData(nodes: readonly ProjectFlowNode[], id: string) {
   const node = nodes.find((entry) => entry.id === id);
-  if (node === undefined || node.type === DETAILS_NODE_TYPE || node.type === CLUSTER_NODE_TYPE)
+  if (
+    node === undefined ||
+    node.type === DETAILS_NODE_TYPE ||
+    node.type === CLUSTER_NODE_TYPE ||
+    node.type === HUB_NODE_TYPE
+  )
     throw new Error("missing " + id);
   return node.data;
 }
@@ -152,6 +161,7 @@ function clusterInputs(
     userFocus: null,
     isolatedEdgeKinds: [],
     drill: null,
+    hubIsolation: null,
     onToggleCollapse: NOOP,
     onToggleClusterCollapse: NOOP,
     onEditNote: NOOP,
@@ -243,5 +253,32 @@ describe("buildProjectGraphFlowNodes clusters (issue #62)", () => {
     const dragging = { ...child, dragging: true, position: { x: 9, y: 9 } };
     const rebuilt = buildProjectGraphFlowNodes(clusterInputs(view, { previous: [dragging] }));
     expect(rebuilt.find((node) => node.id === GET.id)?.position).toEqual({ x: 9, y: 9 });
+  });
+});
+
+// A hub hover (issue #64) is one more dimming channel: only the hub's routes and target stay
+// bright, every other card recedes — opacity only, positions and selection never move.
+describe("buildProjectGraphFlowNodes hub hover (issue #64)", () => {
+  it("dims every card the hover does not name, keeping positions and selection", () => {
+    const hubIsolation = {
+      nodeIds: new Set(["hub:route-table:table:todos", GET.id, TODOS.id]),
+      edgeIds: new Set(["route-table:1"]),
+    };
+    const hovered = buildProjectGraphFlowNodes(
+      clusterInputs(VIEW, { hubIsolation, notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }] }),
+    );
+    expect(cardData(hovered, GET.id).focused).toBe(true);
+    expect(cardData(hovered, TODOS.id).focused).toBe(true);
+    expect(cardData(hovered, PAGE.id).focused).toBe(false);
+    expect(cardData(hovered, WORKFLOW.id).focused).toBe(false);
+    expect(cardData(hovered, "note-1").focused).toBe(false);
+    const plain = buildProjectGraphFlowNodes(
+      clusterInputs(VIEW, { notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }] }),
+    );
+    for (const node of hovered) {
+      const before = plain.find((entry) => entry.id === node.id);
+      expect(node.position).toEqual(before?.position);
+      expect(node.selected).toBe(before?.selected);
+    }
   });
 });

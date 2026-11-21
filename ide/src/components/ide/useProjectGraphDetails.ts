@@ -32,6 +32,8 @@ import type { GraphNote } from "@/facilis/graph-types";
 import { focusGraphNode } from "./focus-graph-node";
 import { buildDetailsFlowNodes, repositionDetailsNode } from "./project-graph-details-nodes";
 import { buildProjectGraphFlowNodes, type ProjectGraphDrill } from "./project-graph-flow-nodes";
+import { buildHubFlowNodes } from "./project-graph-hub-flow";
+import type { ProjectGraphHubsState } from "./useProjectGraphHubs";
 import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
@@ -53,6 +55,8 @@ export interface UseProjectGraphDetailsInput {
   isolatedEdgeKinds: readonly GraphEdgeKind[];
   /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
   drill: ProjectGraphDrill | null;
+  /** The concentration overlay + session hub state (issue #64); its chips join the node list. */
+  hubs: ProjectGraphHubsState;
   selectedNodeId: string | null;
   /** Below the breakpoint the details render as a sheet; no satellite is drawn. */
   sheetMode: boolean;
@@ -83,6 +87,7 @@ export function useProjectGraphDetails({
   userFocus,
   isolatedEdgeKinds,
   drill,
+  hubs,
   selectedNodeId,
   sheetMode,
   pinned,
@@ -200,6 +205,7 @@ export function useProjectGraphDetails({
         userFocus,
         isolatedEdgeKinds,
         drill,
+        hubIsolation: hubs.isolation,
         onToggleCollapse,
         onToggleClusterCollapse,
         onEditNote,
@@ -208,6 +214,8 @@ export function useProjectGraphDetails({
       const viewport = instanceRef.current?.getViewport() ?? DEFAULT_VIEWPORT;
       return [
         ...base,
+        // Hub chips are view artefacts (issue #64): fixed-size, non-draggable, never persisted.
+        ...buildHubFlowNodes(hubs, next, { focus, userFocus, isolatedEdgeKinds, drill }),
         ...buildDetailsFlowNodes({
           view: next,
           analysisNodes: base,
@@ -234,6 +242,7 @@ export function useProjectGraphDetails({
       userFocus,
       isolatedEdgeKinds,
       drill,
+      hubs,
       onToggleCollapse,
       onToggleClusterCollapse,
       onEditNote,

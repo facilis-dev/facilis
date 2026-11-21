@@ -17,6 +17,7 @@ import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
+import type { GraphEdgeConcentration } from "@/facilis/graph-view-state";
 import { PROJECT_GRAPH_EDGE_TYPES } from "./ProjectGraphEdge";
 import {
   DETAILS_LINK_EDGE_TYPE,
@@ -32,6 +33,7 @@ import { useGraphFitEffects } from "./useGraphFitEffects";
 import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
 import { useProjectGraphDetails, type PinRequest } from "./useProjectGraphDetails";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+import { useProjectGraphHubs } from "./useProjectGraphHubs";
 import { useProjectGraphInteractions } from "./use-project-graph-interactions";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
@@ -43,6 +45,7 @@ const EDGE_TYPES = {
 
 export function ProjectGraphCanvas({
   view,
+  concentration,
   fitPadding,
   onInstance,
   notes,
@@ -80,6 +83,8 @@ export function ProjectGraphCanvas({
   onOpenPreview,
 }: {
   view: ProjectGraphView;
+  /** The edge-concentration threshold (issue #64); expansion/hover stay session-scoped. */
+  concentration: GraphEdgeConcentration;
   fitPadding: HudFitPadding;
   onInstance: (instance: ReactFlowInstance<ProjectFlowNode, ProjectCanvasEdge>) => void;
   notes: readonly GraphNote[];
@@ -126,6 +131,8 @@ export function ProjectGraphCanvas({
   // Edge selection is local: it drives only the curve handle, never the saved layout.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const wrapper = useRef<HTMLDivElement>(null);
+  // Hub expansion and hover are session-scoped (issue #64); only the threshold is URL state.
+  const hubs = useProjectGraphHubs(view, concentration);
 
   // The collapse callback travels through a ref so node data does not depend on the parent's
   // function identity: a parent re-render must not rebuild the cards mid-drag.
@@ -156,6 +163,7 @@ export function ProjectGraphCanvas({
       userFocus,
       isolatedEdgeKinds,
       drill,
+      hubs,
       selectedNodeId,
       sheetMode,
       pinned,
@@ -195,19 +203,21 @@ export function ProjectGraphCanvas({
 
   const edges = useMemo<ProjectCanvasEdge[]>(() => {
     const analysis = buildProjectGraphFlowEdges({
-      view,
+      overlay: hubs.overlay,
       edgeCurves,
       selectedEdgeId,
       focus,
       userFocus,
       isolatedEdgeKinds,
       drill,
+      hubIsolation: hubs.isolation,
       onEdgeCurveChange,
     });
     if (activeAnchorId === null) return analysis;
     return [...analysis, detailsLinkEdge(activeAnchorId)];
   }, [
-    view,
+    hubs.overlay,
+    hubs.isolation,
     edgeCurves,
     selectedEdgeId,
     focus,
@@ -230,6 +240,7 @@ export function ProjectGraphCanvas({
     view,
     focus,
     drill,
+    onToggleHub: hubs.toggleHub,
     setSelectedEdgeId,
     onSelectNode,
     onMoveNode,

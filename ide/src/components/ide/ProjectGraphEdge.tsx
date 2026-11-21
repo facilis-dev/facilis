@@ -22,11 +22,13 @@ import {
   type EdgeGeometry,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
+import { resolveTrunkGeometry } from "@/facilis/graph-edge-bundles";
 import { routeEdge } from "@/facilis/graph-edge-routing";
 import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { curveFromPointer, type EdgeCurveDragState } from "./project-graph-edge-drag";
 import { internalNodeRect, obstacleRects, type MeasuredNode } from "./project-graph-edge-rects";
+import { ProjectGraphEdgeLabel } from "./ProjectGraphEdgeLabel";
 import { edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { useGraphLod } from "./use-graph-lod";
@@ -48,8 +50,18 @@ export type ProjectGraphEdgeData = {
   readonly dimmed?: boolean;
   /** True when a drill-down (issue #62) names other nodes: drawn at 12%, like the user focus. */
   readonly drillDimmed?: boolean;
+  /** True when a hub hover (issue #64) names other edges: drawn at 12%, like the user focus. */
+  readonly hubDimmed?: boolean;
   /** How many crossings this boundary bundle stands for (issue #62); absent means one. */
   readonly count?: number;
+  /** Shared trunk lane (issue #64): the edge splits from the group only at its ends. */
+  readonly trunkLane?: number;
+  /** Bundled edges hide the curve handle: bending one member would break the trunk. */
+  readonly bundled?: boolean;
+  /** A label at the midpoint: expanded hub edges show their real analyzer label. */
+  readonly label?: string | null;
+  /** The thick hub->target edge (issue #64): its label is the route count. */
+  readonly hubCount?: number;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -64,6 +76,7 @@ function resolveGeometry(
   positions: { sourceX: number; sourceY: number; targetX: number; targetY: number },
   curve: GraphCurve | null,
   obstacles: readonly Rect[],
+  trunkLane?: number,
 ): EdgeGeometry {
   const fallback: EdgeGeometry = edgeGeometry(
     {
@@ -77,6 +90,13 @@ function resolveGeometry(
   if (source === target) return selfLoopGeometry(sourceRect, curve);
   const targetRect = internalNodeRect(targetNode);
   if (targetRect === null) return fallback;
+  if (trunkLane !== undefined) {
+    // Re-check the lane against the measured cards (and collapsed cluster frames): a taller
+    // card than the layout fallback must never end up under the trunk, so a dirty lane falls
+    // back to the normal orthogonal router (issue #64).
+    const trunk = resolveTrunkGeometry(sourceRect, targetRect, trunkLane, curve, obstacles);
+    if (trunk !== null) return trunk;
+  }
   return routeEdge(sourceRect, targetRect, { obstacles, curve });
 }
 
@@ -113,17 +133,26 @@ export function ProjectGraphEdge({
     { sourceX, sourceY, targetX, targetY },
     curve,
     obstacleRects(nodeLookup),
+    data?.trunkLane,
   );
   const edgeStyle = edgeStyleFor({
     kind,
     ...(data?.access === undefined ? {} : { access: data.access }),
   });
   const highlighted = selected === true || hovered;
+  // The hub's count edge is the one thick stroke on the canvas (issue #64); the expanded
+  // members show their real label, the count edge its route count (counter-scaled, rule 4).
+  const label =
+    data?.hubCount !== undefined
+      ? t("projectGraph.hub.countLabel", { count: data.hubCount })
+      : level !== "chip"
+        ? (data?.label ?? null)
+        : null;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
-    // Chip simplification (issue #60): thinner strokes; labels are never drawn on the canvas
-    // (the model's edge label lives in the inspector) and bend handles are suppressed below.
-    strokeWidth: level === "chip" ? 1 : highlighted ? 2.5 : 1.5,
+    // Chip simplification (issue #60): thinner strokes and no member labels (the model's edge
+    // label lives in the inspector); bend handles are suppressed below.
+    strokeWidth: data?.hubCount !== undefined ? 3 : level === "chip" ? 1 : highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
@@ -131,7 +160,7 @@ export function ProjectGraphEdge({
     // owns the stroke. The AI focus no longer dims — it halos below (aiOutlined).
     ...(data?.dimmed === true
       ? { opacity: 0.1 }
-      : data?.userDimmed === true || data?.drillDimmed === true
+      : data?.userDimmed === true || data?.drillDimmed === true || data?.hubDimmed === true
         ? { opacity: 0.12 }
         : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
@@ -219,8 +248,16 @@ export function ProjectGraphEdge({
           {t("projectGraph.cluster.edgeCount", { count: data?.count ?? 1 })}
         </text>
       ) : null}
-      {/* No bend handles at chip (criterion 5): the edge stays clickable, just not bendable. */}
-      {level !== "chip" && selected === true && data !== undefined ? (
+      {label !== null ? (
+        <ProjectGraphEdgeLabel
+          midpoint={geometry.midpoint}
+          text={label}
+          above={data?.hubCount === undefined}
+        />
+      ) : null}
+      {/* No bend handles at chip (criterion 5) or on a bundled member (issue #64): the edge
+          stays clickable, just not bendable. */}
+      {level !== "chip" && selected === true && data !== undefined && data.bundled !== true ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>
           {/* Invisible hit target: a 5px dot is too small to grab at a fitted zoom. */}

@@ -15,6 +15,7 @@ import type {
   OnNodeDrag,
   Viewport,
 } from "@xyflow/react";
+import { isHubArtefactId } from "@/facilis/graph-edge-hubs";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
@@ -23,12 +24,15 @@ import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
 import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import { resolveDragCommit, resolveNodeClick } from "./project-graph-hub-flow";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectGraphInteractionsInput {
   view: ProjectGraphView;
   focus: ProjectGraphFocusState | null;
   drill: ProjectGraphDrill | null;
+  /** A hub click toggles its session-scoped expansion (issue #64), never the selection. */
+  onToggleHub: (hubId: string) => void;
   setSelectedEdgeId: (id: string | null) => void;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -44,6 +48,7 @@ export function useProjectGraphInteractions({
   view,
   focus,
   drill,
+  onToggleHub,
   setSelectedEdgeId,
   onSelectNode,
   onMoveNode,
@@ -57,18 +62,28 @@ export function useProjectGraphInteractions({
   const moved = useRef(false);
 
   const onEdgeClick: EdgeMouseHandler<ProjectCanvasEdge> = (_event, edge) => {
+    // Hub artefacts are never selected: no curve handle, no id in the saved layout (issue #64).
+    if (isHubArtefactId(edge.id)) return;
     setSelectedEdgeId(edge.id);
     onSelectNode(null);
   };
   const onNodeClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
     // A click inside the satellite keeps the selection: it is the selection's own detail.
     if (node.type === DETAILS_NODE_TYPE) return;
+    const action = resolveNodeClick(node.type);
+    if (action === "toggle-hub") {
+      onToggleHub(node.id);
+      return;
+    }
     setSelectedEdgeId(null);
-    onSelectNode(node.type === NOTE_NODE_TYPE ? null : node.id);
+    onSelectNode(action === "clear" ? null : node.id);
   };
   const onNodeDragStop: OnNodeDrag<ProjectFlowNode> = (_event, node) => {
+    // A hub drag commits nowhere: the saved layout must not learn about view artefacts.
+    const commit = resolveDragCommit(node.type);
+    if (commit === "none") return;
     const position = { x: node.position.x, y: node.position.y };
-    if (node.type === NOTE_NODE_TYPE) {
+    if (commit === "note") {
       onMoveNote(node.id, position);
       return;
     }
@@ -87,9 +102,10 @@ export function useProjectGraphInteractions({
     onMoveNode(node.id, absolute);
   };
   const onNodeDoubleClick: NodeMouseHandler<ProjectFlowNode> = (_event, node) => {
-    // A note opens its own editor; the satellite has no source file of its own; a cluster
-    // frame drills down (issue #62); any other card opens its source file (F.6).
+    // A note opens its own editor; the satellite and the hub chip have no source file of
+    // their own; a cluster frame drills down (issue #62); any other card opens its source (F.6).
     if (node.type === NOTE_NODE_TYPE || node.type === DETAILS_NODE_TYPE) return;
+    if (resolveDragCommit(node.type) === "none") return;
     if (node.type === CLUSTER_NODE_TYPE) {
       onDrillCluster(node.id);
       return;

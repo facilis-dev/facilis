@@ -10,6 +10,7 @@
 // down; only drag stop commits.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
@@ -39,6 +40,8 @@ export interface ProjectFlowNodesInput {
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   /** The active drill-down (issue #62), or null when the whole graph is equally bright. */
   readonly drill: ProjectGraphDrill | null;
+  /** Hub hover isolation (issue #64): only the hub's routes and target stay bright. */
+  readonly hubIsolation: HubIsolation | null;
   readonly onToggleCollapse: (id: string) => void;
   readonly onToggleClusterCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
@@ -54,6 +57,7 @@ export function buildProjectGraphFlowNodes({
   userFocus,
   isolatedEdgeKinds,
   drill,
+  hubIsolation,
   onToggleCollapse,
   onToggleClusterCollapse,
   onEditNote,
@@ -73,10 +77,13 @@ export function buildProjectGraphFlowNodes({
   const isAiOutlined = (id: string): boolean =>
     focus !== null && (focus.nodeIds.has(id) || (aiEndpoints?.has(id) ?? false));
   // The user focus dims by membership in the closure; no closure means every card is bright.
-  // A drill (issue #62) composes with it: an outsider of either recedes, never both brightened.
+  // A drill (issue #62) and a hub hover (issue #64) compose with it: an outsider of any active
+  // isolation recedes, never two brightened.
   const userNodes = userFocus === null ? null : new Set(userFocus.nodeIds);
   const isFocused = (id: string): boolean =>
-    (userNodes === null || userNodes.has(id)) && (drill === null || drill.nodeIds.has(id));
+    (userNodes === null || userNodes.has(id)) &&
+    (drill === null || drill.nodeIds.has(id)) &&
+    (hubIsolation === null || hubIsolation.nodeIds.has(id));
   // Isolation (issue #63) keeps every card in place and dims the ones no isolated edge touches:
   // opacity only, so positions, selection and the graph bounds never move.
   const isolationActive = isolatedEdgeKinds.length > 0;

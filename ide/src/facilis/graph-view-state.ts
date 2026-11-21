@@ -32,6 +32,21 @@ export type GraphViewMode = "topology" | "matrix" | "timeline";
 export const GRAPH_LENS_IDS = ["contract", "data", "runtime", "agent", "impact", "roles"] as const;
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
 
+/**
+ * Edge-concentration threshold (issue #64): a route fan-out with MORE than this many distinct
+ * routes collapses into a hub chip; smaller groups share a trunk. "off" draws every edge
+ * individually. Only the threshold is URL state — the expanded-hub set is session-scoped.
+ */
+export type GraphEdgeConcentration = "off" | 4 | 8;
+export const EDGE_CONCENTRATIONS: readonly GraphEdgeConcentration[] = ["off", 4, 8];
+export const DEFAULT_EDGE_CONCENTRATION: GraphEdgeConcentration = 4;
+
+/** The E shortcut (epic rule 6): cycles the chip order off -> 4 -> 8 -> off. */
+export function cycleEdgeConcentration(value: GraphEdgeConcentration): GraphEdgeConcentration {
+  const index = EDGE_CONCENTRATIONS.indexOf(value);
+  return EDGE_CONCENTRATIONS[(index + 1) % EDGE_CONCENTRATIONS.length] ?? DEFAULT_EDGE_CONCENTRATION;
+}
+
 export interface GraphViewFilters {
   readonly hiddenEdgeKinds: readonly GraphEdgeKind[];
   readonly tableVisibility: GraphTableVisibility;
@@ -71,6 +86,7 @@ export interface GraphViewState {
   readonly drill: string | null;
   readonly viewport: GraphViewport | null;
   readonly query: string;
+  readonly edgeConcentration: GraphEdgeConcentration;
 }
 
 /** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
@@ -90,6 +106,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   drill: null,
   viewport: null,
   query: "",
+  edgeConcentration: DEFAULT_EDGE_CONCENTRATION,
 };
 
 const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
@@ -152,6 +169,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
     out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
   }
   if (state.query !== "") out.q = state.query;
+  if (state.edgeConcentration !== DEFAULT_EDGE_CONCENTRATION) out.e = state.edgeConcentration;
   return Object.keys(out).length === 0 ? "" : JSON.stringify(out);
 }
 
@@ -165,6 +183,10 @@ function readGroupBy(value: unknown): GraphGroupBy {
 
 function readVisibility(value: unknown): GraphTableVisibility {
   return VISIBILITIES.find((visibility) => visibility === value) ?? "all";
+}
+
+function readConcentration(value: unknown): GraphEdgeConcentration {
+  return EDGE_CONCENTRATIONS.find((entry) => entry === value) ?? DEFAULT_EDGE_CONCENTRATION;
 }
 
 function readLenses(value: unknown): GraphLensId[] {
@@ -253,5 +275,6 @@ export function decodeGraphViewState(
     drill: readSelection(parsed.d),
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
+    edgeConcentration: readConcentration(parsed.e),
   };
 }

@@ -7,6 +7,7 @@ import { useMemo, type ReactNode } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphClosureSummary } from "@/facilis/graph-user-focus";
+import { ProjectGraphConcentrationChip } from "./ProjectGraphConcentrationChip";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
@@ -49,16 +50,24 @@ export function useProjectGraphHudSlots({
 }): ProjectGraphHudSlots {
   const lensChips = useMemo(
     () => (
-      <ProjectGraphLensChips
-        disabled={stats === null}
-        edgeCounts={edgeCounts}
-        hiddenEdgeKinds={hiddenEdgeKinds}
-        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-        onIsolatedEdgeKindsChange={viewState.setIsolatedEdgeKinds}
-        onHideEdgeKind={onHideEdgeKind}
-        activeLenses={viewState.state.activeLenses}
-        onActiveLensesChange={viewState.setActiveLenses}
-      />
+      <>
+        <ProjectGraphLensChips
+          disabled={stats === null}
+          edgeCounts={edgeCounts}
+          hiddenEdgeKinds={hiddenEdgeKinds}
+          isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          onIsolatedEdgeKindsChange={viewState.setIsolatedEdgeKinds}
+          onHideEdgeKind={onHideEdgeKind}
+          activeLenses={viewState.state.activeLenses}
+          onActiveLensesChange={viewState.setActiveLenses}
+        />
+        {/* The concentration threshold (issue #64) docks in the lens-chips row: it wraps with
+            the ribbon at narrow widths instead of overlapping it (issue #150 dock). */}
+        <ProjectGraphConcentrationChip
+          concentration={viewState.state.edgeConcentration}
+          onChange={viewState.setEdgeConcentration}
+        />
+      </>
     ),
     [stats, edgeCounts, hiddenEdgeKinds, viewState, onHideEdgeKind],
   );

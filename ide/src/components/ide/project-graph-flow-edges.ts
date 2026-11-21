@@ -1,14 +1,19 @@
 // The analysis edges mapped to React Flow (extracted from ProjectGraphCanvas for the 300-line
 // limit): style, selection, focus dimming and the saved curve travel as data, so the custom edge
 // renders without knowing the view. The satellite connector is added separately by the canvas.
+// The edge source is the concentration overlay (issue #64): a concentrated fan-out becomes one
+// route->hub edge per real edge plus ONE thick hub->target count edge; below-threshold groups
+// carry their shared trunk lane. Hub artefact edges are never selected or bent, so their
+// geometry can never reach the saved layout.
 // Dimming is data, like a card's: the USER focus (issue #66) faints the edges outside the
 // selection's closure to 12%, edge-kind isolation (issue #63) faints every other kind to 10%,
-// and the AI focus (D-171) outlines the edges it names — opacity and outline are separate
-// channels, never a removal, so positions, selection and the graph bounds cannot move.
+// a hub hover (issue #64) faints every edge the hub does not name to 12%, and the AI focus
+// (D-171) outlines the edges it names — opacity and outline are separate channels, never a
+// removal, so positions, selection and the graph bounds cannot move.
 
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import type { ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphHubOverlay, HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
@@ -18,7 +23,8 @@ import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectFlowEdgesInput {
-  readonly view: ProjectGraphView;
+  /** The render overlay: real edges, hub stubs/count edges and the shared trunk lanes (#64). */
+  readonly overlay: GraphHubOverlay;
   readonly edgeCurves: Readonly<Record<string, GraphCurve>>;
   readonly selectedEdgeId: string | null;
   /** The active AI focus (D-171): the outline channel, or null when nothing is outlined. */
@@ -29,6 +35,8 @@ export interface ProjectFlowEdgesInput {
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
   /** The active drill-down (issue #62), or null when the whole graph is equally bright. */
   readonly drill: ProjectGraphDrill | null;
+  /** Hub hover isolation (issue #64), composed with the other dimming channels. */
+  readonly hubIsolation: HubIsolation | null;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
 
@@ -39,23 +47,62 @@ function drillBright(edge: { source: string; target: string }, drill: ProjectGra
 }
 
 export function buildProjectGraphFlowEdges({
-  view,
+  overlay,
   edgeCurves,
   selectedEdgeId,
   focus,
   userFocus,
   isolatedEdgeKinds,
   drill,
+  hubIsolation,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
   const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
-  return view.edges.map((edge) => {
+  const marker = (stroke: string) => ({
+    type: MarkerType.ArrowClosed,
+    color: stroke,
+    width: 14,
+    height: 14,
+  });
+  // The dimming/outline flags every drawn edge composes, keyed by the id it is drawn under.
+  const flags = (id: string, kind: GraphEdgeKind, source: string, target: string) => ({
+    ...(userEdges === null ? {} : { userDimmed: !userEdges.has(id) }),
+    ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(id) }),
+    ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(kind) } : {}),
+    ...(drill === null ? {} : { drillDimmed: !drillBright({ source, target }, drill) }),
+    ...(hubIsolation === null ? {} : { hubDimmed: !hubIsolation.edgeIds.has(id) }),
+  });
+  return overlay.edges.map((render) => {
+    if (render.type === "hub-target") {
+      // The one thick count edge: never selected, never bent — its geometry is the hub's.
+      const style = edgeStyleFor({ kind: render.kind });
+      return {
+        id: render.id,
+        source: render.hubId,
+        target: render.target,
+        sourceHandle: LINK_SOURCE_HANDLE_ID,
+        targetHandle: LINK_TARGET_HANDLE_ID,
+        type: PROJECT_GRAPH_EDGE_TYPE,
+        selected: false,
+        data: {
+          kind: render.kind,
+          ...flags(render.id, render.kind, render.hubId, render.target),
+          curve: null,
+          hubCount: render.count,
+          onCurveChange: onEdgeCurveChange,
+        },
+        markerEnd: marker(style.stroke),
+      };
+    }
+    const edge = render.edge;
     const style = edgeStyleFor(edge);
+    const target = render.type === "hub-source" ? render.hubId : edge.target;
+    const lane = render.type === "real" ? overlay.bundleLanes.get(edge.id) : undefined;
     return {
       id: edge.id,
       source: edge.source,
-      target: edge.target,
+      target,
       sourceHandle: LINK_SOURCE_HANDLE_ID,
       targetHandle: LINK_TARGET_HANDLE_ID,
       type: PROJECT_GRAPH_EDGE_TYPE,
@@ -65,17 +112,18 @@ export function buildProjectGraphFlowEdges({
         ...(edge.access === undefined ? {} : { access: edge.access }),
         // A boundary bundle carries its crossing count (issue #62); absent means one edge.
         ...(edge.count === undefined ? {} : { count: edge.count }),
-        // An edge outside the user's closure recedes; the AI outline is independent of it.
-        ...(userEdges === null ? {} : { userDimmed: !userEdges.has(edge.id) }),
-        ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
-        // Isolation faints every other kind to 10%; the edge composes it with the user dim.
-        ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
-        // A drill (issue #62) faints the edges leaving the drilled cluster, like the user dim.
-        ...(drill === null ? {} : { drillDimmed: !drillBright(edge, drill) }),
-        curve: edgeCurves[edge.id] ?? null,
+        ...flags(edge.id, edge.kind, edge.source, target),
+        // A shared trunk is straight by definition: bending one member would break it, so a
+        // bundled edge ignores its saved curve (and its handle) until the group unbundles.
+        curve: lane !== undefined ? null : (edgeCurves[edge.id] ?? null),
+        ...(lane !== undefined ? { trunkLane: lane, bundled: true } : {}),
+        // Expanded hub edges show their real analyzer label (issue #64).
+        ...(render.type === "real" && render.showLabel && edge.label !== null
+          ? { label: edge.label }
+          : {}),
         onCurveChange: onEdgeCurveChange,
       },
-      markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
+      markerEnd: marker(style.stroke),
     };
   });
 }

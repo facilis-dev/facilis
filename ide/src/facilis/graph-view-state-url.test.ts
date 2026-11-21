@@ -60,6 +60,16 @@ describe("gv parameter merge", () => {
     expect(graphViewSearch("?project=p&gv=stale", DEFAULT_GRAPH_VIEW_STATE)).toBe("project=p");
   });
 
+  it("carries the concentration threshold through the URL and nothing hub-related (#64)", () => {
+    const next = state({ edgeConcentration: "off", query: "tasks" });
+    const search = graphViewSearch("?project=p&net=1", next);
+    const decoded = decodeGraphViewState(readGraphViewParam(search));
+    expect(decoded.edgeConcentration).toBe("off");
+    expect(decoded.query).toBe("tasks");
+    expect(readGraphViewParam(search)?.includes("hub:")).toBe(false);
+    expect(new URLSearchParams(search).get("net")).toBe("1");
+  });
+
   it("carries the runtime lens options through the gv merge and percent-encoding", () => {
     const next = state({
       activeLenses: ["runtime"],

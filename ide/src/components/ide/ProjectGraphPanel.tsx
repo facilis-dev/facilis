@@ -25,6 +25,7 @@ import {
   toggleKindFilter,
 } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
+import { cycleEdgeConcentration } from "@/facilis/graph-view-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
@@ -129,6 +130,8 @@ export function ProjectGraphPanel() {
     onDrillUp: clusters.drillUp,
     onToggleGroupBy: clusters.toggleGroupBy,
     onCollapseCluster: clusters.collapseActive,
+    onCycleConcentration: () =>
+      viewState.setEdgeConcentration(cycleEdgeConcentration(viewState.state.edgeConcentration)),
   });
   // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
@@ -181,6 +184,7 @@ export function ProjectGraphPanel() {
     ) : view !== null ? (
       <ProjectGraphCanvas
         view={view}
+        concentration={viewState.state.edgeConcentration}
         fitPadding={fitPadding}
         onInstance={setFlow}
         viewport={layout.viewport ?? null}

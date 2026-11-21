@@ -16,6 +16,7 @@ import {
   DEFAULT_GRAPH_VIEW_STATE,
   decodeGraphViewState,
   encodeGraphViewState,
+  type GraphEdgeConcentration,
   type GraphGroupBy,
   type GraphLensId,
   type GraphViewMode,
@@ -37,6 +38,7 @@ interface GraphViewLocalState {
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
+  readonly edgeConcentration: GraphEdgeConcentration;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -49,6 +51,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
+  edgeConcentration: DEFAULT_GRAPH_VIEW_STATE.edgeConcentration,
 };
 
 export interface ProjectGraphViewState {
@@ -66,6 +69,7 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
+  readonly setEdgeConcentration: (value: GraphEdgeConcentration) => void;
   readonly setGroupBy: (groupBy: GraphGroupBy) => void;
   readonly setCollapsedClusters: (ids: readonly string[]) => void;
   readonly setDrill: (id: string | null) => void;
@@ -156,6 +160,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setEdgeConcentration = useCallback(
+    (edgeConcentration: GraphEdgeConcentration) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, edgeConcentration }));
+    },
+    [cancelRestore],
+  );
 
   const collapsedIds = useMemo(
     () =>
@@ -179,6 +190,7 @@ export function useProjectGraphViewState(
       ...clusterView.local,
       viewport: layout.viewport ?? null,
       query: local.query,
+      edgeConcentration: local.edgeConcentration,
     }),
     [
       local,
@@ -244,6 +256,7 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      edgeConcentration: pending.edgeConcentration,
     });
     // Cluster ids are derived, not analysis ids: they restore unfiltered and the clusters hook
     // drops the ones no current cluster carries (issue #62).
@@ -270,6 +283,7 @@ export function useProjectGraphViewState(
     setSelection,
     setUserFocus,
     setQuery,
+    setEdgeConcentration,
     setGroupBy: clusterView.setGroupBy,
     setCollapsedClusters: clusterView.setCollapsedClusters,
     setDrill: clusterView.setDrill,
