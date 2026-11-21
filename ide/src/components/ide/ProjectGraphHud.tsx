@@ -1,12 +1,13 @@
 // The floating HUD (issue #57): four clusters absolutely positioned over the full-bleed canvas,
-// never participating in layout. Top-left breadcrumb + mode-switcher SLOT; top-right search, save
-// state, refresh and actions; bottom-left the stats ribbon + the lens chips (issue #63);
-// bottom-right minimap SLOT, zoom and fit. The remaining slots are owned here but left empty —
-// later issues fill them. Every control is a named, keyboard-reachable button; clusters are
-// role="toolbar". Below 1280px (xl) button labels collapse to icons. Role tokens only (D-044);
-// every string via t() (D-043).
+// never participating in layout. Top-left the breadcrumb trail (issue #68) + mode switcher;
+// top-right search, save state, refresh, palette/shortcut triggers and actions; bottom-left the
+// stats ribbon + lens chips (issue #63); bottom-right the minimap (issue #68), zoom and fit.
+// Every control is a named, keyboard-reachable button; clusters are role="toolbar". Below 1280px
+// (xl) button labels collapse to icons. Role tokens only (D-044); every string via t() (D-043).
 
 import type { ReactNode } from "react";
+import Command from "~icons/lucide/command";
+import Keyboard from "~icons/lucide/keyboard";
 import Maximize2 from "~icons/lucide/maximize-2";
 import Minimize2 from "~icons/lucide/minimize-2";
 import Network from "~icons/lucide/network";
@@ -55,6 +56,10 @@ export interface ProjectGraphHudProps {
   lensChips: ReactNode;
   /** The selection-context line / isolate breadcrumb (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
+  /** The project → cluster → node trail (issue #68), replacing the static title top-left. */
+  breadcrumbs: ReactNode;
+  /** The minimap (issue #68), docked in the bottom-right cluster beside zoom and fit. */
+  minimap: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   /** The drawn mode (issue #67); timeline stays a carried mode until #76 renders it. */
@@ -62,6 +67,9 @@ export interface ProjectGraphHudProps {
   onModeChange: (mode: GraphViewMode) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
+  /** Palette / shortcut-sheet triggers (issue #68); the keys work in zen too, the HUD hides. */
+  onOpenPalette: () => void;
+  onOpenSheet: () => void;
 }
 
 const CLUSTER =
@@ -80,7 +88,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         className={CLUSTER + " top-2 left-2 max-w-[60%]"}
       >
         <Network className="size-3.5 shrink-0 text-brand" />
-        <span className="truncate text-xs font-medium">{t("projectGraph.title")}</span>
+        {props.breadcrumbs}
         {props.focusBar}
         <span
           role="group"
@@ -193,6 +201,24 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         >
           <RefreshCw className={props.refreshing ? "animate-spin" : undefined} />
         </Button>
+        {(
+          [
+            ["palette", Command, t("projectGraph.palette.triggerHint"), props.onOpenPalette],
+            ["shortcuts", Keyboard, t("projectGraph.shortcuts.triggerHint"), props.onOpenSheet],
+          ] as const
+        ).map(([id, Icon, hint, open]) => (
+          <Button
+            key={id}
+            variant="ghost"
+            size="icon-sm"
+            data-testid={"graph-hud-" + id}
+            aria-label={hint}
+            title={hint}
+            onClick={open}
+          >
+            <Icon />
+          </Button>
+        ))}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -230,11 +256,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         data-hud-zone
         className={CLUSTER + " right-2 bottom-2"}
       >
-        <div
-          data-testid="graph-hud-minimap-slot"
-          aria-label={t("projectGraph.hud.minimapSlot")}
-          className="hidden"
-        />
+        {props.minimap}
         <Button
           variant="ghost"
           size="icon-sm"

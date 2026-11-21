@@ -53,6 +53,7 @@ export function ProjectGraphCanvas({
   onToggleCollapse,
   onIsolateNode,
   onViewportChange,
+  onViewportLive,
   onEdgeCurveChange,
   onCreateNote,
   onMoveNote,
@@ -80,6 +81,9 @@ export function ProjectGraphCanvas({
   /** Double-click isolates the node's reachability closure (issue #66). */
   onIsolateNode: (id: string) => void;
   onViewportChange: (viewport: GraphViewport) => void;
+  /** Live viewport during any move (issue #68): the minimap reflects it without waiting for
+   * the move-end commit. Optional so the canvas keeps working without the navigation hook. */
+  onViewportLive?: (viewport: GraphViewport) => void;
   onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
   onCreateNote: (position: { x: number; y: number }) => void;
   onMoveNote: (id: string, position: { x: number; y: number }) => void;
@@ -237,6 +241,7 @@ export function ProjectGraphCanvas({
     moved.current = true;
   };
   const onMoveEnd: OnMoveEnd = (_event, next: Viewport) => {
+    onViewportLive?.({ x: next.x, y: next.y, zoom: next.zoom });
     if (!moved.current) return;
     moved.current = false;
     onViewportChange({ x: next.x, y: next.y, zoom: next.zoom });
@@ -270,6 +275,7 @@ export function ProjectGraphCanvas({
           onSelectNode(null);
         }}
         onMoveStart={onMoveStart}
+        onMove={(_event, next) => onViewportLive?.({ x: next.x, y: next.y, zoom: next.zoom })}
         onMoveEnd={onMoveEnd}
         fitView={viewport === null}
         fitViewOptions={{ padding: toFlowPadding(fitPadding) }}

@@ -27,6 +27,7 @@ import {
 } from "@/facilis/graph-edge-geometry";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
+import { GRAPH_NODE_FALLBACK_SIZE } from "./project-graph-kind-tokens";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -49,21 +50,17 @@ export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_ED
 
 type InternalProjectNode = InternalNode<ProjectFlowNode>;
 
-/** Card widths from the Tailwind classes, used before React Flow reports a measurement. */
-const FALLBACK_SIZE: Record<string, { readonly width: number; readonly height: number }> = {
-  page: { width: 224, height: 157 },
-  route: { width: 256, height: 60 },
-  table: { width: 240, height: 80 },
-  view: { width: 240, height: 80 },
-};
 const DEFAULT_SIZE = { width: 220, height: 48 };
 
+/** The shared per-kind fallbacks (project-graph-kind-tokens.ts); notes use the default. */
 function fallbackSize(type: string | undefined): {
   readonly width: number;
   readonly height: number;
 } {
   if (type === undefined) return DEFAULT_SIZE;
-  return FALLBACK_SIZE[type] ?? DEFAULT_SIZE;
+  const sizes: Record<string, { readonly width: number; readonly height: number }> =
+    GRAPH_NODE_FALLBACK_SIZE;
+  return sizes[type] ?? DEFAULT_SIZE;
 }
 
 function rectFor(node: InternalProjectNode | undefined): Rect | null {

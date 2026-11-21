@@ -1,7 +1,8 @@
 // Edge presentation shared by the project-graph canvas, its filters and its legend: one
 // stroke per edge kind, plus the catalogue key that names it. Role tokens only (D-043/044).
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import type { MessageKey } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
+import type { PaletteCommand } from "@/facilis/graph-palette";
 import type { ProjectGraphEdge } from "@/facilis/graph-types";
 
 export interface GraphEdgeStyle {
@@ -27,6 +28,16 @@ export const ELEVATED_EDGE_STYLE: GraphEdgeStyle = {
 
 export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): GraphEdgeStyle {
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
+}
+
+/** A palette command's accessible name: the isolate commands interpolate the edge label. */
+export function paletteCommandLabel(command: PaletteCommand): string {
+  if (command.edgeKind !== undefined) {
+    return t(command.labelKey as MessageKey, {
+      label: t(GRAPH_EDGE_LABEL_KEYS[command.edgeKind]),
+    });
+  }
+  return t(command.labelKey as MessageKey);
 }
 
 export const GRAPH_EDGE_LABEL_KEYS: Record<GraphEdgeKind, MessageKey> = {

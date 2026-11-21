@@ -1,13 +1,16 @@
-// The panel's keyboard semantics (issue #66 + issue #67), split from ProjectGraphPanel.tsx so
+// The panel's keyboard semantics (issues #66/#67/#68), split from ProjectGraphPanel.tsx so
 // the composition root stays under the source limit: Esc clears one layer at a time (the order
-// lives in graphEscapeAction), Enter isolates the selection, and "m" toggles topology ↔ matrix
-// (epic rule 6: every mode is keyboard-reachable). The matrix grid owns Enter for its cell
-// cursor and preventDefaults it, so the document-level isolate never doubles up on a cell.
+// lives in graphEscapeAction — the palette/sheet dialogs close FIRST, handling and preventing
+// Esc themselves), Enter isolates the selection, "m" toggles topology ↔ matrix, and the
+// navigation keys (F, 0, 1, 2, ?, Cmd/Ctrl+K) dispatch to the navigation hook. The matrix grid
+// owns Enter for its cell cursor and preventDefaults it, so the document-level isolate never
+// doubles up on a cell. Typing targets keep their plain keys — the resolver guards.
 
 import type { GraphViewMode } from "@/facilis/graph-view-state";
 import { graphEscapeAction } from "@/facilis/graph-user-focus";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { useProjectGraphKeys } from "./useProjectGraphKeys";
+import type { ProjectGraphNavigation } from "./useProjectGraphNavigation";
 
 export function useProjectGraphPanelKeys({
   zen,
@@ -19,6 +22,7 @@ export function useProjectGraphPanelKeys({
   aiFocusActive,
   mode,
   setMode,
+  navigation,
 }: {
   zen: boolean;
   exitZen: () => void;
@@ -29,18 +33,25 @@ export function useProjectGraphPanelKeys({
   aiFocusActive: boolean;
   mode: GraphViewMode;
   setMode: (mode: GraphViewMode) => void;
+  navigation: ProjectGraphNavigation;
 }): void {
   useProjectGraphKeys({
-    onEscape: () => {
+    escape: () => {
       const action = graphEscapeAction({ zen, isolatedNode, selection, aiFocusActive });
       if (action === "exit-zen") exitZen();
       else if (action === "exit-isolate") setIsolatedNode(null);
       else if (action === "clear-selection") setSelection(null);
       else if (action === "clear-ai-focus") clearGraphFocus();
     },
-    onEnter: () => {
+    enter: () => {
       if (selection !== null) setIsolatedNode(selection);
     },
-    onToggleMode: () => setMode(mode === "matrix" ? "topology" : "matrix"),
+    "toggle-mode": () => setMode(mode === "matrix" ? "topology" : "matrix"),
+    fit: navigation.fit,
+    "reset-zoom": navigation.resetZoom,
+    "zoom-preset-compact": () => navigation.applyZoomPreset(1),
+    "zoom-preset-full": () => navigation.applyZoomPreset(2),
+    "shortcut-sheet": navigation.openSheet,
+    palette: navigation.openPalette,
   });
 }

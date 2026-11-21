@@ -1,21 +1,20 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issue #57).
 //
-// This file is the composition root: the stats-ribbon filter, zen mode, the AI focus and the
-// user's focus-and-context highlighting (issue #66). The analysis lifecycle lives in
-// useProjectGraphAnalysis, the URL-synced view (search, selection, mode, lenses, isolation) in
-// useProjectGraphViewState — which composes the saved-layout hook — the derived closure in
-// useProjectGraphUserFocus, the keyboard in useProjectGraphPanelKeys, and the chrome in
-// ProjectGraphShell / ProjectGraphHud / StatsRibbon.
-// Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
+// This file is the composition root: the stats-ribbon filter, zen mode, the AI focus, the
+// user's focus-and-context (issue #66) and the navigation surface (issue #68: palette, minimap,
+// breadcrumbs, zoom presets, shortcut sheet). The analysis lifecycle lives in
+// useProjectGraphAnalysis, the URL-synced view in useProjectGraphViewState (composing the
+// saved-layout hook), the closure in useProjectGraphUserFocus, the keyboard in
+// useProjectGraphPanelKeys, the navigation in useProjectGraphNavigation, the chrome in
+// ProjectGraphShell / Hud / StatsRibbon / InspectorSlot. Nothing here touches the analyzer
+// worker or writes outside the project's .facilis directory.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import { buildProjectGraphView, sourcePathFor } from "@/facilis/graph-model";
-import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
+import { buildProjectGraphView } from "@/facilis/graph-model";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { closureSummary } from "@/facilis/graph-user-focus";
-import { openPageInPreview } from "@/facilis/graph-open-preview";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import {
   EMPTY_STATS_FILTER,
@@ -25,18 +24,22 @@ import {
 } from "@/facilis/graph-stats-filter";
 import { countEdgeKinds } from "@/facilis/graph-lens-state";
 import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
+import { ProjectGraphBreadcrumbs } from "./ProjectGraphBreadcrumbs";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
-import { ProjectGraphInspector } from "./ProjectGraphInspector";
+import { ProjectGraphInspectorSlot } from "./ProjectGraphInspectorSlot";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
+import { ProjectGraphMinimap } from "./ProjectGraphMinimap";
+import { ProjectGraphNavigationOverlays } from "./ProjectGraphNavigationOverlays";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphNavigation } from "./useProjectGraphNavigation";
 import { useProjectGraphPanelKeys } from "./useProjectGraphPanelKeys";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
@@ -55,9 +58,6 @@ export function ProjectGraphPanel() {
   const [zenState, dispatchZen] = useReducer(zenReducer, INITIAL_ZEN);
   const zen = zenState.zen;
   const [filter, setFilter] = useState(EMPTY_STATS_FILTER);
-  const [fitNonce, setFitNonce] = useState(0);
-  // The React Flow instance, lifted only so the HUD zoom buttons can drive it (issue #57).
-  const [flow, setFlow] = useState<{ zoomIn: () => void; zoomOut: () => void } | null>(null);
   // The addressable view (issue #58): query/selection live in the URL-synced state, which also
   // composes the layout hook. knownNodeIds lets a deep link drop ids this project does not have.
   const knownNodeIds = useMemo(
@@ -78,19 +78,6 @@ export function ProjectGraphPanel() {
   // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
   const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
 
-  // Esc/Enter/"m" semantics (issues #66/#67); typing targets keep their keys — the hooks guard.
-  useProjectGraphPanelKeys({
-    zen,
-    exitZen: () => dispatchZen({ type: "exit" }),
-    isolatedNode,
-    setIsolatedNode,
-    selection: selectedNodeId,
-    setSelection: setSelectedNodeId,
-    aiFocusActive: focus !== null,
-    mode: viewState.state.mode,
-    setMode: viewState.setMode,
-  });
-
   const view = useMemo(
     () =>
       analysis === null
@@ -109,6 +96,39 @@ export function ProjectGraphPanel() {
   // The user's focus-and-context (issue #66): isolation filters the view to one closure, the
   // selection dims everything outside its own. Both are derived, so the URL alone restores them.
   const { displayView, userFocus } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
+  // Navigation (issue #68): owns the React Flow instance and the fit nonce the canvas consumes.
+  const nav = useProjectGraphNavigation({
+    view,
+    displayView,
+    selection: selectedNodeId,
+    setSelection: setSelectedNodeId,
+    isolatedNode,
+    setIsolatedNode,
+    isolatedEdgeKinds: viewState.state.isolatedEdgeKinds,
+    setIsolatedEdgeKinds: viewState.setIsolatedEdgeKinds,
+    mode: viewState.state.mode,
+    setMode: viewState.setMode,
+    saveNow: graph.saveNow,
+    resetPositions: graph.resetPositions,
+    changeViewport: graph.changeViewport,
+    remeasure,
+    containerRef,
+  });
+
+  // Esc/Enter/"m" + the navigation keys (issues #66/#67/#68); typing targets keep their keys.
+  useProjectGraphPanelKeys({
+    zen,
+    exitZen: () => dispatchZen({ type: "exit" }),
+    isolatedNode,
+    setIsolatedNode,
+    selection: selectedNodeId,
+    setSelection: setSelectedNodeId,
+    aiFocusActive: focus !== null,
+    mode: viewState.state.mode,
+    setMode: viewState.setMode,
+    navigation: nav,
+  });
+
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -122,43 +142,7 @@ export function ProjectGraphPanel() {
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
-
-  const fit = () => {
-    remeasure();
-    setFitNonce((value) => value + 1);
-  };
-  const resetLayout = () => {
-    graph.resetPositions();
-    fit();
-  };
-  const selectedNode = displayView?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  // Incident edges, both directions: the page inspector lists page links and the view inspector
-  // reads the routes that use it (incoming route-view edges).
-  const selectedEdges =
-    displayView?.edges.filter(
-      (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
-    ) ?? [];
-  // The inspector's detail facts live on the Analysis the panel already holds, not on the graph.
-  const details = useMemo<ReadonlyMap<string, NodeDetails>>(
-    () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
-    [analysis],
-  );
-  const nodeLabels = useMemo(
-    () => new Map((displayView?.nodes ?? []).map((node) => [node.id, node.label] as const)),
-    [displayView],
-  );
-  const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
-  const openFileAt = (file: string, line: number) => {
-    const path = sourcePathFor(root, file);
-    if (path !== null) void c.openFileAt(path, line);
-  };
-  // A detail list may name a relation the graph did not draw: selecting an id that has no node
-  // would close the inspector for no reason.
-  const selectNode = (id: string) => {
-    if (nodeLabels.has(id)) setSelectedNodeId(id);
-  };
-  const toggleKind = (kind: GraphNodeKind) =>
-    setFilter((current) => toggleKindFilter(current, kind));
+  const toggleKind = (kind: GraphNodeKind) => setFilter((cur) => toggleKindFilter(cur, kind));
 
   // The four non-canvas states live in their own component. Notes are content too: a graph with
   // only annotations is not "empty" (D-126).
@@ -171,6 +155,8 @@ export function ProjectGraphPanel() {
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
   const stats = displayView?.stats ?? null;
+  const isolatedNodeLabel =
+    isolatedNode === null ? null : (view?.nodes.find((n) => n.id === isolatedNode)?.label ?? null);
   const body =
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
@@ -189,9 +175,9 @@ export function ProjectGraphPanel() {
         <ProjectGraphCanvas
           view={displayView}
           fitPadding={fitPadding}
-          onInstance={setFlow}
+          onInstance={nav.onInstance}
           viewport={layout.viewport ?? null}
-          fitNonce={fitNonce}
+          fitNonce={nav.fitNonce}
           edgeCurves={layout.edgeCurves}
           focus={focus}
           userFocus={userFocus}
@@ -204,6 +190,7 @@ export function ProjectGraphPanel() {
           onToggleCollapse={graph.toggleCollapsed}
           onIsolateNode={setIsolatedNode}
           onViewportChange={graph.changeViewport}
+          onViewportLive={nav.onViewportLive}
           onEdgeCurveChange={graph.changeEdgeCurve}
           onCreateNote={graph.createNote}
           onMoveNote={graph.moveNote}
@@ -233,9 +220,9 @@ export function ProjectGraphPanel() {
             onClearFocus={clearGraphFocus}
             errors={errors}
             warnings={warnings}
-            onFit={fit}
-            onZoomIn={() => flow?.zoomIn()}
-            onZoomOut={() => flow?.zoomOut()}
+            onFit={nav.fit}
+            onZoomIn={() => nav.flow?.zoomIn()}
+            onZoomOut={() => nav.flow?.zoomOut()}
             filter={filter}
             onToggleKind={toggleKind}
             onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
@@ -262,38 +249,51 @@ export function ProjectGraphPanel() {
                     ? null
                     : closureSummary(displayView, userFocus)
                 }
-                isolatedLabel={isolatedNode === null ? null : nodeLabel(isolatedNode)}
+                isolatedLabel={isolatedNodeLabel}
                 onIsolate={() => {
                   if (selectedNodeId !== null) setIsolatedNode(selectedNodeId);
                 }}
                 onExitIsolate={() => setIsolatedNode(null)}
               />
             }
+            breadcrumbs={
+              <ProjectGraphBreadcrumbs trail={nav.trail} onNavigate={nav.navigateBreadcrumb} />
+            }
+            minimap={
+              viewState.state.mode === "matrix" ? null : (
+                <ProjectGraphMinimap
+                  nodes={nav.minimapNodes}
+                  viewport={nav.liveViewport}
+                  containerRef={containerRef}
+                  onPan={nav.panTo}
+                  onPanEnd={nav.panEnd}
+                />
+              )
+            }
+            onOpenPalette={nav.openPalette}
+            onOpenSheet={nav.openSheet}
             // With no canvas on screen the HUD must still place the first note at a fixed origin.
             onAddNote={
               state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
             }
-            onResetLayout={resetLayout}
+            onResetLayout={nav.resetLayout}
           />
         )
       }
       inspector={
-        selectedNode !== null ? (
-          <ProjectGraphInspector
-            node={selectedNode}
-            edges={selectedEdges}
-            details={details.get(selectedNode.id) ?? null}
-            sources={sources}
-            nodeLabel={nodeLabel}
-            onClose={() => setSelectedNodeId(null)}
-            onOpenFileAt={openFileAt}
-            onOpenPreview={(path) => openPageInPreview(c, path)}
-            onSelectNode={selectNode}
-          />
-        ) : null
+        <ProjectGraphInspectorSlot
+          analysis={analysis}
+          view={displayView}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          root={root}
+          controller={c}
+          sources={sources}
+        />
       }
     >
       {body}
+      <ProjectGraphNavigationOverlays navigation={nav} />
     </ProjectGraphShell>
   );
 }

@@ -1,27 +1,17 @@
-// The graph canvas's keyboard surface (issue #66, epic #56 rule 6): Esc clears one layer at a
-// time (the panel resolves the order through graphEscapeAction), Enter isolates the selection,
-// "m" toggles topology ↔ matrix (issue #67).
-// Typing targets keep their keys — the note editor cancels its own edit with Esc — and native
-// controls keep Enter for their own activation, so the canvas shortcut never steals a button's
-// click. The handlers travel through a ref so the document listener is attached exactly once.
+// The graph canvas's keyboard surface (issues #66/#67/#68, epic #56 rule 6): one ref-based
+// document listener resolves every key through the pure resolver (graph-keys.ts) — Esc clears
+// one layer at a time (the panel resolves the order through graphEscapeAction), Enter isolates
+// the selection, "m" toggles topology ↔ matrix, F fits, 0 resets the zoom, 1/2 are the
+// viewport zoom presets, "?" opens the shortcut sheet and Cmd/Ctrl+K the palette. Plain keys
+// never fire on a typing target (the HUD search, the note editor); the palette combo does.
 
 import { useEffect, useRef } from "react";
+import { isTypingTargetInfo, resolveGraphKey, type GraphKeyAction } from "@/facilis/graph-keys";
 
-export interface ProjectGraphKeys {
-  readonly onEscape: () => void;
-  readonly onEnter: () => void;
-  /** "m" — the mode toggle; typing targets keep the letter for their own input. */
-  readonly onToggleMode?: () => void;
-}
+export type ProjectGraphKeyHandlers = Partial<Record<GraphKeyAction, () => void>>;
 
 function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT")
-  );
+  return target instanceof HTMLElement && isTypingTargetInfo(target);
 }
 
 /** Native interactive elements activate themselves with Enter; a focused node card does not. */
@@ -32,21 +22,28 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function useProjectGraphKeys({ onEscape, onEnter, onToggleMode }: ProjectGraphKeys): void {
-  const handlers = useRef({ onEscape, onEnter, onToggleMode });
+export function useProjectGraphKeys(handlers: ProjectGraphKeyHandlers): void {
+  const ref = useRef(handlers);
   useEffect(() => {
-    handlers.current = { onEscape, onEnter, onToggleMode };
-  }, [onEscape, onEnter, onToggleMode]);
+    ref.current = handlers;
+  }, [handlers]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
-      if (event.key === "Escape") {
-        handlers.current.onEscape();
-      } else if (event.key === "Enter" && !isInteractiveTarget(event.target)) {
-        handlers.current.onEnter();
-      } else if (event.key === "m" && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        handlers.current.onToggleMode?.();
-      }
+      const action = resolveGraphKey({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        defaultPrevented: event.defaultPrevented,
+        typingTarget: isTypingTarget(event.target),
+        interactiveTarget: isInteractiveTarget(event.target),
+      });
+      if (action === null) return;
+      const handler = ref.current[action];
+      if (handler === undefined) return;
+      // The palette combo must not also reach the browser's own search/shortcut.
+      event.preventDefault();
+      handler();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
