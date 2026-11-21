@@ -17,6 +17,8 @@ import { NOTE_NODE_TYPE, ProjectGraphNoteNode, type ProjectNoteFlowNode } from "
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { RouteGraphNode } from "./ProjectGraphRouteNode";
 import { ViewGraphNode } from "./ProjectGraphViewNode";
+import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
+import { useGraphLod } from "./use-graph-lod";
 
 /** React Flow's data bound wants an object alias, not an interface. */
 export type ProjectFlowData = {
@@ -24,6 +26,8 @@ export type ProjectFlowData = {
   collapsed: boolean;
   /** False when an AI focus request (D-171) names other nodes: the card is drawn dimmed. */
   focused: boolean;
+  /** Edges touching this node in the visible view — the chip's count, derived from the model. */
+  edgeCount: number;
   onToggleCollapse: (id: string) => void;
 };
 
@@ -40,44 +44,53 @@ export type ProjectFlowNode = ProjectAnalysisFlowNode | ProjectNoteFlowNode;
 export { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodeChrome";
 
 export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  const level = useGraphLod();
   const node = data.node;
   const page = node.data.kind === "page" ? node.data : null;
   if (page === null) return null;
   return (
     <div
       data-testid="project-graph-page"
+      data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-56"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-56"}
     >
-      <div className="flex items-center gap-1.5">
-        <FileCode className="size-3 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{page.pagePath}</span>
-      </div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
-        <span className="rounded border px-1">
-          {t(("projectGraph.pageKind." + page.pageKind) as MessageKey)}
-        </span>
-        {page.routePaths.slice(0, 3).map((path) => (
-          <span
-            key={path}
-            title={path}
-            className="max-w-full truncate rounded border border-brand/40 bg-brand/10 px-1 font-mono text-brand"
-          >
-            {path}
+      <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
+        <div className="flex items-center gap-1.5">
+          <FileCode className="size-3 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{page.pagePath}</span>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+          <span className="rounded border px-1">
+            {t(("projectGraph.pageKind." + page.pageKind) as MessageKey)}
           </span>
-        ))}
-        {page.routePaths.length > 3 && <span>+{page.routePaths.length - 3}</span>}
-        {page.routePaths.length === 0 && (
-          <span className="rounded border border-warning/50 px-1 text-warning">
-            {t("projectGraph.pageUnrouted")}
+          {page.routePaths.slice(0, 3).map((path) => (
+            <span
+              key={path}
+              title={path}
+              className="max-w-full truncate rounded border border-brand/40 bg-brand/10 px-1 font-mono text-brand"
+            >
+              {path}
+            </span>
+          ))}
+          {page.routePaths.length > 3 && <span>+{page.routePaths.length - 3}</span>}
+          {page.routePaths.length === 0 && (
+            <span className="rounded border border-warning/50 px-1 text-warning">
+              {t("projectGraph.pageUnrouted")}
+            </span>
+          )}
+          <span className="ml-auto shrink-0">
+            {t("projectGraph.calls", { count: page.callCount })}
           </span>
+        </div>
+        {page.preview !== null && page.preview.nodes.length > 0 && (
+          <ProjectGraphPageSketch preview={page.preview} className="mt-1.5" />
         )}
-        <span className="ml-auto shrink-0">
-          {t("projectGraph.calls", { count: page.callCount })}
-        </span>
       </div>
-      {page.preview !== null && page.preview.nodes.length > 0 && (
-        <ProjectGraphPageSketch preview={page.preview} className="mt-1.5" />
+      {level !== "full" && (
+        <GraphLodOverlay>
+          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+        </GraphLodOverlay>
       )}
       <LinkHandles />
     </div>
@@ -94,7 +107,7 @@ function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
   return (
     <span className="flex shrink-0 items-center gap-0.5">
       {markers.map((marker) => (
-        <span key={marker} className="rounded border px-0.5 text-[8px] leading-tight">
+        <span key={marker} className="rounded border px-0.5 text-[10px] leading-tight">
           {t(("projectGraph.marker." + marker) as MessageKey)}
         </span>
       ))}
@@ -103,6 +116,7 @@ function ColumnMarkers({ markers }: { markers: readonly ColumnMarker[] }) {
 }
 
 export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  const level = useGraphLod();
   const node = data.node;
   const table = node.data.kind === "table" ? node.data : null;
   if (table === null) return null;
@@ -115,88 +129,96 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   return (
     <div
       data-testid="project-graph-table"
+      data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-60"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-60"}
     >
-      <div className="flex items-center gap-1.5">
-        <Table2 className="size-3 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
-          {table.table}
-        </span>
-        {table.unknown && <UnknownBadge />}
-        <button
-          type="button"
-          className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
-          aria-label={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
-          title={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
-          onClick={(event) => {
-            event.stopPropagation();
-            data.onToggleCollapse(node.id);
-          }}
-        >
-          {data.collapsed ? (
-            <ChevronRight className="size-3" />
-          ) : (
-            <ChevronDown className="size-3" />
+      <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
+        <div className="flex items-center gap-1.5">
+          <Table2 className="size-3 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
+            {table.table}
+          </span>
+          {table.unknown && <UnknownBadge />}
+          <button
+            type="button"
+            className="nodrag flex size-4 shrink-0 items-center justify-center rounded hover:bg-accent"
+            aria-label={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
+            title={data.collapsed ? t("projectGraph.expand") : t("projectGraph.collapse")}
+            onClick={(event) => {
+              event.stopPropagation();
+              data.onToggleCollapse(node.id);
+            }}
+          >
+            {data.collapsed ? (
+              <ChevronRight className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            )}
+          </button>
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          {/* RLS is the default class (D-136): the card names only the system-only exception. */}
+          {!table.rlsEnabled && (
+            <span className="rounded border border-border px-1 text-muted-foreground">
+              {t("projectGraph.systemOnly")}
+            </span>
           )}
-        </button>
-      </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-        {/* RLS is the default class (D-136): the card names only the system-only exception. */}
-        {!table.rlsEnabled && (
-          <span className="rounded border border-border px-1 text-muted-foreground">
-            {t("projectGraph.systemOnly")}
-          </span>
-        )}
-        {shownPolicies.map((policy) => (
-          <span
-            key={policy.name}
-            className="max-w-full truncate rounded border border-border px-1 font-mono"
-            title={policy.name}
-          >
-            {policy.name}
-          </span>
-        ))}
-        {grants.length > shownPolicies.length && (
-          <span className="shrink-0">+{grants.length - shownPolicies.length}</span>
-        )}
-        {table.framework && (
-          <span
-            className="rounded border border-border px-1 text-muted-foreground"
-            title={t("projectGraph.framework")}
-          >
-            {t("projectGraph.framework")}
-          </span>
-        )}
-        {/* The tenant scope is the class default on every app table (D-136/D-174) and stays in the
-            inspector; the card names only the exception, an owner scope. */}
-        {table.scope !== null && table.scope.kind !== "tenant" && (
-          <span className="min-w-0 truncate">
-            {t("projectGraph.scope", {
-              column: table.scope.column,
-              kind: t(("projectGraph.scopeKind." + table.scope.kind) as MessageKey),
-            })}
-          </span>
-        )}
-        <span className="ml-auto shrink-0">
-          {t("projectGraph.columns", { count: table.columns.length })}
-        </span>
-      </div>
-      {shown.length > 0 && (
-        <ul className="mt-1 space-y-0.5 border-t pt-1">
-          {shown.map((column) => (
-            <li key={column.property} className="flex items-center gap-1 text-[9px]">
-              <span className="min-w-0 flex-1 truncate font-mono">{column.property}</span>
-              <span className="shrink-0 truncate text-muted-foreground">{column.type}</span>
-              <ColumnMarkers markers={column.markers} />
-            </li>
+          {shownPolicies.map((policy) => (
+            <span
+              key={policy.name}
+              className="max-w-full truncate rounded border border-border px-1 font-mono"
+              title={policy.name}
+            >
+              {policy.name}
+            </span>
           ))}
-        </ul>
-      )}
-      {more > 0 && (
-        <p className="mt-0.5 text-[9px] text-muted-foreground">
-          {t("projectGraph.moreColumns", { count: more })}
-        </p>
+          {grants.length > shownPolicies.length && (
+            <span className="shrink-0">+{grants.length - shownPolicies.length}</span>
+          )}
+          {table.framework && (
+            <span
+              className="rounded border border-border px-1 text-muted-foreground"
+              title={t("projectGraph.framework")}
+            >
+              {t("projectGraph.framework")}
+            </span>
+          )}
+          {/* The tenant scope is the class default on every app table (D-136/D-174) and stays in the
+            inspector; the card names only the exception, an owner scope. */}
+          {table.scope !== null && table.scope.kind !== "tenant" && (
+            <span className="min-w-0 truncate">
+              {t("projectGraph.scope", {
+                column: table.scope.column,
+                kind: t(("projectGraph.scopeKind." + table.scope.kind) as MessageKey),
+              })}
+            </span>
+          )}
+          <span className="ml-auto shrink-0">
+            {t("projectGraph.columns", { count: table.columns.length })}
+          </span>
+        </div>
+        {shown.length > 0 && (
+          <ul className="mt-1 space-y-0.5 border-t pt-1">
+            {shown.map((column) => (
+              <li key={column.property} className="flex items-center gap-1 text-[10px]">
+                <span className="min-w-0 flex-1 truncate font-mono">{column.property}</span>
+                <span className="shrink-0 truncate text-muted-foreground">{column.type}</span>
+                <ColumnMarkers markers={column.markers} />
+              </li>
+            ))}
+          </ul>
+        )}
+        {more > 0 && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {t("projectGraph.moreColumns", { count: more })}
+          </p>
+        )}
+      </div>
+      {level !== "full" && (
+        <GraphLodOverlay>
+          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+        </GraphLodOverlay>
       )}
       <LinkHandles />
     </div>
@@ -210,6 +232,7 @@ export function WorkflowGraphNode({
   selected,
   dragging,
 }: NodeProps<ProjectAnalysisFlowNode>) {
+  const level = useGraphLod();
   const node = data.node;
   const workflow = node.data.kind === "workflow" ? node.data : null;
   if (workflow === null) return null;
@@ -218,36 +241,44 @@ export function WorkflowGraphNode({
   return (
     <div
       data-testid="project-graph-workflow"
+      data-lod={level}
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-64"}
+      className={nodeClass(selected, node.matched, dragging, data.focused) + " relative w-64"}
     >
-      <div className="flex items-center gap-1.5">
-        <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
-          {workflow.name}
-        </span>
-        {workflow.unknown && <UnknownBadge />}
-        <span className="shrink-0 text-[9px] text-muted-foreground">
-          {t("projectGraph.workflow.steps", { count: workflow.steps.length })}
-        </span>
+      <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
+        <div className="flex items-center gap-1.5">
+          <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium">
+            {workflow.name}
+          </span>
+          {workflow.unknown && <UnknownBadge />}
+          <span className="shrink-0 text-[10px] text-muted-foreground">
+            {t("projectGraph.workflow.steps", { count: workflow.steps.length })}
+          </span>
+        </div>
+        {shown.length > 0 && (
+          <ul className="mt-1 space-y-0.5 border-t pt-1">
+            {shown.map((step) => (
+              <li key={step.index} className="flex items-center gap-1 text-[10px]">
+                <span className="shrink-0 text-muted-foreground">{step.index + 1}.</span>
+                <span className="shrink-0 rounded border px-1 text-muted-foreground">
+                  {t(("projectGraph.workflow." + step.kind) as MessageKey)}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-mono">{step.name ?? "?"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {more > 0 && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {t("projectGraph.workflow.more", { count: more })}
+          </p>
+        )}
       </div>
-      {shown.length > 0 && (
-        <ul className="mt-1 space-y-0.5 border-t pt-1">
-          {shown.map((step) => (
-            <li key={step.index} className="flex items-center gap-1 text-[9px]">
-              <span className="shrink-0 text-muted-foreground">{step.index + 1}.</span>
-              <span className="shrink-0 rounded border px-1 text-muted-foreground">
-                {t(("projectGraph.workflow." + step.kind) as MessageKey)}
-              </span>
-              <span className="min-w-0 flex-1 truncate font-mono">{step.name ?? "?"}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {more > 0 && (
-        <p className="mt-0.5 text-[9px] text-muted-foreground">
-          {t("projectGraph.workflow.more", { count: more })}
-        </p>
+      {level !== "full" && (
+        <GraphLodOverlay>
+          <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />
+        </GraphLodOverlay>
       )}
       <LinkHandles />
     </div>

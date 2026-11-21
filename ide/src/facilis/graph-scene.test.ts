@@ -3,6 +3,7 @@ import type { GraphEdge } from "@facilis.dev/analyze";
 import { emptyGraphLayout, withEdgeCurve, withNodePosition } from "./graph-layout";
 import { buildProjectGraphView } from "./graph-model";
 import { GET, PAGE, TODOS, graphOf, pageNode } from "./graph-model.test-fixtures";
+import { GRAPH_NODE_SIZES } from "./graph-node-size";
 import {
   MAX_SCENE_EDGES,
   MAX_SCENE_NODES,
@@ -70,12 +71,15 @@ describe("buildGraphScene", () => {
   it("uses the card size per kind and pads the canvas", () => {
     const scene = buildGraphScene(view, layoutOf(), palette);
     const byId = new Map(scene.nodes.map((node) => [node.id, node]));
-    expect(byId.get(PAGE.id)?.rect).toEqual({ x: 72, y: 72, width: 224, height: 157 });
-    expect(byId.get(GET.id)?.rect).toEqual({ x: 572, y: 72, width: 256, height: 60 });
-    expect(byId.get(TODOS.id)?.rect).toEqual({ x: 1072, y: 372, width: 240, height: 80 });
-    // Bounds: x 0..1240, y 0..380, plus 72 px of padding on every side.
+    // The scene draws the FULL-card footprint shared with the canvas (graph-node-size.ts):
+    // chip/compact render inside it, so the picture agrees with the live edge anchoring at
+    // every LOD level (issue #60).
+    expect(byId.get(PAGE.id)?.rect).toEqual({ x: 72, y: 72, ...GRAPH_NODE_SIZES.page });
+    expect(byId.get(GET.id)?.rect).toEqual({ x: 572, y: 72, ...GRAPH_NODE_SIZES.route });
+    expect(byId.get(TODOS.id)?.rect).toEqual({ x: 1072, y: 372, ...GRAPH_NODE_SIZES.table });
+    // Bounds: x 0..1240, y 0..388, plus 72 px of padding on every side.
     expect(scene.width).toBe(1384);
-    expect(scene.height).toBe(524);
+    expect(scene.height).toBe(532);
   });
 
   it("paints the palette and its dashedness per edge kind", () => {
