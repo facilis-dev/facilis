@@ -1,113 +1,79 @@
-// The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
-// `loadProjectAnalysis(controller)` and drawn fullscreen-capable in the editor area.
-//
-// The panel is the view half: analysis, search, fullscreen and the empty/error states live
-// here; the saved layout and its actions live in useProjectGraphLayout (which owns the
-// debounced writes to `.facilis/graph`). Nothing here touches the analyzer worker, and nothing
-// here writes outside the project's `.facilis` directory.
+// The project-graph tab (AST graph contract §7, D-126): the one project graph, drawn full-bleed.
+// Composition root: filter, zen, focus, the meaning lenses, details, topology/matrix — .facilis.
 
-import { useEffect, useMemo, useState } from "react";
-import { t } from "@/i18n";
-import { loadProjectAnalysis, loadProjectSources } from "@/facilis/analyze-client";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
-import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
-import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
-import { clearGraphFocus } from "@/facilis/graph-focus";
+import { buildProjectGraphView } from "@/facilis/graph-model";
+import { clusterInputFor } from "@/facilis/graph-clusters";
+import { SHEET_BREAKPOINT, clampSheetHeight } from "@/facilis/graph-satellite";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
-import { errText } from "@/vv/errors";
+import { EMPTY_STATS_FILTER, effectiveHiddenEdgeKinds } from "@/facilis/graph-stats-filter";
+import { countEdgeKinds } from "@/facilis/graph-lens-state";
+import { cycleEdgeConcentration } from "@/facilis/graph-view-state";
+import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
-import { ProjectGraphFooter } from "./ProjectGraphFooter";
-import { ProjectGraphInspector } from "./ProjectGraphInspector";
+import { ProjectGraphDetailsOverlay } from "./ProjectGraphDetailsOverlay";
+import { ProjectGraphHudSlot } from "./ProjectGraphHudSlot";
+import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
+import { ProjectGraphLensProviders } from "./ProjectGraphLensProviders";
+import { ProjectGraphNavigationOverlays } from "./ProjectGraphNavigationOverlays";
+import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
-import { ProjectGraphToolbar } from "./ProjectGraphToolbar";
+import { useContainerSize } from "./use-container-size";
+import { useProjectGraphEscape } from "./use-project-graph-escape";
+import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
+import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
-import { useProjectGraphLayout } from "./useProjectGraphLayout";
-
+import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
+import { useProjectGraphImpact } from "./useProjectGraphImpact";
+import { useProjectGraphNavigation } from "./useProjectGraphNavigation";
+import { useProjectGraphOpen } from "./use-project-graph-open";
+import { useProjectGraphPinnedDetails } from "./useProjectGraphPinnedDetails";
+import { useProjectGraphLenses } from "./useProjectGraphLenses";
+import { useProjectGraphSelection } from "./use-project-graph-selection";
+import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
+import { useProjectGraphViewState } from "./useProjectGraphViewState";
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
-  // openFolder() publishes the file index asynchronously, so at cold boot this is false while
-  // the graph tab is already open; the analysis must wait, not read the empty snapshot.
+  // openFolder() publishes the index asynchronously: at cold boot the analysis must wait, not read.
   const indexReady = isProjectIndexReady(snap.files, root);
-  const [result, setResult] = useState<ProjectAnalysisResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [nonce, setNonce] = useState(0);
-  const [query, setQuery] = useState("");
-  const [fullscreen, setFullscreen] = useState(false);
-  const [fitNonce, setFitNonce] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  // The sources the analyzer already read for this snapshot, so code previews never re-read
-  // files one node at a time (loadProjectSources is cached per controller snapshot).
-  const [sources, setSources] = useState<ReadonlyMap<string, string>>(new Map());
-  const graph = useProjectGraphLayout(c, root);
+  const { analysis, loading, error, sources, refresh } = useProjectGraphAnalysis(
+    c,
+    root,
+    indexReady,
+  );
+  const [zenState, dispatchZen] = useReducer(zenReducer, INITIAL_ZEN);
+  const zen = zenState.zen;
+  const [filter, setFilter] = useState(EMPTY_STATS_FILTER);
+  // The addressable view (issue #58): URL-synced query/selection; knownNodeIds drops stale ids.
+  const knownNodeIds = useMemo(
+    () => (analysis === null ? null : new Set(analysis.graph.nodes.map((node) => node.id))),
+    [analysis],
+  );
+  const viewState = useProjectGraphViewState(c, root, knownNodeIds);
+  const graph = viewState.graph;
+  const { query, selection: selectedNodeId, isolatedNode } = viewState.state;
+  const { openNode, openFileAt } = useProjectGraphOpen(c, root);
+  const setSelectedNodeId = viewState.setSelection;
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
-
-  // Analysis: on mount, on refresh, and whenever the active project changes. The index gate
-  // is one-shot: after it opens, a later edit/import does not re-run the analysis per keystroke.
-  useEffect(() => {
-    if (root === null) {
-      setResult(null);
-      setLoading(false);
-      return;
-    }
-    if (!indexReady) {
-      // Still indexing: analyzing now would report an empty project (missing-config error).
-      setResult(null);
-      setLoading(true);
-      return;
-    }
-    let cancelled = false;
-    setResult(null);
-    setLoading(true);
-    void loadProjectAnalysis(c)
-      .then((next) => {
-        if (cancelled) return;
-        setResult(next);
-        setLoading(false);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setResult({ ok: false, error: errText(error) });
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [c, root, nonce, indexReady]);
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullscreen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [fullscreen]);
-  // Escape also leaves an AI focus (D-171), but only once the fullscreen listener above had its
-  // turn: exiting fullscreen is the bigger mode change, so one key press does one thing. Typing
-  // targets keep Escape for themselves (the note editor cancels the edit), so never steal it.
-  useEffect(() => {
-    if (focus === null || fullscreen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target;
-      const typing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
-      if (typing) return;
-      clearGraphFocus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [focus, fullscreen]);
-
-  const analysis = result !== null && result.ok ? result.analysis : null;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Measure the floating HUD so fitView parks no node under a cluster; zen hides it (active=false).
+  const { padding: fitPadding, remeasure } = useHudFitPadding(containerRef, !zen);
+  // Details surface by container width (issue #59): sheet below the breakpoint, satellite above.
+  const containerSize = useContainerSize(containerRef);
+  const sheetMode = containerSize.width > 0 && containerSize.width < SHEET_BREAKPOINT;
+  // Pinned comparison cards are session state; the canvas hook places and drags them.
+  const pinnedDetails = useProjectGraphPinnedDetails(knownNodeIds);
+  const { pinned, pinRequest, sheetHeight, pinnedIds } = pinnedDetails;
+  // Cluster layout MODE (#62, F.4): auto above 40 nodes, explicit choice wins; collapse/drill in gv.
+  const nodeCount = analysis?.graph.nodes.length ?? 0;
+  // Matrix mode (#67) pivots routes × tables: clusters are topology-only, so it skips them.
+  const matrixMode = viewState.state.mode === "matrix";
   const view = useMemo(
     () =>
       analysis === null
@@ -115,175 +81,220 @@ export function ProjectGraphPanel() {
         : buildProjectGraphView({
             graph: analysis.graph,
             positions: layout.nodes,
-            hiddenEdgeKinds: layout.hiddenEdges,
+            hiddenEdgeKinds: effectiveHiddenEdgeKinds(filter, layout.hiddenEdges),
             tableVisibility: layout.tableVisibility,
             collapsed: layout.collapsed,
             query,
+            kinds: filter.kinds,
+            clusters: matrixMode ? undefined : clusterInputFor(viewState.state, nodeCount),
           }),
-    [analysis, layout, query],
+    [analysis, layout, query, filter, viewState.state, nodeCount, matrixMode],
   );
-  useEffect(() => {
-    // Drop the previous project's map first: the keys are project-relative, so a stale
-    // `src/app.tsx` would otherwise render the other project's source while this one loads.
-    setSources(new Map());
-    if (analysis === null) return;
-    let cancelled = false;
-    void loadProjectSources(c)
-      .then((loaded) => {
-        if (!cancelled && loaded.ok) setSources(loaded.files);
-      })
-      .catch(() => {
-        // A transient bridge failure leaves the snippets empty; the next analysis retries.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [c, analysis]);
-  // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
-  // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
+  const clusters = useProjectGraphClusters(viewState, view, nodeCount);
+  // Navigation (issue #68): palette/sheet, zoom presets, minimap, trail — viewport-only.
+  const navigation = useProjectGraphNavigation({
+    view,
+    selection: selectedNodeId,
+    setSelection: setSelectedNodeId,
+    isolatedNode,
+    setIsolatedNode: viewState.setIsolatedNode,
+    isolatedEdgeKinds: viewState.state.isolatedEdgeKinds,
+    setIsolatedEdgeKinds: viewState.setIsolatedEdgeKinds,
+    mode: viewState.state.mode,
+    setMode: viewState.setMode,
+    clusters,
+    saveNow: graph.saveNow,
+    resetPositions: graph.resetPositions,
+    changeViewport: graph.changeViewport,
+    remeasure,
+    containerRef,
+  });
+  // The meaning lenses (#72, #69, #70, #73): seam lifecycle, card contexts, audit/data facts.
+  const { runtime, audit, data, turn } = useProjectGraphLenses(c, analysis, view, viewState);
+  // Focus-and-context (#66): dimming closure; the data lens tightens a table selection (#70).
+  const { userFocus, focusSummary } = useProjectGraphUserFocus(
+    view,
+    isolatedNode,
+    selectedNodeId,
+    data.fkFocus,
+  );
+  const { details, nodeLabels, nodeLabel, closeDetails } = useProjectGraphSelection(
+    view,
+    selectedNodeId,
+    analysis,
+    setSelectedNodeId,
+  );
+  // The impact lens (issue #74): a derived overlay, so Esc/exit restores the exact prior view.
+  const impact = useProjectGraphImpact(viewState, view, details);
+  // Esc ladder + Enter/G/C/E/B/M/F/0/1/2/?/⌘K (#66, #62, #64, #65, #67, #68): one listener.
+  useProjectGraphEscape({
+    zen,
+    impactActive: impact.lensActive,
+    isolatedNode,
+    selection: selectedNodeId,
+    drill: viewState.state.drill,
+    aiFocusActive: focus !== null,
+    onExitZen: () => dispatchZen({ type: "exit" }),
+    onExitImpact: impact.exit,
+    onClearSelection: closeDetails,
+    setIsolatedNode: viewState.setIsolatedNode,
+    onDrillUp: clusters.drillUp,
+    onToggleGroupBy: clusters.toggleGroupBy,
+    onCollapseCluster: clusters.collapseActive,
+    onCycleConcentration: () =>
+      viewState.setEdgeConcentration(cycleEdgeConcentration(viewState.state.edgeConcentration)),
+    onToggleBridges: () => viewState.setBridges(!viewState.state.bridges),
+    onToggleMode: () => viewState.setMode(matrixMode ? "topology" : "matrix"),
+    navigation,
+    focusScope: containerRef,
+  });
+  // Curves are keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
   const layoutLoaded = graph.layoutLoaded;
   useEffect(() => {
     if (analysis === null || !layoutLoaded) return;
     pruneCurves(new Set(analysis.graph.edges.map((edge) => edge.id)));
   }, [analysis, layoutLoaded, pruneCurves]);
-  const diagnostics = analysis?.diagnostics ?? [];
-  const errors = diagnostics.filter((entry) => entry.severity === "error").length;
-  const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
-
-  const resetLayout = () => {
-    graph.resetPositions();
-    setFitNonce((value) => value + 1);
-  };
-  const openSource = (sourceFile: string | null) => {
-    const path = sourcePathFor(root, sourceFile);
-    if (path !== null) void c.openFile(path);
-  };
-  const openNode = (node: ProjectGraphNode) => openSource(node.sourceFile);
-  const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  // Incident edges, both directions: the page inspector lists page links and the view inspector
-  // reads the routes that use it (incoming route-view edges).
-  const selectedEdges =
-    view?.edges.filter(
-      (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
-    ) ?? [];
-  // The inspector's detail facts (security flags, db columns, policies, foreign keys, page
-  // calls, source lines) live on the Analysis the panel already holds, not on the drawn graph.
-  const details = useMemo<ReadonlyMap<string, NodeDetails>>(
-    () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
-    [analysis],
-  );
-  const nodeLabels = useMemo(
-    () => new Map((view?.nodes ?? []).map((node) => [node.id, node.label] as const)),
-    [view],
-  );
-  const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
-  const openFileAt = (file: string, line: number) => {
-    const path = sourcePathFor(root, file);
-    if (path !== null) void c.openFileAt(path, line);
-  };
-  // A detail list may name a relation the graph did not draw (hidden table visibility, unresolved
-  // names): selecting an id that has no node would close the inspector for no reason.
-  const selectNode = (id: string) => {
-    if (nodeLabels.has(id)) setSelectedNodeId(id);
-  };
-
-  // The panel owns the lifecycle; the four non-canvas states live in their own component.
-  // Notes are content too: a graph with only annotations is not "empty" (D-126).
+  // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
+  const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
+  // Non-canvas states live in their own component; a notes-only graph is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
-  // While the index is still landing there is no result for this project yet: loading outranks
-  // a stale error/empty from the previous project or the empty-snapshot analysis.
   else if (!indexReady) state = { kind: "loading" };
-  else if (result !== null && !result.ok) state = { kind: "error", error: result.error };
-  else if (view === null || !layoutLoaded) state = { kind: "loading" };
+  else if (error !== null) state = { kind: "error", error };
+  // ready gates the canvas until a deep link has restored, so it mounts on the restored viewport.
+  else if (view === null || !layoutLoaded || !viewState.ready) state = { kind: "loading" };
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
-
-  let body: React.ReactNode = null;
-  if (state !== null) {
-    body = <ProjectGraphStateView state={state} onRefresh={() => setNonce((value) => value + 1)} />;
-  } else if (view !== null) {
-    body = (
-      <ProjectGraphCanvas
-        view={view}
-        viewport={layout.viewport ?? null}
-        fitNonce={fitNonce}
-        edgeCurves={layout.edgeCurves}
-        focus={focus}
-        notes={graph.notes}
-        addNoteNonce={graph.addNoteNonce}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={setSelectedNodeId}
-        onMoveNode={graph.moveNode}
-        onToggleCollapse={graph.toggleCollapsed}
-        onOpenNode={openNode}
-        onViewportChange={graph.changeViewport}
-        onEdgeCurveChange={graph.changeEdgeCurve}
-        onCreateNote={graph.createNote}
-        onMoveNote={graph.moveNote}
-        onEditNote={graph.editNote}
-        onDeleteNote={graph.deleteNote}
-      />
-    );
-  }
+  const stats = view?.stats ?? null;
+  const hudSlots = useProjectGraphHudSlots({
+    stats,
+    edgeCounts,
+    hiddenEdgeKinds: layout.hiddenEdges,
+    viewState,
+    onHideEdgeKind: graph.toggleEdgeKind,
+    focusSummary,
+    isolatedNode,
+    selectedNodeId,
+    runtime,
+    audit,
+    data,
+    turn,
+    clusters,
+  });
+  const body =
+    state !== null ? (
+      <ProjectGraphStateView state={state} onRefresh={refresh} />
+    ) : view !== null ? (
+      matrixMode ? (
+        <ProjectGraphMatrixSurface
+          view={view}
+          sort={viewState.state.matrixSort}
+          onSortChange={viewState.setMatrixSort}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onExitMatrix={() => viewState.setMode("topology")}
+          userFocus={userFocus}
+        />
+      ) : (
+        <ProjectGraphCanvas
+          view={view}
+          concentration={viewState.state.edgeConcentration}
+          fitPadding={fitPadding}
+          onInstance={navigation.onInstance}
+          viewport={layout.viewport ?? null}
+          fitNonce={navigation.fitNonce}
+          edgeCurves={layout.edgeCurves}
+          bridges={viewState.state.bridges}
+          focus={focus}
+          userFocus={userFocus}
+          isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          contract={audit.contract}
+          data={data.data}
+          turn={turn.overlay}
+          impact={impact.overlay}
+          drill={clusters.drill}
+          notes={graph.notes}
+          addNoteNonce={graph.addNoteNonce}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onMoveNode={graph.moveNode}
+          onToggleCollapse={graph.toggleCollapsed}
+          onToggleClusterCollapse={clusters.toggleCollapse}
+          onDrillCluster={clusters.drillInto}
+          onOpenNode={openNode}
+          onViewportChange={graph.changeViewport}
+          onViewportLive={navigation.onViewportLive}
+          onEdgeCurveChange={graph.changeEdgeCurve}
+          onCreateNote={graph.createNote}
+          onMoveNote={graph.moveNote}
+          onEditNote={graph.editNote}
+          onDeleteNote={graph.deleteNote}
+          details={details}
+          sources={sources}
+          nodeLabel={nodeLabel}
+          sheetMode={sheetMode}
+          sheetHeight={clampSheetHeight(sheetHeight, containerSize.height)}
+          containerWidth={containerSize.width}
+          pinned={pinned}
+          dispatchPinned={pinnedDetails.dispatchPinned}
+          pinRequest={pinRequest}
+          onOpenFileAt={openFileAt}
+          onOpenPreview={(path) => openPageInPreview(c, path)}
+        />
+      )
+    ) : null;
 
   return (
-    <section
-      data-testid="project-graph-panel"
-      aria-label={t("projectGraph.title")}
-      className={
-        "flex min-h-0 flex-col bg-editor " +
-        (fullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "h-full")
-      }
-    >
-      <ProjectGraphToolbar
-        stats={view?.stats ?? null}
-        hiddenEdgeKinds={layout.hiddenEdges}
-        query={query}
-        onQueryChange={setQuery}
-        fullscreen={fullscreen}
-        onToggleFullscreen={() => setFullscreen((value) => !value)}
-        onFit={() => setFitNonce((value) => value + 1)}
-        onResetLayout={resetLayout}
-        // With no canvas on screen (the "empty" state) the toolbar must still be able to place
-        // the first note, so create it directly at a deterministic origin.
-        onAddNote={
-          state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
-        }
-        onSave={graph.saveNow}
-        onRefresh={() => setNonce((value) => value + 1)}
-        refreshing={loading}
-        saveState={graph.saveState}
-        saveError={graph.saveError}
-        errors={errors}
-        warnings={warnings}
-        focusActive={focus !== null}
-        onClearFocus={clearGraphFocus}
-        onToggleEdgeKind={graph.toggleEdgeKind}
-        tableVisibility={layout.tableVisibility}
-        onTableVisibilityChange={graph.changeTableVisibility}
-      />
-      <div className="flex min-h-0 flex-1">
-        <div className="relative min-h-0 flex-1">{body}</div>
-        {selectedNode !== null && (
-          <ProjectGraphInspector
-            node={selectedNode}
-            edges={selectedEdges}
-            details={details.get(selectedNode.id) ?? null}
-            sources={sources}
-            nodeLabel={nodeLabel}
-            onClose={() => setSelectedNodeId(null)}
-            onOpenFileAt={openFileAt}
-            onOpenPreview={(path) => openPageInPreview(c, path)}
-            onSelectNode={selectNode}
+    <ProjectGraphLensProviders runtime={runtime.context} contract={audit.context} impact={impact}>
+      <ProjectGraphShell
+        containerRef={containerRef}
+        hud={
+          <ProjectGraphHudSlot
+            zen={zen}
+            onToggleZen={() => dispatchZen({ type: "toggle" })}
+            viewState={viewState}
+            graph={graph}
+            slots={hudSlots}
+            stats={stats}
+            filter={filter}
+            onFilterChange={setFilter}
+            errors={audit.errors}
+            warnings={audit.warnings}
+            onRefresh={refresh}
+            refreshing={loading}
+            focusActive={focus !== null}
+            navigation={navigation}
+            containerRef={containerRef}
+            canvasActive={state === null}
           />
-        )}
-      </div>
-      <ProjectGraphFooter
-        stats={view?.stats ?? null}
-        diagnostics={diagnostics}
-        layoutInvalid={graph.layoutInvalid}
-      />
-    </section>
+        }
+        sheet={
+          // F.7 (#67): matrix has no canvas, so the sheet is the details overlay at ALL widths.
+          (sheetMode || matrixMode) && selectedNodeId !== null ? (
+            <ProjectGraphDetailsOverlay
+              view={view}
+              selectedNodeId={selectedNodeId}
+              details={details}
+              diagnostics={audit.nodeDiagnostics}
+              sources={sources}
+              nodeLabels={nodeLabels}
+              nodeLabel={nodeLabel}
+              height={clampSheetHeight(sheetHeight, containerSize.height)}
+              pinned={pinnedIds.includes(selectedNodeId)}
+              canPin={!matrixMode}
+              onHeightChange={pinnedDetails.setSheetHeight}
+              onClose={closeDetails}
+              onPinRequest={pinnedDetails.requestPin}
+              onOpenFileAt={openFileAt}
+              onSelectNode={setSelectedNodeId}
+              controller={c}
+            />
+          ) : null
+        }
+      >
+        {body}
+        <ProjectGraphNavigationOverlays navigation={navigation} />
+      </ProjectGraphShell>
+    </ProjectGraphLensProviders>
   );
 }

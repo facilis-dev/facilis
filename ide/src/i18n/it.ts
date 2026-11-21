@@ -10,6 +10,12 @@ import { gitRemoteIt } from "./it-git-remote";
 import { sourceControlIt } from "./it-source-control";
 import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
+import { projectGraphMatrixIt } from "./it-project-graph-matrix";
+import { projectGraphContractIt } from "./it-project-graph-contract";
+import { projectGraphDataIt } from "./it-project-graph-data";
+import { projectGraphTurnIt } from "./it-project-graph-turn";
+import { projectGraphImpactIt } from "./it-project-graph-impact";
+import { projectGraphNavigationIt } from "./it-project-graph-navigation";
 import { chatIt } from "./it-chat";
 import { logsIt } from "./it-logs";
 import { tourIt } from "./it-tour";
@@ -187,6 +193,12 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...sourceControlIt,
   ...commitGraphIt,
   ...projectGraphIt,
+  ...projectGraphMatrixIt,
+  ...projectGraphContractIt,
+  ...projectGraphDataIt,
+  ...projectGraphTurnIt,
+  ...projectGraphImpactIt,
+  ...projectGraphNavigationIt,
   ...dataExplorerIt,
   ...dataQueryIt,
   ...releasePreviewIt,

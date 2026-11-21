@@ -18,7 +18,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChrome, openPage } from "./cdp.mjs";
+import { launchChrome, openPage, withTimeout } from "./cdp.mjs";
 import { pruneSmokeArtifacts } from "./run-artifacts.mjs";
 import { runFacilisChecks } from "./smoke-facilis.mjs";
 import { runIntellisenseChecks } from "./smoke-intellisense.mjs";
@@ -36,6 +36,10 @@ const argValue = (name, fallback) => {
 const URL_ = argValue("url", process.env.STUDIO_URL || "");
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 300000);
+// Per-poll deadline for the mark/condition waits: a renderer whose main thread is
+// blocked natively never answers evaluate, so one poll must fail the run with
+// diagnostics instead of hanging inside the (much longer) overall wait budget.
+const POLL_TIMEOUT_MS = Number(process.env.SMOKE_POLL_TIMEOUT_MS || 60000);
 const PORT = Number(process.env.SMOKE_PORT || 5199);
 const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-artifacts");
 const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
@@ -48,6 +52,10 @@ const SYSROOT = process.env.FACILIS_BROWSER_SYSROOT || path.join(TOOLING, "brows
 const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser/fonts.conf");
 
 const failures = [];
+// Cleanup handles for the abort path: a thrown wedge diagnostic must not leak this
+// run's browser and dev server into the next one.
+let activeChrome = null;
+let activeDevChild = null;
 let facilisReport = null;
 let intellisenseReport = null;
 let writeReport = null;
@@ -146,6 +154,7 @@ async function main() {
   }
 
   const dev = await startDevServer();
+  activeDevChild = dev.child;
   console.log("studio url: " + dev.url);
   const response = await fetch(dev.url);
   check(
@@ -166,13 +175,59 @@ async function main() {
     sysroot: fs.existsSync(SYSROOT) ? SYSROOT : "",
     fontconfigFile: fs.existsSync(FONTCONFIG) ? FONTCONFIG : "",
   });
+  activeChrome = chrome;
   const page = await openPage(chrome.client, dev.url);
 
   const marks = async () => (await page.evaluate("window.__vvBoot || []")).map((mark) => mark.name);
+  // Last successful reads, kept for the wedge diagnostics: once the renderer stops
+  // answering, neither the marks nor the URL can be queried any more.
+  let lastMarks = [];
+  let lastUrl = dev.url;
+  const reportWedge = async (what, cause) => {
+    const lines = [
+      "SMOKE WEDGE while waiting for " + what,
+      "cause: " + (cause && cause.message ? cause.message : String(cause)),
+      "url: " + lastUrl,
+      "last marks: " + (lastMarks.length > 0 ? lastMarks.join(", ") : "(none)"),
+    ];
+    try {
+      const shot = path.join(ARTIFACTS, "wedge.png");
+      await page.screenshot(shot, 10000);
+      lines.push("wedge screenshot: " + shot);
+    } catch (error) {
+      lines.push(
+        "wedge screenshot failed: " + (error && error.message ? error.message : String(error)),
+      );
+    }
+    const tail = page.consoleEntries.slice(-8).map((entry) => entry.type + ": " + entry.text);
+    if (tail.length > 0) lines.push("console tail:\n" + tail.join("\n"));
+    const text = lines.join("\n");
+    fs.writeFileSync(path.join(ARTIFACTS, "wedge-diagnostics.txt"), text + "\n");
+    console.error("\n" + text);
+    throw new Error("smoke wedged waiting for " + what + " — diagnostics in " + ARTIFACTS);
+  };
+  const pollEvaluate = async (expression, what) => {
+    try {
+      return await withTimeout(
+        page.evaluate(expression),
+        POLL_TIMEOUT_MS,
+        "evaluate (" + what + ")",
+      );
+    } catch (error) {
+      if (error && error.timedOut) await reportWedge(what, error);
+      throw error;
+    }
+  };
   const waitForMark = async (name, limitMs) => {
     const until = Date.now() + limitMs;
     while (Date.now() < until) {
-      if ((await marks()).includes(name)) return true;
+      const state = await pollEvaluate(
+        "({ marks: (window.__vvBoot || []).map((m) => m.name), url: location.href })",
+        "mark " + name,
+      );
+      lastMarks = state.marks;
+      lastUrl = state.url;
+      if (state.marks.includes(name)) return true;
       await sleep(250);
     }
     return false;
@@ -192,7 +247,7 @@ async function main() {
   const waitFor = async (expression, limitMs) => {
     const until = Date.now() + limitMs;
     while (Date.now() < until) {
-      if (await page.evaluate(expression)) return true;
+      if (await pollEvaluate(expression, "condition " + expression.slice(0, 120))) return true;
       await sleep(250);
     }
     return false;
@@ -253,6 +308,79 @@ async function main() {
     "D-128 tour does not auto-start under automation",
   );
   await page.screenshot(path.join(ARTIFACTS, "03b-landing-graph.png"));
+
+  // Issue #150: the floating HUD clusters must never overlap, however narrow the canvas. The
+  // bottom-left ribbon grows with the lens chips (#63) and the runtime window/live strip (#72);
+  // dock the runtime lens (the worst case) at narrow viewports and assert the ribbon's right edge
+  // clears the zoom/fit cluster's left edge, with both clusters fully on-screen and clickable.
+  const hudRects = () =>
+    page.evaluate(
+      "(() => { const q = (s) => { const el = document.querySelector(s); if (!el) return null;" +
+        " const r = el.getBoundingClientRect();" +
+        " return { left: r.left, right: r.right, width: r.width, height: r.height }; };" +
+        " return { left: q('[data-testid=graph-hud-bottom-left]')," +
+        " right: q('[data-testid=graph-hud-bottom-right]'), vw: window.innerWidth }; })()",
+    );
+  const setViewport = (width, height) =>
+    page.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+  // Wait for the analysis so the lens chips are enabled, then dock the runtime lens strip.
+  const hudReady = await waitFor(
+    "(() => { const c = document.querySelector('[data-testid=graph-chip-lens-runtime]');" +
+      " return Boolean(c) && !c.disabled; })()",
+    60000,
+  );
+  check(hudReady, "#150 graph HUD ready (runtime lens chip enabled)");
+  if (hudReady) {
+    await page.evaluate("document.querySelector('[data-testid=graph-chip-lens-runtime]').click()");
+    const runtimeDocked = await waitFor(
+      "Boolean(document.querySelector('[data-testid=graph-runtime-controls]'))",
+      10000,
+    );
+    check(runtimeDocked, "#150 runtime controls docked beside the lens chips");
+    for (const width of [1024, 780]) {
+      await setViewport(width, 720);
+      await sleep(400);
+      const rects = await hudRects();
+      const detail =
+        rects.left && rects.right
+          ? "ribbon.right=" +
+            rects.left.right.toFixed(0) +
+            " zoom.left=" +
+            rects.right.left.toFixed(0) +
+            " vw=" +
+            rects.vw
+          : "missing cluster";
+      const ok =
+        Boolean(rects.left) &&
+        Boolean(rects.right) &&
+        rects.left.width > 0 &&
+        rects.right.width > 0 &&
+        // No horizontal overlap (1px tolerance), and both clusters fully inside the viewport.
+        rects.left.right <= rects.right.left + 1 &&
+        rects.right.right <= rects.vw + 1 &&
+        rects.left.left >= -1;
+      check(ok, "#150 HUD clusters do not overlap at " + width + "px", detail);
+      await page.screenshot(path.join(ARTIFACTS, "03c-hud-narrow-" + width + ".png"));
+    }
+    await page.send("Emulation.clearDeviceMetricsOverride");
+    await sleep(200);
+    // Restore the clean lens state: this check docked the runtime lens, and the later graph-lens
+    // checks must start without it (issue #150). Toggle it back off and wait for the strip to go.
+    const stillDocked = await page.evaluate(
+      "Boolean(document.querySelector('[data-testid=graph-runtime-controls]'))",
+    );
+    if (stillDocked) {
+      await page.evaluate(
+        "document.querySelector('[data-testid=graph-chip-lens-runtime]').click()",
+      );
+      await waitFor("!document.querySelector('[data-testid=graph-runtime-controls]')", 10000);
+    }
+  }
 
   const painted = await waitForMark("preview-paint", PREVIEW_TIMEOUT_MS);
   check(painted, "preview painted", Date.now() - startedAt + "ms");
@@ -572,4 +700,16 @@ async function main() {
   console.log("\nSMOKE PASSED — artifacts in " + ARTIFACTS);
 }
 
-await main();
+await main().catch((error) => {
+  console.error("\nSMOKE ABORTED: " + (error && error.stack ? error.stack : String(error)));
+  if (activeChrome) {
+    try {
+      activeChrome.client.close();
+    } catch {
+      /* socket already gone */
+    }
+    activeChrome.child.kill("SIGKILL");
+  }
+  stopDevServer(activeDevChild);
+  process.exit(1);
+});

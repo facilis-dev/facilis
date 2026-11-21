@@ -116,6 +116,7 @@ function themePalette(): GraphScenePalette {
     border: cssVar(style, "--border", "#e4e4e7"),
     text: cssVar(style, "--foreground", "#18181b"),
     muted: cssVar(style, "--muted-foreground", "#71717a"),
+    outline: cssVar(style, "--brand", "#2563eb"),
     edges,
     elevated: {
       stroke: cssVar(style, ELEVATED_TOKEN.token, ELEVATED_TOKEN.fallback),
@@ -151,7 +152,14 @@ function subsetOf(view: ProjectGraphView, request: GraphCaptureRequest): Project
   // A connection is only drawn when both cards are in the picture; an explicit edge brings
   // its endpoints along, so a requested edge is always drawn.
   const edges = view.edges.filter((edge) => selected.has(edge.source) && selected.has(edge.target));
-  return { nodes, edges, stats: view.stats };
+  // The subset keeps the parent's auto-layout size: the scene re-derives its own bounds from
+  // the cards it actually draws, and layoutSize describes the layout the subset came from.
+  // Only whole frames survive the cut (a partial frame would mislabel its membership); a
+  // collapsed super-node survives when an edge brought its cluster id along (issue #62).
+  const clusters = view.clusters.filter((cluster) =>
+    cluster.collapsed ? selected.has(cluster.id) : cluster.nodeIds.every((id) => selected.has(id)),
+  );
+  return { nodes, edges, clusters, stats: view.stats, layoutSize: view.layoutSize };
 }
 
 export function createGraphViewAccess(

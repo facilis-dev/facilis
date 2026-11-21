@@ -3,19 +3,21 @@
 // bridge, no IO, so the geometry and the filters are unit-testable and a refresh can rebuild
 // the view without touching the editor.
 //
-// Layout is four columns — pages, routes, tables, workflows — with FK/relation edges staying
-// inside the tables column. Views are schema objects too, so they sit in the tables column
-// below it behind a gap instead of opening another column. A saved position overrides the
-// automatic one; edge kinds listed in the layout's `hiddenEdges` are dropped before the canvas
-// sees them.
+// Layout comes from the wrapped-layer engine (graph-layout-engine.ts, issue #61): layers keep
+// their order — pages, routes, data, workflows — but spill into sub-columns to stay near 16:9.
+// Views are schema objects too, so they join the data layer behind a gap. A saved position
+// overrides the automatic one; edge kinds listed in the layout's `hiddenEdges` are dropped
+// before the canvas sees them.
 
 import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis.dev/analyze";
 import { pageData, routeData, tableData, viewData } from "./graph-model-data";
 import { matchesNodeQuery, workflowData } from "./graph-node-data";
 import { hiddenTableNodeIds } from "./graph-system";
-import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
+import { GRAPH_EDGE_KINDS } from "./graph-layout";
+import { buildClusteredView } from "./graph-cluster-layout";
+import { layoutGraph } from "./graph-layout-engine";
+import { isTableEdge, layoutLayers, orderTables } from "./graph-layout-layers";
 import {
-  GRAPH_COLUMNS,
   type ProjectGraphEdge,
   type ProjectGraphNode,
   type ProjectGraphView,
@@ -42,84 +44,6 @@ export type {
   WorkflowGraphData,
   WorkflowStepGraphData,
 } from "./graph-types";
-export { GRAPH_COLUMNS } from "./graph-types";
-
-/**
- * Vertical pitch per kind; a node never overlaps the next one of its column. Route cards are
- * the tallest of the fixed rows because they carry the input flags and path-parameter row.
- */
-const ROW_PITCH = { page: 200, route: 112, table: 190, view: 150, workflow: 150 } as const;
-
-/** Blank space between the last table row and the first view row in the schema column. */
-const VIEW_GAP = 56;
-
-function isTableEdge(edge: ProjectGraphEdge): boolean {
-  return edge.kind === "fk" || edge.kind === "relation";
-}
-
-/**
- * Order the table column by FK/relation dependency (a table before the tables it points at),
- * breaking ties lexicographically so the same graph always produces the same rows. Cycles —
- * legal in a schema — fall back to the lexicographically first remaining id.
- */
-function orderTables(
-  tables: readonly ProjectGraphNode[],
-  edges: readonly ProjectGraphEdge[],
-): string[] {
-  const ids = tables.map((node) => node.id).toSorted();
-  const idSet = new Set(ids);
-  const outgoing = new Map<string, string[]>(ids.map((id) => [id, []]));
-  const incoming = new Map<string, number>(ids.map((id) => [id, 0]));
-  const seen = new Set<string>();
-  for (const edge of edges) {
-    if (!isTableEdge(edge) || !idSet.has(edge.source) || !idSet.has(edge.target)) continue;
-    if (edge.source === edge.target) continue;
-    const pair = edge.source + "\u0000" + edge.target;
-    if (seen.has(pair)) continue;
-    seen.add(pair);
-    outgoing.get(edge.source)?.push(edge.target);
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-  }
-  const remaining = new Set(ids);
-  const order: string[] = [];
-  while (remaining.size > 0) {
-    const ready = [...remaining].toSorted();
-    const next = ready.find((id) => (incoming.get(id) ?? 0) === 0) ?? ready[0];
-    if (next === undefined) break;
-    order.push(next);
-    remaining.delete(next);
-    for (const target of outgoing.get(next) ?? []) {
-      incoming.set(target, Math.max(0, (incoming.get(target) ?? 0) - 1));
-    }
-  }
-  return order;
-}
-
-function autoPositions(
-  pages: readonly ProjectGraphNode[],
-  routes: readonly ProjectGraphNode[],
-  tables: readonly ProjectGraphNode[],
-  views: readonly ProjectGraphNode[],
-  workflows: readonly ProjectGraphNode[],
-): Map<string, GraphPosition> {
-  const positions = new Map<string, GraphPosition>();
-  const place = (kind: GraphNodeKind, ordered: readonly ProjectGraphNode[]): void => {
-    ordered.forEach((node, index) => {
-      positions.set(node.id, { x: GRAPH_COLUMNS[kind], y: index * ROW_PITCH[kind] });
-    });
-  };
-  place("page", pages);
-  place("route", routes);
-  place("table", tables);
-  place("workflow", workflows);
-  // Tables first, then views, in the same schema column: the gap keeps a view visibly a
-  // relation over its base tables rather than another table row.
-  const viewsY = tables.length === 0 ? 0 : tables.length * ROW_PITCH.table + VIEW_GAP;
-  views.forEach((node, index) => {
-    positions.set(node.id, { x: GRAPH_COLUMNS.view, y: viewsY + index * ROW_PITCH.view });
-  });
-  return positions;
-}
 
 /** Incoming route-view edges grouped per view, sorted, for the card chip and the inspector. */
 function routeUsers(
@@ -188,15 +112,38 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   // compacts instead of leaving holes where the hidden cards used to be. Routes are never
   // filtered; the default is "all" so an absent preference shows the whole analysis.
   const hiddenNodeIds = hiddenTableNodeIds(nodes, allEdges, input.tableVisibility ?? "all");
-  const visibleNodes =
-    hiddenNodeIds.size === 0 ? nodes : nodes.filter((node) => !hiddenNodeIds.has(node.id));
-  const visibleById =
-    hiddenNodeIds.size === 0 ? byId : new Map(visibleNodes.map((node) => [node.id, node]));
+  // The stats-ribbon kind filter (issue #57) is an explicit user choice layered on top of D-179
+  // table visibility. It isolates node kinds but never inflates stats.hiddenNodes, which counts
+  // only the table-visibility removals. Routes are still never filtered by table visibility.
+  const kindSet =
+    input.kinds !== undefined && input.kinds.length > 0
+      ? new Set<GraphNodeKind>(input.kinds)
+      : null;
+  const visibleNodes = nodes.filter(
+    (node) => !hiddenNodeIds.has(node.id) && (kindSet === null || kindSet.has(node.kind)),
+  );
+  const visibleById = new Map(visibleNodes.map((node) => [node.id, node]));
   // A hidden node takes its edges with it: a half-visible edge would point at nothing.
   const allVisibleEdges =
-    hiddenNodeIds.size === 0
+    visibleNodes.length === nodes.length
       ? allEdges
       : allEdges.filter((edge) => visibleById.has(edge.source) && visibleById.has(edge.target));
+
+  // Feature clustering (issue #62) is a separate pure path over the same visible nodes/edges:
+  // frames reserve the layout, and the collapse set hides children and re-anchors the boundary.
+  // A layout MODE (F.4), not a lens: it re-lays auto positions; saved pins stay absolute.
+  const clusterOptions = input.clusters;
+  if (clusterOptions !== undefined && clusterOptions.enabled) {
+    return buildClusteredView({
+      nodes: visibleNodes,
+      edges: allVisibleEdges,
+      positions,
+      needle,
+      hiddenEdgeKinds: hidden,
+      hiddenNodes: hiddenNodeIds.size,
+      options: clusterOptions,
+    });
+  }
 
   const pages = visibleNodes
     .filter((node) => node.kind === "page")
@@ -218,7 +165,10 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   const workflows = visibleNodes
     .filter((node) => node.kind === "workflow")
     .toSorted((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
-  const auto = autoPositions(pages, routes, orderedTables, views, workflows);
+  const layout = layoutGraph(
+    layoutLayers(pages, routes, orderedTables, views, workflows),
+    positions,
+  );
 
   const users = routeUsers(allVisibleEdges, visibleById);
 
@@ -227,11 +177,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       node.data.kind === "view"
         ? { ...node.data, usedByRoutes: users.get(node.id) ?? [] }
         : node.data;
-    const saved = positions[node.id];
-    const position =
-      saved !== undefined && Number.isFinite(saved.x) && Number.isFinite(saved.y)
-        ? { x: saved.x, y: saved.y }
-        : (auto.get(node.id) ?? { x: 0, y: 0 });
+    const position = layout.positions.get(node.id) ?? { x: 0, y: 0 };
     const base = { ...node, data, position };
     return { ...base, matched: matchesNodeQuery(base, needle) };
   });
@@ -242,6 +188,8 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   return {
     nodes: positioned,
     edges: visible,
+    clusters: [],
+    layoutSize: { width: layout.width, height: layout.height },
     stats: {
       pages: pages.length,
       routes: routes.length,

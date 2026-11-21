@@ -19,6 +19,7 @@ import {
   newNoteId,
   pruneGraphCurves,
   resetGraphLayoutPositions,
+  restoreGraphView,
   saveGraphLayout,
   withCollapsed,
   withEdgeCurve,
@@ -32,11 +33,12 @@ import {
   type GraphLayoutFile,
   type GraphPosition,
   type GraphTableVisibility,
+  type GraphViewRestore,
   type GraphViewport,
 } from "@/facilis/graph-layout";
 import { subscribeGraphLayoutChanged } from "@/facilis/graph-live";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import type { ProjectGraphSaveState } from "./ProjectGraphToolbar";
+import type { ProjectGraphSaveState } from "./ProjectGraphHud";
 
 export interface ProjectGraphLayout {
   readonly layout: GraphLayoutFile;
@@ -58,6 +60,8 @@ export interface ProjectGraphLayout {
   readonly toggleEdgeKind: (kind: GraphLayoutFile["hiddenEdges"][number], hidden: boolean) => void;
   readonly changeTableVisibility: (visibility: GraphTableVisibility) => void;
   readonly changeViewport: (viewport: GraphViewport) => void;
+  /** Restore view fields from a deep link without persisting them (issue #58). */
+  readonly restoreView: (view: GraphViewRestore) => void;
   readonly changeEdgeCurve: (edgeId: string, curve: GraphCurve | null) => void;
   readonly resetPositions: () => void;
   readonly pruneCurves: (edgeIds: ReadonlySet<string>) => void;
@@ -229,6 +233,19 @@ export function useProjectGraphLayout(
   const changeViewport = useCallback((viewport: GraphViewport) => {
     setLayout((current) => withViewport(current, viewport));
   }, []);
+  // A deep link restores the view, not the document: mark the result as already saved so the
+  // debounce and the unmount flush both skip it — neither layout.json nor viewport.json is
+  // written. User-initiated changes afterwards diff against this state and persist as usual.
+  const restoreView = useCallback(
+    (view: GraphViewRestore) => {
+      clearTimer();
+      const next = restoreGraphView(latestLayout.current, view);
+      savedLayout.current = next;
+      latestLayout.current = next;
+      setLayout(next);
+    },
+    [clearTimer],
+  );
   const changeEdgeCurve = useCallback((edgeId: string, curve: GraphCurve | null) => {
     setLayout((current) => withEdgeCurve(current, edgeId, curve));
   }, []);
@@ -261,6 +278,7 @@ export function useProjectGraphLayout(
     toggleEdgeKind,
     changeTableVisibility,
     changeViewport,
+    restoreView,
     changeEdgeCurve,
     resetPositions,
     pruneCurves,

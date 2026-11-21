@@ -11,6 +11,25 @@ import path from "node:path";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A wedged renderer (main thread blocked natively) never answers a CDP call, and the
+// protocol has no per-call deadline: without a race the smoke hangs forever. The default
+// sits above the longest legitimate call (the intellisense probe races two 60s worker
+// waits per file); the smoke's mark polls race much tighter on top of this backstop.
+const CALL_TIMEOUT_MS = Number(process.env.CDP_CALL_TIMEOUT_MS || 300000);
+
+/** Race a promise against a deadline; the rejection is tagged `timedOut` for callers. */
+export function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  const expiry = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(label + " timed out after " + timeoutMs + "ms");
+      error.timedOut = true;
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
+}
+
 /** Shared-library dirs of a Debian sysroot prepared by scripts/dev/fetch-browser.sh. */
 function sysrootLibraryPath(sysroot) {
   if (!sysroot) return "";
@@ -116,19 +135,28 @@ export async function connect(wsUrl) {
     }
     for (const listener of listeners) listener(message);
   });
-  const send = (method, params = {}, sessionId) =>
-    new Promise((resolve, reject) => {
-      const id = ++nextId;
+  const send = (method, params = {}, sessionId, timeoutMs = CALL_TIMEOUT_MS) => {
+    const id = ++nextId;
+    const call = new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
+    const target =
+      typeof params.expression === "string" ? " [" + params.expression.slice(0, 160) + "]" : "";
+    return withTimeout(call, timeoutMs, "CDP " + method + target).catch((error) => {
+      // Drop the entry so a late reply cannot resolve a call already reported dead.
+      pending.delete(id);
+      throw error;
+    });
+  };
   return { ws, send, on: (listener) => listeners.add(listener), close: () => ws.close() };
 }
 
 /** Attach to an existing page target (e.g. a tab another page opened) and instrument it. */
 export async function attachPage(client, targetId) {
   const { sessionId } = await client.send("Target.attachToTarget", { targetId, flatten: true });
-  const send = (method, params = {}) => client.send(method, params, sessionId);
+  const send = (method, params = {}, timeoutMs) =>
+    client.send(method, params, sessionId, timeoutMs);
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Network.enable");
@@ -182,19 +210,19 @@ export async function attachPage(client, targetId) {
     }
   });
 
-  const evaluate = async (expression) => {
-    const result = await send("Runtime.evaluate", {
-      expression,
-      returnByValue: true,
-      awaitPromise: true,
-    });
+  const evaluate = async (expression, timeoutMs) => {
+    const result = await send(
+      "Runtime.evaluate",
+      { expression, returnByValue: true, awaitPromise: true },
+      timeoutMs,
+    );
     if (result.exceptionDetails) {
       throw new Error(result.exceptionDetails.exception?.description || "evaluate failed");
     }
     return result.result.value;
   };
-  const screenshot = async (file) => {
-    const { data } = await send("Page.captureScreenshot", { format: "png" });
+  const screenshot = async (file, timeoutMs) => {
+    const { data } = await send("Page.captureScreenshot", { format: "png" }, timeoutMs);
     fs.writeFileSync(file, Buffer.from(data, "base64"));
   };
   const downloads = () => Array.from(requests.values()).filter((request) => request.bytes > 0);

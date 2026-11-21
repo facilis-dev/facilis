@@ -2,7 +2,7 @@
 
 # Decision index
 
-199 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+200 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -207,3 +207,4 @@ the file whose name starts with that ID.
 | [D-199](./D-199-service-api-calls-count-as-table-usage-the-declaration-error-stays-on.md) | Service API calls count as table usage; the declaration error stays on the db clients | accepted | 2026-11-20 |
 | [D-200](./D-200-per-route-runtime-metrics-come-from-a-dev-injected-client-not-the-sw.md) | Per-route runtime metrics come from a dev-injected client, not the SW or an endpoint | accepted | 2026-11-20 |
 | [D-201](./D-201-db-migrations-is-retired-everywhere-the-0009-backfill-is-data-not.md) | `db/migrations` is retired everywhere; the 0009 backfill is data, not schema | accepted | 2026-11-19 |
+| [D-202](./D-202-feature-clusters-derive-from-source-facts-their-state-lives-in-the-url.md) | Feature clusters derive from source facts; their state lives in the URL | accepted | 2026-11-20 |

@@ -1,0 +1,297 @@
+// The project graph's addressable view state (issue #58, epic #56 rule 6): one compact URL
+// parameter carries the whole view — mode, lenses, edge/node isolation, selection, user focus,
+// filters, collapsed clusters, viewport and query — so a tab can be reloaded or shared and land
+// on the same view.
+//
+// Pure by design: no React, no IO, no URL globals. graph-view-state-url.ts merges the encoded
+// value into the tab URL and useProjectGraphViewState.ts owns the lifecycle. The layout file
+// (.facilis/graph, v3) stays a document (positions, curves, notes); nothing here writes it.
+//
+// The AI focus (D-171, graph-focus.ts) is deliberately NOT part of this state: it is a
+// transient overlay composed on top, never persisted and never in the URL.
+
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import { isRecord, readEdgeKinds, type GraphViewport } from "./graph-layout-file";
+import { AUDIT_FILTER_IDS, readAuditFilters, type AuditFilterId } from "./graph-contract";
+import { encodeViewport, readEncodedViewport } from "./graph-view-viewport";
+import { GRAPH_MATRIX_SORTS, type GraphMatrixSort } from "./graph-matrix";
+import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
+import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "./graph-runtime";
+
+// The bridge lens threshold lives in the geometry module; re-exported here so the view-state
+// surface names it too (issue #65: toggle + threshold are the lens's addressable contract).
+export { BRIDGE_LENGTH_THRESHOLD } from "./graph-edge-bridges";
+
+/** How the graph is drawn. Matrix landed in #67; timeline is a later child (#76): carried, not rendered. */
+export type GraphViewMode = "topology" | "matrix" | "timeline";
+
+/**
+ * The epic's meaning-layer lenses. Ids only for now: the lens UIs land in later children of
+ * #56, and a lens changes colour/badges/dimming, never positions (epic rule 2). Timeline is a
+ * MODE, not a lens. Order matters: the first active lens is the dominant one (epic rule 3).
+ */
+export const GRAPH_LENS_IDS = ["contract", "data", "runtime", "agent", "impact", "roles"] as const;
+export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
+
+/**
+ * Edge-concentration threshold (issue #64): a route fan-out with MORE than this many distinct
+ * routes collapses into a hub chip; smaller groups share a trunk. "off" draws every edge
+ * individually. Only the threshold is URL state — the expanded-hub set is session-scoped.
+ */
+export type GraphEdgeConcentration = "off" | 4 | 8;
+export const EDGE_CONCENTRATIONS: readonly GraphEdgeConcentration[] = ["off", 4, 8];
+export const DEFAULT_EDGE_CONCENTRATION: GraphEdgeConcentration = 4;
+
+/** The E shortcut (epic rule 6): cycles the chip order off -> 4 -> 8 -> off. */
+export function cycleEdgeConcentration(value: GraphEdgeConcentration): GraphEdgeConcentration {
+  const index = EDGE_CONCENTRATIONS.indexOf(value);
+  return (
+    EDGE_CONCENTRATIONS[(index + 1) % EDGE_CONCENTRATIONS.length] ?? DEFAULT_EDGE_CONCENTRATION
+  );
+}
+
+export interface GraphViewFilters {
+  readonly hiddenEdgeKinds: readonly GraphEdgeKind[];
+  readonly tableVisibility: GraphTableVisibility;
+}
+
+/**
+ * The group-by mode switch (issue #62, F.4): "auto" enables clusters above the node threshold,
+ * "on"/"off" are the user's explicit choice. Only the explicit choices travel in the URL.
+ * Clustering is a layout MODE, not a lens: it re-lays auto positions, never saved ones.
+ */
+export type GraphGroupBy = "auto" | "on" | "off";
+
+export interface GraphViewState {
+  readonly mode: GraphViewMode;
+  readonly activeLenses: readonly GraphLensId[];
+  /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
+  readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The contract lens's audit-ribbon counters pressed as filters (issue #69): dimming only. */
+  readonly auditFilters: readonly AuditFilterId[];
+  /** The runtime lens's selected window (issue #72); carried even while the lens is off. */
+  readonly runtimeWindow: RuntimeWindow;
+  /** The runtime lens's live toggle (issue #72): off reads the last snapshot. */
+  readonly runtimeLive: boolean;
+  /**
+   * Node isolation (issue #66): the dim-only focus mode around this node's reachability
+   * closure (F.5). Like edge isolation it is opacity only — non-closure cards recede to 12%,
+   * nothing is removed — and a one-step Esc exits it. Null draws the full graph undimmed.
+   */
+  readonly isolatedNode: string | null;
+  readonly selection: string | null;
+  /**
+   * The column property simulated inside the selected table (issue #74); meaningful only with
+   * the impact lens active. A property key, not a node id — the hook drops it when it is not a
+   * column of the selected table.
+   */
+  readonly impactColumn: string | null;
+  /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
+  readonly focus: readonly string[];
+  readonly filters: GraphViewFilters;
+  readonly collapsed: readonly string[];
+  /** Cluster collapse (issue #62): view state only, never written to .facilis/graph/. */
+  readonly collapsedClusters: readonly string[];
+  readonly groupBy: GraphGroupBy;
+  /** The drilled-into cluster id (breadcrumb); Esc goes up one level. */
+  readonly drill: string | null;
+  readonly viewport: GraphViewport | null;
+  readonly query: string;
+  readonly edgeConcentration: GraphEdgeConcentration;
+  /** The bridges lens (issue #65): long edges arc above/below the layers. On by default. */
+  readonly bridges: boolean;
+  /** Matrix row order (issue #67); only meaningful in matrix mode, carried like the mode. */
+  readonly matrixSort: GraphMatrixSort;
+}
+
+/** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
+export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
+  mode: "topology",
+  activeLenses: [],
+  isolatedEdgeKinds: [],
+  auditFilters: [],
+  runtimeWindow: DEFAULT_RUNTIME_WINDOW,
+  runtimeLive: false,
+  isolatedNode: null,
+  selection: null,
+  impactColumn: null,
+  focus: [],
+  filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
+  collapsed: [],
+  collapsedClusters: [],
+  groupBy: "auto",
+  drill: null,
+  viewport: null,
+  query: "",
+  edgeConcentration: DEFAULT_EDGE_CONCENTRATION,
+  bridges: true,
+  matrixSort: "path",
+};
+
+const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
+const VISIBILITIES: readonly GraphTableVisibility[] = ["project", "used", "all"];
+const LENS_SET = new Set<string>(GRAPH_LENS_IDS);
+/** Hostile or corrupt payloads degrade to defaults instead of parsing without bound. */
+const MAX_RAW_LENGTH = 4096;
+
+/** Deduplicate non-empty strings, keeping first-occurrence order so round-trips are stable. */
+function uniqueStrings(value: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of value) {
+    if (entry === "" || seen.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
+ * Compact JSON, short keys, defaults and empties omitted; the viewport is a rounded
+ * [x, y, zoom] triple. The default view encodes to "" — the parameter is absent until the
+ * user changes something, so an untouched tab keeps a clean URL.
+ */
+export function encodeGraphViewState(state: GraphViewState): string {
+  const out: Record<string, unknown> = {};
+  if (state.mode !== "topology") out.m = state.mode;
+  const lenses = uniqueStrings(state.activeLenses);
+  if (lenses.length > 0) out.l = lenses;
+  const isolatedSet = new Set(state.isolatedEdgeKinds);
+  const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
+  if (isolated.length > 0) out.i = isolated;
+  // Canonical counter order on both sides, like the edge kinds: round-trips stay stable.
+  const auditSet = new Set(state.auditFilters);
+  const audit = AUDIT_FILTER_IDS.filter((id) => auditSet.has(id));
+  if (audit.length > 0) out.a = audit;
+  // Runtime lens options (issue #72): two short keys, omitted at their defaults so an
+  // untouched lens keeps the URL clean. "rw"/"rl" avoid #69's audit-filter key "a".
+  if (state.runtimeWindow !== DEFAULT_RUNTIME_WINDOW) out.rw = state.runtimeWindow;
+  if (state.runtimeLive) out.rl = true;
+  if (state.isolatedNode !== null && state.isolatedNode !== "") out.n = state.isolatedNode;
+  if (state.selection !== null && state.selection !== "") out.s = state.selection;
+  if (state.impactColumn !== null && state.impactColumn !== "") out.k = state.impactColumn;
+  const focus = uniqueStrings(state.focus);
+  if (focus.length > 0) out.f = focus;
+  // Canonical edge-kind order on both sides: decode(encode(s)) is stable for any input order.
+  const hidden = new Set(state.filters.hiddenEdgeKinds);
+  const kinds = GRAPH_EDGE_KINDS.filter((kind) => hidden.has(kind));
+  if (kinds.length > 0) out.h = kinds;
+  if (state.filters.tableVisibility !== "all") out.t = state.filters.tableVisibility;
+  const collapsed = uniqueStrings(state.collapsed);
+  if (collapsed.length > 0) out.c = collapsed;
+  const collapsedClusters = uniqueStrings(state.collapsedClusters);
+  if (collapsedClusters.length > 0) out.cc = collapsedClusters;
+  if (state.groupBy !== "auto") out.g = state.groupBy;
+  if (state.drill !== null && state.drill !== "") out.d = state.drill;
+  const viewport = state.viewport;
+  if (viewport !== null) {
+    out.v = encodeViewport(viewport);
+  }
+  if (state.query !== "") out.q = state.query;
+  if (state.matrixSort !== "path") out.ms = state.matrixSort;
+  if (state.edgeConcentration !== DEFAULT_EDGE_CONCENTRATION) out.e = state.edgeConcentration;
+  // Only the off state is encoded: bridges on is the default, so it stays out of the URL.
+  if (!state.bridges) out.b = false;
+  return Object.keys(out).length === 0 ? "" : JSON.stringify(out);
+}
+
+function readMode(value: unknown): GraphViewMode {
+  return MODES.find((mode) => mode === value) ?? "topology";
+}
+
+function readGroupBy(value: unknown): GraphGroupBy {
+  return value === "on" || value === "off" ? value : "auto";
+}
+
+function readVisibility(value: unknown): GraphTableVisibility {
+  return VISIBILITIES.find((visibility) => visibility === value) ?? "all";
+}
+
+function readConcentration(value: unknown): GraphEdgeConcentration {
+  return EDGE_CONCENTRATIONS.find((entry) => entry === value) ?? DEFAULT_EDGE_CONCENTRATION;
+}
+
+function readLenses(value: unknown): GraphLensId[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: GraphLensId[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || !LENS_SET.has(entry) || seen.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry as GraphLensId);
+  }
+  return out;
+}
+
+function readRuntimeWindow(value: unknown): RuntimeWindow {
+  return RUNTIME_WINDOW_IDS.find((window) => window === value) ?? DEFAULT_RUNTIME_WINDOW;
+}
+
+function readIds(value: unknown, knownNodeIds?: ReadonlySet<string>): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || entry === "" || seen.has(entry)) continue;
+    if (knownNodeIds !== undefined && !knownNodeIds.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry);
+  }
+  return out;
+}
+
+function readSelection(value: unknown, knownNodeIds?: ReadonlySet<string>): string | null {
+  if (typeof value !== "string" || value === "") return null;
+  if (knownNodeIds !== undefined && !knownNodeIds.has(value)) return null;
+  return value;
+}
+
+/**
+ * Total function: null, malformed JSON, wrong types and oversized payloads degrade to the
+ * default view, never throw. Unknown lens ids are dropped against the registry; when
+ * knownNodeIds is provided, selection/isolatedNode/focus/collapsed ids missing from it are
+ * dropped too (stale ids from another project or an older analysis).
+ */
+export function decodeGraphViewState(
+  raw: string | null,
+  knownNodeIds?: ReadonlySet<string>,
+): GraphViewState {
+  if (raw === null || raw === "" || raw.length > MAX_RAW_LENGTH) return DEFAULT_GRAPH_VIEW_STATE;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return DEFAULT_GRAPH_VIEW_STATE;
+  }
+  if (!isRecord(parsed)) return DEFAULT_GRAPH_VIEW_STATE;
+  return {
+    mode: readMode(parsed.m),
+    activeLenses: readLenses(parsed.l),
+    isolatedEdgeKinds: readEdgeKinds(parsed.i),
+    auditFilters: readAuditFilters(parsed.a),
+    runtimeWindow: readRuntimeWindow(parsed.rw),
+    runtimeLive: parsed.rl === true,
+    isolatedNode: readSelection(parsed.n, knownNodeIds),
+    selection: readSelection(parsed.s, knownNodeIds),
+    // A column property, not a node id: it is checked against the selected table's columns by
+    // the impact hook, never against knownNodeIds.
+    impactColumn: readSelection(parsed.k),
+    focus: readIds(parsed.f, knownNodeIds),
+    filters: {
+      hiddenEdgeKinds: readEdgeKinds(parsed.h),
+      tableVisibility: readVisibility(parsed.t),
+    },
+    collapsed: readIds(parsed.c, knownNodeIds),
+    // Cluster ids are derived ("cluster:<key>"), not analysis node ids: they cannot be checked
+    // against knownNodeIds here; the view drops ids no current cluster carries.
+    collapsedClusters: readIds(parsed.cc),
+    groupBy: readGroupBy(parsed.g),
+    drill: readSelection(parsed.d),
+    viewport: readEncodedViewport(parsed.v),
+    query: typeof parsed.q === "string" ? parsed.q : "",
+    matrixSort: GRAPH_MATRIX_SORTS.find((sort) => sort === parsed.ms) ?? "path",
+    edgeConcentration: readConcentration(parsed.e),
+    // Only a strict false disables the lens; hostile values degrade to the default (on).
+    bridges: parsed.b !== false,
+  };
+}

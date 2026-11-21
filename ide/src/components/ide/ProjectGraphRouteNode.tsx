@@ -3,12 +3,27 @@
 // description is project content in the project's language, not IDE chrome, so it is rendered
 // verbatim instead of through t().
 
+import { useContext } from "react";
 import type { RouteInputFact } from "@facilis.dev/analyze";
 import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
-import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  LinkHandles,
+  TurnBadge,
+  UnknownBadge,
+  nodeClass,
+  turnSourceTitle,
+} from "./ProjectGraphNodeChrome";
+import {
+  ContractLensContext,
+  RouteContractMarks,
+  contractRingClass,
+} from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
+import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
+import { RouteRuntimeMarks, RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
+import { useGraphLod } from "./use-graph-lod";
 
 function MethodBadge({ method }: { method: string }) {
   const tone =
@@ -24,7 +39,7 @@ function MethodBadge({ method }: { method: string }) {
               ? "border-destructive/40 bg-destructive/10 text-destructive"
               : "border-border bg-muted text-muted-foreground";
   return (
-    <span className={"shrink-0 rounded border px-1 py-0.5 font-mono text-[9px] font-bold " + tone}>
+    <span className={"shrink-0 rounded border px-1 py-0.5 font-mono text-[10px] font-bold " + tone}>
       {method}
     </span>
   );
@@ -39,9 +54,17 @@ const ROUTE_INPUTS: readonly { readonly fact: keyof RouteInputFact; readonly lab
   ];
 
 export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  // The runtime lens (issue #72) reads its settings from context, not node data: a stable null
+  // while inactive means the card renders exactly as before, with no subscription.
+  const runtime = useContext(RuntimeLensContext);
+  // The contract lens (issue #69) composes with the runtime marks: both read their settings
+  // from context, a stable null while inactive keeps the card render untouched.
+  const contract = useContext(ContractLensContext);
+  const level = useGraphLod();
   const node = data.node;
   const route = node.data.kind === "route" ? node.data : null;
   if (route === null) return null;
+  const diagnostics = contract?.nodeDiagnostics.get(node.id) ?? [];
   // Defensive: a Fast-Refresh-preserved view or an analyzer worker started before the input
   // facts were added can still deliver the older RouteGraphData shape.
   const inputs = ROUTE_INPUTS.filter((entry) => route.input?.[entry.fact] === true);
@@ -53,74 +76,112 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   return (
     <div
       data-testid="project-graph-route"
-      title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused) + " w-64"}
+      data-lod={level}
+      title={turnSourceTitle(node, data.turn)}
+      className={
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.auditDimmed,
+          contract === null ? "" : contractRingClass(diagnostics),
+          data.turn,
+          data.impactDimmed,
+        ) + " relative w-64"
+      }
     >
-      <div className="flex items-center gap-1.5">
-        <MethodBadge method={route.method} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{route.path}</span>
-        {route.unknown && <UnknownBadge />}
-      </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-        <Route className="size-2.5 shrink-0" />
-        <span className="min-w-0 truncate">
-          {route.permission.length === 0 ? t("projectGraph.public") : route.permission.join(", ")}
-        </span>
-        {route.elevations.length > 0 && (
-          <span
-            title={t("projectGraph.elevatedHint", {
-              tables:
-                elevatedTables.length === 0 ? t("projectGraph.unknown") : elevatedTables.join(", "),
-            })}
-            className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 text-warning"
-          >
-            {t("projectGraph.elevated")}
-          </span>
-        )}
-        {route.wrapper !== "valid" && (
-          <span
-            className={
-              "ml-auto shrink-0 rounded border px-1 " +
-              (route.wrapper === "invalid"
-                ? "border-destructive/50 text-destructive"
-                : "border-warning/50 text-warning")
-            }
-          >
-            {t(("projectGraph.wrapper." + route.wrapper) as MessageKey)}
-          </span>
-        )}
-      </div>
-      {description.length > 0 && (
-        // Project content, not IDE chrome: the sentence stays in the project's language, so it
-        // never goes through t() (D-129). line-clamp-2 keeps the card compact and the title
-        // keeps the clamped sentence reachable.
-        <p
-          title={description}
-          className="mt-1 line-clamp-2 border-l-2 border-muted-foreground/40 pl-1.5 text-[10px] leading-snug text-muted-foreground"
-        >
-          {description}
-        </p>
-      )}
-      {(pathParams.length > 0 || inputs.length > 0) && (
-        <div className="mt-1 flex flex-wrap items-center gap-1 border-t pt-1 text-[9px]">
-          {pathParams.map((name) => (
-            <span
-              key={name}
-              title={t("projectGraph.pathParam", { name })}
-              className="rounded border border-info/40 bg-info/10 px-1 font-mono text-info"
-            >
-              {":" + name}
-            </span>
-          ))}
-          {inputs.map((entry) => (
-            <span
-              key={entry.fact}
-              className="rounded border border-border bg-muted px-1 text-muted-foreground"
-            >
-              {t(entry.label)}
-            </span>
-          ))}
+      {runtime !== null && <RouteRuntimeMarks route={route} lens={runtime} />}
+      <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
+        <div className="flex items-center gap-1.5">
+          <MethodBadge method={route.method} />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{route.path}</span>
+          {data.turn != null && <TurnBadge turn={data.turn} />}
+          {route.unknown && <UnknownBadge />}
         </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <Route className="size-2.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            {route.permission.length === 0 ? t("projectGraph.public") : route.permission.join(", ")}
+          </span>
+          {route.elevations.length > 0 && (
+            <span
+              title={t("projectGraph.elevatedHint", {
+                tables:
+                  elevatedTables.length === 0
+                    ? t("projectGraph.unknown")
+                    : elevatedTables.join(", "),
+              })}
+              className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 text-warning"
+            >
+              {t("projectGraph.elevated")}
+            </span>
+          )}
+          {route.wrapper !== "valid" && (
+            <span
+              className={
+                "ml-auto shrink-0 rounded border px-1 " +
+                (route.wrapper === "invalid"
+                  ? "border-destructive/50 text-destructive"
+                  : "border-warning/50 text-warning")
+              }
+            >
+              {t(("projectGraph.wrapper." + route.wrapper) as MessageKey)}
+            </span>
+          )}
+        </div>
+        {description.length > 0 && (
+          // Project content, not IDE chrome: the sentence stays in the project's language, so it
+          // never goes through t() (D-129). line-clamp-2 keeps the card compact and the title
+          // keeps the clamped sentence reachable.
+          <p
+            title={description}
+            className="mt-1 line-clamp-2 border-l-2 border-muted-foreground/40 pl-1.5 text-[10px] leading-snug text-muted-foreground"
+          >
+            {description}
+          </p>
+        )}
+        {(pathParams.length > 0 || inputs.length > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 border-t pt-1 text-[10px]">
+            {pathParams.map((name) => (
+              <span
+                key={name}
+                title={t("projectGraph.pathParam", { name })}
+                className="rounded border border-info/40 bg-info/10 px-1 font-mono text-info"
+              >
+                {":" + name}
+              </span>
+            ))}
+            {inputs.map((entry) => (
+              <span
+                key={entry.fact}
+                className="rounded border border-border bg-muted px-1 text-muted-foreground"
+              >
+                {t(entry.label)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {contract !== null && (
+        <RouteContractMarks
+          route={route}
+          diagnostics={diagnostics}
+          compact={contract.compact}
+          secondary={contract.secondary}
+        />
+      )}
+      {level !== "full" && (
+        <GraphLodOverlay>
+          <ProjectGraphLodContent
+            node={node}
+            edgeCount={data.edgeCount}
+            level={level}
+            turn={data.turn}
+          />
+        </GraphLodOverlay>
       )}
       <LinkHandles />
     </div>
