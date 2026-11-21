@@ -14,27 +14,18 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { Node, NodeProps } from "@xyflow/react";
-import StickyNote from "~icons/lucide/sticky-note";
 import Trash2 from "~icons/lucide/trash-2";
 import { t } from "@/i18n";
-import { lodScreenPx } from "@/facilis/graph-lod";
 import type { GraphNote } from "@/facilis/graph-types";
 import { renderMarkdown } from "@/vv/notebook/render.js";
-import { GraphLodChip, GraphLodOverlay, lodSizerClass } from "./ProjectGraphLod";
-import { useGraphLod } from "./use-graph-lod";
 
 /** The React Flow node type for notes; the canvas registers it in PROJECT_GRAPH_NODE_TYPES. */
 export const NOTE_NODE_TYPE = "note";
 
 export type ProjectNoteFlowData = {
   readonly note: GraphNote;
-  /** False when the user focus (issue #66) is active: notes are never in the closure, so they
-   * recede to 12% with the rest of the graph. The AI focus outlines analysis cards, not notes. */
+  /** False when an AI focus request (D-171) names other nodes: the note is drawn dimmed. */
   readonly focused: boolean;
-  /** True while edge-kind isolation (issue #63) is active: notes always recede to 10%. */
-  readonly isolated: boolean;
-  /** True while an impact simulation (issue #74) dims the graph: notes are never dependents. */
-  readonly impactDimmed?: boolean;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
 };
@@ -47,14 +38,10 @@ const NOTE_MARKDOWN =
   "nowheel max-h-40 overflow-auto text-[11px] leading-snug [&_*]:my-0 [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-0.5 [&_code]:font-mono [&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-[11px] [&_h2]:font-semibold [&_li]:ml-3 [&_ol]:list-decimal [&_strong]:font-semibold [&_ul]:list-disc";
 
 export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<ProjectNoteFlowNode>) {
-  const lod = useGraphLod();
   const { note, onEditNote, onDeleteNote } = data;
   // An empty note has nothing to read, so it opens straight in the editor: a note added from
   // the toolbar is immediately typeable instead of needing a second double-click.
   const [editing, setEditing] = useState(note.text.trim() === "");
-  // Editing is an explicit user action and needs the real text: it forces the full rendering.
-  // The textarea counter-scales below full so even an edit at fit zoom stays >= 7 effective px.
-  const level = editing ? "full" : lod;
   const [draft, setDraft] = useState(note.text);
   const textarea = useRef<HTMLTextAreaElement>(null);
   // Escape cancels the edit and unmounts the textarea; the blur that can follow must not save
@@ -109,24 +96,17 @@ export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<Pro
   return (
     <div
       data-testid="project-graph-note"
-      data-lod={level}
       title={t("projectGraph.noteHint")}
       className={
         NOTE_BASE +
-        "relative w-64 " +
+        "w-64 " +
         (selected
           ? "border-primary ring-1 ring-primary"
           : dragging
             ? "border-primary shadow-lg ring-1 ring-ring"
             : "hover:border-ring") +
-        // The user focus dims an annotation like any other card: the closure names analysis
-        // nodes, not notes. Isolation (issue #63) recedes it further; the stronger dim wins.
-        // An impact simulation (issue #74) never names a note, so notes recede with the rest.
-        (data.isolated
-          ? " opacity-10"
-          : data.focused && data.impactDimmed !== true
-            ? ""
-            : " opacity-12")
+        // The focus dims an annotation like any other card: it names analysis nodes, not notes.
+        (data.focused ? "" : " opacity-40")
       }
       onDoubleClick={(event) => {
         if (editing) return;
@@ -134,78 +114,50 @@ export function ProjectGraphNoteNode({ data, selected, dragging }: NodeProps<Pro
         startEditing();
       }}
     >
-      <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
-        <div className="flex items-start gap-1">
-          <div className="min-w-0 flex-1">
-            {editing ? (
-              <textarea
-                ref={textarea}
-                value={draft}
-                rows={3}
-                placeholder={t("projectGraph.noteEmpty")}
-                aria-label={t("projectGraph.noteHint")}
-                className={
-                  "nodrag nowheel block w-full resize-none select-text bg-transparent p-0 font-mono leading-snug text-foreground outline-none placeholder:text-muted-foreground " +
-                  (lod === "full" ? "text-[11px]" : "")
-                }
-                style={lod === "full" ? undefined : { fontSize: lodScreenPx(12) }}
-                onChange={(event) => setDraft(event.target.value)}
-                onBlur={save}
-                onKeyDown={onKeyDown}
-              />
-            ) : empty ? (
-              <p className="text-[11px] italic text-muted-foreground">
-                {t("projectGraph.noteEmpty")}
-              </p>
-            ) : (
-              <div
-                className={NOTE_MARKDOWN}
-                // renderMarkdown escapes its input before applying any rule (see render.js and the
-                // same pattern in NotebookView), so this string contains only markup this studio
-                // generated; `contain` keeps that from being the only thing between a note and the
-                // page if the renderer ever changes.
-                style={{ contain: "layout paint" }}
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            )}
-          </div>
-          <button
-            type="button"
-            className="nodrag flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("projectGraph.noteDelete")}
-            title={t("projectGraph.noteDelete")}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDeleteNote(note.id);
-            }}
-          >
-            <Trash2 className="size-3" />
-          </button>
+      <div className="flex items-start gap-1">
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <textarea
+              ref={textarea}
+              value={draft}
+              rows={3}
+              placeholder={t("projectGraph.noteEmpty")}
+              aria-label={t("projectGraph.noteHint")}
+              className="nodrag nowheel block w-full resize-none select-text bg-transparent p-0 font-mono text-[11px] leading-snug text-foreground outline-none placeholder:text-muted-foreground"
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={save}
+              onKeyDown={onKeyDown}
+            />
+          ) : empty ? (
+            <p className="text-[11px] italic text-muted-foreground">
+              {t("projectGraph.noteEmpty")}
+            </p>
+          ) : (
+            <div
+              className={NOTE_MARKDOWN}
+              // renderMarkdown escapes its input before applying any rule (see render.js and the
+              // same pattern in NotebookView), so this string contains only markup this studio
+              // generated; `contain` keeps that from being the only thing between a note and the
+              // page if the renderer ever changes.
+              style={{ contain: "layout paint" }}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
         </div>
+        <button
+          type="button"
+          className="nodrag flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t("projectGraph.noteDelete")}
+          title={t("projectGraph.noteDelete")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDeleteNote(note.id);
+          }}
+        >
+          <Trash2 className="size-3" />
+        </button>
       </div>
-      {!editing && lod !== "full" && (
-        <GraphLodOverlay>
-          <GraphLodChip
-            icon={
-              <StickyNote
-                className="shrink-0 text-muted-foreground"
-                style={{ width: lodScreenPx(14), height: lodScreenPx(14) }}
-              />
-            }
-            kindLabel={t("projectGraph.lod.note")}
-            label={
-              note.text.split("\n").find((line) => line.trim() !== "") ??
-              t("projectGraph.noteEmpty")
-            }
-            count={note.text.trim() === "" ? 0 : note.text.split("\n").length}
-            countTitle={t("projectGraph.lod.lines", {
-              count: note.text.trim() === "" ? 0 : note.text.split("\n").length,
-            })}
-            tone="border-border"
-          />
-        </GraphLodOverlay>
-      )}
     </div>
   );
 }

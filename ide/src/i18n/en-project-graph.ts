@@ -12,6 +12,8 @@ export const projectGraphEn = {
   "projectGraph.openProjectFirst": "Open a project to see its graph.",
   "projectGraph.empty": "Nothing to draw yet.",
   "projectGraph.emptyHint": "Pages, routes, tables and views appear here after the analysis runs.",
+  "projectGraph.fullscreen": "Fullscreen",
+  "projectGraph.exitFullscreen": "Exit fullscreen",
   "projectGraph.clearFocus": "Clear focus",
   "projectGraph.clearFocusHint":
     "The AI highlighted part of the graph: clear the focus to see everything again (Esc).",
@@ -22,6 +24,7 @@ export const projectGraphEn = {
   "projectGraph.saved": "Layout saved",
   "projectGraph.saveFailed": "Could not save the layout: {error}",
   "projectGraph.search": "Search nodes…",
+  "projectGraph.filters": "Edges",
   "projectGraph.edge.fk": "Foreign key",
   "projectGraph.edge.relation": "Relation",
   "projectGraph.edge.routeTable": "Route → table",
@@ -36,16 +39,16 @@ export const projectGraphEn = {
   "projectGraph.tableVisibility.all": "All tables",
   "projectGraph.tableVisibility.hint":
     "System tables are the ones loaded from the @facilis modules. Choose whether the graph draws all of them, only the ones your project uses, or none.",
+  "projectGraph.stats":
+    "{pages} pages · {routes} routes · {tables} tables · {views} views · {workflows} workflows · {edges} edges",
   "projectGraph.hiddenEdges": "{count} hidden",
   "projectGraph.hiddenNodes": "{count} hidden nodes",
   "projectGraph.matches": "{count} matched",
   "projectGraph.noMatches": "No node matches the search.",
+  "projectGraph.legend": "Legend",
   "projectGraph.hint":
-    "Drag a node to move it, double-click to open its source, press Enter to isolate the selection's context. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
+    "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
   "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
-  "projectGraph.bridges": "Bridges",
-  "projectGraph.bridgesHint": "Draw long edges as labelled arcs above the layers (B)",
-  "projectGraph.bridge.ariaLabel": "Bridge: {label}",
   "projectGraph.addNote": "Add note",
   "projectGraph.noteEmpty": "Empty note — double-click to edit",
   "projectGraph.noteDelete": "Delete note",
@@ -125,9 +128,6 @@ export const projectGraphEn = {
   "projectGraph.routePaths": "Routes",
   "projectGraph.details": "Details",
   "projectGraph.closeDetails": "Close details",
-  "projectGraph.pinDetails": "Pin details",
-  "projectGraph.unpinDetails": "Unpin and close",
-  "projectGraph.detailsSheetHandle": "Drag to resize the details sheet",
   "projectGraph.preview.title": "Static preview",
   "projectGraph.preview.staticNote":
     "Schematic mini-page with placeholder data — never a rendering.",
@@ -175,115 +175,4 @@ export const projectGraphEn = {
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
   "projectGraph.fk.onUpdate": "on update {action}",
-
-  // ── full-bleed canvas HUD (issue #57) ──────────────────────────────────────
-  "projectGraph.zen": "Zen mode",
-  "projectGraph.exitZen": "Exit zen mode",
-  "projectGraph.zenHint": "Hide the controls for a clean canvas. Press Esc to bring them back.",
-  "projectGraph.zoomIn": "Zoom in",
-  "projectGraph.zoomOut": "Zoom out",
-  "projectGraph.actionsMenu": "Actions and filters",
-  "projectGraph.hud.overview": "Graph overview",
-  "projectGraph.hud.actions": "Graph actions",
-  "projectGraph.hud.view": "View controls",
-  "projectGraph.hud.modeSlot": "Graph mode",
-  "projectGraph.hud.minimapSlot": "Minimap",
-  "projectGraph.ribbon.label": "Graph statistics",
-  "projectGraph.ribbon.pages": "Pages",
-  "projectGraph.ribbon.routes": "Routes",
-  "projectGraph.ribbon.tables": "Tables",
-  "projectGraph.ribbon.views": "Views",
-  "projectGraph.ribbon.workflows": "Workflows",
-  "projectGraph.ribbon.edges": "Edges",
-  "projectGraph.ribbon.filterKind": "Filter by {label}",
-  "projectGraph.ribbon.filterEdges": "Show or hide all edges",
-
-  // ── semantic zoom LOD (issue #60) ─────────────────────────────────────────
-  "projectGraph.lod.edgeCount": "{count} edges",
-  "projectGraph.lod.note": "note",
-  "projectGraph.lod.lines": "{count} lines",
-
-  // ── lens chips + edge-kind isolation (issue #63) ─────────────────────────────
-  "projectGraph.lens.label": "Lenses and edge kinds",
-  "projectGraph.lens.collapse": "Lenses",
-  "projectGraph.lens.contract": "Contract",
-  "projectGraph.lens.data": "Data",
-  "projectGraph.lens.runtime": "Runtime",
-  "projectGraph.lens.agent": "Agent",
-  "projectGraph.lens.impact": "Impact",
-  "projectGraph.lens.roles": "Roles",
-  "projectGraph.lens.secondary": "secondary",
-  "projectGraph.lens.limitHint":
-    "One dominant lens plus two secondaries only — deactivate a lens first.",
-  "projectGraph.chip.edgeHint":
-    "Isolate {label} (click), add to the set (Shift+click), hide (Alt+click)",
-  "projectGraph.chip.lensHint": "Activate the {label} lens; the newest active lens is dominant",
-  "projectGraph.chip.hidden": "hidden",
-
-  // ── focus-and-context highlighting + dim-only node isolation (issue #66) ────
-  "projectGraph.focus.label": "Selection context",
-  "projectGraph.focus.reachable": "{count} nodes reachable",
-  "projectGraph.focus.pages": "{count} pages",
-  "projectGraph.focus.routes": "{count} routes",
-  "projectGraph.focus.tables": "{count} tables",
-  "projectGraph.focus.views": "{count} views",
-  "projectGraph.focus.workflows": "{count} workflows",
-  "projectGraph.focus.isolate": "Isolate",
-  "projectGraph.focus.isolateHint":
-    "Dim everything outside the selection's reachable context (Enter)",
-  "projectGraph.focus.exitIsolate": "Exit isolation",
-  "projectGraph.focus.exitIsolateHint": "Restore the full graph (Esc)",
-
-  // ── runtime lens (issue #72) ────────────────────────────────────────────────
-  "projectGraph.runtime.controls": "Runtime lens",
-  "projectGraph.runtime.window.1m": "1 min",
-  "projectGraph.runtime.window.5m": "5 min",
-  "projectGraph.runtime.window.15m": "15 min",
-  "projectGraph.runtime.windowHint": "Show traffic for the last {label}",
-  "projectGraph.runtime.live": "Live",
-  "projectGraph.runtime.liveHint":
-    "Live: stream updates every second. Off: read the last snapshot.",
-  "projectGraph.runtime.heat": "{count} requests in the last {window}",
-  "projectGraph.runtime.errorDot": "{count} server errors in the last {window}",
-  "projectGraph.runtime.section": "Runtime",
-  "projectGraph.runtime.empty": "no traffic in this window",
-  "projectGraph.runtime.requests": "Requests",
-  "projectGraph.runtime.errorRate": "Error rate (5xx)",
-  "projectGraph.runtime.p50": "p50",
-  "projectGraph.runtime.p95": "p95",
-  "projectGraph.runtime.unbounded": "beyond measurable range",
-  "projectGraph.runtime.clientErrors": "{count} client errors (4xx)",
-  "projectGraph.runtime.aborted": "{count} aborted",
-  "projectGraph.runtime.sparkline": "Requests per bucket over the last {window}",
-
-  // ── feature clusters (issue #62) ─────────────────────────────────────────
-  "projectGraph.cluster.other": "Other",
-  "projectGraph.cluster.otherHint": "Nodes the analysis could not group into a feature.",
-  "projectGraph.cluster.toggle": "Group by feature",
-  "projectGraph.cluster.toggleHint":
-    "Group nodes into feature clusters (G). On by default above 40 nodes.",
-  "projectGraph.cluster.drillUp": "Up one level (Esc)",
-  "projectGraph.cluster.drillHint": "Double-click to focus this cluster; Esc goes back up.",
-  "projectGraph.cluster.collapse": "Collapse cluster",
-  "projectGraph.cluster.expand": "Expand cluster",
-  "projectGraph.cluster.collapseHint": "Collapse or expand this cluster (C).",
-  "projectGraph.cluster.nodes": "{count} nodes",
-  "projectGraph.cluster.crossing": "{count} crossing edges",
-  "projectGraph.cluster.edgeCount": "×{count}",
-  "projectGraph.cluster.frameLabel": "Feature cluster {label}",
-  "projectGraph.cluster.frameKind": "Feature",
-
-  // ── edge concentration (issue #64) ─────────────────────────────────────────
-  "projectGraph.hud.concentration": "Edge concentration",
-  "projectGraph.concentration.off": "off",
-  "projectGraph.concentration.setOff": "Turn off edge concentration",
-  "projectGraph.concentration.setThreshold":
-    "Concentrate when more than {count} routes share a table",
-  "projectGraph.concentration.hint":
-    "High route fan-outs become a hub with a count; smaller ones share a trunk (E cycles off / 4 / 8). Click a hub to expand its edges.",
-  "projectGraph.hub.aria": "{count} routes to {target}",
-  "projectGraph.hub.hint": "Click to expand the individual edges",
-  "projectGraph.hub.hintExpanded": "Click to re-concentrate the edges into the hub",
-  "projectGraph.hub.countLabel": "{count} routes",
-  "projectGraph.hub.routesTitle": "Routes ({count})",
 } as const;

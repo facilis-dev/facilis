@@ -176,50 +176,6 @@ template is `src/facilis/project-files.ts`, which pins the Vite version its own 
 proves in the VM. Environment notes and the rest of the in-VM constraints:
 [`docs/DEV.md`](../docs/DEV.md).
 
-## Project graph view state (the `gv` URL parameter)
-
-The project graph's view is addressable (issue #58, epic #56): the tab URL carries one compact
-`gv` parameter next to `?project=`, so reloading the tab or copying its URL into another tab
-opens the same view. `facilis/graph-view-state.ts` owns the pure encode/decode,
-`facilis/graph-view-state-url.ts` the parameter merge, and
-`components/ide/useProjectGraphViewState.ts` the lifecycle (debounced `history.replaceState`,
-250 ms, read-modify-write — every other parameter and `history.state` survive).
-
-The value is compact JSON with short keys; defaults and empties are omitted, and the default
-view removes the parameter entirely. Ids only — never node coordinates.
-
-| Key | Field | Default when absent |
-|---|---|---|
-| `m` | mode: `topology` / `matrix` / `timeline` (matrix/timeline are later children, carried only) | `topology` |
-| `l` | active lens ids, dominant first: `contract`, `data`, `runtime`, `agent`, `impact`, `roles` (lens UIs are later children; ids carried only) | none |
-| `s` | selected node id | none |
-| `f` | user focus node ids (distinct from the AI focus) | none |
-| `h` | hidden edge kinds (`fk`, `relation`, `route-table`, `page-route`, `page-link`, `route-view`, `view-base`) | none hidden |
-| `t` | table visibility: `project` / `used` / `all` (D-179) | `all` |
-| `c` | collapsed cluster node ids | none |
-| `v` | viewport `[x, y, zoom]`, rounded (2 decimals x/y, 3 zoom) | fit to view |
-| `q` | search query | empty |
-
-Example: `?project=%2Fhome%2Fu%2Ftodo&gv={"m":"matrix","l":["impact"],"s":"table:todos","h":["fk"],"t":"used","c":["table:users"],"v":[120.25,-40.5,0.875],"q":"todos"}`
-(the JSON is percent-encoded in a real URL).
-
-- **Degradation.** Decode is total: malformed, wrong-typed or oversized payloads fall back to
-  the default view without errors; unknown lens ids are dropped against the registry, and
-  selection/focus/collapsed ids missing from the current analysis are dropped silently.
-- **Per-root reset.** The state belongs to one project root: switching root (or closing the
-  project) resets the view and removes `gv`; a cold boot's deep link survives until the
-  project opens.
-- **No `.facilis` writes.** Restoring a deep link goes through a non-persisting restore path
-  (`restoreGraphView` + the layout hook's `restoreView`): the layout file stays a document
-  (positions, curves, notes), and neither `layout.json` nor `viewport.json` is written by a
-  restore or by the URL sync. User-initiated changes keep their existing persistence.
-- **AI focus excluded.** The D-171 AI focus overlay is never part of `gv`; it composes on top
-  and clears independently of the user's selection.
-- **2 KB budget.** The whole URL stays under 2048 bytes: if a snapshot does not fit (e.g.
-  hundreds of collapsed ids in a 500-node project), the encoder sheds collapsed ids, then user
-  focus, then query — in that order — and the shed fields degrade to defaults on the receiving
-  tab.
-
 ## Where Facilis code goes
 
 New Facilis panels and the `IdeController.applyPatch()` write path belong in new modules under

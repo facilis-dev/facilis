@@ -190,30 +190,3 @@ export function notifyRuntimeMetrics(): void {
   // Snapshot: a listener that unsubscribes mid-notify must not disturb the loop.
   for (const listener of Array.from(listeners)) listener();
 }
-
-// The sample tap (issue #72): the runtime lens's history store needs the ingested samples
-// themselves — the collector only exposes windowed snapshots, no time series. Additive seam:
-// the message contract and its validation are unchanged; the wire notifies the tap after a
-// successful ingest with the SAME now it handed the collector, so the lens's 5-minute window
-// can be proven exactly equal to collector.snapshot(). Nothing else subscribes.
-export type RuntimeMetricSamplesListener = (
-  samples: readonly RuntimeMetricSample[],
-  now: number,
-) => void;
-const sampleListeners = new Set<RuntimeMetricSamplesListener>();
-
-/** Returns the unsubscribe function (use it as the effect cleanup). */
-export function subscribeRuntimeMetricSamples(listener: RuntimeMetricSamplesListener): () => void {
-  sampleListeners.add(listener);
-  return () => {
-    sampleListeners.delete(listener);
-  };
-}
-
-export function notifyRuntimeMetricSamples(
-  samples: readonly RuntimeMetricSample[],
-  now: number,
-): void {
-  // Snapshot: a listener that unsubscribes mid-notify must not disturb the loop.
-  for (const listener of Array.from(sampleListeners)) listener(samples, now);
-}

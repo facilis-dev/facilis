@@ -7,33 +7,33 @@
 // scene; keeping geometry out of it is what makes this testable in Node.
 
 import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
-import { planGraphBridges } from "./graph-edge-bridges";
-import { bridgeGeometry, shiftBridgeSpec, type BridgeSpec } from "./graph-bridge-geometry";
 import {
+  EDGE_ENDPOINT_GAP,
   edgeGeometry,
+  floatingAnchors,
   nodeRect,
   selfLoopGeometry,
-  type Point,
   type Rect,
 } from "./graph-edge-geometry";
-import { bridgeApexLabel } from "./graph-edge-labels";
-import { routeEdge } from "./graph-edge-routing";
-import type { GraphLayoutFile, GraphPosition } from "./graph-layout-file";
-import { GRAPH_NODE_SIZES } from "./graph-node-size";
-import type { ProjectGraphEdge, ProjectGraphView } from "./graph-types";
-import { USER_FOCUS_OPACITY } from "./graph-user-focus";
+import type { GraphLayoutFile } from "./graph-layout-file";
+import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "./graph-types";
 
 /**
- * The shared full-card footprints (graph-node-size.ts). The scene always draws the FULL card:
- * chip and compact render inside the same footprint on the canvas (issue #60), so the picture
- * and the live edge anchoring agree at every zoom level — the LOD never changes these sizes.
+ * Card classes (w-56/w-60/w-64 = 224/240/256 px) plus the height each kind's content settles at
+ * in the panel; the workflow card is wider than the edge fallback because its class says so.
  */
+const CARD_SIZES: Readonly<
+  Record<GraphNodeKind, { readonly width: number; readonly height: number }>
+> = {
+  page: { width: 224, height: 157 },
+  route: { width: 256, height: 60 },
+  table: { width: 240, height: 80 },
+  view: { width: 240, height: 80 },
+  workflow: { width: 256, height: 64 },
+};
 
 /** Blank space around the drawing (self-loops bulge ~62 px out of a card). */
 const SCENE_PADDING = 72;
-
-/** Room above/below an apex for its label, on top of the scene padding (issue #65). */
-const BRIDGE_LABEL_MARGIN = 18;
 
 /** Caps keep one screenshot readable and bounded: a 1,000-card picture is not an inspection. */
 export const MAX_SCENE_NODES = 200;
@@ -51,8 +51,6 @@ export interface GraphScenePalette {
   readonly border: string;
   readonly text: string;
   readonly muted: string;
-  /** The AI focus outline channel (issue #66): the brand role, like the canvas halo. */
-  readonly outline: string;
   readonly edges: Readonly<Record<GraphEdgeKind, GraphSceneEdgeStyle>>;
   readonly elevated: GraphSceneEdgeStyle;
 }
@@ -66,18 +64,7 @@ export interface GraphSceneRect {
 
 export interface GraphSceneNode {
   readonly id: string;
-  /** "cluster" is a collapsed super-node (issue #62); the rest are the analysis cards. */
-  readonly kind: GraphNodeKind | "cluster";
-  readonly label: string;
-  readonly rect: GraphSceneRect;
-  /** 1 normally; USER_FOCUS_OPACITY outside the selection's closure (issue #66). */
-  readonly opacity: number;
-  /** The AI focus names this card: the outline channel, composed over any dimming. */
-  readonly outlined: boolean;
-}
-
-/** An expanded cluster frame (issue #62): an outline the cards sit inside, never an obstacle. */
-export interface GraphSceneFrame {
+  readonly kind: GraphNodeKind;
   readonly label: string;
   readonly rect: GraphSceneRect;
 }
@@ -87,17 +74,12 @@ export interface GraphSceneEdge {
   readonly path: string;
   readonly stroke: string;
   readonly dashed: boolean;
-  readonly opacity: number;
-  readonly outlined: boolean;
-  /** The bridge apex mark (issue #65): present when this edge arcs over the band. */
-  readonly bridge?: { readonly apex: Point; readonly label: string };
 }
 
 export interface GraphScene {
   readonly width: number;
   readonly height: number;
   readonly nodes: readonly GraphSceneNode[];
-  readonly frames: readonly GraphSceneFrame[];
   readonly edges: readonly GraphSceneEdge[];
   /** True when a cap dropped nodes or edges from the picture. */
   readonly truncated: boolean;
@@ -107,20 +89,17 @@ function byId(left: { readonly id: string }, right: { readonly id: string }): nu
   return left.id.localeCompare(right.id);
 }
 
-/**
- * The two focus channels the canvas composes (issue #66), carried into the picture so a
- * screenshot shows what the user sees: the USER closure dims outsiders, the AI focus outlines
- * what it names — including the endpoints of an edge-only request, like the canvas does.
- */
-export interface GraphSceneFocus {
-  readonly userNodes: ReadonlySet<string> | null;
-  readonly userEdges: ReadonlySet<string> | null;
-  readonly aiNodes: ReadonlySet<string>;
-  readonly aiEdges: ReadonlySet<string>;
-}
-
 function edgeStyleOf(edge: ProjectGraphEdge, palette: GraphScenePalette): GraphSceneEdgeStyle {
   return edge.access === "elevated" ? palette.elevated : palette.edges[edge.kind];
+}
+
+function rectFor(node: ProjectGraphNode, origin: { readonly x: number; readonly y: number }): Rect {
+  const size = CARD_SIZES[node.kind];
+  return nodeRect(
+    { x: node.position.x - origin.x, y: node.position.y - origin.y },
+    size.width,
+    size.height,
+  );
 }
 
 function edgePath(
@@ -128,9 +107,6 @@ function edgePath(
   source: Rect | undefined,
   target: Rect | undefined,
   curve: { readonly x: number; readonly y: number } | null,
-  obstacles: readonly Rect[],
-  bridge: BridgeSpec | null,
-  origin: Point,
 ): string {
   // A missing card can only happen for an edge the caps cut; fall back to a straight segment.
   if (source === undefined || target === undefined) {
@@ -138,132 +114,56 @@ function edgePath(
     return edgeGeometry({ source: from, target: from }, curve).path;
   }
   if (edge.source === edge.target) return selfLoopGeometry(source, curve).path;
-  // The plan was made in absolute flow coordinates; shift it into the padded picture.
-  if (bridge !== null) {
-    return bridgeGeometry(shiftBridgeSpec(bridge, { x: -origin.x, y: -origin.y })).path;
-  }
-  return routeEdge(source, target, { obstacles, curve }).path;
+  return edgeGeometry(floatingAnchors(source, target, EDGE_ENDPOINT_GAP), curve).path;
 }
 
-/**
- * Build the deterministic scene for one visible view + the committed layout. Bridges default
- * to the view-state default (on); pass { bridges: false } to picture the orthogonal lens.
- */
+/** Build the deterministic scene for one visible view + the committed layout. */
 export function buildGraphScene(
   view: ProjectGraphView,
   layout: GraphLayoutFile,
   palette: GraphScenePalette,
-  focus: GraphSceneFocus | null = null,
-  options?: { readonly bridges?: boolean },
 ): GraphScene {
-  // Collapsed super-nodes are cards in the picture (their id anchors the boundary edges);
-  // expanded frames are outlines around the cards, never obstacles (issue #62).
-  const superNodes = view.clusters
-    .filter((cluster) => cluster.collapsed)
-    .map((cluster) => ({
-      id: cluster.id,
-      kind: "cluster" as const,
-      label: cluster.label,
-      position: cluster.position,
-      size: cluster.size,
-    }));
-  const frames = view.clusters.filter((cluster) => !cluster.collapsed);
-  const cards = [
-    ...view.nodes.map((node) => ({
-      id: node.id,
-      kind: node.kind,
-      label: node.label,
-      position: node.position,
-      size: GRAPH_NODE_SIZES[node.kind],
-    })),
-    ...superNodes,
-  ].toSorted(byId);
-  const selectedNodes = cards.slice(0, MAX_SCENE_NODES);
+  const nodes = [...view.nodes].toSorted(byId);
+  const selectedNodes = nodes.slice(0, MAX_SCENE_NODES);
   const included = new Set(selectedNodes.map((node) => node.id));
   const edges = view.edges
     .filter((edge) => included.has(edge.source) && included.has(edge.target))
     .toSorted(byId);
   const selectedEdges = edges.slice(0, MAX_SCENE_EDGES);
-  const truncated = selectedNodes.length < cards.length || selectedEdges.length < edges.length;
-  if (selectedNodes.length === 0 && frames.length === 0) {
-    return { width: 0, height: 0, nodes: [], frames: [], edges: [], truncated };
+  const truncated = selectedNodes.length < nodes.length || selectedEdges.length < edges.length;
+  if (selectedNodes.length === 0) {
+    return { width: 0, height: 0, nodes: [], edges: [], truncated };
   }
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-  const boxes = [
-    ...selectedNodes,
-    ...frames.map((frame) => ({ position: frame.position, size: frame.size })),
-  ];
-  for (const box of boxes) {
-    minX = Math.min(minX, box.position.x);
-    minY = Math.min(minY, box.position.y);
-    maxX = Math.max(maxX, box.position.x + box.size.width);
-    maxY = Math.max(maxY, box.position.y + box.size.height);
-  }
-  // Plan bridges in absolute flow coordinates first: the apexes fly outside the node bounds,
-  // and the picture's padding must cover them so the screenshot clips no arc (issue #65).
-  const absoluteRects = new Map<string, Rect>();
   for (const node of selectedNodes) {
-    absoluteRects.set(node.id, nodeRect(node.position, node.size.width, node.size.height));
+    const size = CARD_SIZES[node.kind];
+    minX = Math.min(minX, node.position.x);
+    minY = Math.min(minY, node.position.y);
+    maxX = Math.max(maxX, node.position.x + size.width);
+    maxY = Math.max(maxY, node.position.y + size.height);
   }
-  const bridgePlan = planGraphBridges({
-    edges: selectedEdges,
-    rects: absoluteRects,
-    curves: layout.edgeCurves,
-    enabled: options?.bridges ?? true,
-  });
-  let topExtra = 0;
-  let bottomExtra = 0;
-  for (const spec of bridgePlan.values()) {
-    if (spec.side === "above") {
-      topExtra = Math.max(topExtra, minY - spec.apex.y + BRIDGE_LABEL_MARGIN);
-    } else {
-      bottomExtra = Math.max(bottomExtra, spec.apex.y - maxY + BRIDGE_LABEL_MARGIN);
-    }
-  }
-  const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING - topExtra };
-  const toSceneRect = (position: GraphPosition, size: { width: number; height: number }) => ({
-    x: position.x - origin.x,
-    y: position.y - origin.y,
-    width: size.width,
-    height: size.height,
-  });
-  // The AI outline also marks the endpoints of a named edge (the D-171 edge-only semantics).
-  const aiNodes = new Set(focus?.aiNodes ?? []);
-  if (focus !== null) {
-    for (const edge of view.edges) {
-      if (!focus.aiEdges.has(edge.id)) continue;
-      aiNodes.add(edge.source);
-      aiNodes.add(edge.target);
-    }
-  }
+  const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING };
   const rects = new Map<string, Rect>();
   const sceneNodes: GraphSceneNode[] = selectedNodes.map((node) => {
-    const rect = nodeRect(
-      { x: node.position.x - origin.x, y: node.position.y - origin.y },
-      node.size.width,
-      node.size.height,
-    );
+    const rect = rectFor(node, origin);
     rects.set(node.id, rect);
     return {
       id: node.id,
       kind: node.kind,
       label: node.label,
-      rect: toSceneRect(node.position, node.size),
-      opacity: focus?.userNodes != null && !focus.userNodes.has(node.id) ? USER_FOCUS_OPACITY : 1,
-      outlined: aiNodes.has(node.id),
+      rect: {
+        x: rect.center.x - rect.width / 2,
+        y: rect.center.y - rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      },
     };
   });
-  const sceneFrames: GraphSceneFrame[] = frames.map((frame) => ({
-    label: frame.label,
-    rect: toSceneRect(frame.position, frame.size),
-  }));
-  const obstacles = [...rects.values()];
   const sceneEdges: GraphSceneEdge[] = selectedEdges.map((edge) => {
     const style = edgeStyleOf(edge, palette);
-    const bridge = bridgePlan.get(edge.id) ?? null;
     return {
       id: edge.id,
       path: edgePath(
@@ -271,29 +171,15 @@ export function buildGraphScene(
         rects.get(edge.source),
         rects.get(edge.target),
         layout.edgeCurves[edge.id] ?? null,
-        obstacles,
-        bridge,
-        origin,
       ),
       stroke: style.stroke,
       dashed: style.dashed,
-      opacity: focus?.userEdges != null && !focus.userEdges.has(edge.id) ? USER_FOCUS_OPACITY : 1,
-      outlined: focus?.aiEdges.has(edge.id) ?? false,
-      ...(bridge === null
-        ? {}
-        : {
-            bridge: {
-              apex: { x: bridge.apex.x - origin.x, y: bridge.apex.y - origin.y },
-              label: bridgeApexLabel(edge),
-            },
-          }),
     };
   });
   return {
     width: Math.ceil(maxX - minX + SCENE_PADDING * 2),
-    height: Math.ceil(maxY - minY + SCENE_PADDING * 2 + topExtra + bottomExtra),
+    height: Math.ceil(maxY - minY + SCENE_PADDING * 2),
     nodes: sceneNodes,
-    frames: sceneFrames,
     edges: sceneEdges,
     truncated,
   };

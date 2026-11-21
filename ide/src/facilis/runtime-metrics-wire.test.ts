@@ -1,11 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KernelBridge } from "@/vv/kernel";
-import {
-  getRuntimeMetrics,
-  subscribeRuntimeMetricSamples,
-  subscribeRuntimeMetrics,
-  type RuntimeMetricSample,
-} from "./runtime-metrics";
+import { getRuntimeMetrics, subscribeRuntimeMetrics } from "./runtime-metrics";
 import {
   disableRuntimeMetrics,
   enableRuntimeMetrics,
@@ -61,7 +56,6 @@ beforeEach(() => {
 
 afterEach(() => {
   disableRuntimeMetrics();
-  vi.restoreAllMocks();
   delete (globalThis as Record<string, unknown>).window;
   delete (globalThis as Record<string, unknown>).location;
 });
@@ -174,81 +168,5 @@ describe("enable/disable wiring", () => {
     const session = runtimeMetricsSession(bridge, preview);
     if (session === null) throw new Error("session");
     expect(enableRuntimeMetrics(session, [])).toBe(false);
-  });
-});
-
-const NOW = 1_700_000_000_000;
-const tap = () => {
-  const seen: { samples: readonly RuntimeMetricSample[]; now: number }[] = [];
-  const unsubscribe = subscribeRuntimeMetricSamples((samples, now) => {
-    seen.push({ samples, now });
-  });
-  return { seen, unsubscribe };
-};
-
-describe("sample tap wiring (issue #72)", () => {
-  it("a valid batch notifies the tap with the SAME now the collector ingested", () => {
-    vi.spyOn(Date, "now").mockReturnValue(NOW);
-    const session = runtimeMetricsSession(bridge, preview);
-    if (session === null) throw new Error("session");
-    const { seen, unsubscribe } = tap();
-    enableRuntimeMetrics(session, ["/api/todos"]);
-    emit(HERE, batch());
-    expect(seen).toHaveLength(1);
-    expect(seen[0]?.now).toBe(NOW);
-    expect(seen[0]?.samples).toEqual(batch().samples);
-    // The collector's window at that same now agrees with the tapped samples.
-    expect(getRuntimeMetrics().snapshot(NOW)).toMatchObject([{ route: "/api/todos", count: 1 }]);
-    unsubscribe();
-  });
-
-  it("wrong origin, wrong token and oversized payloads never reach the tap", () => {
-    const session = runtimeMetricsSession(bridge, preview);
-    if (session === null) throw new Error("session");
-    const { seen, unsubscribe } = tap();
-    enableRuntimeMetrics(session, ["/api/todos"]);
-    emit("https://evil.example", batch());
-    emit(HERE, batch("stale-token"));
-    emit(HERE, { ...batch(), padding: "x".repeat(64 * 1024) });
-    emit(HERE, {
-      ...batch(),
-      samples: [{ route: "/api/todos", method: "GET", status: 999, duration: 1 }],
-    });
-    expect(seen).toHaveLength(0);
-    expect(getRuntimeMetrics().snapshot()).toEqual([]);
-    unsubscribe();
-  });
-
-  it("disable drops the listener: later messages notify neither tap nor repaints", () => {
-    const session = runtimeMetricsSession(bridge, preview);
-    if (session === null) throw new Error("session");
-    const { seen, unsubscribe } = tap();
-    let repaints = 0;
-    const unsubscribeRepaint = subscribeRuntimeMetrics(() => {
-      repaints += 1;
-    });
-    enableRuntimeMetrics(session, ["/api/todos"]);
-    emit(HERE, batch());
-    expect(seen).toHaveLength(1);
-    disableRuntimeMetrics();
-    // The disable itself repaints once (surfaces must learn the buffer cleared); after it,
-    // dropped messages notify neither the tap nor the repaint subscribers.
-    const before = repaints;
-    emit(HERE, batch());
-    expect(seen).toHaveLength(1);
-    expect(repaints).toBe(before);
-    unsubscribe();
-    unsubscribeRepaint();
-  });
-
-  it("re-enable keeps a single message listener (no double tap)", () => {
-    const session = runtimeMetricsSession(bridge, preview);
-    if (session === null) throw new Error("session");
-    const { seen, unsubscribe } = tap();
-    enableRuntimeMetrics(session, ["/api/todos"]);
-    enableRuntimeMetrics(session, ["/api/todos"]);
-    emit(HERE, batch());
-    expect(seen).toHaveLength(1);
-    unsubscribe();
   });
 });
