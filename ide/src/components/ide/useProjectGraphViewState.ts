@@ -34,6 +34,7 @@ interface GraphViewLocalState {
   readonly selection: string | null;
   readonly focus: readonly string[];
   readonly query: string;
+  readonly bridges: boolean;
 }
 
 const DEFAULT_LOCAL: GraphViewLocalState = {
@@ -42,6 +43,7 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
   query: DEFAULT_GRAPH_VIEW_STATE.query,
+  bridges: DEFAULT_GRAPH_VIEW_STATE.bridges,
 };
 
 export interface ProjectGraphViewState {
@@ -55,6 +57,7 @@ export interface ProjectGraphViewState {
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
   readonly setQuery: (query: string) => void;
+  readonly setBridges: (bridges: boolean) => void;
 }
 
 /**
@@ -125,6 +128,7 @@ export function useProjectGraphViewState(
           : null,
       focus: pending.focus.filter((id) => knownNodeIds.has(id)),
       query: pending.query,
+      bridges: pending.bridges,
     });
     restoreView({
       hiddenEdgeKinds: pending.filters.hiddenEdgeKinds,
@@ -178,6 +182,13 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setBridges = useCallback(
+    (bridges: boolean) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, bridges }));
+    },
+    [cancelRestore],
+  );
 
   const collapsedIds = useMemo(
     () =>
@@ -196,6 +207,7 @@ export function useProjectGraphViewState(
       collapsed: collapsedIds,
       viewport: layout.viewport ?? null,
       query: local.query,
+      bridges: local.bridges,
     }),
     [local, layout.hiddenEdges, layout.tableVisibility, layout.viewport, collapsedIds],
   );
@@ -227,5 +239,15 @@ export function useProjectGraphViewState(
     [],
   );
 
-  return { graph, state, ready, setMode, setActiveLenses, setSelection, setUserFocus, setQuery };
+  return {
+    graph,
+    state,
+    ready,
+    setMode,
+    setActiveLenses,
+    setSelection,
+    setUserFocus,
+    setQuery,
+    setBridges,
+  };
 }

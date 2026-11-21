@@ -10,7 +10,6 @@ import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  MarkerType,
   ReactFlow,
   applyNodeChanges,
   type EdgeMouseHandler,
@@ -26,20 +25,12 @@ import { toFlowPadding, type HudFitPadding } from "@/facilis/graph-hud-padding";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
-import {
-  PROJECT_GRAPH_EDGE_TYPE,
-  PROJECT_GRAPH_EDGE_TYPES,
-  type ProjectFlowEdge,
-} from "./ProjectGraphEdge";
-import {
-  LINK_SOURCE_HANDLE_ID,
-  LINK_TARGET_HANDLE_ID,
-  PROJECT_GRAPH_NODE_TYPES,
-  type ProjectFlowNode,
-} from "./ProjectGraphNodes";
+import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEdge";
+import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
-import { edgeStyleFor } from "./project-graph-edges";
+import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
 import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { useProjectGraphBridgePlan } from "./useProjectGraphBridgePlan";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
@@ -52,6 +43,7 @@ export function ProjectGraphCanvas({
   viewport,
   fitNonce,
   edgeCurves,
+  bridges,
   focus,
   selectedNodeId,
   onSelectNode,
@@ -73,6 +65,8 @@ export function ProjectGraphCanvas({
   viewport: GraphViewport | null;
   fitNonce: number;
   edgeCurves: Readonly<Record<string, GraphCurve>>;
+  /** The bridges lens (issue #65): false restores every orthogonal route. */
+  bridges: boolean;
   focus: ProjectGraphFocusState | null;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
@@ -193,30 +187,36 @@ export function ProjectGraphCanvas({
     );
   }, [addNoteNonce, instance, createNote]);
 
+  // Hover isolation is canvas state: one raised bridge dims every other (issue #65). It rides
+  // on edge data like the focus dimming, so the edge component stays a pure renderer.
+  const [hoveredBridgeId, setHoveredBridgeId] = useState<string | null>(null);
+  const onBridgeHover = useCallback((edgeId: string | null) => setHoveredBridgeId(edgeId), []);
+
+  // One plan for the whole graph, rebuilt from the live nodes so a drag replans (issue #65).
+  const bridgePlan = useProjectGraphBridgePlan(nodes, view.edges, edgeCurves, bridges);
+
   const edges = useMemo<ProjectFlowEdge[]>(
     () =>
-      view.edges.map((edge) => {
-        const style = edgeStyleFor(edge);
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: LINK_SOURCE_HANDLE_ID,
-          targetHandle: LINK_TARGET_HANDLE_ID,
-          type: PROJECT_GRAPH_EDGE_TYPE,
-          selected: edge.id === selectedEdgeId,
-          data: {
-            kind: edge.kind,
-            ...(edge.access === undefined ? {} : { access: edge.access }),
-            // Dimming is data, like a card's: an edge stays bright only when the focus names it.
-            ...(focus === null ? {} : { focused: focus.edgeIds.has(edge.id) }),
-            curve: edgeCurves[edge.id] ?? null,
-            onCurveChange: onEdgeCurveChange,
-          },
-          markerEnd: { type: MarkerType.ArrowClosed, color: style.stroke, width: 14, height: 14 },
-        };
+      buildProjectGraphFlowEdges({
+        edges: view.edges,
+        edgeCurves,
+        selectedEdgeId,
+        focus,
+        bridges: bridgePlan,
+        hoveredBridgeId,
+        onCurveChange: onEdgeCurveChange,
+        onBridgeHover,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus],
+    [
+      view.edges,
+      edgeCurves,
+      selectedEdgeId,
+      focus,
+      bridgePlan,
+      hoveredBridgeId,
+      onEdgeCurveChange,
+      onBridgeHover,
+    ],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {

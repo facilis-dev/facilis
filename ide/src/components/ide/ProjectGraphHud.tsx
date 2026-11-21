@@ -54,6 +54,8 @@ export interface ProjectGraphHudProps {
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
   onResetLayout: () => void;
+  bridges: boolean;
+  onToggleBridges: () => void;
 }
 
 const CLUSTER =
@@ -188,6 +190,8 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         filter={props.filter}
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
+        bridges={props.bridges}
+        onToggleBridges={props.onToggleBridges}
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

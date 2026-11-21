@@ -45,6 +45,10 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.hint":
     "Trascina un nodo per spostarlo, doppio clic per aprire il file sorgente. Clicca un arco per curvarlo, poi trascina il punto centrale. Scorri per lo zoom, trascina lo sfondo per spostarti.",
   "projectGraph.curveHint": "Trascina per curvare il collegamento; doppio clic per raddrizzarlo",
+  "projectGraph.bridges": "Ponti",
+  "projectGraph.bridgesHint":
+    "Disegna i collegamenti lunghi come archi etichettati sopra i livelli (B)",
+  "projectGraph.bridge.ariaLabel": "Ponte: {label}",
   "projectGraph.addNote": "Aggiungi nota",
   "projectGraph.noteEmpty": "Nota vuota — doppio clic per modificare",
   "projectGraph.noteDelete": "Elimina nota",

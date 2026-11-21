@@ -26,9 +26,14 @@ const EDGE_DASH = [5, 3] as const;
 const CARD_RADIUS = 6;
 const LABEL_FONT = "500 11px ui-sans-serif, system-ui, sans-serif";
 const KIND_FONT = "9px ui-sans-serif, system-ui, sans-serif";
+const BRIDGE_FONT = "500 10px ui-sans-serif, system-ui, sans-serif";
 const LABEL_INSET = 8;
 
-function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene): void {
+function paintEdges(
+  context: CanvasRenderingContext2D,
+  scene: GraphScene,
+  palette: GraphScenePalette,
+): void {
   context.lineWidth = EDGE_WIDTH;
   context.lineCap = "round";
   context.lineJoin = "round";
@@ -36,6 +41,15 @@ function paintEdges(context: CanvasRenderingContext2D, scene: GraphScene): void 
     context.strokeStyle = edge.stroke;
     context.setLineDash(edge.dashed ? [...EDGE_DASH] : []);
     context.stroke(new Path2D(edge.path));
+    // The bridge apex label, where the canvas draws it (issue #65): same text, same spot.
+    if (edge.bridge !== undefined) {
+      context.fillStyle = palette.muted;
+      context.font = BRIDGE_FONT;
+      context.textAlign = "center";
+      context.textBaseline = "alphabetic";
+      context.fillText(edge.bridge.label, edge.bridge.apex.x, edge.bridge.apex.y - 6);
+      context.textAlign = "left";
+    }
   }
   context.setLineDash([]);
 }
@@ -73,7 +87,7 @@ function paint(
 ): void {
   context.fillStyle = palette.background;
   context.fillRect(0, 0, scene.width, scene.height);
-  paintEdges(context, scene);
+  paintEdges(context, scene, palette);
   paintNodes(context, scene, palette);
 }
 

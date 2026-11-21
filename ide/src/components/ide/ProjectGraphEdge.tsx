@@ -1,8 +1,9 @@
 // The project-graph edge: a custom React Flow edge anchored to the cards' nearest ports and
 // routed orthogonally around every card (issue #61), whose midpoint handle bends it, and which
-// loops back onto its own card for self-edges. The geometry is pure (graph-ports.ts,
-// graph-edge-routing.ts); this module is the React part — the internal-node hooks, pointer
-// capture and the theme role tokens (D-043/D-044).
+// loops back onto its own card for self-edges. Long edges arrive as a bridge spec (issue #65)
+// and arc above/below the band with a labelled apex; hover/focus raises one bridge and dims the
+// rest. The geometry is pure (graph-ports.ts, graph-edge-routing.ts, graph-edge-bridges.ts);
+// this module is the React part — hooks, pointer capture and role tokens (D-043/D-044).
 
 import { useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import {
@@ -17,17 +18,24 @@ import {
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import {
+  bridgeGeometry,
+  bridgeLabelFontPx,
+  bridgeLabelVisible,
+  type BridgeSpec,
+} from "@/facilis/graph-bridge-geometry";
+import {
   edgeGeometry,
-  nodeRect,
   selfLoopGeometry,
   type EdgeGeometry,
   type Point,
   type Rect,
 } from "@/facilis/graph-edge-geometry";
+import { bridgeApexLabel, bridgeAriaLabel } from "@/facilis/graph-edge-labels";
 import { routeEdge } from "@/facilis/graph-edge-routing";
-import { GRAPH_CARD_SIZES } from "@/facilis/graph-layout-engine";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { edgeStyleFor } from "./project-graph-edges";
+import { ProjectGraphBridgeLabel } from "./ProjectGraphBridgeLabel";
+import { obstacleRects, rectFor, type MeasuredNode } from "./project-graph-edge-rects";
+import { BRIDGE_DIM_OPACITY, edgeStyleFor } from "./project-graph-edges";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -40,58 +48,14 @@ export type ProjectGraphEdgeData = {
   readonly focused?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
+  /** The bridge spec when this edge arcs over the band (issue #65); absent = orthogonal. */
+  readonly bridge?: BridgeSpec | null;
+  /** True while another bridge is hovered/focused: this one dims (hover isolation). */
+  readonly bridgeDimmed?: boolean;
+  readonly onBridgeHover?: (edgeId: string | null) => void;
 };
 
 export type ProjectFlowEdge = Edge<ProjectGraphEdgeData, typeof PROJECT_GRAPH_EDGE_TYPE>;
-
-/** The structural shape rectFor needs: an endpoint hook result or a nodeLookup entry. */
-interface MeasuredNode {
-  readonly type?: string;
-  readonly internals: { readonly positionAbsolute: Point };
-  readonly measured?: { readonly width?: number; readonly height?: number };
-  readonly width?: number;
-  readonly height?: number;
-}
-
-/** Card sizes before React Flow reports a measurement; the engine's sizes are the fallback. */
-const DEFAULT_SIZE = { width: 220, height: 48 };
-
-function fallbackSize(type: string | undefined): {
-  readonly width: number;
-  readonly height: number;
-} {
-  if (type === undefined) return DEFAULT_SIZE;
-  return GRAPH_CARD_SIZES[type as keyof typeof GRAPH_CARD_SIZES] ?? DEFAULT_SIZE;
-}
-
-function rectFor(node: MeasuredNode | undefined): Rect | null {
-  if (node === undefined) return null;
-  const fallback = fallbackSize(node.type);
-  return nodeRect(
-    node.internals.positionAbsolute,
-    node.measured?.width ?? node.width ?? fallback.width,
-    node.measured?.height ?? node.height ?? fallback.height,
-  );
-}
-
-/**
- * One rect list per nodeLookup identity, shared by every edge: a drag or a viewport tick must
- * not rebuild N rects per edge. The lookup is replaced whenever nodes change, so the cache
- * cannot serve stale geometry.
- */
-const obstacleCache = new WeakMap<object, readonly Rect[]>();
-
-function obstacleRects(nodeLookup: ReadonlyMap<string, MeasuredNode>): readonly Rect[] {
-  const cached = obstacleCache.get(nodeLookup);
-  if (cached !== undefined) return cached;
-  const rects: Rect[] = [];
-  for (const node of nodeLookup.values()) {
-    const rect = rectFor(node);
-    if (rect !== null) rects.push(rect);
-  }
-  obstacleCache.set(nodeLookup, rects);
-  return rects;
-}
 
 function resolveGeometry(
   sourceNode: MeasuredNode | undefined,
@@ -158,29 +122,45 @@ export function ProjectGraphEdge({
 
   const kind: GraphEdgeKind = data?.kind ?? "relation";
   const curve = draft ?? data?.curve ?? null;
-  const geometry = resolveGeometry(
-    sourceNode,
-    targetNode,
-    source,
-    target,
-    { sourceX, sourceY, targetX, targetY },
-    curve,
-    obstacleRects(nodeLookup),
-  );
+  // A saved or in-progress curve unbundles the edge: explicit user intent wins (issue #65).
+  const bridge = curve === null ? (data?.bridge ?? null) : null;
+  const geometry =
+    bridge !== null
+      ? bridgeGeometry(bridge)
+      : resolveGeometry(
+          sourceNode,
+          targetNode,
+          source,
+          target,
+          { sourceX, sourceY, targetX, targetY },
+          curve,
+          obstacleRects(nodeLookup),
+        );
   const edgeStyle = edgeStyleFor({
     kind,
     ...(data?.access === undefined ? {} : { access: data.access }),
   });
   const highlighted = selected === true || hovered;
+  const dimmed = bridge !== null && data?.bridgeDimmed === true;
+  const apexLabel = bridge !== null ? bridgeApexLabel({ label: bridge.label, kind }) : null;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
     strokeWidth: highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    // Focus dims the edges it does not name with opacity, not a colour: the theme still owns
-    // the stroke (D-043).
-    ...(data?.focused === false ? { opacity: 0.25 } : {}),
+    // Focus and bridge isolation dim with opacity, not a colour: the theme still owns the
+    // stroke (D-043).
+    ...(data?.focused === false || dimmed ? { opacity: BRIDGE_DIM_OPACITY } : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
+  };
+  // Hover and keyboard focus do the same thing: raise this bridge, dim the rest (issue #65).
+  const raiseBridge = () => {
+    setHovered(true);
+    if (bridge !== null) data?.onBridgeHover?.(id);
+  };
+  const lowerBridge = () => {
+    setHovered(false);
+    if (bridge !== null) data?.onBridgeHover?.(null);
   };
 
   const onHandlePointerDown = (event: PointerEvent<SVGCircleElement>) => {
@@ -221,13 +201,33 @@ export function ProjectGraphEdge({
   };
 
   return (
-    <g onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <g onMouseEnter={raiseBridge} onMouseLeave={lowerBridge}>
       <BaseEdge
         path={geometry.path}
         markerEnd={markerEnd}
         style={pathStyle}
         interactionWidth={24}
+        {...(bridge !== null && apexLabel !== null
+          ? {
+              // The path itself is the focusable, announced mark: the apex text is decorative.
+              tabIndex: 0,
+              role: "img",
+              "aria-label": bridgeAriaLabel(apexLabel),
+              className: "outline-none",
+              onFocus: raiseBridge,
+              onBlur: lowerBridge,
+            }
+          : {})}
       />
+      {bridge !== null && apexLabel !== null ? (
+        <ProjectGraphBridgeLabel
+          apex={bridge.apex}
+          label={apexLabel}
+          fontPx={bridgeLabelFontPx(zoom, highlighted)}
+          visible={bridgeLabelVisible(zoom) || highlighted}
+          dimmed={dimmed}
+        />
+      ) : null}
       {selected === true && data !== undefined ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>

@@ -44,6 +44,9 @@ export const projectGraphEn = {
   "projectGraph.hint":
     "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
   "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
+  "projectGraph.bridges": "Bridges",
+  "projectGraph.bridgesHint": "Draw long edges as labelled arcs above the layers (B)",
+  "projectGraph.bridge.ariaLabel": "Bridge: {label}",
   "projectGraph.addNote": "Add note",
   "projectGraph.noteEmpty": "Empty note — double-click to edit",
   "projectGraph.noteDelete": "Delete note",

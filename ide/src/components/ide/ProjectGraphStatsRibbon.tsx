@@ -1,7 +1,7 @@
 // The stats ribbon (issue #57): the old footer's counters, now a compact HUD cluster in the
 // bottom-left zone. Each counter is a filter button with an active state (aria-pressed): the five
 // node-kind counters isolate kinds, the edges counter hides every edge. The lens-chips slot beside
-// it stays empty — a later issue fills it; this module owns the slot, not the lens logic.
+// it carries the bridges chip (issue #65); the full lens strip lands with #63.
 
 import Eye from "~icons/lucide/eye";
 import File from "~icons/lucide/file";
@@ -14,6 +14,7 @@ import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import { isKindActive, type GraphStatsFilter } from "@/facilis/graph-stats-filter";
 import { Button } from "@/components/ui/button";
+import { ProjectGraphBridgeChip } from "./ProjectGraphBridgeChip";
 
 const KIND_ICONS: Record<GraphNodeKind, typeof File> = {
   page: File,
@@ -46,11 +47,15 @@ export function ProjectGraphStatsRibbon({
   filter,
   onToggleKind,
   onToggleEdges,
+  bridges,
+  onToggleBridges,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
   onToggleKind: (kind: GraphNodeKind) => void;
   onToggleEdges: () => void;
+  bridges: boolean;
+  onToggleBridges: () => void;
 }) {
   return (
     <div
@@ -106,12 +111,15 @@ export function ProjectGraphStatsRibbon({
           <span className="hidden xl:inline">{t("projectGraph.ribbon.edges")}</span>
         </Button>
       </div>
-      {/* Lens-chips SLOT: owned here, filled by a later issue. Left intentionally empty. */}
+      {/* Lens-chips slot: the bridges chip is the first lens (issue #65); #63 grows the strip. */}
       <div
+        role="toolbar"
         data-testid="graph-hud-lens-slot"
         aria-label={t("projectGraph.hud.lensSlot")}
-        className="hidden"
-      />
+        className="flex items-center gap-0.5 border-l border-border pl-1"
+      >
+        <ProjectGraphBridgeChip bridges={bridges} onToggle={onToggleBridges} />
+      </div>
     </div>
   );
 }

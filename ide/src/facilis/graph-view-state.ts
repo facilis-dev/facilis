@@ -19,6 +19,10 @@ import {
 } from "./graph-layout-file";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
 
+// The bridge lens threshold lives in the geometry module; re-exported here so the view-state
+// surface names it too (issue #65: toggle + threshold are the lens's addressable contract).
+export { BRIDGE_LENGTH_THRESHOLD } from "./graph-edge-bridges";
+
 /** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
 
@@ -45,6 +49,8 @@ export interface GraphViewState {
   readonly collapsed: readonly string[];
   readonly viewport: GraphViewport | null;
   readonly query: string;
+  /** The bridges lens (issue #65): long edges arc above/below the layers. On by default. */
+  readonly bridges: boolean;
 }
 
 /** Matches emptyGraphLayout's view defaults: topology, no lenses, everything shown. */
@@ -57,6 +63,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   collapsed: [],
   viewport: null,
   query: "",
+  bridges: true,
 };
 
 const MODES: readonly GraphViewMode[] = ["topology", "matrix", "timeline"];
@@ -107,6 +114,8 @@ export function encodeGraphViewState(state: GraphViewState): string {
     out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
   }
   if (state.query !== "") out.q = state.query;
+  // Only the off state is encoded: bridges on is the default, so it stays out of the URL.
+  if (!state.bridges) out.b = false;
   return Object.keys(out).length === 0 ? "" : JSON.stringify(out);
 }
 
@@ -191,5 +200,7 @@ export function decodeGraphViewState(
     collapsed: readIds(parsed.c, knownNodeIds),
     viewport: readEncodedViewport(parsed.v),
     query: typeof parsed.q === "string" ? parsed.q : "",
+    // Only a strict false disables the lens; hostile values degrade to the default (on).
+    bridges: parsed.b !== false,
   };
 }

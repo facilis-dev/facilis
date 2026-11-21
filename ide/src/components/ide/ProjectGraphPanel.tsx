@@ -60,6 +60,8 @@ export function ProjectGraphPanel() {
   const { query, selection: selectedNodeId } = viewState.state;
   const setQuery = viewState.setQuery;
   const setSelectedNodeId = viewState.setSelection;
+  const bridges = viewState.state.bridges;
+  const setBridges = viewState.setBridges;
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
@@ -94,6 +96,26 @@ export function ProjectGraphPanel() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [focus, zen]);
+
+  // B toggles the bridges lens (epic #56 rule 6: every action has a shortcut). Typing targets
+  // keep the key for themselves, exactly like the Esc handlers above.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "b" || event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      const typing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT");
+      if (typing) return;
+      setBridges(!bridges);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [bridges, setBridges]);
 
   const view = useMemo(
     () =>
@@ -185,6 +207,7 @@ export function ProjectGraphPanel() {
         viewport={layout.viewport ?? null}
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
+        bridges={bridges}
         focus={focus}
         notes={graph.notes}
         addNoteNonce={graph.addNoteNonce}
@@ -237,6 +260,8 @@ export function ProjectGraphPanel() {
               state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
             }
             onResetLayout={resetLayout}
+            bridges={bridges}
+            onToggleBridges={() => setBridges(!bridges)}
           />
         )
       }

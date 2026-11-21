@@ -7,7 +7,16 @@
 // scene; keeping geometry out of it is what makes this testable in Node.
 
 import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
-import { edgeGeometry, nodeRect, selfLoopGeometry, type Rect } from "./graph-edge-geometry";
+import { planGraphBridges } from "./graph-edge-bridges";
+import { bridgeGeometry, shiftBridgeSpec, type BridgeSpec } from "./graph-bridge-geometry";
+import {
+  edgeGeometry,
+  nodeRect,
+  selfLoopGeometry,
+  type Point,
+  type Rect,
+} from "./graph-edge-geometry";
+import { bridgeApexLabel } from "./graph-edge-labels";
 import { routeEdge } from "./graph-edge-routing";
 import { GRAPH_CARD_SIZES } from "./graph-layout-engine";
 import type { GraphLayoutFile } from "./graph-layout-file";
@@ -18,6 +27,9 @@ const CARD_SIZES = GRAPH_CARD_SIZES;
 
 /** Blank space around the drawing (self-loops bulge ~62 px out of a card). */
 const SCENE_PADDING = 72;
+
+/** Room above/below an apex for its label, on top of the scene padding (issue #65). */
+const BRIDGE_LABEL_MARGIN = 18;
 
 /** Caps keep one screenshot readable and bounded: a 1,000-card picture is not an inspection. */
 export const MAX_SCENE_NODES = 200;
@@ -58,6 +70,8 @@ export interface GraphSceneEdge {
   readonly path: string;
   readonly stroke: string;
   readonly dashed: boolean;
+  /** Present when the edge is a bridge: the apex and its label, as the canvas draws them. */
+  readonly bridge?: { readonly apex: Point; readonly label: string };
 }
 
 export interface GraphScene {
@@ -92,6 +106,8 @@ function edgePath(
   target: Rect | undefined,
   curve: { readonly x: number; readonly y: number } | null,
   obstacles: readonly Rect[],
+  bridge: BridgeSpec | null,
+  origin: Point,
 ): string {
   // A missing card can only happen for an edge the caps cut; fall back to a straight segment.
   if (source === undefined || target === undefined) {
@@ -99,14 +115,22 @@ function edgePath(
     return edgeGeometry({ source: from, target: from }, curve).path;
   }
   if (edge.source === edge.target) return selfLoopGeometry(source, curve).path;
+  // The plan was made in absolute flow coordinates; shift it into the padded picture.
+  if (bridge !== null) {
+    return bridgeGeometry(shiftBridgeSpec(bridge, { x: -origin.x, y: -origin.y })).path;
+  }
   return routeEdge(source, target, { obstacles, curve }).path;
 }
 
-/** Build the deterministic scene for one visible view + the committed layout. */
+/**
+ * Build the deterministic scene for one visible view + the committed layout. Bridges default
+ * to the view-state default (on); pass { bridges: false } to picture the orthogonal lens.
+ */
 export function buildGraphScene(
   view: ProjectGraphView,
   layout: GraphLayoutFile,
   palette: GraphScenePalette,
+  options?: { readonly bridges?: boolean },
 ): GraphScene {
   const nodes = [...view.nodes].toSorted(byId);
   const selectedNodes = nodes.slice(0, MAX_SCENE_NODES);
@@ -130,7 +154,29 @@ export function buildGraphScene(
     maxX = Math.max(maxX, node.position.x + size.width);
     maxY = Math.max(maxY, node.position.y + size.height);
   }
-  const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING };
+  // Plan bridges in absolute flow coordinates first: the apexes fly outside the node bounds,
+  // and the picture's padding must cover them so the screenshot clips no arc (issue #65).
+  const absoluteRects = new Map<string, Rect>();
+  for (const node of selectedNodes) {
+    const size = CARD_SIZES[node.kind];
+    absoluteRects.set(node.id, nodeRect(node.position, size.width, size.height));
+  }
+  const bridgePlan = planGraphBridges({
+    edges: selectedEdges,
+    rects: absoluteRects,
+    curves: layout.edgeCurves,
+    enabled: options?.bridges ?? true,
+  });
+  let topExtra = 0;
+  let bottomExtra = 0;
+  for (const spec of bridgePlan.values()) {
+    if (spec.side === "above") {
+      topExtra = Math.max(topExtra, minY - spec.apex.y + BRIDGE_LABEL_MARGIN);
+    } else {
+      bottomExtra = Math.max(bottomExtra, spec.apex.y - maxY + BRIDGE_LABEL_MARGIN);
+    }
+  }
+  const origin = { x: minX - SCENE_PADDING, y: minY - SCENE_PADDING - topExtra };
   const rects = new Map<string, Rect>();
   const sceneNodes: GraphSceneNode[] = selectedNodes.map((node) => {
     const rect = rectFor(node, origin);
@@ -150,6 +196,7 @@ export function buildGraphScene(
   const obstacles = [...rects.values()];
   const sceneEdges: GraphSceneEdge[] = selectedEdges.map((edge) => {
     const style = edgeStyleOf(edge, palette);
+    const bridge = bridgePlan.get(edge.id) ?? null;
     return {
       id: edge.id,
       path: edgePath(
@@ -158,14 +205,24 @@ export function buildGraphScene(
         rects.get(edge.target),
         layout.edgeCurves[edge.id] ?? null,
         obstacles,
+        bridge,
+        origin,
       ),
       stroke: style.stroke,
       dashed: style.dashed,
+      ...(bridge === null
+        ? {}
+        : {
+            bridge: {
+              apex: { x: bridge.apex.x - origin.x, y: bridge.apex.y - origin.y },
+              label: bridgeApexLabel(edge),
+            },
+          }),
     };
   });
   return {
     width: Math.ceil(maxX - minX + SCENE_PADDING * 2),
-    height: Math.ceil(maxY - minY + SCENE_PADDING * 2),
+    height: Math.ceil(maxY - minY + SCENE_PADDING * 2 + topExtra + bottomExtra),
     nodes: sceneNodes,
     edges: sceneEdges,
     truncated,

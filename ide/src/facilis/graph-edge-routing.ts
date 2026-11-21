@@ -260,20 +260,36 @@ function bestRoute(
   return best ?? { points: [anchors.source, anchors.target], hits: 0, bends: 0, length: 0 };
 }
 
+/** The automatic route before any curve bend: what the bridge planner measures (issue #65). */
+export interface EdgeRouteInfo {
+  readonly points: readonly Point[];
+  readonly hits: number;
+}
+
 /**
- * Route one edge between two cards: the nearest port pair that yields a clean path within the
- * bend budget wins; if none does, the least-colliding route of the nearest pair is drawn.
+ * The nearest port pair that yields a clean path within the bend budget wins; if none does,
+ * the least-colliding route of the nearest pair is drawn.
  */
-export function routeEdge(source: Rect, target: Rect, options: RouteOptions): EdgeGeometry {
-  const curve = options.curve ?? null;
+function findRoute(source: Rect, target: Rect, obstacles: readonly Rect[]): RouteFound {
   const ranked = portAnchorsRanked(source, target);
   let fallback: RouteFound | null = null;
   for (const anchors of ranked) {
-    const route = bestRoute(anchors, source, target, options.obstacles);
-    if (route.hits === 0 && route.bends <= MAX_EDGE_BENDS)
-      return orthogonalGeometry(route.points, curve);
+    const route = bestRoute(anchors, source, target, obstacles);
+    if (route.hits === 0 && route.bends <= MAX_EDGE_BENDS) return route;
     if (fallback === null) fallback = route;
   }
   // The 16-pair loop always sets a fallback; the degenerate centre line is unreachable.
-  return orthogonalGeometry((fallback ?? { points: [source.center, target.center] }).points, curve);
+  return fallback ?? { points: [source.center, target.center], hits: 0, bends: 0, length: 0 };
+}
+
+/** Route one edge between two cards and shape it into an SVG path plus its handle position. */
+export function routeEdge(source: Rect, target: Rect, options: RouteOptions): EdgeGeometry {
+  const route = findRoute(source, target, options.obstacles);
+  return orthogonalGeometry(route.points, options.curve ?? null);
+}
+
+/** The routed polyline and its card-collision count, for length-based bridge detection. */
+export function routeEdgeInfo(source: Rect, target: Rect, options: RouteOptions): EdgeRouteInfo {
+  const route = findRoute(source, target, options.obstacles);
+  return { points: route.points, hits: route.hits };
 }
