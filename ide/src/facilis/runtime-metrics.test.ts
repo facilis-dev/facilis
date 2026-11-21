@@ -5,8 +5,10 @@ import {
   METRICS_MAX_ROUTES,
   RuntimeMetricsCollector,
   getRuntimeMetrics,
+  notifyRuntimeMetricSamples,
   notifyRuntimeMetrics,
   parseRuntimeMetricsBatch,
+  subscribeRuntimeMetricSamples,
   subscribeRuntimeMetrics,
 } from "./runtime-metrics";
 
@@ -203,5 +205,33 @@ describe("module seam", () => {
     notifyRuntimeMetrics();
     expect(calls).toBe(1);
     expect(getRuntimeMetrics().isEnabled()).toBe(false);
+  });
+});
+
+describe("sample tap (issue #72)", () => {
+  it("delivers the samples and the shared now to subscribers, and unsubscribes cleanly", () => {
+    const seen: { samples: readonly unknown[]; now: number }[] = [];
+    const unsubscribe = subscribeRuntimeMetricSamples((samples, now) => {
+      seen.push({ samples, now });
+    });
+    const samples = [sample()];
+    notifyRuntimeMetricSamples(samples, 1234);
+    expect(seen).toEqual([{ samples, now: 1234 }]);
+    unsubscribe();
+    notifyRuntimeMetricSamples(samples, 5678);
+    expect(seen).toHaveLength(1);
+  });
+
+  it("a listener that unsubscribes mid-notify does not disturb the loop", () => {
+    let second = 0;
+    const unsubscribeFirst = subscribeRuntimeMetricSamples(() => {
+      unsubscribeFirst();
+    });
+    const unsubscribeSecond = subscribeRuntimeMetricSamples(() => {
+      second += 1;
+    });
+    notifyRuntimeMetricSamples([sample()], 1);
+    expect(second).toBe(1);
+    unsubscribeSecond();
   });
 });

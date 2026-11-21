@@ -3,9 +3,11 @@
 // and one per registered lens. Click isolates/activates, Shift-click adds to the isolation set,
 // Alt-click hides an edge kind; a fourth lens is refused with a visible hint (epic rule 3, F.3:
 // one dominant + two secondaries).
-// Roving tabindex: arrows move between chips, Space toggles, Alt+Space hides. Below md the row
-// collapses into a "Lenses" button opening the same chips as an on-canvas popover — never a
-// side panel (epic rule 1). State lives in the view state (#58), so it survives reload and URL.
+// Roving tabindex: arrows move between chips, Space toggles, Alt+Space hides. Below the dock's
+// @md container width the row collapses into a "Lenses" button opening the same chips as an
+// on-canvas popover — never a side panel (epic rule 1). The breakpoint is the dock's width, not the
+// window's (issue #150): the canvas stays narrow while the sidebars are open even on a wide window.
+// State lives in the view state (#58), so it survives reload and URL.
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Layers from "~icons/lucide/layers";
@@ -32,6 +34,8 @@ export interface ProjectGraphLensChipsProps {
 /** The refusal hint stays visible long enough to read, then clears on its own. */
 const HINT_TIMEOUT_MS = 4000;
 const ARROW_KEYS = ["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End"];
+/** Matches Tailwind's @md container breakpoint (28rem): the docked row returns at/above it. */
+const DOCK_ROW_MIN_PX = 448;
 
 export function ProjectGraphLensChips(props: ProjectGraphLensChipsProps) {
   const [focusIndex, setFocusIndex] = useState(0);
@@ -47,13 +51,16 @@ export function ProjectGraphLensChips(props: ProjectGraphLensChipsProps) {
   }, [hint]);
 
   // Growing past the breakpoint brings the docked row back: the popover must not float over it.
+  // The dock row (issue #150) is the query container, so observe ITS width rather than the window's.
   useEffect(() => {
     if (!open) return;
-    const onResize = () => {
-      if (window.innerWidth >= 768) setOpen(false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const dock = wrapper.current?.closest("[data-hud-dock]");
+    if (!dock) return;
+    const observer = new ResizeObserver(() => {
+      if (dock.clientWidth >= DOCK_ROW_MIN_PX) setOpen(false);
+    });
+    observer.observe(dock);
+    return () => observer.disconnect();
   }, [open]);
 
   // The popover closes on an outside pointer; Escape is handled on the wrapper so it also works
@@ -159,7 +166,7 @@ export function ProjectGraphLensChips(props: ProjectGraphLensChipsProps) {
         variant="ghost"
         size="xs"
         data-testid="graph-lens-collapse"
-        className="md:hidden"
+        className="@md:hidden"
         aria-expanded={open}
         aria-label={t("projectGraph.lens.collapse")}
         disabled={props.disabled}
@@ -176,7 +183,7 @@ export function ProjectGraphLensChips(props: ProjectGraphLensChipsProps) {
         className={
           open
             ? "absolute bottom-full left-0 z-20 mb-1 flex flex-col items-stretch gap-0.5 rounded-lg border border-border bg-card/95 p-1 shadow-sm"
-            : "hidden flex-wrap items-center gap-0.5 md:flex"
+            : "hidden flex-wrap items-center gap-0.5 @md:flex"
         }
       >
         {edgeChips}

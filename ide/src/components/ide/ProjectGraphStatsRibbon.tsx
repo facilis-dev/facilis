@@ -1,6 +1,8 @@
 // The stats ribbon (issue #57): the old footer's counters, now a compact HUD cluster in the
-// bottom-left zone. Each counter is a filter button with an active state (aria-pressed): the five
-// node-kind counters isolate kinds, the edges counter hides every edge. The lens chips (issue
+// bottom-left zone, a flex child of the HUD dock row (issue #150): it hugs its content and wraps
+// (min-w-0) within the space the zoom cluster leaves, so the two never overlap. Each counter is a
+// filter button with an active state (aria-pressed): the five node-kind counters isolate kinds,
+// the edges counter hides every edge. The lens chips (issue
 // #63) dock beside the counters through the slot this module owns; the hidden-edges badge keeps
 // the hidden count available when a chip alt-click hides a kind.
 
@@ -49,6 +51,7 @@ export function ProjectGraphStatsRibbon({
   onToggleKind,
   onToggleEdges,
   lensChips,
+  runtimeControls,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
@@ -56,12 +59,14 @@ export function ProjectGraphStatsRibbon({
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the counters. */
   lensChips: ReactNode;
+  /** The runtime lens's control strip (issue #72), or null when the lens is inactive. */
+  runtimeControls: ReactNode;
 }) {
   return (
     <div
       data-testid="graph-hud-bottom-left"
       data-hud-zone
-      className="pointer-events-auto absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-sm"
+      className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-sm"
     >
       <div
         role="toolbar"
@@ -121,6 +126,8 @@ export function ProjectGraphStatsRibbon({
       </div>
       {/* Lens-chips slot (issue #57), filled by issue #63. */}
       {lensChips}
+      {/* Runtime-lens controls slot (issue #72), the #69 audit-ribbon pattern. */}
+      {runtimeControls}
     </div>
   );
 }

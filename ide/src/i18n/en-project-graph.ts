@@ -230,4 +230,26 @@ export const projectGraphEn = {
     "Dim everything outside the selection's reachable context (Enter)",
   "projectGraph.focus.exitIsolate": "Exit isolation",
   "projectGraph.focus.exitIsolateHint": "Restore the full graph (Esc)",
+
+  // ── runtime lens (issue #72) ────────────────────────────────────────────────
+  "projectGraph.runtime.controls": "Runtime lens",
+  "projectGraph.runtime.window.1m": "1 min",
+  "projectGraph.runtime.window.5m": "5 min",
+  "projectGraph.runtime.window.15m": "15 min",
+  "projectGraph.runtime.windowHint": "Show traffic for the last {label}",
+  "projectGraph.runtime.live": "Live",
+  "projectGraph.runtime.liveHint":
+    "Live: stream updates every second. Off: read the last snapshot.",
+  "projectGraph.runtime.heat": "{count} requests in the last {window}",
+  "projectGraph.runtime.errorDot": "{count} server errors in the last {window}",
+  "projectGraph.runtime.section": "Runtime",
+  "projectGraph.runtime.empty": "no traffic in this window",
+  "projectGraph.runtime.requests": "Requests",
+  "projectGraph.runtime.errorRate": "Error rate (5xx)",
+  "projectGraph.runtime.p50": "p50",
+  "projectGraph.runtime.p95": "p95",
+  "projectGraph.runtime.unbounded": "beyond measurable range",
+  "projectGraph.runtime.clientErrors": "{count} client errors (4xx)",
+  "projectGraph.runtime.aborted": "{count} aborted",
+  "projectGraph.runtime.sparkline": "Requests per bucket over the last {window}",
 } as const;

@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { RuntimeWindow } from "@/facilis/graph-runtime";
 import type { IdeController } from "@/vv/controller";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
@@ -33,6 +34,8 @@ interface GraphViewLocalState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  readonly runtimeWindow: RuntimeWindow;
+  readonly runtimeLive: boolean;
   readonly isolatedNode: string | null;
   readonly selection: string | null;
   readonly focus: readonly string[];
@@ -43,6 +46,8 @@ const DEFAULT_LOCAL: GraphViewLocalState = {
   mode: DEFAULT_GRAPH_VIEW_STATE.mode,
   activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
   isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
+  runtimeWindow: DEFAULT_GRAPH_VIEW_STATE.runtimeWindow,
+  runtimeLive: DEFAULT_GRAPH_VIEW_STATE.runtimeLive,
   isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
   selection: DEFAULT_GRAPH_VIEW_STATE.selection,
   focus: DEFAULT_GRAPH_VIEW_STATE.focus,
@@ -58,6 +63,8 @@ export interface ProjectGraphViewState {
   readonly setMode: (mode: GraphViewMode) => void;
   readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
   readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
+  readonly setRuntimeWindow: (window: RuntimeWindow) => void;
+  readonly setRuntimeLive: (live: boolean) => void;
   readonly setIsolatedNode: (id: string | null) => void;
   readonly setSelection: (id: string | null) => void;
   readonly setUserFocus: (ids: readonly string[]) => void;
@@ -127,6 +134,8 @@ export function useProjectGraphViewState(
       mode: pending.mode,
       activeLenses: pending.activeLenses,
       isolatedEdgeKinds: pending.isolatedEdgeKinds,
+      runtimeWindow: pending.runtimeWindow,
+      runtimeLive: pending.runtimeLive,
       isolatedNode:
         pending.isolatedNode !== null && knownNodeIds.has(pending.isolatedNode)
           ? pending.isolatedNode
@@ -176,6 +185,20 @@ export function useProjectGraphViewState(
     },
     [cancelRestore],
   );
+  const setRuntimeWindow = useCallback(
+    (window: RuntimeWindow) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, runtimeWindow: window }));
+    },
+    [cancelRestore],
+  );
+  const setRuntimeLive = useCallback(
+    (live: boolean) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, runtimeLive: live }));
+    },
+    [cancelRestore],
+  );
   const setIsolatedNode = useCallback(
     (id: string | null) => {
       cancelRestore();
@@ -217,6 +240,8 @@ export function useProjectGraphViewState(
       mode: local.mode,
       activeLenses: local.activeLenses,
       isolatedEdgeKinds: local.isolatedEdgeKinds,
+      runtimeWindow: local.runtimeWindow,
+      runtimeLive: local.runtimeLive,
       isolatedNode: local.isolatedNode,
       selection: local.selection,
       focus: local.focus,
@@ -262,6 +287,8 @@ export function useProjectGraphViewState(
     setMode,
     setActiveLenses,
     setIsolatedEdgeKinds,
+    setRuntimeWindow,
+    setRuntimeLive,
     setIsolatedNode,
     setSelection,
     setUserFocus,

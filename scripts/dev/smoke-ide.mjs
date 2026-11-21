@@ -309,6 +309,79 @@ async function main() {
   );
   await page.screenshot(path.join(ARTIFACTS, "03b-landing-graph.png"));
 
+  // Issue #150: the floating HUD clusters must never overlap, however narrow the canvas. The
+  // bottom-left ribbon grows with the lens chips (#63) and the runtime window/live strip (#72);
+  // dock the runtime lens (the worst case) at narrow viewports and assert the ribbon's right edge
+  // clears the zoom/fit cluster's left edge, with both clusters fully on-screen and clickable.
+  const hudRects = () =>
+    page.evaluate(
+      "(() => { const q = (s) => { const el = document.querySelector(s); if (!el) return null;" +
+        " const r = el.getBoundingClientRect();" +
+        " return { left: r.left, right: r.right, width: r.width, height: r.height }; };" +
+        " return { left: q('[data-testid=graph-hud-bottom-left]')," +
+        " right: q('[data-testid=graph-hud-bottom-right]'), vw: window.innerWidth }; })()",
+    );
+  const setViewport = (width, height) =>
+    page.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+  // Wait for the analysis so the lens chips are enabled, then dock the runtime lens strip.
+  const hudReady = await waitFor(
+    "(() => { const c = document.querySelector('[data-testid=graph-chip-lens-runtime]');" +
+      " return Boolean(c) && !c.disabled; })()",
+    60000,
+  );
+  check(hudReady, "#150 graph HUD ready (runtime lens chip enabled)");
+  if (hudReady) {
+    await page.evaluate("document.querySelector('[data-testid=graph-chip-lens-runtime]').click()");
+    const runtimeDocked = await waitFor(
+      "Boolean(document.querySelector('[data-testid=graph-runtime-controls]'))",
+      10000,
+    );
+    check(runtimeDocked, "#150 runtime controls docked beside the lens chips");
+    for (const width of [1024, 780]) {
+      await setViewport(width, 720);
+      await sleep(400);
+      const rects = await hudRects();
+      const detail =
+        rects.left && rects.right
+          ? "ribbon.right=" +
+            rects.left.right.toFixed(0) +
+            " zoom.left=" +
+            rects.right.left.toFixed(0) +
+            " vw=" +
+            rects.vw
+          : "missing cluster";
+      const ok =
+        Boolean(rects.left) &&
+        Boolean(rects.right) &&
+        rects.left.width > 0 &&
+        rects.right.width > 0 &&
+        // No horizontal overlap (1px tolerance), and both clusters fully inside the viewport.
+        rects.left.right <= rects.right.left + 1 &&
+        rects.right.right <= rects.vw + 1 &&
+        rects.left.left >= -1;
+      check(ok, "#150 HUD clusters do not overlap at " + width + "px", detail);
+      await page.screenshot(path.join(ARTIFACTS, "03c-hud-narrow-" + width + ".png"));
+    }
+    await page.send("Emulation.clearDeviceMetricsOverride");
+    await sleep(200);
+    // Restore the clean lens state: this check docked the runtime lens, and the later graph-lens
+    // checks must start without it (issue #150). Toggle it back off and wait for the strip to go.
+    const stillDocked = await page.evaluate(
+      "Boolean(document.querySelector('[data-testid=graph-runtime-controls]'))",
+    );
+    if (stillDocked) {
+      await page.evaluate(
+        "document.querySelector('[data-testid=graph-chip-lens-runtime]').click()",
+      );
+      await waitFor("!document.querySelector('[data-testid=graph-runtime-controls]')", 10000);
+    }
+  }
+
   const painted = await waitForMark("preview-paint", PREVIEW_TIMEOUT_MS);
   check(painted, "preview painted", Date.now() - startedAt + "ms");
   await sleep(1500);

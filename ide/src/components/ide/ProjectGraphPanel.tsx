@@ -1,8 +1,8 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
-// Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), pinned
-// details. Analysis: useProjectGraphAnalysis; URL view: useProjectGraphViewState; closure:
-// useProjectGraphUserFocus; keys: useProjectGraphEscape; chrome: Shell / Hud / StatsRibbon.
+// Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), the
+// runtime lens (issue #72), pinned details. Analysis: useProjectGraphAnalysis; URL view:
+// useProjectGraphViewState; closure: useProjectGraphUserFocus; keys: useProjectGraphEscape.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -29,9 +29,8 @@ import { INITIAL_ZEN, zenReducer } from "@/facilis/graph-zen";
 import { focusGraphNode } from "./focus-graph-node";
 import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
-import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHud } from "./ProjectGraphHud";
-import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
+import { RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useContainerSize } from "./use-container-size";
@@ -40,7 +39,9 @@ import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
 import { useProjectGraphOpen } from "./use-project-graph-open";
+import { useProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
@@ -169,6 +170,19 @@ export function ProjectGraphPanel() {
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
   const stats = view?.stats ?? null;
+  // The runtime lens (issue #72): seam lifecycle, card context and the composed HUD slots.
+  const runtime = useProjectGraphRuntimeLens(c, view, viewState, layout.viewport?.zoom ?? 1);
+  const hudSlots = useProjectGraphHudSlots({
+    stats,
+    edgeCounts,
+    hiddenEdgeKinds: layout.hiddenEdges,
+    viewState,
+    onHideEdgeKind: graph.toggleEdgeKind,
+    focusSummary,
+    isolatedNode,
+    selectedNodeId,
+    runtime,
+  });
   const body =
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
@@ -211,90 +225,75 @@ export function ProjectGraphPanel() {
     ) : null;
 
   return (
-    <ProjectGraphShell
-      containerRef={containerRef}
-      hud={
-        zen ? null : (
-          <ProjectGraphHud
-            stats={stats}
-            query={query}
-            onQueryChange={setQuery}
-            saveState={graph.saveState}
-            saveError={graph.saveError}
-            onSave={graph.saveNow}
-            onRefresh={refresh}
-            refreshing={loading}
-            zen={zen}
-            onToggleZen={() => dispatchZen({ type: "toggle" })}
-            focusActive={focus !== null}
-            onClearFocus={clearGraphFocus}
-            errors={errors}
-            warnings={warnings}
-            onFit={fit}
-            onZoomIn={() => flow?.zoomIn()}
-            onZoomOut={() => flow?.zoomOut()}
-            filter={filter}
-            onToggleKind={(kind) => setFilter((current) => toggleKindFilter(current, kind))}
-            onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
-            lensChips={
-              <ProjectGraphLensChips
-                disabled={stats === null}
-                edgeCounts={edgeCounts}
-                hiddenEdgeKinds={layout.hiddenEdges}
-                isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-                onIsolatedEdgeKindsChange={viewState.setIsolatedEdgeKinds}
-                onHideEdgeKind={graph.toggleEdgeKind}
-                activeLenses={viewState.state.activeLenses}
-                onActiveLensesChange={viewState.setActiveLenses}
-              />
-            }
-            focusBar={
-              <ProjectGraphFocusBar
-                summary={focusSummary}
-                isolated={isolatedNode !== null}
-                selectedNodeId={selectedNodeId}
-                onIsolateChange={viewState.setIsolatedNode}
-              />
-            }
-            tableVisibility={layout.tableVisibility}
-            onTableVisibilityChange={graph.changeTableVisibility}
-            // With no canvas on screen the HUD must still place the first note at a fixed origin.
-            onAddNote={
-              state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
-            }
-            onResetLayout={resetLayout}
-          />
-        )
-      }
-      sheet={
-        sheetMode && selectedNode !== null ? (
-          <ProjectGraphDetailsSheet
-            node={selectedNode}
-            edges={selectedEdges}
-            details={details.get(selectedNode.id) ?? null}
-            sources={sources}
-            nodeLabel={nodeLabel}
-            height={clampSheetHeight(sheetHeight, containerSize.height)}
-            pinned={pinned.some((card) => card.nodeId === selectedNode.id)}
-            onHeightChange={setSheetHeight}
-            onClose={closeDetails}
-            onTogglePin={() =>
-              setPinRequest((current) => ({
-                nonce: (current?.nonce ?? 0) + 1,
-                nodeId: selectedNode.id,
-              }))
-            }
-            onOpenFileAt={openFileAt}
-            onOpenPreview={(path) => openPageInPreview(c, path)}
-            onSelectNode={(id) => {
-              // A detail list may name a relation the graph did not draw: ignore unknown ids.
-              if (nodeLabels.has(id)) setSelectedNodeId(id);
-            }}
-          />
-        ) : null
-      }
-    >
-      {body}
-    </ProjectGraphShell>
+    <RuntimeLensContext.Provider value={runtime.context}>
+      <ProjectGraphShell
+        containerRef={containerRef}
+        hud={
+          zen ? null : (
+            <ProjectGraphHud
+              stats={stats}
+              query={query}
+              onQueryChange={setQuery}
+              saveState={graph.saveState}
+              saveError={graph.saveError}
+              onSave={graph.saveNow}
+              onRefresh={refresh}
+              refreshing={loading}
+              zen={zen}
+              onToggleZen={() => dispatchZen({ type: "toggle" })}
+              focusActive={focus !== null}
+              onClearFocus={clearGraphFocus}
+              errors={errors}
+              warnings={warnings}
+              onFit={fit}
+              onZoomIn={() => flow?.zoomIn()}
+              onZoomOut={() => flow?.zoomOut()}
+              filter={filter}
+              onToggleKind={(kind) => setFilter((current) => toggleKindFilter(current, kind))}
+              onToggleEdges={() => setFilter((current) => toggleEdgesFilter(current))}
+              lensChips={hudSlots.lensChips}
+              focusBar={hudSlots.focusBar}
+              runtimeControls={hudSlots.runtimeControls}
+              tableVisibility={layout.tableVisibility}
+              onTableVisibilityChange={graph.changeTableVisibility}
+              // With no canvas on screen the HUD must still place the first note at a fixed origin.
+              onAddNote={
+                state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
+              }
+              onResetLayout={resetLayout}
+            />
+          )
+        }
+        sheet={
+          sheetMode && selectedNode !== null ? (
+            <ProjectGraphDetailsSheet
+              node={selectedNode}
+              edges={selectedEdges}
+              details={details.get(selectedNode.id) ?? null}
+              sources={sources}
+              nodeLabel={nodeLabel}
+              height={clampSheetHeight(sheetHeight, containerSize.height)}
+              pinned={pinned.some((card) => card.nodeId === selectedNode.id)}
+              onHeightChange={setSheetHeight}
+              onClose={closeDetails}
+              onTogglePin={() =>
+                setPinRequest((current) => ({
+                  nonce: (current?.nonce ?? 0) + 1,
+                  nodeId: selectedNode.id,
+                }))
+              }
+              onOpenFileAt={openFileAt}
+              onOpenPreview={(path) => openPageInPreview(c, path)}
+              onSelectNode={(id) => {
+                // A detail list may name a relation the graph did not draw: ignore unknown ids.
+                if (nodeLabels.has(id)) setSelectedNodeId(id);
+              }}
+            />
+          ) : null
+        }
+      >
+        {body}
+      </ProjectGraphShell>
+    </RuntimeLensContext.Provider>
   );
 }

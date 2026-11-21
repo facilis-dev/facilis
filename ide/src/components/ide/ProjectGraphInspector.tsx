@@ -3,6 +3,7 @@
 // kind switch; the facts, the source snippet and the styling primitives live in the per-kind
 // section modules, so no one file grows past the limit as sections are added.
 
+import { useContext } from "react";
 import Pin from "~icons/lucide/pin";
 import PinOff from "~icons/lucide/pin-off";
 import X from "~icons/lucide/x";
@@ -12,6 +13,8 @@ import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
+import { ProjectGraphRuntimeSection } from "./ProjectGraphRuntimeSection";
+import { RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
 import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
 import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
@@ -47,6 +50,9 @@ export function ProjectGraphInspector({
   onOpenPreview,
   onSelectNode,
 }: ProjectGraphInspectorProps) {
+  // The runtime lens (issue #72) travels through context, so the section renders in the
+  // satellite, the pinned cards AND the bottom sheet without threading a prop through each.
+  const runtime = useContext(RuntimeLensContext);
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
   return (
     <div
@@ -85,10 +91,16 @@ export function ProjectGraphInspector({
           card's drag on its header; select-text so ids and snippets can be copied. */}
       <div className="nowheel nodrag min-h-0 flex-1 space-y-2 overflow-auto p-2 select-text">
         {node.data.kind === "route" && (
-          <ProjectGraphRouteDetails
-            {...shared}
-            details={details?.kind === "route" ? details.route : null}
-          />
+          <>
+            {/* The runtime section (issue #72) leads the route details while the lens is active. */}
+            {runtime !== null && (
+              <ProjectGraphRuntimeSection route={node.data} window={runtime.window} />
+            )}
+            <ProjectGraphRouteDetails
+              {...shared}
+              details={details?.kind === "route" ? details.route : null}
+            />
+          </>
         )}
         {node.data.kind === "table" && (
           <ProjectGraphTableDetails
