@@ -16,7 +16,7 @@ interface Env {
   GIT_PROXY_ALLOW?: string;
   /** Extra browser origins; unset means this deployment's own host only. */
   GIT_PROXY_ALLOWED_ORIGINS?: string;
-  /** "1"/"true" refuses anonymous git traffic, so every git request carries a token. */
+  /** Unset requires a token on git traffic; "0"/"false" allows anonymous public clones. */
   GIT_PROXY_REQUIRE_AUTH?: string;
 }
 

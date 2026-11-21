@@ -7,10 +7,11 @@
 // analytics, or code that reads the request body: git packs are tens of megabytes, and
 // buffering one would break streaming and exhaust memory.
 //
-// The caller is bounded, not authenticated (D-208): a browser may only call it from the
-// deployment's own host or from an origin the operator names, and a deployment can demand
-// a token on the git endpoints. Rate limiting is the edge's job, never this file's — that
-// is what keeps the handler stateless.
+// The caller is bounded, not identified (D-208): a browser may only call it from the
+// deployment's own host or from an origin the operator names, and git traffic needs an
+// Authorization header unless the deployment opts out — the host verifies that token, not
+// this file. Rate limiting is the edge's job, never this file's — that is what keeps the
+// handler stateless.
 
 import { callerOrigin, isGitEndpoint, originSet } from "./caller.mjs";
 
@@ -159,7 +160,8 @@ function emptyResponse(origin = null) {
  * is always allowed, and a request that sends no Origin header is not a browser and passes
  * (see the fetch body). `requireAuthorization` demands an Authorization header on the git
  * endpoints, which removes anonymous traffic without breaking the login that produces the
- * token. `fetchImpl` is a seam for tests and for runtimes without a global fetch.
+ * token; it is on unless a deployment opts out to keep anonymous public clones.
+ * `fetchImpl` is a seam for tests and for runtimes without a global fetch.
  *
  * @param {{
  *   allow?: readonly string[],
@@ -172,7 +174,7 @@ function emptyResponse(origin = null) {
 export function createGitProxy({
   allow = DEFAULT_ALLOWED_HOSTS,
   allowedOrigins = [],
-  requireAuthorization = false,
+  requireAuthorization = true,
   fetchImpl = globalThis.fetch,
 } = {}) {
   // Lowercase here too: the handler matches exactly, and a caller passing the raw env

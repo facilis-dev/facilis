@@ -31,7 +31,11 @@ function okResponse(): Response {
 
 function proxyFor(respond: (call: RecordedCall) => Response | Promise<Response>) {
   const recorder = recordingFetch(respond);
-  const proxy = createGitProxy({ allow: ["github.com"], fetchImpl: recorder.fetchImpl });
+  const proxy = createGitProxy({
+    allow: ["github.com"],
+    requireAuthorization: false,
+    fetchImpl: recorder.fetchImpl,
+  });
   return { ...recorder, proxy };
 }
 
@@ -102,6 +106,7 @@ describe("git proxy handler", () => {
     const recorder = recordingFetch(() => new Response("ok", { status: 200 }));
     const proxy = createGitProxy({
       allow: ["gitea.com:8443"],
+      requireAuthorization: false,
       fetchImpl: recorder.fetchImpl,
     });
     const response = await proxy.fetch(
@@ -296,6 +301,7 @@ describe("caller controls (D-208)", () => {
     const proxy = createGitProxy({
       allow: ["github.com"],
       allowedOrigins: ["https://ide.acme.example"],
+      requireAuthorization: false,
       fetchImpl: recorder.fetchImpl,
     });
     const allowed = await proxy.fetch(
@@ -358,6 +364,25 @@ describe("caller controls (D-208)", () => {
     expect(login.status).toBe(200);
     expect(recorder.calls).toHaveLength(2);
   });
+
+  it("is on when the option is not passed at all", async () => {
+    const recorder = recordingFetch(okResponse);
+    const proxy = createGitProxy({ allow: ["github.com"], fetchImpl: recorder.fetchImpl });
+
+    const anonymous = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs?service=git-upload-pack`),
+    );
+    expect(anonymous.status).toBe(401);
+    expect(recorder.calls).toHaveLength(0);
+
+    const authenticated = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/git-upload-pack`, {
+        method: "POST",
+        headers: { authorization: "Basic x-access-token:secret" },
+      }),
+    );
+    expect(authenticated.status).toBe(200);
+  });
 });
 
 describe("parseOrigins", () => {
@@ -378,12 +403,14 @@ describe("parseOrigins", () => {
 });
 
 describe("parseRequireAuth", () => {
-  it("turns on only for an explicit positive", () => {
-    for (const on of ["1", "true", "TRUE", "yes", "on"]) expect(parseRequireAuth(on)).toBe(true);
-    for (const off of ["", "0", "false", "no", "off", "nope"]) {
+  it("is on unless the value is an explicit negative", () => {
+    for (const off of ["0", "false", "FALSE", "no", "off", " 0 "]) {
       expect(parseRequireAuth(off)).toBe(false);
     }
-    expect(parseRequireAuth()).toBe(false);
+    for (const on of ["", "1", "true", "yes", "on", "nope"]) {
+      expect(parseRequireAuth(on)).toBe(true);
+    }
+    expect(parseRequireAuth()).toBe(true);
   });
 });
 

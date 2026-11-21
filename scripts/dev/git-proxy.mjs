@@ -3,7 +3,8 @@
 //
 // Same handler as the Cloudflare Pages Function, wrapped in a plain http.Server so an
 // operator who does not use Pages can still serve the IDE behind this proxy. It keeps
-// the proxy contract: one startup line, no per-request output, no storage.
+// the proxy contract: one startup line, no per-request output, no storage. Git traffic needs a
+// token unless `--allow-anonymous` is passed (D-208).
 
 import http from "node:http";
 import { Readable } from "node:stream";
@@ -16,7 +17,7 @@ function parseArgs(argv) {
   let allow;
   /** @type {string[]} */
   const origins = [];
-  let requireAuth = false;
+  let requireAuth = true;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--port" || arg.startsWith("--port=")) {
@@ -36,8 +37,8 @@ function parseArgs(argv) {
       if (arg === "--allow-origin") index += 1;
       if (origin === undefined) throw new Error("--allow-origin needs an origin");
       origins.push(origin);
-    } else if (arg === "--require-auth") {
-      requireAuth = true;
+    } else if (arg === "--allow-anonymous") {
+      requireAuth = false;
     } else {
       throw new Error(`unknown option: ${arg}`);
     }
@@ -118,6 +119,6 @@ server.listen(port, "127.0.0.1", () => {
   console.log(
     `git proxy listening on http://127.0.0.1:${port} (allow: ${allowedHosts.join(", ")}; ` +
       `origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(", ") : "same host"}; ` +
-      `auth: ${requireAuth ? "required" : "optional"})`,
+      `auth: ${requireAuth ? "required" : "optional (--allow-anonymous)"})`,
   );
 });

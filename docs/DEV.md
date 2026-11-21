@@ -582,11 +582,14 @@ pretend otherwise: it bounds the caller instead of authenticating it.
   of the standalone server still matches. Requests without an `Origin` header are not browser
   pages (native git, the availability probe); they pass, and the host allowlist still bounds
   them.
-- **Token, optionally.** `GIT_PROXY_REQUIRE_AUTH=1` (or `--require-auth`) refuses anonymous git
-  traffic: `info/refs`, `git-upload-pack` and `git-receive-pack` need an `Authorization`
-  header, while a host's login endpoints stay open — otherwise nobody could obtain the token
-  in the first place. Enable it for a public deployment, where an anonymous clone has no user
-  behind it.
+- **Token, by default.** Git traffic needs an `Authorization` header: `info/refs`,
+  `git-upload-pack` and `git-receive-pack` answer `401` without one, while a host's login
+  endpoints stay open — otherwise nobody could obtain the token — and a preflight, which
+  never carries headers, is answered first. The host verifies that token; the proxy only
+  refuses the anonymous caller, so a public deployment cannot be used to clone through its
+  egress. A deployment that wants anonymous public clones opts out with
+  `GIT_PROXY_REQUIRE_AUTH=0` (Pages and `pnpm ide:dev`) or `--allow-anonymous` (standalone);
+  the import dialog then falls back to the REST importer for a host it can reach.
 
 ### Rate limiting is the edge's job
 

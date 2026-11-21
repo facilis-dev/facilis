@@ -68,7 +68,7 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "gitAuth.tokenLabel": "Token di accesso",
   "gitAuth.tokenPlaceholder": "ghp_…, glpat-…, …",
   "gitAuth.tokenHint":
-    "Serve per un repository privato. Usato per questa operazione e mai salvato.",
+    "Serve per un repository privato e, se il proxy git di questa installazione richiede un token, per qualsiasi repository. Usato per questa operazione e mai salvato.",
   "gitAuth.tokenHintWrite":
     "Serve per un repository privato e per il push. Usato per questa operazione e mai salvato.",
   "gitAuth.tokenInstead": "Usa un token di accesso",

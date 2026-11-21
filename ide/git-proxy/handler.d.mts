@@ -18,7 +18,10 @@ export interface GitProxyOptions {
   allow?: readonly string[];
   /** Extra browser origins; the deployment's own host is always allowed. */
   allowedOrigins?: readonly string[];
-  /** Demand an Authorization header on the git endpoints (not on a host's login). */
+  /**
+   * Demand an Authorization header on the git endpoints (not on a host's login). On by
+   * default; a deployment that wants anonymous public clones turns it off.
+   */
   requireAuthorization?: boolean;
   fetchImpl?: typeof fetch;
 }

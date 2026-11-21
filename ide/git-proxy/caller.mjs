@@ -58,10 +58,17 @@ export function originSet(values) {
   return origins;
 }
 
-/** Env and CLI flags arrive as strings; only an explicit positive is on. */
+/**
+ * Whether anonymous git traffic is refused. It is on unless the value is an explicit
+ * negative: a public proxy otherwise lets anyone clone through the deployment's egress,
+ * and a typo in the variable must fail closed, not open.
+ *
+ * @param {string | null | undefined} [value]
+ * @returns {boolean}
+ */
 export function parseRequireAuth(value) {
   const flag = typeof value === "string" ? value.trim().toLowerCase() : "";
-  return flag === "1" || flag === "true" || flag === "yes" || flag === "on";
+  return !(flag === "0" || flag === "false" || flag === "no" || flag === "off");
 }
 
 // Git's own endpoints. Only these demand a token when require-auth is on: a host's login

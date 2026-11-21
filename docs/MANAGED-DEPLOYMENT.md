@@ -133,7 +133,8 @@ Function on the deployment's own origin, while `"gitProxy": "https://git-proxy.a
 one that must also appear in `network.connect`. With no `gitProxy` the remote half is compiled out
 of the bundle and only the REST importer/publish (if enabled) can reach a host. Either shape
 answers only its own origin (plus `GIT_PROXY_ALLOWED_ORIGINS`, which a cross-origin deployment
-sets to the IDE origin), and `GIT_PROXY_REQUIRE_AUTH=1` refuses anonymous git traffic; rate-limit
+sets to the IDE origin), and anonymous git traffic is refused unless `GIT_PROXY_REQUIRE_AUTH=0`
+re-enables it for a deployment that wants anonymous clones; rate-limit
 `/git-proxy/*` at the edge (D-208, `docs/DEV.md` §10).
 
 GitHub users can sign in instead of pasting a token (D-082):

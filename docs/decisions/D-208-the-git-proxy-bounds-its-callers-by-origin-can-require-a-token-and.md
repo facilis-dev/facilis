@@ -21,13 +21,14 @@ operator's Workers quota see.
   and CORS is echoed per origin instead of `*`, so a page that is not the caller cannot even read
   the refusal. A request with no `Origin` header is not a browser (native git, the availability
   probe) and passes: a browser cannot attribute it anyway, and the host allowlist still bounds it.
-- **Token, optionally, in the handler.** `GIT_PROXY_REQUIRE_AUTH=1` refuses a request without an
-  `Authorization` header on `info/refs`, `git-upload-pack` and `git-receive-pack`. A host's login
+- **Token, by default, in the handler.** A request without an `Authorization` header on
+  `info/refs`, `git-upload-pack` or `git-receive-pack` is refused with `401`. A host's login
   endpoints (GitHub's device flow) stay anonymous: they are where the token comes from, and a
-  preflight carries no header at all, so it is answered before this check. Off by default because
-  a public deployment wants anonymous clones of public repositories; on, every clone through the
-  proxy is attributable to a token, which moves the volume off the anonymous-IP path that hosts
-  police.
+  preflight carries no header at all, so it is answered before this check. The host verifies the
+  token — this file only refuses the anonymous caller — so every clone through the proxy is
+  attributable and the volume leaves the anonymous-IP path that hosts police. A deployment that
+  wants anonymous public clones opts out with `GIT_PROXY_REQUIRE_AUTH=0` (or
+  `--allow-anonymous`); that is the explicit exception, not the default.
 - **Rate limiting, outside the handler.** A WAF rate-limiting rule on `/git-proxy/*` per IP is
   the only control that bounds volume, and it cannot live in this process without making it
   stateful. It is the operator's configuration, documented in `docs/DEV.md` §10 together with the
@@ -41,5 +42,8 @@ worth using — it stays a candidate if the allowlist ever has to grow.
 
 **Consequences.** A cross-origin deployment must name the IDE origin (`GIT_PROXY_ALLOWED_ORIGINS`
 in the Pages project, `--allow-origin` on the standalone server); same-origin needs no
-configuration, because the deployment's own host is always the caller. The handler stays
-stateless, logging-free and storage-free, and the host allowlist stays the outer boundary.
+configuration, because the deployment's own host is always the caller. Anonymous clones of public
+repositories are the behaviour the default costs: the copy in the git dialogs now says the token
+may be required for any repository, and the import dialog falls back to the REST importer where
+the host serves one. The handler stays stateless, logging-free and storage-free, and the host
+allowlist stays the outer boundary.
