@@ -1,7 +1,8 @@
-// The floating HUD (issue #57): four clusters absolutely positioned over the full-bleed canvas,
-// never participating in layout. Top-left breadcrumb + mode-switcher SLOT; top-right search, save
-// state, refresh and actions; bottom-left the stats ribbon + the lens chips (issue #63);
-// bottom-right minimap SLOT, zoom and fit. The remaining slots are owned here but left empty —
+// The floating HUD (issue #57): clusters float over the full-bleed canvas, never resizing it.
+// Top-left breadcrumb + mode-switcher SLOT and top-right search/save/refresh/actions anchor
+// absolutely; the bottom-left stats ribbon + lens chips (issue #63) and the bottom-right minimap
+// SLOT + zoom/fit share one floating dock row (issue #144) so they cannot overlap at narrow widths.
+// The remaining slots are owned here but left empty —
 // later issues fill them. Every control is a named, keyboard-reachable button; clusters are
 // role="toolbar". Below 1280px (xl) button labels collapse to icons. Role tokens only (D-044);
 // every string via t() (D-043).
@@ -59,8 +60,11 @@ export interface ProjectGraphHudProps {
   onResetLayout: () => void;
 }
 
-const CLUSTER =
-  "pointer-events-auto absolute flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-sm";
+// The cluster box without positioning: the top clusters anchor absolutely, while the two bottom
+// clusters are flex children of the dock row below (issue #144), so they must not be absolute.
+const CLUSTER_BOX =
+  "pointer-events-auto flex items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-sm";
+const CLUSTER = CLUSTER_BOX + " absolute";
 
 export function ProjectGraphHud(props: ProjectGraphHudProps) {
   const { stats, zen } = props;
@@ -183,62 +187,71 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         />
       </div>
 
-      {/* Bottom-left: stats ribbon (filter counters) + lens chips (issue #63). */}
-      <ProjectGraphStatsRibbon
-        stats={stats}
-        filter={props.filter}
-        onToggleKind={props.onToggleKind}
-        onToggleEdges={props.onToggleEdges}
-        lensChips={props.lensChips}
-        runtimeControls={props.runtimeControls}
-      />
-
-      {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}
+      {/* Bottom dock (issue #144): the stats ribbon + lens chips (left) and zoom/fit (right) share
+          one floating row. The left cluster wraps within the space the right leaves (min-w-0) and
+          the right never shrinks, so the two can never overlap however narrow the canvas gets. The
+          row is a query container (@container): on a narrow canvas the lens chips collapse to their
+          popover button (@md) so the ribbon stays compact instead of wrapping into a tall column. */}
       <div
-        role="toolbar"
-        aria-label={t("projectGraph.hud.view")}
-        data-testid="graph-hud-bottom-right"
-        data-hud-zone
-        className={CLUSTER + " right-2 bottom-2"}
+        data-hud-dock
+        className="@container pointer-events-none absolute inset-x-2 bottom-2 flex items-end justify-between gap-2"
       >
-        <div
-          data-testid="graph-hud-minimap-slot"
-          aria-label={t("projectGraph.hud.minimapSlot")}
-          className="hidden"
+        <ProjectGraphStatsRibbon
+          stats={stats}
+          filter={props.filter}
+          onToggleKind={props.onToggleKind}
+          onToggleEdges={props.onToggleEdges}
+          lensChips={props.lensChips}
+          runtimeControls={props.runtimeControls}
         />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-zoom-out"
-          aria-label={t("projectGraph.zoomOut")}
-          title={t("projectGraph.zoomOut")}
-          disabled={stats === null}
-          onClick={props.onZoomOut}
+
+        {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}
+        <div
+          role="toolbar"
+          aria-label={t("projectGraph.hud.view")}
+          data-testid="graph-hud-bottom-right"
+          data-hud-zone
+          className={CLUSTER_BOX + " shrink-0"}
         >
-          <ZoomOut />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-zoom-in"
-          aria-label={t("projectGraph.zoomIn")}
-          title={t("projectGraph.zoomIn")}
-          disabled={stats === null}
-          onClick={props.onZoomIn}
-        >
-          <ZoomIn />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          data-testid="graph-hud-fit"
-          aria-label={t("projectGraph.fit")}
-          title={t("projectGraph.fit")}
-          disabled={stats === null}
-          onClick={props.onFit}
-        >
-          <Scan />
-        </Button>
+          <div
+            data-testid="graph-hud-minimap-slot"
+            aria-label={t("projectGraph.hud.minimapSlot")}
+            className="hidden"
+          />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="graph-hud-zoom-out"
+            aria-label={t("projectGraph.zoomOut")}
+            title={t("projectGraph.zoomOut")}
+            disabled={stats === null}
+            onClick={props.onZoomOut}
+          >
+            <ZoomOut />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="graph-hud-zoom-in"
+            aria-label={t("projectGraph.zoomIn")}
+            title={t("projectGraph.zoomIn")}
+            disabled={stats === null}
+            onClick={props.onZoomIn}
+          >
+            <ZoomIn />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="graph-hud-fit"
+            aria-label={t("projectGraph.fit")}
+            title={t("projectGraph.fit")}
+            disabled={stats === null}
+            onClick={props.onFit}
+          >
+            <Scan />
+          </Button>
+        </div>
       </div>
     </div>
   );
