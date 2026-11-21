@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { createGitProxy, DEFAULT_ALLOWED_HOSTS, parseAllowedHosts } from "../git-proxy/handler.mjs";
+import {
+  createGitProxy,
+  DEFAULT_ALLOWED_HOSTS,
+  parseAllowedHosts,
+  parseOrigins,
+  parseRequireAuth,
+} from "../git-proxy/handler.mjs";
 
 const BASE = "https://ide.facilis.dev/git-proxy";
 
@@ -17,6 +23,10 @@ function recordingFetch(respond: (call: RecordedCall) => Response | Promise<Resp
     return respond(call);
   };
   return { calls, fetchImpl };
+}
+
+function okResponse(): Response {
+  return new Response("ok", { status: 200, headers: { "content-type": "text/plain" } });
 }
 
 function proxyFor(respond: (call: RecordedCall) => Response | Promise<Response>) {
@@ -122,14 +132,18 @@ describe("git proxy handler", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("answers OPTIONS with the preflight headers and no upstream call", async () => {
+  it("answers a same-origin preflight by echoing that origin, and calls no upstream", async () => {
     const { calls, proxy } = proxyFor(() => new Response("unexpected"));
     const response = await proxy.fetch(
-      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, { method: "OPTIONS" }),
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, {
+        method: "OPTIONS",
+        headers: { origin: "https://ide.facilis.dev" },
+      }),
     );
     expect(response.status).toBe(204);
-    expect(response.headers.get("access-control-allow-origin")).toBe("*");
-    expect(response.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://ide.facilis.dev");
+    expect(response.headers.get("vary")).toBe("origin");
+    expect(response.headers.get("access-control-allow-methods")).toBe("GET, HEAD, POST, OPTIONS");
     expect(response.headers.get("access-control-allow-headers")).toBe(
       "authorization, content-type, accept, user-agent, git-protocol",
     );
@@ -174,7 +188,8 @@ describe("git proxy handler", () => {
     expect(response.headers.get("content-type")).toBe("application/x-git-upload-pack-result");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    // No Origin header, so there is no browser to answer: no CORS headers at all.
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
     for (const stripped of [
       "set-cookie",
       "content-encoding",
@@ -237,6 +252,138 @@ describe("git proxy handler", () => {
     } finally {
       for (const spy of spies) spy.mockRestore();
     }
+  });
+});
+
+describe("caller controls (D-208)", () => {
+  it("refuses a browser from another origin without contacting upstream", async () => {
+    const { calls, proxy } = proxyFor(() => new Response("unexpected"));
+    const response = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, {
+        headers: { origin: "https://evil.example" },
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe("origin not allowed");
+    // No CORS headers: the foreign page cannot even read the refusal.
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("treats the opaque 'null' origin as foreign", async () => {
+    const { calls, proxy } = proxyFor(() => new Response("unexpected"));
+    const response = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, { headers: { origin: "null" } }),
+    );
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("accepts the deployment's own host whatever the scheme (TLS-terminating proxy)", async () => {
+    const { calls, proxy } = proxyFor(okResponse);
+    const response = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, {
+        headers: { origin: "http://ide.facilis.dev" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://ide.facilis.dev");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("accepts an origin the operator names, and only that one", async () => {
+    const recorder = recordingFetch(okResponse);
+    const proxy = createGitProxy({
+      allow: ["github.com"],
+      allowedOrigins: ["https://ide.acme.example"],
+      fetchImpl: recorder.fetchImpl,
+    });
+    const allowed = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, {
+        headers: { origin: "https://ide.acme.example" },
+      }),
+    );
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("access-control-allow-origin")).toBe("https://ide.acme.example");
+
+    const other = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs`, {
+        headers: { origin: "https://other.acme.example" },
+      }),
+    );
+    expect(other.status).toBe(403);
+    expect(recorder.calls).toHaveLength(1);
+  });
+
+  it("requires a token on git traffic, and never on the login that produces it", async () => {
+    const recorder = recordingFetch(okResponse);
+    const proxy = createGitProxy({
+      allow: ["github.com"],
+      requireAuthorization: true,
+      fetchImpl: recorder.fetchImpl,
+    });
+
+    const anonymous = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/info/refs?service=git-upload-pack`),
+    );
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers.get("www-authenticate")).toBe('Basic realm="git-proxy"');
+    expect(recorder.calls).toHaveLength(0);
+
+    const deniedPush = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/git-receive-pack`, { method: "POST" }),
+    );
+    expect(deniedPush.status).toBe(401);
+
+    // The preflight carries no Authorization header, so it must not be refused.
+    const preflight = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/git-upload-pack`, {
+        method: "OPTIONS",
+        headers: { origin: "https://ide.facilis.dev" },
+      }),
+    );
+    expect(preflight.status).toBe(204);
+
+    const authenticated = await proxy.fetch(
+      new Request(`${BASE}/github.com/owner/repo.git/git-upload-pack`, {
+        method: "POST",
+        headers: { authorization: "Basic x-access-token:secret" },
+      }),
+    );
+    expect(authenticated.status).toBe(200);
+
+    const login = await proxy.fetch(
+      new Request(`${BASE}/github.com/login/device/code`, { method: "POST" }),
+    );
+    expect(login.status).toBe(200);
+    expect(recorder.calls).toHaveLength(2);
+  });
+});
+
+describe("parseOrigins", () => {
+  it("normalizes, deduplicates and drops everything that is not an origin", () => {
+    const raw =
+      " HTTPS://Ide.Acme.Example , https://ide.acme.example, https://ide.acme.example:8443/, *, null, not a url";
+    expect(parseOrigins(raw)).toEqual([
+      "https://ide.acme.example",
+      "https://ide.acme.example:8443",
+    ]);
+  });
+
+  it("is empty for empty input: there is no 'any origin'", () => {
+    expect(parseOrigins()).toEqual([]);
+    expect(parseOrigins("")).toEqual([]);
+    expect(parseOrigins("*")).toEqual([]);
+  });
+});
+
+describe("parseRequireAuth", () => {
+  it("turns on only for an explicit positive", () => {
+    for (const on of ["1", "true", "TRUE", "yes", "on"]) expect(parseRequireAuth(on)).toBe(true);
+    for (const off of ["", "0", "false", "no", "off", "nope"]) {
+      expect(parseRequireAuth(off)).toBe(false);
+    }
+    expect(parseRequireAuth()).toBe(false);
   });
 });
 

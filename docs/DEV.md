@@ -567,14 +567,42 @@ CORS headers. The same handler runs in three places:
 
   then either reverse-proxy `/git-proxy/*` to it (keeps `"gitProxy": "same-origin"`) or set
   `projects.gitProxy` to `http://host:8787` / `https://git-proxy.acme.example` — a cross-origin
-  proxy must also be listed in `network.connect` so the CSP allows it.
+  proxy must also be listed in `network.connect` so the CSP allows it, and must name the IDE
+  origin with `--allow-origin https://ide.acme.example`.
+
+### Who may call it (D-208)
+
+The IDE is a static SPA, so there is no session a proxy could verify, and the handler does not
+pretend otherwise: it bounds the caller instead of authenticating it.
+
+- **Origin.** A browser may call the proxy only from the deployment's own host, or from an
+  origin listed in `GIT_PROXY_ALLOWED_ORIGINS` (a cross-origin deployment names the IDE origin
+  there). `Origin: null` and every other origin get a `403` with no CORS headers. The
+  comparison is host+port and ignores the scheme, so a TLS-terminating reverse proxy in front
+  of the standalone server still matches. Requests without an `Origin` header are not browser
+  pages (native git, the availability probe); they pass, and the host allowlist still bounds
+  them.
+- **Token, optionally.** `GIT_PROXY_REQUIRE_AUTH=1` (or `--require-auth`) refuses anonymous git
+  traffic: `info/refs`, `git-upload-pack` and `git-receive-pack` need an `Authorization`
+  header, while a host's login endpoints stay open — otherwise nobody could obtain the token
+  in the first place. Enable it for a public deployment, where an anonymous clone has no user
+  behind it.
+
+### Rate limiting is the edge's job
+
+Nothing in the handler can tell one browser tab from another, and a counter would make it
+stateful. Put the limit in front of it: a Cloudflare WAF rate-limiting rule on `/git-proxy/*`
+(per IP, blocking, e.g. 120 requests/minute) is what keeps the proxy from being used as an
+anonymous hop toward a host's abuse detection, and from burning the account's Workers quota.
+Enable the usage/billing alerts on the same account, and keep `GIT_PROXY_ALLOW` to the hosts the
+deployment actually uses — the proxy must never become a general-purpose fetcher for them.
 
 The proxy keeps no state: no storage, no cache, no cookies, and no per-request logging — only one
 startup line. Request bodies are streamed, never read, and the `Authorization` header only passes
-through. The allowlist is the security boundary: it must name the hosts the deployment may reach,
-and loopback/private hosts must not be added (the proxy would become a path into its own network).
-Because the token transits the proxy, run it on the deployment's own origin or in the company's
-network; there is nothing to back up or clean up.
+through. The host allowlist remains the outer boundary: it must name the hosts the deployment
+may reach, and loopback/private hosts must not be added (the proxy would become a path into its
+own network). Because the token transits the proxy, run it on the deployment's own origin or in
+the company's network; there is nothing to back up or clean up.
 
 ## 11. GitHub sign-in (device flow) in development (D-082)
 
