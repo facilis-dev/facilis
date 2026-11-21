@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
+import type { RuntimeWindow } from "@/facilis/graph-runtime";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
+import { ProjectGraphRuntimeSection } from "./ProjectGraphRuntimeSection";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
 import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
 import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
@@ -17,6 +19,8 @@ export interface ProjectGraphInspectorProps {
   node: ProjectGraphNode;
   edges: readonly ProjectGraphEdge[];
   details: NodeDetails | null;
+  /** The runtime lens's window (issue #72); null while the lens is inactive. */
+  runtime: { readonly window: RuntimeWindow } | null;
   sources: ReadonlyMap<string, string>;
   nodeLabel: (id: string) => string | null;
   onClose: () => void;
@@ -29,6 +33,7 @@ export function ProjectGraphInspector({
   node,
   edges,
   details,
+  runtime,
   sources,
   nodeLabel,
   onClose,
@@ -59,10 +64,17 @@ export function ProjectGraphInspector({
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
         {node.data.kind === "route" && (
-          <ProjectGraphRouteDetails
-            {...shared}
-            details={details?.kind === "route" ? details.route : null}
-          />
+          <>
+            {/* The runtime section (issue #72) leads the route details while the lens is
+                active; #59's satellite will host it when it lands. */}
+            {runtime !== null && (
+              <ProjectGraphRuntimeSection route={node.data} window={runtime.window} />
+            )}
+            <ProjectGraphRouteDetails
+              {...shared}
+              details={details?.kind === "route" ? details.route : null}
+            />
+          </>
         )}
         {node.data.kind === "table" && (
           <ProjectGraphTableDetails

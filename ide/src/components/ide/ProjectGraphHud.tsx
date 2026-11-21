@@ -51,6 +51,8 @@ export interface ProjectGraphHudProps {
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the stats ribbon. */
   lensChips: ReactNode;
+  /** The runtime lens's control strip (issue #72), or null when the lens is inactive. */
+  runtimeControls: ReactNode;
   tableVisibility: GraphTableVisibility;
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
   onAddNote: () => void;
@@ -188,6 +190,7 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
         lensChips={props.lensChips}
+        runtimeControls={props.runtimeControls}
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

@@ -210,4 +210,25 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.chip.lensHint":
     "Attiva la lente {label}; la lente attivata più di recente è dominante",
   "projectGraph.chip.hidden": "nascosto",
+
+  // ── lente runtime (issue #72) ──────────────────────────────────────────────
+  "projectGraph.runtime.controls": "Lente runtime",
+  "projectGraph.runtime.window.1m": "1 min",
+  "projectGraph.runtime.window.5m": "5 min",
+  "projectGraph.runtime.window.15m": "15 min",
+  "projectGraph.runtime.windowHint": "Mostra il traffico degli ultimi {label}",
+  "projectGraph.runtime.live": "Live",
+  "projectGraph.runtime.liveHint": "Live: aggiorna ogni secondo. Off: legge l'ultimo snapshot.",
+  "projectGraph.runtime.heat": "{count} richieste negli ultimi {window}",
+  "projectGraph.runtime.errorDot": "{count} errori server negli ultimi {window}",
+  "projectGraph.runtime.section": "Runtime",
+  "projectGraph.runtime.empty": "nessun traffico in questa finestra",
+  "projectGraph.runtime.requests": "Richieste",
+  "projectGraph.runtime.errorRate": "Tasso di errore (5xx)",
+  "projectGraph.runtime.p50": "p50",
+  "projectGraph.runtime.p95": "p95",
+  "projectGraph.runtime.unbounded": "oltre l'intervallo misurabile",
+  "projectGraph.runtime.clientErrors": "{count} errori client (4xx)",
+  "projectGraph.runtime.aborted": "{count} interrotte",
+  "projectGraph.runtime.sparkline": "Richieste per bucket negli ultimi {window}",
 };

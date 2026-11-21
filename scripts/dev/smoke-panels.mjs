@@ -350,15 +350,21 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const NODE_RECTS =
     '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => { const r = n.getBoundingClientRect();' +
     ' return Math.round(r.x) + ":" + Math.round(r.y); }).join(","))()';
-  const chipCount = await page.evaluate(
-    'document.querySelectorAll("[data-graph-chip]").length',
+  const chipCount = await page.evaluate('document.querySelectorAll("[data-graph-chip]").length');
+  record(
+    chipCount === 13,
+    "project graph: 7 edge-kind + 6 lens chips docked",
+    "chips=" + chipCount,
   );
-  record(chipCount === 13, "project graph: 7 edge-kind + 6 lens chips docked", "chips=" + chipCount);
 
   const beforeIso = await page.evaluate(EDGE_DIM);
   const nodesBefore = await page.evaluate(NODE_RECTS);
   await page.evaluate(clickTestId("graph-chip-edge-route-table"));
-  const isoPressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  const isoPressed = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "true"',
+    5000,
+  );
   const duringIso = await page.evaluate(EDGE_DIM);
   const nodesDuring = await page.evaluate(NODE_RECTS);
   record(
@@ -370,18 +376,27 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       duringIso.bright > 0 &&
       nodesBefore === nodesDuring,
     "project graph: isolation dims other kinds without removing edges or moving nodes",
-    "pressed=" + isoPressed + " before=" + JSON.stringify(beforeIso) + " during=" + JSON.stringify(duringIso),
+    "pressed=" +
+      isoPressed +
+      " before=" +
+      JSON.stringify(beforeIso) +
+      " during=" +
+      JSON.stringify(duringIso),
   );
   // The isolation rides the gv URL parameter (issue #58): shareable and reload-safe.
   const isoInUrl = await waitFor(
     page,
     '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
-    ' try { const v = JSON.parse(gv); return Array.isArray(v.i) && v.i.length === 1 && v.i[0] === "route-table"; } catch { return false; } })()',
+      ' try { const v = JSON.parse(gv); return Array.isArray(v.i) && v.i.length === 1 && v.i[0] === "route-table"; } catch { return false; } })()',
     5000,
   );
   record(isoInUrl, "project graph: isolation persisted in the view-state URL");
   await page.evaluate(clickTestId("graph-chip-edge-route-table"));
-  const isoCleared = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
+  const isoCleared = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "false"',
+    5000,
+  );
   const afterIso = await page.evaluate(EDGE_DIM);
   record(
     isoCleared && afterIso !== null && afterIso.dim === 0,
@@ -409,14 +424,21 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       edgesAfterHide !== null &&
       edgesAfterHide.total < edgesBeforeHide.total,
     "project graph: alt-click hides a kind and the hidden count stays available",
-    "counter=" + hiddenShown + " before=" + JSON.stringify(edgesBeforeHide) + " after=" + JSON.stringify(edgesAfterHide),
+    "counter=" +
+      hiddenShown +
+      " before=" +
+      JSON.stringify(edgesBeforeHide) +
+      " after=" +
+      JSON.stringify(edgesAfterHide),
   );
   await page.evaluate(altClick("graph-chip-edge-route-table"));
   await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
 
   // Keyboard: arrows roam the chips, Alt+Space hides, Space isolates (trusted CDP keys).
   // route-table is the kind the demo project certainly has (its routes declare dbTables).
-  await page.evaluate('document.querySelector("[data-testid=graph-chip-edge-route-table]").focus()');
+  await page.evaluate(
+    'document.querySelector("[data-testid=graph-chip-edge-route-table]").focus()',
+  );
   await pressKey(page, "ArrowRight", "ArrowRight", 39);
   const roved = await page.evaluate(
     'document.activeElement?.getAttribute("data-testid") === "graph-chip-edge-page-route"',
@@ -431,7 +453,11 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await pressKey(page, " ", "Space", 32, 1);
   await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
   await pressKey(page, " ", "Space", 32); // plain Space isolates
-  const spacePressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  const spacePressed = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "true"',
+    5000,
+  );
   await pressKey(page, " ", "Space", 32);
   await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
   record(
@@ -447,7 +473,7 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const secondaryMarked = await waitFor(
     page,
     '(() => { const c = document.querySelector("[data-testid=graph-chip-lens-contract]");' +
-    ' return c !== null && (c.textContent || "").includes("secondary"); })()',
+      ' return c !== null && (c.textContent || "").includes("secondary"); })()',
     5000,
   );
   await page.evaluate(clickTestId("graph-chip-lens-runtime"));
@@ -489,6 +515,303 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "data explorer: preview dev server serving",
     previewServing ? "" : "not serving",
   );
+
+  // ── Runtime lens (issue #72): per-route traffic, errors and latency from the dev-injected
+  // client (D-200). The preview is serving (checked above) and same-origin in mode A, so
+  // fetches issued INSIDE the preview frame travel through the injected client into the IDE
+  // collector; the lens enables that seam with the graph's route templates. /api/todos answers
+  // 401 on the example project (a client error, not a server error); a synthetic token-correct
+  // batch posted from the preview frame exercises the 5xx error marker. ──
+  const NODE_POS =
+    '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => n.id + "@" + n.style.transform).join(","))()';
+  // The /api/todos card, not the /api/todos/{id} one: exact path, no trailing segment.
+  const FIND_TODOS_CARD =
+    'const cards = [...document.querySelectorAll("[data-testid=project-graph-route]")];' +
+    ' const card = cards.find((c) => { const text = c.textContent || "";' +
+    ' return text.includes("/api/todos") && !text.includes("/api/todos/"); }) || null;';
+  const posBeforeRuntime = await page.evaluate(NODE_POS);
+  await page.evaluate(clickTestId("graph-chip-lens-runtime"));
+  const runtimeControls = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-runtime-controls]"))',
+    5000,
+  );
+  const runtimeDefaultWindow = await page.evaluate(pressed("graph-runtime-window-5m"));
+  const posDuringRuntime = await page.evaluate(NODE_POS);
+  record(
+    runtimeControls && runtimeDefaultWindow === "true" && posBeforeRuntime === posDuringRuntime,
+    "runtime lens: controls dock with the lens (5m default), nodes never move",
+    "controls=" +
+      runtimeControls +
+      " window=" +
+      runtimeDefaultWindow +
+      " positionsHeld=" +
+      (posBeforeRuntime === posDuringRuntime),
+  );
+
+  // Live on: counts must appear within 2 s of the traffic and match the #71 buffer exactly.
+  // The heat dot's aria-label carries the count at EVERY LOD (the corner dot is the chip-LOD
+  // surface, epic rule 4); the inspector's runtime section carries the detailed facts.
+  await page.evaluate(clickTestId("graph-runtime-live"));
+  const livePressed = await waitFor(page, pressed("graph-runtime-live") + ' === "true"', 5000);
+  const trafficSent = await page.evaluate(
+    "(async () => { const f = [...document.querySelectorAll('iframe')].find((x) => /preview/.test(x.src || ''));" +
+      " if (!f || !f.contentWindow) return 'NOFRAME';" +
+      " for (let i = 0; i < 6; i++) { try { await f.contentWindow.fetch('/api/todos'); } catch (e) { return 'FETCHFAIL ' + e; } }" +
+      " return 'OK'; })()",
+  );
+  const DOT_LABEL =
+    "(() => { " +
+    FIND_TODOS_CARD +
+    " const dot = card && card.querySelector('[data-testid=runtime-heat-dot]');" +
+    " return dot ? dot.getAttribute('aria-label') : null; })()";
+  const heatWithin2s = await waitFor(
+    page,
+    "(() => { const label = " +
+      DOT_LABEL +
+      "; return Boolean(label && label.startsWith('6 requests')); })()",
+    2000,
+  );
+  const trafficFacts = await page.evaluate(
+    "(() => { const row = (window.__facilis ? window.__facilis.runtimeMetrics.snapshot() : []).find((r) => r.route === '/api/todos');" +
+      FIND_TODOS_CARD +
+      " const errorDot = card ? card.querySelector('[data-testid=runtime-error-dot]') : null;" +
+      " return { buffer: row ? row.count : null, clientErrors: row ? row.clientErrors : null," +
+      " errors: row ? row.errors : null, errorDot: Boolean(errorDot) }; })()",
+  );
+  // The details surface: selecting the route opens the inspector's runtime section.
+  await page.evaluate("(() => { " + FIND_TODOS_CARD + " if (card) card.click(); return 'OK'; })()");
+  const detailsCount = await waitFor(
+    page,
+    "(() => { const el = document.querySelector('[data-testid=runtime-stat-count]'); return el ? el.textContent : null; })() === '6'",
+    5000,
+  );
+  const detailsFacts = await page.evaluate(
+    "(() => { const spark = document.querySelectorAll('[data-testid=runtime-sparkline] rect').length;" +
+      " const p50 = document.querySelector('[data-testid=runtime-stat-p50]');" +
+      " const rate = document.querySelector('[data-testid=runtime-stat-error-rate]');" +
+      " return { spark, p50: p50 ? p50.textContent : null, rate: rate ? rate.textContent : null }; })()",
+  );
+  record(
+    trafficSent === "OK" &&
+      livePressed &&
+      heatWithin2s &&
+      trafficFacts.buffer === 6 &&
+      trafficFacts.clientErrors === 6 &&
+      trafficFacts.errors === 0 &&
+      !trafficFacts.errorDot &&
+      detailsCount &&
+      detailsFacts.spark === 60 &&
+      detailsFacts.p50 !== null &&
+      detailsFacts.rate === "0%",
+    "runtime lens: live traffic within 2 s matches the #71 buffer (dot + details, 401 not an error)",
+    "sent=" +
+      trafficSent +
+      " live=" +
+      livePressed +
+      " heat2s=" +
+      heatWithin2s +
+      " facts=" +
+      JSON.stringify(trafficFacts) +
+      " details=" +
+      JSON.stringify(detailsFacts),
+  );
+  await page.evaluate(
+    '(() => { const b = document.querySelector("[data-testid=project-graph-inspector] button"); if (b) b.click(); })()',
+  );
+  await sleep(200);
+
+  // A 5xx sample with the correct boot token, posted from the preview frame like a real client
+  // batch. If the frame path does not land, the IDE window posts it (mode A trusts the same
+  // origin either way); the detail names which path delivered it.
+  const ERRORS_NOW =
+    "(() => { const row = (window.__facilis ? window.__facilis.runtimeMetrics.snapshot() : []).find((r) => r.route === '/api/todos');" +
+    " return row ? row.errors : null; })()";
+  const syntheticSent = await page.evaluate(
+    "(() => { const ide = window.__ide; if (!ide || !ide.bridge) return 'NOIDE';" +
+      " const m = /[?&]__vv_kernel=([^&#]+)/.exec(ide.bridge.sameOriginPreviewUrl(0, '/')); if (!m) return 'NOTOKEN';" +
+      " const f = [...document.querySelectorAll('iframe')].find((x) => /preview/.test(x.src || ''));" +
+      " if (!f || !f.contentWindow) return 'NOFRAME';" +
+      " const payload = JSON.stringify({ source: 'vv-metrics', type: 'batch', token: decodeURIComponent(m[1])," +
+      " samples: [{ route: '/api/todos', method: 'GET', status: 503, duration: 12 }] });" +
+      // eval INSIDE the preview frame so event.source is the preview window, like a real batch.
+      " f.contentWindow.eval('parent.postMessage(' + JSON.stringify(payload) + ', location.origin)');" +
+      " return 'OK'; })()",
+  );
+  await sleep(400);
+  let syntheticPath = "preview";
+  let errorsNow = await page.evaluate(ERRORS_NOW);
+  if (errorsNow === 0) {
+    syntheticPath = "ide";
+    await page.evaluate(
+      "(() => { const ide = window.__ide; if (!ide || !ide.bridge) return 'NOIDE';" +
+        " const m = /[?&]__vv_kernel=([^&#]+)/.exec(ide.bridge.sameOriginPreviewUrl(0, '/')); if (!m) return 'NOTOKEN';" +
+        " const payload = JSON.stringify({ source: 'vv-metrics', type: 'batch', token: decodeURIComponent(m[1])," +
+        " samples: [{ route: '/api/todos', method: 'GET', status: 503, duration: 12 }] });" +
+        " window.postMessage(JSON.parse(payload), location.origin); return 'OK'; })()",
+    );
+    await sleep(400);
+    errorsNow = await page.evaluate(ERRORS_NOW);
+  }
+  const errorDotShown = await waitFor(
+    page,
+    "(() => { " +
+      FIND_TODOS_CARD +
+      " return Boolean(card && card.querySelector('[data-testid=runtime-error-dot]')); })()",
+    2000,
+  );
+  const errorLabel = await page.evaluate(DOT_LABEL);
+  record(
+    syntheticSent === "OK" &&
+      errorDotShown &&
+      errorsNow === 1 &&
+      Boolean(errorLabel && errorLabel.startsWith("7 requests")),
+    "runtime lens: a 5xx batch raises the error marker and the buffer agrees",
+    "sent=" +
+      syntheticSent +
+      " path=" +
+      syntheticPath +
+      " dot=" +
+      errorDotShown +
+      " errors=" +
+      errorsNow +
+      " label=" +
+      errorLabel,
+  );
+
+  // Detailed LOD: wheel-zoom centred ON the todos card (it stays on screen under
+  // onlyRenderVisibleElements) until the count badge appears above RUNTIME_COMPACT_ZOOM.
+  const VIEWPORT_ZOOM =
+    '(() => { const v = document.querySelector(".react-flow__viewport"); if (!v) return null;' +
+    ' const m = /scale[(]([^)]+)[)]/.exec(v.style.transform || ""); return m ? Number(m[1]) : null; })()';
+  const cardPoint = await page.evaluate(
+    "(() => { " +
+      FIND_TODOS_CARD +
+      " if (!card) return null; const r = card.getBoundingClientRect();" +
+      " return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()",
+  );
+  const zoomTrace = [];
+  for (let i = 0; i < 14 && cardPoint !== null; i += 1) {
+    const zoom = await page.evaluate(VIEWPORT_ZOOM);
+    zoomTrace.push(zoom);
+    if (zoom !== null && zoom >= 0.6) break;
+    await page.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: cardPoint.x,
+      y: cardPoint.y,
+      deltaX: 0,
+      deltaY: -240,
+    });
+    await sleep(200);
+  }
+  const detailedZoom = await page.evaluate(VIEWPORT_ZOOM);
+  const detailedBadge = await page.evaluate(
+    "(() => { " +
+      FIND_TODOS_CARD +
+      " const badge = card && card.querySelector('[data-testid=runtime-count]');" +
+      " const row = (window.__facilis ? window.__facilis.runtimeMetrics.snapshot() : []).find((r) => r.route === '/api/todos');" +
+      " return { badge: badge ? badge.textContent : null, buffer: row ? row.count : null }; })()",
+  );
+  record(
+    detailedZoom !== null &&
+      detailedZoom >= 0.55 &&
+      detailedBadge.badge === "7" &&
+      detailedBadge.buffer === 7,
+    "runtime lens: detailed count badge above the zoom threshold matches the buffer",
+    "zoom=" +
+      detailedZoom +
+      " trace=" +
+      JSON.stringify(zoomTrace) +
+      " badge=" +
+      JSON.stringify(detailedBadge),
+  );
+
+  // Window switch rides the gv URL parameter (the whole view round-trips, epic rule 6).
+  await page.evaluate(clickTestId("graph-runtime-window-1m"));
+  const windowSwitched = await waitFor(
+    page,
+    pressed("graph-runtime-window-1m") + ' === "true"',
+    5000,
+  );
+  const windowInUrl = await waitFor(
+    page,
+    '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
+      ' try { const v = JSON.parse(gv); return v.rw === "1m" && v.rl === true && Array.isArray(v.l) && v.l.includes("runtime"); } catch { return false; } })()',
+    5000,
+  );
+  record(
+    windowSwitched && windowInUrl,
+    "runtime lens: window switch rides the gv URL state",
+    "pressed=" + windowSwitched + " url=" + windowInUrl,
+  );
+
+  // Live off freezes the surface on the last snapshot; a user action (window change) reads
+  // the accumulated history again. The client flushes every 1 s, so 2.5 s covers the batch.
+  await page.evaluate(clickTestId("graph-runtime-live"));
+  const liveOff = await waitFor(page, pressed("graph-runtime-live") + ' === "false"', 5000);
+  await page.evaluate(
+    "(async () => { const f = [...document.querySelectorAll('iframe')].find((x) => /preview/.test(x.src || ''));" +
+      " if (f && f.contentWindow) { for (let i = 0; i < 3; i++) { try { await f.contentWindow.fetch('/api/todos'); } catch { /* the buffer counts it */ } } }" +
+      " return 'OK'; })()",
+  );
+  await sleep(2500);
+  // The dot's aria-label is the frozen surface: live off must not push the new count into it.
+  const frozenLabel = await page.evaluate(DOT_LABEL);
+  await page.evaluate(clickTestId("graph-runtime-window-5m"));
+  const caughtUp = await waitFor(
+    page,
+    "(() => { const label = " +
+      DOT_LABEL +
+      "; return Boolean(label && label.startsWith('10 requests')); })()",
+    5000,
+  );
+  const frozenBuffer = await page.evaluate(
+    "(() => { const row = (window.__facilis ? window.__facilis.runtimeMetrics.snapshot() : []).find((r) => r.route === '/api/todos');" +
+      " return row ? row.count : null; })()",
+  );
+  record(
+    liveOff &&
+      Boolean(frozenLabel && frozenLabel.startsWith("7 requests")) &&
+      caughtUp &&
+      frozenBuffer === 10,
+    "runtime lens: live off freezes the surface; a window change reads the last snapshot",
+    "liveOff=" +
+      liveOff +
+      " frozen=" +
+      frozenLabel +
+      " caughtUp=" +
+      caughtUp +
+      " buffer=" +
+      frozenBuffer,
+  );
+
+  // The full lens state (lens + window + live) round-trips through gv; then the lens leaves.
+  await page.evaluate(clickTestId("graph-runtime-window-15m"));
+  await page.evaluate(clickTestId("graph-runtime-live"));
+  const fullStateInUrl = await waitFor(
+    page,
+    '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
+      ' try { const v = JSON.parse(gv); return v.rw === "15m" && v.rl === true && Array.isArray(v.l) && v.l[0] === "runtime"; } catch { return false; } })()',
+    5000,
+  );
+  record(
+    fullStateInUrl,
+    "runtime lens: window + live + lens round-trip through gv",
+    "url=" + fullStateInUrl,
+  );
+  await page.screenshot(ARTIFACTS + "/05e-project-graph-runtime.png");
+  await page.evaluate(clickTestId("graph-chip-lens-runtime"));
+  const runtimeGone = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=graph-runtime-controls]") && !document.querySelector("[data-testid=runtime-marks-route]")',
+    5000,
+  );
+  record(
+    runtimeGone,
+    "runtime lens: controls and marks leave with the lens",
+    "gone=" + runtimeGone,
+  );
+
   const explorerMounted = COUNT('[data-testid="data-query-open"]') + " > 0";
   let dataTables = await waitFor(page, COUNT('[data-testid="data-explorer-table"]') + " > 0", 750);
   let activityOpens = true;

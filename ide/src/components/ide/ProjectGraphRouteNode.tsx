@@ -3,12 +3,14 @@
 // description is project content in the project's language, not IDE chrome, so it is rendered
 // verbatim instead of through t().
 
+import { useContext } from "react";
 import type { RouteInputFact } from "@facilis.dev/analyze";
 import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
+import { RouteRuntimeMarks, RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
 
 function MethodBadge({ method }: { method: string }) {
   const tone =
@@ -39,6 +41,9 @@ const ROUTE_INPUTS: readonly { readonly fact: keyof RouteInputFact; readonly lab
   ];
 
 export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  // The runtime lens (issue #72) reads its settings from context, not node data: a stable null
+  // while inactive means the card renders exactly as before, with no subscription.
+  const runtime = useContext(RuntimeLensContext);
   const node = data.node;
   const route = node.data.kind === "route" ? node.data : null;
   if (route === null) return null;
@@ -56,6 +61,7 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       title={sourceTitle(node)}
       className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
     >
+      {runtime !== null && <RouteRuntimeMarks route={route} lens={runtime} />}
       <div className="flex items-center gap-1.5">
         <MethodBadge method={route.method} />
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{route.path}</span>

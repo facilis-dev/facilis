@@ -59,6 +59,25 @@ describe("gv parameter merge", () => {
   it("removes gv for the default view so an untouched tab keeps a clean URL", () => {
     expect(graphViewSearch("?project=p&gv=stale", DEFAULT_GRAPH_VIEW_STATE)).toBe("project=p");
   });
+
+  it("carries the runtime lens options through the gv merge and percent-encoding", () => {
+    const next = state({
+      activeLenses: ["runtime"],
+      runtimeWindow: "15m",
+      runtimeLive: true,
+      selection: "route:GET /api/todos",
+    });
+    const search = graphViewSearch("?project=%2Fp&net=1", next);
+    const raw = readGraphViewParam(search);
+    expect(raw).not.toBeNull();
+    const decoded = decodeGraphViewState(raw);
+    expect(decoded.runtimeWindow).toBe("15m");
+    expect(decoded.runtimeLive).toBe(true);
+    expect(decoded.activeLenses).toEqual(["runtime"]);
+    // The whole view round-trips byte-identically through the URL parameter.
+    expect(encodeGraphViewState(decoded)).toBe(encodeGraphViewState(next));
+    expect(new URLSearchParams(search).get("project")).toBe("/p");
+  });
 });
 
 describe("root reset decision", () => {

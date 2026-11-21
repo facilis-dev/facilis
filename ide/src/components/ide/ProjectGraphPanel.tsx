@@ -26,12 +26,15 @@ import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
+import { ProjectGraphRuntimeControls } from "./ProjectGraphRuntimeControls";
+import { RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
+import { useProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
 
 export function ProjectGraphPanel() {
@@ -125,6 +128,8 @@ export function ProjectGraphPanel() {
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
+  // The runtime lens (issue #72): seam lifecycle, card context and the HUD/details inputs.
+  const runtime = useProjectGraphRuntimeLens(c, view, viewState, layout.viewport?.zoom ?? 1);
 
   const fit = () => {
     remeasure();
@@ -182,29 +187,31 @@ export function ProjectGraphPanel() {
     state !== null ? (
       <ProjectGraphStateView state={state} onRefresh={refresh} />
     ) : view !== null ? (
-      <ProjectGraphCanvas
-        view={view}
-        fitPadding={fitPadding}
-        onInstance={setFlow}
-        viewport={layout.viewport ?? null}
-        fitNonce={fitNonce}
-        edgeCurves={layout.edgeCurves}
-        focus={focus}
-        isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
-        notes={graph.notes}
-        addNoteNonce={graph.addNoteNonce}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={setSelectedNodeId}
-        onMoveNode={graph.moveNode}
-        onToggleCollapse={graph.toggleCollapsed}
-        onOpenNode={openNode}
-        onViewportChange={graph.changeViewport}
-        onEdgeCurveChange={graph.changeEdgeCurve}
-        onCreateNote={graph.createNote}
-        onMoveNote={graph.moveNote}
-        onEditNote={graph.editNote}
-        onDeleteNote={graph.deleteNote}
-      />
+      <RuntimeLensContext.Provider value={runtime.context}>
+        <ProjectGraphCanvas
+          view={view}
+          fitPadding={fitPadding}
+          onInstance={setFlow}
+          viewport={layout.viewport ?? null}
+          fitNonce={fitNonce}
+          edgeCurves={layout.edgeCurves}
+          focus={focus}
+          isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          notes={graph.notes}
+          addNoteNonce={graph.addNoteNonce}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onMoveNode={graph.moveNode}
+          onToggleCollapse={graph.toggleCollapsed}
+          onOpenNode={openNode}
+          onViewportChange={graph.changeViewport}
+          onEdgeCurveChange={graph.changeEdgeCurve}
+          onCreateNote={graph.createNote}
+          onMoveNote={graph.moveNote}
+          onEditNote={graph.editNote}
+          onDeleteNote={graph.deleteNote}
+        />
+      </RuntimeLensContext.Provider>
     ) : null;
 
   return (
@@ -245,6 +252,16 @@ export function ProjectGraphPanel() {
                 onActiveLensesChange={viewState.setActiveLenses}
               />
             }
+            runtimeControls={
+              runtime.context === null ? null : (
+                <ProjectGraphRuntimeControls
+                  window={runtime.window}
+                  live={runtime.live}
+                  onWindowChange={runtime.setWindow}
+                  onLiveChange={runtime.setLive}
+                />
+              )
+            }
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
             // With no canvas on screen the HUD must still place the first note at a fixed origin.
@@ -261,6 +278,7 @@ export function ProjectGraphPanel() {
             node={selectedNode}
             edges={selectedEdges}
             details={details.get(selectedNode.id) ?? null}
+            runtime={runtime.details}
             sources={sources}
             nodeLabel={nodeLabel}
             onClose={() => setSelectedNodeId(null)}

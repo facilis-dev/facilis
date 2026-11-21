@@ -18,6 +18,7 @@ import {
   type GraphViewport,
 } from "./graph-layout-file";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
+import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "./graph-runtime";
 
 /** How the graph is drawn. Matrix and timeline are later children (#67/#76): carried, not rendered. */
 export type GraphViewMode = "topology" | "matrix" | "timeline";
@@ -40,6 +41,10 @@ export interface GraphViewState {
   readonly activeLenses: readonly GraphLensId[];
   /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The runtime lens's selected window (issue #72); carried even while the lens is off. */
+  readonly runtimeWindow: RuntimeWindow;
+  /** The runtime lens's live toggle (issue #72): off reads the last snapshot. */
+  readonly runtimeLive: boolean;
   readonly selection: string | null;
   /** USER focus ids — distinct from the AI focus overlay, which is never URL state. */
   readonly focus: readonly string[];
@@ -54,6 +59,8 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   mode: "topology",
   activeLenses: [],
   isolatedEdgeKinds: [],
+  runtimeWindow: DEFAULT_RUNTIME_WINDOW,
+  runtimeLive: false,
   selection: null,
   focus: [],
   filters: { hiddenEdgeKinds: [], tableVisibility: "all" },
@@ -98,6 +105,10 @@ export function encodeGraphViewState(state: GraphViewState): string {
   const isolatedSet = new Set(state.isolatedEdgeKinds);
   const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
   if (isolated.length > 0) out.i = isolated;
+  // Runtime lens options (issue #72): two short keys, omitted at their defaults so an
+  // untouched lens keeps the URL clean. "rw"/"rl" avoid #69's audit-filter key "a".
+  if (state.runtimeWindow !== DEFAULT_RUNTIME_WINDOW) out.rw = state.runtimeWindow;
+  if (state.runtimeLive) out.rl = true;
   if (state.selection !== null && state.selection !== "") out.s = state.selection;
   const focus = uniqueStrings(state.focus);
   if (focus.length > 0) out.f = focus;
@@ -134,6 +145,10 @@ function readLenses(value: unknown): GraphLensId[] {
     out.push(entry as GraphLensId);
   }
   return out;
+}
+
+function readRuntimeWindow(value: unknown): RuntimeWindow {
+  return RUNTIME_WINDOW_IDS.find((window) => window === value) ?? DEFAULT_RUNTIME_WINDOW;
 }
 
 function readIds(value: unknown, knownNodeIds?: ReadonlySet<string>): string[] {
@@ -189,6 +204,8 @@ export function decodeGraphViewState(
     mode: readMode(parsed.m),
     activeLenses: readLenses(parsed.l),
     isolatedEdgeKinds: readEdgeKinds(parsed.i),
+    runtimeWindow: readRuntimeWindow(parsed.rw),
+    runtimeLive: parsed.rl === true,
     selection: readSelection(parsed.s, knownNodeIds),
     focus: readIds(parsed.f, knownNodeIds),
     filters: {

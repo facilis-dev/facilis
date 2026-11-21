@@ -40,6 +40,8 @@ describe("graph view state round-trips", () => {
       mode: "timeline",
       activeLenses: ["impact", "contract", "roles"],
       isolatedEdgeKinds: ["fk", "page-link"],
+      runtimeWindow: "15m",
+      runtimeLive: true,
       selection: "table:予定表",
       focus: ["page:/設定", "route:GET /api/検索", "table:café"],
       filters: { hiddenEdgeKinds: [...GRAPH_EDGE_KINDS], tableVisibility: "project" },
@@ -64,6 +66,32 @@ describe("graph view state round-trips", () => {
       const next = state({ isolatedEdgeKinds: kinds.toReversed() });
       const decoded = decodeGraphViewState(encodeGraphViewState(next));
       expect(decoded.isolatedEdgeKinds).toEqual(kinds);
+    }
+  });
+
+  it("encodes the runtime lens options under rw/rl and omits the defaults", () => {
+    expect(encodeGraphViewState(state({ runtimeWindow: "1m" }))).toBe('{"rw":"1m"}');
+    expect(encodeGraphViewState(state({ runtimeLive: true }))).toBe('{"rl":true}');
+    expect(encodeGraphViewState(state({ runtimeWindow: "15m", runtimeLive: true }))).toBe(
+      '{"rw":"15m","rl":true}',
+    );
+    expect(encodeGraphViewState(state({ runtimeWindow: "5m", runtimeLive: false }))).toBe("");
+  });
+
+  it("round-trips every runtime window and the live toggle", () => {
+    for (const window of ["1m", "5m", "15m"] as const) {
+      for (const live of [false, true]) {
+        const next = state({ runtimeWindow: window, runtimeLive: live });
+        expect(decodeGraphViewState(encodeGraphViewState(next))).toEqual(next);
+      }
+    }
+  });
+
+  it("degrades hostile runtime options to the defaults (5m, live off)", () => {
+    for (const raw of ['{"rw":"9m"}', '{"rw":5}', '{"rw":null}', '{"rl":"yes"}', '{"rl":1}']) {
+      const decoded = decodeGraphViewState(raw);
+      expect(decoded.runtimeWindow).toBe("5m");
+      expect(decoded.runtimeLive).toBe(false);
     }
   });
 
