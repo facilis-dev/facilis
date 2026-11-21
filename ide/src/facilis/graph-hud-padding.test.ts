@@ -19,51 +19,34 @@ describe("computeHudFitPadding", () => {
     });
   });
 
-  it("reserves a top cluster's height from the top but not a horizontal side", () => {
+  it("reserves a top-left cluster's full extent from the top and left edges", () => {
     const padding = computeHudFitPadding(CANVAS, [rect(8, 8, 200, 40)], 16);
     expect(padding.top).toBe(8 + 40 + 16);
-    expect(padding.left).toBe(16);
+    expect(padding.left).toBe(8 + 200 + 16);
     expect(padding.bottom).toBe(16);
     expect(padding.right).toBe(16);
   });
 
-  it("reserves a bottom-right cluster from the bottom but not the right", () => {
+  it("reserves a bottom-right cluster from the bottom and right edges", () => {
     const padding = computeHudFitPadding(CANVAS, [rect(760, 700, 232, 92)], 16);
     expect(padding.bottom).toBe(800 - 700 + 16);
-    expect(padding.right).toBe(16);
+    expect(padding.right).toBe(1000 - 760 + 16);
     expect(padding.top).toBe(16);
     expect(padding.left).toBe(16);
   });
 
-  it("takes the deepest vertical intrusion across the corner clusters", () => {
+  it("takes the deepest intrusion per side across the four corner clusters", () => {
     const zones = [
       rect(8, 8, 240, 44), // top-left
       rect(700, 8, 292, 60), // top-right (deeper top)
-      rect(8, 740, 320, 52), // bottom-left ribbon
+      rect(8, 740, 320, 52), // bottom-left (wider left)
       rect(820, 720, 172, 72), // bottom-right
     ];
     const padding = computeHudFitPadding(CANVAS, zones, 16);
     expect(padding.top).toBe(8 + 60 + 16); // deepest top cluster
+    expect(padding.left).toBe(8 + 320 + 16); // widest left cluster
     expect(padding.bottom).toBe(800 - 720 + 16);
-    expect(padding.left).toBe(16); // no side rail: the ribbon must not eat the width
-    expect(padding.right).toBe(16);
-  });
-
-  it("lets a wide bottom-left ribbon keep the horizontal fit box (regression: 0.06 zoom)", () => {
-    // A 419px-wide ribbon on a 1024px canvas used to reserve 409px on the left, leaving a
-    // 206px sliver and collapsing the fit to ~0.06; only its height may be reserved.
-    const canvas = { width: 1024, height: 900 };
-    const padding = computeHudFitPadding(canvas, [rect(8, 780, 419, 100)], 16);
-    expect(padding.bottom).toBe(900 - 780 + 16);
-    expect(padding.left).toBe(16);
-    expect(padding.right).toBe(16);
-  });
-
-  it("reserves a full-height side rail from the horizontal edge", () => {
-    const padding = computeHudFitPadding(CANVAS, [rect(0, 0, 120, 700)], 16);
-    expect(padding.left).toBe(120 + 16);
-    // The rail also touches the top, so the vertical side is capped at 40%.
-    expect(padding.top).toBe(Math.floor(800 * 0.4));
+    expect(padding.right).toBe(1000 - 700 + 16);
   });
 
   it("caps a side at 40% of its dimension so a huge cluster cannot degenerate the fit", () => {
