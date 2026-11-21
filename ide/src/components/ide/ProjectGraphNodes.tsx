@@ -22,8 +22,10 @@ import { ViewGraphNode } from "./ProjectGraphViewNode";
 export type ProjectFlowData = {
   node: ProjectGraphNode;
   collapsed: boolean;
-  /** False when an AI focus request (D-171) names other nodes: the card is drawn dimmed. */
+  /** False when the user focus (issue #66) closes over other nodes: the card is drawn at 12%. */
   focused: boolean;
+  /** True when the AI focus (D-171) names this card: the outline channel, never a dim. */
+  aiOutlined: boolean;
   /** True when edge-kind isolation (issue #63) names no edge touching this card: drawn at 10%. */
   isolated: boolean;
   onToggleCollapse: (id: string) => void;
@@ -49,7 +51,10 @@ export function PageGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
     <div
       data-testid="project-graph-page"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-56"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
+        " w-56"
+      }
     >
       <div className="flex items-center gap-1.5">
         <FileCode className="size-3 shrink-0 text-muted-foreground" />
@@ -118,7 +123,10 @@ export function TableGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
     <div
       data-testid="project-graph-table"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-60"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
+        " w-60"
+      }
     >
       <div className="flex items-center gap-1.5">
         <Table2 className="size-3 shrink-0 text-muted-foreground" />
@@ -221,7 +229,10 @@ export function WorkflowGraphNode({
     <div
       data-testid="project-graph-workflow"
       title={sourceTitle(node)}
-      className={nodeClass(selected, node.matched, dragging, data.focused, data.isolated) + " w-64"}
+      className={
+        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
+        " w-64"
+      }
     >
       <div className="flex items-center gap-1.5">
         <WorkflowIcon className="size-3 shrink-0 text-muted-foreground" />

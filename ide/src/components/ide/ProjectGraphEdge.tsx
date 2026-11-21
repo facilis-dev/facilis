@@ -35,8 +35,10 @@ export const PROJECT_GRAPH_EDGE_TYPE = "project-graph-edge";
 export type ProjectGraphEdgeData = {
   readonly kind: GraphEdgeKind;
   readonly access?: "elevated";
-  /** False when an AI focus request (D-171) names other edges: the edge is drawn faint. */
-  readonly focused?: boolean;
+  /** True when the user focus (issue #66) closes over other edges: drawn at 12%. */
+  readonly userDimmed?: boolean;
+  /** True when the AI focus (D-171) names this edge: the brand halo channel, never a dim. */
+  readonly aiOutlined?: boolean;
   /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
   readonly dimmed?: boolean;
   readonly curve: GraphCurve | null;
@@ -155,12 +157,13 @@ export function ProjectGraphEdge({
     strokeWidth: highlighted ? 2.5 : 1.5,
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    // Isolation (issue #63) dims to 10%, an AI focus to 25%; the stronger dim wins so the two
-    // never stack into an invisible line. Opacity, not colour: the theme still owns the stroke.
+    // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
+    // wins so the two never stack into an invisible line. Opacity, not colour: the theme still
+    // owns the stroke. The AI focus no longer dims — it halos below (aiOutlined).
     ...(data?.dimmed === true
       ? { opacity: 0.1 }
-      : data?.focused === false
-        ? { opacity: 0.25 }
+      : data?.userDimmed === true
+        ? { opacity: 0.12 }
         : {}),
     ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
   };
@@ -204,6 +207,19 @@ export function ProjectGraphEdge({
 
   return (
     <g onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      {/* The AI focus channel (D-171, issue #66): a brand halo under the kind-coloured stroke,
+          visible even when the user focus dims the edge — the two channels compose. */}
+      {data?.aiOutlined === true ? (
+        <path
+          d={geometry.path}
+          fill="none"
+          stroke="var(--brand)"
+          strokeWidth={5}
+          strokeLinecap="round"
+          opacity={0.45}
+          style={{ pointerEvents: "none" }}
+        />
+      ) : null}
       <BaseEdge
         path={geometry.path}
         markerEnd={markerEnd}

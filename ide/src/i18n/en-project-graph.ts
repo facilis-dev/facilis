@@ -41,7 +41,7 @@ export const projectGraphEn = {
   "projectGraph.matches": "{count} matched",
   "projectGraph.noMatches": "No node matches the search.",
   "projectGraph.hint":
-    "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
+    "Drag a node to move it, double-click to isolate its context. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
   "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
   "projectGraph.addNote": "Add note",
   "projectGraph.noteEmpty": "Empty note — double-click to edit",
@@ -82,7 +82,7 @@ export const projectGraphEn = {
   "projectGraph.pageKind.lib": "lib",
   "projectGraph.pageKind.other": "other",
   "projectGraph.calls": "{count} calls",
-  "projectGraph.openSource": "Open {source}",
+  "projectGraph.nodeTitle": "{source} — double-click to isolate its context",
   "projectGraph.marker.primaryKey": "PK",
   "projectGraph.marker.notNull": "required",
   "projectGraph.marker.unique": "unique",
@@ -208,4 +208,18 @@ export const projectGraphEn = {
     "Isolate {label} (click), add to the set (Shift+click), hide (Alt+click)",
   "projectGraph.chip.lensHint": "Activate the {label} lens; the newest active lens is dominant",
   "projectGraph.chip.hidden": "hidden",
+
+  // ── focus-and-context highlighting + node isolation (issue #66) ─────────────
+  "projectGraph.focus.label": "Selection context",
+  "projectGraph.focus.reachable": "{count} nodes reachable",
+  "projectGraph.focus.pages": "{count} pages",
+  "projectGraph.focus.routes": "{count} routes",
+  "projectGraph.focus.tables": "{count} tables",
+  "projectGraph.focus.views": "{count} views",
+  "projectGraph.focus.workflows": "{count} workflows",
+  "projectGraph.focus.isolate": "Isolate",
+  "projectGraph.focus.isolateHint":
+    "Show only the reachable subgraph (Enter, or double-click a node)",
+  "projectGraph.focus.exitIsolate": "Exit isolation",
+  "projectGraph.focus.exitIsolateHint": "Restore the full graph (Esc)",
 } as const;

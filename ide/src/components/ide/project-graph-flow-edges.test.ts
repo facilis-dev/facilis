@@ -62,6 +62,7 @@ const build = (
     edgeCurves: {},
     selectedEdgeId: null,
     focus,
+    userFocus: null,
     isolatedEdgeKinds,
     onEdgeCurveChange: () => {},
   });
@@ -72,7 +73,8 @@ describe("buildProjectGraphFlowEdges", () => {
     expect(edges).toHaveLength(3);
     for (const edge of edges) {
       expect(edge.data?.dimmed).toBeUndefined();
-      expect(edge.data?.focused).toBeUndefined();
+      expect(edge.data?.userDimmed).toBeUndefined();
+      expect(edge.data?.aiOutlined).toBeUndefined();
     }
   });
 
@@ -87,14 +89,14 @@ describe("buildProjectGraphFlowEdges", () => {
     expect(edges.every((edge) => edge.data?.dimmed === false)).toBe(true);
   });
 
-  it("keeps the AI focus flag independent of isolation", () => {
+  it("keeps the AI outline flag independent of isolation", () => {
     const focus: ProjectGraphFocusState = {
       nodeIds: new Set(["a"]),
       edgeIds: new Set(["e2"]),
       zoom: false,
     };
     const edges = build(["fk"], focus);
-    expect(edges.map((edge) => edge.data?.focused)).toEqual([false, true, false]);
+    expect(edges.map((edge) => edge.data?.aiOutlined)).toEqual([false, true, false]);
     expect(edges.map((edge) => edge.data?.dimmed)).toEqual([false, true, true]);
   });
 
@@ -104,6 +106,7 @@ describe("buildProjectGraphFlowEdges", () => {
       edgeCurves: {},
       selectedEdgeId: "e1",
       focus: null,
+      userFocus: null,
       isolatedEdgeKinds: [],
       onEdgeCurveChange: () => {},
     });
