@@ -27,9 +27,11 @@ const MAX_FRACTION = 0.4;
 
 /**
  * Reserve, on each side, the deepest intrusion of any cluster anchored to that side. A cluster
- * is anchored to the half (top/bottom, left/right) its centre falls in; reserving its full extent
- * from that edge is conservative — the fitted bounds are centred inside the padded box, so they
- * clear the cluster on both axes. Sides no cluster touches keep just the gap.
+ * is anchored to the half (top/bottom) its centre falls in; a horizontal side is reserved ONLY by
+ * a tall side rail (at least half the canvas height). The epic forbids persistent side panels
+ * (rule 1), so the wide top toolbar and bottom ribbons are cleared by the vertical insets alone —
+ * reserving their full width would eat most of the fit box and collapse the zoom (the 0.06 view
+ * that made the graph unreadable). Sides no cluster touches keep just the gap.
  */
 export function computeHudFitPadding(
   canvas: { readonly width: number; readonly height: number },
@@ -49,6 +51,10 @@ export function computeHudFitPadding(
     const centreY = zone.y + zone.height / 2;
     if (centreY < height / 2) top = Math.max(top, zone.y + zone.height);
     else bottom = Math.max(bottom, height - zone.y);
+    // A short cluster (a top bar, a bottom ribbon) never claims a horizontal side: its
+    // intrusion is already cleared by the vertical inset, and claiming it would leave a
+    // sliver of canvas width and collapse the fit zoom.
+    if (zone.height < height / 2) continue;
     if (centreX < width / 2) left = Math.max(left, zone.x + zone.width);
     else right = Math.max(right, width - zone.x);
   }
