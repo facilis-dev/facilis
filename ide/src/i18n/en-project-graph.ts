@@ -12,8 +12,6 @@ export const projectGraphEn = {
   "projectGraph.openProjectFirst": "Open a project to see its graph.",
   "projectGraph.empty": "Nothing to draw yet.",
   "projectGraph.emptyHint": "Pages, routes, tables and views appear here after the analysis runs.",
-  "projectGraph.fullscreen": "Fullscreen",
-  "projectGraph.exitFullscreen": "Exit fullscreen",
   "projectGraph.clearFocus": "Clear focus",
   "projectGraph.clearFocusHint":
     "The AI highlighted part of the graph: clear the focus to see everything again (Esc).",
@@ -39,13 +37,10 @@ export const projectGraphEn = {
   "projectGraph.tableVisibility.all": "All tables",
   "projectGraph.tableVisibility.hint":
     "System tables are the ones loaded from the @facilis modules. Choose whether the graph draws all of them, only the ones your project uses, or none.",
-  "projectGraph.stats":
-    "{pages} pages · {routes} routes · {tables} tables · {views} views · {workflows} workflows · {edges} edges",
   "projectGraph.hiddenEdges": "{count} hidden",
   "projectGraph.hiddenNodes": "{count} hidden nodes",
   "projectGraph.matches": "{count} matched",
   "projectGraph.noMatches": "No node matches the search.",
-  "projectGraph.legend": "Legend",
   "projectGraph.hint":
     "Drag a node to move it, double-click to open its source. Click an edge to bend it, then drag its midpoint handle. Scroll to zoom, drag the pane to pan.",
   "projectGraph.curveHint": "Drag to bend the connection; double-click to straighten it",
@@ -175,4 +170,27 @@ export const projectGraphEn = {
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
   "projectGraph.fk.onUpdate": "on update {action}",
+
+  // ── full-bleed canvas HUD (issue #57) ──────────────────────────────────────
+  "projectGraph.zen": "Zen mode",
+  "projectGraph.exitZen": "Exit zen mode",
+  "projectGraph.zenHint": "Hide the controls for a clean canvas. Press Esc to bring them back.",
+  "projectGraph.zoomIn": "Zoom in",
+  "projectGraph.zoomOut": "Zoom out",
+  "projectGraph.actionsMenu": "Actions and filters",
+  "projectGraph.hud.overview": "Graph overview",
+  "projectGraph.hud.actions": "Graph actions",
+  "projectGraph.hud.view": "View controls",
+  "projectGraph.hud.modeSlot": "Graph mode",
+  "projectGraph.hud.lensSlot": "Lens chips",
+  "projectGraph.hud.minimapSlot": "Minimap",
+  "projectGraph.ribbon.label": "Graph statistics",
+  "projectGraph.ribbon.pages": "Pages",
+  "projectGraph.ribbon.routes": "Routes",
+  "projectGraph.ribbon.tables": "Tables",
+  "projectGraph.ribbon.views": "Views",
+  "projectGraph.ribbon.workflows": "Workflows",
+  "projectGraph.ribbon.edges": "Edges",
+  "projectGraph.ribbon.filterKind": "Filter by {label}",
+  "projectGraph.ribbon.filterEdges": "Show or hide all edges",
 } as const;

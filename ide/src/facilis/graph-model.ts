@@ -188,13 +188,20 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   // compacts instead of leaving holes where the hidden cards used to be. Routes are never
   // filtered; the default is "all" so an absent preference shows the whole analysis.
   const hiddenNodeIds = hiddenTableNodeIds(nodes, allEdges, input.tableVisibility ?? "all");
-  const visibleNodes =
-    hiddenNodeIds.size === 0 ? nodes : nodes.filter((node) => !hiddenNodeIds.has(node.id));
-  const visibleById =
-    hiddenNodeIds.size === 0 ? byId : new Map(visibleNodes.map((node) => [node.id, node]));
+  // The stats-ribbon kind filter (issue #57) is an explicit user choice layered on top of D-179
+  // table visibility. It isolates node kinds but never inflates stats.hiddenNodes, which counts
+  // only the table-visibility removals. Routes are still never filtered by table visibility.
+  const kindSet =
+    input.kinds !== undefined && input.kinds.length > 0
+      ? new Set<GraphNodeKind>(input.kinds)
+      : null;
+  const visibleNodes = nodes.filter(
+    (node) => !hiddenNodeIds.has(node.id) && (kindSet === null || kindSet.has(node.kind)),
+  );
+  const visibleById = new Map(visibleNodes.map((node) => [node.id, node]));
   // A hidden node takes its edges with it: a half-visible edge would point at nothing.
   const allVisibleEdges =
-    hiddenNodeIds.size === 0
+    visibleNodes.length === nodes.length
       ? allEdges
       : allEdges.filter((edge) => visibleById.has(edge.source) && visibleById.has(edge.target));
 
