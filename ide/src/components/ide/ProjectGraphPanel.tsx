@@ -35,6 +35,7 @@ import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphSta
 import { useHudFitPadding } from "./useHudFitPadding";
 import { useIde } from "./useIde";
 import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphDataLens } from "./useProjectGraphDataLens";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphKeys } from "./useProjectGraphKeys";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
@@ -115,6 +116,12 @@ export function ProjectGraphPanel() {
   // The user's focus-and-context (issue #66): isolation filters the view to one closure, the
   // selection dims everything outside its own. Both are derived, so the URL alone restores them.
   const { displayView, userFocus } = useProjectGraphUserFocus(view, isolatedNode, selectedNodeId);
+  // The data lens (issue #70): schema badges, the FK-neighbourhood focus and the ribbon summary.
+  const dataLens = useProjectGraphDataLens(
+    displayView,
+    viewState.state,
+    layout.viewport?.zoom ?? 1,
+  );
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -189,8 +196,9 @@ export function ProjectGraphPanel() {
         fitNonce={fitNonce}
         edgeCurves={layout.edgeCurves}
         focus={focus}
-        userFocus={userFocus}
+        userFocus={dataLens.fkFocus ?? userFocus}
         isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+        data={dataLens.data}
         notes={isolatedNode === null ? graph.notes : []}
         addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
@@ -245,6 +253,7 @@ export function ProjectGraphPanel() {
                 onActiveLensesChange={viewState.setActiveLenses}
               />
             }
+            dataLens={dataLens}
             tableVisibility={layout.tableVisibility}
             onTableVisibilityChange={graph.changeTableVisibility}
             focusBar={
@@ -252,7 +261,7 @@ export function ProjectGraphPanel() {
                 summary={
                   displayView === null || userFocus === null
                     ? null
-                    : closureSummary(displayView, userFocus)
+                    : closureSummary(displayView, dataLens.fkFocus ?? userFocus)
                 }
                 isolatedLabel={isolatedNode === null ? null : nodeLabel(isolatedNode)}
                 onIsolate={() => {

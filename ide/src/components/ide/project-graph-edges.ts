@@ -29,6 +29,40 @@ export function edgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): G
   return edge.access === "elevated" ? ELEVATED_EDGE_STYLE : GRAPH_EDGE_STYLES[edge.kind];
 }
 
+// ── Data lens (issue #70) ──────────────────────────────────────────────────────────────────
+// The schema half of the graph gets stronger, pairwise-distinct strokes: width alone separates
+// fk from the dashed kinds, and every dashed kind owns a different dash pattern, so the encoding
+// never rests on colour (epic rule 6). Non-schema kinds keep their base presentation under the
+// lens; an elevated edge always wins, dotted plus the lock label (criterion 1).
+
+export interface DataEdgeStyle {
+  readonly stroke: string;
+  /** null is a solid stroke; otherwise the explicit strokeDasharray. */
+  readonly dash: string | null;
+  readonly width: number;
+}
+
+export const DATA_EDGE_STYLES: Record<GraphEdgeKind, DataEdgeStyle> = {
+  fk: { stroke: "var(--brand)", dash: null, width: 2.5 },
+  relation: { stroke: "var(--info)", dash: "6 3", width: 2.5 },
+  "route-table": { stroke: "var(--muted-foreground)", dash: null, width: 1.5 },
+  "page-route": { stroke: "var(--success)", dash: null, width: 1.5 },
+  "page-link": { stroke: "var(--brand)", dash: null, width: 1.5 },
+  "route-view": { stroke: "var(--info)", dash: "8 3 2 3", width: 2.5 },
+  "view-base": { stroke: "var(--muted-foreground)", dash: "2 4", width: 2.5 },
+};
+
+/** Dotted, not dashed: distinct from every schema dash at every zoom, plus the lock label. */
+export const DATA_ELEVATED_STYLE: DataEdgeStyle = {
+  stroke: "var(--warning)",
+  dash: "1 3",
+  width: 2.5,
+};
+
+export function dataEdgeStyleFor(edge: Pick<ProjectGraphEdge, "kind" | "access">): DataEdgeStyle {
+  return edge.access === "elevated" ? DATA_ELEVATED_STYLE : DATA_EDGE_STYLES[edge.kind];
+}
+
 export const GRAPH_EDGE_LABEL_KEYS: Record<GraphEdgeKind, MessageKey> = {
   fk: "projectGraph.edge.fk",
   relation: "projectGraph.edge.relation",

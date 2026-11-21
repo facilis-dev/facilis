@@ -350,15 +350,21 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const NODE_RECTS =
     '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => { const r = n.getBoundingClientRect();' +
     ' return Math.round(r.x) + ":" + Math.round(r.y); }).join(","))()';
-  const chipCount = await page.evaluate(
-    'document.querySelectorAll("[data-graph-chip]").length',
+  const chipCount = await page.evaluate('document.querySelectorAll("[data-graph-chip]").length');
+  record(
+    chipCount === 13,
+    "project graph: 7 edge-kind + 6 lens chips docked",
+    "chips=" + chipCount,
   );
-  record(chipCount === 13, "project graph: 7 edge-kind + 6 lens chips docked", "chips=" + chipCount);
 
   const beforeIso = await page.evaluate(EDGE_DIM);
   const nodesBefore = await page.evaluate(NODE_RECTS);
   await page.evaluate(clickTestId("graph-chip-edge-route-table"));
-  const isoPressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  const isoPressed = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "true"',
+    5000,
+  );
   const duringIso = await page.evaluate(EDGE_DIM);
   const nodesDuring = await page.evaluate(NODE_RECTS);
   record(
@@ -370,18 +376,27 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       duringIso.bright > 0 &&
       nodesBefore === nodesDuring,
     "project graph: isolation dims other kinds without removing edges or moving nodes",
-    "pressed=" + isoPressed + " before=" + JSON.stringify(beforeIso) + " during=" + JSON.stringify(duringIso),
+    "pressed=" +
+      isoPressed +
+      " before=" +
+      JSON.stringify(beforeIso) +
+      " during=" +
+      JSON.stringify(duringIso),
   );
   // The isolation rides the gv URL parameter (issue #58): shareable and reload-safe.
   const isoInUrl = await waitFor(
     page,
     '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
-    ' try { const v = JSON.parse(gv); return Array.isArray(v.i) && v.i.length === 1 && v.i[0] === "route-table"; } catch { return false; } })()',
+      ' try { const v = JSON.parse(gv); return Array.isArray(v.i) && v.i.length === 1 && v.i[0] === "route-table"; } catch { return false; } })()',
     5000,
   );
   record(isoInUrl, "project graph: isolation persisted in the view-state URL");
   await page.evaluate(clickTestId("graph-chip-edge-route-table"));
-  const isoCleared = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
+  const isoCleared = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "false"',
+    5000,
+  );
   const afterIso = await page.evaluate(EDGE_DIM);
   record(
     isoCleared && afterIso !== null && afterIso.dim === 0,
@@ -409,14 +424,21 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       edgesAfterHide !== null &&
       edgesAfterHide.total < edgesBeforeHide.total,
     "project graph: alt-click hides a kind and the hidden count stays available",
-    "counter=" + hiddenShown + " before=" + JSON.stringify(edgesBeforeHide) + " after=" + JSON.stringify(edgesAfterHide),
+    "counter=" +
+      hiddenShown +
+      " before=" +
+      JSON.stringify(edgesBeforeHide) +
+      " after=" +
+      JSON.stringify(edgesAfterHide),
   );
   await page.evaluate(altClick("graph-chip-edge-route-table"));
   await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
 
   // Keyboard: arrows roam the chips, Alt+Space hides, Space isolates (trusted CDP keys).
   // route-table is the kind the demo project certainly has (its routes declare dbTables).
-  await page.evaluate('document.querySelector("[data-testid=graph-chip-edge-route-table]").focus()');
+  await page.evaluate(
+    'document.querySelector("[data-testid=graph-chip-edge-route-table]").focus()',
+  );
   await pressKey(page, "ArrowRight", "ArrowRight", 39);
   const roved = await page.evaluate(
     'document.activeElement?.getAttribute("data-testid") === "graph-chip-edge-page-route"',
@@ -431,7 +453,11 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await pressKey(page, " ", "Space", 32, 1);
   await waitFor(page, '!document.querySelector("[data-testid=graph-hidden-count]")', 5000);
   await pressKey(page, " ", "Space", 32); // plain Space isolates
-  const spacePressed = await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "true"', 5000);
+  const spacePressed = await waitFor(
+    page,
+    pressed("graph-chip-edge-route-table") + ' === "true"',
+    5000,
+  );
   await pressKey(page, " ", "Space", 32);
   await waitFor(page, pressed("graph-chip-edge-route-table") + ' === "false"', 5000);
   record(
@@ -447,7 +473,7 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const secondaryMarked = await waitFor(
     page,
     '(() => { const c = document.querySelector("[data-testid=graph-chip-lens-contract]");' +
-    ' return c !== null && (c.textContent || "").includes("secondary"); })()',
+      ' return c !== null && (c.textContent || "").includes("secondary"); })()',
     5000,
   );
   await page.evaluate(clickTestId("graph-chip-lens-runtime"));
@@ -466,6 +492,232 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await page.evaluate(clickTestId("graph-chip-lens-contract"));
   await waitFor(page, pressed("graph-chip-lens-contract") + ' === "false"', 5000);
   await page.screenshot(ARTIFACTS + "/05d-project-graph-chips.png");
+
+  // ── Data lens (issue #70) ─────────────────────────────────────────────────────
+  // The lens restyles the schema half: ribbon counters equal the DOM scan, elevated edges
+  // carry the dotted stroke + lock, a table selection dims to its FK neighbourhood, and
+  // positions hold under edge-isolation and contract+data stacking. The demo has no view, so
+  // one is created through the VFS (the same path a user edit takes) and left in place: the
+  // later SCM checks want a dirty tree anyway.
+  const dataRoot = await page.evaluate("window.__ide.activeFolder?.rootPath ?? null");
+  const viewPath = dataRoot + "/db/views/smoke-definer.ts";
+  const viewSource =
+    'import { sql } from "drizzle-orm";\n' +
+    'import { defineView } from "@facilis.dev/db";\n' +
+    'import { boolean, text } from "drizzle-orm/pg-core";\n' +
+    "export const smokeDefiner = defineView({\n" +
+    '  name: "smoke_definer",\n' +
+    '  columns: { id: text("id"), done: boolean("done") },\n' +
+    "  query: sql`select id, done from todos where not done`,\n" +
+    '  tables: ["todos"],\n' +
+    '  permission: "todos:read",\n' +
+    "});\n";
+  await page.evaluate(
+    "window.__ide.bridge.request('vv-mkdirp', { path: " +
+      JSON.stringify(dataRoot + "/db/views") +
+      " })",
+  );
+  const viewWritten = await page.evaluate(
+    "window.__ide.bridge.request('vv-write', { path: " +
+      JSON.stringify(viewPath) +
+      ", contents: " +
+      JSON.stringify(viewSource) +
+      " }).then((r) => r && r.ok === true)",
+  );
+  // The controller bumps its snapshot on the kernel's fs-changed event, asynchronously: the
+  // refresh must wait until the file is listed, or the analysis re-runs on the stale snapshot
+  // (the per-snapshot cache would then return the old result without the view).
+  const viewInSnapshot = await waitFor(
+    page,
+    "window.__ide.getSnapshot().files.some((f) => f.endsWith('/db/views/smoke-definer.ts'))",
+    10000,
+  );
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  const dataPressed = await waitFor(page, pressed("graph-chip-lens-data") + ' === "true"', 5000);
+  await page.evaluate(clickTestId("graph-hud-refresh"));
+  const dataViewRendered = await waitFor(
+    page,
+    COUNT('[data-testid="project-graph-view"]') + " > 0",
+    30000,
+  );
+  // Re-fit so the new view card is inside the viewport: onlyRenderVisibleElements would
+  // otherwise cull it and the DOM scan could not equal the ribbon's visible-view scan.
+  await page.evaluate(clickTestId("graph-hud-fit"));
+  await sleep(400);
+  const ribbonMounted = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-data-ribbon]"))',
+    5000,
+  );
+  // Criterion 4 in the browser: each counter equals a scan of the drawn cards/edges.
+  const DATA_SCAN_OK =
+    "(() => { const num = (id) => { const el = document.querySelector('[data-testid=\"' + id + '\"] .tabular-nums'); return el ? Number(el.textContent) : NaN; };" +
+    ' const unscoped = document.querySelectorAll("[data-testid=project-graph-table] [data-testid=data-scope][data-state=none]").length;' +
+    ' const definer = document.querySelectorAll("[data-testid=project-graph-view] [data-testid=data-access][data-state=definer]").length;' +
+    ' const locks = document.querySelectorAll("[data-testid=data-edge-lock]").length;' +
+    ' return num("graph-data-unscoped") === unscoped && num("graph-data-definer") === definer && num("graph-data-elevated") === locks && locks > 0 && definer > 0; })()';
+  const countersEqualScan = await waitFor(page, DATA_SCAN_OK, 5000);
+  // The permission rides the badge's title at every LOD: below the compact threshold the
+  // word drops to glyph+count, so the check reads the title, never the rendered label.
+  const definerBadge = await waitFor(
+    page,
+    '(() => { const v = [...document.querySelectorAll("[data-testid=project-graph-view]")].find((c) => (c.textContent || "").includes("smoke_definer"));' +
+      " if (v === undefined) return false;" +
+      ' const perm = v.querySelector("[data-testid=data-permission]");' +
+      ' return v.querySelector("[data-testid=data-access][data-state=definer]") !== null && perm !== null && (perm.getAttribute("title") || "").includes("todos:read"); })()',
+    5000,
+  );
+  // Criterion 1: every elevated edge is dotted (1 3) and carries the lock label.
+  const elevatedEncoded = await waitFor(
+    page,
+    '(() => { const locks = document.querySelectorAll("[data-testid=data-edge-lock]").length;' +
+      " if (locks === 0) return false;" +
+      ' const paths = [...document.querySelectorAll(".react-flow__edge path.react-flow__edge-path")];' +
+      ' const dotted = paths.filter((p) => /^1px/.test(getComputedStyle(p).strokeDasharray || "")).length;' +
+      " return dotted >= locks; })()",
+    5000,
+  );
+  record(
+    viewWritten === true &&
+      viewInSnapshot &&
+      dataPressed &&
+      dataViewRendered &&
+      ribbonMounted &&
+      countersEqualScan &&
+      definerBadge &&
+      elevatedEncoded,
+    "project graph: data lens ribbon equals the scan, definer badge and elevated dotted+lock render",
+    "write=" +
+      viewWritten +
+      " snapshot=" +
+      viewInSnapshot +
+      " pressed=" +
+      dataPressed +
+      " view=" +
+      dataViewRendered +
+      " ribbon=" +
+      ribbonMounted +
+      " scan=" +
+      countersEqualScan +
+      " definer=" +
+      definerBadge +
+      " elevated=" +
+      elevatedEncoded,
+  );
+  await page.screenshot(ARTIFACTS + "/05e-project-graph-data-lens.png");
+
+  // Criterion 3: selecting a table dims everything outside its FK neighbourhood (undirected,
+  // cycle-safe) — the view over the table stays dimmed, the fk-linked table stays bright.
+  // Flow-coordinate transforms, not screen rects: a HUD refit moves rects, never nodes.
+  const NODE_POS =
+    '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => (n.getAttribute("data-id") || n.id) + "@" + n.style.transform).join(","))()';
+  const posBeforeSelect = await page.evaluate(NODE_POS);
+  const clickedTable = await page.evaluate(
+    '(() => { const cards = [...document.querySelectorAll("[data-testid=project-graph-table]")];' +
+      ' const target = cards.find((c) => [...c.querySelectorAll("span")].some((s) => s.textContent === "todos"));' +
+      ' if (!target) return "NOTFOUND"; target.click(); return "OK"; })()',
+  );
+  const fkDimmed = await waitFor(
+    page,
+    '(() => { const cards = [...document.querySelectorAll("[data-testid^=project-graph-]")].filter((n) => n.className.includes("rounded-md"));' +
+      " const ops = cards.map((n) => Number(getComputedStyle(n).opacity));" +
+      " return ops.some((o) => o <= 0.13) && ops.some((o) => o >= 0.9); })()",
+    5000,
+  );
+  const fkRestriction = await page.evaluate(
+    '(() => { const card = (name) => [...document.querySelectorAll("[data-testid=project-graph-table],[data-testid=project-graph-view]")].find((c) => [...c.querySelectorAll("span")].some((s) => s.textContent === name));' +
+      ' const view = card("smoke_definer"); const link = card("todo_files");' +
+      ' if (!view || !link) return "MISSING";' +
+      ' return Number(getComputedStyle(view).opacity) <= 0.13 && Number(getComputedStyle(link).opacity) >= 0.9 ? "OK" : "WRONG"; })()',
+  );
+  const focusBarShown = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-focus-bar]"))',
+    5000,
+  );
+  const posDuringSelect = await page.evaluate(NODE_POS);
+  record(
+    clickedTable === "OK" &&
+      fkDimmed &&
+      fkRestriction === "OK" &&
+      focusBarShown &&
+      posBeforeSelect === posDuringSelect,
+    "project graph: table selection dims to the FK neighbourhood, positions held",
+    "click=" +
+      clickedTable +
+      " dim=" +
+      fkDimmed +
+      " restriction=" +
+      fkRestriction +
+      " focusBar=" +
+      focusBarShown +
+      " positionsHeld=" +
+      (posBeforeSelect === posDuringSelect),
+  );
+  await page.evaluate(
+    '(() => { const p = document.querySelector(".react-flow__pane"); if (p) p.click(); })()',
+  );
+  await sleep(300);
+
+  // Criterion 5: the data lens composes with edge isolation and with the contract lens (whose
+  // chip exists even though its marks ship in a sibling PR) — one dominant, one secondary at
+  // 30%, and no node moves through any of it.
+  const posBeforeCompose = await page.evaluate(NODE_POS);
+  await page.evaluate(clickTestId("graph-chip-edge-fk"));
+  await waitFor(page, pressed("graph-chip-edge-fk") + ' === "true"', 5000);
+  const posDuringIsolation = await page.evaluate(NODE_POS);
+  await page.evaluate(clickTestId("graph-chip-edge-fk"));
+  await waitFor(page, pressed("graph-chip-edge-fk") + ' === "false"', 5000);
+  await page.evaluate(clickTestId("graph-chip-lens-contract"));
+  const dataSecondary = await waitFor(
+    page,
+    '(() => { const c = document.querySelector("[data-testid=graph-chip-lens-data]");' +
+      ' return c !== null && (c.textContent || "").includes("secondary"); })()',
+    5000,
+  );
+  const marksReceded = await waitFor(
+    page,
+    '(() => { const m = document.querySelector("[data-testid=data-marks-table]");' +
+      " return m !== null && Math.abs(Number(getComputedStyle(m).opacity) - 0.3) < 0.01; })()",
+    5000,
+  );
+  const posStacked = await page.evaluate(NODE_POS);
+  record(
+    posDuringIsolation === posBeforeCompose &&
+      dataSecondary &&
+      marksReceded &&
+      posStacked === posBeforeCompose,
+    "project graph: data lens + isolation + contract stacking hold positions, secondary at 30%",
+    "isolationHeld=" +
+      (posDuringIsolation === posBeforeCompose) +
+      " secondary=" +
+      dataSecondary +
+      " marks30=" +
+      marksReceded +
+      " stackHeld=" +
+      (posStacked === posBeforeCompose),
+  );
+  // Reverse the activation order: data becomes dominant again and its marks return to full.
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  const dataDominant = await waitFor(
+    page,
+    '(() => { const m = document.querySelector("[data-testid=data-marks-table]");' +
+      " return m !== null && Number(getComputedStyle(m).opacity) >= 0.9; })()",
+    5000,
+  );
+  await page.evaluate(clickTestId("graph-chip-lens-contract"));
+  await page.evaluate(clickTestId("graph-chip-lens-data"));
+  const dataGone = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=graph-data-ribbon]") && !document.querySelector("[data-testid=data-marks-table]")',
+    5000,
+  );
+  record(
+    dataDominant && dataGone,
+    "project graph: activation order swaps the role; lens off removes ribbon and marks",
+    "dominant=" + dataDominant + " gone=" + dataGone,
+  );
 
   // Restore the default viewport for the remaining panel checks.
   await page.send("Emulation.clearDeviceMetricsOverride", {});

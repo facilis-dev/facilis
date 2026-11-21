@@ -224,4 +224,32 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
     "Mostra solo il sottografo raggiungibile (Invio, o doppio clic su un nodo)",
   "projectGraph.focus.exitIsolate": "Esci dall'isolamento",
   "projectGraph.focus.exitIsolateHint": "Ripristina il grafo completo (Esc)",
+
+  // ── data lens + ribbon (issue #70) ───────────────────────────────────────────
+  "projectGraph.data.label": "Lente dati",
+  "projectGraph.data.unscoped": "Senza scope",
+  "projectGraph.data.definer": "Viste definer",
+  "projectGraph.data.elevated": "Elevati",
+  "projectGraph.data.unscopedHint":
+    "Tabelle senza una colonna di scope tenant/owner, contate sul grafo disegnato.",
+  "projectGraph.data.definerHint":
+    "Viste con accesso definer: un permesso dichiarato bypassa la RLS dell'invoker.",
+  "projectGraph.data.elevatedHint":
+    "Archi raggiunti tramite accesso sudo/system auditato, contati sul grafo disegnato.",
+  "projectGraph.data.legend": "Legenda dei tratti della lente dati",
+  "projectGraph.data.legendEntry": "{stroke} — {pattern}",
+  "projectGraph.data.pattern.solid": "continuo",
+  "projectGraph.data.pattern.dashed": "tratteggiato",
+  "projectGraph.data.pattern.shortDash": "tratto corto",
+  "projectGraph.data.pattern.dashDot": "tratto-punto",
+  "projectGraph.data.pattern.dottedLock": "punteggiato + lucchetto",
+  "projectGraph.data.scope.tenant": "scope tenant",
+  "projectGraph.data.scope.owner": "scope owner",
+  "projectGraph.data.scope.none": "nessuno scope",
+  "projectGraph.data.scope.unknown": "scope sconosciuto",
+  "projectGraph.data.policies": "{count} policy",
+  "projectGraph.data.policiesUnknown": "policy sconosciute",
+  "projectGraph.data.accessUnknown": "accesso sconosciuto",
+  "projectGraph.data.permissionUnknown": "permesso sconosciuto",
+  "projectGraph.data.elevatedEdge": "Accesso elevato (sudo/system auditato)",
 };

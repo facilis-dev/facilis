@@ -23,8 +23,10 @@ import { t } from "@/i18n";
 import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphStatsFilter } from "@/facilis/graph-stats-filter";
+import { ProjectGraphDataRibbon } from "./ProjectGraphDataRibbon";
 import { ProjectGraphHudActions } from "./ProjectGraphHudActions";
 import { ProjectGraphStatsRibbon } from "./ProjectGraphStatsRibbon";
+import type { ProjectGraphDataLens } from "./useProjectGraphDataLens";
 
 export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
 
@@ -51,6 +53,8 @@ export interface ProjectGraphHudProps {
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the stats ribbon. */
   lensChips: ReactNode;
+  /** The data lens's derived state (issue #70): its ribbon docks while the lens is active. */
+  dataLens: ProjectGraphDataLens;
   /** The selection-context line / isolate breadcrumb (issue #66), in the top-left cluster. */
   focusBar: ReactNode;
   tableVisibility: GraphTableVisibility;
@@ -184,13 +188,19 @@ export function ProjectGraphHud(props: ProjectGraphHudProps) {
         />
       </div>
 
-      {/* Bottom-left: stats ribbon (filter counters) + lens chips (issue #63). */}
+      {/* Bottom-left: stats ribbon (filter counters) + lens chips (issue #63) + the data
+          lens's summary ribbon (issue #70), docked only while that lens is active. */}
       <ProjectGraphStatsRibbon
         stats={stats}
         filter={props.filter}
         onToggleKind={props.onToggleKind}
         onToggleEdges={props.onToggleEdges}
         lensChips={props.lensChips}
+        dataRibbon={
+          props.dataLens.role === null ? null : (
+            <ProjectGraphDataRibbon counts={props.dataLens.counts} disabled={stats === null} />
+          )
+        }
       />
 
       {/* Bottom-right: minimap SLOT (later issue), zoom, fit. */}

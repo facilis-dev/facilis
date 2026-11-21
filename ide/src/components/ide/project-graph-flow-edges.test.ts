@@ -114,3 +114,62 @@ describe("buildProjectGraphFlowEdges", () => {
     expect(edges[0]?.markerEnd).toMatchObject({ color: "var(--brand)" });
   });
 });
+// ── data lens composition (issue #70): stroke data, never a removal ──────────────────────
+
+describe("buildProjectGraphFlowEdges data lens", () => {
+  const buildWith = (data?: {
+    activeLenses: readonly ("contract" | "data")[];
+    compactData: boolean;
+  }) =>
+    buildProjectGraphFlowEdges({
+      view,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: [],
+      data,
+      onEdgeCurveChange: () => {},
+    });
+
+  it("carries no data role when the lens is inactive or absent", () => {
+    for (const edge of buildWith()) expect(edge.data?.dataRole).toBeUndefined();
+    for (const edge of buildWith({ activeLenses: ["contract"], compactData: false })) {
+      expect(edge.data?.dataRole).toBeUndefined();
+    }
+  });
+
+  it("stamps the lens role and LOD on every edge without changing identity or endpoints", () => {
+    const baseline = buildWith();
+    const edges = buildWith({ activeLenses: ["contract", "data"], compactData: true });
+    expect(edges).toHaveLength(baseline.length);
+    expect(edges.map((edge) => edge.id)).toEqual(baseline.map((edge) => edge.id));
+    expect(edges.map((edge) => [edge.source, edge.target])).toEqual(
+      baseline.map((edge) => [edge.source, edge.target]),
+    );
+    for (const edge of edges) {
+      expect(edge.data?.dataRole).toBe("secondary");
+      expect(edge.data?.compactData).toBe(true);
+    }
+    const dominant = buildWith({ activeLenses: ["data"], compactData: false });
+    for (const edge of dominant) {
+      expect(edge.data?.dataRole).toBe("dominant");
+      expect(edge.data?.compactData).toBe(false);
+    }
+  });
+
+  it("composes with isolation: both flags ride the same edge", () => {
+    const edges = buildProjectGraphFlowEdges({
+      view,
+      edgeCurves: {},
+      selectedEdgeId: null,
+      focus: null,
+      userFocus: null,
+      isolatedEdgeKinds: ["fk"],
+      data: { activeLenses: ["data"], compactData: false },
+      onEdgeCurveChange: () => {},
+    });
+    expect(edges.map((edge) => edge.data?.dimmed)).toEqual([false, true, true]);
+    expect(edges.every((edge) => edge.data?.dataRole === "dominant")).toBe(true);
+  });
+});

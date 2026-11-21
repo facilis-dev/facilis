@@ -8,11 +8,13 @@
 import { MarkerType } from "@xyflow/react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
+import { lensRole } from "@/facilis/graph-lens-state";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphCurve } from "@/facilis/graph-types";
 import { edgeStyleFor } from "./project-graph-edges";
 import { PROJECT_GRAPH_EDGE_TYPE, type ProjectFlowEdge } from "./ProjectGraphEdge";
 import { LINK_SOURCE_HANDLE_ID, LINK_TARGET_HANDLE_ID } from "./ProjectGraphNodes";
+import type { ProjectFlowDataState } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 
 export interface ProjectFlowEdgesInput {
@@ -25,6 +27,8 @@ export interface ProjectFlowEdgesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The data lens's inputs (issue #70); absent means no lens, no stroke override. */
+  readonly data?: ProjectFlowDataState;
   readonly onEdgeCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 }
 
@@ -35,10 +39,14 @@ export function buildProjectGraphFlowEdges({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  data,
   onEdgeCurveChange,
 }: ProjectFlowEdgesInput): ProjectFlowEdge[] {
   const isolationActive = isolatedEdgeKinds.length > 0;
   const userEdges = userFocus === null ? null : new Set(userFocus.edgeIds);
+  // The data lens (issue #70) restyles the schema strokes and labels elevated edges; like the
+  // dimming channels it is data on the edge, never a removal, so endpoints cannot move.
+  const dataRole = lensRole(data?.activeLenses ?? [], "data");
   return view.edges.map((edge) => {
     const style = edgeStyleFor(edge);
     return {
@@ -56,6 +64,7 @@ export function buildProjectGraphFlowEdges({
         ...(userEdges === null ? {} : { userDimmed: !userEdges.has(edge.id) }),
         ...(focus === null ? {} : { aiOutlined: focus.edgeIds.has(edge.id) }),
         ...(isolationActive ? { dimmed: !isolatedEdgeKinds.includes(edge.kind) } : {}),
+        ...(dataRole === null ? {} : { dataRole, compactData: data?.compactData === true }),
         curve: edgeCurves[edge.id] ?? null,
         onCurveChange: onEdgeCurveChange,
       },

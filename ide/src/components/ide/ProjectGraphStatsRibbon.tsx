@@ -49,6 +49,7 @@ export function ProjectGraphStatsRibbon({
   onToggleKind,
   onToggleEdges,
   lensChips,
+  dataRibbon,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
@@ -56,6 +57,8 @@ export function ProjectGraphStatsRibbon({
   onToggleEdges: () => void;
   /** The lens chips (issue #63), docked in the bottom-left slot beside the counters. */
   lensChips: ReactNode;
+  /** The data lens's summary ribbon (issue #70), or null when the lens is inactive. */
+  dataRibbon?: ReactNode;
 }) {
   return (
     <div
@@ -121,6 +124,8 @@ export function ProjectGraphStatsRibbon({
       </div>
       {/* Lens-chips slot (issue #57), filled by issue #63. */}
       {lensChips}
+      {/* Data-ribbon slot (issue #70): the data lens's counters and stroke legend. */}
+      {dataRibbon}
     </div>
   );
 }

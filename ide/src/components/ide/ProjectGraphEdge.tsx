@@ -26,7 +26,8 @@ import {
   type Rect,
 } from "@/facilis/graph-edge-geometry";
 import type { GraphCurve } from "@/facilis/graph-types";
-import { edgeStyleFor } from "./project-graph-edges";
+import { dataEdgeStyleFor, edgeStyleFor } from "./project-graph-edges";
+import { ElevatedEdgeLabel } from "./ProjectGraphDataMarks";
 import type { ProjectFlowNode } from "./ProjectGraphNodes";
 
 /** The one custom edge type; registered at module scope by the canvas. */
@@ -41,6 +42,10 @@ export type ProjectGraphEdgeData = {
   readonly aiOutlined?: boolean;
   /** True when edge-kind isolation (issue #63) names other kinds: the edge is drawn at 10%. */
   readonly dimmed?: boolean;
+  /** The data lens's role (issue #70); absent or null keeps the base stroke. */
+  readonly dataRole?: "dominant" | "secondary" | null;
+  /** Compact LOD (issue #70): the elevated label keeps only its lock glyph below the threshold. */
+  readonly compactData?: boolean;
   readonly curve: GraphCurve | null;
   readonly onCurveChange: (edgeId: string, curve: GraphCurve | null) => void;
 };
@@ -147,14 +152,16 @@ export function ProjectGraphEdge({
     { sourceX, sourceY, targetX, targetY },
     curve,
   );
-  const edgeStyle = edgeStyleFor({
-    kind,
-    ...(data?.access === undefined ? {} : { access: data.access }),
-  });
+  const edgeInput = { kind, ...(data?.access === undefined ? {} : { access: data.access }) };
+  const edgeStyle = edgeStyleFor(edgeInput);
+  // The data lens (issue #70) overrides width and dash, never the stroke colour: the arrowhead
+  // is coloured by the base style in project-graph-flow-edges, so the two must keep agreeing.
+  const dataActive = data?.dataRole === "dominant" || data?.dataRole === "secondary";
+  const dataStyle = dataActive ? dataEdgeStyleFor(edgeInput) : null;
   const highlighted = selected === true || hovered;
   const pathStyle: CSSProperties = {
     stroke: edgeStyle.stroke,
-    strokeWidth: highlighted ? 2.5 : 1.5,
+    strokeWidth: highlighted ? 3 : (dataStyle?.width ?? 1.5),
     strokeLinecap: "round",
     strokeLinejoin: "round",
     // Isolation (issue #63) dims to 10%, the user focus (issue #66) to 12%; the stronger dim
@@ -165,7 +172,13 @@ export function ProjectGraphEdge({
       : data?.userDimmed === true
         ? { opacity: 0.12 }
         : {}),
-    ...(edgeStyle.dashed ? { strokeDasharray: "5 3" } : {}),
+    ...(dataStyle !== null
+      ? dataStyle.dash !== null
+        ? { strokeDasharray: dataStyle.dash }
+        : {}
+      : edgeStyle.dashed
+        ? { strokeDasharray: "5 3" }
+        : {}),
   };
 
   const onHandlePointerDown = (event: PointerEvent<SVGCircleElement>) => {
@@ -226,6 +239,16 @@ export function ProjectGraphEdge({
         style={pathStyle}
         interactionWidth={24}
       />
+      {/* The elevated lock label (issue #70): above the midpoint so the curve handle stays
+          grabbable; the glyph survives every zoom, the word compacts away (criterion 1). */}
+      {dataActive && data?.access === "elevated" ? (
+        <ElevatedEdgeLabel
+          x={geometry.midpoint.x}
+          y={geometry.midpoint.y - 12}
+          compact={data.compactData === true}
+          secondary={data.dataRole === "secondary"}
+        />
+      ) : null}
       {selected === true && data !== undefined ? (
         <g className="cursor-grab active:cursor-grabbing">
           <title>{t("projectGraph.curveHint")}</title>

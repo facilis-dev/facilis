@@ -9,6 +9,7 @@ import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import { ViewDataMarks } from "./ProjectGraphDataMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 
 const MAX_VISIBLE_TABLES = 4;
@@ -118,6 +119,13 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
         <p className="mt-0.5 text-[9px] text-muted-foreground">
           {t("projectGraph.moreTables", { count: more })}
         </p>
+      )}
+      {data.dataRole !== null && (
+        <ViewDataMarks
+          view={view}
+          compact={data.compactData}
+          secondary={data.dataRole === "secondary"}
+        />
       )}
       <LinkHandles />
     </div>

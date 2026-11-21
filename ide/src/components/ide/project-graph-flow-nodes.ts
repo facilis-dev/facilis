@@ -12,11 +12,21 @@
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
+import { lensRole } from "@/facilis/graph-lens-state";
 import type { GraphReachability } from "@/facilis/graph-reachability";
 import type { GraphNote } from "@/facilis/graph-types";
+import type { GraphLensId } from "@/facilis/graph-view-state";
 import { NOTE_NODE_TYPE, type ProjectNoteFlowNode } from "./ProjectGraphNote";
 import type { ProjectAnalysisFlowNode, ProjectFlowNode } from "./ProjectGraphNodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+
+/** The data lens's canvas inputs (issue #70), bundled so the canvas carries one prop. */
+export interface ProjectFlowDataState {
+  /** Active lenses (issue #63 registry): the data lens's role decides the card marks. */
+  readonly activeLenses: readonly GraphLensId[];
+  /** Compact LOD for the data badges: zoom below the threshold. */
+  readonly compactData: boolean;
+}
 
 export interface ProjectFlowNodesInput {
   readonly view: ProjectGraphView;
@@ -30,6 +40,8 @@ export interface ProjectFlowNodesInput {
   readonly userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63); empty means no isolation. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The data lens's inputs (issue #70); absent means no lens, no marks. */
+  readonly data?: ProjectFlowDataState;
   readonly onToggleCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
   readonly onDeleteNote: (id: string) => void;
@@ -43,10 +55,12 @@ export function buildProjectGraphFlowNodes({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  data,
   onToggleCollapse,
   onEditNote,
   onDeleteNote,
 }: ProjectFlowNodesInput): ProjectFlowNode[] {
+  const { activeLenses = [], compactData = false } = data ?? {};
   const existing = new Map(previous.map((node) => [node.id, node]));
   // A request that names only edges outlines their endpoints too: highlighting a connection
   // must mark the two cards it connects (the D-171 semantics, moved to the outline channel).
@@ -75,6 +89,9 @@ export function buildProjectGraphFlowNodes({
     : null;
   const isIsolated = (id: string): boolean =>
     isolationActive && !(isolatedEndpoints?.has(id) ?? false);
+  // The data lens (issue #70) is badges and stroke only, like isolation: the mapping decides the
+  // marks' role, the view model never learns about it, so positions hold (epic rule 2).
+  const dataRole = lensRole(activeLenses, "data");
   const analysis = view.nodes.map((node) => {
     const current = existing.get(node.id);
     const base: ProjectAnalysisFlowNode = {
@@ -87,6 +104,8 @@ export function buildProjectGraphFlowNodes({
         focused: isFocused(node.id),
         aiOutlined: isAiOutlined(node.id),
         isolated: isIsolated(node.id),
+        dataRole,
+        compactData,
         onToggleCollapse,
       },
       draggable: true,

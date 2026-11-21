@@ -31,8 +31,9 @@ import { PROJECT_GRAPH_EDGE_TYPES, type ProjectFlowEdge } from "./ProjectGraphEd
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { NOTE_NODE_TYPE } from "./ProjectGraphNote";
 import { buildProjectGraphFlowEdges } from "./project-graph-flow-edges";
-import { buildProjectGraphFlowNodes } from "./project-graph-flow-nodes";
+import { buildProjectGraphFlowNodes, type ProjectFlowDataState } from "./project-graph-flow-nodes";
 import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
+import { useProjectGraphStableActions } from "./useProjectGraphStableActions";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export function ProjectGraphCanvas({
@@ -47,6 +48,7 @@ export function ProjectGraphCanvas({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  data,
   selectedNodeId,
   onSelectNode,
   onMoveNode,
@@ -73,6 +75,8 @@ export function ProjectGraphCanvas({
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The data lens's inputs (issue #70): marks and schema strokes, never a position change. */
+  data: ProjectFlowDataState;
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
@@ -95,30 +99,14 @@ export function ProjectGraphCanvas({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const moved = useRef(false);
 
-  // The collapse callback travels through a ref so node data does not depend on the parent's
-  // function identity: a parent re-render must not rebuild the cards mid-drag.
-  const onToggleCollapseRef = useRef(onToggleCollapse);
-  useEffect(() => {
-    onToggleCollapseRef.current = onToggleCollapse;
-  }, [onToggleCollapse]);
-  const toggleCollapse = useCallback((id: string) => {
-    onToggleCollapseRef.current(id);
-  }, []);
-  // Same reasoning for the note actions: the note card holds its editor state, so a changed
-  // function identity would rebuild its data and could interrupt a drag or an edit.
-  const noteActions = useRef({ onCreateNote, onEditNote, onDeleteNote });
-  useEffect(() => {
-    noteActions.current = { onCreateNote, onEditNote, onDeleteNote };
-  }, [onCreateNote, onEditNote, onDeleteNote]);
-  const createNote = useCallback((position: { x: number; y: number }) => {
-    noteActions.current.onCreateNote(position);
-  }, []);
-  const editNote = useCallback((id: string, text: string) => {
-    noteActions.current.onEditNote(id, text);
-  }, []);
-  const deleteNote = useCallback((id: string) => {
-    noteActions.current.onDeleteNote(id);
-  }, []);
+  // The card actions are ref-stabilized in their own hook so a parent re-render cannot rebuild
+  // the cards mid-drag; the hook keeps the why with the mechanism.
+  const { toggleCollapse, createNote, editNote, deleteNote } = useProjectGraphStableActions(
+    onToggleCollapse,
+    onCreateNote,
+    onEditNote,
+    onDeleteNote,
+  );
 
   // The mapping itself lives in project-graph-flow-nodes: this file keeps the React Flow wiring.
   const buildNodes = useCallback(
@@ -135,11 +123,21 @@ export function ProjectGraphCanvas({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        data,
         onToggleCollapse: toggleCollapse,
         onEditNote: editNote,
         onDeleteNote: deleteNote,
       }),
-    [toggleCollapse, editNote, deleteNote, selectedNodeId, focus, userFocus, isolatedEdgeKinds],
+    [
+      toggleCollapse,
+      editNote,
+      deleteNote,
+      selectedNodeId,
+      focus,
+      userFocus,
+      isolatedEdgeKinds,
+      data,
+    ],
   );
 
   const [nodes, setNodes] = useState<ProjectFlowNode[]>(() => buildNodes(view, notes, []));
@@ -205,9 +203,19 @@ export function ProjectGraphCanvas({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        data,
         onEdgeCurveChange,
       }),
-    [view, edgeCurves, selectedEdgeId, onEdgeCurveChange, focus, userFocus, isolatedEdgeKinds],
+    [
+      view,
+      edgeCurves,
+      selectedEdgeId,
+      onEdgeCurveChange,
+      focus,
+      userFocus,
+      isolatedEdgeKinds,
+      data,
+    ],
   );
 
   const onEdgeClick: EdgeMouseHandler<ProjectFlowEdge> = (_event, edge) => {
