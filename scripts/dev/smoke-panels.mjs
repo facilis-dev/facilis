@@ -553,6 +553,74 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   // a visible hint — one dominant + two secondaries (epic rule 3).
   await page.evaluate(clickTestId("graph-chip-lens-contract"));
   await waitFor(page, pressed("graph-chip-lens-contract") + ' === "true"', 5000);
+
+  // Contract audit ribbon (issue #69): four filter counters docked in the bottom-left cluster.
+  // The demo project has protected routes (tasks/todos permissions) and public ones (file
+  // download), so both groups are non-empty. Pressing a counter dims the rest — never removes
+  // a card — and rides the gv URL; the lens invariant is the node position, so compare the
+  // flow-coordinate transforms, not screen rects (a HUD resize can refit the viewport).
+  const auditMounted = await waitFor(
+    page,
+    'Boolean(document.querySelector("[data-testid=graph-audit-ribbon]"))',
+    5000,
+  );
+  const auditCounters = await page.evaluate(
+    'document.querySelectorAll("button[data-testid^=graph-audit-]").length',
+  );
+  const AUDIT_NODE_POS =
+    '(() => [...document.querySelectorAll(".react-flow__node")].map((n) => n.id + "@" + n.style.transform).join(","))()';
+  const posBeforeAudit = await page.evaluate(AUDIT_NODE_POS);
+  await page.evaluate(clickTestId("graph-audit-protected"));
+  const auditPressed = await waitFor(page, pressed("graph-audit-protected") + ' === "true"', 5000);
+  const auditDim = await waitFor(
+    page,
+    '(() => { const cards = [...document.querySelectorAll("[data-testid^=project-graph-]")].filter((n) => n.className.includes("rounded-md"));' +
+      " const ops = cards.map((n) => Number(getComputedStyle(n).opacity));" +
+      " return ops.some((o) => o <= 0.41) && ops.some((o) => o >= 0.9); })()",
+    5000,
+  );
+  const posDuringAudit = await page.evaluate(AUDIT_NODE_POS);
+  const auditInUrl = await waitFor(
+    page,
+    '(() => { const gv = new URLSearchParams(location.search).get("gv"); if (!gv) return false;' +
+      ' try { const v = JSON.parse(gv); return Array.isArray(v.a) && v.a.length === 1 && v.a[0] === "protected"; } catch { return false; } })()',
+    5000,
+  );
+  record(
+    auditMounted &&
+      auditCounters === 4 &&
+      auditPressed &&
+      auditDim &&
+      auditInUrl &&
+      posBeforeAudit === posDuringAudit,
+    "project graph: audit ribbon filters by dimming, rides the URL, never moves nodes",
+    "mounted=" +
+      auditMounted +
+      " counters=" +
+      auditCounters +
+      " pressed=" +
+      auditPressed +
+      " dim=" +
+      auditDim +
+      " url=" +
+      auditInUrl +
+      " positionsHeld=" +
+      (posBeforeAudit === posDuringAudit),
+  );
+  await page.evaluate(clickTestId("graph-audit-protected"));
+  const auditCleared = await waitFor(page, pressed("graph-audit-protected") + ' === "false"', 5000);
+  const auditAllBright = await waitFor(
+    page,
+    '(() => { const cards = [...document.querySelectorAll("[data-testid^=project-graph-]")].filter((n) => n.className.includes("rounded-md"));' +
+      " return cards.length > 0 && cards.every((n) => Number(getComputedStyle(n).opacity) >= 0.9); })()",
+    5000,
+  );
+  record(
+    auditCleared && auditAllBright,
+    "project graph: second click clears the audit filter",
+    "pressed=" + auditCleared + " allBright=" + auditAllBright,
+  );
+
   await page.evaluate(clickTestId("graph-chip-lens-data"));
   const secondaryMarked = await waitFor(
     page,
@@ -589,6 +657,12 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   await page.evaluate(clickTestId("graph-chip-lens-data"));
   await page.evaluate(clickTestId("graph-chip-lens-contract"));
   await waitFor(page, pressed("graph-chip-lens-contract") + ' === "false"', 5000);
+  const auditGone = await waitFor(
+    page,
+    '!document.querySelector("[data-testid=graph-audit-ribbon]")',
+    5000,
+  );
+  record(auditGone, "project graph: audit ribbon leaves with the contract lens");
   await page.screenshot(ARTIFACTS + "/05d-project-graph-chips.png");
 
   // ── Bottom sheet (issue #59): below 1200px the details render as a sheet overlay — never a

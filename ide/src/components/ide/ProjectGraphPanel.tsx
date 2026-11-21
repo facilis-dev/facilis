@@ -1,7 +1,7 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // loadProjectAnalysis(controller) and drawn full-bleed in the editor area (issues #57, #59).
 // Composition root: stats filter, zen, AI focus, user focus-and-context (issue #66), the
-// runtime lens (issue #72), pinned details, and the topology/matrix mode switch (issue #67).
+// runtime + contract lenses (issues #72, #69), pinned details, and the topology/matrix switch.
 // Analysis: useProjectGraphAnalysis; URL view: useProjectGraphViewState; closure:
 // useProjectGraphUserFocus; keys: useProjectGraphEscape.
 // Nothing here touches the analyzer worker or writes outside the project's .facilis directory.
@@ -26,7 +26,7 @@ import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
 import { ProjectGraphDetailsSheet } from "./ProjectGraphDetailsSheet";
 import { ProjectGraphHudSlot } from "./ProjectGraphHudSlot";
 import { ProjectGraphMatrixSurface } from "./ProjectGraphMatrixSurface";
-import { RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
+import { ProjectGraphLensProviders } from "./ProjectGraphLensProviders";
 import { ProjectGraphShell } from "./ProjectGraphShell";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { useContainerSize } from "./use-container-size";
@@ -38,7 +38,7 @@ import { useProjectGraphClusters } from "./useProjectGraphClusters";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphHudSlots } from "./useProjectGraphHudSlots";
 import { useProjectGraphOpen } from "./use-project-graph-open";
-import { useProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
+import { useProjectGraphLenses } from "./useProjectGraphLenses";
 import { useProjectGraphSelection } from "./use-project-graph-selection";
 import { useProjectGraphUserFocus } from "./useProjectGraphUserFocus";
 import { useProjectGraphViewState } from "./useProjectGraphViewState";
@@ -142,9 +142,6 @@ export function ProjectGraphPanel() {
   }, [analysis, layoutLoaded, pruneCurves]);
   // Chip counts come from the analysis, not the filtered view: a hidden kind keeps its count.
   const edgeCounts = useMemo(() => countEdgeKinds(analysis?.graph.edges ?? []), [analysis]);
-  const diagnostics = analysis?.diagnostics ?? [];
-  const errors = diagnostics.filter((entry) => entry.severity === "error").length;
-  const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
 
   const fit = () => {
     remeasure();
@@ -164,8 +161,8 @@ export function ProjectGraphPanel() {
   else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
 
   const stats = view?.stats ?? null;
-  // The runtime lens (issue #72): seam lifecycle, card context and the composed HUD slots.
-  const runtime = useProjectGraphRuntimeLens(c, view, viewState, layout.viewport?.zoom ?? 1);
+  // The meaning lenses (issues #72, #69): seam lifecycle, card contexts, audit counters.
+  const { runtime, audit } = useProjectGraphLenses(c, analysis, view, viewState);
   const hudSlots = useProjectGraphHudSlots({
     stats,
     edgeCounts,
@@ -176,6 +173,7 @@ export function ProjectGraphPanel() {
     isolatedNode,
     selectedNodeId,
     runtime,
+    audit,
     clusters,
   });
   const body =
@@ -205,6 +203,7 @@ export function ProjectGraphPanel() {
           focus={focus}
           userFocus={userFocus}
           isolatedEdgeKinds={viewState.state.isolatedEdgeKinds}
+          contract={audit.contract}
           drill={clusters.drill}
           notes={graph.notes}
           addNoteNonce={graph.addNoteNonce}
@@ -237,7 +236,7 @@ export function ProjectGraphPanel() {
     ) : null;
 
   return (
-    <RuntimeLensContext.Provider value={runtime.context}>
+    <ProjectGraphLensProviders runtime={runtime.context} contract={audit.context}>
       <ProjectGraphShell
         containerRef={containerRef}
         hud={
@@ -250,8 +249,8 @@ export function ProjectGraphPanel() {
             stats={stats}
             filter={filter}
             onFilterChange={setFilter}
-            errors={errors}
-            warnings={warnings}
+            errors={audit.errors}
+            warnings={audit.warnings}
             onRefresh={refresh}
             refreshing={loading}
             focusActive={focus !== null}
@@ -269,6 +268,7 @@ export function ProjectGraphPanel() {
               node={selectedNode}
               edges={selectedEdges}
               details={details.get(selectedNode.id) ?? null}
+              diagnostics={audit.nodeDiagnostics.get(selectedNode.id) ?? []}
               sources={sources}
               nodeLabel={nodeLabel}
               height={clampSheetHeight(sheetHeight, containerSize.height)}
@@ -294,6 +294,6 @@ export function ProjectGraphPanel() {
       >
         {body}
       </ProjectGraphShell>
-    </RuntimeLensContext.Provider>
+    </ProjectGraphLensProviders>
   );
 }

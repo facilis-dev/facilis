@@ -71,6 +71,7 @@ export function useProjectGraphViewState(
       mode: local.mode,
       activeLenses: local.activeLenses,
       isolatedEdgeKinds: local.isolatedEdgeKinds,
+      auditFilters: local.auditFilters,
       runtimeWindow: local.runtimeWindow,
       runtimeLive: local.runtimeLive,
       isolatedNode: local.isolatedNode,
@@ -137,6 +138,7 @@ export function useProjectGraphViewState(
       mode: pending.mode,
       activeLenses: pending.activeLenses,
       isolatedEdgeKinds: pending.isolatedEdgeKinds,
+      auditFilters: pending.auditFilters,
       runtimeWindow: pending.runtimeWindow,
       runtimeLive: pending.runtimeLive,
       isolatedNode:

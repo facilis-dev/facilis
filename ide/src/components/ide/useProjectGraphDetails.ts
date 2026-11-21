@@ -23,15 +23,19 @@ import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { NodeDetails } from "@/facilis/graph-details";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
-import {
-  satelliteNodeId,
-  type PinnedDetailsAction,
-  type PinnedDetailsCard,
-} from "@/facilis/graph-satellite";
+import type { PinnedDetailsAction, PinnedDetailsCard } from "@/facilis/graph-satellite";
 import type { GraphNote } from "@/facilis/graph-types";
 import { focusGraphNode } from "./focus-graph-node";
-import { buildDetailsFlowNodes, repositionDetailsNode } from "./project-graph-details-nodes";
-import { buildProjectGraphFlowNodes, type ProjectGraphDrill } from "./project-graph-flow-nodes";
+import {
+  buildDetailsFlowNodes,
+  pinPositionOf,
+  repositionDetailsNode,
+} from "./project-graph-details-nodes";
+import {
+  buildProjectGraphFlowNodes,
+  type ProjectFlowContractState,
+  type ProjectGraphDrill,
+} from "./project-graph-flow-nodes";
 import { buildHubFlowNodes } from "./project-graph-hub-flow";
 import type { ProjectGraphHubsState } from "./useProjectGraphHubs";
 import type { ProjectCanvasEdge } from "./ProjectGraphDetailsLinkEdge";
@@ -53,6 +57,8 @@ export interface UseProjectGraphDetailsInput {
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): dimming only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
+  contract: ProjectFlowContractState;
   /** The active cluster drill-down (issue #62), or null when nothing is drilled. */
   drill: ProjectGraphDrill | null;
   /** The concentration overlay + session hub state (issue #64); its chips join the node list. */
@@ -86,6 +92,7 @@ export function useProjectGraphDetails({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  contract,
   drill,
   hubs,
   selectedNodeId,
@@ -148,18 +155,8 @@ export function useProjectGraphDetails({
   // Pinning keeps the card where the satellite sits; from the sheet (no satellite) it lands at
   // the viewport centre, so the comparison card is immediately visible.
   const resolvePinPosition = useCallback(
-    (nodeId: string): { x: number; y: number } | null => {
-      const satellite = nodesRef.current.find((node) => node.id === satelliteNodeId(nodeId));
-      if (satellite !== undefined) return satellite.position;
-      const element = wrapperRef.current;
-      const flow = instanceRef.current;
-      if (element === null || flow === null) return null;
-      const rect = element.getBoundingClientRect();
-      return flow.screenToFlowPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      });
-    },
+    (nodeId: string) =>
+      pinPositionOf(nodesRef.current, instanceRef.current, wrapperRef.current, nodeId),
     [wrapperRef],
   );
   const togglePin = useCallback(
@@ -204,6 +201,7 @@ export function useProjectGraphDetails({
         focus,
         userFocus,
         isolatedEdgeKinds,
+        contract,
         drill,
         hubIsolation: hubs.isolation,
         onToggleCollapse,
@@ -225,6 +223,7 @@ export function useProjectGraphDetails({
           viewport,
           containerWidth,
           details,
+          nodeDiagnostics: contract.nodeDiagnostics,
           sources,
           nodeLabel: labelOf,
           onCloseActive: closeActive,
@@ -241,6 +240,7 @@ export function useProjectGraphDetails({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      contract,
       drill,
       hubs,
       onToggleCollapse,

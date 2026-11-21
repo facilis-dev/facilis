@@ -2,10 +2,16 @@
 // their kind badges (the list truncates with a "more" hint). Split from ProjectGraphNodes.tsx
 // for the 300-line source limit; the node-type registry stays there.
 
+import { useContext } from "react";
 import type { NodeProps } from "@xyflow/react";
 import WorkflowIcon from "~icons/lucide/workflow";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  ContractLensContext,
+  NodeDiagnosticsMarks,
+  contractRingClass,
+} from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
 import { useGraphLod } from "./use-graph-lod";
@@ -17,10 +23,13 @@ export function WorkflowGraphNode({
   selected,
   dragging,
 }: NodeProps<ProjectAnalysisFlowNode>) {
+  // The contract lens (issue #69): workflows carry only attached diagnostics, like pages.
+  const contract = useContext(ContractLensContext);
   const level = useGraphLod();
   const node = data.node;
   const workflow = node.data.kind === "workflow" ? node.data : null;
   if (workflow === null) return null;
+  const diagnostics = contract?.nodeDiagnostics.get(node.id) ?? [];
   const shown = workflow.steps.slice(0, MAX_VISIBLE_WORKFLOW_STEPS);
   const more = workflow.steps.length - shown.length;
   return (
@@ -29,8 +38,16 @@ export function WorkflowGraphNode({
       data-lod={level}
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " relative w-64"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.auditDimmed,
+          contract === null ? "" : contractRingClass(diagnostics),
+        ) + " relative w-64"
       }
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
@@ -63,6 +80,13 @@ export function WorkflowGraphNode({
           </p>
         )}
       </div>
+      {contract !== null && (
+        <NodeDiagnosticsMarks
+          diagnostics={diagnostics}
+          compact={contract.compact}
+          secondary={contract.secondary}
+        />
+      )}
       {level !== "full" && (
         <GraphLodOverlay>
           <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />

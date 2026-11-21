@@ -9,7 +9,8 @@
 // previous node list keeps its position (and React Flow's own state) while the pointer is
 // down; only drag stop commits.
 
-import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { Diagnostic, GraphEdgeKind } from "@facilis.dev/analyze";
+import { nodeMatchesAudit, type AuditFilterId } from "@/facilis/graph-contract";
 import type { HubIsolation } from "@/facilis/graph-edge-hubs";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphReachability } from "@/facilis/graph-reachability";
@@ -24,6 +25,16 @@ import type { ProjectGraphFocusState } from "./useProjectGraphFocus";
 export interface ProjectGraphDrill {
   readonly clusterId: string;
   readonly nodeIds: ReadonlySet<string>;
+}
+
+/** The contract lens's dimming inputs (issue #69), bundled so the canvas carries one prop.
+ * The badges and the ring read the lens context instead; only the audit dimming is decided
+ * here, by the same pure mapping that owns every other dim channel. */
+export interface ProjectFlowContractState {
+  /** Audit-ribbon filters; empty means no audit dimming. */
+  readonly auditFilters: readonly AuditFilterId[];
+  /** The one-to-one diagnostics join; an absent id means no attached diagnostics. */
+  readonly nodeDiagnostics: ReadonlyMap<string, readonly Diagnostic[]>;
 }
 
 export interface ProjectFlowNodesInput {
@@ -42,6 +53,8 @@ export interface ProjectFlowNodesInput {
   readonly drill: ProjectGraphDrill | null;
   /** Hub hover isolation (issue #64): only the hub's routes and target stay bright. */
   readonly hubIsolation: HubIsolation | null;
+  /** The contract lens's inputs (issue #69); absent means no audit dimming. */
+  readonly contract?: ProjectFlowContractState;
   readonly onToggleCollapse: (id: string) => void;
   readonly onToggleClusterCollapse: (id: string) => void;
   readonly onEditNote: (id: string, text: string) => void;
@@ -58,6 +71,7 @@ export function buildProjectGraphFlowNodes({
   isolatedEdgeKinds,
   drill,
   hubIsolation,
+  contract,
   onToggleCollapse,
   onToggleClusterCollapse,
   onEditNote,
@@ -96,6 +110,12 @@ export function buildProjectGraphFlowNodes({
     : null;
   const isIsolated = (id: string): boolean =>
     isolationActive && !(isolatedEndpoints?.has(id) ?? false);
+  // The contract lens's audit filters (issue #69) dim like isolation: opacity only, the view
+  // model never learns about them, so positions hold (epic rule 2). Notes and cluster frames
+  // are not contract subjects — only the analysis cards carry the channel.
+  const auditFilters = contract?.auditFilters ?? [];
+  const auditActive = auditFilters.length > 0;
+  const nodeDiagnostics = contract?.nodeDiagnostics;
   // The chip's edge count is a fact of the visible view (epic rule 5): each edge counts once
   // per endpoint, a self-loop once. Computed here so every card reads it from its data.
   const edgeCounts = new Map<string, number>();
@@ -144,6 +164,8 @@ export function buildProjectGraphFlowNodes({
         focused: isFocused(node.id),
         aiOutlined: isAiOutlined(node.id),
         isolated: isIsolated(node.id),
+        auditDimmed:
+          auditActive && !nodeMatchesAudit(node, nodeDiagnostics?.get(node.id) ?? [], auditFilters),
         edgeCount: edgeCounts.get(node.id) ?? 0,
         onToggleCollapse,
       },

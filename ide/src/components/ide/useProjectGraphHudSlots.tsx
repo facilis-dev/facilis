@@ -7,12 +7,14 @@ import { useMemo, type ReactNode } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import type { ProjectGraphStats } from "@/facilis/graph-model";
 import type { GraphClosureSummary } from "@/facilis/graph-user-focus";
+import { ProjectGraphAuditRibbon } from "./ProjectGraphAuditRibbon";
 import { ProjectGraphBridgeChip } from "./ProjectGraphBridgeChip";
 import { ProjectGraphConcentrationChip } from "./ProjectGraphConcentrationChip";
 import { ProjectGraphFocusBar } from "./ProjectGraphFocusBar";
 import { ProjectGraphHudClusters } from "./ProjectGraphHudClusters";
 import { ProjectGraphLensChips } from "./ProjectGraphLensChips";
 import { ProjectGraphRuntimeControls } from "./ProjectGraphRuntimeControls";
+import type { ProjectGraphAudit } from "./useProjectGraphAudit";
 import type { ProjectGraphClusters } from "./useProjectGraphClusters";
 import type { ProjectGraphRuntimeLens } from "./useProjectGraphRuntimeLens";
 import type { ProjectGraphViewState } from "./useProjectGraphViewState";
@@ -22,6 +24,8 @@ export interface ProjectGraphHudSlots {
   readonly focusBar: ReactNode;
   /** null while the runtime lens is inactive: the ribbon renders exactly as before. */
   readonly runtimeControls: ReactNode;
+  /** null while the contract lens is inactive (issue #69): the dock renders as before. */
+  readonly auditRibbon: ReactNode;
   /** The cluster breadcrumb + group-by toggle (issue #62), in the top-left cluster. */
   readonly clusterControls: ReactNode;
 }
@@ -36,6 +40,7 @@ export function useProjectGraphHudSlots({
   isolatedNode,
   selectedNodeId,
   runtime,
+  audit,
   clusters,
 }: {
   stats: ProjectGraphStats | null;
@@ -47,6 +52,7 @@ export function useProjectGraphHudSlots({
   isolatedNode: string | null;
   selectedNodeId: string | null;
   runtime: ProjectGraphRuntimeLens;
+  audit: ProjectGraphAudit;
   clusters: ProjectGraphClusters;
 }): ProjectGraphHudSlots {
   const lensChips = useMemo(
@@ -101,6 +107,20 @@ export function useProjectGraphHudSlots({
       ),
     [runtime],
   );
+  // The audit ribbon (issue #69) docks beside the runtime controls: four dimming-only filter
+  // counters, visible only while the contract lens is active (the context is its gate).
+  const auditRibbon = useMemo(
+    () =>
+      audit.context === null ? null : (
+        <ProjectGraphAuditRibbon
+          counts={audit.counts}
+          filters={audit.contract.auditFilters}
+          onToggle={audit.onToggle}
+          disabled={stats === null}
+        />
+      ),
+    [audit, stats],
+  );
   const clusterControls = useMemo(
     () => (
       <ProjectGraphHudClusters
@@ -112,5 +132,5 @@ export function useProjectGraphHudSlots({
     ),
     [clusters],
   );
-  return { lensChips, focusBar, runtimeControls, clusterControls };
+  return { lensChips, focusBar, runtimeControls, auditRibbon, clusterControls };
 }

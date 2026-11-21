@@ -9,6 +9,11 @@ import type { NodeProps } from "@xyflow/react";
 import Route from "~icons/lucide/route";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  ContractLensContext,
+  RouteContractMarks,
+  contractRingClass,
+} from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
 import { RouteRuntimeMarks, RuntimeLensContext } from "./ProjectGraphRuntimeMarks";
@@ -46,10 +51,14 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
   // The runtime lens (issue #72) reads its settings from context, not node data: a stable null
   // while inactive means the card renders exactly as before, with no subscription.
   const runtime = useContext(RuntimeLensContext);
+  // The contract lens (issue #69) composes with the runtime marks: both read their settings
+  // from context, a stable null while inactive keeps the card render untouched.
+  const contract = useContext(ContractLensContext);
   const level = useGraphLod();
   const node = data.node;
   const route = node.data.kind === "route" ? node.data : null;
   if (route === null) return null;
+  const diagnostics = contract?.nodeDiagnostics.get(node.id) ?? [];
   // Defensive: a Fast-Refresh-preserved view or an analyzer worker started before the input
   // facts were added can still deliver the older RouteGraphData shape.
   const inputs = ROUTE_INPUTS.filter((entry) => route.input?.[entry.fact] === true);
@@ -64,8 +73,16 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
       data-lod={level}
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " relative w-64"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.auditDimmed,
+          contract === null ? "" : contractRingClass(diagnostics),
+        ) + " relative w-64"
       }
     >
       {runtime !== null && <RouteRuntimeMarks route={route} lens={runtime} />}
@@ -139,6 +156,14 @@ export function RouteGraphNode({ data, selected, dragging }: NodeProps<ProjectAn
           </div>
         )}
       </div>
+      {contract !== null && (
+        <RouteContractMarks
+          route={route}
+          diagnostics={diagnostics}
+          compact={contract.compact}
+          secondary={contract.secondary}
+        />
+      )}
       {level !== "full" && (
         <GraphLodOverlay>
           <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />

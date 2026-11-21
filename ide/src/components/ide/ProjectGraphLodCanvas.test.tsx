@@ -37,6 +37,7 @@ vi.mock("./ProjectGraphNodes", async (importOriginal) => {
   const { RouteGraphNode } = await import("./ProjectGraphRouteNode");
   const { ViewGraphNode } = await import("./ProjectGraphViewNode");
   const { WorkflowGraphNode } = await import("./ProjectGraphWorkflowNode");
+  const { TableGraphNode } = await import("./ProjectGraphTableNode");
   type CardProps = Parameters<typeof actual.PageGraphNode>[0];
   const wrap = (name: string, Card: ComponentType<CardProps>): ComponentType<CardProps> => {
     const Counted = (props: CardProps) => {
@@ -47,7 +48,7 @@ vi.mock("./ProjectGraphNodes", async (importOriginal) => {
   };
   const page = wrap("page", actual.PageGraphNode);
   const route = wrap("route", RouteGraphNode);
-  const table = wrap("table", actual.TableGraphNode);
+  const table = wrap("table", TableGraphNode);
   const view = wrap("view", ViewGraphNode);
   const workflow = wrap("workflow", WorkflowGraphNode);
   const { NOTE_NODE_TYPE } = await import("./ProjectGraphNote");
@@ -129,6 +130,8 @@ function canvasProps(nextView: ProjectGraphView, onSelectNode: (id: string | nul
     focus: null,
     userFocus: null,
     isolatedEdgeKinds: [],
+    // The contract lens (issue #69) stays inert: no filters, no attached diagnostics.
+    contract: { auditFilters: [], nodeDiagnostics: new Map() },
     drill: null,
     selectedNodeId: null,
     onSelectNode,

@@ -14,7 +14,12 @@ import type { GraphViewMode } from "@/facilis/graph-view-state";
 import { ProjectGraphHud } from "./ProjectGraphHud";
 
 function markup(
-  slots: { lensChips?: ReactNode; runtimeControls?: ReactNode; mode?: GraphViewMode } = {},
+  slots: {
+    lensChips?: ReactNode;
+    runtimeControls?: ReactNode;
+    auditRibbon?: ReactNode;
+    mode?: GraphViewMode;
+  } = {},
 ): string {
   return renderToStaticMarkup(
     <ProjectGraphHud
@@ -42,6 +47,7 @@ function markup(
       focusBar={null}
       clusterControls={null}
       runtimeControls={slots.runtimeControls ?? <div data-testid="runtime-controls-slot" />}
+      auditRibbon={slots.auditRibbon ?? null}
       tableVisibility="project"
       onTableVisibilityChange={vi.fn()}
       mode={slots.mode ?? "topology"}

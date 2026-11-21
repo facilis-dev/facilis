@@ -176,7 +176,7 @@ export function ClusterGraphNode({ data, selected }: NodeProps<ProjectClusterFlo
         data-lod={level}
         title={t("projectGraph.cluster.drillHint")}
         className={
-          nodeClass(selected, cluster.matched, false, focused, false, false) +
+          nodeClass(selected, cluster.matched, false, focused, false, false, false, "") +
           " relative h-full w-full"
         }
       >

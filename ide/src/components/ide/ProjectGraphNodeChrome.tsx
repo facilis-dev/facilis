@@ -12,11 +12,14 @@ const NODE_BASE =
   "cursor-pointer select-none rounded-md border bg-card px-2 py-1.5 text-card-foreground ";
 
 /**
- * The card frame classes. Three independent channels (issue #66): the USER focus dims every
- * card outside the selection's closure to 12%, edge-kind isolation (issue #63) recedes to 10%,
- * and a search miss to 40% — the strongest dim wins so they never stack into an unreadable
- * card. The AI focus (D-171) no longer dims: it OUTLINES the cards it names, in the brand role,
- * so it stays visible even on a dimmed card and composes with the user's dimming.
+ * The card frame classes. Four independent dim channels: the USER focus dims every card outside
+ * the selection's closure to 12% (issue #66), edge-kind isolation (issue #63) recedes to 10%,
+ * and a search miss or an audit-ribbon filter miss (issue #69) to 40% — the strongest dim wins
+ * so they never stack into an unreadable card. The AI focus (D-171) no longer dims: it OUTLINES
+ * the cards it names, in the brand role, so it stays visible even on a dimmed card and composes
+ * with the user's dimming. The contract lens's diagnostics ring (issue #69) shares that single
+ * outline channel: the AI outline wins when both apply, and the lens's glyph+count badge keeps
+ * the severity visible on the card (epic rule 6 — never colour alone).
  */
 export function nodeClass(
   selected: boolean,
@@ -25,6 +28,8 @@ export function nodeClass(
   focused: boolean,
   isolated: boolean,
   aiOutlined: boolean,
+  auditDimmed: boolean,
+  diagnosticsRing: string,
 ): string {
   const border = selected
     ? "border-primary ring-1 ring-primary"
@@ -36,12 +41,14 @@ export function nodeClass(
     ? " opacity-10"
     : !focused
       ? " opacity-12"
-      : !matched
+      : !matched || auditDimmed
         ? " opacity-40"
         : "";
   // outline (not ring): the selection already owns the ring, and the offset keeps the two
   // frames apart when a card is both selected and AI-named.
-  const outline = aiOutlined ? " outline outline-2 outline-offset-2 outline-brand/70" : "";
+  const outline = aiOutlined
+    ? " outline outline-2 outline-offset-2 outline-brand/70"
+    : diagnosticsRing;
   return NODE_BASE + elevation + " " + border + opacity + outline;
 }
 

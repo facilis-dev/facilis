@@ -7,6 +7,7 @@
 
 import { useRef } from "react";
 import { useViewport, type Node, type NodeProps } from "@xyflow/react";
+import type { Diagnostic } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
@@ -22,6 +23,8 @@ export type ProjectDetailsFlowData = {
   readonly node: ProjectGraphNode;
   readonly edges: readonly ProjectGraphEdge[];
   readonly details: NodeDetails | null;
+  /** Analyzer errors/warnings attached to this node (issue #69), in analysis order. */
+  readonly diagnostics: readonly Diagnostic[];
   readonly sources: ReadonlyMap<string, string>;
   readonly nodeLabel: (id: string) => string | null;
   readonly pinned: boolean;
@@ -63,6 +66,7 @@ export function ProjectGraphDetailsNode({ data }: NodeProps<ProjectDetailsFlowNo
           node={data.node}
           edges={data.edges}
           details={data.details}
+          diagnostics={data.diagnostics}
           sources={data.sources}
           nodeLabel={data.nodeLabel}
           pinned={data.pinned}

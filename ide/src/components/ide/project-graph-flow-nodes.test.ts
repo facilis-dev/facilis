@@ -4,9 +4,16 @@
 // notes always recede, and positions/selection never move (epic rule 2).
 // The focus-channel composition (issue #66) lives in project-graph-flow-focus.test.ts.
 import { describe, expect, it } from "vitest";
-import type { GraphEdge, GraphEdgeKind } from "@facilis.dev/analyze";
+import type { Diagnostic, GraphEdge, GraphEdgeKind } from "@facilis.dev/analyze";
 import { buildProjectGraphView } from "@/facilis/graph-model";
-import { GET, PAGE, TODOS, WORKFLOW, graphOf } from "@/facilis/graph-model.test-fixtures";
+import {
+  GET,
+  PAGE,
+  TODOS,
+  WORKFLOW,
+  graphOf,
+  routeNode,
+} from "@/facilis/graph-model.test-fixtures";
 import { CLUSTER_NODE_TYPE } from "./ProjectGraphClusterNode";
 import { DETAILS_NODE_TYPE } from "./ProjectGraphDetailsNode";
 import { HUB_NODE_TYPE } from "./ProjectGraphHubNode";
@@ -280,5 +287,100 @@ describe("buildProjectGraphFlowNodes hub hover (issue #64)", () => {
       expect(node.position).toEqual(before?.position);
       expect(node.selected).toBe(before?.selected);
     }
+  });
+});
+
+// The contract lens's audit dimming (issue #69): the ribbon's counters filter by dimming only —
+// matching cards stay bright, the rest recede to 40%, and positions/selection never move (epic
+// rule 2). The badges and the ring read the lens context, not node data; only the dim channel
+// is decided by this mapping, like every other dim channel.
+const MYSTERY = routeNode("POST", "/api/mystery", { unknown: true, wrapper: "unknown" });
+const CONTRACT_VIEW = buildProjectGraphView({
+  graph: graphOf([PAGE, GET, TODOS, WORKFLOW, MYSTERY], EDGES),
+});
+const CONTRACT_DIAGNOSTIC: Diagnostic = {
+  code: "schema-unknown",
+  severity: "warning",
+  message: "unreadable column",
+  source: { file: "db/schema.ts", line: 4 },
+};
+
+function auditDimmedOf(nodes: readonly ProjectFlowNode[], id: string): boolean {
+  const data = cardData(nodes, id);
+  if (!("auditDimmed" in data)) throw new Error("not an analysis card: " + id);
+  return data.auditDimmed;
+}
+
+function buildContract(
+  contract: {
+    auditFilters: readonly ("protected" | "missingInput" | "unknown" | "diagnostics")[];
+    nodeDiagnostics?: ReadonlyMap<string, readonly Diagnostic[]>;
+  },
+  selectedNodeId: string | null = null,
+) {
+  return buildProjectGraphFlowNodes(
+    clusterInputs(CONTRACT_VIEW, {
+      selectedNodeId,
+      notes: [{ id: "note-1", x: 5, y: 5, text: "hello" }],
+      contract: { nodeDiagnostics: new Map(), ...contract },
+    }),
+  );
+}
+
+describe("buildProjectGraphFlowNodes contract audit dimming (issue #69)", () => {
+  it("dims nothing without the lens inputs or with an empty filter set", () => {
+    const absent = buildProjectGraphFlowNodes(clusterInputs(CONTRACT_VIEW));
+    const empty = buildContract({ auditFilters: [] });
+    for (const nodes of [absent, empty]) {
+      for (const id of [PAGE.id, GET.id, TODOS.id, WORKFLOW.id, MYSTERY.id]) {
+        expect(auditDimmedOf(nodes, id)).toBe(false);
+      }
+    }
+  });
+
+  it("keeps the matching cards bright and dims the rest, positions and selection held", () => {
+    const filtered = buildContract({ auditFilters: ["protected"] }, GET.id);
+    // GET is the fixture's protected route (valid wrapper + required permission).
+    expect(auditDimmedOf(filtered, GET.id)).toBe(false);
+    expect(auditDimmedOf(filtered, PAGE.id)).toBe(true);
+    expect(auditDimmedOf(filtered, TODOS.id)).toBe(true);
+    expect(auditDimmedOf(filtered, WORKFLOW.id)).toBe(true);
+    expect(auditDimmedOf(filtered, MYSTERY.id)).toBe(true);
+    const plain = buildContract({ auditFilters: [] }, GET.id);
+    for (const node of filtered) {
+      const before = plain.find((entry) => entry.id === node.id);
+      expect(node.position).toEqual(before?.position);
+      expect(node.selected).toBe(before?.selected);
+    }
+  });
+
+  it("never scores an unknown route as missing input: unknown is its own counter", () => {
+    const missing = buildContract({ auditFilters: ["missingInput"] });
+    // GET has no input schema in the fixture; MYSTERY's facts are unreadable, not absent.
+    expect(auditDimmedOf(missing, GET.id)).toBe(false);
+    expect(auditDimmedOf(missing, MYSTERY.id)).toBe(true);
+    const unknown = buildContract({ auditFilters: ["unknown"] });
+    expect(auditDimmedOf(unknown, MYSTERY.id)).toBe(false);
+    expect(auditDimmedOf(unknown, GET.id)).toBe(true);
+  });
+
+  it("unions the pressed counters and matches attached diagnostics", () => {
+    const union = buildContract({ auditFilters: ["protected", "unknown"] });
+    expect(auditDimmedOf(union, GET.id)).toBe(false);
+    expect(auditDimmedOf(union, MYSTERY.id)).toBe(false);
+    expect(auditDimmedOf(union, TODOS.id)).toBe(true);
+    const withDiagnostics = buildContract({
+      auditFilters: ["diagnostics"],
+      nodeDiagnostics: new Map([[TODOS.id, [CONTRACT_DIAGNOSTIC]]]),
+    });
+    expect(auditDimmedOf(withDiagnostics, TODOS.id)).toBe(false);
+    expect(auditDimmedOf(withDiagnostics, GET.id)).toBe(true);
+  });
+
+  it("keeps the audit dimming off the notes: annotations are not contract subjects", () => {
+    const note = buildContract({ auditFilters: ["protected"] }).find(
+      (entry) => entry.id === "note-1",
+    );
+    expect(note?.data).not.toHaveProperty("auditDimmed");
   });
 });

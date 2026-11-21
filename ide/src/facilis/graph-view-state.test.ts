@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AUDIT_FILTER_IDS } from "./graph-contract";
 import { GRAPH_EDGE_KINDS } from "./graph-types";
 import {
   DEFAULT_GRAPH_VIEW_STATE,
@@ -41,6 +42,7 @@ describe("graph view state round-trips", () => {
       mode: "timeline",
       activeLenses: ["impact", "contract", "roles"],
       isolatedEdgeKinds: ["fk", "page-link"],
+      auditFilters: ["protected", "diagnostics"],
       runtimeWindow: "15m",
       runtimeLive: true,
       isolatedNode: "table:予定表",
@@ -104,6 +106,26 @@ describe("graph view state round-trips", () => {
     );
     expect(encodeGraphViewState(state({ isolatedEdgeKinds: [] }))).toBe("");
     expect(decodeGraphViewState('{"i":["bogus",3]}').isolatedEdgeKinds).toEqual([]);
+  });
+
+  it("encodes the audit filters under a and omits them when empty (issue #69)", () => {
+    expect(encodeGraphViewState(state({ auditFilters: ["diagnostics", "protected"] }))).toBe(
+      '{"a":["protected","diagnostics"]}',
+    );
+    expect(encodeGraphViewState(state({ auditFilters: [] }))).toBe("");
+    expect(decodeGraphViewState('{"a":["bogus",3]}').auditFilters).toEqual([]);
+    expect(decodeGraphViewState('{"a":"protected"}').auditFilters).toEqual([]);
+  });
+
+  it("round-trips every audit-filter set (all 16 subsets), canonically ordered", () => {
+    for (let mask = 0; mask < 1 << AUDIT_FILTER_IDS.length; mask += 1) {
+      const filters = AUDIT_FILTER_IDS.filter((_, index) => (mask & (1 << index)) !== 0);
+      const next = state({ auditFilters: filters.toReversed() });
+      const decoded = decodeGraphViewState(encodeGraphViewState(next));
+      expect(decoded.auditFilters).toEqual(filters);
+      // Re-encoding the decoded view is stable: the canonical order is a fixed point.
+      expect(encodeGraphViewState(decoded)).toBe(encodeGraphViewState(next));
+    }
   });
 
   it("encodes node isolation under n and omits it when null (issue #66)", () => {
@@ -227,6 +249,7 @@ describe("graph view state degradation", () => {
     const hostile = JSON.stringify({
       m: 7,
       l: "contract",
+      a: "protected",
       s: { id: "x" },
       f: [1, null, ""],
       h: ["bogus", 3],

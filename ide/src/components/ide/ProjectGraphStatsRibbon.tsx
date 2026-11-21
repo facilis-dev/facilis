@@ -52,6 +52,7 @@ export function ProjectGraphStatsRibbon({
   onToggleEdges,
   lensChips,
   runtimeControls,
+  auditRibbon,
 }: {
   stats: ProjectGraphStats | null;
   filter: GraphStatsFilter;
@@ -61,6 +62,8 @@ export function ProjectGraphStatsRibbon({
   lensChips: ReactNode;
   /** The runtime lens's control strip (issue #72), or null when the lens is inactive. */
   runtimeControls: ReactNode;
+  /** The contract lens's audit ribbon (issue #69), or null when the lens is inactive. */
+  auditRibbon: ReactNode;
 }) {
   return (
     <div
@@ -128,6 +131,8 @@ export function ProjectGraphStatsRibbon({
       {lensChips}
       {/* Runtime-lens controls slot (issue #72), the #69 audit-ribbon pattern. */}
       {runtimeControls}
+      {/* Audit-ribbon slot (issue #69): the contract lens's four filter counters. */}
+      {auditRibbon}
     </div>
   );
 }

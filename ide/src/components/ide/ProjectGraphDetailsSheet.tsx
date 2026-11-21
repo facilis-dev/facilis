@@ -6,6 +6,7 @@
 // inspector the satellite uses. Esc closes and returns focus to the selected card.
 
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
+import type { Diagnostic } from "@facilis.dev/analyze";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
@@ -18,6 +19,8 @@ export interface ProjectGraphDetailsSheetProps {
   node: ProjectGraphNode;
   edges: readonly ProjectGraphEdge[];
   details: NodeDetails | null;
+  /** Analyzer errors/warnings attached to this node (issue #69), in analysis order. */
+  diagnostics: readonly Diagnostic[];
   sources: ReadonlyMap<string, string>;
   nodeLabel: (id: string) => string | null;
   height: number;
@@ -36,6 +39,7 @@ export function ProjectGraphDetailsSheet({
   node,
   edges,
   details,
+  diagnostics,
   sources,
   nodeLabel,
   height,
@@ -101,6 +105,7 @@ export function ProjectGraphDetailsSheet({
           node={node}
           edges={edges}
           details={details}
+          diagnostics={diagnostics}
           sources={sources}
           nodeLabel={nodeLabel}
           pinned={pinned}

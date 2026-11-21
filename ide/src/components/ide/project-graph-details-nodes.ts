@@ -4,6 +4,7 @@
 // this module only assembles React Flow nodes. The dashed connector is built by the canvas.
 
 import type { Viewport } from "@xyflow/react";
+import type { Diagnostic } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import {
@@ -28,6 +29,8 @@ export interface DetailsFlowNodesInput {
   readonly viewport: Viewport;
   readonly containerWidth: number;
   readonly details: ReadonlyMap<string, NodeDetails>;
+  /** The contract lens's diagnostics join (issue #69): the inspector body's diagnostics list. */
+  readonly nodeDiagnostics: ReadonlyMap<string, readonly Diagnostic[]>;
   readonly sources: ReadonlyMap<string, string>;
   readonly nodeLabel: (id: string) => string | null;
   readonly onCloseActive: () => void;
@@ -36,6 +39,29 @@ export interface DetailsFlowNodesInput {
   readonly onOpenFileAt: (file: string, line: number) => void;
   readonly onOpenPreview: (path: string) => void;
   readonly onSelectNode: (id: string) => void;
+}
+
+/**
+ * The pin position (issue #59): the satellite's spot when one is drawn, else the viewport
+ * centre, so the comparison card is immediately visible. Moved from useProjectGraphDetails for
+ * the 300-line limit; the flow instance is typed structurally to avoid an edge-union import.
+ */
+export function pinPositionOf(
+  nodes: readonly ProjectFlowNode[],
+  flow: {
+    screenToFlowPosition: (point: { x: number; y: number }) => { x: number; y: number };
+  } | null,
+  element: HTMLDivElement | null,
+  nodeId: string,
+): { x: number; y: number } | null {
+  const satellite = nodes.find((node) => node.id === satelliteNodeId(nodeId));
+  if (satellite !== undefined) return satellite.position;
+  if (element === null || flow === null) return null;
+  const rect = element.getBoundingClientRect();
+  return flow.screenToFlowPosition({
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  });
 }
 
 function anchorOf(flow: ProjectFlowNode): SatelliteAnchor {
@@ -55,6 +81,7 @@ export function buildDetailsFlowNodes({
   viewport,
   containerWidth,
   details,
+  nodeDiagnostics,
   sources,
   nodeLabel,
   onCloseActive,
@@ -74,6 +101,7 @@ export function buildDetailsFlowNodes({
       // the routes that use it.
       edges: view.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId),
       details: details.get(nodeId) ?? null,
+      diagnostics: nodeDiagnostics.get(nodeId) ?? [],
       sources,
       nodeLabel,
       onOpenFileAt,

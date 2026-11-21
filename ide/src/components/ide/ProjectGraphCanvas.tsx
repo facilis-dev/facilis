@@ -26,7 +26,7 @@ import {
 } from "./ProjectGraphDetailsLinkEdge";
 import { PROJECT_GRAPH_NODE_TYPES, type ProjectFlowNode } from "./ProjectGraphNodes";
 import { ProjectGraphZoomVar } from "./ProjectGraphZoomVar";
-import type { ProjectGraphDrill } from "./project-graph-flow-nodes";
+import type { ProjectFlowContractState, ProjectGraphDrill } from "./project-graph-flow-nodes";
 import { useProjectGraphEdges } from "./useProjectGraphEdges";
 import { useGraphFitEffects } from "./useGraphFitEffects";
 import { useProjectGraphCanvasEffects } from "./useProjectGraphCanvasEffects";
@@ -56,6 +56,7 @@ export function ProjectGraphCanvas({
   focus,
   userFocus,
   isolatedEdgeKinds,
+  contract,
   drill,
   selectedNodeId,
   onSelectNode,
@@ -99,6 +100,8 @@ export function ProjectGraphCanvas({
   userFocus: GraphReachability | null;
   /** Edge kinds isolated by the chips (issue #63): opacity only, never a removal. */
   isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The contract lens's inputs (issue #69): audit dimming + the diagnostics join. */
+  contract: ProjectFlowContractState;
   /** The active cluster drill-down (issue #62): dims outsiders and frames its fit. */
   drill: ProjectGraphDrill | null;
   selectedNodeId: string | null;
@@ -164,6 +167,7 @@ export function ProjectGraphCanvas({
       focus,
       userFocus,
       isolatedEdgeKinds,
+      contract,
       drill,
       hubs,
       selectedNodeId,

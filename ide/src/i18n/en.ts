@@ -17,6 +17,7 @@ import { sourceControlEn } from "./en-source-control";
 import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { projectGraphMatrixEn } from "./en-project-graph-matrix";
+import { projectGraphContractEn } from "./en-project-graph-contract";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
@@ -196,6 +197,7 @@ export const en = {
   ...commitGraphEn,
   ...projectGraphEn,
   ...projectGraphMatrixEn,
+  ...projectGraphContractEn,
   ...dataExplorerEn,
   ...dataQueryEn,
   ...releasePreviewEn,

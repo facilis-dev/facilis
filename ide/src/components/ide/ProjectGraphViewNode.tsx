@@ -3,12 +3,18 @@
 // names and whether any route uses it. Role tokens only (D-043/D-044); the geometry and the
 // route usage live in graph-model.ts and graph-model-data.ts.
 
+import { useContext } from "react";
 import type { NodeProps } from "@xyflow/react";
 import ChevronDown from "~icons/lucide/chevron-down";
 import ChevronRight from "~icons/lucide/chevron-right";
 import Eye from "~icons/lucide/eye";
 import { t, type MessageKey } from "@/i18n";
 import { LinkHandles, UnknownBadge, nodeClass, sourceTitle } from "./ProjectGraphNodeChrome";
+import {
+  ContractLensContext,
+  ViewContractMarks,
+  contractRingClass,
+} from "./ProjectGraphContractMarks";
 import type { ProjectAnalysisFlowNode } from "./ProjectGraphNodes";
 import { GraphLodOverlay, ProjectGraphLodContent, lodSizerClass } from "./ProjectGraphLod";
 import { useGraphLod } from "./use-graph-lod";
@@ -23,10 +29,13 @@ function accessClass(access: "invoker" | "definer"): string {
 }
 
 export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAnalysisFlowNode>) {
+  // The contract lens (issue #69): access mode + permission badges, stable null while inactive.
+  const contract = useContext(ContractLensContext);
   const level = useGraphLod();
   const node = data.node;
   const view = node.data.kind === "view" ? node.data : null;
   if (view === null) return null;
+  const diagnostics = contract?.nodeDiagnostics.get(node.id) ?? [];
   const shown = data.collapsed ? [] : view.tables.slice(0, MAX_VISIBLE_TABLES);
   const more = view.tables.length - shown.length;
   const used = view.usedByRoutes.length;
@@ -36,8 +45,16 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
       data-lod={level}
       title={sourceTitle(node)}
       className={
-        nodeClass(selected, node.matched, dragging, data.focused, data.isolated, data.aiOutlined) +
-        " relative w-60"
+        nodeClass(
+          selected,
+          node.matched,
+          dragging,
+          data.focused,
+          data.isolated,
+          data.aiOutlined,
+          data.auditDimmed,
+          contract === null ? "" : contractRingClass(diagnostics),
+        ) + " relative w-60"
       }
     >
       <div className={lodSizerClass(level)} aria-hidden={level !== "full"}>
@@ -129,6 +146,14 @@ export function ViewGraphNode({ data, selected, dragging }: NodeProps<ProjectAna
           </p>
         )}
       </div>
+      {contract !== null && (
+        <ViewContractMarks
+          view={view}
+          diagnostics={diagnostics}
+          compact={contract.compact}
+          secondary={contract.secondary}
+        />
+      )}
       {level !== "full" && (
         <GraphLodOverlay>
           <ProjectGraphLodContent node={node} edgeCount={data.edgeCount} level={level} />

@@ -6,6 +6,7 @@
 
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
+import type { AuditFilterId } from "@/facilis/graph-contract";
 import type { RuntimeWindow } from "@/facilis/graph-runtime";
 import type { GraphMatrixSort } from "@/facilis/graph-matrix";
 import {
@@ -20,6 +21,7 @@ export interface GraphViewLocalState {
   readonly mode: GraphViewMode;
   readonly activeLenses: readonly GraphLensId[];
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  readonly auditFilters: readonly AuditFilterId[];
   readonly runtimeWindow: RuntimeWindow;
   readonly runtimeLive: boolean;
   readonly isolatedNode: string | null;
@@ -35,6 +37,7 @@ export const DEFAULT_GRAPH_VIEW_LOCAL: GraphViewLocalState = {
   mode: DEFAULT_GRAPH_VIEW_STATE.mode,
   activeLenses: DEFAULT_GRAPH_VIEW_STATE.activeLenses,
   isolatedEdgeKinds: DEFAULT_GRAPH_VIEW_STATE.isolatedEdgeKinds,
+  auditFilters: DEFAULT_GRAPH_VIEW_STATE.auditFilters,
   runtimeWindow: DEFAULT_GRAPH_VIEW_STATE.runtimeWindow,
   runtimeLive: DEFAULT_GRAPH_VIEW_STATE.runtimeLive,
   isolatedNode: DEFAULT_GRAPH_VIEW_STATE.isolatedNode,
@@ -50,6 +53,7 @@ export interface GraphViewSetters {
   readonly setMode: (mode: GraphViewMode) => void;
   readonly setActiveLenses: (lenses: readonly GraphLensId[]) => void;
   readonly setIsolatedEdgeKinds: (kinds: readonly GraphEdgeKind[]) => void;
+  readonly setAuditFilters: (filters: readonly AuditFilterId[]) => void;
   readonly setRuntimeWindow: (window: RuntimeWindow) => void;
   readonly setRuntimeLive: (live: boolean) => void;
   readonly setIsolatedNode: (id: string | null) => void;
@@ -83,6 +87,13 @@ export function useGraphViewSetters(
     (kinds: readonly GraphEdgeKind[]) => {
       cancelRestore();
       setLocal((current) => ({ ...current, isolatedEdgeKinds: kinds }));
+    },
+    [cancelRestore, setLocal],
+  );
+  const setAuditFilters = useCallback(
+    (filters: readonly AuditFilterId[]) => {
+      cancelRestore();
+      setLocal((current) => ({ ...current, auditFilters: filters }));
     },
     [cancelRestore, setLocal],
   );
@@ -153,6 +164,7 @@ export function useGraphViewSetters(
     setMode,
     setActiveLenses,
     setIsolatedEdgeKinds,
+    setAuditFilters,
     setRuntimeWindow,
     setRuntimeLive,
     setIsolatedNode,

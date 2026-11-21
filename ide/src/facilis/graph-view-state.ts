@@ -11,13 +11,9 @@
 // transient overlay composed on top, never persisted and never in the URL.
 
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
-import {
-  isFiniteNumber,
-  isRecord,
-  readEdgeKinds,
-  roundCoordinate,
-  type GraphViewport,
-} from "./graph-layout-file";
+import { isRecord, readEdgeKinds, type GraphViewport } from "./graph-layout-file";
+import { AUDIT_FILTER_IDS, readAuditFilters, type AuditFilterId } from "./graph-contract";
+import { encodeViewport, readEncodedViewport } from "./graph-view-viewport";
 import { GRAPH_MATRIX_SORTS, type GraphMatrixSort } from "./graph-matrix";
 import { GRAPH_EDGE_KINDS, type GraphTableVisibility } from "./graph-types";
 import { DEFAULT_RUNTIME_WINDOW, RUNTIME_WINDOW_IDS, type RuntimeWindow } from "./graph-runtime";
@@ -71,6 +67,8 @@ export interface GraphViewState {
   readonly activeLenses: readonly GraphLensId[];
   /** Edge kinds isolated by the canvas chips (issue #63): opacity only, never a removal. */
   readonly isolatedEdgeKinds: readonly GraphEdgeKind[];
+  /** The contract lens's audit-ribbon counters pressed as filters (issue #69): dimming only. */
+  readonly auditFilters: readonly AuditFilterId[];
   /** The runtime lens's selected window (issue #72); carried even while the lens is off. */
   readonly runtimeWindow: RuntimeWindow;
   /** The runtime lens's live toggle (issue #72): off reads the last snapshot. */
@@ -105,6 +103,7 @@ export const DEFAULT_GRAPH_VIEW_STATE: GraphViewState = {
   mode: "topology",
   activeLenses: [],
   isolatedEdgeKinds: [],
+  auditFilters: [],
   runtimeWindow: DEFAULT_RUNTIME_WINDOW,
   runtimeLive: false,
   isolatedNode: null,
@@ -127,11 +126,6 @@ const VISIBILITIES: readonly GraphTableVisibility[] = ["project", "used", "all"]
 const LENS_SET = new Set<string>(GRAPH_LENS_IDS);
 /** Hostile or corrupt payloads degrade to defaults instead of parsing without bound. */
 const MAX_RAW_LENGTH = 4096;
-
-/** Zoom keeps three decimals: it is a ratio, not a pixel coordinate (two would visibly snap). */
-function roundZoom(value: number): number {
-  return Math.round(value * 1000) / 1000;
-}
 
 /** Deduplicate non-empty strings, keeping first-occurrence order so round-trips are stable. */
 function uniqueStrings(value: readonly string[]): string[] {
@@ -158,6 +152,10 @@ export function encodeGraphViewState(state: GraphViewState): string {
   const isolatedSet = new Set(state.isolatedEdgeKinds);
   const isolated = GRAPH_EDGE_KINDS.filter((kind) => isolatedSet.has(kind));
   if (isolated.length > 0) out.i = isolated;
+  // Canonical counter order on both sides, like the edge kinds: round-trips stay stable.
+  const auditSet = new Set(state.auditFilters);
+  const audit = AUDIT_FILTER_IDS.filter((id) => auditSet.has(id));
+  if (audit.length > 0) out.a = audit;
   // Runtime lens options (issue #72): two short keys, omitted at their defaults so an
   // untouched lens keeps the URL clean. "rw"/"rl" avoid #69's audit-filter key "a".
   if (state.runtimeWindow !== DEFAULT_RUNTIME_WINDOW) out.rw = state.runtimeWindow;
@@ -179,7 +177,7 @@ export function encodeGraphViewState(state: GraphViewState): string {
   if (state.drill !== null && state.drill !== "") out.d = state.drill;
   const viewport = state.viewport;
   if (viewport !== null) {
-    out.v = [roundCoordinate(viewport.x), roundCoordinate(viewport.y), roundZoom(viewport.zoom)];
+    out.v = encodeViewport(viewport);
   }
   if (state.query !== "") out.q = state.query;
   if (state.matrixSort !== "path") out.ms = state.matrixSort;
@@ -240,18 +238,6 @@ function readSelection(value: unknown, knownNodeIds?: ReadonlySet<string>): stri
   return value;
 }
 
-function readEncodedViewport(value: unknown): GraphViewport | null {
-  if (!Array.isArray(value) || value.length !== 3) return null;
-  const [x, y, zoom] = value;
-  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(zoom) || zoom <= 0) return null;
-  const rounded = { x: roundCoordinate(x), y: roundCoordinate(y), zoom: roundZoom(zoom) };
-  // Rounding can overflow a hostile 1e308 to Infinity; such a viewport is not a view.
-  if (!isFiniteNumber(rounded.x) || !isFiniteNumber(rounded.y) || !isFiniteNumber(rounded.zoom)) {
-    return null;
-  }
-  return rounded;
-}
-
 /**
  * Total function: null, malformed JSON, wrong types and oversized payloads degrade to the
  * default view, never throw. Unknown lens ids are dropped against the registry; when
@@ -274,6 +260,7 @@ export function decodeGraphViewState(
     mode: readMode(parsed.m),
     activeLenses: readLenses(parsed.l),
     isolatedEdgeKinds: readEdgeKinds(parsed.i),
+    auditFilters: readAuditFilters(parsed.a),
     runtimeWindow: readRuntimeWindow(parsed.rw),
     runtimeLive: parsed.rl === true,
     isolatedNode: readSelection(parsed.n, knownNodeIds),
