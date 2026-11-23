@@ -69,6 +69,7 @@ const FULL_CONFIG: FacilisConfig = {
   logging: DEFAULT_LOGGING_CONFIG,
   security: { trustedOrigins: ["https://app.example.com"] },
   nitro: { serverDir: "./backend" },
+  prerender: { routes: ["/", "/about"], origin: "https://example.com" },
 };
 
 describe("defineConfig", () => {

@@ -14,6 +14,7 @@ import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import { sourceRef } from "../source.ts";
 import type { StaticContext } from "../static-eval.ts";
 import type { ConfigFacts, Diagnostic, SourceRef, UnknownFact } from "../types.ts";
+import { readPrerenderFields } from "./config-prerender.ts";
 import {
   defaultExportExpression,
   isLocallyDeclared,
@@ -50,6 +51,7 @@ function configDefaults(): ConfigFacts {
     locales: [...DEFAULT_LOCALES],
     tenantColumns: [...DEFAULT_TENANT_COLUMNS],
     ownerColumns: [...DEFAULT_OWNER_COLUMNS],
+    prerender: { routes: [], origin: null, unknown: [] },
     unknown: [],
   };
 }
@@ -235,6 +237,7 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
   const auth = readSection(root, "auth", context, unknown);
   const i18n = readSection(root, "i18n", context, unknown);
   const db = readSection(root, "db", context, unknown);
+  const prerender = readSection(root, "prerender", context, unknown);
   const authRef = refOf(context, root.fields.get("auth")?.node);
   const i18nRef = refOf(context, root.fields.get("i18n")?.node);
   const base = configDefaults();
@@ -260,6 +263,11 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
       db === null
         ? base.ownerColumns
         : stringArrayField(db, "ownerColumns", base.ownerColumns, unknown, at),
+    prerender: readPrerenderFields(
+      prerender,
+      refOf(context, root.fields.get("prerender")?.node),
+      unknown,
+    ),
     unknown,
   };
   const issues = validationIssues(facts, auth === null);

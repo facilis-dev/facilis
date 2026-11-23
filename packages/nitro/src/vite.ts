@@ -7,6 +7,7 @@ import type { Analysis } from "@facilis.dev/analyze";
 
 import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
+import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
 import type { RouteMetadataMap } from "./types.ts";
@@ -131,8 +132,18 @@ export function facilis(): FacilisPlugins {
   };
 
   // The dev-only metrics client (D-200) rides along in serve mode; `apply: "serve"`
-  // keeps it out of every production build.
-  return [plugin, facilisDevMetrics(), ...nitro()];
+  // keeps it out of every production build. The prerender gate (D-202) is its mirror:
+  // `apply: "build"` fails a build with declared-but-ineligible routes, sharing the one
+  // cached analysis so the gate adds no second analyzer run.
+  return [
+    plugin,
+    facilisDevMetrics(),
+    facilisPrerenderGate(() => {
+      analysis ??= analyzeProjectRoutes(root);
+      return analysis;
+    }),
+    ...nitro(),
+  ];
 }
 
 /** True for a file the analyzer reads, excluding generated and dependency directories. */

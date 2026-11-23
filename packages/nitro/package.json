@@ -10,6 +10,7 @@
     "./session": "./src/session-cookie.ts",
     "./storage": "./src/storage.ts",
     "./vite": "./src/vite.ts",
+    "./prerender": "./src/prerender.ts",
     "./package.json": "./package.json"
   },
   "files": [

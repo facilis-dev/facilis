@@ -127,4 +127,45 @@ describe("buildConfigFacts", () => {
     expect(diagnostics.every((item) => item.code === "config-invalid")).toBe(true);
     expect(diagnostics).toHaveLength(5);
   });
+
+  it("reads the prerender declaration (D-202)", () => {
+    const { facts, diagnostics } = buildConfigFacts(
+      graphOf({
+        "facilis.config.ts":
+          HEADER +
+          'export default defineConfig({ auth: { defaultRole: "user", roles: { user: [] } }, prerender: { routes: ["/", "/about"], origin: "https://example.com" } });',
+      }),
+    );
+    expect(diagnostics).toEqual([]);
+    expect(facts.prerender).toEqual({
+      routes: ["/", "/about"],
+      origin: "https://example.com",
+      unknown: [],
+    });
+  });
+
+  it("mirrors the core prerender default when the section is absent", () => {
+    const { facts, diagnostics } = buildConfigFacts(
+      graphOf({
+        "facilis.config.ts":
+          HEADER +
+          'export default defineConfig({ auth: { defaultRole: "user", roles: { user: [] } } });',
+      }),
+    );
+    expect(diagnostics).toEqual([]);
+    expect(facts.prerender).toEqual({ routes: [], origin: null, unknown: [] });
+  });
+
+  it("records an unreadable prerender value as unknown, never a guess", () => {
+    const { facts, diagnostics } = buildConfigFacts(
+      graphOf({
+        "facilis.config.ts":
+          HEADER +
+          'export default defineConfig({ auth: { defaultRole: "user", roles: { user: [] } }, prerender: { routes: process.env.ROUTES } });',
+      }),
+    );
+    expect(facts.prerender.routes).toEqual([]);
+    expect(facts.prerender.unknown.length + facts.unknown.length).toBeGreaterThan(0);
+    expect(diagnostics.some((item) => item.code === "config-static")).toBe(true);
+  });
 });

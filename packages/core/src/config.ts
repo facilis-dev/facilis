@@ -40,6 +40,11 @@ import {
   type FacilisStorageConfig,
   type FacilisStorageConfigInput,
 } from "./storage-config.ts";
+import {
+  facilisPrerenderConfigSchema,
+  type FacilisPrerenderConfig,
+  type FacilisPrerenderConfigInput,
+} from "./prerender-config.ts";
 
 export { DEFAULT_LOGGING_CONFIG, facilisLoggingConfigSchema } from "./logging-config.ts";
 export type { FacilisLoggingConfig, FacilisLoggingConfigInput } from "./logging-config.ts";
@@ -68,6 +73,8 @@ export { DEFAULT_JOBS_CONFIG, facilisJobsConfigSchema } from "./jobs-config.ts";
 export type { FacilisJobsConfig, FacilisJobsConfigInput } from "./jobs-config.ts";
 export { DEFAULT_WORKFLOWS_CONFIG, facilisWorkflowsConfigSchema } from "./workflows-config.ts";
 export type { FacilisWorkflowsConfig, FacilisWorkflowsConfigInput } from "./workflows-config.ts";
+export { DEFAULT_PRERENDER_CONFIG, facilisPrerenderConfigSchema } from "./prerender-config.ts";
+export type { FacilisPrerenderConfig, FacilisPrerenderConfigInput } from "./prerender-config.ts";
 export { DEFAULT_STORAGE_CONFIG, STORAGE_DRIVERS } from "./storage-config.ts";
 export type {
   FacilisStorageConfig,
@@ -142,6 +149,8 @@ export interface FacilisConfig {
   /** Operator logging defaults (D-119): level and what is collected; sinks are env-owned. */
   readonly logging: FacilisLoggingConfig;
   readonly nitro: FacilisNitroOptions;
+  /** Route-level prerendering allowlist (D-202); `{ routes: [] }` means off. */
+  readonly prerender: FacilisPrerenderConfig;
 }
 
 /**
@@ -182,6 +191,8 @@ export interface FacilisConfigInput {
   readonly security?: {
     readonly trustedOrigins?: readonly string[];
   };
+  /** Route-level prerendering (D-202); every key has a default. */
+  readonly prerender?: FacilisPrerenderConfigInput;
 }
 
 const DEFAULT_RELEASE_REF = "main";
@@ -247,6 +258,7 @@ const baseConfigSchema = z.strictObject({
   security: securityConfigSchema,
   logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
+  prerender: facilisPrerenderConfigSchema,
 });
 
 /**

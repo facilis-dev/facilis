@@ -21,6 +21,8 @@ export interface RouteEntry {
   readonly element: AstNode | null;
   /** Index of the parent route entry (pathless layout routes are entries too). */
   readonly parentIndex: number | null;
+  /** True for a layout route with no path of its own (it inherits the parent path). */
+  readonly pathless: boolean;
   readonly source: SourceRef;
 }
 
@@ -93,6 +95,7 @@ export function buildRouteTable(graph: ModuleGraph, file: ProjectFile): readonly
       path: finalPath,
       element: element !== undefined && element.type === "JSXElement" ? element : null,
       parentIndex,
+      pathless: pathValue === null && !isIndex,
       source: sourceRef(file.path, file.lines, typeof node.start === "number" ? node.start : 0),
     });
     for (const child of jsxChildren(node)) {
