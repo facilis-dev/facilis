@@ -77,12 +77,21 @@ function applyLocale(locale: Locale): void {
 }
 
 /**
- * Registers every catalogue and applies the user's starting locale before the first render.
- * A project with a database overlay (D-057) calls hydrateCatalogs here inside try/catch; the
- * reference app ships files only, so there is nothing to await.
+ * Registers every catalogue and the default locale without reading browser state, so it is
+ * safe during a server render (D-202 §4). A project with a database overlay (D-057) calls
+ * hydrateCatalogs here inside try/catch; the reference app ships files only.
  */
 export function initI18n(): void {
   for (const locale of LOCALES) registerCatalog(locale, CATALOGS[locale]);
+  activeLocale = DEFAULT_LOCALE;
+  setDefaultLocale(DEFAULT_LOCALE);
+}
+
+/**
+ * Client-only: resolves and applies the stored/navigator locale. Runs before a client-only
+ * render, or in a post-hydration effect so the first client render matches the server HTML.
+ */
+export function applyStoredLocale(): void {
   const languages = typeof navigator === "undefined" ? [] : navigator.languages;
   applyLocale(resolvePreferredLocale(readStoredLocale(), languages));
 }

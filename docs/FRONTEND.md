@@ -250,6 +250,16 @@ fails the build.
 the shell. The island is XSS-escaped JSON of public API responses keyed by request path; it
 never contains the session.
 
+**Template seam (`src/lib/prerender.tsx`).** Every template ships a project-local seam
+module (no framework import — the static runtime stays framework-free, D-168):
+`parsePrerenderIsland`/`readPrerenderIsland` (corrupt or absent → null),
+`shouldHydrate(container, island)` (markup present ∧ island valid),
+`PrerenderDataProvider`/`usePrerenderData` (the island as React context, also readable by
+`api()` outside the tree) and `hasIslandResponse`/`readIslandResponse`. A data page seeds
+its state from `usePrerenderData()` and fetches in an effect only when the island has no
+answer; the build's SSR entry renders the identical tree through the same provider. The
+island envelope is a plain object keyed by request path (`{}` for a purely static page).
+
 **Data and session.** `api()` answers a declared public GET from the island before any fetch
 (no refetch-before-hydrate); revalidation happens in effects after hydration. `SessionProvider`
 still loads `GET /api/auth/session` once at boot, client-side only — prerendered pages are
@@ -264,3 +274,13 @@ to the preview base when serving under `/preview/<port>/`, and the router keeps
 **SEO.** Pages render `<title>`/`<meta>` (React 19 hoists document metadata); with
 `prerender.origin` set, the build adds canonical links and a `sitemap.xml` listing exactly the
 allowlist. Prerendered HTML is served to every client — no UA sniffing.
+
+**Build and dev serving.** The pass writes into the client build outDir (`dist/` for the
+static template; Nitro redirects the full-stack client output to `.output/public/`) and
+records a stamp in `.facilis/prerender.json` (outDir, allowlist, build time). The dev
+middleware serves the stored HTML with the built asset tags swapped for the dev entry
+(`/@vite/client` + `/src/main.tsx`); when any prerendered input changed since the build the
+stamp is stale and the route falls back to the shell, so edited code never hydrates against
+old markup. Full-stack public data is fetched from the project's built server booted in dev
+mode (the build-time pass is not a deployment; D-068's production PGlite guard is unchanged),
+with no session and no system identity.

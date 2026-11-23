@@ -8,15 +8,18 @@
  * MODULE GRAPH CONSTRAINT (D-202/D-168): this entry and everything it imports must stay free
  * of nitro, @facilis.dev/db, @facilis.dev/auth and @facilis.dev/core runtime code — only
  * @facilis.dev/analyze, zod and build tools. The render engine (#83) plugs in below under the
- * same constraint; no engine code ships in this slice.
+ * same constraint: the SSR runtime is reached only through the generated SSR entry, never
+ * imported by this entry's module graph.
  */
 
 import type { Plugin } from "vite";
 import { z } from "zod";
 
-import { analyzeProject, prerenderBuildErrors } from "@facilis.dev/analyze";
+import { analyzeProject, prerenderBuildErrors, type Analysis } from "@facilis.dev/analyze";
 import { loadProjectFiles } from "@facilis.dev/analyze/fs";
 
+import { facilisPrerenderServing } from "./prerender-dev.ts";
+import { facilisPrerenderEngine } from "./prerender-engine.ts";
 import { formatPrerenderBuildError } from "./prerender-gate.ts";
 import { createRolldownParser } from "./rolldown-parser.ts";
 
@@ -105,16 +108,25 @@ export const PRERENDER_PLUGIN_NAME = "facilis:prerender";
 /**
  * Declare the static-template prerender allowlist. Validation mirrors the full-stack
  * `prerender` config section; at build start the analyzer's fail-closed eligibility facts
- * gate the build exactly like the full-stack companion plugin.
+ * gate the build exactly like the full-stack companion plugin, then the same in-process
+ * engine (D-202 Arm C) renders the allowlist and the serving hooks preview it.
  */
-export function prerender(options: PrerenderOptions = {}): Plugin {
+export function prerender(options: PrerenderOptions = {}): Plugin[] {
   const parsed = prerenderOptionsSchema.safeParse(options);
   if (!parsed.success) {
     throw new Error(`Invalid prerender options:\n${z.prettifyError(parsed.error)}`);
   }
   const declaration = parsed.data;
   let root = process.cwd();
-  return {
+  let analysis: Analysis | undefined;
+  const getAnalysis = (): Analysis => {
+    analysis ??= analyzeProject({
+      files: loadProjectFiles(root),
+      parser: createRolldownParser(),
+    });
+    return analysis;
+  };
+  const gate: Plugin = {
     name: PRERENDER_PLUGIN_NAME,
     apply: "build",
     configResolved(config) {
@@ -122,17 +134,14 @@ export function prerender(options: PrerenderOptions = {}): Plugin {
     },
     buildStart() {
       if (declaration.routes.length === 0) return;
-      const analysis = analyzeProject({
-        files: loadProjectFiles(root),
-        parser: createRolldownParser(),
-      });
-      for (const failure of prerenderBuildErrors(analysis.prerender)) {
+      for (const failure of prerenderBuildErrors(getAnalysis().prerender)) {
         this.error(formatPrerenderBuildError(failure));
       }
-      // #83 extension point (D-202 Arm C): the in-process render pass builds the SSR bundle,
-      // prerenders declaration.routes with react-dom/static over loopback public data, and
-      // writes per-route HTML + the XSS-escaped state island + sitemap + shell.html fallback
-      // here. This slice ships the declaration surface and the fail-closed gate only.
     },
   };
+  return [
+    gate,
+    facilisPrerenderEngine({ mode: "static", getAnalysis, getDeclaration: () => declaration }).plugin,
+    facilisPrerenderServing(() => root),
+  ];
 }

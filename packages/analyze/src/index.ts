@@ -13,6 +13,8 @@ export type { GraphInput } from "./graph.ts";
 export { ROUTE_DESCRIPTION_MAX_CHARS } from "./passes/route-description.ts";
 // The fail-closed prerender eligibility contract (D-202), shared with both build gates.
 export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender.ts";
+// The stable route id shared by facts, the graph and the prerender data join (D-202).
+export { routeFactId } from "./passes/route-location.ts";
 // The fixed service -> table surface (D-199), shared with AI validator rule 18.
 export { SERVICE_TABLES } from "./passes/route-services.ts";
 export { createModuleGraph } from "./module-graph.ts";

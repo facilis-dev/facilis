@@ -7,6 +7,15 @@ import { facilisConfigSchema } from "@facilis.dev/core";
 import type { Plugin } from "vite";
 
 import { PRERENDER_PLUGIN_NAME, prerender, type PrerenderOptions } from "./prerender.ts";
+import { PRERENDER_ENGINE_PLUGIN_NAME } from "./prerender-engine.ts";
+
+/** The declaration gate is the first plugin of the entry's array. */
+function gateOf(options: PrerenderOptions = {}): Plugin {
+  const plugins = prerender(options);
+  const gate = plugins[0];
+  if (gate === undefined) throw new Error("prerender() returned no gate plugin");
+  return gate;
+}
 
 type HookFn = (this: unknown, ...args: unknown[]) => unknown;
 
@@ -59,14 +68,19 @@ const APP =
 const HOME_PAGE = "export function HomePage() { return <h1>Home</h1>; }\n";
 
 describe("prerender() static-template entry", () => {
-  it("is a build-only framework plugin", () => {
-    const plugin = prerender({ routes: ["/"] });
-    expect(plugin.name).toBe(PRERENDER_PLUGIN_NAME);
-    expect(plugin.apply).toBe("build");
+  it("is a build-only framework plugin array (gate + engine + serving)", () => {
+    const plugins = prerender({ routes: ["/"] });
+    expect(plugins.map((plugin) => plugin.name)).toEqual([
+      PRERENDER_PLUGIN_NAME,
+      PRERENDER_ENGINE_PLUGIN_NAME,
+      "facilis:prerender-serving",
+    ]);
+    expect(plugins[0]?.apply).toBe("build");
+    expect(plugins[1]?.apply).toBe("build");
   });
 
   it("accepts no options (prerendering off)", () => {
-    expect(prerender().name).toBe(PRERENDER_PLUGIN_NAME);
+    expect(gateOf().name).toBe(PRERENDER_PLUGIN_NAME);
   });
 
   it.each([
@@ -128,7 +142,7 @@ describe("prerender() static-template entry", () => {
       "src/app.tsx": APP,
       "src/pages/home.tsx": HOME_PAGE,
     });
-    const errors = runBuild(prerender({ routes: ["/missing"] }), root);
+    const errors = runBuild(gateOf({ routes: ["/missing"] }), root);
     expect(errors).toEqual([
       '[facilis] prerender-ineligible: route "/missing" is not prerender-eligible (unknown-security)',
     ]);
@@ -140,7 +154,7 @@ describe("prerender() static-template entry", () => {
       "src/app.tsx": APP,
       "src/pages/home.tsx": HOME_PAGE,
     });
-    expect(runBuild(prerender({ routes: ["/"] }), root)).toEqual([]);
+    expect(runBuild(gateOf({ routes: ["/"] }), root)).toEqual([]);
   });
 
   it("is silent when the allowlist is empty", async () => {
@@ -149,6 +163,6 @@ describe("prerender() static-template entry", () => {
       "src/app.tsx": APP,
       "src/pages/home.tsx": HOME_PAGE,
     });
-    expect(runBuild(prerender({ routes: [] }), root)).toEqual([]);
+    expect(runBuild(gateOf({ routes: [] }), root)).toEqual([]);
   });
 });

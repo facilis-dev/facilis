@@ -1,0 +1,5 @@
+# Fixture build outputs and the runtime dev state (never committed).
+dist/
+.output/
+.facilis/
+node_modules/
