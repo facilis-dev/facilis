@@ -460,6 +460,9 @@ rm -rf ide/public/vendor                   # runtime assets (~7 MB, rebuilt by i
 rm -rf vendor/vivari/packages/*/pkg        # kernel wasm, rebuilt by ide:wasm
 ```
 
+A killed `pnpm pg:e2e` run can leave its Nitro server and its host slot behind; the reaper
+recipe and the automatic stale-slot reclaim are in [POSTGRES.md](./POSTGRES.md) §6.2.
+
 ## 9. Deploying the IDE — `ide.facilis.dev`
 
 Production is a **Cloudflare Pages** project named `facilis-ide`, served at
@@ -713,3 +716,32 @@ pnpm publish:packages        # real publish (needs npm login on the org)
 `npm publish` inside a package directory is never right: the workspace `exports` point at
 `src/*.ts` and the deps use `workspace:`, both of which npm rejects or resolves wrong. A local
 `pnpm publish:packages` authenticates with `npm login` (trusted publishing is CI-only).
+
+## 14. Postgres e2e on a shared machine — `pnpm pg:e2e`
+
+`pnpm pg:e2e` is the Node-side acceptance gate for the real Postgres driver (D-068): it builds
+four packages, boots a PGlite Wasm cluster, a TCP wire server and a production Nitro server,
+then drives the framework endpoints over HTTP. It needs no database server and no browser, but
+it is **not** cheap: one run is a multi-process tree, and three concurrent runs saturated a
+shared 16-core dev machine (loadavg 48/99/68) and froze the maintainer's desktop (issue #153).
+
+Rules on a shared host:
+
+- **One run at a time.** The harness takes an atomic per-host slot
+  (`$TMPDIR/facilis-pg-e2e.lock`) and refuses a second concurrent run, naming the holder's pid
+  and cwd. Queue with `FACILIS_PG_E2E_LOCK_WAIT_MS=<ms>`; a slot whose holder pid is gone is
+  reclaimed automatically, so a killed run does not wedge the next one.
+- **Never alongside the browser gates.** `pnpm ide:smoke` / `pnpm ide:smoke:multitab` boot
+  Chromium plus a WebContainer kernel per tab. Run the two gates one after the other.
+- **Check the load first** (`cat /proc/loadavg`; a 16-core box is busy well before 16).
+- Every phase has a budget that kills the whole process group and names the phase, and the
+  server runs under a watchdog that reaps its group when the harness dies — including SIGKILL,
+  where no handler and no `finally` can run. The guarantee table, the budgets and the reaper
+  recipe are in [POSTGRES.md](./POSTGRES.md) §6.1–§6.2.
+
+```bash
+cat /proc/loadavg
+pnpm pg:e2e                                # one run per host
+FACILIS_PG_E2E_LOCK_WAIT_MS=600000 pnpm pg:e2e   # queue for the slot instead of failing
+```
+

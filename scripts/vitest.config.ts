@@ -7,5 +7,9 @@ export default {
   test: {
     include: ["scripts/**/*.test.ts"],
     environment: "node",
+    // The lifecycle tests spawn real process trees and wait for a group to be reaped, which
+    // outruns Vitest's 5 s default on a loaded CI runner (issue #153).
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 };

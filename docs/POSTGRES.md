@@ -179,6 +179,67 @@ production, provisions that endpoint through the owner connection, runs
 register/login/session/todo over HTTP plus the row landing in the cluster — with no database
 server installed.
 
+### 6.1 What one run costs, and how it cleans up
+
+`pnpm pg:e2e` is not a unit test. One run builds four packages (`db`, `core`, `auth`, the
+example), boots a PGlite Wasm cluster, a TCP wire server (up to 10 connections) and a
+production Nitro server, and keeps them alive for the whole HTTP pass. Three concurrent runs
+saturated a shared 16-core dev machine (loadavg 48/99/68, spike 142) and froze the maintainer's
+desktop; the orphaned Nitro servers outlived the sessions that started them (issue #153).
+
+The harness now bounds itself:
+
+| Guarantee | Mechanism |
+| --- | --- |
+| One run per host | `scripts/e2e-lock.mjs`: an atomic `O_EXCL` slot at `$TMPDIR/facilis-pg-e2e.lock` recording the holder's pid, start time and cwd. A second run fails fast naming the holder; a slot whose pid is gone is reclaimed. |
+| No orphans, even on SIGKILL | The server runs under `scripts/e2e-watchdog.mjs`, spawned detached so it leads a process group holding the server and every descendant. The harness holds a stdin pipe it never writes to: EOF means the harness died, and the watchdog reaps the group. |
+| Signals clean up | `scripts/e2e-process.mjs` handles SIGTERM/SIGINT/SIGHUP: stop the group (SIGTERM, then SIGKILL after a grace period), close the admin pool, the wire server and the cluster, release the slot. `process.on("exit")` still kills the group synchronously. |
+| Every phase fails fast | Builds, provisioning, boot, each HTTP request and teardown have their own budget; a timeout kills the whole process group and names the phase. A run deadline backstops the lot. |
+
+Budgets are deliberately above the longest legitimate phase, so a slow machine is not mistaken
+for a hang; a timeout is a diagnostic, never a silent pass. Overrides (milliseconds):
+`FACILIS_PG_E2E_BUILD_TIMEOUT_MS` (600000 per package), `FACILIS_PG_E2E_PROVISION_TIMEOUT_MS`
+(180000), `FACILIS_PG_E2E_BOOT_TIMEOUT_MS` (90000), `FACILIS_PG_E2E_REQUEST_TIMEOUT_MS` (30000),
+`FACILIS_PG_E2E_TEARDOWN_TIMEOUT_MS` (20000), `FACILIS_PG_E2E_TIMEOUT_MS` (1500000 overall),
+and `FACILIS_E2E_WATCHDOG_GRACE_MS` (10000, the watchdog's SIGTERM-to-SIGKILL grace, kept above
+the server's own 5 s graceful close).
+
+Residual edge: SIGKILL of the watchdog *itself* still orphans its server — no in-process
+mechanism survives that. The host slot bounds how many such trees can exist; reap them with
+the recipe below.
+
+Known gap (pre-existing, unrelated to the lifecycle): the example enables email verification
+(D-156) and the harness runs it with `NODE_ENV=production` and no `FACILIS_EMAIL_WEBHOOK_URL`,
+so login answers `403 email_unverified` and the last five assertions fail. `origin/main`
+behaves identically; fixing it means deciding how an e2e verifies an address in production
+mode, which is a separate change.
+
+### 6.2 Safe recipe on a shared machine
+
+```bash
+cat /proc/loadavg          # a 16-core box is busy well before 16; pick a quiet moment
+pnpm pg:e2e                # one run at a time; the slot refuses a second concurrent run
+
+# Queue for the slot instead of failing (scripts, retries):
+FACILIS_PG_E2E_LOCK_WAIT_MS=600000 pnpm pg:e2e
+```
+
+Never run `pg:e2e` alongside `pnpm ide:smoke` / `pnpm ide:smoke:multitab`: the browser gates
+boot Chromium plus a WebContainer kernel per tab, and the two together are what saturate a
+shared host. Run them one after the other.
+
+A SIGKILLed run leaves its slot file behind; the next run reclaims it automatically once the
+holder pid is gone. To reap survivors of a killed run (this image may have no `ps`):
+
+```bash
+for f in /proc/[0-9]*/cmdline; do
+  if tr '\0' ' ' < "$f" 2>/dev/null | grep -q 'output/server/index\.mjs\|e2e-watchdog\.mjs'; then
+    pid=${f#/proc/}; pid=${pid%/cmdline}
+    echo "reaping $pid"; kill -9 "$pid" 2>/dev/null
+  fi
+done
+```
+
 ## 7. Limits
 
 - `snapshot()`/`loadSnapshot` are PGlite-only (dev persistence, D-052).
