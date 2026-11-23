@@ -2926,8 +2926,11 @@ When the starter project boots inside Vivari, the user runs **`vite dev`** — n
 too: the framework's in-process prerender pass (no worker, no native binary) emits per-route
 HTML, and the dev middleware serves it in the preview — declared routes show real HTML, the
 rest the SPA shell, with no Service Worker change. The `dev`/`build`/`preview` scripts are
-unchanged; the IDE's prerender action runs `npm run build` in a managed terminal (epic #79).
-In-VM build constraints and measured budgets: docs/DEV.md §6.2.
+unchanged; the IDE's prerender action runs `npm run build` in a managed terminal (epic #79,
+issue #85). A preview badge marks each response prerendered vs shell (the dev middleware's
+`x-facilis-render` marker); a build failure surfaces the framework code via `t()` and never
+stops the dev server. Acceptance: `pnpm ide:smoke:prerender` — the ~50-route fixture of §13
+risk 13. In-VM build constraints and measured budgets: docs/DEV.md §6.2.
 
 **What the starter's `package.json` must declare:**
 
@@ -3108,7 +3111,7 @@ Acceptance criteria are in §14.
 | 10 | **AI over-fetches (PTC tool runtime)** | Token cost explodes | Preloaded context summary; prompt: "aim ≤10k input tokens" |
 | 11 | **Role drift between config and DB** | Security hole | `role_permissions` written only by the release artifact's seed; validator rule 16 |
 | 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | `facilis()` mounts Nitro itself and `enforce: "pre"` delivers the options, so there is no registration order to get wrong (D-034); document in the template README |
-| 13 | **In-VM build/prerender budget** | A ~50-route prerender build could exhaust VM memory/CPU | In-process Arm C pass (D-202; #80 spike: a 3-route app builds in 1.0–1.8 s in-VM, the lightest arm); guest memory is unobservable today — host RSS documented (DEV.md §6.2); the prerender smoke gate carries a larger route fixture (#85) |
+| 13 | **In-VM build/prerender budget** | A ~50-route prerender build could exhaust VM memory/CPU | In-process Arm C pass (D-202; #80 spike: a 3-route app builds in 1.0–1.8 s in-VM, the lightest arm); guest memory is unobservable today — host RSS documented (DEV.md §6.2); measured by `pnpm ide:smoke:prerender` (#85): a 50-route full-stack build completes in 17.3 s in-VM with no measurable host-RSS peak |
 
 ---
 

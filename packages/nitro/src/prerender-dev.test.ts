@@ -101,6 +101,8 @@ describe("prerenderDevMiddleware", () => {
     expect(res.body).toContain('src="/src/main.tsx"');
     expect(res.body).not.toContain("/assets/");
     expect(res.headers["content-type"]).toContain("text/html");
+    // The IDE preview badge distinguishes prerendered from shell by this marker (#85).
+    expect(res.headers["x-facilis-render"]).toBe("prerender");
   });
 
   it("rewrites anchor hrefs to the forwarded preview base", () => {
@@ -127,6 +129,7 @@ describe("prerenderDevMiddleware", () => {
     });
     expect(nexted).toBe(true);
     expect(res.body).toBeNull();
+    expect(res.headers["x-facilis-render"]).toBeUndefined();
   });
 
   it("falls through when the build is stale", () => {

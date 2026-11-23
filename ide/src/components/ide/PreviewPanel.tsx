@@ -25,6 +25,7 @@ import { navigatePreviewFrame } from "./preview-frame-nav";
 import { hasSeparatePreviewOrigin, previewSandbox } from "@/vv/preview-sandbox";
 import type { PreviewTab } from "@/vv/controller";
 import { PreviewEmptyState, PreviewEmptyTab } from "./PreviewEmptyState";
+import { PreviewRenderBadge } from "./PreviewRenderBadge";
 
 function ToolButton({
   label,
@@ -270,6 +271,7 @@ export function PreviewPanel() {
           ))}
           {active && active.port == null && <PreviewEmptyTab />}
           {tabs.length === 0 && <PreviewEmptyState />}
+          {active !== null && <PreviewRenderBadge tab={active} />}
         </ResizablePanel>
         {snap.devtoolsOpen && (
           <>

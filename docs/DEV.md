@@ -449,10 +449,16 @@ no headless browser, no native binary — so the D-024 worker constraint does no
 | "Accidental rolldown" on vite 7 | nitro's transitive rolldown 1.3.3 binding boots without the emnapi overrides; the vite 7 path is unbroken |
 | Build-time fetch | loopback HTTP works in-VM; Node fetch has no CORS; external public endpoints to be verified by #83 |
 
-The ~50-route scaling question (SPEC §13 risks 5/13) is not answered by a 3-route spike; the
-prerender smoke gate (#85) carries a larger fixture. Preview hrefs: the dev middleware rewrites
-root-relative hrefs to the preview base (D-202) — a server href that cannot match the client
-basename is a React #418 hydration failure.
+The ~50-route scaling question (SPEC §13 risks 5/13) is answered by the prerender smoke gate
+(#85): `pnpm ide:smoke:prerender` (scripts/dev/smoke-prerender.mjs) writes a 50-public-page
+fixture through the kernel VFS, runs the IDE's "Prerender preview" action and asserts the
+in-VM build completes, the preview hydrates the stored HTML (badge + `x-facilis-render`),
+an undeclared route stays shell, and a declared auth-guarded route fails the build with
+`prerender-ineligible` while the dev server keeps serving. Measured: **50-route full-stack
+build 17.3 s in-VM**; the Chrome process tree (host RSS proxy) sits at ~4.4 GB before and
+after — the build itself adds no measurable peak; guest memory stays unobservable.
+Preview hrefs: the dev middleware rewrites root-relative hrefs to the preview base (D-202) —
+a server href that cannot match the client basename is a React #418 hydration failure.
 
 ## 7. Troubleshooting
 

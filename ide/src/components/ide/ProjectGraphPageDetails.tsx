@@ -11,6 +11,9 @@ import { Chip, DetailsSection, EmptyNote, NodeSelectChip } from "./ProjectGraphD
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
 import { ProjectGraphPrerenderToggle } from "./ProjectGraphPrerenderToggle";
 import { ProjectGraphSourcePreview } from "./ProjectGraphSourcePreview";
+import { runPrerenderPreview } from "@/facilis/prerender-run";
+import { useIde } from "./useIde";
+import { usePrerenderRun } from "./usePrerenderRun";
 
 export interface ProjectGraphPageDetailsProps {
   node: ProjectGraphNode;
@@ -38,9 +41,16 @@ export function ProjectGraphPageDetails({
   prerenderFact,
   onTogglePrerender,
 }: ProjectGraphPageDetailsProps) {
+  // Hooks run before the kind guard: the prerender action needs the controller and
+  // the build phase regardless of what this node turns out to be.
+  const { c } = useIde();
+  const run = usePrerenderRun();
   if (node.data.kind !== "page") return null;
   const page = node.data;
   const firstPath = page.routePaths[0];
+  const root = c.activeFolder?.rootPath ?? null;
+  const building =
+    run !== null && run.root === root && (run.phase === "installing" || run.phase === "building");
   const calls = details?.calls ?? [];
   // Links are interesting in both directions: a page that is only linked-to should not read as
   // "no explicit page links". The chip names the far endpoint.
@@ -69,6 +79,19 @@ export function ProjectGraphPageDetails({
           onClick={() => onOpenPreview(firstPath)}
         >
           {t("projectGraph.preview.openInPreview")}
+        </button>
+      )}
+      {firstPath !== undefined && root !== null && (
+        <button
+          type="button"
+          data-testid="prerender-run-action"
+          disabled={building}
+          className="w-full rounded border px-1.5 py-0.5 text-left text-[10px] hover:bg-accent disabled:opacity-50"
+          onClick={() => void runPrerenderPreview(c, root, firstPath)}
+        >
+          {run !== null && building
+            ? t(run.phase === "installing" ? "prerender.run.installing" : "prerender.run.building")
+            : t("prerender.run.action")}
         </button>
       )}
       {firstPath !== undefined && (

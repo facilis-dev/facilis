@@ -93,6 +93,9 @@ export function prerenderDevMiddleware(root: string): Connect.NextHandleFunction
     if (typeof prefix === "string" && prefix.startsWith("/")) {
       html = rewriteAnchorHrefs(html, prefix);
     }
+    // The IDE preview badge reads this marker (issue #85); the SW passes response
+    // headers through untouched, so no D-132 divergence is needed.
+    res.setHeader("x-facilis-render", "prerender");
     res.setHeader("content-type", "text/html;charset=utf-8");
     res.end(html);
   };
