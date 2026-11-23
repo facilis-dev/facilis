@@ -94,4 +94,18 @@ export const releasePreviewEn = {
   "releasePreview.codeLive.open": "Open db/schema.ts",
 
   "releasePreview.open": "Open {path}",
+
+  // ── prerender surface (D-202, issue #84) ───────────────────────────────────
+  "releasePreview.prerender.title": "Prerender surface",
+  "releasePreview.prerender.hint":
+    "Render mode per page: declared and eligible pages prerender at build time; the rest stay client-rendered.",
+  "releasePreview.prerender.empty": "No page on either side.",
+  "releasePreview.prerender.unavailable": "Prerender facts could not be read for this comparison.",
+  "releasePreview.prerender.mode.prerender": "prerender",
+  "releasePreview.prerender.mode.client": "client",
+  "releasePreview.prerender.absent": "absent",
+  "releasePreview.prerender.blocked": "declared, not eligible",
+  "releasePreview.prerender.added": "{count} added",
+  "releasePreview.prerender.removed": "{count} removed",
+  "releasePreview.prerender.changed": "{count} changed",
 } as const;

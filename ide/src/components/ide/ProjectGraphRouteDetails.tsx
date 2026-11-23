@@ -5,6 +5,7 @@ import { tableId } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphNode } from "@/facilis/graph-model";
 import type { RouteDetails } from "@/facilis/graph-details";
+import type { PrerenderedPageRef } from "@/facilis/graph-prerender";
 import {
   Chip,
   DetailsSection,
@@ -48,6 +49,8 @@ export interface ProjectGraphRouteDetailsProps {
   nodeLabel: (id: string) => string | null;
   onOpenFileAt: (file: string, line: number) => void;
   onSelectNode: (id: string) => void;
+  /** Pages that prerender against this API (declared ∧ eligible, D-202); public routes only. */
+  prerenderedPages: readonly PrerenderedPageRef[];
 }
 
 export function ProjectGraphRouteDetails({
@@ -57,6 +60,7 @@ export function ProjectGraphRouteDetails({
   nodeLabel,
   onOpenFileAt,
   onSelectNode,
+  prerenderedPages,
 }: ProjectGraphRouteDetailsProps) {
   if (node.data.kind !== "route") return null;
   const route = node.data;
@@ -86,6 +90,26 @@ export function ProjectGraphRouteDetails({
         })}
       </p>
       {route.description !== null && <p className="text-[10px]">{route.description}</p>}
+      {route.permission.length === 0 && (
+        <DetailsSection title={t("projectGraph.prerender.usedByPages")}>
+          {prerenderedPages.length === 0 ? (
+            <EmptyNote message={t("projectGraph.prerender.noUsedByPages")} />
+          ) : (
+            <ul className="flex flex-wrap gap-1">
+              {prerenderedPages.map((page) => (
+                <li key={page.id}>
+                  <NodeSelectChip
+                    id={page.id}
+                    text={page.path}
+                    nodeLabel={nodeLabel}
+                    onSelect={onSelectNode}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </DetailsSection>
+      )}
       {(inputs.length > 0 || route.pathParams.length > 0) && (
         <DetailsSection title={t("projectGraph.section.inputs")}>
           <div className="flex flex-wrap gap-1">

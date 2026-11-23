@@ -175,4 +175,24 @@ export const projectGraphEn = {
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
   "projectGraph.fk.onUpdate": "on update {action}",
+
+  // ── prerender (D-202, issue #84) ───────────────────────────────────────────
+  "projectGraph.prerender.title": "Prerender",
+  "projectGraph.prerender.toggle": "Prerender this page",
+  "projectGraph.prerender.toggleHint":
+    "Declare this page in the build-time prerender allowlist (public, static pages only).",
+  "projectGraph.prerender.eligible": "eligible",
+  "projectGraph.prerender.privateApi": "private-api: {route}",
+  "projectGraph.prerender.authGuarded": "auth-guarded",
+  "projectGraph.prerender.unknownSecurity": "unknown-security",
+  "projectGraph.prerender.dynamicPath": "dynamic-path",
+  "projectGraph.prerender.redirect": "redirect",
+  "projectGraph.prerender.noFact": "No prerender fact: the analyzer could not resolve this page.",
+  "projectGraph.prerender.blockedHint":
+    "Not eligible — the toggle stays off until every reason above is resolved.",
+  "projectGraph.prerender.declaredIneligible":
+    "Declared but not eligible: the build fails. Turn it off or resolve the reasons above.",
+  "projectGraph.prerender.writeFailed": "Could not update the prerender declaration: {error}",
+  "projectGraph.prerender.usedByPages": "Prerendered pages calling it",
+  "projectGraph.prerender.noUsedByPages": "No prerendered page calls this route.",
 } as const;

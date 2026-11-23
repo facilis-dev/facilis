@@ -462,6 +462,94 @@ async function main() {
     await tabA.screenshot(path.join(ARTIFACTS, "01-tab-a-todo.png"));
     await tabB.screenshot(path.join(ARTIFACTS, "02-tab-b-showcase.png"));
 
+    // ---- prerender toggle (D-202, issue #84): the static showcase has eligible pages ----
+    // The full round trip on the vite.config.ts surface: toggle on -> the declaration is
+    // written through the kernel VFS and the graph re-analyzes without a reload; toggle off
+    // -> the route is removed again. No facilis.config.ts exists in a static project.
+    await tabB.evaluate(
+      "(() => { const b = [...document.querySelectorAll('button')].find(" +
+        "(x) => (x.getAttribute('aria-label') || '') === 'Project graph');" +
+        " if (b) b.click(); })()",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "document.querySelectorAll('[data-testid=\"project-graph-page\"]').length > 0",
+        60000,
+        "B graph pages",
+      ),
+      "prerender: showcase graph renders pages",
+    );
+    // React Flow culls off-viewport nodes: fit the whole graph first so every page card
+    // is in the DOM, then select the features page (static, no calls -> eligible).
+    await tabB.evaluate(
+      "(() => { const b = [...document.querySelectorAll('button')].find(" +
+        "(x) => (x.getAttribute('aria-label') || '') === 'Fit to view');" +
+        " if (b) b.click(); })()",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "(() => { const n = [...document.querySelectorAll('[data-testid=\"project-graph-page\"]')]" +
+          ".find((x) => (x.innerText || '').includes('src/pages/features.tsx'));" +
+          " if (!n) return false; n.click(); return true; })()",
+        15000,
+        "B features node",
+      ),
+      "prerender: features page selected",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "(() => { const t = document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]');" +
+          " return Boolean(t) && !t.disabled && t.getAttribute('aria-checked') === 'false'; })()",
+        15000,
+        "B eligible toggle",
+      ),
+      "prerender: eligible page offers an enabled, off toggle",
+    );
+    await tabB.evaluate(
+      "document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]').click()",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "(() => { const t = document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]');" +
+          " return Boolean(t) && t.getAttribute('aria-checked') === 'true'; })()",
+        30000,
+        "B toggle on",
+      ),
+      "prerender: toggle on re-analyzes without a reload",
+    );
+    const viteOn = await readText(tabB, BETA + "/vite.config.ts");
+    check(
+      typeof viteOn === "string" &&
+        viteOn.includes('import { prerender } from "@facilis.dev/nitro/prerender";') &&
+        viteOn.includes('routes: ["/features"]'),
+      "prerender: declaration written to vite.config.ts through the kernel",
+      (viteOn || "").slice(0, 200),
+    );
+    await tabB.screenshot(path.join(ARTIFACTS, "02b-prerender-on.png"));
+    await tabB.evaluate(
+      "document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]').click()",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "(() => { const t = document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]');" +
+          " return Boolean(t) && t.getAttribute('aria-checked') === 'false'; })()",
+        30000,
+        "B toggle off",
+      ),
+      "prerender: toggle off removes the declaration",
+    );
+    const viteOff = await readText(tabB, BETA + "/vite.config.ts");
+    check(
+      typeof viteOff === "string" && viteOff.includes("routes: []"),
+      "prerender: allowlist empty again after toggle-off",
+      (viteOff || "").slice(0, 200),
+    );
+
     // ---- one project, one tab ---------------------------------------------
     const tabC = await openPage(chrome.client, projectUrl(dev.url, ALPHA));
     tabs.push(tabC);

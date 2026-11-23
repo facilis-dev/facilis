@@ -94,4 +94,19 @@ export const releasePreviewIt: Partial<Record<MessageKey, string>> = {
   "releasePreview.codeLive.open": "Apri db/schema.ts",
 
   "releasePreview.open": "Apri {path}",
+
+  // ── prerender surface (D-202, issue #84) ───────────────────────────────────
+  "releasePreview.prerender.title": "Superficie di prerender",
+  "releasePreview.prerender.hint":
+    "Modalità di rendering per pagina: le pagine dichiarate e idonee vengono prerenderizzate in build; le altre restano lato client.",
+  "releasePreview.prerender.empty": "Nessuna pagina su nessuno dei due lati.",
+  "releasePreview.prerender.unavailable":
+    "Impossibile leggere i fact di prerender per questo confronto.",
+  "releasePreview.prerender.mode.prerender": "prerender",
+  "releasePreview.prerender.mode.client": "client",
+  "releasePreview.prerender.absent": "assente",
+  "releasePreview.prerender.blocked": "dichiarata, non idonea",
+  "releasePreview.prerender.added": "{count} aggiunte",
+  "releasePreview.prerender.removed": "{count} rimosse",
+  "releasePreview.prerender.changed": "{count} modificate",
 };

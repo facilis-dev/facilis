@@ -176,4 +176,26 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.fk.edge": "{columns} → {table}.{references}",
   "projectGraph.fk.onDelete": "on delete {action}",
   "projectGraph.fk.onUpdate": "on update {action}",
+
+  // ── prerender (D-202, issue #84) ───────────────────────────────────────────
+  "projectGraph.prerender.title": "Prerender",
+  "projectGraph.prerender.toggle": "Prerenderizza questa pagina",
+  "projectGraph.prerender.toggleHint":
+    "Dichiara questa pagina nell’allowlist di prerender in build (solo pagine pubbliche e statiche).",
+  "projectGraph.prerender.eligible": "idonea",
+  "projectGraph.prerender.privateApi": "private-api: {route}",
+  "projectGraph.prerender.authGuarded": "auth-guarded",
+  "projectGraph.prerender.unknownSecurity": "unknown-security",
+  "projectGraph.prerender.dynamicPath": "dynamic-path",
+  "projectGraph.prerender.redirect": "redirect",
+  "projectGraph.prerender.noFact":
+    "Nessun fact di prerender: l’analizzatore non ha risolto questa pagina.",
+  "projectGraph.prerender.blockedHint":
+    "Non idonea — l’interruttore resta spento finché ogni motivo sopra non è risolto.",
+  "projectGraph.prerender.declaredIneligible":
+    "Dichiarata ma non idonea: la build fallisce. Disattivala o risolvi i motivi sopra.",
+  "projectGraph.prerender.writeFailed":
+    "Impossibile aggiornare la dichiarazione di prerender: {error}",
+  "projectGraph.prerender.usedByPages": "Pagine prerenderizzate che la chiamano",
+  "projectGraph.prerender.noUsedByPages": "Nessuna pagina prerenderizzata chiama questa route.",
 };

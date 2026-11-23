@@ -156,6 +156,16 @@ interface SourceCacheEntry {
 
 let sourceCache: SourceCacheEntry | null = null;
 
+/**
+ * Drop the cached source read so the next analysis re-reads the VFS. A studio write (the
+ * prerender toggle, issue #84) lands before the debounced re-index publishes a new files
+ * array, and the cache keys on that array's identity — without this the refresh would
+ * re-analyze the stale bytes.
+ */
+export function invalidateProjectSources(): void {
+  sourceCache = null;
+}
+
 function activeRoot(controller: IdeController): string | null {
   const snapshot = controller.getSnapshot();
   return (

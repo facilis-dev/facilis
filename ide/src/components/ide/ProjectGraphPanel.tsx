@@ -22,6 +22,7 @@ import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { ProjectGraphToolbar } from "./ProjectGraphToolbar";
 import { useIde } from "./useIde";
+import { usePrerenderToggle } from "./usePrerenderToggle";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
 
@@ -45,6 +46,9 @@ export function ProjectGraphPanel() {
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
+  const refresh = () => setNonce((value) => value + 1);
+  // The prerender toggle writes the declaration, then re-analyzes without a reload (#84).
+  const togglePrerender = usePrerenderToggle(c, root, refresh);
 
   // Analysis: on mount, on refresh, and whenever the active project changes. The index gate
   // is one-shot: after it opens, a later edit/import does not re-run the analysis per keystroke.
@@ -108,6 +112,7 @@ export function ProjectGraphPanel() {
   }, [focus, fullscreen]);
 
   const analysis = result !== null && result.ok ? result.analysis : null;
+  const prerenderFacts = analysis?.prerender ?? [];
   const view = useMemo(
     () =>
       analysis === null
@@ -201,7 +206,7 @@ export function ProjectGraphPanel() {
 
   let body: React.ReactNode = null;
   if (state !== null) {
-    body = <ProjectGraphStateView state={state} onRefresh={() => setNonce((value) => value + 1)} />;
+    body = <ProjectGraphStateView state={state} onRefresh={refresh} />;
   } else if (view !== null) {
     body = (
       <ProjectGraphCanvas
@@ -251,7 +256,7 @@ export function ProjectGraphPanel() {
           state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
         }
         onSave={graph.saveNow}
-        onRefresh={() => setNonce((value) => value + 1)}
+        onRefresh={refresh}
         refreshing={loading}
         saveState={graph.saveState}
         saveError={graph.saveError}
@@ -276,6 +281,10 @@ export function ProjectGraphPanel() {
             onOpenFileAt={openFileAt}
             onOpenPreview={(path) => openPageInPreview(c, path)}
             onSelectNode={selectNode}
+            nodes={view?.nodes ?? []}
+            prerenderFacts={prerenderFacts}
+            graphEdges={analysis?.graph.edges ?? []}
+            onTogglePrerender={togglePrerender}
           />
         )}
       </div>

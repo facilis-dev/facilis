@@ -3,10 +3,12 @@
 // the per-kind section modules, so no one file grows past the limit as sections are added.
 
 import X from "~icons/lucide/x";
+import type { GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
+import { prerenderFactForPage, prerenderedPagesForRoute } from "@/facilis/graph-prerender";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
@@ -23,6 +25,12 @@ export interface ProjectGraphInspectorProps {
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
+  /** The drawn page nodes, for the route satellite's prerendered-page join (D-202). */
+  nodes: readonly ProjectGraphNode[];
+  prerenderFacts: readonly PrerenderEligibilityFact[];
+  /** The unfiltered analyzer edges: hiding an edge kind must not hide prerender callers. */
+  graphEdges: readonly GraphEdge[];
+  onTogglePrerender: (path: string, enabled: boolean) => Promise<boolean>;
 }
 
 export function ProjectGraphInspector({
@@ -35,6 +43,10 @@ export function ProjectGraphInspector({
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
+  nodes,
+  prerenderFacts,
+  graphEdges,
+  onTogglePrerender,
 }: ProjectGraphInspectorProps) {
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
   return (
@@ -61,6 +73,7 @@ export function ProjectGraphInspector({
           <ProjectGraphRouteDetails
             {...shared}
             details={details?.kind === "route" ? details.route : null}
+            prerenderedPages={prerenderedPagesForRoute(prerenderFacts, nodes, graphEdges, node.id)}
           />
         )}
         {node.data.kind === "table" && (
@@ -76,6 +89,8 @@ export function ProjectGraphInspector({
             edges={edges}
             details={details?.kind === "page" ? details.page : null}
             onOpenPreview={onOpenPreview}
+            prerenderFact={prerenderFactForPage(prerenderFacts, node.data.routePaths)}
+            onTogglePrerender={onTogglePrerender}
           />
         )}
         {node.data.kind === "view" && (

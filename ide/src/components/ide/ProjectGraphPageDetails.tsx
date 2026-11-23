@@ -3,11 +3,13 @@
 // sit here is gone on owner request (D-176): at inspector width it read as the very structure the
 // miniature exists to replace.
 
+import type { PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
 import type { PageDetails } from "@/facilis/graph-details";
 import { Chip, DetailsSection, EmptyNote, NodeSelectChip } from "./ProjectGraphDetailsSection";
 import { ProjectGraphPageSketch } from "./ProjectGraphPageSketch";
+import { ProjectGraphPrerenderToggle } from "./ProjectGraphPrerenderToggle";
 import { ProjectGraphSourcePreview } from "./ProjectGraphSourcePreview";
 
 export interface ProjectGraphPageDetailsProps {
@@ -19,6 +21,9 @@ export interface ProjectGraphPageDetailsProps {
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
+  /** The analyzer's eligibility fact for the page's first route path (D-202). */
+  prerenderFact: PrerenderEligibilityFact | null;
+  onTogglePrerender: (path: string, enabled: boolean) => Promise<boolean>;
 }
 
 export function ProjectGraphPageDetails({
@@ -30,6 +35,8 @@ export function ProjectGraphPageDetails({
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
+  prerenderFact,
+  onTogglePrerender,
 }: ProjectGraphPageDetailsProps) {
   if (node.data.kind !== "page") return null;
   const page = node.data;
@@ -63,6 +70,13 @@ export function ProjectGraphPageDetails({
         >
           {t("projectGraph.preview.openInPreview")}
         </button>
+      )}
+      {firstPath !== undefined && (
+        <ProjectGraphPrerenderToggle
+          path={prerenderFact?.path ?? firstPath}
+          fact={prerenderFact}
+          onToggle={onTogglePrerender}
+        />
       )}
       <DetailsSection title={t("projectGraph.preview.title")}>
         {page.preview === null || page.preview.nodes.length === 0 ? (

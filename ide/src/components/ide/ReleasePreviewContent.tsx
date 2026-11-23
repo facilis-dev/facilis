@@ -15,8 +15,10 @@ import {
   type ReleasePreviewView,
 } from "@/facilis/release-preview-model";
 import type { ReleaseLensLoad, ReleaseLoadProblem } from "@/facilis/release-preview-load";
+import type { PrerenderSurfaceDiff } from "@/facilis/release-prerender";
 import type { GitRef, RiskClass } from "@/facilis/release-engine";
 import { RiskBadge, Section } from "./ReleasePreviewChrome";
+import { ReleasePreviewPrerender } from "./ReleasePreviewPrerender";
 import { ReleaseDiffSections } from "./ReleasePreviewSections";
 
 export type CodeLiveState =
@@ -111,7 +113,13 @@ export function ReleasePreviewContent({
         <Problem problem={load.problem} problemRef={load.problemRef} onRetry={onRetry} />
       )}
       {view !== null && load?.problem === null && (
-        <PreviewBody view={view} linksDisabled={linksDisabled} onOpenSchema={onOpenSchema} onOpenFile={onOpenFile} />
+        <PreviewBody
+          view={view}
+          linksDisabled={linksDisabled}
+          onOpenSchema={onOpenSchema}
+          onOpenFile={onOpenFile}
+          prerenderDiff={load?.prerenderDiff ?? null}
+        />
       )}
     </div>
   );
@@ -122,11 +130,13 @@ function PreviewBody({
   linksDisabled,
   onOpenSchema,
   onOpenFile,
+  prerenderDiff,
 }: {
   view: ReleasePreviewView;
   linksDisabled: boolean;
   onOpenSchema: () => void;
   onOpenFile: (path: string) => void;
+  prerenderDiff: PrerenderSurfaceDiff | null;
 }) {
   return (
     <div className="space-y-2">
@@ -149,6 +159,9 @@ function PreviewBody({
           onOpenFile={onOpenFile}
         />
       )}
+      {/* A release can change only the prerender allowlist: the surface shows even when the
+          schema/API diff is empty (issue #84). */}
+      <ReleasePreviewPrerender diff={prerenderDiff} />
     </div>
   );
 }
@@ -162,7 +175,9 @@ function RiskSummary({ view }: { view: ReleasePreviewView }) {
   return (
     <Section title={rt("releasePreview.summary.title")}>
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground">{rt("releasePreview.summary.risk")}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {rt("releasePreview.summary.risk")}
+        </span>
         <RiskBadge risk={view.risk} />
       </div>
       <div className="flex flex-wrap gap-2">
@@ -192,13 +207,7 @@ function RiskSummary({ view }: { view: ReleasePreviewView }) {
   );
 }
 
-function CodeLiveCard({
-  state,
-  onOpenSchema,
-}: {
-  state: CodeLiveState;
-  onOpenSchema: () => void;
-}) {
+function CodeLiveCard({ state, onOpenSchema }: { state: CodeLiveState; onOpenSchema: () => void }) {
   return (
     <section className="rounded-md border bg-background/40 p-2">
       <div className="flex items-center gap-1.5 text-[11px] font-medium">
