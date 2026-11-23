@@ -7,6 +7,9 @@ import type { Analysis } from "@facilis.dev/analyze";
 
 import { loadNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
+import { facilisPrerenderServing } from "./prerender-dev.ts";
+import { facilisPrerenderEngine } from "./prerender-engine.ts";
+import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
 import type { RouteMetadataMap } from "./types.ts";
@@ -77,6 +80,14 @@ export function facilis(): FacilisPlugins {
     return true;
   };
 
+  const prerenderEngine = facilisPrerenderEngine({
+    mode: "full-stack",
+    getAnalysis: () => {
+      analysis ??= analyzeProjectRoutes(root);
+      return analysis;
+    },
+  });
+
   const plugin: FacilisVitePlugin = {
     name: "facilis",
     enforce: "pre",
@@ -131,8 +142,20 @@ export function facilis(): FacilisPlugins {
   };
 
   // The dev-only metrics client (D-200) rides along in serve mode; `apply: "serve"`
-  // keeps it out of every production build.
-  return [plugin, facilisDevMetrics(), ...nitro()];
+  // keeps it out of every production build. The prerender gate, engine and serving (D-202)
+  // share the one cached analysis so no companion adds a second analyzer run.
+  const getAnalysis = (): Analysis | undefined => {
+    analysis ??= analyzeProjectRoutes(root);
+    return analysis;
+  };
+  return [
+    plugin,
+    facilisDevMetrics(),
+    facilisPrerenderGate(getAnalysis),
+    prerenderEngine.plugin,
+    facilisPrerenderServing(() => root),
+    ...nitro(),
+  ];
 }
 
 /** True for a file the analyzer reads, excluding generated and dependency directories. */

@@ -94,8 +94,19 @@ function applyLocale(locale: Locale): void {
   for (const listener of listeners) listener();
 }
 
-/** Applies the stored or browser-preferred locale before the first render. */
+/**
+ * Resets to the default locale without reading browser state, so it is safe during a server
+ * render (D-202 §4). The catalogues are module constants here: there is nothing to register.
+ */
 export function initI18n(): void {
+  activeLocale = DEFAULT_LOCALE;
+}
+
+/**
+ * Client-only: applies the stored or browser-preferred locale. Runs before a client-only
+ * render, or in a post-hydration effect so the first client render matches the server HTML.
+ */
+export function applyStoredLocale(): void {
   const languages = typeof navigator === "undefined" ? [] : navigator.languages;
   applyLocale(resolvePreferredLocale(readStoredLocale(), languages));
 }

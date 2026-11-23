@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api, appBasePath, errorMessageKey } from "./api.ts";
+import { PrerenderDataProvider, type PrerenderIsland } from "./prerender.tsx";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -8,9 +11,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+/** Renders the provider once so the api() island lookup sees `data`. */
+function setIsland(data: PrerenderIsland | null): void {
+  renderToStaticMarkup(createElement(PrerenderDataProvider, { data, children: null }));
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  // The island is module state: clear it so island tests cannot leak into the fetch tests.
+  setIsland(null);
 });
 
 describe("appBasePath", () => {
@@ -130,5 +140,63 @@ describe("errorMessageKey", () => {
     expect(errorMessageKey(new ApiError("teapot", 418))).toBe("errors.internal_error");
     expect(errorMessageKey(new Error("boom"))).toBe("errors.internal_error");
     expect(errorMessageKey(undefined)).toBe("errors.internal_error");
+  });
+});
+
+describe("api prerender island", () => {
+  it("answers a GET from the island without calling fetch", async () => {
+    setIsland({ "/api/auth/session": { authenticated: true } });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api<{ authenticated: boolean }>("/api/auth/session")).resolves.toEqual({
+      authenticated: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("treats an explicit GET like the default method", async () => {
+    setIsland({ "/api/auth/session": { authenticated: true } });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/api/auth/session", { method: "GET" })).resolves.toEqual({ authenticated: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("hands out clones so a caller cannot mutate the island", async () => {
+    setIsland({ "/api/auth/session": { roles: ["user"] } });
+    vi.stubGlobal("fetch", vi.fn());
+
+    const first = await api<{ roles: string[] }>("/api/auth/session");
+    first.roles.push("admin");
+    await expect(api<{ roles: string[] }>("/api/auth/session")).resolves.toEqual({ roles: ["user"] });
+  });
+
+  it("fetches when the island misses the path", async () => {
+    setIsland({ "/api/other": { ok: true } });
+    const fetchMock = vi.fn(async () => jsonResponse({ authenticated: false }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/api/auth/session")).resolves.toEqual({ authenticated: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches when there is no island at all", async () => {
+    setIsland(null);
+    const fetchMock = vi.fn(async () => jsonResponse({ authenticated: false }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/api/auth/session")).resolves.toEqual({ authenticated: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("always fetches non-GET requests even on an island hit", async () => {
+    setIsland({ "/api/auth/session": { ok: true } });
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api("/api/auth/session", { method: "POST" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

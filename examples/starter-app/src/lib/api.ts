@@ -5,6 +5,8 @@
  * page. One place translates HTTP/JSON into that contract so pages only see ApiError.
  */
 
+import { hasIslandResponse, readIslandResponse } from "./prerender.tsx";
+
 const PREVIEW_PATH = /^\/preview\/([^/]+)/;
 
 const KNOWN_ERROR_CODES = new Set([
@@ -72,6 +74,11 @@ async function readErrorBody(response: Response): Promise<{ code: string; detail
  * the same-origin session cookie are added here. A 204 (or an empty body) resolves to undefined.
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // A prerendered page already carries this GET's response in the island: reuse it instead of
+  // refetching during hydration (D-202). Non-GET requests always go to the network.
+  if ((init.method ?? "GET").toUpperCase() === "GET" && hasIslandResponse(path)) {
+    return structuredClone(readIslandResponse(path)) as T;
+  }
   const headers = new Headers(init.headers);
   if (!headers.has("accept")) headers.set("accept", "application/json");
   const hasBody = init.body !== undefined && init.body !== null;

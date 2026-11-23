@@ -10,7 +10,9 @@
 // or a failed analysis is data the panel renders, never an exception that reaches the editor.
 
 import type { FsClient } from "isomorphic-git";
+import type { PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import type { IdeController } from "@/vv/controller";
+import { analysisSizeError, selectAnalysisFiles } from "./analyze-files";
 import type { GitRef, ReleaseRouteFact, ReleaseSnapshot } from "./release-engine";
 import type { ReleaseRefInventory } from "./release-preview-model";
 import { mergeRouteMetadata, routesFromFiles } from "./release-routes";
@@ -183,6 +185,46 @@ async function assembleSnapshot(source: SnapshotSource): Promise<ReleaseSnapshot
 /** Only the files a snapshot reads: the schema DSL sources and the route modules. */
 function relevantFiles(files: readonly string[]): string[] {
   return files.filter((file) => isSchemaSourcePath(file) || file.startsWith(ROUTES_DIR));
+}
+
+/**
+ * The prerender eligibility facts at `ref` (D-202, issue #84): the full analysis surface,
+ * not just the schema DSL — eligibility needs the route table, the pages and every API's
+ * security. Null when the ref, the tree or the analysis is unreadable: the lens renders
+ * "unavailable", never a guess (D-092).
+ */
+export async function readPrerenderFactsAt(
+  root: string,
+  ref: string,
+  fs: FsClient,
+  analyze: SchemaAnalyzer,
+): Promise<readonly PrerenderEligibilityFact[] | null> {
+  try {
+    const git = await loadGit();
+    const oid = await git.resolveRef({ fs, dir: root, ref });
+    const files = await git.listFiles({ fs, dir: root, ref: oid });
+    const selection = selectAnalysisFiles(
+      files.map((file) => root + "/" + file),
+      root,
+    );
+    if (!selection.ok) return null;
+    const sources = new Map<string, string>();
+    let totalChars = 0;
+    for (const file of selection.paths) {
+      // One read at a time: a fan-out floods the kernel worker's single-threaded fs queue
+      // (the release-schema.ts precedent).
+      // oxlint-disable-next-line no-await-in-loop
+      const { blob } = await git.readBlob({ fs, dir: root, oid, filepath: file });
+      const text = new TextDecoder().decode(blob);
+      totalChars += text.length;
+      if (analysisSizeError(totalChars) !== null) return null;
+      sources.set(file, text);
+    }
+    const result = await analyze(sources);
+    return result.ok ? result.analysis.prerender : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── lazy git loading ──────────────────────────────────────────────────────────────

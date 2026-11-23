@@ -1,0 +1,625 @@
+{
+  "ok": true,
+  "startedAt": "2026-11-23T13:40:00.327Z",
+  "finishedAt": "2026-11-23T13:42:42.723Z",
+  "dir": "/home/user/projects/spike-prerender-mwtbc0jo",
+  "timings": {
+    "kernelOnlineMs": 2042,
+    "install_vite7_ms": 18041,
+    "install_vite8_ms": 6022
+  },
+  "checks": [
+    {
+      "ok": true,
+      "label": "kernel online",
+      "detail": "2042ms"
+    },
+    {
+      "ok": true,
+      "label": "spike project materialized",
+      "detail": "/home/user/projects/spike-prerender-mwtbc0jo"
+    },
+    {
+      "ok": true,
+      "label": "vite7: npm install in-VM",
+      "detail": "18041ms, exit 0"
+    },
+    {
+      "ok": true,
+      "label": "vite7: in-VM resolutions",
+      "detail": "{\"vite\":\"vite@7.3.8\",\"rollup\":\"@rollup/wasm-node@4.68.8\",\"esbuild\":\"esbuild-wasm@0.28.2\",\"rolldown\":\"rolldown@1.3.3\",\"nitro\":\"nitro@3.0.260903-beta\",\"@rolldown/binding-wasm32-wasi\":\"@rolldown/binding-wasm32-wasi@1.3.3\"}"
+    },
+    {
+      "ok": true,
+      "label": "vite7: default minifier build probe",
+      "detail": "ok"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: vite build in-VM",
+      "detail": "6018ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: prerendered HTML facts",
+      "detail": ".output/public/index.html + .output/public/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-a: /app stays a client-only shell",
+      "detail": "mode=client"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: vite build in-VM",
+      "detail": "3011ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: prerendered HTML facts",
+      "detail": "dist/index.html + dist/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-b: /app stays a client-only shell",
+      "detail": "mode=client"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: vite build in-VM",
+      "detail": "3010ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: prerendered HTML facts",
+      "detail": "dist/index.html + dist/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite7-arm-c: /app stays a client-only shell",
+      "detail": "mode=client"
+    },
+    {
+      "ok": true,
+      "label": "vite8: npm install in-VM",
+      "detail": "6022ms, exit 0"
+    },
+    {
+      "ok": true,
+      "label": "vite8: in-VM resolutions",
+      "detail": "{\"vite\":\"vite@8.3.5\",\"rollup\":\"<absent>\",\"esbuild\":\"<absent>\",\"rolldown\":\"rolldown@1.2.15\",\"nitro\":\"nitro@3.0.260903-beta\",\"@rolldown/binding-wasm32-wasi\":\"@rolldown/binding-wasm32-wasi@1.2.19\"}"
+    },
+    {
+      "ok": true,
+      "label": "vite8: default minifier build probe",
+      "detail": "ok"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: vite build in-VM",
+      "detail": "3013ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: prerendered HTML facts",
+      "detail": ".output/public/index.html + .output/public/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-a: /app stays a client-only shell",
+      "detail": "mode=client"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: vite build in-VM",
+      "detail": "3016ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: prerendered HTML facts",
+      "detail": "dist/index.html + dist/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-b: /app stays a client-only shell",
+      "detail": "mode=client"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: vite build in-VM",
+      "detail": "1531ms, exit 0, peakRss 64MB, heap 20MB"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: prerendered HTML facts",
+      "detail": "dist/index.html + dist/stats/index.html, no /app page"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: preview server up in-VM (4173)",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: served raw HTML carries content",
+      "detail": ""
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: / hydrates, zero recoverable errors",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: /stats hydrates with prerendered data",
+      "detail": "[]"
+    },
+    {
+      "ok": true,
+      "label": "vite8-arm-c: /app stays a client-only shell",
+      "detail": "mode=client"
+    }
+  ],
+  "results": [
+    {
+      "variant": "vite7",
+      "arm": "a",
+      "buildExit": 0,
+      "buildWallMs": 6018,
+      "build": {
+        "arm": "a",
+        "vite": "7.3.8",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:40:28.344Z",
+        "wallMs": 4290,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@7.3.8",
+        "rollup": "@rollup/wasm-node@4.68.8",
+        "esbuild": "esbuild-wasm@0.28.2",
+        "rolldown": "rolldown@1.3.3",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.3.3"
+      },
+      "html": {
+        "home": ".output/public/index.html",
+        "stats": ".output/public/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /><title>Home — Prerender Spi",
+        "statsHead": "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /><title>Stats — Prerender Sp"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    },
+    {
+      "variant": "vite7",
+      "arm": "b",
+      "buildExit": 0,
+      "buildWallMs": 3011,
+      "build": {
+        "arm": "b",
+        "vite": "7.3.8",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:40:52.832Z",
+        "wallMs": 2196,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@7.3.8",
+        "rollup": "@rollup/wasm-node@4.68.8",
+        "esbuild": "esbuild-wasm@0.28.2",
+        "rolldown": "rolldown@1.3.3",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.3.3"
+      },
+      "html": {
+        "home": "dist/index.html",
+        "stats": "dist/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" >\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" >\n    <title>Hom",
+        "statsHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" >\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" >\n    <title>Sta"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    },
+    {
+      "variant": "vite7",
+      "arm": "c",
+      "buildExit": 0,
+      "buildWallMs": 3010,
+      "build": {
+        "arm": "c",
+        "vite": "7.3.8",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:41:14.225Z",
+        "wallMs": 1781,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@7.3.8",
+        "rollup": "@rollup/wasm-node@4.68.8",
+        "esbuild": "esbuild-wasm@0.28.2",
+        "rolldown": "rolldown@1.3.3",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.3.3"
+      },
+      "html": {
+        "home": "dist/index.html",
+        "stats": "dist/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>H",
+        "statsHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>S"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    },
+    {
+      "variant": "vite8",
+      "arm": "a",
+      "buildExit": 0,
+      "buildWallMs": 3013,
+      "build": {
+        "arm": "a",
+        "vite": "8.3.5",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:41:40.305Z",
+        "wallMs": 2146,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@8.3.5",
+        "rollup": "<absent>",
+        "esbuild": "<absent>",
+        "rolldown": "rolldown@1.2.15",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.2.19"
+      },
+      "html": {
+        "home": ".output/public/index.html",
+        "stats": ".output/public/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /><title>Home — Prerender Spi",
+        "statsHead": "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /><title>Stats — Prerender Sp"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    },
+    {
+      "variant": "vite8",
+      "arm": "b",
+      "buildExit": 0,
+      "buildWallMs": 3016,
+      "build": {
+        "arm": "b",
+        "vite": "8.3.5",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:42:01.780Z",
+        "wallMs": 1061,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@8.3.5",
+        "rollup": "<absent>",
+        "esbuild": "<absent>",
+        "rolldown": "rolldown@1.2.15",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.2.19"
+      },
+      "html": {
+        "home": "dist/index.html",
+        "stats": "dist/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" >\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" >\n    <title>Hom",
+        "statsHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" >\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" >\n    <title>Sta"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    },
+    {
+      "variant": "vite8",
+      "arm": "c",
+      "buildExit": 0,
+      "buildWallMs": 1531,
+      "build": {
+        "arm": "c",
+        "vite": "8.3.5",
+        "builderApi": "function",
+        "node": "v24.18.0",
+        "arch": "wasm32",
+        "platform": "linux",
+        "startedAt": "2026-11-23T13:42:23.257Z",
+        "wallMs": 1012,
+        "peakRssMb": 64,
+        "peakHeapUsedMb": 20,
+        "error": null
+      },
+      "minifyOk": true,
+      "resolutions": {
+        "vite": "vite@8.3.5",
+        "rollup": "<absent>",
+        "esbuild": "<absent>",
+        "rolldown": "rolldown@1.2.15",
+        "nitro": "nitro@3.0.260903-beta",
+        "@rolldown/binding-wasm32-wasi": "@rolldown/binding-wasm32-wasi@1.2.19"
+      },
+      "html": {
+        "home": "dist/index.html",
+        "stats": "dist/stats/index.html",
+        "app": null,
+        "problems": []
+      },
+      "raw": {
+        "ok": true,
+        "homeHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>H",
+        "statsHead": "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>S"
+      },
+      "portFreed": true,
+      "hydration": {
+        "home": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Home — Prerender Spike"
+        },
+        "stats": {
+          "ok": true,
+          "mode": "hydrate",
+          "errors": [],
+          "title": "Stats — Prerender Spike"
+        },
+        "app": {
+          "ok": true,
+          "mode": "client",
+          "errors": [],
+          "title": "Prerender Spike"
+        }
+      }
+    }
+  ]
+}

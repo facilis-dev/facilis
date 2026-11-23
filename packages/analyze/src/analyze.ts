@@ -1,5 +1,11 @@
 import { buildPageFacts, type TransportSpec } from "./passes/clients.ts";
 import { buildConfigFacts } from "./passes/config.ts";
+import { buildPrerenderFacts } from "./passes/prerender.ts";
+import {
+  NO_PRERENDER_DECLARATION,
+  readVitePrerenderDeclaration,
+  type PrerenderDeclaration,
+} from "./passes/prerender-vite.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
 import { buildJobFacts } from "./passes/jobs.ts";
@@ -17,7 +23,7 @@ import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
 import type { Parser } from "./parser.ts";
 import { computeRevision } from "./revision.ts";
-import { diagnostic } from "./diagnostics.ts";
+import { diagnostic, error } from "./diagnostics.ts";
 import type { Analysis, Diagnostic } from "./types.ts";
 
 export interface AnalyzeInput {
@@ -61,6 +67,19 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
   const locales = readLocaleCatalogs(graph);
   const pages = buildPageFacts(graph, routes.routes, input.transport ?? DEFAULT_TRANSPORT);
   const screens = buildScreens(graph, pages.pages);
+  // D-202: full-stack projects declare the allowlist in facilis.config.ts; static templates
+  // (no config file) declare it as a prerender() plugin option in vite.config.ts.
+  const viteDeclaration = config.facts.source === null ? readVitePrerenderDeclaration(graph) : null;
+  const prerenderDeclaration: PrerenderDeclaration =
+    config.facts.source !== null
+      ? { ...config.facts.prerender, source: config.facts.source }
+      : (viteDeclaration ?? NO_PRERENDER_DECLARATION);
+  const prerender = buildPrerenderFacts(
+    graph,
+    prerenderDeclaration,
+    routeRelations.routes,
+    pages.pages,
+  );
   const fileFacts = buildFileFacts(graph);
 
   const diagnostics: Diagnostic[] = [];
@@ -80,6 +99,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...jobRelations.diagnostics,
       ...locales.diagnostics,
       ...pages.diagnostics,
+      ...prerender.diagnostics,
+      ...(viteDeclaration?.unknown ?? []).map((fact) => error(fact.code, fact.reason, fact.source)),
       ...routeSystemTableDiagnostics(routes.routes, schema.tables),
       ...workflows.diagnostics,
       ...workflowTables.diagnostics,
@@ -100,6 +121,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     relations: schema.relations,
     views: views.views,
     pages: pages.pages,
+    prerender: prerender.facts,
     workflows: workflows.workflows,
     jobs: jobs.jobs,
     jobRelations: jobRelations.relations,

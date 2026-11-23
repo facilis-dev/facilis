@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.output/
+.spike/
+.vite-cache/
+package-lock.json
+package.json

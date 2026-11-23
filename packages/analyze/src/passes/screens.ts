@@ -25,7 +25,7 @@ function resolvePage(graph: ModuleGraph, originFile: string, name: string): stri
 }
 
 /** First component in a route element that resolves to a file under src/pages/. */
-function pagePathOfElement(
+export function pagePathOfElement(
   graph: ModuleGraph,
   originFile: string,
   element: AstNode,
@@ -40,7 +40,7 @@ function pagePathOfElement(
   return found;
 }
 
-function appFileOf(graph: ModuleGraph): ProjectFile | null {
+export function appFileOf(graph: ModuleGraph): ProjectFile | null {
   const direct = graph.file("src/app.tsx");
   if (direct !== undefined) return direct;
   for (const file of graph.files.values()) {
@@ -104,7 +104,7 @@ function pathSegments(path: string): string[] {
   return path.split("/").filter(Boolean);
 }
 
-function pathMatches(pattern: string, target: string): boolean {
+export function pathMatches(pattern: string, target: string): boolean {
   if (pattern === target) return true;
   if (pattern === "*") return false;
   const patternParts = pathSegments(pattern);

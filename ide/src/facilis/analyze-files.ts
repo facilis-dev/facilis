@@ -24,6 +24,9 @@ const INCLUDED_TREES: readonly string[] = ["db/", "server/", "src/", "locales/"]
 /** Root files the analyzer reads even though they sit outside the included trees. */
 const INCLUDED_ROOT_FILES: ReadonlySet<string> = new Set([
   "facilis.config.ts",
+  // Static templates declare the prerender allowlist as a vite.config.ts plugin option
+  // (D-202 §2, passes/prerender-vite.ts); the analyzer must see the file to read it.
+  "vite.config.ts",
   "package.json",
   "tsconfig.json",
 ]);

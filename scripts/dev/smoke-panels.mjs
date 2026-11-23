@@ -162,6 +162,41 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   );
   await page.screenshot(ARTIFACTS + "/05b-project-graph.png");
 
+  // ── Prerender diagnostics (D-202, issue #84): the page inspector carries the toggle and
+  // the analyzer's eligibility chips. Every todo-app page is auth-guarded, dynamic or a
+  // redirect, so the toggle must stay disabled with the blocking reason named (fail closed). ──
+  record(
+    (await page.evaluate(clickTestId("project-graph-page"))) === "OK",
+    "prerender: page node selected",
+  );
+  const prerenderToggle = await waitFor(
+    page,
+    "Boolean(document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]'))",
+    15000,
+  );
+  record(prerenderToggle, "prerender: toggle mounted in the page inspector");
+  const prerenderState = await page.evaluate(
+    "(() => { const t = document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]');" +
+      " const chips = document.querySelector('[data-testid=\"project-graph-prerender-chips\"]');" +
+      " return JSON.stringify({ disabled: t ? t.disabled : null," +
+      " checked: t ? t.getAttribute('aria-checked') : null," +
+      " chips: chips ? chips.innerText : '' }); })()",
+  );
+  let prerenderBlocked = false;
+  try {
+    const state = JSON.parse(prerenderState);
+    prerenderBlocked =
+      state.disabled === true && state.checked === "false" && state.chips.length > 0;
+  } catch {
+    /* the detail below reports the raw state */
+  }
+  record(
+    prerenderBlocked,
+    "prerender: ineligible page blocks the toggle with its reason",
+    prerenderState,
+  );
+  await page.screenshot(ARTIFACTS + "/05c-prerender-inspector.png");
+
   // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar reads the
   // schema and the console posts through the preview proxy. Clicking the active activity
   // collapses the sidebar, so click only when it is not mounted (see the retry button). ──
@@ -292,6 +327,22 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
       "release: preview rendered after switching lens",
     );
   }
+  // The prerender surface (issue #84) shows even when the schema/API diff is empty.
+  const prerenderSection = await waitFor(
+    page,
+    "Boolean(document.querySelector('[data-testid=\"release-prerender-section\"]'))",
+    30000,
+  );
+  record(prerenderSection, "release: prerender surface section rendered");
+  const prerenderRows = await page.evaluate(
+    "(() => { const s = document.querySelector('[data-testid=\"release-prerender-section\"]');" +
+      " return s ? (s.innerText || '').slice(0, 300) : 'NO SECTION'; })()",
+  );
+  record(
+    prerenderSection && prerenderRows.includes("client"),
+    "release: per-page render modes listed",
+    prerenderRows,
+  );
   await page.screenshot(ARTIFACTS + "/06-release-preview.png");
   return { checks };
 }

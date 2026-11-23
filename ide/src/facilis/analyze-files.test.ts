@@ -29,6 +29,7 @@ describe("isAnalysisPath", () => {
   it("accepts the DSL surface", () => {
     for (const path of [
       "facilis.config.ts",
+      "vite.config.ts",
       "package.json",
       "tsconfig.json",
       "db/schema.ts",
@@ -45,7 +46,6 @@ describe("isAnalysisPath", () => {
 
   it("rejects everything the analyzer does not read", () => {
     for (const path of [
-      "vite.config.ts",
       "README.md",
       "src/app.css",
       "src/logo.svg",

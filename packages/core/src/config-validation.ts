@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { FacilisConfig } from "./config.ts";
+import { crossCheckPrerender } from "./prerender-config.ts";
 import { checkSsoConfig } from "./sso-config.ts";
 
 /**
@@ -108,4 +109,7 @@ export function crossCheckConfig(config: FacilisConfig, ctx: z.RefinementCtx): v
 
   // SSO provider ids are URL segments and their roles must exist in auth.roles (D-120).
   checkSsoConfig(config.auth.sso, config.auth, ctx);
+
+  // Prerender routes are absolute, param-free page paths; origin is an http(s) origin (D-202).
+  crossCheckPrerender(config.prerender, ctx);
 }

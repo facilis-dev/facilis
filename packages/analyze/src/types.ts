@@ -3,6 +3,7 @@ import type { JobFact, JobRelationsFact } from "./types-jobs.ts";
 import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
 import type { WorkflowFact, WorkflowTablesFact } from "./types-workflows.ts";
+import type { ConfigPrerenderFacts, PrerenderEligibilityFact } from "./types-prerender.ts";
 
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
@@ -48,6 +49,8 @@ export interface ConfigFacts {
   readonly locales: readonly string[];
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
+  /** Prerender allowlist declaration (D-202); unreadable values are unknown, never guessed. */
+  readonly prerender: ConfigPrerenderFacts;
   readonly unknown: readonly UnknownFact[];
 }
 
@@ -220,6 +223,13 @@ export type {
   ViewFact,
 } from "./types-relations.ts";
 export type { WorkflowFact, WorkflowStepFact, WorkflowTablesFact } from "./types-workflows.ts";
+export type {
+  ConfigPrerenderFacts,
+  PrerenderBuildError,
+  PrerenderEligibilityFact,
+  PrerenderIneligibilityFact,
+  PrerenderIneligibilityReason,
+} from "./types-prerender.ts";
 
 // ── analysis ───────────────────────────────────────────────────────────────────────
 
@@ -235,6 +245,8 @@ export interface Analysis {
   /** Declarative views (D-157): facts, and graph nodes since D-160. */
   readonly views: readonly ViewFact[];
   readonly pages: readonly PageFact[];
+  /** Page prerender eligibility, fail-closed (D-202, SPEC §5.11). */
+  readonly prerender: readonly PrerenderEligibilityFact[];
   readonly workflows: readonly WorkflowFact[];
   /** Job definitions, with D-157 applied to the db client their `run` body sees. */
   readonly jobs: readonly JobFact[];

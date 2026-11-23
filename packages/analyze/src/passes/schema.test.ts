@@ -20,6 +20,7 @@ function fixtureConfig(): ConfigFacts {
     locales: [],
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
+    prerender: { routes: [], origin: null, unknown: [] },
     unknown: [],
   };
 }

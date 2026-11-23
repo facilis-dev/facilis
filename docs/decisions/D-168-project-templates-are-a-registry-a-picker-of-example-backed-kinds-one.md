@@ -70,3 +70,13 @@ and the unchanged todo contracts
 (`starter-contract.test.ts`, `example-template.test.ts`, `package-manager.test.ts`).
 `pnpm --filter @facilis.dev/ide typecheck` and `pnpm lint` cover the split modules;
 `pnpm ide:smoke` drives the dialog (pick a template, create, run).
+
+**Amendment (2026-11-23) — the prerender declaration surface (D-202).** The static template
+may carry one build-time-only framework devDependency: the prerender Vite plugin entry,
+declared as `prerender({ routes, origin? })` in `vite.config.ts` (it has no
+`facilis.config.ts`). Its runtime stays framework-free — no `@facilis.dev/*` runtime
+dependency, no Nitro process — and its run manifest is unchanged (`vite dev`); `vite build`
+gains the in-process prerender pass. The engine must not import Nitro, db or auth on the
+static path. The full-stack templates declare the same allowlist in the `prerender` section
+of `facilis.config.ts`; their run manifests are unchanged too. The static contract test
+(`showcase-template.test.ts`) follows the new devDependency when #82/#86 land.
