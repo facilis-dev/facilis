@@ -234,3 +234,33 @@ Gates: `typecheck`, `lint`, `test` (pure lib helpers), `build`.
   no date formatting outside `lib/dates.ts`.
 - The UI layer is the generated project's UI layer: template v2 (D-090) is this structure,
   not a parallel one. The v1 kit was removed (D-096).
+
+## 11. Prerendering and hydration (D-202)
+
+Opt-in, per-route prerendering for public/static pages; everything else stays the SPA shell.
+The declaration is the `prerender` section of `facilis.config.ts` (full-stack) or the
+`prerender()` plugin option in `vite.config.ts` (static template). Eligibility is a static
+analyzer fact: no `RequireAuth`/`PublicOnly` guard, every called API `permission: []`,
+a param-free route-table entry; unknown → ineligible, and a declared-but-ineligible route
+fails the build.
+
+**Entry contract (`main.tsx`).** When the document carries prerendered markup and the
+`<script type="application/json" id="prerender-data">` state island, mount with `hydrateRoot`
+(log `onRecoverableError`); otherwise — including a corrupt or absent island — `createRoot`
+the shell. The island is XSS-escaped JSON of public API responses keyed by request path; it
+never contains the session.
+
+**Data and session.** `api()` answers a declared public GET from the island before any fetch
+(no refetch-before-hydrate); revalidation happens in effects after hydration. `SessionProvider`
+still loads `GET /api/auth/session` once at boot, client-side only — prerendered pages are
+anonymous by construction. `initTheme`/`initI18n` are SSR-safe: no `window`/`localStorage`
+during render; the server renders defaults and stored preferences apply in post-hydration
+effects, so the first client render matches the HTML.
+
+**Links and base path.** The build emits root-relative hrefs; the dev middleware rewrites them
+to the preview base when serving under `/preview/<port>/`, and the router keeps
+`basename={appBasePath()}` (§2). Canonical paths are the declared paths verbatim.
+
+**SEO.** Pages render `<title>`/`<meta>` (React 19 hoists document metadata); with
+`prerender.origin` set, the build adds canonical links and a `sitemap.xml` listing exactly the
+allowlist. Prerendered HTML is served to every client — no UA sniffing.

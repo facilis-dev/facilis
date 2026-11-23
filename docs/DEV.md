@@ -432,6 +432,27 @@ published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
   Not shipped in the Facilis template: it is a one-line addition to its pinned
   `package.json` and upstream removes the need within days.
 
+### 6.2 In-VM builds and prerendering (D-202)
+
+`vite build` is proven in-VM (issue #80 spike, `docs/findings/prerender-hydration.md`): all
+three prerender arms built and hydrated on both template stacks (`vite@7.3.8` and
+`vite@8.3.5` + wasm rolldown). The shipping engine is the in-process Arm C pass — no worker,
+no headless browser, no native binary — so the D-024 worker constraint does not apply to it.
+
+| Fact | Value |
+|---|---|
+| 3-route prerender build, in-VM | 1.0–1.8 s (Arm C), 2.1–4.3 s (Arm A) |
+| Host peak RSS, same builds | 292–948 MB (Arm A on vite 7 heaviest) |
+| Guest memory observability | `process.memoryUsage` emulated (plateaus at 64 MB RSS); `__vv.diag()` `heapBytes: -1` — physical peak unmeasurable in-VM today |
+| Default minification | green in-VM on both stacks (esbuild-wasm / oxc via the rolldown wasm binding) |
+| "Accidental rolldown" on vite 7 | nitro's transitive rolldown 1.3.3 binding boots without the emnapi overrides; the vite 7 path is unbroken |
+| Build-time fetch | loopback HTTP works in-VM; Node fetch has no CORS; external public endpoints to be verified by #83 |
+
+The ~50-route scaling question (SPEC §13 risks 5/13) is not answered by a 3-route spike; the
+prerender smoke gate (#85) carries a larger fixture. Preview hrefs: the dev middleware rewrites
+root-relative hrefs to the preview base (D-202) — a server href that cannot match the client
+basename is a React #418 hydration failure.
+
 ## 7. Troubleshooting
 
 | Symptom | Cause | Fix |

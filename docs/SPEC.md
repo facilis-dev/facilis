@@ -1,11 +1,22 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.36 (packages carry their released version; per-package minimum, D-198)
+**Version:** 1.37 (route-level prerendering + hydration contract, D-202)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.37 — Route-level prerendering + hydration is a contract (D-202, epic #79, issue #81).
+  An opt-in allowlist of public/static pages: an in-process `closeBundle` pass in `facilis()`
+  (Arm C of the #80 spike) renders the same React tree with `react-dom/static`, writes
+  per-route HTML + an XSS-escaped state island + `sitemap.xml` + the `shell.html` fallback,
+  and the browser hydrates it (`hydrateRoot`, no refetch-before-hydrate). Eligibility is a
+  fail-closed analyzer fact (no session-dependent guard, every called API `permission: []`,
+  unknown → ineligible); a declared-but-ineligible route fails the build. Declaration: a
+  `prerender` section in `facilis.config.ts` (full-stack) or a build-time-only plugin option
+  in `vite.config.ts` (static template, D-168 amended). Dev serves the stored HTML via
+  `configureServer` (no Service Worker change); the release artifact stays DB-only.
+  §4.2, §5.6, §5.11, §7.1, §8.2, §10.6, §13 + Appendices B/E follow.
 - v1.36 — Packages carry their released version; the IDE enforces a per-package minimum (D-198,
   issue #40). Every `packages/*/package.json` commits the version that package publishes —
   versions may diverge, there is no lockstep. The publish script uploads exactly those versions
@@ -417,6 +428,16 @@ the app. Nitro v3 in Vite mode requires the server directory to be declared via 
 changes in the config's optional `nitro` section. Route files live under `server/routes/`, not
 `routes/` at project root.
 
+**Build output (D-202).** `vite build` prerenders exactly the declared eligible page routes:
+`/about` emits `dist/about/index.html`, `/` emits `dist/index.html`, each with real content,
+per-route title/meta and — when `prerender.origin` is set — a canonical link, plus
+`dist/sitemap.xml` from the same allowlist. The SPA shell is always emitted as
+`dist/shell.html` and stays the fallback for every non-declared route; when `/` is not
+declared, `dist/index.html` is the shell. Prerender output is build output, never a release
+artifact (D-158/D-159). The static template declares its allowlist in `vite.config.ts` (a
+build-time-only framework plugin, D-168/D-202) — it still has no `server/`, `db/` or
+`facilis.config.ts`.
+
 Every `@facilis.dev/*` dependency in `package.json` is an **exact version installed from npm**,
 like any other dependency (D-166, D-198): each package carries its released version in
 `packages/*/package.json`, the IDE build reads those manifests at build time and compiles a
@@ -791,6 +812,17 @@ The plugin also owns the route-metadata virtual module: it analyzes the project 
 manifest/OpenAPI contract and invalidates on any project source edit. `facilis()` takes no
 options; the analyzer owns the DSL layout (`server/routes/**`, `server/api/**`).
 
+**Prerender build pass and dev serving (D-202).** `facilis()` also owns the opt-in prerender
+step: a `closeBundle` pass renders the declared eligible routes in-process (the #80 spike's
+Arm C — no worker, no headless browser), fetching public data over loopback HTTP with no
+session or system identity, and writes per-route HTML + the XSS-escaped `prerender-data`
+state island + `sitemap.xml` + the `shell.html` fallback (§4.2). A declared-but-ineligible
+route or a 401/403/error data response fails the build with a framework code — an error body
+is never written as a page. In dev, a `configureServer` middleware serves the stored HTML for
+`GET` + `Accept: text/html` on declared routes (rewriting root-relative hrefs to the preview
+base) and the shell otherwise; the Service Worker is unchanged (D-132). Eligibility comes from
+the analyzer's `prerender-eligible` page fact (§5.11), never from execution.
+
 **Entry 2 — `@facilis.dev/nitro` (Nitro module):**
 
 ```typescript
@@ -1085,7 +1117,9 @@ storage: {
 
 Zero-build static analysis of the project's declarative DSL (D-092). It reads a path → source
 map with an injected `Parser` and returns the fact model — routes, config,
-tables/columns/policies, FK and `relations()` edges, pages/consumers, per-file module facts
+tables/columns/policies, FK and `relations()` edges, pages/consumers, page prerender
+eligibility (`prerender-eligible` plus the ineligibility reasons `private-api`,
+`auth-guarded`, `unknown-security`, `dynamic-path`, `redirect` — D-202), per-file module facts
 (imports, literal `t()` keys, bare calls), locale catalogs — plus diagnostics and the single
 project graph, **without executing project code**. The main entry is browser-safe and has no
 runtime parser dependency; adapters live on subpaths: `./node` (oxc-parser native/wasm, CLI
@@ -1240,6 +1274,10 @@ interface FacilisConfig {
   }
   i18n: { defaultLocale: string; locales: string[] }
   nitro: Record<string, unknown>     // pass-through Nitro options; framework defaults underneath (D-034)
+  prerender: {                   // D-202; opt-in allowlist, default { routes: [] }
+    routes: string[]             // absolute page paths to prerender; param-free, public/static only
+    origin?: string              // absolute origin; enables canonical links + sitemap.xml
+  }
   auth: {
     permissions: string[]
     roles: Record<string, string[]>      // role name → permission list; "*" is wildcard
@@ -2087,6 +2125,11 @@ codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
 - `dbTables` required (compile-time enforcement)
 - OpenAPI generated with `x-permission` and `x-db-tables`
 
+**Prerendering consumes this contract, never weakens it (D-202).** A page is prerender-eligible
+only when every API it calls is `permission: []` (manifest `security: "public"`, D-116) and no
+session-dependent guard wraps it; the prerender pass runs with no identity, and a 401/403
+fails the build instead of emitting a page. `permission: []` semantics are unchanged.
+
 ### 8.3 RLS Declaration and Rendering
 
 RLS is **declared in `db/schema.ts`** with `.enableRLS()` and a `@facilis.dev/db` policy helper
@@ -2857,6 +2900,13 @@ When the starter project boots inside Vivari, the user runs **`vite dev`** — n
 
 **Why this matters for the spec:** earlier drafts described "Vivari boots Nitro + Vite" as if they were two servers. They are not. The correct phrasing is **"Vivari runs `vite dev`, and Nitro runs as a plugin inside Vite."** All references in this spec have been updated accordingly.
 
+**In-VM build and prerender preview (D-202).** `vite build` runs inside the WebContainer
+too: the framework's in-process prerender pass (no worker, no native binary) emits per-route
+HTML, and the dev middleware serves it in the preview — declared routes show real HTML, the
+rest the SPA shell, with no Service Worker change. The `dev`/`build`/`preview` scripts are
+unchanged; the IDE's prerender action runs `npm run build` in a managed terminal (epic #79).
+In-VM build constraints and measured budgets: docs/DEV.md §6.2.
+
 **What the starter's `package.json` must declare:**
 
 ```json
@@ -3035,6 +3085,7 @@ Acceptance criteria are in §14.
 | 10 | **AI over-fetches (Model B)** | Token cost explodes | Preload summary always; prompt: "aim ≤10k input tokens" |
 | 11 | **Role drift between config and DB** | Security hole | `role_permissions` written only by the deploy seed; validator rule 16 |
 | 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | `facilis()` mounts Nitro itself and `enforce: "pre"` delivers the options, so there is no registration order to get wrong (D-034); document in starter README |
+| 13 | **In-VM build/prerender budget** | A ~50-route prerender build could exhaust VM memory/CPU | In-process Arm C pass (D-202; #80 spike: a 3-route app builds in 1.0–1.8 s in-VM, the lightest arm); guest memory is unobservable today — host RSS documented (DEV.md §6.2); the prerender smoke gate carries a larger route fixture (#85) |
 
 ---
 
@@ -3203,6 +3254,13 @@ export default defineConfig({
     includeUserAgent: false,    // less PII by default
     trustProxy: false,          // only a trusted deploy may set this
   },
+  // Route-level prerendering (D-202, optional): an opt-in allowlist of public/static pages.
+  // Eligibility is fail-closed (no session-dependent guard, every called API permission: []);
+  // a declared but ineligible route fails the build. origin enables canonical + sitemap.xml.
+  prerender: {
+    routes: ["/", "/about"],       // absolute, param-free page paths from the one route table
+    origin: "https://example.com", // optional; omit to skip canonical/sitemap
+  },
   // Optional: Nitro options, passed through unchanged. Facilis supplies the framework
   // defaults (`serverDir: "./server"`, `experimental.openAPI: true`) underneath, so
   // declare only what you change. The IDE template, for example, needs the in-VM runner:
@@ -3327,6 +3385,12 @@ of `facilis.config.ts` (Appendix B). The framework supplies `serverDir: "./serve
 `experimental.openAPI: true`; a project overrides only what it changes. There is no
 `nitro.config.ts`.
 
+`facilis()` also runs the opt-in prerender build pass and serves its HTML in dev (D-202,
+§5.6); the allowlist is the `prerender` section of `facilis.config.ts`. The static template
+(no `facilis.config.ts`) declares the same allowlist as a plugin option in `vite.config.ts` —
+`prerender({ routes: ["/", "/about"] })` from the build-time-only framework entry
+(D-168/D-202).
+
 ### `package.json`
 
 ```json
@@ -3349,6 +3413,7 @@ of `facilis.config.ts` (Appendix B). The framework supplies `serverDir: "./serve
 | Facilis config | `facilis.config.ts` (repo root) |
 | Drizzle schema | `db/schema.ts` |
 | React app | `src/` |
+| Prerender allowlist | `facilis.config.ts` (`prerender` section) or `vite.config.ts` (static template) |
 
 **Remember:** `vite dev` is the only dev command. `nitro dev` does not support the Vite builder.
 

@@ -51,6 +51,14 @@ tarball specifiers are relative, and the two WASM-only devDependencies are remov
 refuses them outside the VM (`EBADPLATFORM`; journal G4 — candidate fix: declare them
 `optionalDependencies`). Nothing in the IDE repo depends on the site repo.
 
+**Amendment (2026-11-23) — the template prerender step is contracted (D-202).** The
+framework deliverable this decision promised ("prerendering is now a build step the template
+needs") is defined for generated projects by D-202: an opt-in, public/static-only allowlist,
+an in-process build pass and a hydration contract, proven in-VM by the #80 spike
+(`docs/findings/prerender-hydration.md`). Implementation is epic #79 (#82–#86). The site
+repo keeps its export-then-build model until it re-exports a template that carries the step;
+nothing in this repo depends on the site repo.
+
 **Rejected alternatives.** *Astro + Starlight now*: it would not exercise the product, and the
 catalog would exist twice (an Astro rendering of sections and the copy-in source). *One
 repository for IDE and site* (the first version of this decision, reversed the same day — see the
