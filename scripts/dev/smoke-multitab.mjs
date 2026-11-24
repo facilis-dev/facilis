@@ -44,6 +44,7 @@ const URL_ = argValue("url", process.env.STUDIO_URL || "");
 const PORT = Number(process.env.SMOKE_PORT || 5201);
 const BOOT_TIMEOUT_MS = Number(process.env.BOOT_TIMEOUT_MS || 180000);
 const PREVIEW_TIMEOUT_MS = Number(process.env.PREVIEW_TIMEOUT_MS || 240000);
+const BUILD_TIMEOUT_MS = Number(process.env.BUILD_TIMEOUT_MS || 240000);
 const ARTIFACTS_ROOT = path.join(TOOLING, "smoke-multitab");
 const ARTIFACTS = process.env.SMOKE_ARTIFACTS || path.join(ARTIFACTS_ROOT, String(Date.now()));
 const KEEP_ARTIFACTS = process.argv.includes("--keep-artifacts");
@@ -192,6 +193,44 @@ async function reloadPreview(page) {
   return page.evaluate(
     "(() => { const f = [...document.querySelectorAll('iframe')].find((f) => /preview/.test(f.src || ''));" +
       " if (!f) return false; f.src = f.src.split('?')[0] + '?r=' + Date.now(); return true; })()",
+  );
+}
+
+// An in-VM `npm run build` through the kernel's generic spawn channel — the same
+// mechanism the framework gate's install postflight uses (framework-gate.ts), without a
+// terminal tab. The build writes the .facilis/prerender.json stamp the dev middleware
+// serves stored HTML from (D-202 §5), so a prerender serving check must build first.
+// Resolves on proc-exit; the output tail carries the framework failure code (e.g.
+// prerender-ineligible) when the build fails, and a timeout resolves instead of hanging.
+async function runInVmBuild(page, root, execId) {
+  return page.evaluate(
+    "(async () => { const b = window.__ide.bridge;" +
+      " return await new Promise((resolve) => {" +
+      " let tail = '';" +
+      " const id = " + JSON.stringify(execId) + ";" +
+      " const offOut = b.on('proc-out', (m) => { if (m.execId === id && typeof m.chunk === 'string') tail = (tail + m.chunk).slice(-2000); });" +
+      " const offExit = b.on('proc-exit', (m) => { if (m.execId !== id) return; clearTimeout(timer); offOut(); offExit(); resolve({ code: Number(m.code), timeout: false, tail }); });" +
+      " const timer = setTimeout(() => { offOut(); offExit(); resolve({ code: null, timeout: true, tail }); }, " + BUILD_TIMEOUT_MS + ");" +
+      " b.post('proc-spawn', { execId: id, command: 'npm', args: ['run', 'build'], cwd: " + JSON.stringify(root) + " });" +
+      " }); })()",
+  );
+}
+
+// The raw HTML the dev server serves for a preview path, fetched FROM WITHIN the preview
+// iframe: the Service Worker routes a request by the client (frame) that issued it
+// (routeByClient in ide/public/sw.js, D-132), so a fetch from the IDE page would not reach
+// this tab's kernel. The Accept header marks it as an HTML navigation for the prerender
+// dev middleware. The port comes from the frame's own /preview/<port>/ URL.
+async function previewHtml(page, path) {
+  return page.evaluate(
+    "(async () => { const f = [...document.querySelectorAll('iframe')].find((f) => /preview/.test(f.src || ''));" +
+      " if (!f || !f.contentWindow) return { found: false, status: 0, body: '' };" +
+      " const m = (f.src || '').match(/\\/preview\\/(\\d+)\\//);" +
+      " if (!m) return { found: false, status: 0, body: '' };" +
+      " try { const r = await f.contentWindow.fetch(location.origin + '/preview/' + m[1] + " + JSON.stringify(path) + ", { headers: { Accept: 'text/html' } });" +
+      " const body = await r.text();" +
+      " return { found: true, status: r.status, body: body.slice(0, 40000) }; }" +
+      " catch (e) { return { found: true, status: 0, body: 'ERR ' + e }; } })()",
   );
 }
 
@@ -407,6 +446,7 @@ async function main() {
       "alpha runs again after being reopened",
     );
 
+
     // ---- tab B: beta, opened by URL in its own kernel ----------------------
     const tabB = await openPage(chrome.client, projectUrl(dev.url, BETA));
     tabs.push(tabB);
@@ -463,9 +503,11 @@ async function main() {
     await tabB.screenshot(path.join(ARTIFACTS, "02-tab-b-showcase.png"));
 
     // ---- prerender toggle (D-202, issue #84): the static showcase has eligible pages ----
-    // The full round trip on the vite.config.ts surface: toggle on -> the declaration is
-    // written through the kernel VFS and the graph re-analyzes without a reload; toggle off
-    // -> the route is removed again. No facilis.config.ts exists in a static project.
+    // The example ships '/' and '/contact' declared (issue #86); the toggle exercises the
+    // undeclared '/features' page. The full round trip on the vite.config.ts surface:
+    // toggle on -> the route is appended to the shipped allowlist through the kernel VFS
+    // and the graph re-analyzes without a reload; toggle off -> the shipped allowlist is
+    // restored. No facilis.config.ts exists in a static project.
     await tabB.evaluate(
       "(() => { const b = [...document.querySelectorAll('button')].find(" +
         "(x) => (x.getAttribute('aria-label') || '') === 'Project graph');" +
@@ -525,8 +567,8 @@ async function main() {
     check(
       typeof viteOn === "string" &&
         viteOn.includes('import { prerender } from "@facilis.dev/nitro/prerender";') &&
-        viteOn.includes('routes: ["/features"]'),
-      "prerender: declaration written to vite.config.ts through the kernel",
+        viteOn.includes('routes: ["/", "/contact", "/features"]'),
+      "prerender: toggle appends to the shipped allowlist through the kernel",
       (viteOn || "").slice(0, 200),
     );
     await tabB.screenshot(path.join(ARTIFACTS, "02b-prerender-on.png"));
@@ -545,10 +587,13 @@ async function main() {
     );
     const viteOff = await readText(tabB, BETA + "/vite.config.ts");
     check(
-      typeof viteOff === "string" && viteOff.includes("routes: []"),
-      "prerender: allowlist empty again after toggle-off",
+      typeof viteOff === "string" &&
+        viteOff.includes('routes: ["/", "/contact"]') &&
+        !viteOff.includes('"/features"'),
+      "prerender: shipped allowlist restored after toggle-off",
       (viteOff || "").slice(0, 200),
     );
+
 
     // ---- one project, one tab ---------------------------------------------
     const tabC = await openPage(chrome.client, projectUrl(dev.url, ALPHA));
@@ -659,13 +704,30 @@ async function main() {
       "after a reload beta comes back when its tab opens it",
     );
     const betaPkg = await readText(tabB, BETA + "/package.json");
-    // beta is the static showcase: its package.json carries the frontend deps and no
-    // @facilis.dev/* framework pin (D-168) — the bytes prove which template was restored.
+    // beta is the static showcase: its runtime stays framework-free — no @facilis.dev/*
+    // dependency — but the D-202/D-168 amendment allows ONE build-time-only devDependency,
+    // the prerender plugin entry. The bytes prove which template was restored.
+    let betaPkgOk = false;
+    let betaPkgDetail = "unreadable";
+    try {
+      const pkg = JSON.parse(betaPkg);
+      const deps = Object.keys(pkg.dependencies || {});
+      const devDeps = Object.keys(pkg.devDependencies || {});
+      betaPkgOk =
+        deps.includes("react") &&
+        !deps.some((name) => name.startsWith("@facilis.dev/")) &&
+        devDeps.includes("@facilis.dev/nitro");
+      betaPkgDetail = JSON.stringify({
+        frameworkDeps: deps.filter((name) => name.startsWith("@facilis.dev/")),
+        devDeps,
+      });
+    } catch {
+      /* the detail below reports the failure */
+    }
     check(
-      typeof betaPkg === "string" &&
-        betaPkg.includes('"react"') &&
-        !betaPkg.includes('"@facilis.dev/'),
+      betaPkgOk,
       "the project is its real contents (bytes from OPFS, not just the directory)",
+      betaPkgDetail,
     );
     // ---- "Open in a new tab" from Home ------------------------------------
     const dirG = await createProject(tabA, "gamma", false);
@@ -769,6 +831,237 @@ async function main() {
       "creating in one tab keeps every tab's projects in the registry",
       registryNames.join(","),
     );
+
+    // ---- prerender serving (D-202, issue #86) — LAST, by design ----------------
+    // The in-VM builds write dist/.output/.facilis artifacts into the project VFS, and
+    // the build/graph activity disturbs tab state: the pristine-state checks above (tab C
+    // refusal, deferred-cache replay delta, VFS counts, Web Lock claims) must run before
+    // any of that. Both projects were closed/replaced by the gamma and delta flows, so
+    // reopen and run them the way Home does (a recent row), then build and read the bytes.
+    await tabA.evaluate(
+      "(async () => { const c = window.__ide;" +
+        " const meta = c.getSnapshot().recentProjects.find((p) => p.rootPath === " +
+        JSON.stringify(ALPHA) +
+        ");" +
+        " await c.openProject(meta);" +
+        " c.runProject(meta.rootPath); })()",
+    );
+    check(
+      await waitFor(
+        tabA,
+        "window.__ide.getSnapshot().workspaceFolders.some((f) => f.rootPath === " +
+          JSON.stringify(ALPHA) + ")",
+        15000,
+        "A reopens alpha for prerender",
+      ),
+      "alpha reopens in tab A for the prerender phase",
+    );
+    check(
+      await waitFor(
+        tabA,
+        "window.__ide.getSnapshot().ports.length === 1" +
+          " && window.__ide.getSnapshot().previewTabs.length === 1",
+        PREVIEW_TIMEOUT_MS,
+        "A reruns alpha for prerender",
+      ),
+      "alpha runs again for the prerender phase",
+    );
+    await tabB.evaluate(
+      "(async () => { const c = window.__ide;" +
+        " const meta = c.getSnapshot().recentProjects.find((p) => p.rootPath === " +
+        JSON.stringify(BETA) +
+        ");" +
+        " await c.openProject(meta);" +
+        " c.runProject(meta.rootPath); })()",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "window.__ide.getSnapshot().workspaceFolders.some((f) => f.rootPath === " +
+          JSON.stringify(BETA) + ")",
+        15000,
+        "B reopens beta for prerender",
+      ),
+      "beta reopens in tab B for the prerender phase (replaces delta)",
+    );
+    check(
+      await waitFor(
+        tabB,
+        "window.__ide.getSnapshot().ports.length === 1" +
+          " && window.__ide.getSnapshot().previewTabs.length === 1",
+        PREVIEW_TIMEOUT_MS,
+        "B reruns beta for prerender",
+      ),
+      "beta runs again for the prerender phase",
+    );
+
+    // ---- todo prerender (D-202, issue #86): the full-stack template builds in-VM ----
+    // /public-stats is declared and calls only a permission: [] route; /todos stays an
+    // auth-gated SPA. The build writes the .facilis/prerender.json stamp the dev
+    // middleware serves stored HTML from, so build first, then read the served bytes.
+    const buildA = await runInVmBuild(tabA, ALPHA, "smoke-build-alpha");
+    check(
+      buildA.code === 0 && !buildA.timeout,
+      "prerender: todo-app builds in-VM (npm run build)",
+      buildA.timeout
+        ? "timeout; tail: " + buildA.tail
+        : buildA.code === 0
+          ? ""
+          : "exit " + buildA.code + "; tail: " + buildA.tail,
+    );
+    // Settle the preview frame before fetching through it: the SW remembers the frame
+    // against this tab's kernel on its first navigation (D-132).
+    await waitForPreview(tabA, TODO_PREVIEW, 30000, "A login before prerender fetch");
+    const statsHtml = await previewHtml(tabA, "/public-stats");
+    const statsDiag = {
+      status: statsHtml.status,
+      island: statsHtml.body.includes('id="prerender-data"'),
+      dataKey: statsHtml.body.includes('"/api/public-stats"'),
+      canonical: statsHtml.body.includes('href="https://todo.example.com/public-stats"'),
+      title: /<title>[^<]+<\/title>/.test(statsHtml.body),
+    };
+    check(
+      statsHtml.found &&
+        statsHtml.status === 200 &&
+        statsDiag.island &&
+        statsDiag.dataKey &&
+        statsDiag.canonical &&
+        statsDiag.title,
+      "prerender: /public-stats serves prerendered HTML with its public data island",
+      JSON.stringify(statsDiag),
+    );
+    const todosHtml = await previewHtml(tabA, "/todos");
+    check(
+      todosHtml.found &&
+        todosHtml.status === 200 &&
+        !todosHtml.body.includes('id="prerender-data"'),
+      "prerender: /todos stays the SPA shell (no island)",
+      JSON.stringify({ status: todosHtml.status, island: todosHtml.body.includes('id="prerender-data"') }),
+    );
+    // The graph reports /todos ineligible with its reason (fail closed, D-202 §3). Same
+    // inspector surface as the showcase toggle block above and smoke-panels.mjs: open the
+    // activity, fit so React Flow keeps every node mounted, select the todos page node,
+    // then read the toggle state and the eligibility chips (the auth-guarded label is the
+    // chip's own text, en-project-graph.ts). No later assertion depends on this tab's
+    // layout: the phase runs after every pristine-state check.
+    await tabA.evaluate(
+      "(() => { const b = [...document.querySelectorAll('button')].find(" +
+        "(x) => (x.getAttribute('aria-label') || '') === 'Project graph');" +
+        " if (b) b.click(); })()",
+    );
+    check(
+      await waitFor(
+        tabA,
+        "document.querySelectorAll('[data-testid=\"project-graph-page\"]').length > 0",
+        60000,
+        "A graph pages",
+      ),
+      "prerender: todo graph renders pages",
+    );
+    await tabA.evaluate(
+      "(() => { const b = [...document.querySelectorAll('button')].find(" +
+        "(x) => (x.getAttribute('aria-label') || '') === 'Fit to view');" +
+        " if (b) b.click(); })()",
+    );
+    check(
+      await waitFor(
+        tabA,
+        "(() => { const n = [...document.querySelectorAll('[data-testid=\"project-graph-page\"]')]" +
+          ".find((x) => (x.innerText || '').includes('src/pages/todos.tsx'));" +
+          " if (!n) return false; n.click(); return true; })()",
+        15000,
+        "A todos node",
+      ),
+      "prerender: todos page selected",
+    );
+    const todosToggleState = await tabA.evaluate(
+      "(() => { const t = document.querySelector('[data-testid=\"project-graph-prerender-toggle\"]');" +
+        " const chips = document.querySelector('[data-testid=\"project-graph-prerender-chips\"]');" +
+        " return JSON.stringify({ disabled: t ? t.disabled : null," +
+        " checked: t ? t.getAttribute('aria-checked') : null," +
+        " chips: chips ? chips.innerText : '' }); })()",
+    );
+    let todosBlocked = false;
+    try {
+      const state = JSON.parse(todosToggleState);
+      todosBlocked =
+        state.disabled === true &&
+        state.checked === "false" &&
+        state.chips.includes("auth-guarded");
+    } catch {
+      /* the detail below reports the raw state */
+    }
+    check(
+      todosBlocked,
+      "prerender: /todos is ineligible (auth-guarded) and its toggle stays disabled",
+      todosToggleState,
+    );
+    await tabA.screenshot(path.join(ARTIFACTS, "02c-todo-prerender.png"));
+
+    // ---- showcase prerender build (D-202, issue #86): the static template ----
+    // The shipped allowlist is exactly ['/', '/contact'] again after the toggle round
+    // trip. Build in-VM, then read the served bytes: declared routes carry real content,
+    // title, canonical and the (possibly empty) data island; undeclared '/features'
+    // keeps the shell. Zero-call static pages serialize '{}' — the tag's presence, not
+    // data keys, is the contract there.
+    const buildB = await runInVmBuild(tabB, BETA, "smoke-build-beta");
+    check(
+      buildB.code === 0 && !buildB.timeout,
+      "prerender: showcase-app builds in-VM (npm run build)",
+      buildB.timeout
+        ? "timeout; tail: " + buildB.tail
+        : buildB.code === 0
+          ? ""
+          : "exit " + buildB.code + "; tail: " + buildB.tail,
+    );
+    // Beta was just reopened in this tab; settle the frame so the SW has remembered it
+    // against this tab's kernel before fetching through it (D-132).
+    await waitForPreview(tabB, SHOWCASE_PREVIEW, 30000, "B showcase before prerender fetch");
+    const homeHtml = await previewHtml(tabB, "/");
+    const homeDiag = {
+      status: homeHtml.status,
+      island: homeHtml.body.includes('id="prerender-data"'),
+      content: SHOWCASE_PREVIEW.test(homeHtml.body),
+      canonical: homeHtml.body.includes('href="https://showcase.example.com/"'),
+      title: /<title>[^<]+<\/title>/.test(homeHtml.body),
+    };
+    check(
+      homeHtml.found &&
+        homeHtml.status === 200 &&
+        homeDiag.island &&
+        homeDiag.content &&
+        homeDiag.canonical &&
+        homeDiag.title,
+      "prerender: showcase '/' serves prerendered HTML (content, title, canonical, island)",
+      JSON.stringify(homeDiag),
+    );
+    const contactHtml = await previewHtml(tabB, "/contact");
+    const contactDiag = {
+      status: contactHtml.status,
+      island: contactHtml.body.includes('id="prerender-data"'),
+      content: contactHtml.body.includes('id="contact-name"'),
+      canonical: contactHtml.body.includes('href="https://showcase.example.com/contact"'),
+      title: /<title>[^<]+<\/title>/.test(contactHtml.body),
+    };
+    check(
+      contactHtml.found &&
+        contactHtml.status === 200 &&
+        contactDiag.island &&
+        contactDiag.content &&
+        contactDiag.canonical &&
+        contactDiag.title,
+      "prerender: showcase '/contact' serves prerendered HTML (content, title, canonical, island)",
+      JSON.stringify(contactDiag),
+    );
+    const featuresHtml = await previewHtml(tabB, "/features");
+    check(
+      featuresHtml.found &&
+        featuresHtml.status === 200 &&
+        !featuresHtml.body.includes('id="prerender-data"'),
+      "prerender: undeclared '/features' serves the shell (no island)",
+      JSON.stringify({ status: featuresHtml.status, island: featuresHtml.body.includes('id="prerender-data"') }),
+    );
+    await tabB.screenshot(path.join(ARTIFACTS, "02d-showcase-prerender.png"));
 
     fs.writeFileSync(
       path.join(ARTIFACTS, "report.json"),

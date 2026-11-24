@@ -43,6 +43,11 @@ describe("showcase template", () => {
     // The route table the IDE's graph reads (D-160): pages stay files under src/pages.
     expect(files["src/app.tsx"]).toContain("<Routes>");
     expect(files["vite.config.ts"]).toContain("port: 3000");
+    // The static prerender declaration (D-202): one plugin call with a literal allowlist.
+    expect(files["vite.config.ts"]).toContain(
+      'import { prerender } from "@facilis.dev/nitro/prerender";',
+    );
+    expect(files["vite.config.ts"]).toContain('prerender({ routes: ["/", "/contact"]');
     expect(paths.some((path) => path.includes(".test."))).toBe(false);
   });
 
@@ -50,7 +55,16 @@ describe("showcase template", () => {
     expect(paths.some((path) => path.startsWith("server/"))).toBe(false);
     expect(paths.some((path) => path.startsWith("db/"))).toBe(false);
     expect(paths).not.toContain("facilis.config.ts");
-    expect(files["package.json"]).not.toContain("@facilis.dev/");
+    // D-202/D-168 amendment: the runtime stays framework-free, but the static template carries
+    // exactly one build-time-only devDependency — the prerender Vite plugin entry.
+    expect(Object.keys(pkg.dependencies).some((name) => name.startsWith("@facilis.dev/"))).toBe(
+      false,
+    );
+    expect(
+      Object.keys(pkg.devDependencies).filter((name) => name.startsWith("@facilis.dev/")),
+    ).toEqual(["@facilis.dev/nitro"]);
+    // Release mode pins the package's own exact version, never the example's workspace spec.
+    expect(pkg.devDependencies["@facilis.dev/nitro"]).toMatch(/^[0-9]+\.[0-9]+\.[0-9]+$/);
   });
 
   it("installs with the IDE's npm and the VM-only wasm bindings", () => {

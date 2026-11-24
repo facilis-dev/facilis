@@ -16,6 +16,8 @@ export function HomePage() {
 
   return (
     <>
+      <title>{t("meta.home.title")}</title>
+      <meta name="description" content={t("meta.home.description")} />
       <section className="border-b border-border">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-14 px-5 pt-16 pb-20 lg:grid-cols-[1.1fr_0.9fr] lg:pt-24 lg:pb-24">
           <div className="flex flex-col items-start gap-7">

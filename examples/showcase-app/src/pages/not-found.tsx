@@ -5,6 +5,7 @@ import { t } from "../lib/i18n.tsx";
 export function NotFoundPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-primary px-6 py-20 text-center text-primary-foreground">
+      <title>{t("app.title")}</title>
       <Link className="font-serif text-lg font-semibold tracking-tight" to="/">
         {t("app.title")}
       </Link>

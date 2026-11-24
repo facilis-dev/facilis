@@ -1,7 +1,6 @@
-import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { SiteLayout } from "./layouts/site-layout.tsx";
-import { t, useLocale } from "./lib/i18n.tsx";
+import { useLocale } from "./lib/i18n.tsx";
 import { ContactPage } from "./pages/contact.tsx";
 import { FeaturesPage } from "./pages/features.tsx";
 import { HomePage } from "./pages/home.tsx";
@@ -13,12 +12,10 @@ import { ShowcasePage } from "./pages/showcase.tsx";
  * project graph reads this file to build the navigation map, so routes stay declarative.
  */
 export function App() {
-  // Subscribing once at the root re-renders every page whenever the locale changes.
-  const { locale } = useLocale();
-
-  useEffect(() => {
-    document.title = t("app.title");
-  }, [locale]);
+  // Subscribing once at the root re-renders every page whenever the locale changes. Each page
+  // hoists its own <title> (React 19 document metadata, D-202 SEO), so there is no imperative
+  // document.title here to fight the prerendered head.
+  useLocale();
 
   return (
     <Routes>

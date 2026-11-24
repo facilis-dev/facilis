@@ -7,6 +7,7 @@ import { t } from "../lib/i18n.tsx";
 export function ShowcasePage() {
   return (
     <>
+      <title>{t("app.title")}</title>
       <PageHero
         eyebrow={t("showcase.hero.eyebrow")}
         title={t("showcase.hero.title")}

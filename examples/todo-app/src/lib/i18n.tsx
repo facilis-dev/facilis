@@ -18,6 +18,13 @@ export const DEFAULT_LOCALE: Locale = "en";
 const LOCALE_STORAGE_KEY = "facilis.locale";
 const CATALOGS: Readonly<Record<Locale, Record<string, string>>> = { en, it };
 
+// Register the catalogues at module load so the prerender pass — which imports the route table
+// (src/app.tsx), not main.tsx — translates without an explicit initI18n() call (D-202 §4). This
+// reads no browser state; initI18n() still resets the default locale at browser boot and is
+// idempotent. Mirrors the static template's self-contained catalogue.
+for (const locale of LOCALES) registerCatalog(locale, CATALOGS[locale]);
+setDefaultLocale(DEFAULT_LOCALE);
+
 let activeLocale: Locale = DEFAULT_LOCALE;
 const listeners = new Set<() => void>();
 
