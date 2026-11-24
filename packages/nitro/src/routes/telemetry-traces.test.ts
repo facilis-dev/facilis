@@ -98,7 +98,9 @@ describe("telemetry ingestion route — disabled means absent", () => {
     process.env["NODE_ENV"] = "production";
     delete process.env["FACILIS_TELEMETRY"];
     for (const method of ["POST", "GET"]) {
-      const response = await handler(event("https://app.acme.example", { method, body: method === "POST" ? "{}" : undefined }));
+      const response = await handler(
+        event("https://app.acme.example", { method, body: method === "POST" ? "{}" : undefined }),
+      );
       expect(response.status).toBe(404);
       expect(await json(response)).toEqual({ code: "not_found" });
     }
@@ -235,10 +237,15 @@ describe("telemetry ingestion route — scrub, dedup, forward", () => {
       partialSuccess: { rejectedSpans: 0, errorMessage: "scrubbed 1 attributes" },
     });
     expect(forwardToCollector).toHaveBeenCalledTimes(1);
-    const [endpoint, payload] = vi.mocked(forwardToCollector).mock.calls[0] as [string, OtlpExportRequest];
+    const [endpoint, payload] = vi.mocked(forwardToCollector).mock.calls[0] as [
+      string,
+      OtlpExportRequest,
+    ];
     expect(endpoint).toBe(ENDPOINT);
     const span = payload.resourceSpans[0]?.scopeSpans[0]?.spans[0];
-    expect(span?.attributes).toEqual([{ key: "http.request.method", value: { stringValue: "GET" } }]);
+    expect(span?.attributes).toEqual([
+      { key: "http.request.method", value: { stringValue: "GET" } },
+    ]);
     expect(JSON.stringify(payload)).not.toContain("secret");
   });
 
@@ -274,5 +281,65 @@ describe("telemetry ingestion route — scrub, dedup, forward", () => {
       event(own, { body: JSON.stringify(batch()), headers: { origin: "https://evil.example" } }),
     );
     expect(foreign.status).toBe(403);
+  });
+
+  it("admits a browser vitals/error batch and scrubs it to the RUM vocabulary (D-208)", async () => {
+    const origin = uniqueOrigin();
+    enable(origin);
+    const rumBatch: OtlpExportRequest = {
+      resourceSpans: [
+        {
+          resource: { attributes: [{ key: "service.name", value: { stringValue: "acme-shop" } }] },
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: TRACE,
+                  spanId: uniqueSpanId(),
+                  name: "browser.web_vital",
+                  startTimeUnixNano: "1",
+                  endTimeUnixNano: "2",
+                  attributes: [
+                    { key: "browser.web_vital.name", value: { stringValue: "LCP" } },
+                    { key: "browser.web_vital.value", value: { doubleValue: 2500.5 } },
+                    { key: "browser.web_vital.rating", value: { stringValue: "good" } },
+                    { key: "url.full", value: { stringValue: "https://app.example/?secret=1" } },
+                  ],
+                },
+                {
+                  traceId: TRACE,
+                  spanId: uniqueSpanId(),
+                  name: "browser.error",
+                  startTimeUnixNano: "1",
+                  endTimeUnixNano: "2",
+                  attributes: [
+                    { key: "error.type", value: { stringValue: "TypeError" } },
+                    { key: "facilis.rum.source", value: { stringValue: "window.onerror" } },
+                    { key: "exception.message", value: { stringValue: "secret failure detail" } },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const response = await handler(event(origin, { body: JSON.stringify(rumBatch) }));
+    expect(response.status).toBe(200);
+    expect(forwardToCollector).toHaveBeenCalledTimes(1);
+    const [, payload] = vi.mocked(forwardToCollector).mock.calls[0] as [string, OtlpExportRequest];
+    const spans = payload.resourceSpans[0]?.scopeSpans[0]?.spans ?? [];
+    expect(spans[0]?.name).toBe("browser.web_vital");
+    expect(spans[0]?.attributes).toEqual([
+      { key: "browser.web_vital.name", value: { stringValue: "LCP" } },
+      { key: "browser.web_vital.value", value: { doubleValue: 2500.5 } },
+      { key: "browser.web_vital.rating", value: { stringValue: "good" } },
+    ]);
+    expect(spans[1]?.name).toBe("browser.error");
+    expect(spans[1]?.attributes).toEqual([
+      { key: "error.type", value: { stringValue: "TypeError" } },
+      { key: "facilis.rum.source", value: { stringValue: "window.onerror" } },
+    ]);
+    expect(JSON.stringify(payload)).not.toContain("secret");
   });
 });

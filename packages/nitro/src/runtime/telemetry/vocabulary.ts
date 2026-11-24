@@ -23,6 +23,21 @@ export const DB_OPERATION = "db.operation.name";
 export const DB_RELATION = "db.collection.name";
 export const DB_SYSTEM_POSTGRESQL = "postgresql";
 
+/**
+ * Frontend RUM (D-208): the browser.web_vital semconv is still Development status, so the
+ * client pins its name/value/rating triple and adapts it to spans (the ingestion class
+ * accepts spans only). Error spans carry type + source; message/stack are PII, never sent.
+ */
+export const WEB_VITAL_NAME = "browser.web_vital.name";
+export const WEB_VITAL_VALUE = "browser.web_vital.value";
+export const WEB_VITAL_RATING = "browser.web_vital.rating";
+export const ERROR_TYPE = "error.type";
+export const RUM_SOURCE = "facilis.rum.source";
+
+/** Fixed RUM span names: low-cardinality by construction. */
+export const WEB_VITAL_SPAN_NAME = "browser.web_vital";
+export const ERROR_SPAN_NAME = "browser.error";
+
 /** Framework-namespaced attributes: no semantic convention exists for jobs or workflows. */
 export const JOB_NAME = "facilis.job.name";
 export const JOB_ATTEMPT = "facilis.job.attempt";

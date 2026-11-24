@@ -15,7 +15,10 @@ function attr(key: string, value: OtlpAttribute["value"]): OtlpAttribute {
   return { key, value };
 }
 
-function payload(attributes: OtlpAttribute[], resourceAttributes: OtlpAttribute[] = []): OtlpExportRequest {
+function payload(
+  attributes: OtlpAttribute[],
+  resourceAttributes: OtlpAttribute[] = [],
+): OtlpExportRequest {
   return {
     resourceSpans: [
       {
@@ -43,9 +46,9 @@ function payload(attributes: OtlpAttribute[], resourceAttributes: OtlpAttribute[
 describe("sanitizeSpanName", () => {
   it("drops query/fragment and collapses concrete ids to templates", () => {
     expect(sanitizeSpanName("GET /orders/123?token=secret#frag")).toBe("GET /orders/:id");
-    expect(
-      sanitizeSpanName("GET /users/0af76519-16cd-43dd-8448-eb211c80319c/items"),
-    ).toBe("GET /users/:id/items");
+    expect(sanitizeSpanName("GET /users/0af76519-16cd-43dd-8448-eb211c80319c/items")).toBe(
+      "GET /users/:id/items",
+    );
   });
 
   it("caps the name length", () => {
@@ -111,7 +114,9 @@ describe("scrubExportRequest", () => {
     const scrubbed = scrubExportRequest(
       payload([
         attr("http.route", { arrayValue: { values: [{ stringValue: "/a" }] } }),
-        attr("http.route", { kvlistValue: { values: [{ key: "k", value: { stringValue: "v" } }] } }),
+        attr("http.route", {
+          kvlistValue: { values: [{ key: "k", value: { stringValue: "v" } }] },
+        }),
         attr("http.route", { stringValue: "x".repeat(500) }),
       ]),
     );
@@ -124,13 +129,16 @@ describe("scrubExportRequest", () => {
 
   it("scrubs resource attributes to the resource allowlist", () => {
     const scrubbed = scrubExportRequest(
-      payload([], [
-        attr("service.name", { stringValue: "acme-shop" }),
-        attr("deployment.id", { stringValue: "dep-1" }),
-        attr("telemetry.sdk.language", { stringValue: "webjs" }),
-        attr("user.id", { stringValue: "u-1" }),
-        attr("host.name", { stringValue: "internal-host" }),
-      ]),
+      payload(
+        [],
+        [
+          attr("service.name", { stringValue: "acme-shop" }),
+          attr("deployment.id", { stringValue: "dep-1" }),
+          attr("telemetry.sdk.language", { stringValue: "webjs" }),
+          attr("user.id", { stringValue: "u-1" }),
+          attr("host.name", { stringValue: "internal-host" }),
+        ],
+      ),
     );
     const resource = scrubbed.payload.resourceSpans[0]?.resource;
     expect(resource?.attributes?.map((a) => a.key)).toEqual([
@@ -163,5 +171,74 @@ describe("scrubExportRequest", () => {
     expect(SPAN_ATTRIBUTE_ALLOWLIST.has("facilis.job.name")).toBe(true);
     expect(RESOURCE_ATTRIBUTE_ALLOWLIST.has("service.name")).toBe(true);
     expect(RESOURCE_ATTRIBUTE_ALLOWLIST.has("enduser.email")).toBe(false);
+  });
+});
+
+describe("frontend RUM vocabulary (D-208)", () => {
+  it("keeps the browser.web_vital triple, including a numeric (double) value", () => {
+    const scrubbed = scrubExportRequest(
+      payload([
+        attr("browser.web_vital.name", { stringValue: "LCP" }),
+        attr("browser.web_vital.value", { doubleValue: 2500.5 }),
+        attr("browser.web_vital.rating", { stringValue: "good" }),
+      ]),
+    );
+    const span = scrubbed.payload.resourceSpans[0]?.scopeSpans[0]?.spans[0];
+    expect(span?.attributes).toEqual([
+      { key: "browser.web_vital.name", value: { stringValue: "LCP" } },
+      { key: "browser.web_vital.value", value: { doubleValue: 2500.5 } },
+      { key: "browser.web_vital.rating", value: { stringValue: "good" } },
+    ]);
+    expect(scrubbed.droppedAttributes).toBe(0);
+  });
+
+  it("keeps an integer vital value too (the serializer may emit intValue)", () => {
+    const scrubbed = scrubExportRequest(
+      payload([attr("browser.web_vital.value", { intValue: 120 })]),
+    );
+    const span = scrubbed.payload.resourceSpans[0]?.scopeSpans[0]?.spans[0];
+    expect(span?.attributes).toEqual([
+      { key: "browser.web_vital.value", value: { intValue: 120 } },
+    ]);
+  });
+
+  it("keeps error type + source and drops exception prose and browser PII", () => {
+    const scrubbed = scrubExportRequest(
+      payload([
+        attr("error.type", { stringValue: "TypeError" }),
+        attr("facilis.rum.source", { stringValue: "window.onerror" }),
+        attr("exception.message", { stringValue: "user alice failed" }),
+        attr("exception.stacktrace", { stringValue: "at /home/alice/app.ts:1" }),
+        attr("http.user_agent", { stringValue: "Mozilla/5.0 (someone)" }),
+        attr("url.full", { stringValue: "https://app.example/?secret=1" }),
+      ]),
+    );
+    const span = scrubbed.payload.resourceSpans[0]?.scopeSpans[0]?.spans[0];
+    expect(span?.attributes).toEqual([
+      { key: "error.type", value: { stringValue: "TypeError" } },
+      { key: "facilis.rum.source", value: { stringValue: "window.onerror" } },
+    ]);
+    expect(scrubbed.droppedAttributes).toBe(4);
+    expect(JSON.stringify(scrubbed.payload)).not.toContain("alice");
+    expect(JSON.stringify(scrubbed.payload)).not.toContain("secret");
+  });
+
+  it("leaves the fixed RUM span names intact", () => {
+    expect(sanitizeSpanName("browser.web_vital")).toBe("browser.web_vital");
+    expect(sanitizeSpanName("browser.error")).toBe("browser.error");
+  });
+
+  it("allowlists the RUM names and nothing else browser-side", () => {
+    for (const key of [
+      "browser.web_vital.name",
+      "browser.web_vital.value",
+      "browser.web_vital.rating",
+      "error.type",
+      "facilis.rum.source",
+    ]) {
+      expect(SPAN_ATTRIBUTE_ALLOWLIST.has(key)).toBe(true);
+    }
+    expect(SPAN_ATTRIBUTE_ALLOWLIST.has("exception.message")).toBe(false);
+    expect(SPAN_ATTRIBUTE_ALLOWLIST.has("http.user_agent")).toBe(false);
   });
 });

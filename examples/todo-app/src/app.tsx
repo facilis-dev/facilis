@@ -1,3 +1,4 @@
+import { RumErrorBoundary } from "@facilis.dev/rum/react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "./components/ui/sonner.tsx";
 import { AppLayout } from "./layouts/app-layout.tsx";
@@ -20,53 +21,56 @@ export function App() {
   // (pages keep calling plain t(), docs/FRONTEND.md section 6) whenever the locale changes.
   useLocale();
 
+  // Report-only RUM boundary (D-208): no fallback prop, so it renders null and only reports.
   return (
-    <SessionProvider>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Navigate to="/todos" replace />} />
+    <RumErrorBoundary>
+      <SessionProvider>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/todos" replace />} />
+            <Route
+              path="/todos"
+              element={
+                <RequireAuth>
+                  <TodosPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/todos/:id"
+              element={
+                <RequireAuth>
+                  <TodoDetailPage />
+                </RequireAuth>
+              }
+            />
+          </Route>
+          {/* A public, prerendered landing page (D-202): no session guard, only public API calls. */}
+          <Route path="/public-stats" element={<PublicStatsPage />} />
           <Route
-            path="/todos"
+            path="/login"
             element={
-              <RequireAuth>
-                <TodosPage />
-              </RequireAuth>
+              <PublicOnly>
+                <AuthLayout>
+                  <LoginPage />
+                </AuthLayout>
+              </PublicOnly>
             }
           />
           <Route
-            path="/todos/:id"
+            path="/register"
             element={
-              <RequireAuth>
-                <TodoDetailPage />
-              </RequireAuth>
+              <PublicOnly>
+                <AuthLayout>
+                  <RegisterPage />
+                </AuthLayout>
+              </PublicOnly>
             }
           />
-        </Route>
-        {/* A public, prerendered landing page (D-202): no session guard, only public API calls. */}
-        <Route path="/public-stats" element={<PublicStatsPage />} />
-        <Route
-          path="/login"
-          element={
-            <PublicOnly>
-              <AuthLayout>
-                <LoginPage />
-              </AuthLayout>
-            </PublicOnly>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicOnly>
-              <AuthLayout>
-                <RegisterPage />
-              </AuthLayout>
-            </PublicOnly>
-          }
-        />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-      <Toaster />
-    </SessionProvider>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+        <Toaster />
+      </SessionProvider>
+    </RumErrorBoundary>
   );
 }

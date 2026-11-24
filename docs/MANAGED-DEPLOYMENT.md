@@ -247,7 +247,7 @@ attempt and per workflow transition. A request continues the browser's trace thr
 `traceparent` header, so a page fetch and the API and DB work it triggers share one trace-id.
 The attribute vocabulary is closed and declaration-derived: `http.request.method`, `http.route`
 (the matched **template**, never the concrete path), `http.response.status_code`,
-`db.system.name`, `db.operation.name`, `db.collection.name`, and the `facilis.job.*` /
+`db.system.name`, `db.operation.name`, `db.collection.name`, the `facilis.job.*` /
 `facilis.workflow.*` namespaced attributes. Values, query strings, bodies, header values and
 bind parameters are never exported, and a failed operation contributes an error status without
 its message (a driver or job error can repeat an input). The runtime switch is
@@ -258,6 +258,7 @@ the host passes to the server at boot:
 | Variable | Meaning |
 |---|---|
 | `FACILIS_TELEMETRY` | `on` starts the pipeline; anything else leaves it absent. |
+| `FACILIS_TELEMETRY_FE` | build-time: `on` enables the frontend RUM client (`@facilis.dev/rum`); requires the tenant key. Off by default. |
 | `FACILIS_TELEMETRY_ENDPOINT` | collector base URL (for example `https://otel.acme.example:4318`); the framework appends `/v1/traces` and `/v1/metrics`. Required when the switch is on. |
 | `FACILIS_TELEMETRY_SAMPLING` | root-span ratio `0`–`1`; the deploy `sampling` value. Unset or invalid keeps everything. |
 | `FACILIS_TELEMETRY_SERVICE` | `service.name` on every exported resource; defaults to `facilis-app`. |
@@ -265,6 +266,13 @@ the host passes to the server at boot:
 | `FACILIS_TELEMETRY_ORIGINS` | comma-separated exact origins (`scheme://host[:port]`) allowed to POST to the ingestion route; the deploy `originAllowlist`. Empty leaves the route reachable from the app's own origin only. |
 | `FACILIS_TELEMETRY_TENANT_KEY` | the public write-only key the page presents in the `x-facilis-telemetry-key` header; the deploy `tenantKey`. Unset rejects every ingestion POST (a backend-only deployment has no browser writer). |
 | `FACILIS_TELEMETRY_SPANS_PER_MIN` | per-origin/IP/tenant span-per-minute token-bucket cap for the ingestion route; default 24. Unset or invalid keeps the default. |
+
+The FE option is read at **build** time (`vite build`: the `facilisRum()` companion compiles
+the `__FACILIS_RUM_CONFIG__` literal into the bundle), while the backend options above are read
+at server boot. The frontend client (`@facilis.dev/rum`, D-208) emits `browser.web_vital` spans
+(the `browser.web_vital.name`/`.value`/`.rating` triple), `browser.error` spans
+(`error.type` + `facilis.rum.source` only, never message/stack) and document-load/fetch spans
+through the same ingestion route.
 
 A production boot with the switch on but no usable endpoint exports nothing and logs one
 warning: the build refuses that combination, so it means the process was started outside its

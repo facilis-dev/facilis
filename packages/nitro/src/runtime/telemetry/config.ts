@@ -23,6 +23,11 @@ export const DEPLOYMENT_ID_ENV = "FACILIS_DEPLOYMENT_ID";
 export const TELEMETRY_ORIGINS_ENV = "FACILIS_TELEMETRY_ORIGINS";
 /** The public write-only tenant key the browser presents to the ingestion route. */
 export const TELEMETRY_TENANT_KEY_ENV = "FACILIS_TELEMETRY_TENANT_KEY";
+/**
+ * The frontend RUM opt-in (D-208), read at BUILD time by the facilisRum() Vite companion.
+ * Explicit and off by default: the backend switch alone never enables the browser client.
+ */
+export const TELEMETRY_FE_ENV = "FACILIS_TELEMETRY_FE";
 /** Per-origin/IP/tenant span-per-minute token-bucket cap for the ingestion route. */
 export const TELEMETRY_SPANS_PER_MIN_ENV = "FACILIS_TELEMETRY_SPANS_PER_MIN";
 

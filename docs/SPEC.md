@@ -1295,6 +1295,17 @@ production `404` guard (§6.8, §8.5), and dev stays local (D-200): inside the
 WebContainer/preview no telemetry leaves the machine. The route class itself — its gates and its
 relationship to invariant 1 — is defined in §8.8.
 
+Frontend RUM is framework-owned too (D-208): `@facilis.dev/rum` emits the Core Web Vitals as
+`browser.web_vital` spans (the `browser.web_vital.name`/`.value`/`.rating` triple of the
+Development-status semconv, pinned and adapted to spans because this class accepts spans only),
+errors as `browser.error` spans carrying `error.type` and `facilis.rum.source` — never a
+message, stack or reason value — plus document-load and fetch/XHR spans. It exports OTLP/JSON to
+this same ingestion route with the public tenant key, and propagates `traceparent` to the app's
+own origin only, never third parties. It is enabled only at build time by the deploy telemetry
+options (`FACILIS_TELEMETRY` + `FACILIS_TELEMETRY_FE` + the tenant key), is production-only, and
+is completely silent in dev/WebContainer (D-200). URLs are scrubbed client-side as defense in
+depth; the §8.8 attribute allowlist remains the gate.
+
 ---
 
 ## 7. Type Reference
@@ -2660,8 +2671,10 @@ data; it forwards the payload to the operator's collector, which is the only con
   cap `defineAuthorizedHandler` applies (§8.2, D-153);
 - **OTLP schema validation** (`400`) with a maximum number of spans per batch;
 - an **attribute allowlist** (the framework vocabulary of D-203: route template, method, status,
-  duration, declared table names) that strips raw URLs, query strings, bodies, headers and input
-  values, plus span-id dedup to blunt replay.
+  duration, declared table names, and the frontend RUM names `browser.web_vital.name`,
+  `browser.web_vital.value`, `browser.web_vital.rating`, `error.type`, `facilis.rum.source`)
+  that strips raw URLs, query strings, bodies, headers and input values, plus span-id dedup to
+  blunt replay.
 
 **Disabled means absent.** The route exists only when build-time deploy options enable telemetry
 (D-063/D-064, §6.10): disabled is `404`, never `401`/`403`, so a deployment that does not want

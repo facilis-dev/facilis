@@ -9,12 +9,17 @@ import {
   DB_RELATION,
   DB_SYSTEM,
   DEPLOYMENT_ID,
+  ERROR_TYPE,
   HTTP_METHOD,
   HTTP_ROUTE,
   HTTP_STATUS,
   JOB_ATTEMPT,
   JOB_NAME,
+  RUM_SOURCE,
   SERVICE_NAME,
+  WEB_VITAL_NAME,
+  WEB_VITAL_RATING,
+  WEB_VITAL_VALUE,
   WORKFLOW_NAME,
   WORKFLOW_STEP,
   WORKFLOW_STEP_KIND,
@@ -33,6 +38,13 @@ export const SPAN_ATTRIBUTE_ALLOWLIST: ReadonlySet<string> = new Set([
   WORKFLOW_NAME,
   WORKFLOW_STEP,
   WORKFLOW_STEP_KIND,
+  // Frontend RUM (D-208): the pinned vital triple and error type/source. The client
+  // scrubs too (defense in depth); this allowlist remains the final gate.
+  WEB_VITAL_NAME,
+  WEB_VITAL_VALUE,
+  WEB_VITAL_RATING,
+  ERROR_TYPE,
+  RUM_SOURCE,
 ]);
 
 /**
@@ -69,7 +81,10 @@ const MAX_SPAN_NAME = 120;
 /** Span names are exported too: drop any query/fragment and collapse concrete ids. */
 export function sanitizeSpanName(name: string): string {
   const withoutQuery = name.split(/[?#]/)[0] ?? "";
-  return withoutQuery.replace(UUID, "/:id").replace(NUMERIC_SEGMENT, "/:id").slice(0, MAX_SPAN_NAME);
+  return withoutQuery
+    .replace(UUID, "/:id")
+    .replace(NUMERIC_SEGMENT, "/:id")
+    .slice(0, MAX_SPAN_NAME);
 }
 
 /** Allowlisted keys still carry only scalars: an allowed key must not smuggle a structure. */
@@ -121,7 +136,11 @@ export function scrubExportRequest(payload: OtlpExportRequest): ScrubResult {
     droppedAttributes += resourceAttributes.dropped;
     const scopeSpans = resourceSpan.scopeSpans.map((scopeSpan) => ({
       spans: scopeSpan.spans.map((span): OtlpSpan => {
-        const attributes = scrubAttributes(span.attributes, SPAN_ATTRIBUTE_ALLOWLIST, LEGACY_SPAN_KEYS);
+        const attributes = scrubAttributes(
+          span.attributes,
+          SPAN_ATTRIBUTE_ALLOWLIST,
+          LEGACY_SPAN_KEYS,
+        );
         droppedAttributes += attributes.dropped;
         return {
           traceId: span.traceId,

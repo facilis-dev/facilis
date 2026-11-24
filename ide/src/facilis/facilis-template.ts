@@ -38,6 +38,7 @@ export const TEMPLATE_PACKAGES = [
   "core",
   "db",
   "nitro",
+  "rum",
   "storage",
   "time",
 ] as const;
