@@ -181,6 +181,8 @@ describe("stagePackage (fixture tree)", () => {
       fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
       fs.mkdirSync(path.join(dir, "src", "test-fixtures"), { recursive: true });
       fs.writeFileSync(path.join(dir, "dist", "index.js"), "export {};\n");
+      fs.writeFileSync(path.join(dir, "dist", "react.js"), "export {};\n");
+      fs.writeFileSync(path.join(dir, "src", "react.tsx"), "export {};\n");
       fs.writeFileSync(path.join(dir, "dist", "index.d.ts"), 'export { x } from "./inner.ts";\n');
       fs.writeFileSync(path.join(dir, "dist", "index.test.js"), "test artifact\n");
       fs.writeFileSync(path.join(dir, "src", "index.ts"), "export {};\n");
@@ -190,7 +192,11 @@ describe("stagePackage (fixture tree)", () => {
       const pkgManifest = {
         name: "@facilis.dev/fixture",
         version: "0.3.0",
-        exports: { ".": "./src/index.ts", "./package.json": "./package.json" },
+        exports: {
+          ".": "./src/index.ts",
+          "./react": "./src/react.tsx",
+          "./package.json": "./package.json",
+        },
         dependencies: { "@facilis.dev/core": "workspace:*", zod: "4.6.7" },
         devDependencies: { vitest: "catalog:" },
         scripts: { test: "vitest run" },
@@ -204,6 +210,7 @@ describe("stagePackage (fixture tree)", () => {
       expect(staged.version).toBe("0.3.0");
       expect(staged.dependencies).toEqual({ "@facilis.dev/core": "0.1.10", zod: "4.6.7" });
       expect(staged.exports["."]).toBe("./dist/index.js");
+      expect(staged.exports["./react"]).toBe("./dist/react.js");
       expect(staged.main).toBe("./dist/index.js");
       expect(staged.types).toBe("./dist/index.d.ts");
       expect(staged.devDependencies).toBeUndefined();

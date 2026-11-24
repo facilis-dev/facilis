@@ -104,11 +104,12 @@ type Manifest = {
   [key: string]: unknown;
 };
 
-/** Rewrite a ./src/*.ts entry to the ./dist/*.js the native ESM loader can import.
- *  A declaration file keeps its .d.ts extension (only runtime .ts becomes .js). */
+/** Rewrite a ./src/*.ts(x) entry to the ./dist/*.js the native ESM loader can import.
+ *  A declaration file keeps its .d.ts extension (only runtime sources become .js);
+ *  .tsx entries exist too (@facilis.dev/rum's ./react), and tsc emits them as .js. */
 function distEntry(value: string): string {
   const moved = value.replace(/^\.\/src\//, "./dist/");
-  return moved.endsWith(".d.ts") ? moved : moved.replace(/\.ts$/, ".js");
+  return moved.endsWith(".d.ts") ? moved : moved.replace(/\.tsx?$/, ".js");
 }
 
 function distExports(exports: unknown): unknown {

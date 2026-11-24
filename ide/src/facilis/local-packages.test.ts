@@ -31,6 +31,7 @@ describe("rewriteLocalManifest", () => {
     exports: {
       ".": { types: "./src/index.d.ts", default: "./src/index.ts" },
       "./config": "./src/config.ts",
+      "./react": "./src/react.tsx",
       "./package.json": "./package.json",
     },
     dependencies: { "@facilis.dev/db": "workspace:*", zod: "^4.0.0" },
@@ -45,6 +46,7 @@ describe("rewriteLocalManifest", () => {
     expect(out.exports).toEqual({
       ".": { types: "./dist/index.d.ts", default: "./dist/index.js" },
       "./config": "./dist/config.js",
+      "./react": "./dist/react.js",
       "./package.json": "./package.json",
     });
   });
