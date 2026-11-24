@@ -1,12 +1,6 @@
 import { createDb, type FacilisDb } from "@facilis.dev/db";
 import { sessionMiddleware, type SessionEvent } from "@facilis.dev/auth";
-import {
-  type FacilisConfig,
-  type FacilisLoggingApi,
-  type FacilisLoggingConfig,
-  type ManifestWarning,
-  type StorageApi,
-} from "@facilis.dev/core";
+import type { ManifestWarning } from "@facilis.dev/core";
 import { projectRoot } from "#facilis/config";
 import dbSchema from "#facilis/db-schema";
 import dbViewModules from "#facilis/db-views";
@@ -20,50 +14,19 @@ import {
   devDbSnapshotPath,
   installDevDbSnapshotter,
   readDevDbSnapshot,
+  type DevDbSnapshotter,
 } from "./dev-db-persistence.ts";
 import { bootRuntimes } from "./boot-runtimes.ts";
 import { isProductionEnvironment } from "./env.ts";
-import type { JobsRuntime } from "./jobs/runtime.ts";
-import type { TasksRuntime } from "./tasks/boot.ts";
-import type { WorkflowsRuntime } from "./workflows/runner.ts";
 import { readProjectConfig } from "./project-config.ts";
+import { registerRuntimeCloseHook } from "./shutdown.ts";
+import type { BootstrapState } from "./bootstrap-state.ts";
 import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
 import { installSudoAuditBridge } from "./logging/sudo-bridge.ts";
 import { readDefaultTenantId } from "./tenant.ts";
 import { resolveStorage } from "./storage-target.ts";
 
-export interface BootstrapState {
-  readonly db: FacilisDb | null;
-  readonly config: FacilisConfig | null;
-  readonly warnings: readonly ManifestWarning[];
-  readonly startedAt: string;
-  /**
-   * Background-job runtime (D-107); null when the db or the job boot failed. The context
-   * middleware carries `jobs.api` on `event.context.facilis`.
-   */
-  readonly jobs: JobsRuntime | null;
-  /**
-   * Manual-task runtime (D-135); null when facilis_tasks is missing or the task boot failed.
-   * The context middleware carries tasks.api on event.context.facilis.
-   */
-  readonly tasks: TasksRuntime | null;
-  /**
-   * Workflow runtime (D-135); null when the tables or the job queue are unavailable. The
-   * context middleware carries workflows.api on event.context.facilis.
-   */
-  readonly workflows: WorkflowsRuntime | null;
-  /** Binary-storage runtime (D-053); null when the boot refused its configuration. */
-  readonly storage: StorageApi | null;
-  /**
-   * Operator logging runtime (D-119). Always present: built from the documented defaults when
-   * the project config failed, so the request context never lacks a logger.
-   */
-  readonly logging: FacilisLoggingApi;
-  /** Effective logging config (project defaults + env level override) for the middleware. */
-  readonly loggingConfig: FacilisLoggingConfig;
-  /** Cached session handler; rebuilt lazily because it closes over the db client. */
-  sessionHandler?: (event: SessionEvent) => Promise<void>;
-}
+export type { BootstrapState } from "./bootstrap-state.ts";
 
 let bootstrapPromise: Promise<BootstrapState> | undefined;
 
@@ -252,8 +215,9 @@ async function bootstrap(): Promise<BootstrapState> {
     }
   }
 
+  let snapshotter: DevDbSnapshotter | null = null;
   if (devPersistenceEnabled) {
-    installDevDbSnapshotter({
+    snapshotter = installDevDbSnapshotter({
       db,
       projectRoot,
       snapshotPath,
@@ -281,6 +245,11 @@ async function bootstrap(): Promise<BootstrapState> {
     workflowModules,
     warnings,
   });
+
+  // srvx runs nitro's "close" hooks on server.close(): the in-process prerender boot (D-202)
+  // and a production SIGTERM both shut down through here. Without the hook the jobs/workflow
+  // ticks and the PGlite cluster keep `vite build` alive after the bundles are written (#162).
+  registerRuntimeCloseHook({ db, jobs, workflows, snapshotter });
 
   return {
     db,
