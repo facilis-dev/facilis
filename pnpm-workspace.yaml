@@ -38,6 +38,7 @@ minimumReleaseAgeExclude:
   - "@tailwindcss/oxide@4.3.5"
   - "@tailwindcss/vite@4.3.5"
   - tailwindcss@4.3.5
+  - marked@18.3.0
 
 # The browser parser adapter (ide/src/facilis/analyze-worker.ts) loads oxc-parser's
 # wasm32-wasip1 binding. That binding declares @emnapi/core/@emnapi/runtime at

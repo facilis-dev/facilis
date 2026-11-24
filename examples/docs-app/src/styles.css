@@ -1,0 +1,206 @@
+/*
+ * Style entry for the docs template: Tailwind CSS v4 utilities over a small set of semantic
+ * role tokens. Colour literals exist only in the theme blocks below, so a theme is a complete
+ * variable set and no component names a colour. .doc-prose styles the rendered Markdown/MDX
+ * content with the same tokens.
+ */
+@import "tailwindcss";
+
+/* lib/theme.ts writes data-theme="light"|"dark" on <html>, so the dark variant keys off that
+   attribute. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --radius-2xl: calc(var(--radius) + 0.5rem);
+}
+
+/* Cool paper and ink for the light theme; the accent is a docs-friendly indigo. */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #fbfbfa;
+  --foreground: #16181d;
+  --card: #ffffff;
+  --card-foreground: #16181d;
+  --primary: #1a1d24;
+  --primary-foreground: #fbfbfa;
+  --secondary: #eef0f3;
+  --secondary-foreground: #333a45;
+  --muted: #f1f2f5;
+  --muted-foreground: #5d6572;
+  --accent: #3b4fd8;
+  --accent-foreground: #f4f6ff;
+  --destructive: #b91c1c;
+  --border: #e3e5ea;
+  --input: #e3e5ea;
+  --ring: #3b4fd8;
+  --radius: 0.625rem;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #101216;
+  --foreground: #eceef2;
+  --card: #171a20;
+  --card-foreground: #eceef2;
+  --primary: #eceef2;
+  --primary-foreground: #14161b;
+  --secondary: #22262e;
+  --secondary-foreground: #d5dae2;
+  --muted: #1d2128;
+  --muted-foreground: #98a1b0;
+  --accent: #8b9cf5;
+  --accent-foreground: #101425;
+  --destructive: #f87171;
+  --border: #2a2f38;
+  --input: #2a2f38;
+  --ring: #8b9cf5;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  /* Tailwind v4's preflight drops v3's pointer cursor on buttons; restore it once. */
+  button:not(:disabled, [aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+}
+
+/* Rendered Markdown/MDX content. Authored headings carry slug ids (lib/markdown.ts), so
+   scroll-margin keeps anchored headings clear of the sticky header. */
+@layer components {
+  .doc-prose {
+    @apply text-[0.95rem] leading-relaxed;
+  }
+
+  .doc-prose > :first-child {
+    margin-top: 0;
+  }
+
+  .doc-prose h2,
+  .doc-prose h3,
+  .doc-prose h4 {
+    @apply font-serif font-semibold tracking-tight;
+    scroll-margin-top: 6rem;
+  }
+
+  .doc-prose h2 {
+    @apply mt-10 mb-3 border-b border-border pb-2 text-2xl;
+  }
+
+  .doc-prose h3 {
+    @apply mt-8 mb-2 text-xl;
+  }
+
+  .doc-prose h4 {
+    @apply mt-6 mb-2 text-base;
+  }
+
+  .doc-prose p {
+    @apply my-4;
+  }
+
+  .doc-prose a {
+    @apply font-medium text-accent underline decoration-accent/40 underline-offset-4 transition-colors hover:decoration-accent;
+  }
+
+  .doc-prose ul {
+    @apply my-4 list-disc space-y-1.5 pl-6;
+  }
+
+  .doc-prose ol {
+    @apply my-4 list-decimal space-y-1.5 pl-6;
+  }
+
+  .doc-prose li > ul,
+  .doc-prose li > ol {
+    @apply my-1.5;
+  }
+
+  .doc-prose blockquote {
+    @apply my-5 border-l-2 border-accent/50 pl-4 text-muted-foreground italic;
+  }
+
+  .doc-prose code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+
+  .doc-prose pre {
+    @apply my-5 overflow-x-auto rounded-lg border border-border bg-muted p-4;
+  }
+
+  .doc-prose pre code {
+    @apply bg-transparent p-0 text-[0.85rem] leading-relaxed;
+  }
+
+  .doc-prose hr {
+    @apply my-8 border-border;
+  }
+
+  .doc-prose table {
+    @apply my-5 w-full border-collapse text-sm;
+  }
+
+  .doc-prose th {
+    @apply border border-border bg-muted px-3 py-2 text-left font-semibold;
+  }
+
+  .doc-prose td {
+    @apply border border-border px-3 py-2 align-top;
+  }
+
+  .doc-prose img {
+    @apply my-5 max-w-full rounded-lg;
+  }
+}

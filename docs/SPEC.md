@@ -1,11 +1,18 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.38 (static-template prerender devDependency clarification, D-202/D-168; issue #86)
+**Version:** 1.39 (documentation-site template kind, D-168; issue #163)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.39 — The template registry gains the documentation-site kind (`examples/docs-app`,
+  manifest id `facilis-docs`; D-168, issue #163): a static Vite + React + Tailwind site whose
+  pages are Markdown/MDX files under `src/content/docs/`, with a content-tree sidebar,
+  prev/next links and per-page tables of contents. The content pipeline (frontmatter schema,
+  file-derived docs routing, render-time Markdown/MDX evaluation) is an example-local
+  convention, not a framework contract; the prerender declaration surface is unchanged
+  (D-202). §4 layout and the §4.2 note follow.
 - v1.38 — Clarify the static template's `package.json` (§4.2 note): no `@facilis.dev/*` runtime
   dependency, but one build-time-only prerender plugin devDependency (D-202/D-168 amendment;
   issue #86). The examples now declare prerendered routes: showcase `/` + `/contact`, todo
@@ -370,6 +377,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │                         components, D-090) + Phase 1 acceptance app
 │   ├── showcase-app/         static template source (Vite + React + Tailwind, no backend,
 │   │                         D-168)
+│   ├── docs-app/             documentation-site template source (Markdown/MDX content
+│   │                         pipeline, static, D-168, issue #163)
 │   └── starter-app/          empty full-stack template source (standard login only, D-168)
 │
 ├── spikes/                   throwaway feasibility spikes (never shipped; absent when none is active)
@@ -423,8 +432,13 @@ scaffold: the IDE inlines that source at build time and adds only the files the 
 template (`examples/todo-app`), which also gets the liveness `ping` route, the HMR hint/style
 and the in-process Nitro runner. The static template (`examples/showcase-app`) is the same
 IDE-owned files over a plain Vite + React + Tailwind tree — no `server/`, `db/` or
-`facilis.config.ts`, and its `package.json` carries no `@facilis.dev/*` runtime dependency — only the build-time-only prerender plugin devDependency (D-202/D-168). The empty full-stack
-template (`examples/starter-app`) has the same layout and wrappers with the login-only
+`facilis.config.ts`, and its `package.json` carries no `@facilis.dev/*` runtime dependency —
+only the build-time-only prerender plugin devDependency (D-202/D-168). The documentation
+template (`examples/docs-app`) is the same static shape plus a content tree: Markdown/MDX
+pages under `src/content/docs/` whose frontmatter, file-derived routes, sidebar, prev/next
+links and page TOCs are an example-local convention (issue #163), with the same prerender
+declaration surface. The empty full-stack template (`examples/starter-app`) has the same
+layout and wrappers with the login-only
 surface — auth routes, pages, schema and migrations, no todo/file/job route or page — and gets
 the in-VM Nitro runner override. New
 projects pick a template in Home's New project dialog (D-168); the run manifest comes from the

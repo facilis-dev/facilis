@@ -117,6 +117,9 @@ export const it: Partial<Record<MessageKey, string>> = {
     "Nitro + PGlite + React, con autenticazione, todo, upload di file e job.",
   "create.template.showcase": "Sito vetrina statico",
   "create.template.showcaseDescription": "Vite + React + Tailwind, solo frontend — nessun backend.",
+  "create.template.docs": "Sito di documentazione",
+  "create.template.docsDescription":
+    "Docs Markdown/MDX con sidebar generata, prev/next e indice di pagina — nessun backend.",
   "create.template.starter": "App full-stack vuota",
   "create.template.starterDescription":
     "Nitro + PGlite + React con solo la login standard — nessuna app demo da cancellare.",

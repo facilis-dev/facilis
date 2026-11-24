@@ -54,6 +54,7 @@ const FONTCONFIG = process.env.FACILIS_FONTCONFIG || path.join(TOOLING, "browser
 const ALPHA = "/home/user/projects/alpha";
 const BETA = "/home/user/projects/beta";
 const GAMMA = "/home/user/projects/gamma";
+const DOCS = "/home/user/projects/docs";
 
 // The creation path the IDE ships (D-051/D-168), not a vanilla Vite template: alpha is
 // the default todo project (its preview is the login page) and beta is the static
@@ -61,6 +62,9 @@ const GAMMA = "/home/user/projects/gamma";
 // content proves which kernel served the frame — both manifests bind port 3000.
 const TODO_PREVIEW = /Log in/;
 const SHOWCASE_PREVIEW = /We design brands people remember/;
+// The docs home hero is the settle mark: the sidebar tree sits in a collapsed details at
+// the headless viewport (800x600 < lg), so innerText never shows it — textContent does.
+const DOCS_PREVIEW = /Docs your readers can navigate/;
 
 const failures = [];
 const checks = [];
@@ -1062,6 +1066,111 @@ async function main() {
       JSON.stringify({ status: featuresHtml.status, island: featuresHtml.body.includes('id="prerender-data"') }),
     );
     await tabB.screenshot(path.join(ARTIFACTS, "02d-showcase-prerender.png"));
+
+    // ---- docs template (issue #163): the documentation-site kind boots and prerenders ----
+    // Tab B replaces beta with a docs project (the replacement semantics are proven above;
+    // this is the last phase). The static docs site must boot with plain vite dev, show the
+    // content-tree sidebar, serve a content file added at runtime WITHOUT a React edit, and
+    // prerender its declared routes — the same coverage the showcase gets, for the docs kind.
+    const dirDocs = await createProject(tabB, "docs", true, undefined, "docs");
+    check(dirDocs === DOCS, "tab B creates the docs project", dirDocs);
+    check(
+      await waitFor(
+        tabB,
+        "window.__ide.getSnapshot().ports.length === 1" +
+          " && window.__ide.getSnapshot().previewTabs.length === 1",
+        PREVIEW_TIMEOUT_MS,
+        "docs preview",
+      ),
+      "docs project runs after replacing beta in the same tab",
+    );
+    const prevD = await waitForPreview(tabB, DOCS_PREVIEW, 30000, "docs home content");
+    check(
+      prevD.found && DOCS_PREVIEW.test(prevD.text),
+      "tab B preview is the docs site home",
+      prevD.text.slice(0, 60),
+    );
+    // textContent, not innerText: the content-tree sidebar is a collapsed details at this
+    // viewport, and its pages must still be present in the DOM.
+    const previewHas = (text) =>
+      "(() => { const f = [...document.querySelectorAll('iframe')].find((f) => /preview/.test(f.src || ''));" +
+      " try { return (f.contentDocument.body.textContent || '').includes(" + JSON.stringify(text) + "); } catch (e) { return false; } })()";
+    check(
+      await waitFor(tabB, previewHas("Getting started") + " && " + previewHas("Guides"), 30000, "docs sidebar tree"),
+      "docs: the sidebar is generated from the content tree",
+    );
+
+    // AC3: a new content file appears in the sidebar and is reachable at its file-derived
+    // route through the catch-all — no React edit, no restart.
+    const smokePage =
+      "---\ntitle: Smoke Page\ndescription: Added by the smoke.\norder: 9\n---\n\n" +
+      "## Smoke heading\n\nA page added without editing React.\n";
+    check(
+      await writeProbe(tabB, DOCS + "/src/content/docs/smoke-page.md", smokePage),
+      "docs: a new content file is written through the kernel",
+    );
+    check(
+      await waitFor(tabB, previewHas("Smoke Page"), 30000, "docs sidebar gains the page"),
+      "docs: the sidebar lists the new page without a React edit",
+    );
+    await tabB.evaluate(
+      "(() => { const f = [...document.querySelectorAll('iframe')].find((f) => /preview/.test(f.src || ''));" +
+      " f.src = f.src.replace(/\\/preview\\/(\\d+)\\/.*/, '/preview/$1/docs/smoke-page'); })()",
+    );
+    check(
+      await waitFor(tabB, previewHas("A page added without editing React."), 30000, "docs new route"),
+      "docs: the new page renders at its file-derived route (catch-all)",
+    );
+
+    // Declared docs routes prerender to static HTML in-VM and the dev middleware serves it.
+    const buildD = await runInVmBuild(tabB, DOCS, "smoke-build-docs");
+    check(
+      buildD.code === 0 && !buildD.timeout,
+      "prerender: docs-app builds in-VM (npm run build)",
+      buildD.timeout
+        ? "timeout; tail: " + buildD.tail
+        : buildD.code === 0
+          ? ""
+          : "exit " + buildD.code + "; tail: " + buildD.tail,
+    );
+    await waitForPreview(tabB, DOCS_PREVIEW, 30000, "B docs before prerender fetch");
+    const startHtml = await previewHtml(tabB, "/docs/getting-started");
+    const startDiag = {
+      status: startHtml.status,
+      island: startHtml.body.includes('id="prerender-data"'),
+      content: startHtml.body.includes("npm run dev"),
+      canonical: startHtml.body.includes('href="https://docs.example.com/docs/getting-started"'),
+      title: /<title>[^<]+<\/title>/.test(startHtml.body),
+    };
+    check(
+      startHtml.found &&
+        startHtml.status === 200 &&
+        startDiag.island &&
+        startDiag.content &&
+        startDiag.canonical &&
+        startDiag.title,
+      "prerender: docs '/docs/getting-started' serves prerendered HTML (content, title, canonical, island)",
+      JSON.stringify(startDiag),
+    );
+    // The MDX page's JSX component must be real HTML in the prerendered output too.
+    const mdxHtml = await previewHtml(tabB, "/docs/guides/navigation");
+    check(
+      mdxHtml.found &&
+        mdxHtml.status === 200 &&
+        mdxHtml.body.includes('id="prerender-data"') &&
+        mdxHtml.body.includes("Adding a file updates the sidebar"),
+      "prerender: docs MDX route serves prerendered HTML with its rendered component",
+      JSON.stringify({ status: mdxHtml.status, island: mdxHtml.body.includes('id="prerender-data"') }),
+    );
+    const undeclaredHtml = await previewHtml(tabB, "/docs/smoke-page");
+    check(
+      undeclaredHtml.found &&
+        undeclaredHtml.status === 200 &&
+        !undeclaredHtml.body.includes('id="prerender-data"'),
+      "prerender: undeclared docs route serves the shell (no island)",
+      JSON.stringify({ status: undeclaredHtml.status, island: undeclaredHtml.body.includes('id="prerender-data"') }),
+    );
+    await tabB.screenshot(path.join(ARTIFACTS, "02e-docs-prerender.png"));
 
     fs.writeFileSync(
       path.join(ARTIFACTS, "report.json"),

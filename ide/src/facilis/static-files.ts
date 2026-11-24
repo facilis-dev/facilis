@@ -45,6 +45,42 @@ you, or run "npm install" yourself before it.
 The preinstall guard rejects other package managers on purpose.
 `;
 
+export const DOCS_README = `# facilis-app
+
+A documentation site scaffolded by the Facilis IDE: React 19 + Vite + Tailwind CSS v4,
+frontend only. There is no server, no database and no facilis.config.ts — the project is
+a plain Vite app, so "npm run dev" is the whole runtime.
+
+## Content
+
+Pages are Markdown (.md) and MDX (.mdx) files under src/content/docs/. A file becomes a
+page at a file-derived route (guides/navigation.mdx -> /docs/guides/navigation; an index
+file maps to its directory). The sidebar, prev/next links and per-page tables of contents
+derive from the same content tree, so adding a file needs no React edit.
+
+Each file opens with a frontmatter block: title (string), description (string) and order
+(integer, the reading order within its section). Rendering is pure JS at render time —
+marked for Markdown, @mdx-js/mdx evaluateSync for MDX — so the same content works in the
+dev server, the client build and the prerender pass.
+
+## Prerendering
+
+vite.config.ts declares the routes that build to static HTML (D-202). A new page is
+served by the catch-all immediately; to prerender it too, add its literal route to
+src/app.tsx and to the prerender allowlist.
+
+## Package manager
+
+npm, the one the IDE vendors and keeps aligned with its Node version:
+
+    npm run dev
+
+"npm run dev" expects dependencies to be installed: the IDE's Run installs them for
+you, or run "npm install" yourself before it.
+
+The preinstall guard rejects other package managers on purpose.
+`;
+
 /**
  * The static project's package.json, from the example's own one.
  *
