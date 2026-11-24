@@ -1,11 +1,15 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.37 (route-level prerendering + hydration contract, D-202)
+**Version:** 1.38 (static-template prerender devDependency clarification, D-202/D-168; issue #86)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.38 — Clarify the static template's `package.json` (§4.2 note): no `@facilis.dev/*` runtime
+  dependency, but one build-time-only prerender plugin devDependency (D-202/D-168 amendment;
+  issue #86). The examples now declare prerendered routes: showcase `/` + `/contact`, todo
+  `/public-stats` (a new `permission: []` RLS-scoped read).
 - v1.37 — Route-level prerendering + hydration is a contract (D-202, epic #79, issue #81).
   An opt-in allowlist of public/static pages: an in-process `closeBundle` pass in `facilis()`
   (Arm C of the #80 spike) renders the same React tree with `react-dom/static`, writes
@@ -416,7 +420,7 @@ scaffold: the IDE inlines that source at build time and adds only the files the 
 template (`examples/todo-app`), which also gets the liveness `ping` route, the HMR hint/style
 and the in-process Nitro runner. The static template (`examples/showcase-app`) is the same
 IDE-owned files over a plain Vite + React + Tailwind tree — no `server/`, `db/` or
-`facilis.config.ts`, and its `package.json` carries no `@facilis.dev/*` dependency. The empty full-stack
+`facilis.config.ts`, and its `package.json` carries no `@facilis.dev/*` runtime dependency — only the build-time-only prerender plugin devDependency (D-202/D-168). The empty full-stack
 template (`examples/starter-app`) has the same layout and wrappers with the login-only
 surface — auth routes, pages, schema and migrations, no todo/file/job route or page — and gets
 the in-VM Nitro runner override. New

@@ -84,4 +84,7 @@ export default defineConfig({
     maxUploadBytes: 5 * 1024 * 1024,
     tokenTtlSeconds: 300,
   },
+  // Opt-in prerendering (D-202): only the public, unguarded /public-stats page is declared.
+  // /todos stays an auth-gated SPA (the negative example). Replace origin with your own.
+  prerender: { routes: ["/public-stats"], origin: "https://todo.example.com" },
 });

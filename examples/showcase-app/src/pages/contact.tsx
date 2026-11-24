@@ -24,6 +24,8 @@ export function ContactPage() {
 
   return (
     <>
+      <title>{t("meta.contact.title")}</title>
+      <meta name="description" content={t("meta.contact.description")} />
       <PageHero
         eyebrow={t("contact.hero.eyebrow")}
         title={t("contact.hero.title")}

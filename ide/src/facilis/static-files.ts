@@ -57,8 +57,8 @@ export function staticPackageJson(
   const example = JSON.parse(exampleSource) as StaticPackage;
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.dependencies ?? {})) {
-    // A static template has no framework packages, but a future one might: keep the same
-    // rule the full-stack template uses — each package's own exact version (D-166/D-198),
+    // A static template has no framework RUNTIME packages; keep the same rule the full-stack
+    // template uses for any that appear — each package's own exact version (D-166/D-198),
     // or a file: spec for the dev local path (issue #41, D-196) — never a workspace spec.
     dependencies[name] = name.startsWith("@facilis.dev/")
       ? local
@@ -69,7 +69,15 @@ export function staticPackageJson(
   const devDependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries(example.devDependencies ?? {})) {
     if (EXAMPLE_ONLY_DEV_DEPENDENCIES.has(name) || spec === "catalog:") continue;
-    devDependencies[name] = spec;
+    // The static template carries one build-time-only framework devDependency: the prerender
+    // Vite plugin (D-202/D-168 amendment). Pin it like a runtime dep — each package's own exact
+    // version (D-166/D-198) or the dev local path (D-196) — never a workspace spec; the runtime
+    // stays framework-free.
+    devDependencies[name] = name.startsWith("@facilis.dev/")
+      ? local
+        ? localPackageSpec(name)
+        : publishedFrameworkPin(name, frameworkPackageMinimums)
+      : spec;
   }
   const scripts: Record<string, string> = {};
   for (const name of ["dev", "build", "preview"] as const) {

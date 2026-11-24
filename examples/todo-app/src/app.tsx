@@ -6,6 +6,7 @@ import { useLocale } from "./lib/i18n.tsx";
 import { PublicOnly, RequireAuth, SessionProvider } from "./lib/session.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { NotFoundPage } from "./pages/not-found.tsx";
+import { PublicStatsPage } from "./pages/public-stats.tsx";
 import { RegisterPage } from "./pages/register.tsx";
 import { TodoDetailPage } from "./pages/todo-detail.tsx";
 import { TodosPage } from "./pages/todos.tsx";
@@ -41,6 +42,8 @@ export function App() {
             }
           />
         </Route>
+        {/* A public, prerendered landing page (D-202): no session guard, only public API calls. */}
+        <Route path="/public-stats" element={<PublicStatsPage />} />
         <Route
           path="/login"
           element={

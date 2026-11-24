@@ -1,5 +1,9 @@
 {
   "app.title": "Vetrina Studio",
+  "meta.home.title": "Vetrina Studio — Studio di design indipendente",
+  "meta.home.description": "Vetrina è un piccolo studio di identità, editoria e prodotto digitale. Un template statico Facilis: home e contatti prerenderizzati, idratati nel browser.",
+  "meta.contact.title": "Contatti — Vetrina Studio",
+  "meta.contact.description": "Invia a Vetrina un brief breve: cosa stai realizzando, per chi e quando deve andare online.",
   "locale.label": "Lingua",
   "locale.en": "English",
   "locale.it": "Italiano",

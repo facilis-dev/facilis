@@ -8,6 +8,7 @@ import { t } from "../lib/i18n.tsx";
 export function FeaturesPage() {
   return (
     <>
+      <title>{t("app.title")}</title>
       <PageHero
         eyebrow={t("features.hero.eyebrow")}
         title={t("features.hero.title")}
