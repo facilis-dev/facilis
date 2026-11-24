@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseDeploymentText } from "./load";
 import { openDeployment, resolveDeployment } from "./resolve";
 import { resolveTelemetry } from "./telemetry";
 import type { DeploymentInput, DeploymentTelemetry } from "./types";
@@ -102,6 +103,33 @@ describe("telemetry validation", () => {
   it("rejects a tenant key with whitespace", () => {
     expect(issuesOf(() => validateDeployment({ telemetry: { tenantKey: "pub key" } }))).toContain(
       "deployment.telemetry.tenantKey: expected a non-empty string without whitespace",
+    );
+  });
+});
+
+describe("telemetry in the build-time loader", () => {
+  const base = {
+    schemaVersion: 1,
+    profile: "managed",
+    packages: { registry: "https://npm.acme.example" },
+    projects: { preview: { origin: "https://preview.acme.example" } },
+  };
+
+  it("resolves a disabled block and keeps the pipeline off", () => {
+    const d = parseDeploymentText(
+      JSON.stringify({ ...base, telemetry: { enabled: false } }),
+      "acme.json",
+    );
+    expect(d.telemetry.enabled).toBe(false);
+  });
+
+  it("rejects an enabled build whose half has no target", () => {
+    const text = JSON.stringify({
+      ...base,
+      telemetry: { enabled: true, fe: { enabled: false } },
+    });
+    expect(issuesOf(() => parseDeploymentText(text, "acme.json"))).toContain(
+      "telemetry.exporterEndpoint: required when telemetry.be is enabled",
     );
   });
 });
