@@ -1,6 +1,7 @@
 // From the validated config to the resolved profile: defaults per profile, invariants,
 // and a deep freeze so no runtime code can change the policy it was built with (D-063).
 
+import { resolveTelemetry } from "./telemetry.ts";
 import { DeploymentError } from "./validate.ts";
 import type {
   AdmissionPolicy,
@@ -73,6 +74,7 @@ export function openDeployment(): ResolvedDeployment {
     ai: { mode: "byo", providers: [], gateway: null },
     skills: { allow: [] },
     network: { connect: [] },
+    telemetry: resolveTelemetry(),
     updates: { channel: "latest", baseline: "" },
   });
 }
@@ -113,6 +115,7 @@ export function resolveDeployment(
   const registry = withoutTrailingSlash(raw.packages?.registry);
   const previewOrigin = withoutTrailingSlash(raw.projects?.preview?.origin);
   const gateway = withoutTrailingSlash(raw.ai?.gateway ?? undefined);
+  const telemetry = resolveTelemetry(raw.telemetry, issues);
 
   if (profile === "managed") {
     if (registry === null) issues.push("packages.registry: required in a managed build");
@@ -220,6 +223,7 @@ export function resolveDeployment(
     },
     skills: { allow: [...(raw.skills?.allow ?? [])] },
     network: { connect: [...(raw.network?.connect ?? [])] },
+    telemetry,
     updates: {
       channel: raw.updates?.channel ?? defaults.updateChannel,
       baseline: raw.updates?.baseline?.trim() ?? "",

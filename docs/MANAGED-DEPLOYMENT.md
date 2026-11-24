@@ -123,6 +123,8 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
   "skills": { "allow": [] },
 
   "network": { "connect": ["https://npm.acme.example"] },
+
+  "telemetry": { "enabled": false },
   "updates": { "channel": "approved", "baseline": "2026.11" }
 }
 ```
@@ -203,6 +205,41 @@ not a bug in the gate. And because the list is compiled into the build (§3: one
 origin), every declared origin — the registry mirror, the git proxy, a provider — also becomes
 readable by the AI: an origin an operator declares is an origin the page already trusts, and a
 different set of readable hosts is a different build.
+
+### Production telemetry (D-203)
+
+Off by default and opt-in through this block only: enabling telemetry never adds a runtime
+switch, the exporters are compiled into the build (D-063/D-064). The two halves are
+independent, and each one is checked against the target it needs.
+
+```json
+"telemetry": {
+  "enabled": true,
+  "be": { "enabled": true },
+  "fe": { "enabled": true },
+  "exporterEndpoint": "https://otlp.acme.example/v1/traces",
+  "tenantKey": "pub_write_only_...",
+  "sampling": 0.1,
+  "originAllowlist": ["https://app.acme.example"],
+  "dashboardUrl": "https://grafana.acme.example"
+}
+```
+
+- `enabled` is the master switch; an enabled build without `be`/`fe` keys turns both halves on.
+- `exporterEndpoint` is required when `be` is on: Nitro exports there, server-side, so the
+  collector never appears in the browser policy. `tenantKey` is required when `fe` is on: it is
+  the **public, write-only** key the page presents to the ingestion route (the collector
+  credential stays server-side, so the artifact never carries it).
+- `sampling` is a head-sampling ratio between 0 and 1; the default is 1 (keep everything).
+- `originAllowlist` names the exact origins (`scheme://host[:port]`, no path and no wildcard)
+  allowed to POST to the ingestion route. Empty leaves the route reachable from the app's own
+  origin only.
+- `dashboardUrl` is the operator's dashboard; the IDE opens it as a link-out (v1 has no
+  backend query, D-203).
+- The managed CSP's `connect-src` carries the ingestion route as `'self'` (the route is
+  same-origin) and the `dashboardUrl` host; `environment.json` records which halves are on.
+- Fail-closed: an option left behind a switch that is off is a build error, and so is an
+  enabled build whose half has no target — no artifact ships a pipeline with nowhere to send.
 
 ## 4. Build outputs
 

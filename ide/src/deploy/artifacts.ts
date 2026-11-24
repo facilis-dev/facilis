@@ -58,17 +58,25 @@ function aiSources(input: ArtifactInput): string[] {
 }
 
 /**
- * Connect-src: the IDE origin, the mirror, the preview origin, the AI exception and any
- * extra host the deployment declared. Nothing else is reachable from the managed build.
+ * Connect-src: the IDE origin, the mirror, the preview origin, the AI exception, the
+ * operator's telemetry dashboard and any extra host the deployment declared. Nothing else
+ * is reachable from the managed build.
+ *
+ * Telemetry adds no export entry: the browser posts to the ingestion route on this same
+ * origin (already 'self') and Nitro exports to the collector server-side, which the browser
+ * CSP does not see. The dashboard is the one telemetry host in this list — the IDE links out
+ * to it, so the deployment's egress names every host it references (D-203 §5).
  */
 export function connectSources(input: ArtifactInput): string[] {
   const { deployment } = input;
   const registry = originOf(deployment.packages.registry);
   const preview = originOf(deployment.projects.preview.origin);
+  const telemetryDashboard = originOf(deployment.telemetry.dashboardUrl);
   return [
     "'self'",
     registry,
     preview,
+    telemetryDashboard,
     ...aiSources(input),
     ...deployment.network.connect.map((url) => originOf(url)),
   ].filter((value): value is string => value !== null);
@@ -182,6 +190,11 @@ export function renderEnvironment(input: ArtifactInput): string {
         gitOAuth: deployment.projects.gitOAuth.githubClientId !== null,
         aiMode: deployment.ai.mode,
         skills: deployment.skills.allow,
+        telemetry: {
+          enabled: deployment.telemetry.enabled,
+          backend: deployment.telemetry.be.enabled,
+          frontend: deployment.telemetry.fe.enabled,
+        },
         configHash: input.configHash,
         artifacts: input.artifacts ?? {},
       },

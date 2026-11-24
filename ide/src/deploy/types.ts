@@ -87,6 +87,40 @@ export interface DeploymentNetwork {
   connect?: string[];
 }
 
+/** The backend half: Nitro instrumentation exported to the operator's collector (D-203). */
+export interface DeploymentTelemetryBackend {
+  /** Defaults to true once telemetry is enabled. */
+  enabled?: boolean;
+}
+
+/** The frontend half: browser RUM posted to the framework-owned ingestion route. */
+export interface DeploymentTelemetryFrontend {
+  /** Defaults to true once telemetry is enabled. */
+  enabled?: boolean;
+}
+
+/**
+ * Production telemetry (D-203): push-only OTLP to the operator's own backend, off by
+ * default, with no runtime switch (D-063/D-064). Facilis hosts nothing and receives
+ * nothing, and the attribute vocabulary is framework-controlled and value-free.
+ */
+export interface DeploymentTelemetry {
+  /** The master switch; false compiles the whole pipeline out and answers `404` on ingest. */
+  enabled?: boolean;
+  be?: DeploymentTelemetryBackend;
+  fe?: DeploymentTelemetryFrontend;
+  /** The operator's OTLP/HTTP collector; the server exports here, never the browser. */
+  exporterEndpoint?: string;
+  /** The public write-only key the browser presents to the ingestion route. */
+  tenantKey?: string;
+  /** Head-sampling ratio, 0..1; defaults to 1 (keep everything). */
+  sampling?: number;
+  /** Exact origins allowed to POST to the ingestion route; empty means same-origin only. */
+  originAllowlist?: string[];
+  /** The operator's dashboard; the IDE opens it as a link-out (v1, no query). */
+  dashboardUrl?: string;
+}
+
 export interface DeploymentUpdates {
   channel?: UpdateChannel;
   /** The environment version the update checker treats as approved (APP-UPDATES.md). */
@@ -103,6 +137,7 @@ export interface DeploymentInput {
   ai?: DeploymentAi;
   skills?: DeploymentSkills;
   network?: DeploymentNetwork;
+  telemetry?: DeploymentTelemetry;
   updates?: DeploymentUpdates;
 }
 
@@ -132,5 +167,18 @@ export interface ResolvedDeployment {
   ai: { mode: AiMode; providers: string[]; gateway: string | null };
   skills: { allow: string[] };
   network: { connect: string[] };
+  telemetry: ResolvedTelemetry;
   updates: { channel: UpdateChannel; baseline: string };
+}
+
+/** The compiled telemetry policy; `null` means "not configured", never "empty". */
+export interface ResolvedTelemetry {
+  enabled: boolean;
+  be: { enabled: boolean };
+  fe: { enabled: boolean };
+  exporterEndpoint: string | null;
+  tenantKey: string | null;
+  sampling: number;
+  originAllowlist: string[];
+  dashboardUrl: string | null;
 }

@@ -46,6 +46,23 @@ describe("deployment artifacts", () => {
     expect(value).not.toContain("api.anthropic.com");
   });
 
+  it("names the operator's telemetry dashboard in connect-src, never the collector", () => {
+    const value = csp(
+      input({
+        telemetry: {
+          enabled: true,
+          exporterEndpoint: "https://otlp.acme.example/v1/traces",
+          tenantKey: "pub_write_only_abc123",
+          dashboardUrl: "https://grafana.acme.example/",
+        },
+      }),
+    );
+    expect(value).toContain("https://grafana.acme.example");
+    // The browser posts to the ingestion route on its own origin; the collector is server-side.
+    expect(value).toContain("'self'");
+    expect(value).not.toContain("otlp.acme.example");
+  });
+
   it("allows wasm compilation, the VM's eval and blob workers", () => {
     const value = csp(input());
     // wasm-unsafe-eval compiles wasm; unsafe-eval is the kernel evaluating the project
@@ -128,6 +145,22 @@ describe("deployment artifacts", () => {
     expect(parsed.gitProxy).toBeNull();
     expect(parsed.gitOAuth).toBe(false);
     expect(parsed.artifacts["index.html"]).toBe("deadbeef");
+  });
+
+  it("records the resolved telemetry switches in environment.json", () => {
+    const parsed = JSON.parse(
+      renderEnvironment(
+        input({
+          telemetry: {
+            enabled: true,
+            be: { enabled: true },
+            fe: { enabled: false },
+            exporterEndpoint: "https://otlp.acme.example/v1/traces",
+          },
+        }),
+      ),
+    ) as { telemetry: { enabled: boolean; backend: boolean; frontend: boolean } };
+    expect(parsed.telemetry).toEqual({ enabled: true, backend: true, frontend: false });
   });
 
   it("rewrites the public-registry hint for a managed build only", () => {
