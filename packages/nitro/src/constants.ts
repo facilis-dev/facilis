@@ -22,3 +22,10 @@ export const SSO_ROUTE = "/api/auth/sso/**";
  * environment; it answers not_found when auth.apiClients is disabled.
  */
 export const TOKEN_ROUTE = "/api/auth/token";
+/**
+ * Framework-owned production telemetry ingestion (SPEC §6.10/§8.8, D-203), the named
+ * exception to invariant 1. Registered in every environment like SSO/token; the handler
+ * answers 404 unless the deploy switch enables telemetry in a production boot. The dev-only
+ * 404 guards are per-route, so this production surface is not caught by them (invariant 6).
+ */
+export const TELEMETRY_TRACES_ROUTE = "/__facilis/telemetry/v1/traces";

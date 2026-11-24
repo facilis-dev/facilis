@@ -19,8 +19,19 @@ export const TELEMETRY_SAMPLING_ENV = "FACILIS_TELEMETRY_SAMPLING";
 export const TELEMETRY_SERVICE_ENV = "FACILIS_TELEMETRY_SERVICE";
 /** The deployment's identifier, exported as `deployment.id`; optional. */
 export const DEPLOYMENT_ID_ENV = "FACILIS_DEPLOYMENT_ID";
+/** Comma-separated exact origins allowed to POST to the ingestion route (spec §8.8). */
+export const TELEMETRY_ORIGINS_ENV = "FACILIS_TELEMETRY_ORIGINS";
+/** The public write-only tenant key the browser presents to the ingestion route. */
+export const TELEMETRY_TENANT_KEY_ENV = "FACILIS_TELEMETRY_TENANT_KEY";
+/** Per-origin/IP/tenant span-per-minute token-bucket cap for the ingestion route. */
+export const TELEMETRY_SPANS_PER_MIN_ENV = "FACILIS_TELEMETRY_SPANS_PER_MIN";
 
 export const DEFAULT_SERVICE_NAME = "facilis-app";
+/** The spec §8.8 body cap: the same 1 MiB defineAuthorizedHandler applies (D-153). */
+export const MAX_INGEST_BODY_BYTES = 1024 * 1024;
+/** Maximum spans per batch (the spike's proven cap); excess is a 400, not a truncation. */
+export const MAX_SPANS_PER_BATCH = 256;
+export const DEFAULT_SPANS_PER_MINUTE = 24;
 
 export interface TelemetryConfig {
   readonly enabled: boolean;
@@ -29,6 +40,11 @@ export interface TelemetryConfig {
   readonly sampling: number;
   readonly serviceName: string;
   readonly deploymentId: string | null;
+  /** Exact origins (scheme+host+port) allowed to POST; empty means the app's own origin only. */
+  readonly allowedOrigins: readonly string[];
+  /** The public write-only key; null when unset, which rejects every ingestion POST. */
+  readonly tenantKey: string | null;
+  readonly spansPerMinute: number;
 }
 
 export function readTelemetryConfig(env: NodeJS.ProcessEnv = process.env): TelemetryConfig {
@@ -41,6 +57,9 @@ export function readTelemetryConfig(env: NodeJS.ProcessEnv = process.env): Telem
     sampling: readSampling(env[TELEMETRY_SAMPLING_ENV]),
     serviceName: readNonEmpty(env[TELEMETRY_SERVICE_ENV]) ?? DEFAULT_SERVICE_NAME,
     deploymentId: readNonEmpty(env[DEPLOYMENT_ID_ENV]),
+    allowedOrigins: readOrigins(env[TELEMETRY_ORIGINS_ENV]),
+    tenantKey: readTenantKey(env[TELEMETRY_TENANT_KEY_ENV]),
+    spansPerMinute: readSpansPerMinute(env[TELEMETRY_SPANS_PER_MIN_ENV]),
   };
 }
 
@@ -73,4 +92,38 @@ function readSampling(value: string | undefined): number {
   if (raw === "") return 1;
   const ratio = Number(raw);
   return Number.isFinite(ratio) && ratio >= 0 && ratio <= 1 ? ratio : 1;
+}
+
+/**
+ * Origins are reduced to scheme+host+port (the deploy block does the same): no path, no
+ * wildcard, no "null". An unparsable entry is dropped, shrinking the allowlist — fail-closed.
+ */
+function readOrigins(value: string | undefined): string[] {
+  const origins: string[] = [];
+  for (const entry of (value ?? "").split(",")) {
+    const trimmed = entry.trim();
+    if (trimmed === "" || trimmed === "*" || trimmed === "null") continue;
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+      if (!origins.includes(url.origin)) origins.push(url.origin);
+    } catch {
+      // Not an absolute origin: it can never match a request Origin, so it is not admitted.
+    }
+  }
+  return origins;
+}
+
+/** A key with whitespace could never survive proxy header handling: treat it as unset. */
+function readTenantKey(value: string | undefined): string | null {
+  const raw = value?.trim() ?? "";
+  return raw === "" || /\s/.test(raw) ? null : raw;
+}
+
+/** An out-of-range or unparsable cap falls back to the default rather than admitting a flood. */
+function readSpansPerMinute(value: string | undefined): number {
+  const raw = value?.trim() ?? "";
+  if (raw === "") return DEFAULT_SPANS_PER_MINUTE;
+  const cap = Number(raw);
+  return Number.isFinite(cap) && cap > 0 ? cap : DEFAULT_SPANS_PER_MINUTE;
 }

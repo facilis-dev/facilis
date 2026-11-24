@@ -14,6 +14,7 @@ import {
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
   SSO_ROUTE,
+  TELEMETRY_TRACES_ROUTE,
   TOKEN_ROUTE,
 } from "./constants.ts";
 import {
@@ -259,6 +260,10 @@ function registerRuntimeHandlers(nitro: Nitro): void {
   // The token endpoint is framework auth in every environment (v3a): with apiClients disabled
   // it answers not_found, so the app never ships its own copy (reserved to the framework).
   add(TOKEN_ROUTE, routeFile("token.post.ts"));
+  // Production telemetry ingestion (SPEC §8.8, D-203): framework-mounted, never user-authorable;
+  // with telemetry disabled (or any non-production boot) it answers not_found, so a deployment
+  // that does not want telemetry does not advertise it.
+  add(TELEMETRY_TRACES_ROUTE, routeFile("telemetry-traces.ts"));
 
   // Middleware order is significant: cors answers preflight before anything boots, then
   // context (db) before session (auth) (contracts §4.1).

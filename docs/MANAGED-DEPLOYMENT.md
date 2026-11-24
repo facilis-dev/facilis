@@ -262,6 +262,9 @@ the host passes to the server at boot:
 | `FACILIS_TELEMETRY_SAMPLING` | root-span ratio `0`–`1`; the deploy `sampling` value. Unset or invalid keeps everything. |
 | `FACILIS_TELEMETRY_SERVICE` | `service.name` on every exported resource; defaults to `facilis-app`. |
 | `FACILIS_DEPLOYMENT_ID` | exported as `deployment.id`; optional, and useful when several deployments share one collector. |
+| `FACILIS_TELEMETRY_ORIGINS` | comma-separated exact origins (`scheme://host[:port]`) allowed to POST to the ingestion route; the deploy `originAllowlist`. Empty leaves the route reachable from the app's own origin only. |
+| `FACILIS_TELEMETRY_TENANT_KEY` | the public write-only key the page presents in the `x-facilis-telemetry-key` header; the deploy `tenantKey`. Unset rejects every ingestion POST (a backend-only deployment has no browser writer). |
+| `FACILIS_TELEMETRY_SPANS_PER_MIN` | per-origin/IP/tenant span-per-minute token-bucket cap for the ingestion route; default 24. Unset or invalid keeps the default. |
 
 A production boot with the switch on but no usable endpoint exports nothing and logs one
 warning: the build refuses that combination, so it means the process was started outside its
@@ -269,6 +272,27 @@ artifact's deploy settings. Spans are batched and metrics are collected periodic
 flush on graceful shutdown, so a rolling deploy does not truncate the traces of its last
 requests. Retries are the OTLP exporter's own (bounded attempts, `Retry-After`-aware backoff),
 and a collector that stays unreachable costs telemetry, never the app.
+
+**The ingestion route (SPEC §6.10/§8.8, D-203 §3).** The browser half posts OTLP/JSON to
+`POST /__facilis/telemetry/v1/traces`, a framework-mounted route the app cannot author or
+configure — the named exception to invariant 1, with gates instead of auth. It is registered
+in every build but answers `404` unless the switch is on in a **production** boot (every
+dev/test boot included, D-200), and `405` on any non-POST method when enabled; there is no
+read or query surface. A POST passes, in order: the exact origin allowlist
+(`FACILIS_TELEMETRY_ORIGINS`, `"null"` and wildcards rejected, empty = the app's own origin
+only), the public tenant key (`x-facilis-telemetry-key` must equal
+`FACILIS_TELEMETRY_TENANT_KEY`), a span/min token-bucket rate limit evaluated **before** the
+body is read (`429` + `retry-after`), the 1 MiB body cap checked from `content-length` and a
+streamed counter (`413`), OTLP schema validation and a 256-span batch cap (`400`), the
+framework attribute allowlist (raw URLs, query strings, bodies, headers, input values and PII
+are stripped; legacy browser semconv keys are mapped onto the vocabulary), and span-id dedup
+to blunt replay. The scrubbed payload is forwarded to `FACILIS_TELEMETRY_ENDPOINT` +
+`/v1/traces`; the collector credential never travels to the browser and no browser-supplied
+credential is forwarded. Responses carry codes and OTLP partial-success counts only, never
+application data; an unreachable collector is `502` and costs telemetry, never the app.
+RUM input is spoofable: the route is observational, not a security boundary, and the D-119
+audit pipeline stays separate. The dev-only `/__facilis/*` guards are per-route and do not
+catch this production surface (invariant 6 unchanged).
 
 ## 4. Build outputs
 

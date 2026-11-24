@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_SERVICE_NAME,
+  DEFAULT_SPANS_PER_MINUTE,
   DEPLOYMENT_ID_ENV,
   readTelemetryConfig,
   TELEMETRY_ENDPOINT_ENV,
   TELEMETRY_ENV,
+  TELEMETRY_ORIGINS_ENV,
   TELEMETRY_SAMPLING_ENV,
   TELEMETRY_SERVICE_ENV,
+  TELEMETRY_SPANS_PER_MIN_ENV,
+  TELEMETRY_TENANT_KEY_ENV,
 } from "./config.ts";
 
 const COLLECTOR = "http://collector.internal:4318";
@@ -20,6 +24,9 @@ describe("readTelemetryConfig", () => {
       sampling: 1,
       serviceName: DEFAULT_SERVICE_NAME,
       deploymentId: null,
+      allowedOrigins: [],
+      tenantKey: null,
+      spansPerMinute: DEFAULT_SPANS_PER_MINUTE,
     });
   });
 
@@ -88,5 +95,38 @@ describe("telemetry export target", () => {
       DEFAULT_SERVICE_NAME,
     );
     expect(readTelemetryConfig({ [DEPLOYMENT_ID_ENV]: " " }).deploymentId).toBeNull();
+  });
+});
+
+describe("ingestion settings (spec §8.8)", () => {
+  it("reduces allowlist entries to exact origins and drops the rest", () => {
+    const config = readTelemetryConfig({
+      [TELEMETRY_ORIGINS_ENV]:
+        "https://app.acme.example/, http://localhost:5173/path, https://app.acme.example, *, null, ftp://x.example, not a url",
+    });
+    expect(config.allowedOrigins).toEqual(["https://app.acme.example", "http://localhost:5173"]);
+  });
+
+  it("keeps the allowlist empty when unset (own-origin fallback lives in the route)", () => {
+    expect(readTelemetryConfig({}).allowedOrigins).toEqual([]);
+    expect(readTelemetryConfig({ [TELEMETRY_ORIGINS_ENV]: " , " }).allowedOrigins).toEqual([]);
+  });
+
+  it("reads the public tenant key and treats a blank or whitespace key as unset", () => {
+    expect(
+      readTelemetryConfig({ [TELEMETRY_TENANT_KEY_ENV]: "pub_write_only_1" }).tenantKey,
+    ).toBe("pub_write_only_1");
+    for (const value of ["", "   ", "has space", "tab\tkey"]) {
+      expect(readTelemetryConfig({ [TELEMETRY_TENANT_KEY_ENV]: value }).tenantKey).toBeNull();
+    }
+  });
+
+  it("falls back to the default span/min cap on anything unparsable or non-positive", () => {
+    expect(readTelemetryConfig({ [TELEMETRY_SPANS_PER_MIN_ENV]: "120" }).spansPerMinute).toBe(120);
+    for (const value of ["", "  ", "0", "-5", "many", "NaN", "Infinity"]) {
+      expect(readTelemetryConfig({ [TELEMETRY_SPANS_PER_MIN_ENV]: value }).spansPerMinute).toBe(
+        DEFAULT_SPANS_PER_MINUTE,
+      );
+    }
   });
 });
