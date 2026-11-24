@@ -1279,6 +1279,22 @@ same value appears as `RouteMeta.crossSite`. A `crossSite` route with a non-empt
 reachable only with a Bearer token, so the operation declares `security: [{ bearerAuth: [] }]` and
 the document gains `components.securitySchemes.bearerAuth` only when such a route exists (D-142).
 
+### 6.10 Production Telemetry Surface (D-203)
+
+The framework also owns one **production** surface that is not part of this section's dev-only
+endpoint family: the telemetry ingestion route the app uses to export OpenTelemetry data to the
+operator's own collector (D-203). It is mounted only when the build-time deploy options enable
+telemetry (D-063/D-064), it answers `404` whenever telemetry is disabled — including in every
+non-production environment — and it is write-only: `POST` only, no read or query counterpart,
+no application data in the response and none accepted beyond the payloads the app itself emits.
+The browser carries only a public write-only tenant key; the collector credential stays
+server-side.
+
+Invariant 6 is unchanged. Everything described in §6.3 and §11.4 stays dev-only and keeps its
+production `404` guard (§6.8, §8.5), and dev stays local (D-200): inside the
+WebContainer/preview no telemetry leaves the machine. The route class itself — its gates and its
+relationship to invariant 1 — is defined in §8.8.
+
 ---
 
 ## 7. Type Reference
@@ -2146,6 +2162,12 @@ codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
 - `dbTables` required (compile-time enforcement)
 - OpenAPI generated with `x-permission` and `x-db-tables`
 
+The single exception to this pattern is the **public infrastructure ingestion** route class
+(§8.8, D-203): a browser holds no session, so the class replaces the permission gate with
+origin, rate-limit and schema gates. It is emitted by the framework and is never authorable by a
+project or by an AI patch; every route a user or the AI can write still goes through
+`defineAuthorizedHandler`.
+
 **Prerendering consumes this contract, never weakens it (D-202).** A page is prerender-eligible
 only when every API it calls is `permission: []` (manifest `security: "public"`, D-116) and no
 session-dependent guard wraps it; the prerender pass runs with no identity, and a 401/403
@@ -2513,6 +2535,10 @@ classification, not a defect).
 | `/__facilis/dev/view` | 404 in prod, view name/read-only validation, view permission must exist in `facilis.config.ts` |
 | `/__facilis/health` | 404 in prod |
 
+Production telemetry ingestion (§8.8, D-203) is deliberately **not** in this table: it is a
+production surface, so its guard is the inverse — `404` in every non-production environment and
+whenever telemetry is disabled. The dev endpoints above are unchanged.
+
 ### 8.6 Application-Level Security Rules
 
 - A GET route is side-effect free: `SameSite=Lax` sends the session cookie on a cross-site
@@ -2607,6 +2633,48 @@ server-only error entry; `@facilis.dev/nitro`'s logging suite pins env resolutio
 redaction/caps, level filtering, rotation, chain verification (good/tampered), fail-closed audit,
 the request-id middleware and the bootstrap/sudo bridge; the IDE suite pins the log parser and
 filters. `docs/LOGS.md` is the operator contract.
+
+### 8.8 Public Infrastructure Ingestion Route Class (D-203)
+
+§8.2 applies to every route a project, an AI patch or a person can author:
+`defineAuthorizedHandler` is the only way to create one. The contract admits exactly **one**
+framework-owned exception, and it is structural — never authorable.
+
+**The class.** A *public infrastructure ingestion* route is a framework-mounted endpoint that
+receives data from a public browser that holds no session. The framework emits it (the same way it
+emits the storage download route, §5.10); it is not generated from user DSL, not declared in
+`facilis.config.ts`, and cannot be produced by an AI patch. This is a named, framework-only
+exception to invariant 1, not a relaxation of it: any route a project can express remains under
+`defineAuthorizedHandler`.
+
+**Write-only by construction.** The class accepts `POST` OTLP/HTTP and nothing else: no read or
+query surface exists, and any other method or path answers `404`/`405`. It returns no application
+data; it forwards the payload to the operator's collector, which is the only consumer.
+
+**Gates instead of auth.** With no session and no permission, the class carries all of:
+
+- a **strict origin allowlist** — scheme + host + port, `"null"` rejected, no wildcard;
+- a **rate limit** per origin/IP/tenant (token bucket, span/min cap, excess dropped → `429` with
+  `retry-after`), evaluated before the body is parsed;
+- a **body cap of 1 MiB**, checked from `content-length` and a streamed counter (`413`), the same
+  cap `defineAuthorizedHandler` applies (§8.2, D-153);
+- **OTLP schema validation** (`400`) with a maximum number of spans per batch;
+- an **attribute allowlist** (the framework vocabulary of D-203: route template, method, status,
+  duration, declared table names) that strips raw URLs, query strings, bodies, headers and input
+  values, plus span-id dedup to blunt replay.
+
+**Disabled means absent.** The route exists only when build-time deploy options enable telemetry
+(D-063/D-064, §6.10): disabled is `404`, never `401`/`403`, so a deployment that does not want
+telemetry does not advertise it. It is `404` in every non-production environment as well — inside
+the WebContainer/preview no telemetry leaves the machine (D-200).
+
+**Not a boundary, and not an audit trail.** RUM input is spoofable and noisy by nature (an allowed
+origin can flood the route through XSS); the endpoint is observational. The D-119 audit pipeline
+stays separate and intact, and the collector credential stays server-side.
+
+Invariant 6 is **unchanged**: this is a production surface, distinct from the dev-only
+`/__facilis/*` endpoints, which keep answering `404` in production (§8.5, §11.4). D-200's
+dev-local metrics are extended, not weakened.
 
 ---
 
