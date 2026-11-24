@@ -47,7 +47,7 @@ flag changes. Derived requirements:
 | Layer | Owns |
 |---|---|
 | `@facilis.dev/core` | Public contract: `defineWorkflow`, `WorkflowDefinition`, `WorkflowRecord`, `TaskRecord`, `WorkflowsApi`, `TasksApi`, statuses, error codes, serialization reuse. |
-| `@facilis.dev/db` | `facilis_workflows` and `facilis_tasks` (schema + RLS), re-exported by the project's `db/schema.ts` so a Drizzle migration owns them. |
+| `@facilis.dev/db` | `facilis_workflows` and `facilis_tasks` (schema + RLS), re-exported by the project's `db/schema.ts` so the declared schema owns them — the dev boot reconciles it (migrations are retired, D-158/D-201). |
 | `@facilis.dev/nitro` | Runtime: `#facilis/workflows` virtual module, definition registry, workflow store, runner tick, recovery, `ctx.workflows`/`ctx.tasks` injection. |
 
 ## 4. Rejected alternatives

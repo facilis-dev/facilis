@@ -1,6 +1,6 @@
 # Running a Facilis app on Postgres
 
-**Status:** implemented (2026-11-01); the deploy step follows the accepted D-158/D-159 model.
+**Status:** implemented (2026-11-01); the release-artifact model follows D-158 (D-204 withdraws the unimplemented D-159 deploy applier).
 Decision: **D-068**. Contract: SPEC §5.2, §7.1; [PHASE1-CONTRACTS.md](./archive/PHASE1-CONTRACTS.md) §5;
 RLS composition: SPEC §8.4.5 and D-008.
 
@@ -14,7 +14,7 @@ release artifacts and the same RLS policies — the driver is the only differenc
     createDb({ driver: "postgres", url: DATABASE_URL })  // production: pg.Pool
 
 `FacilisDb.db` is a Drizzle pg-core client in both cases, so routes, `runWithPolicyScope`,
-the deploy applier and `schemaSnapshot` are driver-agnostic. What is **not** shared is the cluster
+`schemaSnapshot` are driver-agnostic. What is **not** shared is the cluster
 dump: `snapshot()` is a PGlite capability and the postgres driver throws
 `SnapshotUnavailableError`; the dev snapshotter is only ever installed for PGlite.
 
@@ -67,49 +67,16 @@ statement is a no-op; in PGlite (dev) it is what makes the superuser enforce RLS
 middleware validates the session **inside a tenant-scoped transaction**, so it no longer needs
 a privileged connection to read `users`/`user_roles`.
 
-## 4. One-time provisioning and the deploy step
+## 4. One-time provisioning
 
-The schema, the role seed and the `facilis_app` grants are applied by the deploy job, over the
-**owner/admin** connection — never by the runtime, and never on every boot. The deploy does not
-generate DDL (D-158): it applies the immutable artifacts the release pipeline produced for the
-release tags, in order, behind a ledger (D-159). From the project root, with the package installed:
-
-```bash
-FACILIS_MIGRATION_DATABASE_URL='postgres://owner:...@host:5432/db?sslmode=require' \
-facilis db deploy --release <tag> --backup-ref <ref>
-```
-
-- **Ledger.** `_facilis_deploy_runs(release, plan_hash, from_digest, to_digest, status, statements,
-  approval_ref, backup_ref, started_at, finished_at)` has one row per applied artifact. The
-  database's release is what the ledger says; the pending artifacts are the release tags between
-  it and `--release`.
-- **Fingerprint preflight.** Before each artifact the deploy checks
-  `digest(live) == artifact.fromDigest`; a mismatch is a typed refusal (drift), never a silent
-  repair — `facilis db adopt`/`repair` are the explicit one-time operations.
-- **Approval and backup.** A destructive artifact needs an approval bound to its `planHash` and an
-  environment policy that permits destructive DDL (`destroy: "deny" | "approval" | "allow"`); the
-  deploy requires and records `--backup-ref` and **never runs a backup itself**: the backup is the
-  release environment's/operator's job, passed as a pointer (D-159).
-- **Atomicity and lock.** One transaction per artifact, an advisory lock on the deploy connection
-  (a concurrent deploy exits `deploy_locked`), and a post-check `digest(live) == artifact.toDigest`
-  that rolls back on mismatch.
-- **Post-steps.** After the artifacts: the role seed from `facilis.config.ts`,
-  `ensureAppRole(db)`, `ensureSystemRole(db)` and the `db/views/**` definitions. They run in the
-  deploy, never in the runtime.
-- **No downgrade.** A database ahead of `--release` is refused; restore the backup or ship a
-  forward artifact.
-
-**Unknown/legacy database (no ledger, one-time).**
-
-```bash
-# Verify digest(live) == declared(v2.0.0) and record the baseline; no DDL.
-facilis db adopt --release v2.0.0
-# Explicit live -> declared plan with the backup pointer; break-glass only.
-facilis db repair --release v2.0.0 --backup-ref <ref> [--allow-destructive]
-```
-
-Both are human operations; `--allow-destructive` exists only here (break-glass, never on the
-release path) and a repair is recorded as a repair run, never as a release artifact.
+The schema, the role seed and the `facilis_app` grants are applied over the **owner/admin**
+connection — never by the runtime, and never on every boot. The release pipeline generates the
+immutable schema-diff artifact for each release tag from the declared schema, with no database
+access (D-158, `packages/core/src/schema-plan/`); `packages/db/src/schema-digest.ts` computes the
+canonical digest of a snapshot. Applying that artifact to a production database is the release
+environment's/operator's job: the framework ships no deploy applier — D-204 withdraws the
+unimplemented D-159 CLI and ledger. In dev, boot reconciles the live PGlite schema to the declared
+one with the same planner on disposable data (D-193/D-201).
 
 `ensureAppRole` **classifies every table by its live RLS state** (D-136): an RLS table gets DML for
 the app role, a table without RLS gets none and is system-only, so the runtime can never read it.
@@ -244,8 +211,5 @@ done
 
 - `snapshot()`/`loadSnapshot` are PGlite-only (dev persistence, D-052).
 - `db.mode: "json"` remains a declared-but-unimplemented mode.
-- The deploy CLI (`facilis db deploy/status/adopt/repair`) is specified in
-  [MIGRATION-PLAN.md](./MIGRATION-PLAN.md) §2.3-§2.4; drizzle-kit migrates nothing at deploy time
-  (D-159).
 - The generated starter's dependency list does not include `pg` yet, so a deployment adds it
   (`pnpm add pg`) until the IDE template ships it (D-062).

@@ -40,7 +40,8 @@ Facilis redefines it:
 | 📜 **Audit & access logs** | One append-only JSONL pipeline for access, error, audit and app entries. In development they are files under `.facilis/logs/` (opened from the IDE editor); in production they go to stdout or files. Redaction, rotation, hash-chained audit entries, and no HTTP log endpoint by design (D-119). |
 | 🔍 **Project graph** | One AST graph over pages, routes, tables, declarative views (D-092/D-160) and workflow definitions (D-161): FK and `relations()` edges, route→view edges, audited elevation, click a card to its source. No booted app needed; it updates on save. |
 | 🗃️ **Entity explorer** | Schema introspection from both code and live DB. See drift immediately. Jump from table to the routes that use it. |
-| 🚢 **Release preview** | Before you push: the schema plan between release tags, risk-classified (`safe` / `careful` / `destructive` / `breaking`), cross-checked against the API. DDL is generated at release time and applied with a ledger (D-158/D-159). |
+| 🚢 **Release preview** | Before you push: the schema plan between release tags, risk-classified (`safe` / `careful` / `destructive` / `breaking`), cross-checked against the API. DDL is generated at release time as an immutable artifact (D-158); applying it to a database is the release environment's/operator's job — no deploy applier ships (D-204). |
+| 📄 **Prerendered public pages** | An opt-in in-process build pass renders declared public pages to HTML with a state island, hydrated in the browser — not SSR (D-202). Param routes are ineligible; eligibility fails closed. |
 | 🌐 **Multi-project** | One project per tab; import a GitHub, GitLab or Gitea/Forgejo repository — private ones with a token used only for that import — or a folder. |
 | 🌍 **i18n from day one** | All strings through `t("key")`. API returns codes, not prose. No retrofit. |
 
@@ -122,10 +123,12 @@ cd examples/todo-app && ./scripts/verify-headless.sh
 
 The [three-minute demo script](docs/DEMO.md) walks the same flow in the browser.
 
-The template the IDE scaffolds **is** [`examples/todo-app`](examples/todo-app) (D-062): one
-source for the starter, so editing the example changes what "New project" creates.
-`starter/` stays empty until `@facilis.dev/*` has a publish target (D-027, D-062): the template is
-assembled from the example at build time, so there is no second copy to drift.
+The default template the IDE scaffolds **is** [`examples/todo-app`](examples/todo-app) (D-062):
+one source for the starter, so editing the example changes what "New project" creates. The New
+project dialog picks among example-backed template kinds — todo (default), showcase and starter
+(D-168); [`examples/showcase-app`](examples/showcase-app) is the static, frontend-only showcase
+(#161). There is no `starter/` directory: the packages publish to public npm (D-164), and each
+template is assembled from its example at build time, so there is no second copy to drift.
 
 ---
 
@@ -136,9 +139,10 @@ Phases 0–4 are implemented and verified (headless suites + the browser harness
 - **Chat** — the PTC tool runtime (the only mode, D-101/D-103), the 19-rule validator at proposal/Apply/write and the §9.4 repair loop.
 - **Visualizers** — the project graph with pages, explicit links, audited elevation, framework tables, declarative views (D-092/D-134/D-160) and workflow definitions (D-161); Entity Explorer and query console (D-083/D-097); Release Preview on the release-tag plan (D-086/D-158).
 - **Platform** — auth + SSO (D-120), external API clients (D-142), jobs (D-107), workflows and manual tasks (D-135), operator logs (D-119), binary storage (D-116/D-117), email verification (D-156).
-- **Delivery** — open/managed builds (D-063/D-064), offline app updates (D-065/D-070), release-time DDL and the deploy ledger (D-158/D-159).
+- **Delivery** — open/managed builds (D-063/D-064), offline app updates (D-065/D-070), release-time DDL artifacts (D-158; the deploy applier is withdrawn, D-204), prerendering + hydration of public pages (D-202, #158).
+- **Observability** — production OpenTelemetry (backend spans, frontend RUM, a framework-owned ingestion endpoint) is accepted but **not yet implemented** (D-203, #159); the operator log pipeline (D-119) ships today.
 
-Still open: the eval corpus and browser matrix, the skills runtime, the declared-AST half of the Entity Explorer (O-011), preview isolation (D-155) and the post-MVP backlog in the DECISIONS open-items table. The evidence-backed summary is [`docs/STATUS.md`](docs/STATUS.md); the per-phase view is SPEC §12.
+Still open: the eval corpus and browser matrix, the declared-AST half of the Entity Explorer (O-011), preview isolation (D-155) and the post-MVP backlog in the DECISIONS open-items table. Skills are withdrawn (D-205); the PTC runtime and the MCP client on the same seam ship. The evidence-backed summary is [`docs/STATUS.md`](docs/STATUS.md); the per-phase view is SPEC §12.
 
 ---
 
@@ -163,7 +167,7 @@ Still open: the eval corpus and browser matrix, the skills runtime, the declared
 
 - [`docs/SPEC.md`](docs/SPEC.md) — the contract.
 - [`docs/STATUS.md`](docs/STATUS.md) — where the system is today, with the evidence.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — the decision log (D-001…D-160) and the open-items table.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — the decision log (D-001…D-207) and the open-items table.
 - [`docs/DEV.md`](docs/DEV.md) — build, run and verify on a bare machine.
 - [`docs/DEMO.md`](docs/DEMO.md) — the three-minute demo.
 - [`docs/FRONTEND.md`](docs/FRONTEND.md) — the generated app's client contract.

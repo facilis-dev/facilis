@@ -1,23 +1,30 @@
-# Migration generation in the release and deploy pipeline
+# Migration generation in the release pipeline
 
-**Status:** implemented in part: P0, P1 and P2 landed with D-158/D-159; P3 (the upgrade-action/UI
-side) is pending. P5 landed on 2026-11-18 (D-193): rules 14/16 block authored DDL, and the dev
-boot reconciles the declared schema additively (with confirmed drops only). P6 landed on
-2026-11-19 (D-201): the dev migration replay, the duplicated SQL splitter, the examples' SQL and
-`drizzle.config.ts`/`db:generate` are gone, so a project ships only its declaration. The P4 preview
-slice landed on 2026-11-20 (#48): the Release Preview schema lens is the generated tag -> tag plan;
-the CI `facilis release plan` step of P4 is still pending. §2–§3 are the design
-reference behind SPEC §2/§7.7/§11.3;
-§8–§9 are historical checklists.
+**Status:** implemented in part: P0, P1 and P2 landed with D-158/D-159. The deploy applier
+formerly planned as P3 was never built and is **withdrawn by D-204**. P5 landed on 2026-11-18
+(D-193): rules 14/16 block authored DDL, and the dev boot reconciles the declared schema
+additively (with confirmed drops only). P6 landed on 2026-11-19 (D-201): the dev migration
+replay, the duplicated SQL splitter, the examples' SQL and `drizzle.config.ts`/`db:generate`
+are gone, so a project ships only its declaration. The P4 preview slice landed on 2026-11-20
+(#48): the Release Preview schema lens is the generated tag -> tag plan; the CI
+`facilis release plan` step of P4 is still pending. §2–§3 are the design reference behind
+SPEC §2/§7.7/§11.3; §8–§9 are historical checklists.
+
 **Goal:** schema DDL is never authored by the AI or the user. It is **generated from the release
-tags** (in the release pipeline, no database access) and **applied as an immutable artifact** by the
-deploy job. The live database is used for **verification**, and only exceptionally for adoption or
-repair - never as the generator.
+tags** (in the release pipeline, no database access) and shipped as an **immutable artifact**.
+Applying that artifact to a database is the release environment's/operator's job (D-204); the
+framework ships no applier. The live catalog is used by dev reconcile and Release Preview,
+never as the generator.
 
-v2 changes the model after review: generation must not depend on the live database (the IDE and the
+> The deploy applier originally planned here (a CLI applying artifacts behind a ledger) was
+> never built and is withdrawn by D-204; this plan now describes only the shipped release-artifact
+> generation, Release Preview and dev reconcile. Applying an artifact to a production database
+> is the operator's responsibility.
+
+v2 changed the model after review: generation must not depend on the live database (the IDE and the
 release pipeline cannot see prod/test), so the **tag -> tag diff is the primary path**, like a
-classic migration but machine-generated. The live catalog remains a safety check (fingerprint) and
-an explicit rescue tool.
+classic migration but machine-generated. The live catalog is read only by dev reconcile and the
+IDE's dev lens, never as the generator.
 
 When accepted this plan supersedes:
 - the D-086 schema-lens premise "the preview must show the SQL that ships, not invented SQL"
@@ -39,20 +46,17 @@ It completes D-109 (ADR entry missing, renderer orphaned).
   previous release tag and the new tag, reads both declared schemas (no DB), generates the SQL,
   classifies risk, and stores the artifact keyed by the new tag. This is the only place SQL is
   generated for test/prod.
-- **Deploy = ledger + ordered artifacts + fingerprints.** The deploy job reads which release the
-  database is at (ledger), applies the pending artifacts in order, and verifies before and after
-  each one with a schema fingerprint. The same artifact is applied in every environment, so test
-  and prod cannot silently diverge.
+- **Applying the artifact is the operator's job (D-204).** The framework ships no applier: the
+  release environment applies the immutable artifact to its database. The same artifact is used
+  in every environment, so test and prod cannot silently diverge.
 - **The IDE never touches a database.** Its Release Preview computes the same tag -> HEAD plan from
   the git tree (it already reads refs this way) and shows SQL + risk. The authoritative artifact
   comes from the release pipeline.
-- **The live catalog is a check, not a generator.** It is read by the deploy job (which already has
-  owner credentials to apply DDL) to verify that the database is where the ledger says it is. If it
-  is not, the deploy refuses. facilis db adopt / facilis db repair are explicit one-time
-  operations for databases with no ledger or with drift.
-- **Approval is a release act, not a deploy flag.** A destructive artifact carries its destructive
-  batch list and an approval bound to its hash; test/staging may run it (the release environment
-  has a backup), production requires the approval. The deploy itself stays unattended. See §2.6.
+- **The live catalog is a check, not a generator.** Dev boot reads the live PGlite schema and
+  reconciles it to the declared schema (additive, with confirmed drops). The IDE never connects
+  to test/prod.
+- **Approval is a release act.** A destructive artifact carries its destructive batch list and an
+  approval bound to its planHash. See §2.6.
 - **Dev PGlite is the exception**: the IDE edits schema continuously without tags, so the dev
   database reconciles live -> declared at boot. It is disposable data, never a release path.
 - **No hand-written data batches in v1** (decision 5): a plan that needs existing rows changed
@@ -75,20 +79,20 @@ The first version made the deploy compute a live -> target plan. That is wrong a
 - audit: "what ran in prod" must be an artifact with a hash, not a recomputation.
 
 What stays true from v1: the database may be in an unknown state, and no release should assume a
-clean "from". v2 handles that with the ledger (the database knows its release), fingerprints (the
-deploy verifies it), and explicit adoption/repair (for the residual cases).
+clean "from". The artifact records fromDigest/toDigest so whoever applies it can check the starting
+state; applying it is the release environment's job (D-204).
 
 Evidence that the tag path is the right one is already in the repo: Release Preview reads git refs
 without booting them (ide/src/facilis/release-git.ts, D-086/D-094), so the IDE can show the
-tag -> HEAD plan with no DB. What does not exist yet is the tag -> tag generator and the deploy
-applier.
+tag -> HEAD plan with no DB. The tag -> tag generator shipped with P2; the deploy applier was
+never built and is withdrawn by D-204.
 
-Existing gaps that this plan removes (unchanged from v1):
-- the runtime applies files but nothing creates them;
-- rule 14 still tells the AI to author SQL (older than D-109), while the D-109 renderer is dead code
+Existing gaps this plan addressed (retired by P5/P6):
+- the runtime applied files but nothing created them;
+- rule 14 told the AI to author SQL (older than D-109), while the D-109 renderer was dead code
   with no ADR;
-- the example's migration history is already inconsistent (journal 0004 without snapshot, 0005/0006
-  hand-added), so drizzle-kit cannot even regenerate it;
+- the example's migration history was already inconsistent (journal 0004 without snapshot, 0005/0006
+  hand-added), so drizzle-kit could not even regenerate it;
 - the generated project has no drizzle-kit and the model has no shell.
 
 ---
@@ -113,7 +117,7 @@ A release artifact is a deterministic, versioned bundle for a tag:
 
 Batches are ordered by the fixed phases of §2.5 and rendered by our generator from the two declared
 snapshots. The artifact is stored by the release pipeline (CI artifact keyed by toTag); it is
-**not committed**, and the deploy stores its hash in the ledger.
+**not committed**.
 
 Generation needs no database: the pipeline checks out fromTag and toTag, imports each db/schema.ts
 (Node build step, which already resolves the framework packages) plus facilis.config.ts, and emits
@@ -125,10 +129,9 @@ the generator consumes the pair; P1 proves the loader.
 | Component | Where | Responsibility |
 |---|---|---|
 | Declared snapshot | @facilis.dev/db adapter (+ browser-safe types in @facilis.dev/core) | Extend snapshot.ts to the full DSL: table/composite PK, unique, FKs, indexes, enums, checks, identity, defaults normalized, policies with full SQL, RLS. |
-| Live snapshot + digest | @facilis.dev/db | Extend live-schema.ts with FKs/indexes/checks/enums/identity, and a canonical digest(snapshot) shared with the declared side. Used for the deploy fingerprint and adopt/repair only. |
+| Live snapshot + digest | @facilis.dev/db | Extend live-schema.ts with FKs/indexes/checks/enums/identity, and a canonical digest(snapshot) shared with the declared side. The digest is used by Release Preview and dev reconcile. |
 | Generator / renderer | @facilis.dev/core (pure, browser-safe) | planSchema(from, to) -> batches; deterministic ordering and quoting; the only place SQL text is produced. Moved from the orphaned D-109 renderer. |
 | Release pipeline | CI step (Node) | For each new tag: resolve previous release tag, build both snapshots, generate the artifact, classify risk, fail on problems, require approval for destructive/breaking, publish the artifact. |
-| Deploy applier | @facilis.dev/db/bin | facilis db deploy/status/adopt/repair: ledger, ordered pending artifacts, fingerprint pre/post checks, lock, backup_ref gate, transaction per artifact, post-steps (seed, ensureAppRole, ensureSystemRole, views). |
 | IDE Release Preview | ide/src/facilis/release-* | Tag -> HEAD generated plan, SQL + risk, no DB; fail closed where the analyzer cannot resolve a declaration. |
 | Dev boot | packages/nitro/src/runtime | Live PGlite -> declared reconcile at boot (dev only), same pure planner; disposable data. |
 
@@ -140,55 +143,12 @@ the generator consumes the pair; P1 proves the loader.
     artifact = planSchema(v1, v2); if problems -> fail the release
     risk = classify(artifact batches); publish artifact keyed by v2; attach SQL + risk to the release
 
-**Deploy (test or prod; owner connection; no generation).**
-    facilis db deploy --release v2 --backup-ref <ref>
-    ledger   = applied releases in _facilis_deploy_runs (restored with the DB backup)
-    pending  = artifacts from ledger's release (exclusive) to v2, in tag order
-    for each artifact:
-        begin
-        approval: destructive/breaking -> approved.hash == planHash AND environment policy allows
-                  it, else refuse (no per-deploy human flag on the release path; see §2.6)
-        preflight: digest(live) == artifact.fromDigest, else refuse (drift -> adopt/repair)
-        requirements: row counts for NOT NULL/narrowing batches (missing data -> data_needed)
-        backup: destructive artifacts need --backup-ref from the release env; refuse without it
-        apply batches
-        post-check: digest(live) == artifact.toDigest, else rollback and refuse
-        insert ledger row (release, planHash, digests, statements, approval_ref, backup_ref)
-        commit
-        post-steps: seed from config, ensureAppRole, ensureSystemRole, views
-    final: status report; exit non-zero on refusal
-
-**Unknown / existing database (one-time).**
-    facilis db adopt  --release vX   # verify digest(live) == declared(vX), record baseline, no DDL
-    facilis db repair --release vX --backup-ref <ref> [--allow-destructive]
-                                    # explicit live -> declared plan, like v1, with a backup_ref + report;
-                                    # recorded as a repair run, never as a release artifact
-    Both are human operations; --allow-destructive exists only here (break-glass), never on the
-    release path.
-
 **IDE dev (disposable).**
     boot: planSchema(live PGlite, declared schema) -> apply; snapshot before applying (D-052).
     The IDE never connects to test/prod.
 
-### 2.4 State handling (the ledger is the state)
-
-| State | How it is seen | Result |
-|---|---|---|
-| Empty DB | no ledger row | bootstrap: first artifact has fromDigest = empty digest, applied in order |
-| At a release | ledger says vX; digest matches | apply vX+1..vN |
-| Older (several releases behind) | ledger says vX; pending list computed from tags | apply in order, one transaction per artifact |
-| Restored backup | the ledger travels with the backup | pending = artifacts after the restored ledger release; re-applied |
-| Partially failed deploy | last artifact has no ledger row; digest of the failed artifact's from | transaction rolled back; pending recomputed; converges |
-| Newer / rolled back | ledger says vN, target vM < vN | no downgrade by default; refuse and explain; restore the backup or ship a forward artifact |
-| Drifted (manual DDL, extra objects) | digest(live) != artifact.fromDigest | **refuse** with a typed drift report; facilis db repair is the explicit way |
-| Adopted (data, no ledger) | no ledger | facilis db adopt --release <current> verifies the digest and records the baseline |
-| Wrong role / no owner rights | connection check | fail before any DDL |
-| Concurrent deploy | advisory lock | second exits deploy_locked |
-| Data needed (NOT NULL / narrowing) | artifact requires + row counts at preflight | refuse before DDL with data_needed; backfills are out of scope in v1 (decision 5) |
-
-There is no silent destructive path: destructive batches exist only inside an artifact the release
-pipeline produced, and the deploy only runs them when the environment policy allows it, the artifact
-is approved, and a backup pointer is recorded.
+Applying the artifact to a test/prod database is the release environment's/operator's job (D-204);
+the framework ships no deploy flow.
 
 ### 2.5 Phased order inside an artifact
 
@@ -202,33 +162,24 @@ is approved, and a backup pointer is recorded.
 7. seed sync (roles/role_permissions projection from facilis.config.ts; @facilis.dev/auth seedStatements);
 8. destructive drops - last, gated.
 
-### 2.6 Approval and environment policy
+### 2.6 Approval (a release act)
 
-Approval and execution are separate acts. The release pipeline produces the artifact; a human
-approves the **destructive part** of that artifact; the deploy executes it unattended, only when the
-approval and the environment policy allow it.
+Approval is a release act. The release pipeline produces the artifact; a human approves the
+**destructive part** of that artifact, and the approval travels with it. Applying the artifact is
+the release environment's/operator's job (D-204); the framework ships no deploy-side enforcement.
 
 - **Bound to the hash.** The approval names the planHash and the destructive batch ids, so it cannot
   be swapped for a different SQL later.
 - **Who approves.** A destructive or breaking artifact requires an explicit approval gate in the
   release pipeline (a protected environment / manual approval step, or a signed approval stored on
   the release). Safe/careful artifacts need none.
-- **What the deploy checks.** artifact.approved.hash == planHash, the environment policy allows
-  destructive, and the artifact's destructive batch ids are exactly the approved ones. Any mismatch
-  is a refusal, never a warning.
-- **Environment policy**, declared in the deploy config: destroy: "deny" | "approval" | "allow".
-  Recommended: test/staging = allow (so the same destructive SQL is exercised before prod, still
-  with a backup), production = approval, deny where the company forbids data-losing DDL. A CI token
-  can never raise the policy; it can only run what the policy already permits.
-- **Backup belongs to the release environment.** The deploy never runs a backup: for a destructive
-  artifact it requires a backup_ref (the release environment produces the backup before invoking
-  the deploy) and records it in the ledger; without the pointer it refuses. The deploy documents
-  the hook, it does not implement the backup.
-- **Break-glass** (--allow-destructive) is only for adopt/repair, is a human action, and is recorded
-  as such. The release path never needs a human at deploy time.
+- **No silent destructive path.** Destructive batches exist only inside an artifact the release
+  pipeline produced, listed by id and covered by the hash-bound approval.
+- **Backups belong to the release environment.** The framework never runs a backup; taking one
+  before applying a destructive artifact is the operator's responsibility.
 
-Consequence: the destructive migration is proven in test first (same artifact), then approved and
-applied in production; the human act is the release approval, not a per-deploy flag.
+Consequence: the same destructive artifact is exercised in test first, then approved and applied in
+production by the release environment; the human act is the release approval.
 
 ---
 
@@ -251,35 +202,27 @@ and non-public schemas. A digest mismatch is always fail-closed.
 - Policy safety: a plan that would disable RLS on a scoped table, remove a policy without a
   replacement, or broaden a current_setting('app.*') predicate is a release failure.
 
-### 3.3 Ledger, lock, backup
-
-- _facilis_deploy_runs(id, release, plan_hash, from_digest, to_digest, status, statements,
-  approval_ref, backup_ref, started_at, finished_at); one row per applied artifact.
-- Advisory lock on the deploy connection (Postgres); PGlite/IDE rely on the single connection plus
-  the project Web Lock (D-033).
-- Backup: the release environment runs its own backup hook and passes --backup-ref; the deploy
-  verifies the pointer for destructive artifacts and stores it in the ledger. Dev PGlite needs
-  none: the data is disposable.
-
 ### 3.4 Invariants preserved
 
-- DDL only from the owner/admin connection at deploy time; production boot never runs DDL.
+- DDL is applied only from an owner/admin connection by the release environment/operator;
+  production boot never runs DDL.
 - Every table is exactly one access class (D-136); a scoped table cannot end a release without RLS.
-- role_permissions stays a projection of facilis.config.ts, written only by the deploy/seed step.
+- role_permissions stays a projection of facilis.config.ts, written only by provisioning/seed,
+  never by authored SQL.
 - No raw Drizzle client outside @facilis.dev/db; the Studio never reaches a database.
-- Views are code (db/views/**), applied after the artifact like today.
+- Views are code (db/views/**), never authored migration files.
 - The AI validator stops requiring authored SQL and blocks AI-authored db/migrations DDL.
 
 ---
 
 ## 4. Work breakdown
 
-A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before the rest.
+The vertical slice (P0 + P1 + P2 on one fixture) de-risked the generator before the rest.
 
 ### P0 - Contracts (docs only)
-- ADRs: D-158 *generated migrations* (completes D-109) and D-159 *release artifacts + ledger, live
-  catalog as verification only* (supersedes D-086's schema-lens premise); note rule-14/config-sync
-  retirement.
+- ADRs: D-158 *generated migrations* (completes D-109) and D-159 *a release is a tag plus an
+  immutable artifact* (supersedes D-086's schema-lens premise; its deploy-applier part was later
+  withdrawn by D-204); note rule-14/config-sync retirement.
 - Amend SPEC §2/§7.7/§8.3/§8.4.2/§9.3/§11.3/Appendix D; PATTERNS §5; APP-UPDATES §5; POSTGRES §4;
   the example README.
 - Done in this branch. SPEC states the target contract: P4 makes the preview lens and its types
@@ -304,16 +247,13 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 - Golden tests: empty -> target and add/drop/change for tables, columns, indexes, checks, FKs,
   policies, RLS and enums, plus a PGlite round-trip (plan SQL applied -> live digest == declared).
 - Deferred to P4: the drizzle-kit oracle comparison (it needs the pipeline's Drizzle schema
-  loader); digest v2 (FKs/indexes/checks/enums) lands with the P3 fingerprint. Renames are
-  drop+create (destructive) in v1.
+  loader); digest v2 (FKs/indexes/checks/enums) was tied to the P3 fingerprint, which D-204
+  withdraws. Renames are drop+create (destructive) in v1.
 - Exit: deterministic artifacts; CI fails on unsupported declarations.
 
-### P3 - Deploy applier + CLI
-- Ledger, pending resolution, fingerprint pre/post check, requirements (row counts), lock, backup_ref gate,
-  transaction per artifact, post-steps; facilis db deploy/status/adopt/repair.
-- Tests: matrix of §2.4, idempotent re-run, interrupted deploy, drift refusal, adopt, repair,
-  deploy_locked, PGlite + Postgres e2e (extend scripts/postgres-e2e.mjs).
-- Exit: one command takes any §2.4 state to the target, or refuses with a typed report.
+### P3 - Withdrawn (D-204)
+Never built; withdrawn by D-204. Applying a release artifact to a production database is the
+release environment's/operator's job.
 
 ### P4 - Release pipeline integration
 - facilis release plan --from <tag> --to <tag> in CI: publish the artifact, attach SQL + risk to
@@ -346,12 +286,12 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 ## 5. Verification
 
 - **Artifact chain**: empty DB + all artifacts in order -> digest(live) == digest(declared HEAD);
-  any tag -> next artifact converges; ledger restored with a backup resumes correctly.
-- **Refusals**: drift, missing backfill, destructive without approval or outside policy, no backup,
-  concurrent deploy, wrong role - nothing changes.
-- **Approval**: unapproved destructive artifact refused; deny/approval/allow policies; approval
-  bound to planHash (a swapped artifact fails).
-- **Idempotency**: re-run a fully applied release = 0 statements.
+  any tag -> next artifact converges.
+- **Refusals**: unsupported declarations and policy-unsafe plans fail the release with typed
+  problems; nothing degrades silently.
+- **Approval**: the approval is bound to planHash (a swapped artifact fails the binding); the
+  destructive batch ids are listed explicitly in the artifact.
+- **Idempotency**: a plan between identical snapshots produces 0 statements.
 - **Oracle**: artifact SQL vs drizzle-kit generateMigration on fixtures (normalized), Node CI only.
 - **Release preview == artifact**: tag -> HEAD plan in the IDE matches the pipeline artifact for the
   same tags (modulo documented analyzer limits, which fail closed).
@@ -361,34 +301,30 @@ A vertical slice (P0 + P1 + P2 + a minimal P3 on one fixture) de-risks before th
 
 | Risk | Mitigation |
 |---|---|
-| Digest normalization false positives block deploys | Canonical serializer + tests on both drivers; mismatch is fail-closed with a typed report; adopt/repair exist. |
-| Artifact store availability (CI artifacts) | The deploy can regenerate deterministically from the tag pair and verify the hash; the ledger keeps the hash either way. |
-| Unapproved destructive SQL reaches production | Approval bound to planHash, environment policy, backup_ref gate; approval_ref and backup_ref recorded in the ledger. |
-| Tag discipline (users who deploy without tags) | Deploy requires a release tag + artifact; publishing a release always tags (documented); no tag = no deploy. |
-| Generator misses a manual DB change | Fingerprint preflight catches it; repair is explicit and backed up. |
-| Postgres DDL locks | One short transaction per artifact, statement timeout, maintenance window; CONCURRENTLY out of scope. |
+| Digest normalization false positives | Canonical serializer + tests on both drivers; mismatch is fail-closed with a typed report. |
+| Artifact store availability (CI artifacts) | The artifact can be regenerated deterministically from the tag pair and verified by its planHash. |
+| Unapproved destructive SQL reaches production | Destructive batches are listed in the artifact and the approval is bound to planHash; applying the artifact is the operator's gated act (D-204). |
+| Tag discipline (releases without tags) | Publishing a release always tags (documented); the artifact is keyed by tag, so no tag = no artifact. |
+| Generator misses a manual DB change | The plan is tag -> tag by design; live drift is visible through the live snapshot/digest (dev reconcile), and applying artifacts is operator-owned (D-204). |
+| Postgres DDL locks | The artifact is designed for one short transaction per artifact; statement timeouts and maintenance windows are the operator's concern; CONCURRENTLY out of scope. |
 | Preview limitations in the browser | Fail closed on unresolved declarations; authoritative artifact from CI; no DB access needed. |
-| Legacy projects | adopt (verify) or repair (explicit reconcile, backup), never silent replay. |
-| Enum ALTER and identity columns | Fail closed with typed problems (unsupported_change / unsupported_declaration); v2 adds ALTER TYPE and identity rendering. |
+| Enum ALTER and identity columns | Fail closed with typed problems (unsupported_change / unsupported_declaration). |
 | Renames | No rename detection in v1: a rename is drop+create, i.e. destructive and approval-gated. |
 
 ## 7. Decisions taken and still open
 
 Taken (2026-11-10):
 1. **Artifact storage**: CI artifacts keyed by tag. Not committed, not an OCI manifest.
-2. **Destructive deploy**: approval at release time bound to planHash + environment policy
-   (test/staging allow, production approval, backup required); --allow-destructive is break-glass
-   for adopt/repair only, never the release path. See §2.6.
-3. **Backup**: the release environment owns the backup hook and passes --backup-ref; the deploy
-   requires and records the pointer for destructive artifacts and never runs a backup itself.
+2. **Destructive releases**: approval at release time bound to planHash; the destructive batch ids
+   are listed in the artifact. See §2.6.
+3. **Backup**: the release environment owns backups; the framework never runs one (D-204).
 4. **Tag creation**: publishing a release creates the tag automatically.
 5. **Data batches**: out of scope in v1; no db/data/ example ships. A plan that needs existing
    rows changed fails the release with data_needed (v1.1 reopens the question).
 6. **Preview fidelity**: analyzer fail-closed in the IDE for v1; the CI artifact is authoritative.
 
 Still open (owner defaults, not blocking P0-P2):
-7. **Legacy DBs**: adopt-only (recommended) vs repair allowed by default.
-8. **Role removal**: keep stale roles rows (recommended; permissions still synced) vs delete.
+7. **Role removal**: keep stale roles rows (recommended; permissions still synced) vs delete.
 
 ## 8. What happens to today's artifacts
 
@@ -400,15 +336,17 @@ Still open (owner defaults, not blocking P0-P2):
 | drizzle-kit | example dependency | not a runtime dependency; test oracle |
 | AI validator rules 14/16 | require a migration file | block authored DDL; require renderable schema |
 | Release Preview schema lens | lists authored migration files | shows the generated tag -> HEAD plan |
-| Deploy step | documented one-liner | facilis db deploy (ledger + artifacts + fingerprints) |
 
 ## 9. ADRs and docs to change
 
 - **D-158** (ADR A): *Schema DDL is generated at release time from the tag diff, never authored*
   (completes D-109; supersedes rule 14/config-sync; PATTERNS §5).
-- **D-159** (ADR B): *A release is a tag plus an immutable artifact; deploys apply artifacts with a
-  ledger and schema fingerprints; the live catalog is verification and repair only* (supersedes
-  D-086's "show the SQL that ships" premise and the SPEC drizzle-kit migrate line).
+- **D-159** (ADR B): *A release is a tag plus an immutable artifact* (supersedes D-086's "show the
+  SQL that ships" premise and the SPEC drizzle-kit migrate line). Its deploy-applier part (ledger,
+  fingerprints, adopt/repair) was never built and is withdrawn by D-204.
+- **D-204**: *The deploy applier is withdrawn; a release stays a tag plus an immutable artifact*
+  (supersedes the deploy-applier part of D-159; applying an artifact is the release
+  environment's/operator's job).
 - Amend D-109, D-086, D-065/D-070 (upgrade DB step), D-136 (RLS in artifacts), D-052 (PGlite
   snapshot), D-078 (publish + tags).
 - Amend SPEC §2/§7.7/§8.3/§8.4.2/§9.3/§11.3/Appendix D; PATTERNS §5; APP-UPDATES §5; POSTGRES §4;
@@ -416,8 +354,8 @@ Still open (owner defaults, not blocking P0-P2):
 
 ---
 
-**Acceptance of the whole plan:** add a table/column by editing only db/schema.ts; the release
-pipeline emits an SQL artifact with risk from the two tags, no DB involved; the deploy applies it to
-an empty, behind, restored or adopted database and refuses on drift, with the same SQL in test and
-prod; a second run reports zero statements; the IDE preview shows the same plan without touching any
-database; and the AI validator blocks authored DDL.
+**Acceptance of the shipped plan:** add a table/column by editing only db/schema.ts; the release
+pipeline emits an SQL artifact with risk from the two tags, no DB involved; the IDE preview shows
+the same plan without touching any database; dev boot reconciles the live PGlite schema to the
+declaration; and the AI validator blocks authored DDL. Applying the artifact to a production
+database is the release environment's/operator's job (D-204).

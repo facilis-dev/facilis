@@ -31,8 +31,8 @@ timings below are honest.
 | Clock | Action | Checkpoint |
 |---|---|---|
 | 0:00 | Open the Studio. | Home lists no project; the kernel boots behind the splash. |
-| 0:05 | **New project** → keep the pre-filled folder name → **Create**. | The project is scaffolded from `examples/todo-app` (D-062) and opens in the editor. |
-| 0:20 | Press **Run**. | The install resolves `@facilis.dev/*` from npm at the pinned version (D-166); the preview paints the todo login page. |
+| 0:05 | **New project** → pick the template kind (D-168: todo / showcase / starter — keep the default **todo**) → keep the pre-filled folder name → **Create**. | The project is scaffolded from `examples/todo-app` (D-062) and opens in the editor. |
+| 0:20 | Press **Run**. | The install resolves `@facilis.dev/*` from npm at the pinned version (D-166) — a dev build vendores the workspace locally instead (D-196, see One-time setup); the preview paints the todo login page. |
 | 0:40 | Register the `FACILIS_INITIAL_ADMIN` email **and the bootstrap token** in the preview (D-150); the dev fallback verifies the address immediately (D-156). | The todo app is authenticated: create/complete a todo works. |
 | 0:55 | Open the **Data** view (database icon). | Tables with columns, RLS badges on the scoped tables, reverse route usage, and *"Code and database are in sync"*. |
 | 1:10 | Open **AI Chat** → settings → provider **Mock (dev)** → send any prompt. | The answer streams; the mock writes `src/chat-demo.ts` through the write tools (the clean-tree gate may ask to commit first) and ends with a summary. |

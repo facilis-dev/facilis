@@ -2,7 +2,7 @@
 
 # Decision index
 
-201 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+205 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -209,3 +209,7 @@ the file whose name starts with that ID.
 | [D-201](./D-201-db-migrations-is-retired-everywhere-the-0009-backfill-is-data-not.md) | `db/migrations` is retired everywhere; the 0009 backfill is data, not schema | accepted | 2026-11-19 |
 | [D-202](./D-202-prerendering-is-an-opt-in-in-process-build-pass-for-public-pages.md) | Prerendering is an opt-in in-process build pass for public pages, hydrated not SSR | accepted | 2026-11-23 |
 | [D-203](./D-203-production-observability-via-opentelemetry-with-a-framework-owned.md) | Production observability via OpenTelemetry with a framework-owned ingestion endpoint | accepted | 2026-11-21 |
+| [D-204](./D-204-the-deploy-applier-is-withdrawn-a-release-stays-a-tag-plus-an.md) | The deploy applier is withdrawn; a release stays a tag plus an immutable artifact | accepted | 2026-11-24 |
+| [D-205](./D-205-the-skills-runtime-is-withdrawn-and-o-016-is-closed.md) | The skills runtime is withdrawn and O-016 is closed | accepted | 2026-11-24 |
+| [D-206](./D-206-the-run-and-debug-panel-is-hidden-until-the-vendor-debugger-covers.md) | The Run and Debug panel is hidden until the vendor debugger covers Vite SSR code | accepted | 2026-11-20 |
+| [D-207](./D-207-the-templates-ship-vite-8-the-vite-7-pin-is-lifted.md) | The templates ship Vite 8; the Vite 7 pin is lifted | accepted | 2026-11-24 |

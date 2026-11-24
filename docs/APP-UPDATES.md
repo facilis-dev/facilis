@@ -5,7 +5,7 @@ version comparison, the status-bar indicator and the upgrade engine (plan + appl
 rollback) landed. Still pending: the upgrade action in the UI (controller facade and
 postflight) and the first shipped recipe; hand-written data batches are out of scope in v1
 (D-159).
-Decision: D-065, D-158/D-159 for the DB artifact. Related:
+Decision: D-065, D-158/D-159 for the DB artifact (deploy applier withdrawn by D-204). Related:
 [MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md), SPEC §8 and §10.5, D-032, D-036, D-037, D-042, D-052.
 
 The IDE runs projects that outlive the build that created them. Two different things can be
@@ -94,7 +94,7 @@ Recipes ship with the IDE build (needed for air-gapped deployments too):
 - preflight: the project must be clean (git) or a snapshot is taken; the tab must hold the
   project lock (D-033);
 - postflight: regenerate the dependency tree (`npm install` against the configured registry),
-  run `tsc --noEmit`, then the DB artifact deploy if any;
+  run `tsc --noEmit`, then the dev-only schema reconcile if any (§5);
 - failure: restore the snapshot/branch, report the step that failed, leave the marker
   unchanged; the project is never left half-upgraded;
 - success: rewrite `.facilis/facilis.app.json`, commit on a branch (the project is already a repo),
@@ -121,7 +121,7 @@ performs them:
 - `apply.ts` - the write. It first re-checks the plan against the VFS (a plan is made from a
   read; another tab, an AI patch or the user may have written since - a mismatch refuses
   instead of overwriting), writes or deletes the files, runs the caller's **postflight**
-  (install, `tsc --noEmit`, the DB artifact deploy), and only then rewrites `.facilis/facilis.app.json`.
+  (install, `tsc --noEmit`, the dev-only schema reconcile), and only then rewrites `.facilis/facilis.app.json`.
   Any
   failure restores every path already touched, in reverse, and leaves the marker on the old
   version, so a retry starts where it was; `UpgradeError.rolledBack` says whether the
@@ -134,18 +134,18 @@ covering it in `upgrade/plan.test.ts`.
 
 **Not wired yet:** the panel is a dry run - it lists the steps the build ships and the files
 they would change, but there is no "Aggiorna" button. The action needs the controller facade
-(install through the run phase, `tsc --noEmit`, the DB artifact deploy in §5) and the project lock
+(install through the run phase, `tsc --noEmit`, the dev-only schema reconcile in §5) and the project lock
 (D-033); until it exists an outdated project keeps saying what this build can do.
 
 ## 5. Data migrations
 
 Two data stores can be affected, and both need care:
 
-- **app DB** - there is no authored migration to run: an upgrade applies the release artifact for
-  the target version through the `_facilis_deploy_runs` ledger (preflight schema fingerprint,
-  `backup_ref` for destructive artifacts, D-159). The backup belongs to the release environment -
-  the framework records the pointer and never runs one. In the IDE the only schema path is the
-  dev-only PGlite reconcile over disposable data (D-158);
+- **app DB** - there is no authored migration to run: the release pipeline generates the immutable
+  artifact for the target version (D-158), and applying it to a production database is the release
+  environment's/operator's job - the framework ships no deploy applier (D-204 withdraws the
+  unimplemented D-159 CLI/ledger), and backups belong to the release environment. In the IDE the
+  only schema path is the dev-only PGlite reconcile over disposable data (D-193/D-201);
 - **browser state** - the project lives in OPFS (D-036/D-037). A recipe that changes the
   project layout must take the snapshot first, then write; it must not rely on the
   write-behind mirror.

@@ -1,4 +1,4 @@
-// Temporary availability gate for the Run and Debug panel (D-201).
+// Temporary availability gate for the Run and Debug panel (D-206).
 //
 // The breakpoint debugger instruments only the guest require-loader path, so
 // breakpoints in Vite SSR-evaluated backend routes (Nitro runs as a Vite plugin

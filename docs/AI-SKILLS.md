@@ -1,9 +1,10 @@
 # AI and skills
 
-**Status:** accepted and implemented (2026-11-11) except the skills runtime: the provider/gateway
-policy, the "AI off by default in managed" behaviour, the 19-rule blocking validator (D-084/D-162) and
-the PTC tool runtime — the chat's only mode (D-101/D-103) — landed. Still pending: the skills
-runtime and MCP servers on the same PTC seam (design: [`PTC.md`](./PTC.md), O-016).
+**Status:** accepted and implemented (2026-11-11): the provider/gateway policy, the "AI off by
+default in managed" behaviour, the 19-rule blocking validator (D-084/D-162), the PTC tool runtime —
+the chat's only mode (D-101/D-103) — and the MCP client on the same seam (D-118,
+`ide/src/ai/mcp/*`, wired in `chat-host.ts`) all landed. The skills supply chain (§8) is the D-067
+design record; the runtime it describes was never built and is withdrawn (D-205).
 Decisions: D-066 (AI security boundary), D-067 (skills as a reviewed supply chain).
 Related: [MANAGED-DEPLOYMENT.md](./MANAGED-DEPLOYMENT.md), [APP-UPDATES.md](./APP-UPDATES.md),
 SPEC §8 and §9, D-045, D-046, D-047, D-048.
@@ -82,7 +83,7 @@ Notes:
   1. a route without `defineAuthorizedHandler`;
   2. a missing or inaccurate `dbTables`;
   3. a scoped table without its RLS policy;
-  4. a raw Drizzle client import outside ```facilis/db`;
+  4. a raw Drizzle client import outside `@facilis.dev/db`;
   5. a `package.json`, lockfile or `.npmrc` change — rule 11 rejects it in both profiles (O-009);
   6. secret-looking content in a patch;
   7. a path outside the deployment's writable set (open: the project minus the install surface, the VCS/IDE/build state and `AGENTS.md`; managed: the six roots plus `facilis.config.ts`) or outside the skill's write capability (D-167);
@@ -115,15 +116,19 @@ so the boundary is the registry, not a context window.
 ## 7. Tools
 
 The live registry is the PTC one ([`PTC.md`](./PTC.md)): `list_files`, `read_file`, `search`,
-`get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_i18n`, the preview family
-(D-111), the project-graph family (D-126), the git family (D-139), the host-side web family
-(`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175) and the validated source
-writes (`write_file`, `delete_file`, D-181). Tool output is data. A tool call is never a capability
+`get_schema`, `get_routes`, `get_config`, `get_manifest`, `get_project_summary`, `validate`, the
+preview family (D-111), the project-graph family (D-126), the git family (D-139), the host-side web
+family (`web_fetch`, `web_image`, `web_download`, deployment-gated, D-175), the validated source
+writes (`write_file`, `delete_file`, D-181) and the MCP client's `mcp_<server>_<tool>` namespace
+(D-118). Tool output is data. A tool call is never a capability
 grant: source writes still go through the validator — per file through the write tools, with
 `validate` as the pre-write check for a multi-file change; the answer never carries a patch set
 (D-192). Every call is logged.
 
 ## 8. Skills
+
+> Design record (D-067), kept as history: the runtime this section describes was never
+> implemented and is withdrawn (D-205). It is not a current contract.
 
 ### 8.1 What a skill is
 

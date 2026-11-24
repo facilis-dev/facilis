@@ -1,11 +1,14 @@
 # Managed deployment
 
-**Status:** accepted and partially implemented (2026-11-01): deployment config, build
-artifacts, runtime wiring (registry/.npmrc/import guards), the admission gate, the L0 removal
-of the remote-import implementation, preview isolation defaults and the AI provider policy
-landed (verified by a managed-vs-open `vite build`), and the update checker's local
-comparison/indicator landed. Still pending: the in-browser CSP/mirror spike and the upgrade
-recipe engine.
+**Status:** accepted and partially implemented (2026-11-24): deployment config, build
+artifacts (including the generated CSP and `headers.conf`, `ide/src/deploy/artifacts.ts`),
+runtime wiring (registry/.npmrc/import guards), the admission gate
+(`ide/src/facilis/admission.ts`), the L0 removal of the remote-import implementation, preview
+isolation defaults and the AI provider policy landed (verified by a managed-vs-open
+`vite build`); the update checker's local comparison/indicator and the upgrade recipe engine
+(`ide/src/facilis/upgrade/`) landed too. Still pending: the registry mirror (L2) and the
+remaining §12 in-browser checks (isolated preview origin, custom mirror with CORS/preflight,
+criterion 4 on a managed build).
 Decisions: D-063 (profiles and trust boundary), D-064 (one build-time config).
 Related: [SPEC.md](./SPEC.md) §8, [APP-UPDATES.md](./APP-UPDATES.md), D-030, D-032, D-045,
 D-051, O-003, O-006.
@@ -330,10 +333,10 @@ The mirror is the L2 enforcement point for "which libraries". Requirements:
   upstream is whatever the company already mirrors.
 
 The generated project's install is deterministic against the mirror: the registry is the only
-package host that can answer. The exact lockfile mechanics interact with D-032 (the
-`@facilis.dev/*` packages are `file:` tarballs, which a committed lockfile cannot pin
-portably), so that detail is owned by the implementation spike in §12 and the open questions
-in §11.
+package host that can answer. The `@facilis.dev/*` packages are ordinary registry dependencies
+at each package's committed version (D-166/D-198), so a committed lockfile pins them portably;
+only a dev build vendors the workspace locally (D-196). Whether the mirror serves those
+packages is an open question in §11; the in-browser verification is the spike in §12.
 
 ## 7. Air-gapped
 
@@ -377,14 +380,14 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | Public-registry preconnect | `warmRegistryConnection()` hardcodes `https://registry.npmjs.org` (`ide/src/vv/run-phase.ts`) | config-driven, absent when unset | L0 |
 | Generated `.npmrc` | fixed: audit/fund/update-notifier off, progress on (`ide/src/facilis/project-files.ts`) | generated from `packages` (registry, scripts, no fallback) | L0 |
 | Registry fetch | hardcoded public registry through the fetcher worker | `REGISTRY_PROXY` seam (`vendor/vivari/packages/core/src/workers/fetcher-worker.ts`) -> mirror | L2 |
-| Admission | none (a registry flag only chooses the run manifest) | `.facilis/facilis.app.json` check before open/Run | L1 |
+| Admission | shipped (`ide/src/facilis/admission.ts`): managed `facilis-only` reads `.facilis/facilis.app.json` before open/Run and fails closed; the open profile admits all | `admission: "any"` keeps the import paths for adopters (§8) | L1 |
 | Dependency allowlist | none | `preinstall` check in the template + AI validator rule on `package.json` | L1 |
 | AI egress | presets plus a custom base URL (`ide/src/ai/providers.ts`, `ide/src/ai/settings.ts`) | allowlisted providers/gateway only, custom base URL rejected; their hosts join `connect-src` | L2 |
 | AI web reads | host-side `web_*` tools (`ide/src/ai/ptc/web-tools.ts`) | `managed`: only origins in `network.connect`, empty list = no tools; GET-only, capped, downloads under `public/` only (D-175) | L2 |
 | AI key vs preview | the same-origin preview can read `vv-ai-settings` | preview isolation is a prerequisite for enabling AI | L0 |
-| AI patches | structural validator only (`packages/ai/src/index.ts`), warnings for client files only | blocking rules (AI-SKILLS.md §4) before `managed` enables AI | L1 |
-| Skills | none | manifest + capabilities + deployment allowlist (AI-SKILLS.md) | L0/L1 |
-| CSP / headers | none | `headers.conf` + hosting recipe | L2 |
+| AI patches | the 19-rule validator is **blocking** on every AI write (`packages/ai/`; [AI-VALIDATION.md](./AI-VALIDATION.md)) | the same blocking rules apply when `managed` enables AI (AI-SKILLS.md §4) | L1 |
+| Skills | none — skills are withdrawn (D-205) | no skills surface; the AI trust boundary stays the provider/gateway policy and the blocking validator (AI-SKILLS.md; §8 keeps the D-067 design as history) | — |
+| CSP / headers | shipped: the build generates the CSP and `headers.conf` (`ide/src/deploy/artifacts.ts`, §5) | hosting recipes (§5); the custom-mirror in-browser verification is still open (§12) | L2 |
 
 Vendor-side changes ride a submodule bump (D-030): never edit `vendor/vivari` in place.
 
@@ -408,8 +411,10 @@ storage is per-origin, so projects are exported and imported, not copied).
   refuse to run it.
 - Preview origin: dedicated hostname versus wildcard-per-port (`mode C`), and the auth
   impact of moving the app off the IDE origin.
-- Lockfile mechanics for the generated project while `@facilis.dev/*` are `file:` tarballs
-  (D-032), and whether the mirror serves them now that O-006 is resolved as public npm (D-164).
+- Whether the mirror serves the `@facilis.dev/*` packages, now that they are ordinary registry
+  dependencies at committed versions (D-166/D-198) and O-006 is resolved as public npm (D-164);
+  a committed lockfile pins them portably, and only dev builds vendor the workspace locally
+  (D-196).
 - Whether a managed deployment may use an internal LLM gateway while forbidding direct
   providers (AI-SKILLS.md §2).
 - Whether purely cosmetic fields (company name, logo) may come from a served file without a
