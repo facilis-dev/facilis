@@ -7,6 +7,7 @@ import { installTelemetryRuntime } from "./runtime.ts";
 import {
   attributesOf,
   createSpanRecorder,
+  runtimeOf,
   spanAt,
   type SpanRecorder,
 } from "../telemetry-test-harness.ts";
@@ -27,7 +28,7 @@ afterEach(async () => {
 describe("withJobSpan", () => {
   it("spans the attempt and makes the job's DB queries children of it", async () => {
     const spans = recorder();
-    installTelemetryRuntime({ tracer: spans.tracer });
+    installTelemetryRuntime(runtimeOf(spans));
 
     const result = await withJobSpan("sync-documents", 2, async () => {
       currentQueryTrace()?.startQuerySpan({ operation: "select", relation: "documents" }).end();
@@ -49,7 +50,7 @@ describe("withJobSpan", () => {
 
   it("marks a failed attempt without recording the error and rethrows", async () => {
     const spans = recorder();
-    installTelemetryRuntime({ tracer: spans.tracer });
+    installTelemetryRuntime(runtimeOf(spans));
     const failure = new Error("input token=secret");
 
     await expect(
@@ -78,7 +79,7 @@ describe("withJobSpan", () => {
 describe("withWorkflowSpan", () => {
   it("names the transition after the workflow and its current step", async () => {
     const spans = recorder();
-    installTelemetryRuntime({ tracer: spans.tracer });
+    installTelemetryRuntime(runtimeOf(spans));
 
     await withWorkflowSpan("publish-article", 3, "job", async () => undefined);
 

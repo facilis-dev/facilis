@@ -252,7 +252,23 @@ The attribute vocabulary is closed and declaration-derived: `http.request.method
 bind parameters are never exported, and a failed operation contributes an error status without
 its message (a driver or job error can repeat an input). The runtime switch is
 `FACILIS_TELEMETRY=on` in a **production** boot: any other value, and every dev/test boot
-(D-200), starts no pipeline at all. The collector target is the `exporterEndpoint` above.
+(D-200), starts no pipeline at all. The collector target is the `exporterEndpoint` above, which
+the host passes to the server at boot:
+
+| Variable | Meaning |
+|---|---|
+| `FACILIS_TELEMETRY` | `on` starts the pipeline; anything else leaves it absent. |
+| `FACILIS_TELEMETRY_ENDPOINT` | collector base URL (for example `https://otel.acme.example:4318`); the framework appends `/v1/traces` and `/v1/metrics`. Required when the switch is on. |
+| `FACILIS_TELEMETRY_SAMPLING` | root-span ratio `0`–`1`; the deploy `sampling` value. Unset or invalid keeps everything. |
+| `FACILIS_TELEMETRY_SERVICE` | `service.name` on every exported resource; defaults to `facilis-app`. |
+| `FACILIS_DEPLOYMENT_ID` | exported as `deployment.id`; optional, and useful when several deployments share one collector. |
+
+A production boot with the switch on but no usable endpoint exports nothing and logs one
+warning: the build refuses that combination, so it means the process was started outside its
+artifact's deploy settings. Spans are batched and metrics are collected periodically; both
+flush on graceful shutdown, so a rolling deploy does not truncate the traces of its last
+requests. Retries are the OTLP exporter's own (bounded attempts, `Retry-After`-aware backoff),
+and a collector that stays unreachable costs telemetry, never the app.
 
 ## 4. Build outputs
 

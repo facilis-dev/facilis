@@ -9,6 +9,10 @@
 import type { Attributes } from "@opentelemetry/api";
 import type { QueryDescriptor } from "@facilis.dev/db";
 
+/** Resource attributes (OTel resource semantic conventions): who exported, from where. */
+export const SERVICE_NAME = "service.name";
+export const DEPLOYMENT_ID = "deployment.id";
+
 export const HTTP_METHOD = "http.request.method";
 export const HTTP_ROUTE = "http.route";
 export const HTTP_STATUS = "http.response.status_code";

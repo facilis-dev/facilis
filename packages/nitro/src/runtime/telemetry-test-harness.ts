@@ -3,13 +3,15 @@
  * against spans an actual `TracerProvider` exported, not against a hand-rolled fake, so the
  * context wiring (parent trace, parent span) is the SDK's own.
  */
-import type { Tracer } from "@opentelemetry/api";
+import { metrics, type Tracer } from "@opentelemetry/api";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
   TracerProvider,
   type ReadableSpan,
 } from "@opentelemetry/sdk-trace";
+
+import type { TelemetryRuntime } from "./telemetry/runtime.ts";
 
 export interface SpanRecorder {
   readonly tracer: Tracer;
@@ -27,6 +29,14 @@ export function createSpanRecorder(): SpanRecorder {
     spans: () => exporter.getFinishedSpans(),
     shutdown: () => provider.shutdown(),
   };
+}
+
+/**
+ * The runtime shape instrumentation consumes, backed by the recorder's real SDK tracer. The
+ * meter is the API's no-op one: metrics are exercised by the export suite, not here.
+ */
+export function runtimeOf(recorder: SpanRecorder): TelemetryRuntime {
+  return { tracer: recorder.tracer, meter: metrics.getMeter("facilis-test") };
 }
 
 /** The exported span at `index`; fails naming the index when the recorder has no such span. */
