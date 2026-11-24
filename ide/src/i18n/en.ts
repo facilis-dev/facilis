@@ -124,6 +124,9 @@ export const en = {
     "Nitro + PGlite + React, with auth, todos, file uploads and jobs.",
   "create.template.showcase": "Static showcase site",
   "create.template.showcaseDescription": "Vite + React + Tailwind, frontend only — no backend.",
+  "create.template.docs": "Documentation site",
+  "create.template.docsDescription":
+    "Markdown/MDX docs with a generated sidebar, prev/next and page TOC — no backend.",
   "create.template.starter": "Empty full-stack app",
   "create.template.starterDescription":
     "Nitro + PGlite + React with the standard login only — no demo app to delete.",

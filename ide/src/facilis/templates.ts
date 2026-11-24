@@ -13,7 +13,7 @@ import type { ProjectTemplate } from "../vv/project-manifest";
 import { loadTemplateOnce } from "./template-loader";
 
 /** Every template kind the IDE knows about. */
-export type TemplateKey = "todo" | "showcase" | "starter";
+export type TemplateKey = "todo" | "showcase" | "docs" | "starter";
 
 export interface TemplateDescriptor {
   key: TemplateKey;
@@ -45,6 +45,16 @@ export const FACILIS_TEMPLATES: readonly TemplateDescriptor[] = [
     load: () =>
       loadTemplateOnce("showcase", () =>
         import("./showcase-template").then((module) => module.createShowcaseTemplate()),
+      ),
+  },
+  {
+    key: "docs",
+    id: "facilis-docs",
+    labelKey: "create.template.docs",
+    descriptionKey: "create.template.docsDescription",
+    load: () =>
+      loadTemplateOnce("docs", () =>
+        import("./docs-template").then((module) => module.createDocsTemplate()),
       ),
   },
   {

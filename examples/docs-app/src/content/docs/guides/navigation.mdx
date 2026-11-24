@@ -1,0 +1,43 @@
+---
+title: Navigation
+description: The sidebar tree, prev/next links and the per-page table of contents.
+order: 3
+---
+
+Every navigation surface derives from one content tree, so the site stays consistent as
+files are added or reordered. This page is itself MDX: the callouts below are JSX
+components rendered by the layout's component map.
+
+## The sidebar tree
+
+The sidebar mirrors the directory structure under `src/content/docs/`:
+
+- A directory becomes a collapsible section.
+- Its `index` page leads the section and supplies the section label.
+- Pages sort by frontmatter `order` (absent order last), then by title.
+
+<Callout type="info">
+  Adding a file updates the sidebar through Vite's content glob — no React code changes.
+</Callout>
+
+## Prev and next
+
+The reading order is a depth-first walk of the tree: a section's index page, then its
+pages, then its subsections. The pager at the bottom of every page links to the previous
+and next entry in that sequence.
+
+## Table of contents
+
+Each page lists its depth-2 and depth-3 headings in the right-hand column. The ids come
+from a pure slug of the heading text, shared by the Markdown renderer and the MDX
+heading components — so anchors work the same in `.md` and `.mdx`.
+
+### Heading ids
+
+The slug keeps Unicode letters and numbers: "Perché MDX?" becomes `perché-mdx`.
+Use one heading text per page; duplicate texts would share an id.
+
+<Callout type="warning">
+  Prerendered routes must be listed explicitly in src/app.tsx and vite.config.ts — the
+  eligibility gate reads the route table statically (D-092/D-202).
+</Callout>

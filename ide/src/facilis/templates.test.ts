@@ -53,6 +53,7 @@ describe("template registry", () => {
   it("resolves a stored id, with the pre-registry 'facilis' id mapping to todo", () => {
     expect(templateForStoredId("facilis")?.key).toBe("todo");
     expect(templateForStoredId("facilis-showcase")?.key).toBe("showcase");
+    expect(templateForStoredId("facilis-docs")?.key).toBe("docs");
     expect(templateForStoredId("facilis-starter")?.key).toBe("starter");
     // A row from the removed 55-template catalog (D-051) has no manifest: it opens as an
     // editor and Run drops into a shell.
@@ -64,6 +65,7 @@ describe("template registry", () => {
   it("creates the requested template, defaulting when none was chosen", () => {
     expect(templateForCreate(undefined)).toBe(defaultTemplate());
     expect(templateForCreate("showcase").key).toBe("showcase");
+    expect(templateForCreate("docs").key).toBe("docs");
     expect(templateForCreate("starter").key).toBe("starter");
     // An unshipped persisted choice is the one case the type cannot express: a row created
     // by another build may name a template this one does not have, and create must not throw.
