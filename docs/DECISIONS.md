@@ -23,36 +23,9 @@ explains the current code. A handful of decisions are superseded by a later one 
 (→ D-018/D-019), D-018 (→ D-030), D-022 (→ D-032), D-055 (→ D-090, then D-096), D-085/D-087
 (→ D-095), D-151 (→ D-156) — and D-086/D-143 were amended by D-158/D-159 and D-149,
 D-032 was completed by D-164/D-166, while D-157 was extended to jobs by D-162 and D-002's `.nvmrc`
-pin was superseded by D-182. The "Open items" table at the end lists what is still undecided.
-
----
-
-### D-201 — The Run and Debug panel is hidden until the vendor debugger covers Vite SSR code
-**Status:** accepted (2026-11-20)
-
-**Context.** The IDE's breakpoint debugger (Vivari's source-instrumented CDP debugger,
-`VV_DEBUG`) instruments only the guest require-loader path (`runtime/module.js`). The
-Facilis backend is Nitro v3 running as a Vite plugin inside `vite dev`: Vite evaluates
-SSR-transformed route modules through its ModuleRunner (`AsyncFunction`), which no debug
-hook covers, and `node_modules` is excluded from instrumentation. Breakpoints in server
-routes therefore never bind, and the panel renders them as set with no feedback — a silent
-no-op for the one surface we care about (backend debugging). Diagnosis and design options
-are filed on the fork: kele23/vivari#5.
-
-**Decision.** Hide the Run and Debug panel temporarily, IDE-side only, behind one
-availability flag (`ide/src/facilis/debug-panel-flag.ts`, `DEBUG_PANEL_ENABLED = false`):
-the activity-bar entry, the sidebar panel branch, and the Monaco gutter wiring (glyph
-margin + `attachEditor`) are gated. The `DebugSession` machinery stays in place, inert
-(no debug-mode toggle → no `VV_DEBUG` → no targets). No vendor edit (D-030). Backend
-debugging meanwhile follows the sanctioned D-119 path: structured `access`/`error`/`app`/
-`audit` logs with `requestId`, read by the Logs view.
-
-**Consequences.** The panel returns by flipping the flag once kele23/vivari#5 lands
-(acceptance: a breakpoint in an SSR route's source pauses at the correct line with locals).
-The `activity.debug` i18n keys stay registered; the tour's activity-bar copy drops the
-hidden surface from its list (en + it). Bind feedback for unbound breakpoints
-(`setBreakpointByUrl.locations`) remains an IDE-side improvement to make when the panel
-returns.
+pin was superseded by D-182; D-159's deploy-applier part was withdrawn by D-204, D-067's skills
+runtime by D-205, and D-021's Vite 7 pin by D-207. The "Open items" table at the end lists what is
+still undecided.
 
 ---
 
@@ -78,7 +51,7 @@ live. The resolving ADR is in the row.
 | O-013 | Views in analyzer facts, graph and reverse lookup | **resolved for the project graph by D-160:** `ViewFact` becomes a `view:<name>` node (invoker/definer, permission, base tables), a route that declares a view in `dbTables` gets a `route-view` edge and the declared base tables get `view-base` edges; `defineView` facts and the validator were D-157. Still open: the Entity Explorer's declared views and its reverse lookup | Phase 4 (Entity Explorer half) |
 | O-014 | Log pipeline and retention beyond the local file | **resolved by D-119:** one JSONL pipeline, redaction/rotation/hash chain and env-owned sinks; WORM/external sinks remain O-019 | done |
 | O-015 | Definer-view reads are permission-gated but not logged per query | keep reads unaudited (a view is a table-like resource); if read provenance is required, add an explicit route helper or a database-level statement audit (`pgaudit`/log-statement), not a per-query framework hook | Phase 4 |
-| O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). | done |
+| O-016 | Model B: replace preloaded context with a PTC tool runtime — the model writes one JavaScript program per step, the IDE executes it in a locked sandbox against a read-only tool registry (files, analyzer facts, manifest; MCP later). | **resolved with D-101:** PTC pure (`script` XOR `patches`), opaque-origin iframe + inner blob Worker (phase-0 spike 21/21), read-only tools plus a `validate` self-check, final §9.3 gate kept as the safety net. Design: [PTC.md](./PTC.md). Skills runtime withdrawn by D-205. | done |
 | O-017 | Background jobs: a workflow/chaining construct, retention & pruning of `facilis_jobs`, exponential backoff, multi-instance/distributed workers, a dev-only inspection endpoint | **durable claim/attempt counters are the seam; a workflow is a separate construct** (docs/JOBS.md §10) — design approved in D-135 ([WORKFLOWS.md](./WORKFLOWS.md)); W1–W3 landed (SPEC §7.10); retention/pruning and the dev-only inspection endpoint remain | Phase 7+ |
 | O-018 | AI chat UX: the IDE transcript should feel like the harness's session view — light and dense, one collapsed line per step (reasoning, model call, program) expanding on click instead of bordered cards — plus a "compact" mode and file attachments in the composer | recorded in [CHAT-UX.md](./CHAT-UX.md). Owner decision 2026-11-07: **"compact" means context compaction** (summarize older turns into one replayable message), not a density switch; the density/style work remains a later visual slice. Attachments: project files as path references read with the PTC tools first; OS files/images only once the multimodal message format exists — **pasted screenshots landed in D-113**; the lighter transcript landed in D-114. **Context compaction landed in D-133** (header action, `ChatState.summary`, replay swap, marker row). Remaining: the project-file picker; the 2026-11-12 owner review added Markdown, the queued-message inbox and multiple conversations (D-172) | IDE chat polish, after the preview tools (D-111 landed) |
 | O-019 | Log retention and tamper evidence beyond a local file: WORM storage, an HMAC-keyed chain, and external sinks (S3/Syslog/OTLP) | D-119 gives the file/stdout pipeline with a SHA-256 `seq`/`prevHash` chain and delegates WORM/retention to the deploy's log platform. Add an optional HMAC key per deployment (`FACILIS_LOG_HMAC_KEY`) and a `committed`/`rolled_back` entry for the request transaction before this is called tamper-proof | Phase 7+ |

@@ -164,7 +164,7 @@ export class EditorSession {
       // turn off Monaco's built-in "drop text into the buffer" behavior.
       dropIntoEditor: { enabled: false },
       // Breakpoint debugger: the glyph margin hosts breakpoint dots + the paused
-      // arrow (see DebugSession). Gated with the panel until the SSR seam (D-201).
+      // arrow (see DebugSession). Gated with the panel until the SSR seam (D-206).
       glyphMargin: DEBUG_PANEL_ENABLED,
       // Don't over-reserve the line-number column (Monaco defaults to 5 chars,
       // which right-aligns single digits and leaves a big gap to their left).
