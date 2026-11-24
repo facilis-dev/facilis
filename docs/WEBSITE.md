@@ -8,8 +8,9 @@ If the site claims something the spec can't back, the spec wins — rewrite the 
 
 ## 1. What the site has to do right now
 
-Pre-MVP (Phase 1 headless-verified; browser/WebContainer items open). The site is **not** a
-product page yet — it is a thesis with a waitlist. Three jobs, in order:
+Phases 0–4 are implemented and verified; Phase 5 is retired and Phase 6 (polish + demo) is in
+progress (see [STATUS.md](./STATUS.md)). The site is **not** a product page yet — it is a thesis
+with a waitlist. Three jobs, in order:
 
 1. **Legible in 10 seconds.** A stranger should say back: *"It's the framework where security is
    the fast path, the whole environment is a link you open, and the AI can't reach your machine."*
@@ -372,9 +373,10 @@ Other interactive slots worth the design time:
 
 ## 7. Build
 
-**Static export of a Facilis app created in the Studio (D-091), on Cloudflare Pages.** Every
-route is prerendered to HTML at build time from the app's own React tree and hydrated in the
-browser; no server runs in production. Astro + Starlight was the earlier proposal (W-2) and is
+**Static export of a Facilis app created in the Studio (D-091), on Cloudflare Pages.** Public
+pages are prerendered to HTML at build time from the app's own React tree and hydrated in the
+browser — an opt-in, per-route allowlist (D-202); param routes are ineligible. No server runs
+in production. Astro + Starlight was the earlier proposal (W-2) and is
 superseded for the site: the catalog is copy-in component source, so a second rendering stack would
 duplicate it, and dogfooding is the point. `/docs` can still adopt Starlight later if its MDX
 tooling earns the second stack.

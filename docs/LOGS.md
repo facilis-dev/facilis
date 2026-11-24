@@ -11,6 +11,10 @@ endpoint would expose request paths, user ids, session hashes, client IPs and st
 anyone who can reach the dev server, and the dev origin allowlist is not a boundary inside the
 browser WebContainer (D-119). Logs are files, and the IDE reads them through the kernel VFS.
 
+Production observability beyond logs — traces, metrics and frontend RUM via OpenTelemetry with
+a framework-owned ingestion endpoint — is accepted but **not yet implemented** (D-203). It is a
+separate push-only pipeline; this D-119 log/audit pipeline stays separate from it.
+
 ## Quick start
 
 - **Development** needs no setup. With `FACILIS_LOG_SINK` unset, `NODE_ENV` is `development`/`test`

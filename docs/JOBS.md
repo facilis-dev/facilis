@@ -29,7 +29,7 @@ surface is small enough for the three existing layers):
 | Layer | Owns |
 |---|---|
 | `@facilis.dev/core` | The public contract: `FacilisJobsConfig`, `defineJob`, `JobsApi`, `JobRecord`, `JobError`, serialization, route-context `ctx.jobs`. |
-| `@facilis.dev/db` | The `facilis_jobs` table (schema + RLS), re-exported by the project's `db/schema.ts` so migrations own it. |
+| `@facilis.dev/db` | The `facilis_jobs` table (schema + RLS), re-exported by the project's `db/schema.ts` so the declared schema owns it — the dev boot reconciles it (migrations are retired, D-158/D-201). |
 | `@facilis.dev/nitro` | The runtime: `#facilis/jobs` virtual module, definition registry, scheduler engine, stores, boot wiring, `ctx.jobs` injection. |
 
 ## 3. Nitro's task system — evaluated, not adopted
@@ -208,8 +208,8 @@ interface JobsApi {
 
 `facilis_jobs` (table in `@facilis.dev/db`, tenant-scoped with the restrictive
 `tenantIsolationPolicy`, `enableRLS`, plus the per-command `jobs:read`/`jobs:exec` policies of
-D-145) is re-exported by the project's `db/schema.ts` and therefore created by a Drizzle
-migration like the auth tables. The engine's own reads/writes run as `facilis_app` under the
+D-145) is re-exported by the project's `db/schema.ts` and therefore part of the declared schema
+the dev boot reconciles, like the auth tables (migrations are retired, D-158/D-201). The engine's own reads/writes run as `facilis_app` under the
 deployment tenant with the framework permissions in scope (`runWithPolicyScope`); a request
 carries the session's permissions. RLS applies in both cases and the sudo audit stays for job
 bodies only, where it records the declared `dbTables` and, on `succeeded`, the observed

@@ -1,555 +1,567 @@
 # Security audit — Facilis (HEAD 69985e4, 2026-11-10)
 
-Analisi statica di sicurezza del repository, con la SPEC come contratto (SPEC §8, §9.3, §11.4) e
-la verifica delle decisioni recenti (D-136, D-137, D-141, D-142, D-143, D-098, D-099, D-119, D-120).
-Nessuna modifica al codice: questo documento è l'unico artefatto prodotto.
+Static security analysis of the repository, with the SPEC as the contract (SPEC §8, §9.3, §11.4)
+and verification of the recent decisions (D-136, D-137, D-141, D-142, D-143, D-098, D-099, D-119, D-120).
+No code changes: this document is the only artifact produced.
 
-**Ambito:** `packages/{core,db,auth,nitro,storage,ai,analyze}`, `ide/src`, `examples/todo-app/server`,
-`scripts/dev`, `.github`, `ide/public/sw.js`, config di root e documentazione di deploy.
-**Escluso:** `vendor/vivari` (submodulo upstream read-only; `ide/public/sw.js` è la copia sincronizzata
-con la patch IDE e come tale è stata letta), CVE scan delle dipendenze (nessun accesso rete),
-test dinamici/exploit (solo verifica statica sul codice).
+**Scope:** `packages/{core,db,auth,nitro,storage,ai,analyze}`, `ide/src`, `examples/todo-app/server`,
+`scripts/dev`, `.github`, `ide/public/sw.js`, root configs and deployment documentation.
+**Excluded:** `vendor/vivari` (read-only upstream submodule; `ide/public/sw.js` is the synchronized
+copy with the IDE patch and was read as such), dependency CVE scanning (no network access),
+dynamic/exploit testing (static verification on the code only).
 
-## 0. Sintesi esecutiva
+## 0. Executive summary
 
-Il modello di difesa è sopra la media per un framework low-code: RBAC strutturale nel wrapper,
-RLS come confine di *grant* (D-136), elevazioni auditate fail-closed, validatore AI, redazione dei
-log, token di download firmati. I problemi principali non stanno nelle guardie "di riga" ma in
-**tre assunzioni non verificate**: (a) che un'email appartenga a chi la registra, (b) che
-`NODE_ENV` sia sempre impostato in produzione, (c) che il confine di sicurezza sia sempre
-l'*utente* quando alcune policy RLS scoping solo il *tenant*.
+The defense model is above average for a low-code framework: structural RBAC in the wrapper,
+RLS as the *grant* boundary (D-136), fail-closed audited elevations, the AI validator, log
+redaction, signed download tokens. The main problems are not in the "inline" guards but in
+**three unverified assumptions**: (a) that an email belongs to whoever registers it, (b) that
+`NODE_ENV` is always set in production, (c) that the security boundary is always the *user*
+when some RLS policies scope only the *tenant*.
 
-| ID | Finding | Gravità | Confidenza | Area |
+| ID | Finding | Severity | Confidence | Area |
 |---|---|---|---|---|
-| SEC-01 | Bootstrap admin dirottabile via email non verificata (anche con varianti di maiuscole) — risolto con token monouso (D-150) | **Critica** | Alta | auth/bootstrap |
-| SEC-02 | Linking SSO su account creati da registrazione non verificata → pre-hijacking — risolto alla radice con la verifica email e il claim dell'account pendente (D-156) | **Alta** | Alta | auth/SSO |
-| SEC-03 | Rilevamento produzione fail-open: con `NODE_ENV` non impostato restano aperti manifest, dev/query, dev/schema, dev/view e cookie senza `Secure` | **Alta** | Media | nitro/deploy |
-| SEC-04 | Nessun rate-limit/lockout su login e registrazione; registrazione enumerabile (409 con dettaglio) — throttle per route (D-152), risposta generica, timing D-148 | **Alta** | Alta | auth |
-| SEC-06 | RLS di `sessions`/`user_roles`/`api_clients`/`api_tokens`/`auth_identities` è tenant-wide, non per-utente | Media | Alta | DB/RLS |
-| SEC-07 | SAML: `validateInResponseTo: "ifPresent"` accetta asserzioni senza `InResponseTo` (contratto: niente risposte non sollecitate) | Media | Media | SSO |
-| SEC-08 | Rate limiter del token endpoint: chiave scelta dall'attaccante, mappa illimitata, quota avvelenabile | Media | Alta | API/client |
-| SEC-09 | Nessun limite di dimensione del body prima del parsing (JSON e multipart) — risolto con cap nel wrapper (D-153) | Media | Alta | HTTP/DoS |
-| SEC-10 | Profilo "open": preview iframe same-origin con `allow-same-origin` → codice di progetto legge la AI key in localStorage — **aperto**, rimandato a una feature IDE (D-155) | Media | Alta | IDE |
-| SEC-11 | PBKDF2 a 210k iterazioni (< raccomandazione OWASP) e timing oracle sull'esistenza dell'email | Bassa | Alta | auth |
-| SEC-12 | Invarianti 1/2 (wrapper e dbTables accurati) non bloccanti per codice scritto a mano: solo diagnostica analyzer — risolto con gate CI (D-154) | Bassa | Alta | processo |
-| SEC-13 | Coda job senza ownership: `input`/`output` leggibili da chi ha il permesso della route (risolto con `jobs:read`/`jobs:exec` in RLS, D-145) | Bassa | Alta | jobs |
-| SEC-14 | `dbTables` ed elevazioni autocertificati: nulla verificava le relazioni realmente interrogate (route RLS arbitrarie; elevazioni con audit fuorviante) — risolto con analisi statica + guard runtime e regola AI 18 (D-157) | Media | Alta | DB/route |
+| SEC-01 | First-admin bootstrap hijackable via unverified email (including case variants) — resolved with a one-time token (D-150) | **Critical** | High | auth/bootstrap |
+| SEC-02 | SSO linking onto accounts created by unverified registration → pre-hijacking — resolved at the root with email verification and the pending-account claim (D-156) | **High** | High | auth/SSO |
+| SEC-03 | Fail-open production detection: with `NODE_ENV` unset, manifest, dev/query, dev/schema, dev/view stay open and cookies lack `Secure` | **High** | Medium | nitro/deploy |
+| SEC-04 | No rate limit/lockout on login and registration; enumerable registration (409 with detail) — per-route throttle (D-152), generic response, timing D-148 | **High** | High | auth |
+| SEC-06 | RLS on `sessions`/`user_roles`/`api_clients`/`api_tokens`/`auth_identities` is tenant-wide, not per-user | Medium | High | DB/RLS |
+| SEC-07 | SAML: `validateInResponseTo: "ifPresent"` accepts assertions without `InResponseTo` (contract: no unsolicited responses) | Medium | Medium | SSO |
+| SEC-08 | Token endpoint rate limiter: attacker-chosen key, unbounded map, poisonable quota | Medium | High | API/client |
+| SEC-09 | No body size limit before parsing (JSON and multipart) — resolved with a cap in the wrapper (D-153) | Medium | High | HTTP/DoS |
+| SEC-10 | "open" profile: same-origin preview iframe with `allow-same-origin` → project code reads the AI key in localStorage — **open**, deferred to an IDE feature (D-155) | Medium | High | IDE |
+| SEC-11 | PBKDF2 at 210k iterations (< OWASP recommendation) and a timing oracle on email existence | Low | High | auth |
+| SEC-12 | Invariants 1/2 (wrapper and accurate dbTables) not blocking for hand-written code: analyzer diagnostics only — resolved with a CI gate (D-154) | Low | High | process |
+| SEC-13 | Job queue without ownership: `input`/`output` readable by anyone with the route's permission (resolved with `jobs:read`/`jobs:exec` in RLS, D-145) | Low | High | jobs |
+| SEC-14 | Self-certified `dbTables` and elevations: nothing verified the relations actually queried (arbitrary route RLS; elevations with a misleading audit) — resolved with static analysis + a runtime guard and AI rule 18 (D-157) | Medium | High | DB/route |
 
-**Stato al 2026-11-11 (hardening completato):** risolti SEC-01 (D-150), SEC-02 (verifica email e
-claim dell'account pendente, D-156; D-151 è superata), SEC-03 (D-146), SEC-04 (D-148 timing/PBKDF2 +
-D-152 throttle per route, risposta di registrazione generica; resta un canale indiretto di
-enumerazione mitigato dal rate limit), SEC-07 (D-147), SEC-08 (D-149), SEC-09 (D-153),
-SEC-11 (D-148), SEC-12 (D-154), SEC-13 (D-145); SEC-06 mitigato (hash delle sessioni, D-144). Resta
-aperto solo **SEC-10**, rimandato a una feature IDE dedicata (D-155) perché cambiare il sandbox della
-preview tocca cookie/storage/Service Worker e va verificato nel browser.
+**Status as of 2026-11-11 (hardening complete):** resolved SEC-01 (D-150), SEC-02 (email
+verification and the pending-account claim, D-156; D-151 is superseded), SEC-03 (D-146), SEC-04
+(D-148 timing/PBKDF2 + D-152 per-route throttle, generic registration response; an indirect
+enumeration channel remains, mitigated by the rate limit), SEC-07 (D-147), SEC-08 (D-149),
+SEC-09 (D-153), SEC-11 (D-148), SEC-12 (D-154), SEC-13 (D-145); SEC-06 mitigated (session
+hashing, D-144). Only **SEC-10** remains open, deferred to a dedicated IDE feature (D-155)
+because changing the preview sandbox touches cookies/storage/Service Worker and must be
+verified in the browser.
 
-Totale: 1 critica, 3 alte, 5 medie, 3 basse. **SEC-05 è stato ritirato** dopo la revisione:
-una route `crossSite` è utilizzabile anche dall'utente loggato con i ruoli, quindi accettare il
-cookie per chiamate same-origin è il comportamento voluto (resta solo la nota in §3).
-Nessun bypass remoto non autenticato trovato nelle
-route framework-owned (/api/auth/token, SSO, manifest, dev); i percorsi più concreti passano
-dalle route applicative blueprint (login/register) e da configurazioni di deploy.
+Totals: 1 critical, 3 high, 5 medium, 3 low. **SEC-05 was withdrawn** after review: a
+`crossSite` route is also usable by the logged-in user with roles, so accepting the cookie for
+same-origin calls is the intended behavior (only the note in §3 remains). No unauthenticated
+remote bypass was found in the framework-owned routes (/api/auth/token, SSO, manifest, dev);
+the most concrete paths go through the blueprint application routes (login/register) and
+deployment configurations.
 
-## 1. Dettaglio dei finding
+## 1. Finding details
 
-### SEC-01 — Bootstrap del primo admin dirottabile via email non verificata — Critica, confidenza alta
+### SEC-01 — First-admin bootstrap hijackable via unverified email — Critical, high confidence
 
-**Stato (2026-11-10): risolto — D-150.** La promozione richiede il token monouso
-`FACILIS_INITIAL_ADMIN_TOKEN` oltre all'email, il confronto è in tempo costante, il bootstrap è
-one-time (nessun admin esistente) e le email sono canoniche con indice unico `lower(email)`.
-La registrazione risponde `{ accepted: true }` senza ruolo né id. Verifica: `seed.test.ts`,
-`migrations.test.ts`, suite auth/core/examples.
+**Status (2026-11-10): resolved — D-150.** Promotion requires the one-time token
+`FACILIS_INITIAL_ADMIN_TOKEN` in addition to the email, the comparison is constant-time, the
+bootstrap is one-time (no existing admin) and emails are canonical with a unique `lower(email)`
+index. Registration answers `{ accepted: true }` without a role or id. Verification:
+`seed.test.ts`, `migrations.test.ts`, the auth/core/examples suites.
 
-**Evidenza.**
-- `examples/todo-app/server/routes/api/auth/register.post.ts:57-61` — la registrazione è pubblica
-  (`permission: []`), non prova la proprietà dell'email e chiama
+**Evidence.**
+- `examples/todo-app/server/routes/api/auth/register.post.ts:57-61` — registration is public
+  (`permission: []`), does not prove ownership of the email and calls
   `registerInitialAdmin(systemDb, user.id)`.
-- `packages/auth/src/seed.ts:62-77` — promuove ad `admin` l'utente il cui indirizzo, **confrontato in
-  minuscolo**, coincide con `FACILIS_INITIAL_ADMIN`.
-- `packages/auth/src/tables.ts:37` — `email: text("email").notNull().unique()`: unicità
-  **case-sensitive** (nessun indice su `lower(email)`).
-- Il flusso è quello documentato come bootstrap ufficiale: SPEC §8.4.3 (righe 1891-1912),
+- `packages/auth/src/seed.ts:62-77` — promotes to `admin` the user whose address, **compared in
+  lowercase**, matches `FACILIS_INITIAL_ADMIN`.
+- `packages/auth/src/tables.ts:37` — `email: text("email").notNull().unique()`: uniqueness is
+  **case-sensitive** (no index on `lower(email)`).
+- The flow is the one documented as the official bootstrap: SPEC §8.4.3 (lines 1891-1912),
   `examples/todo-app/README.md:46`, `docs/DEMO.md:32`.
 
-**Percorso d'attacco.** Con il deploy che segue la documentazione
-(`FACILIS_INITIAL_ADMIN=founder@azienda.it`) e la route di registrazione del blueprint esposta:
-1. qualsiasi utente non autenticato registra `founder@azienda.it` **prima** del founder reale (o una
-   variante di maiuscole, es. `Founder@azienda.it`, che passa il vincolo `unique` perché case-sensitive);
-2. la risposta della registrazione mostra `role: "admin"`; il successivo login ottiene il ruolo con
-   wildcard `*` (tutti i permessi, inclusi i route `api-clients:*`, `users:*`);
-3. anche se il founder reale si registra dopo, l'attaccante conserva `admin`. Non serve possedere
-   la casella: nessun controllo di verifica email esiste nel framework.
+**Attack path.** With a deployment that follows the documentation
+(`FACILIS_INITIAL_ADMIN=founder@azienda.it`) and the blueprint's registration route exposed:
+1. any unauthenticated user registers `founder@azienda.it` **before** the real founder (or a
+   case variant, e.g. `Founder@azienda.it`, which passes the `unique` constraint because it is
+   case-sensitive);
+2. the registration response shows `role: "admin"`; the subsequent login obtains the role with
+   the `*` wildcard (all permissions, including the `api-clients:*`, `users:*` routes);
+3. even if the real founder registers later, the attacker keeps `admin`. Owning the mailbox is
+   not required: no email-verification check exists in the framework.
 
-**Perché i controlli attuali non bastano.** La registrazione passa dal wrapper (Zod, origin gate,
-audit) e l'elevazione `system` è corretta, ma il *criterio* di promozione è un'identità non
-verificata; il confronto case-insensitive peggiora il caso (bypass anche a distanza di tempo).
-Il vincolo di unicità case-sensitive consente account duplicati con maiuscole diverse.
+**Why the current controls are not enough.** Registration goes through the wrapper (Zod, origin
+gate, audit) and the `system` elevation is correct, but the *criterion* for promotion is an
+unverified identity; the case-insensitive comparison makes it worse (bypass even at a distance
+in time). The case-sensitive uniqueness constraint allows duplicate accounts with different
+casing.
 
-**Rimedio.** Non promuovere per email: usare un token di bootstrap monouso (env) consumato nella
-prima registrazione, oppure una promozione CLI/migrazione con accesso al DB; in alternativa
-richiedere la verifica email prima della promozione. Normalizzare l'email (minuscolo) in
-registrazione/login e aggiungere un indice unico su `lower(email)`. Test negativo: registrare una
-variante di maiuscole di `FACILIS_INITIAL_ADMIN` non deve produrre `admin`.
+**Remedy.** Do not promote by email: use a one-time bootstrap token (env) consumed at the first
+registration, or a CLI/migration promotion with DB access; alternatively require email
+verification before promotion. Normalize the email (lowercase) at registration/login and add a
+unique index on `lower(email)`. Negative test: registering a case variant of
+`FACILIS_INITIAL_ADMIN` must not produce `admin`.
 
-### SEC-02 — SSO: linking su account con email mai verificata → account pre-hijacking — Alta, confidenza alta
+### SEC-02 — SSO: linking onto an account whose email was never verified → account pre-hijacking — High, high confidence
 
-**Stato (2026-11-10): risolto alla radice — D-156 (sostituisce D-151).** Il framework ora verifica
-gli account password: `users.email_verified_at` + link monouso in `auth_email_verifications`, login
-`403 email_unverified` finché non è verificato, e la registrazione pubblica non può essere usata per
-"prenotare" un indirizzo (un account pendente si reclama ri-registrando l'email e viene verificato dal
-link). Il linking SSO segue la verifica: un account verificato si collega, un account pendente viene
-reclamato dall'identità con la password segnaposto rimossa — l'attaccante che ha registrato l'indirizzo
-per primo perde l'account, la vittima lo mantiene. Verifica: `identity-guard.test.ts`,
-`email-verification.test.ts`, `migrations.test.ts`.
+**Status (2026-11-10): resolved at the root — D-156 (supersedes D-151).** The framework now
+verifies password accounts: `users.email_verified_at` + a one-time link in
+`auth_email_verifications`, login `403 email_unverified` until verified, and public
+registration cannot be used to "reserve" an address (a pending account is claimed by
+re-registering the email and is verified by the link). SSO linking follows verification: a
+verified account links, a pending account is claimed by the identity with the placeholder
+password removed — the attacker who registered the address first loses the account, the victim
+keeps it. Verification: `identity-guard.test.ts`, `email-verification.test.ts`,
+`migrations.test.ts`.
 
-**Evidenza.**
-- `packages/auth/src/sso/identity.ts:121-140` — senza identità collegata, un'email
-  `emailVerified` viene confrontata con `users.email` (`findUserIdByEmail`, riga 67) e, se esiste
-  un utente, l'identità SSO viene **collegata** a quell'account.
-- `packages/auth/src/sso/identity.ts:125` — il controllo "unverified email never links" protegge
-  solo il claim del provider, non il fatto che l'account esistente sia stato creato senza verifica.
-- `examples/todo-app/server/routes/api/auth/register.post.ts:10-14` — la registrazione password non
-  ha alcuna verifica email (e il framework non la offre: nessun campo `emailVerified` su `users`).
-- D-120 assume esplicitamente "an email must be verified and is matched against users" per il linking.
+**Evidence.**
+- `packages/auth/src/sso/identity.ts:121-140` — without a linked identity, an `emailVerified`
+  email is matched against `users.email` (`findUserIdByEmail`, line 67) and, if a user exists,
+  the SSO identity is **linked** to that account.
+- `packages/auth/src/sso/identity.ts:125` — the "unverified email never links" check protects
+  only the provider's claim, not the fact that the existing account was created without
+  verification.
+- `examples/todo-app/server/routes/api/auth/register.post.ts:10-14` — password registration has
+  no email verification (and the framework does not offer it: no `emailVerified` field on
+  `users`).
+- D-120 explicitly assumes "an email must be verified and is matched against users" for linking.
 
-**Percorso d'attacco.** In un deploy con SSO abilitato (`autoProvision` default `true`) e
-registrazione password:
-1. l'attaccante registra `vittima@azienda.it` con una password che conosce;
-2. la vittima fa il primo login SSO con l'email aziendale verificata dal provider;
-3. il flusso la collega all'account creato dall'attaccante; la vittima lavora in un account di cui
-   l'attaccante conosce la password (e può leggere/modificare tutto, o usarlo per phishing interno).
+**Attack path.** In a deployment with SSO enabled (`autoProvision` default `true`) and password
+registration:
+1. the attacker registers `vittima@azienda.it` with a password they know;
+2. the victim does their first SSO login with the company email verified by the provider;
+3. the flow links it to the account the attacker created; the victim works in an account whose
+   password the attacker knows (and can read/modify everything, or use it for internal phishing).
 
-È la classe "account pre-hijacking": il controllo D-120 protegge il claim SSO, non l'account
-preesistente.
+This is the "account pre-hijacking" class: the D-120 check protects the SSO claim, not the
+pre-existing account.
 
-**Rimedio.** Aggiungere una verifica email reale (campo + token) e rifiutare il linking SSO a un
-account con `passwordHash != null` e email non verificata; oppure limitare il linking a utenti
-creati da SSO o invitati da un admin; registrare l'evento di linking con notifica. Alternativa
-minima: nel blueprint di registrazione richiedere un invito o il token di bootstrap (SEC-01).
+**Remedy.** Add real email verification (field + token) and refuse SSO linking to an account
+with `passwordHash != null` and an unverified email; or restrict linking to users created by
+SSO or invited by an admin; log the linking event with a notification. Minimal alternative: in
+the registration blueprint require an invitation or the bootstrap token (SEC-01).
 
-### SEC-03 — Rilevamento produzione fail-open (`NODE_ENV`) — Alta, confidenza media
-**Stato (2026-11-10): risolto — D-146.** Solo `development`/`test` sono dev; unset e valori
-sconosciuti sono produzione (dev endpoint 404, cookie `Secure`, niente PGlite).
+### SEC-03 — Fail-open production detection (`NODE_ENV`) — High, medium confidence
+**Status (2026-11-10): resolved — D-146.** Only `development`/`test` are dev; unset and unknown
+values are production (dev endpoints 404, `Secure` cookies, no PGlite).
 
-**Evidenza.**
+**Evidence.**
 - `packages/nitro/src/runtime/env.ts:9` — `return environment["NODE_ENV"] === "production"`:
-  *solo* la stringa esatta disattiva i dev endpoint; un valore assente vale "development".
-- `packages/nitro/src/runtime/http-guard.ts:43-48` — `guardDevRequest` risponde 404 solo se
-  `isProductionEnvironment()` è vero; altrimenti applica il solo origin allowlist.
-- `packages/nitro/src/runtime/http-guard.ts:17-33` — se `Origin` è assente la richiesta passa
-  (client non-browser come `curl` passano sempre).
+  *only* the exact string disables the dev endpoints; an absent value counts as "development".
+- `packages/nitro/src/runtime/http-guard.ts:43-48` — `guardDevRequest` answers 404 only if
+  `isProductionEnvironment()` is true; otherwise it applies only the origin allowlist.
+- `packages/nitro/src/runtime/http-guard.ts:17-33` — if `Origin` is absent the request passes
+  (non-browser clients like `curl` always pass).
 - `packages/nitro/src/session-cookie.ts:53` — `secure: options.secure ?? process.env.NODE_ENV === "production"`:
-  senza `NODE_ENV` il cookie di sessione non ha `Secure`.
-- Il requisito è solo documentale: `docs/POSTGRES.md:110,151` usano `NODE_ENV=production`
-  nell'esempio di avvio, ma niente nel codice lo impone.
+  without `NODE_ENV` the session cookie has no `Secure`.
+- The requirement is documentary only: `docs/POSTGRES.md:110,151` use `NODE_ENV=production`
+  in the startup example, but nothing in the code enforces it.
 
-**Impatto in un deploy che omette `NODE_ENV` (Docker/systemd/process manager, self-host):**
-- `/__facilis/manifest` risponde 200 senza autenticazione: manifest completo (config, ruoli e
-  permessi, route, schema, metadati) a chiunque raggiunga la rete, anche senza `Origin`;
-- `/__facilis/dev/schema` e `/__facilis/dev/query` restano attivi: query SQL "read-only" eseguite
-  sulla connessione root (in un deploy collegato come owner/superuser bypassa la RLS; con
-  superuser sono possibili anche letture di file via funzioni come `pg_read_file`);
-- `/__facilis/dev/view` consente di creare viste definer con un permesso dichiarato;
-- cookie di sessione senza `Secure` (invio su HTTP, se il sito è raggiungibile in chiaro);
-- sink di log su file del progetto invece che stdout (trail fuori dal controllo dell'operatore).
+**Impact in a deployment that omits `NODE_ENV` (Docker/systemd/process manager, self-host):**
+- `/__facilis/manifest` answers 200 without authentication: the full manifest (config, roles and
+  permissions, routes, schema, metadata) to anyone who reaches the network, even without `Origin`;
+- `/__facilis/dev/schema` and `/__facilis/dev/query` stay active: "read-only" SQL queries executed
+  on the root connection (in a deployment connected as owner/superuser this bypasses RLS; with
+  superuser, file reads via functions like `pg_read_file` are also possible);
+- `/__facilis/dev/view` allows creating definer views with a declared permission;
+- session cookies without `Secure` (sent over HTTP, if the site is reachable in cleartext);
+- the log sink goes to project files instead of stdout (a trail outside the operator's control).
 
-**Rimedio.** Invertire il default: considerare dev solo un valore esplicito
-(`FACILIS_ENV=development` o `NODE_ENV in {development,test}`), così l'assenza di configurazione
-fallisce chiusa; testare `guardDevRequest({})` → 404. Richiedere `DATABASE_URL`/`FACILIS_STORAGE_SECRET`
-in produzione e rifiutare l'avvio altrimenti.
+**Remedy.** Invert the default: treat only an explicit value as dev
+(`FACILIS_ENV=development` or `NODE_ENV in {development,test}`), so the absence of configuration
+fails closed; test `guardDevRequest({})` → 404. Require `DATABASE_URL`/`FACILIS_STORAGE_SECRET`
+in production and refuse to boot otherwise.
 
-### SEC-04 — Nessun throttling su login/registrazione, registrazione enumerabile — Alta, confidenza alta
-**Stato (2026-11-10): mitigato — D-148, D-152, D-156.** Login a tempo costante (hash dummy),
-PBKDF2 600k e throttle per route nel wrapper (login 10/min, registrazione 5/min per client); la
-registrazione risponde `{ accepted: true }` senza dettagli e la verifica email (D-156) rende gli
-account non verificati inutilizzabili. Resta un canale indiretto di enumerazione (registrazione →
-login: un account verificato risponde `unauthorized`, uno pendente `email_unverified`), mitigato
-dal rate limit; si chiude con la registrazione "deferred" (utente creato solo dopo la verifica),
-rimandata come evoluzione in D-156.
+### SEC-04 — No throttling on login/registration, enumerable registration — High, high confidence
+**Status (2026-11-10): mitigated — D-148, D-152, D-156.** Constant-time login (dummy hash),
+PBKDF2 600k and a per-route throttle in the wrapper (login 10/min, registration 5/min per
+client); registration answers `{ accepted: true }` without details and email verification
+(D-156) makes unverified accounts unusable. An indirect enumeration channel remains
+(registration → login: a verified account answers `unauthorized`, a pending one
+`email_unverified`), mitigated by the rate limit; it closes with "deferred" registration (the
+user is created only after verification), deferred as an evolution in D-156.
 
-**Evidenza.**
-- L'unico rate limit del repo è per `/api/auth/token`: `packages/nitro/src/routes/token.post.ts:44`,
-  `packages/nitro/src/runtime/rate-limit.ts`; non esiste alcun limitatore per le route applicative.
-- `examples/todo-app/server/routes/api/auth/login.post.ts:16-33` — nessun lockout/backoff; ogni
-  tentativo esegue PBKDF2 (210k) e la risposta è identica, ma...
-- `examples/todo-app/server/routes/api/auth/login.post.ts:26-30` — se l'email non esiste si esce
-  **prima** di `verifyPassword`: timing oracle per l'enumerazione degli account.
-- `examples/todo-app/server/routes/api/auth/register.post.ts:24-27` — in caso di email già
-  registrata risponde `409 conflict` con `details { email: "already_registered" }`: enumerazione
-  diretta e affidabile.
+**Evidence.**
+- The only rate limit in the repo is for `/api/auth/token`: `packages/nitro/src/routes/token.post.ts:44`,
+  `packages/nitro/src/runtime/rate-limit.ts`; no limiter exists for application routes.
+- `examples/todo-app/server/routes/api/auth/login.post.ts:16-33` — no lockout/backoff; every
+  attempt runs PBKDF2 (210k) and the response is identical, but...
+- `examples/todo-app/server/routes/api/auth/login.post.ts:26-30` — if the email does not exist
+  it returns **before** `verifyPassword`: a timing oracle for account enumeration.
+- `examples/todo-app/server/routes/api/auth/register.post.ts:24-27` — for an already registered
+  email it answers `409 conflict` with `details { email: "already_registered" }`: direct and
+  reliable enumeration.
 
-**Percorso d'attacco.** Credential stuffing/brute force illimitato sul login (la PBKDF2 rende ogni
-tentativo costoso ma non impedisce il volume); enumerazione delle email registrate via timing sul
-login o via 409 sulla registrazione; creazione illimitata di account (spam, occupazione di email
-future, vedi SEC-01/SEC-02). Le route blueprint sono il codice che gli utenti copiano nei progetti.
+**Attack path.** Unlimited credential stuffing/brute force on login (PBKDF2 makes each attempt
+expensive but does not prevent volume); enumeration of registered emails via login timing or
+via the registration 409; unlimited account creation (spam, squatting future emails, see
+SEC-01/SEC-02). The blueprint routes are the code users copy into their projects.
 
-**Rimedio.** Rendere il rate limit una capacità del wrapper (`defineAuthorizedHandler({ rateLimit })`)
-con chiave (IP, route) e soglie diverse per login/register/token; risposta generica anche per la
-registrazione duplicata (o 202 con verifica email); eseguire una PBKDF2 "dummy" quando l'utente non
-esiste per uniformare i tempi. Il limiter in-memory va bene solo per single-instance: documentarlo.
+**Remedy.** Make the rate limit a wrapper capability (`defineAuthorizedHandler({ rateLimit })`)
+with an (IP, route) key and different thresholds for login/register/token; a generic response
+for duplicate registration too (or 202 with email verification); run a "dummy" PBKDF2 when the
+user does not exist to equalize timing. The in-memory limiter is fine only for single-instance:
+document it.
 
-### SEC-05 — Ritirato in revisione (non è un finding)
+### SEC-05 — Withdrawn in review (not a finding)
 
-Su indicazione dell'owner: una route `crossSite` è un'API che deve poter essere usata anche
-dall'utente loggato con i permessi; il cookie di sessione per le chiamate same-origin è quindi
-intenzionale. L'esposizione cross-site resta affidata al Bearer (D-142) e la garanzia "cookie mai
-cross-site" è di `SameSite=Lax`. Non è una vulnerabilità nel modello previsto; unico residuo teorico
-(annotato in §3): se in futuro un deploy ospitasse applicazioni non fidate su sottodomini *same-site*
-dello stesso registrable domain, la POST con cookie su una route `crossSite` non sarebbe fermata dal
-gate sull'origine. Nessuna azione richiesta oggi.
+At the owner's direction: a `crossSite` route is an API that must also be usable by the
+logged-in user with permissions; the session cookie for same-origin calls is therefore
+intentional. Cross-site exposure remains delegated to Bearer (D-142) and the "cookie never
+cross-site" guarantee is `SameSite=Lax`. This is not a vulnerability in the intended model; the
+only theoretical residual (noted in §3): if a deployment ever hosts untrusted applications on
+*same-site* subdomains of the same registrable domain, a POST with the cookie on a `crossSite`
+route would not be stopped by the origin gate. No action required today.
 
-### SEC-06 — Le policy RLS delle tabelle credenziali sono tenant-wide: non serve sudo — Media, confidenza alta (verificato con test)
+### SEC-06 — The RLS policies of the credential tables are tenant-wide: sudo is not needed — Medium, high confidence (verified with a test)
 
-**Stato (2026-11-10):** mitigato in parte — implementata la soluzione hash per gli id di sessione
-(D-144): la riga `sessions` contiene `sha256(cookie)` e non è più riproducibile come credenziale.
-Resta la visibilità tenant-wide delle righe (utente→sessioni) e la questione delle scritture
-`user_roles`; la soluzione system-only resta l'alternativa se si vuole togliere anche quella.
+**Status (2026-11-10):** partially mitigated — the hashing solution for session ids is
+implemented (D-144): the `sessions` row contains `sha256(cookie)` and is no longer reproducible
+as a credential. The tenant-wide visibility of the rows (user→sessions) and the question of
+`user_roles` writes remain; the system-only solution stays the alternative if that too must go.
 
-**Risposta diretta alla domanda:** no, non è leggibile "solo dall'utenza di sistema o usando sudo".
-Le tabelle in questione sono **app-scoped** (D-136): `ensureAppRole` concede DML a `facilis_app` a
-ogni tabella con RLS abilitata (`packages/db/src/policy.ts:94-111`), e `sessions` ha RLS abilitata
-(`packages/auth/src/tables.ts:71-78`). Quindi qualunque `ctx.db` — senza sudo, senza system role —
-può leggere quelle righe; `sudo`/system servono solo a *bypassare* la RLS, non a leggerle. Il punto
-non è il ruolo: è che la policy non contiene **né** un filtro per-utente **né** un filtro per-ruolo.
+**Direct answer to the question:** no, it is not readable "only by the system identity or using
+sudo". The tables in question are **app-scoped** (D-136): `ensureAppRole` grants DML to
+`facilis_app` on every table with RLS enabled (`packages/db/src/policy.ts:94-111`), and
+`sessions` has RLS enabled (`packages/auth/src/tables.ts:71-78`). So any `ctx.db` — without
+sudo, without a system role — can read those rows; `sudo`/system are only needed to *bypass*
+RLS, not to read them. The point is not the role: it is that the policy contains **neither** a
+per-user filter **nor** a per-role filter.
 
-**Evidenza.**
+**Evidence.**
 - `packages/auth/src/tables.ts:63-66` — `parentUserAccessPolicy`: `exists (select 1 from users u where u.id = <col>)`,
-  nessun confronto con `app.user_id`.
-- `packages/auth/src/tables.ts:49-53` — la policy su `users` è solo di tenant (restrictive
-  `tenant_isolation` + permissive `users_tenant_access`): l'EXISTS è vero per ogni utente del tenant.
-- Applicata a `sessions` (`:77`), `user_roles` (`:110`), `api_clients` (`:139`),
-  `api_tokens` (`:159`); stesso schema per `auth_identities` in `packages/auth/src/sso/tables.ts:36-41`.
-- L'id di sessione è **il valore del cookie**, memorizzato in chiaro come PK
-  (`packages/auth/src/session.ts:24-45`): una SELECT su `sessions` restituisce credenziali vive.
+  no comparison with `app.user_id`.
+- `packages/auth/src/tables.ts:49-53` — the policy on `users` is tenant-only (restrictive
+  `tenant_isolation` + permissive `users_tenant_access`): the EXISTS is true for every user of
+  the tenant.
+- Applied to `sessions` (`:77`), `user_roles` (`:110`), `api_clients` (`:139`),
+  `api_tokens` (`:159`); the same pattern for `auth_identities` in `packages/auth/src/sso/tables.ts:36-41`.
+- The session id is **the cookie value**, stored in cleartext as the PK
+  (`packages/auth/src/session.ts:24-45`): a SELECT on `sessions` returns live credentials.
 
-**Verifica empirica (eseguita, test temporaneo poi rimosso).** Con `createAuthTestDb()` (PGlite +
-policy reali) e due utenti A/B dello stesso tenant, una lettura eseguita con
-`runWithPolicyScope(db, { tenantId, userId: A })` — cioè l'identità `facilis_app` e lo scope di A,
-esattamente ciò che riceve un handler — restituisce **entrambe** le sessioni:
+**Empirical verification (executed, temporary test then removed).** With `createAuthTestDb()`
+(PGlite + real policies) and two users A/B of the same tenant, a read executed with
+`runWithPolicyScope(db, { tenantId, userId: A })` — i.e. the `facilis_app` identity and A's
+scope, exactly what a handler receives — returns **both** sessions:
 
 ```
 VISIBLE_SESSIONS [{"id":"session-user-a","userId":"1111…"},{"id":"session-user-b","userId":"2222…"}]
 ```
 
-Stesso esito per `user_roles` e per le altre tabelle con lo stesso pattern: la visibilità è quella
-del tenant, non dell'utente. Oggi nessuna route framework-owned espone `sessions` (l'unico lettore è
-`validateSession`, che filtra per id), quindi l'impatto richiede una route applicativa o la Data
-Explorer (dev) che interroghi quelle tabelle, oppure un bug di filtro in un handler; ma il confine
-dichiarato ("inherits the parent user's visibility") non è quello che la policy realizza.
+The same outcome for `user_roles` and the other tables with the same pattern: visibility is the
+tenant's, not the user's. Today no framework-owned route exposes `sessions` (the only reader is
+`validateSession`, which filters by id), so the impact requires an application route or the
+(dev) Data Explorer querying those tables, or a filter bug in a handler; but the declared
+boundary ("inherits the parent user's visibility") is not what the policy implements.
 
-**Perché non basta "aggiungere `app.user_id` alla policy" (correzione).** Il middleware di sessione
-valida il cookie **prima** di conoscere l'utente: la sua transazione ha solo `{ tenantId }`
-(`packages/auth/src/session.ts:151-165`), quindi una policy su `sessions` che pretendesse
-`user_id = app.user_id` bloccherebbe il login. Stesso vincolo per `loadUserRoles`.
-Le opzioni reali:
-1. **Hashing dell'id di sessione** (raccomandata, poco invasiva): il cookie resta il segreto, il DB
-   memorizza `sha256(id)` come chiave di ricerca (`validateSession`/`destroySession` cercano per
-   hash). La policy resta tenant-wide perché serve al lookup pre-auth, ma una lettura della tabella
-   non espone più credenziali utilizzabili.
-2. **`sessions` system-only** + lookup interno in elevazione (come i job, SEC-13): il grant viene
-   revocato da `ensureAppRole`, il middleware fa la lettura come `facilis_system` dentro la
-   transazione della richiesta. Attenzione: senza RLS il filtro `tenant_id` diventa responsabilità
-   della query (`where users.tenant_id = ...`), quindi va centralizzato in un solo helper e
-   testato; il costo è un `SET LOCAL ROLE` per richiesta (non un audit per richiesta).
-3. **Scritture**: oggi la policy `for: "all"` consente al ruolo app di INSERT/UPDATE/DELETE su
-   `user_roles`/`sessions` di **qualunque** utente del tenant (assegnazione di ruoli inclusa).
-   Se la semantica è "i ruoli si assegnano solo da un'elevazione audita", le policy di scrittura
-   vanno negate al ruolo app e l'assegnazione spostata su `ctx.sudo` (l'admin route del blueprint
-   scrive `user_roles` con `ctx.db`: andrebbe adattata).
-4. Le tabelle `api_clients`/`api_tokens` espongono solo hash (non credenziali utilizzabili) e il
-   lookup del Bearer è pre-auth come la sessione: priorità più bassa. `auth_sso_states` contiene
-   state/`code_verifier`/nonce di login in corso: se resta RLS-scoped andrebbe scopata per-utente o
-   resa system-only.
+**Why "add `app.user_id` to the policy" is not enough (correction).** The session middleware
+validates the cookie **before** knowing the user: its transaction has only `{ tenantId }`
+(`packages/auth/src/session.ts:151-165`), so a policy on `sessions` demanding
+`user_id = app.user_id` would block login. The same constraint for `loadUserRoles`.
+The real options:
+1. **Hashing the session id** (recommended, low-invasiveness): the cookie stays the secret, the
+   DB stores `sha256(id)` as the lookup key (`validateSession`/`destroySession` search by
+   hash). The policy stays tenant-wide because the pre-auth lookup needs it, but reading the
+   table no longer exposes usable credentials.
+2. **`sessions` system-only** + internal lookup under elevation (like jobs, SEC-13): the grant
+   is revoked from `ensureAppRole`, the middleware reads as `facilis_system` inside the
+   request transaction. Careful: without RLS the `tenant_id` filter becomes the query's
+   responsibility (`where users.tenant_id = ...`), so it must be centralized in one helper and
+   tested; the cost is one `SET LOCAL ROLE` per request (not one audit per request).
+3. **Writes**: today the `for: "all"` policy allows the app role to INSERT/UPDATE/DELETE on
+   `user_roles`/`sessions` of **any** user of the tenant (role assignment included). If the
+   semantics are "roles are assigned only from an audited elevation", the write policies must be
+   denied to the app role and assignment moved to `ctx.sudo` (the blueprint's admin route writes
+   `user_roles` with `ctx.db`: it would need adapting).
+4. The `api_clients`/`api_tokens` tables expose only hashes (not usable credentials) and the
+   Bearer lookup is pre-auth like the session: lower priority. `auth_sso_states` contains the
+   state/`code_verifier`/nonce of in-flight logins: if it stays RLS-scoped it should be scoped
+   per-user or made system-only.
 
-### SEC-07 — SAML: asserzioni senza `InResponseTo` accettate — Media, confidenza media
-**Stato (2026-11-10): risolto — D-147.** `validateInResponseTo: "always"`: una risposta senza
-`InResponseTo` viene rifiutata.
+### SEC-07 — SAML: assertions without `InResponseTo` accepted — Medium, medium confidence
+**Status (2026-11-10): resolved — D-147.** `validateInResponseTo: "always"`: a response without
+`InResponseTo` is refused.
 
-**Evidenza.**
-- `packages/auth/src/sso/saml.ts:94-97` — il commento afferma che `ifPresent` "lega l'asserzione
-  alla AuthnRequest"; in realtà `ifPresent` significa che **se `InResponseTo` manca non viene
-  verificato**.
-- `packages/auth/src/sso/saml.ts:141-142` — `validateInResponseTo: "ifPresent"` con un
-  `cacheProvider` che contiene solo l'id dell'attempt.
-- Contratto: D-120 e SPEC §5.3 dicono "IdP-initiated SSO is not accepted (no unsolicited assertion
-  surface)"; il binding residuo è il `RelayState`, che l'attaccante può creare da sé con
-  `GET /api/auth/sso/:provider/start` (`packages/auth/src/sso/login.ts:103-117`).
+**Evidence.**
+- `packages/auth/src/sso/saml.ts:94-97` — the comment claims `ifPresent` "binds the assertion
+  to the AuthnRequest"; in reality `ifPresent` means that **if `InResponseTo` is missing it is
+  not verified**.
+- `packages/auth/src/sso/saml.ts:141-142` — `validateInResponseTo: "ifPresent"` with a
+  `cacheProvider` that contains only the attempt id.
+- Contract: D-120 and SPEC §5.3 say "IdP-initiated SSO is not accepted (no unsolicited assertion
+  surface)"; the residual binding is the `RelayState`, which the attacker can create themselves
+  with `GET /api/auth/sso/:provider/start` (`packages/auth/src/sso/login.ts:103-117`).
 
-**Impatto.** Un'asserzione firmata e valida (audience/recipient corretti) priva di `InResponseTo`
-— tipicamente una risposta IdP-initiated o una replay di un'asserzione intercettata — viene accettata
-se accompagnata da un `RelayState` fresco dell'attaccante. Consente login CSRF (vittima loggata
-nell'account dell'attaccante) e replay entro la finestra di validità; non consente impersonazione
-arbitraria senza un'asserzione firmata valida.
+**Impact.** A signed, valid assertion (correct audience/recipient) without `InResponseTo` —
+typically an IdP-initiated response or a replay of an intercepted assertion — is accepted if
+accompanied by a fresh attacker `RelayState`. It allows login CSRF (the victim logged into the
+attacker's account) and replay within the validity window; it does not allow arbitrary
+impersonation without a valid signed assertion.
 
-**Rimedio.** Usare `validateInResponseTo: "always"` (o rifiutare esplicitamente un profilo senza
-`InResponseTo` corrispondente) e mantenere il `RelayState` monouso; aggiungere test con risposta
-SAML senza `InResponseTo` che deve fallire con `sso_exchange_failed`.
+**Remedy.** Use `validateInResponseTo: "always"` (or explicitly refuse a profile without a
+matching `InResponseTo`) and keep the `RelayState` one-time; add a test with a SAML response
+without `InResponseTo` that must fail with `sso_exchange_failed`.
 
-### SEC-08 — Rate limiter del token endpoint: chiave controllata dall'attaccante e mappa illimitata — Media, confidenza alta
-**Stato (2026-11-10): risolto — D-149.** Mappa FIFO con cap 4096, costo O(1) per chiave nuova.
+### SEC-08 — Token endpoint rate limiter: attacker-controlled key and unbounded map — Medium, high confidence
+**Status (2026-11-10): resolved — D-149.** FIFO map with a 4096 cap, O(1) cost per new key.
 
-**Evidenza.**
-- `packages/nitro/src/routes/token.post.ts:44` — `consume(ctx.body.client_id, ...)`: la chiave è il
-  `client_id` inviato, **prima** di qualsiasi autenticazione (e il client id è dichiarato pubblico,
-  `packages/auth/src/api-clients.ts`/D-142).
-- `packages/nitro/src/runtime/rate-limit.ts:35-56` — ogni chiave nuova crea una voce in `Map`;
-  lo sweep avviene solo quando `size > 1024` (`:27-28`, `:60-63`) e rimuove solo le finestre
-  scadute; chiavi distinte entro la finestra fanno crescere la mappa senza limite e ogni nuova
-  chiave paga uno sweep O(n).
+**Evidence.**
+- `packages/nitro/src/routes/token.post.ts:44` — `consume(ctx.body.client_id, ...)`: the key is
+  the submitted `client_id`, **before** any authentication (and the client id is declared
+  public, `packages/auth/src/api-clients.ts`/D-142).
+- `packages/nitro/src/runtime/rate-limit.ts:35-56` — every new key creates an entry in the
+  `Map`; the sweep happens only when `size > 1024` (`:27-28`, `:60-63`) and removes only
+  expired windows; distinct keys within the window grow the map without bound and every new key
+  pays an O(n) sweep.
 
-**Impatto.** (1) Lockout mirato: chi conosce un client id può consumarne la quota e impedire al
-client legittimo di ottenere token (DoS applicativo). (2) DoS di memoria/CPU non autenticato con
-molte `client_id` distinte, sulle istanze con API client abilitati.
+**Impact.** (1) Targeted lockout: whoever knows a client id can consume its quota and prevent
+the legitimate client from obtaining tokens (application DoS). (2) Unauthenticated memory/CPU
+DoS with many distinct `client_id` values, on instances with API clients enabled.
 
-**Rimedio.** Chiave composita (IP + client id) e bucket globale per IP/processo; mappa limitata
-(LRU) con pulizia periodica; contare separatamente gli id sconosciuti; mantenere il confronto
-dell'hash costante (già presente).
+**Remedy.** Composite key (IP + client id) and a global bucket per IP/process; a bounded map
+(LRU) with periodic cleanup; count unknown ids separately; keep the hash comparison constant
+(already present).
 
-### SEC-09 — Nessun limite di dimensione del body prima del parsing — Media, confidenza alta
+### SEC-09 — No body size limit before parsing — Medium, high confidence
 
-**Stato (2026-11-10): risolto — D-153.** Cap nel wrapper prima del parsing (JSON 1 MiB; multipart
-`storage.maxUploadBytes + 1 MiB`), pre-check di `content-length`, contatore in streaming con cancel
-del reader, nuovo codice `payload_too_large` (413) in registry/locale/blueprint. Verifica:
-`request-input.test.ts`.
+**Status (2026-11-10): resolved — D-153.** Cap in the wrapper before parsing (JSON 1 MiB;
+multipart `storage.maxUploadBytes + 1 MiB`), a `content-length` pre-check, a streaming counter
+with reader cancellation, a new `payload_too_large` code (413) in registry/locale/blueprint.
+Verification: `request-input.test.ts`.
 
-**Evidenza.**
-- `packages/core/src/request-input.ts:83-103` — `event.req.json()` senza controllo di
-  `content-length` né cap.
-- `packages/core/src/request-input.ts:119-137` — `event.req.formData()` bufferizza l'intero
-  multipart prima di restituire i `File`.
-- `packages/nitro/src/storage.ts:61-69` — `maxUploadBytes` è controllato **dopo** che il body è
-  già stato letto/parsato (`file.size`), e la dimensione dichiarata non è una garanzia di consumo.
+**Evidence.**
+- `packages/core/src/request-input.ts:83-103` — `event.req.json()` without a `content-length`
+  check or cap.
+- `packages/core/src/request-input.ts:119-137` — `event.req.formData()` buffers the entire
+  multipart before returning the `File`s.
+- `packages/nitro/src/storage.ts:61-69` — `maxUploadBytes` is checked **after** the body has
+  already been read/parsed (`file.size`), and the declared size is not a consumption guarantee.
 
-**Impatto.** DoS per memoria/CPU su route pubbliche con body (`login`, `register`, token) e su
-upload autenticati: un body enorme viene bufferizzato prima di qualunque rifiuto. In un deploy con
-più tenant è un vettore di esaurimento risorse a basso costo.
+**Impact.** Memory/CPU DoS on public routes with a body (`login`, `register`, token) and on
+authenticated uploads: a huge body is buffered before any refusal. In a multi-tenant deployment
+it is a low-cost resource-exhaustion vector.
 
-**Rimedio.** Nel wrapper: cap configurabile (default ~1 MiB per JSON, dimensione upload per form),
-verifica di `content-length` prima del parse e lettura streaming con contatore che interrompe oltre
-la soglia; allineare `storage.maxUploadBytes` a questo limite.
+**Remedy.** In the wrapper: a configurable cap (default ~1 MiB for JSON, the upload size for
+forms), a `content-length` check before parsing and a streaming read with a counter that aborts
+past the threshold; align `storage.maxUploadBytes` with this limit.
 
-### SEC-10 — Profilo "open": preview same-origin non isolata dalle credenziali IDE — Media, confidenza alta
+### SEC-10 — "open" profile: same-origin preview not isolated from IDE credentials — Medium, high confidence
 
-**Stato (2026-11-10): aperto, rimandato — D-155.** Chiuderlo richiede una scelta di prodotto
-(origine di preview separata di default, preview senza `allow-same-origin`, o chiave AI non
-estraibile) e va verificato con `pnpm ide:smoke`; non è stato toccato in questo PR per non
-rompere storage/cookie/Service Worker della preview senza copertura browser. Il rischio residuo
-resta quello documentato in D-063.
+**Status (2026-11-10): open, deferred — D-155.** Closing it requires a product choice (a separate
+preview origin by default, a preview without `allow-same-origin`, or a non-extractable AI key)
+and must be verified with `pnpm ide:smoke`; it was not touched in this PR to avoid breaking the
+preview's storage/cookies/Service Worker without browser coverage. The residual risk remains the
+one documented in D-063.
 
-**Evidenza.**
-- `ide/src/vv/preview-sandbox.ts:10-17` — senza `VITE_PREVIEW_ORIGIN`/`VITE_PREVIEW_WILDCARD_DOMAIN`
-  (profilo open, default) il sandbox iframe è
-  `allow-scripts allow-same-origin allow-forms allow-popups allow-modals`: il codice di progetto
-  condivide l'origine dell'IDE.
+**Evidence.**
+- `ide/src/vv/preview-sandbox.ts:10-17` — without `VITE_PREVIEW_ORIGIN`/`VITE_PREVIEW_WILDCARD_DOMAIN`
+  (open profile, default) the iframe sandbox is
+  `allow-scripts allow-same-origin allow-forms allow-popups allow-modals`: project code shares
+  the IDE's origin.
 - `ide/src/components/ide/PreviewPanel.tsx:112` — `sandbox={previewSandbox(hasSeparatePreviewOrigin)}`.
-- `ide/src/ai/settings.ts:10-14` — la API key del provider AI è in chiaro in
-  `localStorage("vv-ai-settings")` (scelta accettata in D-045); `ide/src/ai/mcp/mcp-config.ts` fa
-  lo stesso per i token MCP. OPFS contiene i progetti di tutte le tab.
-- `ide/public/sw.js` e il bridge preview hanno messaggi `postMessage(..., "*")` ma con origin
-  check lato host: in same-origin il check passa per definizione.
+- `ide/src/ai/settings.ts:10-14` — the AI provider's API key is in cleartext in
+  `localStorage("vv-ai-settings")` (a choice accepted in D-045); `ide/src/ai/mcp/mcp-config.ts`
+  does the same for MCP tokens. OPFS contains the projects of all tabs.
+- `ide/public/sw.js` and the preview bridge have `postMessage(..., "*")` messages but with a
+  host-side origin check: in same-origin the check passes by definition.
 
-**Impatto.** Il codice del progetto (incluso codice scritto dall'AI, potenzialmente influenzato da
-prompt injection o da dipendenze del progetto) viene eseguito same-origin con l'IDE: può leggere la
-API key del provider e i token MCP da `localStorage`, l'OPFS con i progetti, e usare il bridge
-Service Worker. Nel profilo managed (preview su origine separata) questo non accade. Rischio
-residuo documentato (D-063) ma rilevante perché il codice non è fidato per costruzione.
+**Impact.** Project code (including AI-written code, potentially influenced by prompt injection
+or by project dependencies) runs same-origin with the IDE: it can read the provider API key and
+MCP tokens from `localStorage`, the OPFS with the projects, and use the Service Worker bridge.
+In the managed profile (preview on a separate origin) this does not happen. A documented
+residual risk (D-063) but a relevant one, because the code is untrusted by construction.
 
-**Rimedio.** Rendere l'origine separata il default anche nel profilo open o, se non possibile,
-togliere `allow-same-origin` (accettando di perdere cookie/storage del preview) e tenere la AI key
-in un contesto non leggibile al frame (worker/crypto non-estraibile), svuotandola durante il
-preview di codice non fidato. Documentare il confine nel threat model.
+**Remedy.** Make the separate origin the default in the open profile too or, if not possible,
+remove `allow-same-origin` (accepting the loss of preview cookies/storage) and keep the AI key
+in a context the frame cannot read (worker/non-extractable crypto), clearing it while previewing
+untrusted code. Document the boundary in the threat model.
 
-### SEC-11 — PBKDF2 sotto la raccomandazione e timing oracle — Bassa, confidenza alta
-**Stato (2026-11-10): risolto — D-148.** 600k iterazioni e hash dummy nel blueprint di login.
+### SEC-11 — PBKDF2 below the recommendation and a timing oracle — Low, high confidence
+**Status (2026-11-10): resolved — D-148.** 600k iterations and a dummy hash in the login
+blueprint.
 
-**Evidenza.**
-- `packages/auth/src/password.ts:3-4` — `pbkdf2-sha256` con 210.000 iterazioni; OWASP 2023
-  raccomanda 600.000 per PBKDF2-HMAC-SHA256. Il parser accetta qualunque iterazione tra 1 e 1M
-  senza minimo (`:30-48`).
-- `examples/todo-app/server/routes/api/auth/login.post.ts:26-30` — utente inesistente: ritorno
-  immediato senza PBKDF2 → differenza di tempo osservabile.
+**Evidence.**
+- `packages/auth/src/password.ts:3-4` — `pbkdf2-sha256` with 210,000 iterations; OWASP 2023
+  recommends 600,000 for PBKDF2-HMAC-SHA256. The parser accepts any iteration count between 1
+  and 1M with no minimum (`:30-48`).
+- `examples/todo-app/server/routes/api/auth/login.post.ts:26-30` — nonexistent user: immediate
+  return without PBKDF2 → an observable time difference.
 
-**Rimedio.** Portare il default a 600k (con migrazione trasparente al login) e un minimo nel parser;
-eseguire una derivazione dummy quando l'utente non esiste.
+**Remedy.** Raise the default to 600k (with transparent migration at login) and a minimum in the
+parser; run a dummy derivation when the user does not exist.
 
-### SEC-12 — Invarianti 1/2 affidate all'analyzer, non a un gate — Bassa, confidenza alta
+### SEC-12 — Invariants 1/2 entrusted to the analyzer, not to a gate — Low, high confidence
 
-**Stato (2026-11-10): risolto — D-154.** Nuovo gate in
-`packages/analyze/src/routes-gate.test.ts`: esegue l'analyzer reale sulle route di `examples/` (e
-`starter/`) dentro `pnpm test` e fallisce se `wrapper !== "valid"` o `dbTables` è assente/non
-statico; un fixture negativo dimostra che scatta.
+**Status (2026-11-10): resolved — D-154.** A new gate in
+`packages/analyze/src/routes-gate.test.ts`: it runs the real analyzer on the routes of
+`examples/` (and `starter/`) inside `pnpm test` and fails if `wrapper !== "valid"` or
+`dbTables` is absent/non-static; a negative fixture proves it fires.
 
-**Evidenza.**
-- AGENTS.md invarianti 1-2; `packages/analyze/src/passes/routes.ts:40-74` produce il fatto
-  `wrapper: "invalid"` solo per l'IDE; il validatore AI lo blocca per i patch
-  (`packages/ai/src/rules/routes-security.ts`), ma per il codice scritto a mano non c'è enforcement.
-- `package.json`: `lint` = oxlint + file-length + theme; nessun check che scansionino le route; nessun
-  test di repo che fallisca su una route senza `defineAuthorizedHandler` o con `dbTables`
-  incomplete (l'accuratezza non è verificabile staticamente in modo completo, ma la presenza e
-  la coerenza con l'AST sì).
+**Evidence.**
+- AGENTS.md invariants 1-2; `packages/analyze/src/passes/routes.ts:40-74` produces the
+  `wrapper: "invalid"` fact only for the IDE; the AI validator blocks it for patches
+  (`packages/ai/src/rules/routes-security.ts`), but for hand-written code there is no
+  enforcement.
+- `package.json`: `lint` = oxlint + file-length + theme; no check scans the routes; no repo
+  test fails on a route without `defineAuthorizedHandler` or with incomplete `dbTables`
+  (accuracy is not fully statically verifiable, but presence and consistency with the AST are).
 
-**Rimedio.** Aggiungere un gate CI (`scripts/check-routes.mjs` o test Vitest) che esegua l'analyzer su
-`examples` e sui fixture e fallisca su `wrapper != valid` / `dbTables == null`; opzionale una
-regola oxlint per il default export delle route.
+**Remedy.** Add a CI gate (`scripts/check-routes.mjs` or a Vitest test) that runs the analyzer on
+`examples` and the fixtures and fails on `wrapper != valid` / `dbTables == null`; optionally an
+oxlint rule for the route default export.
 
-### SEC-13 — Coda job senza ownership: cosa significa concretamente — Bassa, confidenza alta
+### SEC-13 — Job queue without ownership: what it means concretely — Low, high confidence
 
-**Il modello.** La coda è framework state, non dato applicativo: `facilis_jobs` ha le colonne
-`id, name, status, input, output, error, attempts, …` e **una sola colonna di scope,
-`tenant_id`** (`packages/db/src/jobs.ts:30-61`). La policy è
-`facilis_jobs_tenant_access`: `using (nullif(current_setting('app.tenant_id', true), '') is not null)`.
-Non esiste un `owner_id`, e nessuna policy nomina `app.user_id` o `app.roles`: l'unico permesso che
-protegge un job è il **permesso della route** che lo espone, non la riga.
+**The model.** The queue is framework state, not application data: `facilis_jobs` has the columns
+`id, name, status, input, output, error, attempts, …` and **a single scope column, `tenant_id`**
+(`packages/db/src/jobs.ts:30-61`). The policy is `facilis_jobs_tenant_access`:
+`using (nullif(current_setting('app.tenant_id', true), '') is not null)`. There is no
+`owner_id`, and no policy names `app.user_id` or `app.roles`: the only permission protecting a
+job is the **route's permission** that exposes it, not the row.
 
-**Il percorso nel codice (perché il filtro utente non c'è).**
-1. Nel wrapper, `ctx.jobs` è legato alla transazione della richiesta:
+**The path through the code (why the user filter is absent).**
+1. In the wrapper, `ctx.jobs` is bound to the request transaction:
    `const requestJobs = jobs.bindScope?.(db) ?? jobs` (`packages/core/src/route.ts:229`).
-2. `bindScope` costruisce lo store con quello scope
-   (`packages/nitro/src/runtime/jobs/runtime.ts:77-80`); ogni operazione fa
-   `runWithPolicyScope(db, { tenantId }, fn)` oppure usa direttamente lo scope della richiesta
+2. `bindScope` builds the store with that scope
+   (`packages/nitro/src/runtime/jobs/runtime.ts:77-80`); every operation does
+   `runWithPolicyScope(db, { tenantId }, fn)` or uses the request scope directly
    (`packages/nitro/src/runtime/jobs/db-store.ts:49-51`).
-3. `get(id)` è `select * from facilis_jobs where id = $1` (`db-store.ts:69-75`); `list()` filtra
-   solo per `status`/`name` (`db-store.ts:77-96`); `cancel()` aggiorna per id. Nessuna di queste
-   query aggiunge `user_id`.
-4. `toJobRecord` restituisce **`input` e `output`** (e `error`) al chiamante
+3. `get(id)` is `select * from facilis_jobs where id = $1` (`db-store.ts:69-75`); `list()`
+   filters only by `status`/`name` (`db-store.ts:77-96`); `cancel()` updates by id. None of
+   these queries adds `user_id`.
+4. `toJobRecord` returns **`input` and `output`** (and `error`) to the caller
    (`packages/core/src/jobs.ts:171-190`; mapping in `packages/nitro/src/runtime/jobs/row-mapping.ts:16-32`).
 
-**Conseguenza pratica.** In un tenant multi-utente, chi ha il permesso dichiarato dalla route
-(es. `todos:read` nel blueprint) può leggere il payload di **qualsiasi** job del tenant, non solo dei
-propri, e con `todos:write` può cancellarlo — esattamente le due route di esempio
-`examples/todo-app/server/routes/api/jobs/[id].get.ts` e `[id].delete.ts`. Oggi il payload del job
-del blueprint è innocuo (`{ olderThanDays }`), ma un job reale porta spesso dati utente nel proprio
-`input`/`output` (id di documenti, email, importi): diventerebbero leggibili a chiunque abbia il
-permesso della route. L'ID è un UUID casuale, quindi non è enumerabile a tentativi; il rischio
-concreto è (a) un route di listing che usa `ctx.jobs.list()`/`queue()` — che restituisce tutti i job
-del tenant — oppure (b) un ID che finisce in un log/risposta condivisa. Il job *body* gira come
-system, ma questo non cambia ciò che l'handler vede quando legge la coda.
+**Practical consequence.** In a multi-user tenant, whoever holds the permission declared by the
+route (e.g. `todos:read` in the blueprint) can read the payload of **any** job of the tenant,
+not only their own, and with `todos:write` can cancel it — exactly the two example routes
+`examples/todo-app/server/routes/api/jobs/[id].get.ts` and `[id].delete.ts`. Today the
+blueprint's job payload is harmless (`{ olderThanDays }`), but a real job often carries user
+data in its `input`/`output` (document ids, emails, amounts): they would become readable by
+anyone with the route's permission. The ID is a random UUID, so it is not enumerable by guessing;
+the concrete risk is (a) a listing route using `ctx.jobs.list()`/`queue()` — which returns all
+the tenant's jobs — or (b) an ID ending up in a shared log/response. The job *body* runs as
+system, but that does not change what the handler sees when it reads the queue.
 
-**Esito (2026-11-10, D-145): permessi invece di system-only.** Il system-only avrebbe trascinato
-in elevazione anche workflow e task (il loro runner gira come `facilis_app` sotto il tenant), con
-audit su ogni lettura di coda. La coda resta quindi RLS-scoped e viene **gated per permesso a
-livello di database**: `SELECT` richiede `jobs:read`, `INSERT`/`UPDATE`/`DELETE` richiedono
-`jobs:exec` (policy su `app.permissions`, lo stesso meccanismo delle viste con permesso, D-098).
-Il motore passa i due permessi di framework nella propria transazione; una richiesta porta quelli
-della sessione, quindi una route che tocca la coda senza il permesso prende `permission denied`
-dal DB. **La visibilità per-utente resta responsabilità dell'endpoint** (nessuna colonna owner):
-chi implementa la route filtra se serve. Stesso schema previsto per `facilis_tasks`/
-`facilis_workflows` quando atterrano (`tasks:read`/`tasks:decide`, `workflows:*`). Dettagli in
-D-145; migrazione `examples/todo-app/db/migrations/0007_jobs_permissions.sql`; test in
-`db-store.test.ts` (scope con permessi vs scope senza) e `migrations.test.ts`.
+**Outcome (2026-11-10, D-145): permissions instead of system-only.** System-only would have
+pulled workflows and tasks into elevation too (their runner runs as `facilis_app` under the
+tenant), with an audit on every queue read. The queue therefore stays RLS-scoped and is **gated
+by permission at the database level**: `SELECT` requires `jobs:read`, `INSERT`/`UPDATE`/`DELETE`
+require `jobs:exec` (policies on `app.permissions`, the same mechanism as views with a
+permission, D-098). The engine passes the two framework permissions in its own transaction; a
+request carries the session's, so a route touching the queue without the permission gets
+`permission denied` from the DB. **Per-user visibility remains the endpoint's responsibility**
+(no owner column): whoever implements the route filters if needed. The same pattern is planned
+for `facilis_tasks`/`facilis_workflows` when they land (`tasks:read`/`tasks:decide`,
+`workflows:*`). Details in D-145; migration
+`examples/todo-app/db/migrations/0007_jobs_permissions.sql`; tests in `db-store.test.ts`
+(scope with permissions vs scope without) and `migrations.test.ts`.
 
-### SEC-14 — `dbTables` ed elevazioni autocertificati: la dichiarazione non era applicata — Media, confidenza alta
+### SEC-14 — Self-certified `dbTables` and elevations: the declaration was not applied — Medium, high confidence
 
-L'invariante 2 richiede `dbTables` presente e accurato, ma solo la **presenza** era garantita (gate
-CI SEC-12/D-154). A runtime nessuno confrontava la dichiarazione con l'accesso: `ctx.db` è il client
-Drizzle nella transazione `facilis_app`, e la RLS è il confine di grant, non di dichiarazione — una
-route che dichiara `["todos"]` poteva leggere `users`, `auth_identities` o `auth_email_verifications`
-(tutte RLS con policy tenant-wide) presentandosi al manifest/OpenAPI/grafo come una route che tocca
-solo `todos`. Dentro `ctx.sudo`/`ctx.system` il problema è più grave: il callback gira come
-`facilis_system` con `BYPASSRLS`, quindi può leggere qualsiasi riga di qualsiasi tenant, mentre
-l'audit registra solo le `tables` **autodichiarate**; il trail di sicurezza era auto-certificato.
-D-136/D-137 proteggevano solo le tabelle system-only (nessun grant → `permission denied`).
+Invariant 2 requires `dbTables` present and accurate, but only **presence** was guaranteed (the
+SEC-12/D-154 CI gate). At runtime nothing compared the declaration with the access: `ctx.db` is
+the Drizzle client in the `facilis_app` transaction, and RLS is the grant boundary, not the
+declaration boundary — a route declaring `["todos"]` could read `users`, `auth_identities` or
+`auth_email_verifications` (all RLS with tenant-wide policies) while presenting itself to the
+manifest/OpenAPI/graph as a route touching only `todos`. Inside `ctx.sudo`/`ctx.system` the
+problem is worse: the callback runs as `facilis_system` with `BYPASSRLS`, so it can read any row
+of any tenant, while the audit records only the **self-declared** `tables`; the security trail
+was self-certified. D-136/D-137 protected only the system-only tables (no grant →
+`permission denied`).
 
-**Esito (2026-11-11, D-157).** `dbTables` è ora una dichiarazione applicata, per tabelle **e viste**
-(una vista si dichiara con il proprio nome, D-097/D-098):
-- **statico** — `@facilis.dev/analyze` risolve le `defineView` in `ViewFact` e un pass interprocedurale
-  segue l'handler nelle funzioni del progetto (chiamate annidate), registrando `from/join`,
-  `insert/update/delete(relazione)`, `db.query.<relazione>` e `db.execute`; produce
-  `route-table-undeclared`, `route-table-unused`, `route-table-unresolved`, `route-raw-sql` e
-  `route-elevation-undeclared`, il gate CI li blocca e il validator AI ha la regola 18
-  `route-table-declared` su tutte le route effettive;
-- **runtime** — il client di `ctx.db` e quello delle callback di elevazione sono proxati: una
-  relazione non dichiarata fallisce chiusa con `500 table_not_declared` prima della query, e
-  `db.execute` (SQL non ispezionabile) richiede `rawSql: true` sulla route, altrimenti
-  `500 raw_sql_not_allowed`; le escape hatch raw (`$client`/`session`) sono chiuse. L'audit delle
-  elevazioni registra le tabelle **osservate** (`observedTables`) accanto a quelle dichiarate, così
-  il trail non è più auto-certificato; `ctx.jobs` resta fuori (framework, D-107).
+**Outcome (2026-11-11, D-157).** `dbTables` is now an applied declaration, for tables **and
+views** (a view is declared by its own name, D-097/D-098):
+- **static** — `@facilis.dev/analyze` resolves `defineView` into `ViewFact` and an
+  interprocedural pass follows the handler into the project's functions (nested calls),
+  recording `from/join`, `insert/update/delete(relation)`, `db.query.<relation>` and
+  `db.execute`; it produces `route-table-undeclared`, `route-table-unused`,
+  `route-table-unresolved`, `route-raw-sql` and `route-elevation-undeclared`, the CI gate
+  blocks them and the AI validator has rule 18 `route-table-declared` on all effective routes;
+- **runtime** — the `ctx.db` client and the elevation callbacks' client are proxied: an
+  undeclared relation fails closed with `500 table_not_declared` before the query, and
+  `db.execute` (non-inspectable SQL) requires `rawSql: true` on the route, otherwise
+  `500 raw_sql_not_allowed`; the raw escape hatches (`$client`/`session`) are closed. The
+  elevation audit records the **observed** tables (`observedTables`) alongside the declared
+  ones, so the trail is no longer self-certified; `ctx.jobs` stays out (framework, D-107).
 
-Residui: SQL raw autorizzato con `rawSql` e frammenti `sql` dentro i builder non sono ispezionabili
-a runtime (li copre solo l'analisi statica quando il frammento è nel codice); le chiamate dentro i
-pacchetti sono opache per l'analisi statica (il runtime resta l'autorità); le viste non hanno ancora
-nodi/edge nel grafo (O-013, Phase 4).
+Residuals: raw SQL authorized with `rawSql` and `sql` fragments inside the builders are not
+inspectable at runtime (only static analysis covers them when the fragment is in the code);
+calls inside packages are opaque to static analysis (the runtime remains the authority); views
+do not yet have nodes/edges in the graph (O-013, Phase 4).
 
-## 2. Controlli verificati (cosa tiene)
+## 2. Verified controls (what holds)
 
-- **Wrapper route** (`packages/core/src/route.ts:199-213`): ordine corretto origin → permesso →
-  validazione → scope; 415 prima di leggere il body; errori solo codici; nessun dettaglio interno
-  al client; un solo wrapper per tutte le route di esempio (17/17 file).
-- **RLS come confine di grant** (`packages/db/src/policy.ts:75-112`): revoca di tutti i privilegi
-  dell'app role, grant solo alle tabelle con `relrowsecurity`, niente default privileges,
-  `NOINHERIT`, `SET LOCAL ROLE` con GUC parametrizzati (niente concatenazione di valori).
-- **Elevazioni auditate** (`packages/core/src/sudo.ts`, `packages/db/src/sudo.ts:71-84`):
-  sottoinsieme obbligatorio di `dbTables`, guardia anti-nesting, audit fail-closed *prima* del
-  cambio ruolo, ripristino esplicito del ruolo (niente `RESET ROLE`).
-- **SSO** (`packages/auth/src/sso/state.ts:104-114`): consumo atomico `DELETE ... RETURNING`,
-  scadenza, pattern del token, `redirectTo` same-origin senza `//`/backslash/controlli;
-  PKCE S256 + nonce + state; linking per `(provider, subject)`; segreti solo da env; nessun
-  segreto nei log (`identity.ts:125` rifiuta le email non verificate lato provider).
-- **Token endpoint / API client** (`packages/auth/src/api-clients.ts:181-256`): segreto e token
-  memorizzati solo come SHA-256, confronto costante, revoca per client, `cache-control: no-store`,
-  audit senza segreti, 401 generico.
-- **Storage** (`packages/nitro/src/storage.ts:51-160`): URL firmati HMAC con scadenza e binding
-  tenant/file, disabilitazione fail-closed in produzione senza `FACILIS_STORAGE_SECRET`
-  (`packages/nitro/src/runtime/storage-target.ts`), header di download sicuri (CSP `sandbox`,
-  `nosniff`, `attachment`), chiavi content-addressed validate.
-- **Log** (`packages/nitro/src/runtime/logging/redact.ts`): redazione per chiave, cap di
-  profondità/dimensione, nessun endpoint HTTP per i log, catena hash audit, audit fail-closed.
-- **IDE**: nessun accesso OPFS fuori dal kernel (`ide/src`: solo `localStorage` per preferenze;
-  verificato con grep); token git/GitHub solo in memoria
-  (`ide/src/vv/github-oauth.ts:212-223`); relay CDP con controllo `event.origin` e
-  `event.source === frame` (`ide/src/vv/preview-devtools.ts:121-174`); policy dei tool PTC
-  (`ide/src/ai/ptc/policy.ts`) che blocca `.env`/chiavi/`.git`/`node_modules` e redige i
-  valori; patch applicate solo dopo il validatore (`ide/src/facilis/apply-patch.ts:72-90`).
-- **Supply chain**: nessun segreto nei file tracciati né nella storia git (solo fixture x509
-  upstream in `vendor`); `.gitignore` copre `.env*`/`.facilis`; submodulo `vendor/vivari`
-  pinnato a un commit (`e654919`); CI con `permissions: contents: read`,
-  `--frozen-lockfile`, submoduli, versioni Node/pnpm fissate; git proxy con allowlist host e
-  header (`ide/git-proxy/handler.mjs`) e bind su `127.0.0.1` nello script dev.
+- **Route wrapper** (`packages/core/src/route.ts:199-213`): correct order origin → permission →
+  validation → scope; 415 before reading the body; errors are codes only; no internal detail to
+  the client; a single wrapper for all example routes (17/17 files).
+- **RLS as the grant boundary** (`packages/db/src/policy.ts:75-112`): revocation of all app-role
+  privileges, grants only to tables with `relrowsecurity`, no default privileges, `NOINHERIT`,
+  `SET LOCAL ROLE` with parameterized GUCs (no value concatenation).
+- **Audited elevations** (`packages/core/src/sudo.ts`, `packages/db/src/sudo.ts:71-84`):
+  mandatory subset of `dbTables`, anti-nesting guard, fail-closed audit *before* the role
+  change, explicit role restore (no `RESET ROLE`).
+- **SSO** (`packages/auth/src/sso/state.ts:104-114`): atomic consumption `DELETE ... RETURNING`,
+  expiry, token pattern, same-origin `redirectTo` without `//`/backslash/control characters;
+  PKCE S256 + nonce + state; linking by `(provider, subject)`; secrets from env only; no
+  secrets in logs (`identity.ts:125` refuses provider-side unverified emails).
+- **Token endpoint / API client** (`packages/auth/src/api-clients.ts:181-256`): secret and token
+  stored only as SHA-256, constant comparison, per-client revocation, `cache-control: no-store`,
+  audit without secrets, generic 401.
+- **Storage** (`packages/nitro/src/storage.ts:51-160`): HMAC signed URLs with expiry and
+  tenant/file binding, fail-closed disablement in production without `FACILIS_STORAGE_SECRET`
+  (`packages/nitro/src/runtime/storage-target.ts`), safe download headers (CSP `sandbox`,
+  `nosniff`, `attachment`), validated content-addressed keys.
+- **Logs** (`packages/nitro/src/runtime/logging/redact.ts`): per-key redaction,
+  depth/size caps, no HTTP endpoint for logs, audit hash chain, fail-closed audit.
+- **IDE**: no OPFS access outside the kernel (`ide/src`: only `localStorage` for preferences;
+  verified with grep); git/GitHub tokens in memory only
+  (`ide/src/vv/github-oauth.ts:212-223`); CDP relay with `event.origin` and
+  `event.source === frame` checks (`ide/src/vv/preview-devtools.ts:121-174`); the PTC tool
+  policy (`ide/src/ai/ptc/policy.ts`) that blocks `.env`/keys/`.git`/`node_modules` and
+  redacts values; patches applied only after the validator (`ide/src/facilis/apply-patch.ts:72-90`).
+- **Supply chain**: no secrets in tracked files or in git history (only upstream x509 fixtures
+  in `vendor`); `.gitignore` covers `.env*`/`.facilis`; the `vendor/vivari` submodule pinned
+  to a commit (`e654919`); CI with `permissions: contents: read`, `--frozen-lockfile`,
+  submodules, pinned Node/pnpm versions; git proxy with host and header allowlists
+  (`ide/git-proxy/handler.mjs`) and a `127.0.0.1` bind in the dev script.
 
-## 3. Rischi accettati noti (non nuovi finding)
+## 3. Known accepted risks (not new findings)
 
-- **Route `crossSite` e cookie di sessione (SEC-05, ritirato):** accettare l'utente loggato
-  (cookie) su una route `crossSite` è il comportamento voluto, perché l'API deve restare
-  utilizzabile dall'app con i ruoli; l'esposizione cross-site resta Bearer. Residuo teorico: con
-  applicazioni non fidate su sottodomini *same-site* la POST con cookie non è fermata dal gate
-  sull'origine — da rivalutare solo se un deploy introduce quel caso.
-- API key del provider AI e token MCP in `localStorage` in chiaro: scelta documentata in D-045
-  ("nothing here is encrypted"), accettata per il modello minaccia browser; il finding SEC-10
-  riguarda la sua raggiungibilità dal codice di progetto.
-- Preview same-origin nel profilo open: comportamento documentato (D-063) — riportato come rischio
-  residuo, non come deviazione.
-- Dev endpoint attivi quando `NODE_ENV` non è `production`: semantica letterale di SPEC
-  §6.1/§8.5; il finding riguarda il default fail-open, non l'intenzione.
-- IdP-initiated: D-120 dice esplicitamente che non è accettato; SEC-07 è la deviazione
-  implementativa.
-- `vendor/vivari` non è stato auditato (upstream read-only, pin); `ide/public/sw.js` è stato
-  letto solo per i punti di contatto (bridge/preview), non riga per riga.
+- **`crossSite` routes and the session cookie (SEC-05, withdrawn):** accepting the logged-in
+  user (cookie) on a `crossSite` route is the intended behavior, because the API must stay
+  usable from the app with roles; cross-site exposure remains Bearer. Theoretical residual: with
+  untrusted applications on *same-site* subdomains, a POST with the cookie is not stopped by the
+  origin gate — to be re-evaluated only if a deployment introduces that case.
+- AI provider API key and MCP tokens in cleartext `localStorage`: a choice documented in D-045
+  ("nothing here is encrypted"), accepted for the browser threat model; finding SEC-10 concerns
+  their reachability from project code.
+- Same-origin preview in the open profile: documented behavior (D-063) — reported as a residual
+  risk, not as a deviation.
+- Dev endpoints active when `NODE_ENV` is not `production`: the literal semantics of SPEC
+  §6.1/§8.5; the finding concerns the fail-open default, not the intention.
+- IdP-initiated: D-120 explicitly says it is not accepted; SEC-07 is the implementation deviation.
+- `vendor/vivari` was not audited (read-only upstream, pinned); `ide/public/sw.js` was read only
+  for the contact points (bridge/preview), not line by line.
 
-## 4. Priorità di rimedio
+## 4. Remediation priorities
 
-**Stato al 2026-11-11: P0/P1 completati (D-146…D-157).** L'unico punto rimasto è SEC-10 (P2,
-rimandato con D-155). La verifica email (D-156) ha chiuso SEC-02 alla radice; l'eventuale evoluzione
-"registrazione deferred" chiuderebbe anche l'ultimo canale indiretto di enumerazione di SEC-04.
+**Status as of 2026-11-11: P0/P1 complete (D-146…D-157).** The only remaining item is SEC-10 (P2,
+deferred with D-155). Email verification (D-156) closed SEC-02 at the root; the possible
+"deferred registration" evolution would also close SEC-04's last indirect enumeration channel.
 
-1. **P0** — SEC-01 (bootstrap admin), SEC-02 (pre-hijacking SSO): introdurre la verifica email o un
-   bootstrap a token; normalizzare l'email. Sono i due percorsi con impatto più alto e rimedio
-   contenuto. **(completato: D-150 per il bootstrap, D-156 per verifica email e claim SSO)**
-2. **P0** — SEC-04 (throttling) e SEC-03 (fail-closed in produzione): entrambe sono capacità del
-   framework, non del singolo progetto, e proteggono tutte le app generate.
-3. **P1** — SEC-06 (policy per-utente sulle tabelle credenziali) e SEC-07 (SAML binding):
-   deviazioni rispetto al contratto scritto, con impatto su confidenzialità/replay.
-4. **P2** — SEC-08/09 (DoS), SEC-10 (isolamento preview), SEC-11/12/13/14 (hardening e gate; SEC-13
-   risolto con i permessi `jobs:read`/`jobs:exec`, D-145; SEC-14 con l'enforcement di `dbTables`,
-   D-157).
+1. **P0** — SEC-01 (admin bootstrap), SEC-02 (SSO pre-hijacking): introduce email verification or
+   a token bootstrap; normalize the email. These are the two paths with the highest impact and a
+   contained remedy. **(complete: D-150 for the bootstrap, D-156 for email verification and the
+   SSO claim)**
+2. **P0** — SEC-04 (throttling) and SEC-03 (fail-closed in production): both are framework
+   capabilities, not a single project's, and protect all generated apps.
+3. **P1** — SEC-06 (per-user policies on the credential tables) and SEC-07 (SAML binding):
+   deviations from the written contract, with confidentiality/replay impact.
+4. **P2** — SEC-08/09 (DoS), SEC-10 (preview isolation), SEC-11/12/13/14 (hardening and gates;
+   SEC-13 resolved with the `jobs:read`/`jobs:exec` permissions, D-145; SEC-14 with `dbTables`
+   enforcement, D-157).
 
-## 5. Limiti dell'analisi
+## 5. Limits of the analysis
 
-- Analisi statica sul commit 69985e4; nessuna esecuzione di exploit e nessuna scansione CVE delle
-  dipendenze (rete non disponibile). Per SEC-06 è stato eseguito un test PGlite temporaneo (poi
-  rimosso) che conferma la visibilità cross-utente delle sessioni; nessun altro test dinamico.
-- Le route framework-owned sono state lette integralmente; le route applicative solo per i flussi
-  auth/file/job. Il codice IDE è stato campionato sui punti di contatto con credenziali, VFS e
-  bridge; `vendor/vivari` è escluso.
-- La gravità di SEC-03 dipende dalla configurazione di deploy (se la piattaforma imposta
-  `NODE_ENV=production`, l'impatto si riduce a hardening); SEC-01/02 dipendono dall'esporre la
-  registrazione pubblica, che è però il blueprint documentato.
+- Static analysis on commit 69985e4; no exploit execution and no dependency CVE scanning (no
+  network available). For SEC-06 a temporary PGlite test was executed (then removed) confirming
+  cross-user visibility of sessions; no other dynamic test.
+- The framework-owned routes were read in full; the application routes only for the
+  auth/file/job flows. The IDE code was sampled at the contact points with credentials, VFS and
+  bridge; `vendor/vivari` is excluded.
+- SEC-03's severity depends on the deployment configuration (if the platform sets
+  `NODE_ENV=production`, the impact reduces to hardening); SEC-01/02 depend on exposing public
+  registration, which is however the documented blueprint.

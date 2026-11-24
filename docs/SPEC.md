@@ -71,7 +71,7 @@
 - v1.29 — Docs consolidation: phase plans, resolved open questions and the Phase 0 ticket list leave the spec; no contract change.
 - v1.28 — Le viste entrano nel project graph (D-160). `@facilis.dev/analyze` produce un nodo `view` per ogni `defineView` (`db/views/**`) con modalità invoker/definer, permesso e tabelle base dichiarate; una route che dichiara la vista in `dbTables` prende un arco `route-view` (marcato elevato dentro un'elevazione audited) e la vista è collegata alle tabelle base con `view-base`. L'IDE mostra le viste nella colonna dello schema sotto le tabelle, con badge e "usata da N rotte", e l'inspector elenca le rotte. Il contratto del grafo guadagna il nodo `view` e i due tipi di arco; i file di layout restano v3. §10.2/§11.2 follow.
 - v1.27 — Il generatore (P2, D-158). `@facilis.dev/core` espone `planSchema(from, to)`: batch SQL ordinati per la fase §2.5 con rischio per batch, lista `destructive`, precondizioni `requires` e problemi solo-macchina; un piano con problemi non produce batch. Lo snapshot dichiarato (§7.3) guadagna PK ordinata, indici, check, unique ed enum, e `isPrimaryKey` copre le PK composte; enum alterati, colonne identity/generated, indici non semplici, PK cambiate, FK pendenti e policy allargate falliscono chiusi. Il renderer D-109 orfano e' stato rimosso.
-- v1.26 — Il DDL nasce al rilascio, non si scrive a mano (D-158/D-159). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database; `facilis db deploy --release <tag> --backup-ref <ref>` applica gli artefatti pendenti in ordine con il ledger `_facilis_deploy_runs`, fingerprint preflight, `backup_ref` per i distruttivi e post-step (seed, `ensureAppRole`, `ensureSystemRole`, views). Il catalogo live resta verifica e adozione/riparazione; drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
+- v1.26 — Il DDL nasce al rilascio, non si scrive a mano (D-158/D-159). La release pipeline genera un artefatto immutabile dal diff fra il tag del rilascio precedente e il tag nuovo, senza accesso al database. The deploy applier D-159 specified was never built and is withdrawn by D-204: applying the artifact to a database is the release environment's/operator's job, and the framework ships no applier — only the generator, the canonical digest, Release Preview and the dev-boot reconcile. drizzle-kit non e' un deploy step ne' una dipendenza runtime. §2/§4.2/§5.2/§5.3/§7.7/§8.3/§8.4.2/§9.3/§11.1/§11.2/§11.3/App. D follow.
 - v1.25 — `dbTables` è una dichiarazione applicata (D-157): ogni route dichiara tutte le relazioni che tocca, **tabelle e viste**, e il framework la verifica staticamente (analyzer con follow delle chiamate locali, gate CI, nuova regola 18 `route-table-declared`) e a runtime (guard su `ctx.db` e sulle elevazioni: `table_not_declared`, `raw_sql_not_allowed`); `rawSql: true` è l'unica deroga per `db.execute`, e l'audit delle elevazioni registra le tabelle osservate. §7.4/§8.4.6/§9.3/§11.2 follow.
 - v1.24 — Email verification (D-156). `auth.verification` (default disabled) abilita il flusso: la registrazione crea l'account con `users.email_verified_at` NULL e un link monouso (token hashato in `auth_email_verifications`, TTL 24 h), il login del blueprint rifiuta `403 email_unverified` finché l'indirizzo non è verificato, e la route `GET /api/auth/verify-email` consuma il link con un redirect sicuro. La delivery è del deploy (`FACILIS_EMAIL_WEBHOOK_URL`/`_TOKEN`); in `development`/`test` senza webhook il blueprint verifica subito (demo e smoke senza casella). Il link SSO a un account password ora si basa sulla verifica: un account verificato si collega, un account pendente viene reclamato dall'identità verificata con rimozione della password segnaposto (chiude SEC-02 alla radice). §5.1/§5.3/§8.4.4/§4.4/§12 follow.
 - v1.23 — Security hardening (review 2026-11-10): email canonica (`normalizeEmail`) e indice unico `lower(email)`, bootstrap del primo admin con token monouso `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); link SSO verso un account password rifiutato di default (`auth.sso.linkPasswordAccounts`, D-151); throttle per route nel wrapper (`rateLimit`, chiave client address + route, D-152); cap dei byte del body prima del parsing e nuovo codice `payload_too_large` = 413 (D-153); gate CI che esegue l'analyzer sulle route di `examples/` e rifiuta wrapper non valido o `dbTables` assente (D-154). §5.1/§5.3/§7.4/§8.2/§8.4.1/§8.4.3/§8.6/§12 follow.
@@ -171,8 +171,8 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | **Multi-project** | One project per browser tab; opening the same project in a second tab is refused (D-033) |
 | **Multi-tenancy** | Full RBAC per generated app |
 | **Role model** | App roles only (defined in config, expanded to permissions). **No Postgres roles.** |
-| **Schema DDL** | Never authored (no AI, no user). The release pipeline generates an immutable artifact from the previous-release-tag → new-tag diff, with no database access (D-158); the deploy applies the pending artifacts through a ledger and a schema fingerprint (D-159). |
-| **Deploy** | `facilis db deploy --release <tag> --backup-ref <ref>` applies the release artifacts; hosting and the backup stay the environment's job (D-159). |
+| **Schema DDL** | Never authored (no AI, no user). The release pipeline generates an immutable artifact from the previous-release-tag → new-tag diff, with no database access (D-158); applying the artifact to a database is the release environment's/operator's job — the framework ships no deploy applier (D-204). |
+| **Deploy** | No deploy applier ships (D-204 withdraws the unimplemented D-159 CLI/ledger): applying the immutable release artifact, hosting and backups are the release environment's/operator's job. |
 | **i18n** | From day one. Message keys everywhere. API returns codes. |
 
 ### 2.3 Framework Config Decisions
@@ -181,7 +181,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 - `facilis.config.ts` — lives at repo root, committed; the **only** project config (framework sections plus optional Nitro options)
 - Git credential — GitHub signs in with the OAuth device flow; other hosts take a PAT (or an account password where allowed). Per operation, never sent to the LLM
 - Migration ordering — derived from the release tag pair and the fixed statement phases; nothing is authored, so there is no ordering conflict to resolve (D-158)
-- Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed statements by the release artifact and applied by the deploy (D-158/D-159)
+- Roles & permissions — **declared in `facilis.config.ts`**, materialized as seed statements in the release artifact (D-158); applying them is the release environment's/operator's job (D-204)
 - Nitro config — the optional `nitro` section of `facilis.config.ts`; `@facilis.dev/nitro` owns the framework defaults (`serverDir: "./server"`, `experimental.openAPI: true`) and `facilis()` mounts Nitro (D-034)
 
 ---
@@ -282,6 +282,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   ├── route.ts              defineAuthorizedHandler()
 │   │   │   ├── manifest.ts           BlockManifest, FacilisManifest types
 │   │   │   ├── i18n.ts               t(), catalog registry
+│   │   │   ├── schema-plan/          release-time schema-diff generator (planSchema, D-158)
 │   │   │   ├── release.ts            ReleasePreview types
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -291,7 +292,8 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │   │   ├── client.ts             Drizzle + PGlite adapter
 │   │   │   ├── policy.ts             drizzle-policy wrapper
 │   │   │   ├── rls.ts                RLS policy helpers rendered into the artifact
-│   │   │   ├── diff.ts               ReleasePreview engine
+│   │   │   ├── schema-digest.ts      canonical schema digest (D-158)
+│   │   │   ├── schema-drift.ts       typed live-vs-declared drift
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
@@ -314,13 +316,13 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── i18n-db/              @facilis.dev/i18n-db (D-057)
 │   │   └── src/              translated content fields + optional catalogue overlay
 │   │
+│   ├── analyze/              @facilis.dev/analyze (D-092)
+│   │   └── src/              AST facts: routes, jobs, views, workflows, schema, i18n, project graph
+│   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── prompt.ts             system prompt builder
-│   │   │   ├── context.ts            context assembly (A vs B)
-│   │   │   ├── parser.ts             AIResponse parser
-│   │   │   ├── validator/            patch validator (19 rules)
-│   │   │   ├── tools/                Model B tool definitions (Phase 4.5)
+│   │   │   ├── validator.ts          19-rule patch validator (D-101/D-103)
+│   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
 │   │
@@ -339,7 +341,6 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │       │       │       └── schema.get.ts     (schema introspection)
 │       │       ├── collectors/
 │       │       │   ├── config.ts
-│       │       │   ├── blocks.ts
 │       │       │   ├── routes.ts
 │       │       │   ├── schema.ts
 │       │       │   ├── i18n.ts
@@ -357,15 +358,12 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   └── vite.config.ts        (COOP/COEP headers)
 │
 ├── vendor/
-│   └── vivari/               Vivari upstream — git SUBMODULE, pinned tag (MIT, never edited)
+│   └── vivari/               our Vivari fork (kele23/vivari) — git SUBMODULE pinned to facilis/main
+│                             (upstream v1.3.4 + 20 fork commits, gitlink d2a8d52; MIT,
+│                             never edited here; D-030)
 │       ├── packages/         core, kernel-host, runtime, protocol, vfs, codec, crypto, …
 │       ├── scripts/          in-browser npm/pnpm vendoring harnesses
 │       └── README.md         (in vendor/) provenance, patch set and submodule update recipe
-│
-├── starter/                  user-cloned template (D-027), unblocked now that the
-│                             packages publish by name (D-164) and install from npm at
-│                             the IDE build's pinned version (D-166); generated from
-│                             examples/todo-app at IDE build time (D-062) — no drift
 │
 ├── examples/
 │   ├── todo-app/             full-stack template source (v2: Tailwind + shadcn copy-in
@@ -373,6 +371,11 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   ├── showcase-app/         static template source (Vite + React + Tailwind, no backend,
 │   │                         D-168)
 │   └── starter-app/          empty full-stack template source (standard login only, D-168)
+│
+├── spikes/                   throwaway feasibility spikes (never shipped; absent when none is active)
+├── scripts/                  repo gates (file-length ratchet) + scripts/dev/ (IDE build & smoke)
+├── docs/                     SPEC.md (contract), DECISIONS.md, DEV.md + decisions/ (one file each)
+├── brand/                    logo + identity assets (black & white)
 │
 ├── pnpm-workspace.yaml
 └── turbo.json
@@ -638,7 +641,7 @@ Exports:
 - `hasPermission(user, permission)` — RBAC check helper
 - `expandRoles(roles, roleMap)` — expands roles to permission set (pure function, reads config)
 - `db` — re-export of the auth tables (`users`, `sessions`, `roles`, `role_permissions`, `user_roles`, `api_clients`, `api_tokens`)
-- `seedFromConfig(config)` — renders the `roles`/`role_permissions` seed statements from `FacilisConfig.auth`; the deploy applies them as a post-step (D-159)
+- `seedFromConfig(config)` — renders the `roles`/`role_permissions` seed statements from `FacilisConfig.auth`; they ship in the release artifact, and applying them is the operator's job (D-158/D-204)
 - `registerInitialAdmin()` — grants `admin` once, when the registration's canonical email matches `FACILIS_INITIAL_ADMIN` AND the caller presents the operator's `FACILIS_INITIAL_ADMIN_TOKEN` (D-150); the email alone is not a credential
 - `normalizeEmail(email)` — canonical email form (trim + lowercase) used by every auth lookup, insert and comparison; `users` carries a unique `lower(email)` index (D-150)
 - Email verification (D-156): `issueEmailVerification()`, `consumeEmailVerification()` and `markEmailVerified()` own the single-use token (`sha256(token)` in `auth_email_verifications`, TTL from `auth.verification.tokenTtlMs`) and the `users.email_verified_at` transition; delivery is the project's, never the framework's
@@ -694,7 +697,7 @@ export const apiTokens = pgTable("api_tokens", {
   lastUsedAt: timestamp("last_used_at"),
 }, () => [parentUserAccessPolicy("api_tokens_user_access")]).enableRLS()
 
-// System-only (D-136): no RLS, no privilege for facilis_app. Seeded by the deploy post-step and
+// System-only (D-136): no RLS, no privilege for facilis_app. Seeded by the release artifact and
 // never read at runtime — permissions reach the app from facilis.config.ts via expandRoles().
 export const roles = pgTable("roles", {
   name: text("name").primaryKey(),
@@ -746,7 +749,7 @@ export const authEmailVerifications = pgTable("auth_email_verifications", {
 }, () => [...rlsForTable({ tenantColumn: "tenant_id" }).policies])
 ```
 
-**Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded by the deploy's seed post-step and never written at runtime (D-159).
+**Critical:** the `role_permissions` table is a **projection** of `facilis.config.ts`. It is seeded by the release artifact's seed statements and never written at runtime (D-158); applying the artifact is the operator's job (D-204).
 
 **Single sign-on (D-120).** A provider is declared in `auth.sso.providers` (OIDC, generic OAuth2 or SAML); the config names the ENV VAR that holds its secret, never the secret. The flow is authorization-code based: a single-use state row (plus PKCE verifier, OIDC nonce or SAML request id) is written before the redirect, the callback consumes it once, identity resolution and user/role/identity writes run inside the audited `ctx.system` elevation, and the session is created with `createSession` + the framework cookie helper. An unverified email never links to or provisions a user; `autoProvision` (default true) creates one with a null password hash and the provider's role. The public provider list hides a provider whose secret/certificate env var is missing. Email verification (D-156) decides the linking rule: a VERIFIED password account links (the mailbox is proven), while a pending one is claimed by the identity — its placeholder password is removed and the account marked verified — so an attacker who merely registered the address first cannot keep it. See `docs/SSO.md`.
 
@@ -1698,7 +1701,7 @@ interface SchemaPlanBatch {
   id: string                    // stable order-derived id, e.g. "001-create-table-users"
   sql: string                   // one statement; batches run in array order
   risk: RiskClass
-  requires?: string[]           // deploy preconditions, e.g. "no_null_rows:todos.done"
+  requires?: string[]           // preconditions for applying the batch, e.g. "no_null_rows:todos.done"
 }
 
 type SchemaPlanProblemCode =
@@ -2240,14 +2243,14 @@ INSERT INTO role_permissions (role, permission) VALUES
   ('viewer', 'todos:read');
 ```
 
-**Key invariant:** `role_permissions` is a **projection** of `facilis.config.ts`. It is written **only** by the deploy's seed post-step (D-159).
+**Key invariant:** `role_permissions` is a **projection** of `facilis.config.ts`. It is written **only** by the release artifact's seed statements (D-158), applied by the release environment/operator (D-204).
 
-**Deploy.** `facilis db deploy --release <tag> --backup-ref <ref>` applies the pending artifacts in
-tag order through the `_facilis_deploy_runs` ledger: preflight `digest(live) == fromDigest`, one
-transaction per artifact, approval and `backup_ref` for destructive ones, then the post-steps
-(seed, `ensureAppRole`, `ensureSystemRole`, views). `facilis db status` reports the ledger state;
-`facilis db adopt`/`repair` are the explicit one-time legacy/drift operations. drizzle-kit is not
-a deploy step (D-159).
+**Deploy.** The framework ships no deploy applier: D-204 withdraws the unimplemented D-159
+CLI/ledger surface. The release pipeline generates the immutable artifact keyed by tag (D-158),
+and applying it to a production database is the release environment's/operator's job — including
+the seed statements it carries and the `ensureAppRole`/`ensureSystemRole` provisioning functions
+the framework ships. In the IDE the only schema path is the dev-boot reconcile of the live PGlite
+to the declared schema (D-193/D-201). drizzle-kit is not a deploy step nor a runtime dependency.
 
 #### 8.4.3 Phase 3 — Assignment (admin, runtime, data)
 
@@ -2423,14 +2426,15 @@ Every table in the `public` schema is exactly one of two classes (D-136):
 | Class | RLS | `facilis_app` | Reachable from |
 |---|---|---|---|
 | **App-scoped** | enabled, with its policies | `SELECT/INSERT/UPDATE/DELETE` | routes through `ctx.db`, filtered by the policies |
-| **System-only** | off | no table privilege at all | the privileged owner connection and `facilis_system` (`ctx.sudo`/`ctx.system`/`runAsSystem`): boot, the deploy, the dev console |
+| **System-only** | off | no table privilege at all | the privileged owner connection and `facilis_system` (`ctx.sudo`/`ctx.system`/`runAsSystem`): boot, release-artifact application, the dev console |
 
 RLS is the grant boundary, not optional hardening. A table without RLS is **not** open to everyone
 and **not** denied to everyone — it is unreachable for the request identity, and that is exactly
 what makes it system-only.
 
-**Enforcement.** `ensureAppRole(db)` runs as a deploy post-step after the artifacts are applied
-(and at dev boot after the PGlite reconcile, [POSTGRES.md](./POSTGRES.md) §4) and reconciles
+**Enforcement.** `ensureAppRole(db)` ships as a provisioning function: the release environment
+runs it after applying the artifacts, and dev boot runs it after the PGlite reconcile
+([POSTGRES.md](./POSTGRES.md) §4). It reconciles
 privileges with the live catalog: it first clears
 every table-class privilege (so an older cluster's blanket grant cannot survive on partition
 children, materialized or foreign tables), then re-grants only the RLS tables — the catalog's
@@ -2470,7 +2474,7 @@ app-scoped. `sessions`, `user_roles`, `api_clients` and `api_tokens` have no ten
 their own: their policy is an `EXISTS` over `users` (the D-053 inheritance pattern), so they are
 visible exactly when their parent user is — for an API client, its `users.is_service` service
 account (D-142). `roles` and
-`role_permissions` are system-only: the deploy seed writes them, and permissions reach the app
+`role_permissions` are system-only: the release artifact's seed writes them, and permissions reach the app
 from `facilis.config.ts` through `expandRoles`, never from the table.
 
 **Graph, analyzer and drift.** The project graph labels a table without RLS **system-only**, in a
@@ -2530,7 +2534,7 @@ write path; an application route must not add another one (D-141).
 - A permission view is definer and bypasses the base tables' RLS: its SQL and its declared
   permission are the whole surface, and the permission gate is defense-in-depth (a custom GUC is
   settable by any role), not a boundary against deliberately hostile code (D-098)
-- `role_permissions` is written **only** by the deploy's seed post-step (D-159)
+- `role_permissions` is written **only** by the release artifact's seed statements (D-158/D-204)
 - Logging is structural, not a per-route courtesy (D-119): `defineAuthorizedHandler` writes
   exactly one access entry per request, unexpected failures are recorded server-side and never
   returned to the client, and the sudo trail joins the same append-only sink. Logs are JSON
@@ -2743,7 +2747,7 @@ IDE chat (D-100, hardened by D-102; D-181/D-192).
   shown in the chat and **nothing is written** to OPFS. A rejected answer is not a failure: it is
   corrected until it is a valid answer (D-108).
 
-### 9.5 Model B Tool Surface
+### 9.5 PTC Tool Surface
 
 **Status (2026-11-07): the PTC design (D-101/D-103) is the tool runtime.** The model writes
 one JavaScript program per step; the IDE executes it in an opaque-origin sandbox against a
@@ -2942,7 +2946,7 @@ await waitForPort(vivari, 5173)
 ### 11.1 Entity Explorer (Phase 3)
 
 - Reads from both `db/schema.ts` (via `getTableConfig`) and the live catalog (`pg_catalog`: `format_type`, `pg_get_expr`, `relrowsecurity`, `pg_policies`, plus `pg_index`/`pg_constraint` for indexes, foreign keys and checks — D-195). The dev boot reconcile (D-193/D-195) converges an existing table onto the declaration: missing columns, defaults, checks, foreign keys, indexes, RLS and policies are added, changed same-named constructs are replaced without data loss, and drops stay approval-gated
-- **Diffs them** through a pure function: typed drift like *"code says X, DB says Y — reconcile (dev) or run the release deploy / adopt / repair"*
+- **Diffs them** through a pure function: typed drift like *"code says X, DB says Y — reconcile (dev) or apply the release artifact in the release environment"*
 - RLS status badges: 🟢 policy defined / 🟡 RLS on, no policy / 🔴 RLS off on scoped table / ⚪ system-only (RLS off, unscoped)
 - Reverse lookup: "used by these routes" (from `x-db-tables`/`x-db-columns`)
 - Click to jump to `db/schema.ts` or the route file in Monaco
@@ -3000,8 +3004,9 @@ in the `data` activity view on the left.
   get `view-base` edges, so "which route uses which view" is visible in the graph. The declaration,
   not the observed AST use, is the source: D-157 makes it verified and enforced at runtime.
 - **Provisioning**: dev boot re-applies `db/views/**` after the PGlite reconcile (a broken view
-  becomes a manifest warning, never a failed boot). A Postgres deployment provisions views as a
-  deploy post-step after the artifacts are applied, and boot reports `view_ddl_skipped`.
+  becomes a manifest warning, never a failed boot). In a Postgres deployment, provisioning views
+  is part of applying the release artifact — the release environment's/operator's job (D-204) —
+  and boot reports `view_ddl_skipped`.
 - Results are never persisted and never enter LLM prompts.
 
 ### 11.3 Release Preview (Phase 3.5)
@@ -3086,9 +3091,9 @@ Acceptance criteria are in §14.
 | 7 | **COOP/COEP hosting** | Can't deploy Studio anywhere | Cloudflare/Netlify/Vercel recipes; `coi-serviceworker` fallback |
 | 8 | **x-db-tables drift** | Visualizer draws wrong edges | Lint rule: handler imports `db` but no `x-db-tables` → CI fail |
 | 9 | **Vivari OPFS write-behind lag** | Uncommitted work lost on crash | Call `vivari.fs.flush()` on `visibilitychange` |
-| 10 | **AI over-fetches (Model B)** | Token cost explodes | Preload summary always; prompt: "aim ≤10k input tokens" |
-| 11 | **Role drift between config and DB** | Security hole | `role_permissions` written only by the deploy seed; validator rule 16 |
-| 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | `facilis()` mounts Nitro itself and `enforce: "pre"` delivers the options, so there is no registration order to get wrong (D-034); document in starter README |
+| 10 | **AI over-fetches (PTC tool runtime)** | Token cost explodes | Preloaded context summary; prompt: "aim ≤10k input tokens" |
+| 11 | **Role drift between config and DB** | Security hole | `role_permissions` written only by the release artifact's seed; validator rule 16 |
+| 12 | **Vite plugin misconfiguration** | `/__facilis/*` unreachable, preview broken | `facilis()` mounts Nitro itself and `enforce: "pre"` delivers the options, so there is no registration order to get wrong (D-034); document in the template README |
 | 13 | **In-VM build/prerender budget** | A ~50-route prerender build could exhaust VM memory/CPU | In-process Arm C pass (D-202; #80 spike: a 3-route app builds in 1.0–1.8 s in-VM, the lightest arm); guest memory is unobservable today — host RSS documented (DEV.md §6.2); the prerender smoke gate carries a larger route fixture (#85) |
 
 ---
@@ -3331,15 +3336,12 @@ export * from "./todos"
 export * from "./documents"
 ```
 
-### Step 3 — Generate and apply the release artifact
+### Step 3 — Generate the release artifact
 
 There is no migration file to write. Commit `db/schema.ts` and `facilis.config.ts`, tag the release,
-and let the release pipeline generate the artifact from the previous tag and this one (D-158); the
-deploy applies it (D-159):
-
-```bash
-facilis db deploy --release v1.0.0
-```
+and let the release pipeline generate the artifact from the previous tag and this one (D-158).
+Applying the artifact to a database is the release environment's/operator's job: the framework
+ships no deploy applier (D-204).
 
 The artifact carries `CREATE TABLE roles`, `CREATE TABLE role_permissions`, `CREATE TABLE user_roles`, the RLS wiring (D-136: `sessions`/`user_roles` are app-scoped with an `EXISTS` policy over `users`; `roles`/`role_permissions` stay system-only), **and** the seed from your config: the DDL and the seed are rendered by the framework, never authored by a person or the AI.
 
@@ -3439,7 +3441,7 @@ of `facilis.config.ts` (Appendix B). The framework supplies `serverDir: "./serve
 | **Permission** | An atomic capability (`todos:read`, `users:manage`) declared in config |
 | **Session var** | `SET LOCAL app.*` value set per request, read by RLS policies |
 | **Risk class** | Classification of migration statements: safe, careful, destructive, breaking |
-| **Model A / Model B** | AI context strategies: one-shot preload vs tool-use loop |
+| **Model A / Model B** | Retired AI context strategies (one-shot preload vs tool-use loop); the PTC tool runtime is the only mode (D-101/D-103) |
 | **Patch** | A set of `FilePatch` entries returned by the AI, validated before writing |
 
 ---

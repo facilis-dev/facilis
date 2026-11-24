@@ -3,7 +3,7 @@
 How to build, run and verify Facilis (including the browser IDE) on a bare machine.
 Everything here is one command, reproducible, and needs **no root**.
 
-**Status:** current (2026-11-11); this page is the only supported setup recipe.
+**Status:** current (2026-11-24); this page is the only supported setup recipe.
 
 The IDE runs the vendored Vivari kernel, which means three build artifacts that are
 gitignored by upstream and therefore absent from a fresh checkout. `scripts/dev/` produces
@@ -393,9 +393,9 @@ A/B that never applied.
 
 | Constraint | Effect | Handling |
 |---|---|---|
-| Vite 8 (rolldown) cannot start in the VM | `@rolldown/binding-wasm32-wasi@1.2.15` pins `@emnapi/core@2.0.0-alpha.5`, which `@napi-rs/wasm-runtime@1.2.6` rejects (`TypeError: Cannot set properties of undefined (setting 'initWorker')`); rolldown's webcontainer fallback re-installs the same broken set | **every Vite template is pinned to `vite@^7.1.0`** (verified: Vite 7.3.7 boots in 259 ms). Upstream fix is [rolldown#11292](https://github.com/rolldown/rolldown/pull/11292) — see §6.1 |
+| Vite 8 (rolldown) wasm binding in the VM | the published `@rolldown/binding-wasm32-wasi@1.2.15` pinned `@emnapi/core@2.0.0-alpha.5`, which `@napi-rs/wasm-runtime@1.2.6` rejects (`TypeError: Cannot set properties of undefined (setting 'initWorker')`); rolldown's webcontainer fallback re-installed the same broken set | **resolved (D-207): the templates ship Vite 8** (`vite@8.3.5`) with the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot). Upstream fix is [rolldown#11292](https://github.com/rolldown/rolldown/pull/11292) — history in §6.1 |
 | No template locks / depcache | kernel logs `vendor/locks` + `vendor/depcache` warnings, installs from scratch (~25-45 s per project) | optional: run the upstream `vendor:locks` / `vendor:depcache` generators |
-| `@rolldown/binding-wasm32-wasi` still listed in templates | ~14 MB of dead weight per install | kept so a future Vite 8 retry is a version bump, not a re-import |
+| `@rolldown/binding-wasm32-wasi` listed in templates | ~14 MB per install | required, not dead weight: Vite 8's rolldown loads this wasm binding in the WebContainer, so the entries stay on every bump (D-207) |
 | PGlite dev database is in-memory | a worker restart would reset it (and every server-route edit restarts it) | the cluster is snapshotted to `<project>/.facilis/db/snapshot.tar.gz` and restored on boot, so data survives a dev-server restart (D-052). At most ~1 s of writes can be lost on an abrupt kill |
 | Binary uploads live on the project filesystem in dev | the local driver writes `<project>/.facilis/binary/<hh>/<hash>` through the kernel VFS, so the OPFS mirror persists blobs like the dev database (D-052); production uses S3, and a production boot with `storage.driver: "local"` refuses storage with the `storage_local_in_production` manifest warning | leave the dev default `local`; set `driver: "s3"` + `bucket`/`region` and `FACILIS_S3_ACCESS_KEY_ID`/`FACILIS_S3_SECRET_ACCESS_KEY` (+ `FACILIS_STORAGE_SECRET`) in production — SPEC §5.10 |
 | At-rest encryption is opt-in and needs a stable key even in dev | with `storage.encryption.enabled: true` the app stores AES-256-GCM ciphertext and every boot needs the same `FACILIS_STORAGE_ENCRYPTION_KEY` — there is no per-boot random fallback, because blobs written with a throwaway key would be undecryptable after a restart (D-117) | set `FACILIS_STORAGE_ENCRYPTION_KEY` (required when encryption is on; 32-byte KEK as base64 or 64-character hex) plus optionally `FACILIS_STORAGE_ENCRYPTION_KEY_ID` (active-key label, default `primary`) and `FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS` (JSON `{ "keyId": "key" }`, decrypt-only rotation) in the environment before starting the dev server; enabling it on a project that already holds plaintext blobs means re-uploading them — SPEC §5.10 |
@@ -404,33 +404,34 @@ A/B that never applied.
 | Nitro's traced dist copies are ESM-only, but the VM loader resolved CJS conditions | `nitro@3.0.260903-beta` prunes `dist/node_modules` to the ESM build (`defu`: `main`/`require` → `lib/defu.cjs` is absent, only `dist/defu.mjs` ships); before the fork fix Vivari's `runtime/module.js` took the CJS/`main` target even for ESM imports and did not fall back to `module`, so resolution missed and the boot died with `Cannot find module …` | **no template workaround any more:** the fork's resolver returns the first condition target that exists (`fix/runtime-esm-only-targets`, PR #19), so nitro's vendored ESM copies load and the generated `package.json` no longer pins them (2026-10-29: `pnpm ide:smoke` green with the whole pin list removed). Only `picomatch` (nitro's builder `__require`s it at run time) and `@vercel/queue` (lazy, Vercel Queues preset) stay — see D-024 |
 | Nitro's default dev runners cannot start | `node-worker`/`node-process` resolve their entry with `fileURLToPath(import.meta.resolve(…))`, and the VM runtime's `import.meta.resolve` is not a file URL → `TypeError: Invalid URL` | the template sets `devServer: { runner: "self" }` in its `facilis.config.ts` `nitro` section (single process); Nitro then owns the listener on **port 3000**, so the template's preview port is 3000 |
 | Only npm is the project's package manager | the IDE vendors one, pinned in lockstep with the VM's Node: `NPM_VERSION` in `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and `ide/src/facilis/package-manager.test.ts` fails if they drift. **The `file:` half of this row is superseded by D-166** (kept as history): npm re-derived a RELATIVE `file:` target when it normalized a spec, and inside the VM that derivation lost `/home` (`file:./vendor/x.tgz` → `/user/…`), so every install died on a tarball that exists. No tarball is installed any more — the `@facilis.dev/*` specs are exact registry versions — so `scripts/vendor-paths.cjs` is gone | bump both versions, rebuild `pnpm ide:assets`, re-run `pnpm ide:smoke` |
-| Facilis template uses Vite 8 | the framework's `@facilis.dev/nitro` peers `vite@8.3.5` and its route-metadata pass imports `rolldown/utils` (the WebContainer-safe parser, D-093), so the Vite 7 pin does not apply | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot) |
+| Facilis template uses Vite 8 | the framework's `@facilis.dev/nitro` peers `vite@8.3.5` and its route-metadata pass imports `rolldown/utils` (the WebContainer-safe parser, D-093) | template ships `vite@8.3.5` + `@rolldown/binding-wasm32-wasi` + the `@emnapi/core`/`@emnapi/runtime` `2.0.0-beta.2` override (verified boot); every template kind ships Vite 8 since D-207 |
 
 | Two tabs on one origin | each tab is its own kernel and dev server, so a pair costs ~0.7 GB of worker memory and the second tab boots +2.5-2.9 s (it restores the shared tree); both dev servers bind the same in-VM port, and the VFS mirror's index is per origin | preview traffic is routed per preview frame by the Service Worker, the index is merged per tab under a Web Lock, and the Studio claims each project so two tabs cannot open the same one — `pnpm ide:smoke:multitab` asserts it (D-033) |
 
-### 6.1 When Vite 8 comes back
+### 6.1 Vite 8 in the VM (resolved — D-207)
 
-The failure is a dependency-set bug in rolldown, not in this repo: `@napi-rs/wasm-runtime@1.2.6`
-sets `addonModule.initWorker`, which only `@emnapi/core@2.0.0-beta.2` provides, while the
-published `@rolldown/binding-wasm32-wasi@1.2.15` ships `2.0.0-alpha.5`.
+The templates ship Vite 8 (`8.3.5` in the examples); D-207 lifts the D-021 Vite 7 pin. The
+version comes from the **inlined example** (`example-template.ts` over `examples/*/`), not from
+`ide/src/facilis/project-files.ts`, which holds no Vite pin. Bump policy: a Vite bump lands only
+with a green `pnpm ide:smoke` (it asserts the preview document is the project), and the
+`@rolldown/binding-wasm32-wasi` entries stay in the templates so the wasm binding resolves in
+the WebContainer.
+
+**History (the former Vite 7 pin).** The original failure was a dependency-set bug in rolldown,
+not in this repo: `@napi-rs/wasm-runtime@1.2.6` sets `addonModule.initWorker`, which only
+`@emnapi/core@2.0.0-beta.2` provides, while the published
+`@rolldown/binding-wasm32-wasi@1.2.15` shipped `2.0.0-alpha.5`.
 
 - **Upstream fix:** [rolldown#11292](https://github.com/rolldown/rolldown/pull/11292)
   ("update emnapi to 2.0.0-beta.2 and pin @napi-rs/wasm-runtime to 1.2.6", opened 2026-10-25)
   updates the emnapi pins and adds `scripts/misc/pin-wasi-binding-deps.mjs` so the published
-  wasi binding stops floating with `~<latest>`.
-- **When:** rolldown releases weekly (1.2.13 Oct 7, 1.2.14 Oct 14, 1.2.15 Oct 21) → expect
-  1.2.16 within days of the merge. Vite 8.3.5 depends on `rolldown ~1.2.14`, so **no Vite
-  release is needed**: a fresh install picks up the fixed binding.
-- **Unblock checklist:** bump `rolldown` in the VM, update the Vite pin in
-  `ide/src/facilis/project-files.ts`, run `pnpm ide:smoke` (it asserts the preview document is
-  the project), then delete this section and the note in `docs/DECISIONS.md` (D-021).
-- **Verified interim patch (2026-10-25):** the generated project can pin the peer instead —
-  `"overrides": { "@emnapi/core": "2.0.0-beta.2", "@emnapi/runtime": "2.0.0-beta.2" }` in the
-  project's `package.json`. Tested in the VM: after `npm install` with that override,
+  wasi binding stops floating with `~<latest>`. Vite 8.3.5 depends on `rolldown ~1.2.14`, so
+  no Vite release was needed: a fresh install picks up the fixed binding.
+- **Verified interim patch (2026-10-25), now shipped in the templates:** the generated project
+  pins the peer — `"overrides": { "@emnapi/core": "2.0.0-beta.2", "@emnapi/runtime": "2.0.0-beta.2" }`
+  in the project's `package.json`. Tested in the VM: after `npm install` with that override,
   `vite 8.3.5` started (`ready in 803 ms`, port bound) and the preview painted. Pinning
-  `@napi-rs/wasm-runtime` to `1.2.5` (which pairs with alpha.5) is the other way round.
-  Not shipped in the Facilis template: it is a one-line addition to its pinned
-  `package.json` and upstream removes the need within days.
+  `@napi-rs/wasm-runtime` to `1.2.5` (which pairs with alpha.5) was the other way round.
 
 ### 6.2 In-VM builds and prerendering (D-202)
 
@@ -462,7 +463,7 @@ basename is a React #418 hydration failure.
 | `[pnpm] load failed (Failed to fetch)` | `ide/public/vendor/pnpm-pack.bin` missing | `pnpm ide:assets` |
 | `error when starting dev server: [facilis] failed to load …/facilis.config.ts` with no reason in the message | the project is pinned to a `@facilis.dev/*` version that predates a framework change (or is not on npm at all), or the IDE was built from stale package manifests: the in-VM config is validated by an older schema, so a section added since (e.g. `jobs`, D-107) is rejected at import by `defineConfig`, and the loader used to drop the schema error | the loader now prints the underlying cause (rerun `npm run dev` and read it). Redeploy so the pipeline publishes the committed versions and pins them, then **recreate the project** — packages are installed when the project is created. A project pinned below the IDE's per-package minimum is blocked at boot with an explicit update action instead (D-198) |
 | `manifest` warns `storage_*` and the file routes answer `503 storage_unavailable` | binary storage failed to boot: `storage_local_in_production` means a production build still has `storage.driver: "local"`; `storage_s3_credentials_missing` / `storage_secret_missing` mean the `FACILIS_S3_*` / `FACILIS_STORAGE_SECRET` env vars are absent; `storage_encryption_key_missing` / `storage_encryption_key_invalid` mean `storage.encryption.enabled` is on but `FACILIS_STORAGE_ENCRYPTION_KEY` is absent or the key, key id or retired-keys JSON is malformed; `storage_boot_failed` is an unexpected driver-construction failure (the dev log carries the cause) | set the variables in the deployment environment, or fix the driver configuration, and restart; the rest of the app keeps working, only the file routes degrade (SPEC §5.10, D-116/D-117) |
-| `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown | see §6; create the project from a template (Vite 7) or pin `vite@^7` |
+| `Cannot find native binding` when a project's dev server starts | the project uses Vite 8 / rolldown without the in-VM wasm setup | see §6/§6.1: the templates ship `@rolldown/binding-wasm32-wasi` plus the `2.0.0-beta.2` emnapi override so the wasm binding loads in the VM (D-207); restore those entries if they were removed, and re-create the project from a template |
 | `Could not resolve "../../../vfs/pkg/vivari_vfs.js"` | kernel wasm not built | `pnpm ide:wasm` |
 | `ERR_PNPM_IGNORED_BUILDS` on a fresh install | pnpm 12 requires an explicit decision for every package with an install script | already configured in the root `pnpm-workspace.yaml` (`allowBuilds`); decide new ones there, never with an interactive `pnpm approve-builds` |
 | `Failed to resolve import "@vivari/core"` | submodule not checked out | `git submodule update --init vendor/vivari` |

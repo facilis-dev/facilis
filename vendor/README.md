@@ -63,9 +63,10 @@ gates ignore `vendor/` entirely.
 
 ## Sync checklist after a bump
 
-1. `pnpm ide:smoke` and `TEMPLATE=Facilis pnpm ide:smoke` — the engine is only green when the
-   browser path is; plus the `facilis.home` proxy smoke in [`docs/DEV.md`](../docs/DEV.md)
-   when the proxy is part of the change.
+1. `pnpm ide:smoke` — the engine is only green when the browser path is (the smoke creates the
+   Facilis template directly; the former `TEMPLATE=Facilis` selector is no longer read); plus
+   the `facilis.home` proxy smoke in [`docs/DEV.md`](../docs/DEV.md) when the proxy is part of
+   the change.
 2. `diff -r vendor/vivari/packages/studio ide` — the only differences must be the IDE patch
    set documented in [`ide/README.md`](../ide/README.md#local-modifications-vs-upstream-the-complete-patch-set).
 3. From the repo root: `pnpm lint && pnpm typecheck && pnpm test && pnpm build` (rebuild the

@@ -66,8 +66,8 @@ formatted once when the fork started), vitest tests, and the 300-line limit with
 exception described below. Gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
 `pnpm format:check` from the repo root; per-package `pnpm --filter @facilis.dev/ide <script>`.
 
-**300-line ratchet:** ten files inherited from upstream are above the limit
-(`controller.ts` 2.5k and falling, eight components, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
+**300-line ratchet:** nine files inherited from upstream are above the limit
+(`controller.ts` 2.5k and falling, five components, two session modules, `vite.config.ts`). They are recorded in [`scripts/file-length-baseline.json`](../scripts/file-length-baseline.json)
 at their import size; the check is a ratchet — a listed file may shrink but not grow, entries
 must be deleted once a file drops under 300 lines, and no new file may be added. Splitting them
 (staring with `controller.ts`) is the Phase 2 refactor, in progress: each subsystem moves
@@ -88,7 +88,7 @@ immediately.
    `../../../vendor/vivari/packages/{kernel-host,runtime}`.
 5. Formatting: the tree is formatted with the repo Prettier config (mechanical, no behaviour
    change). Keep it formatted; do not re-run upstream's formatter.
-6. Ten files above 300 lines, recorded in the file-length baseline (see above).
+6. Nine files above 300 lines, recorded in the file-length baseline (see above).
 7. **The upstream template catalog is gone** (D-051): `src/vv/templates.ts`,
    `src/vv/templates-lazy.ts`, `templateIcons.tsx` and the brand SVGs they bundled are
    deleted. The IDE creates Facilis projects only, through
@@ -101,7 +101,7 @@ immediately.
    mirrored here — keep the two in sync (the IDE copy is mirrored through the repo's Prettier,
    with `catch {}` and a `Set` for the isolation policies to satisfy our lint).
 9. **AI chat** (D-045…D-048): `src/ai/` is the Facilis AI layer — provider presets and a
-   streaming client for the OpenAI-compatible and Anthropic protocols, Model A prompt assembly,
+   streaming client for the OpenAI-compatible and Anthropic protocols, prompt assembly for the PTC tool runtime (the only mode, D-101/D-103),
    the `AIResponse` parser, the diff used by the review card, and `ChatSession` behind a small
    `ChatHost` (one per controller, in `chat-host.ts`). `src/components/ide/ChatPanel.tsx` plus
    `ChatMessageView` / `ChatProposalView` / `ChatSettingsDialog` render it under the new
@@ -152,8 +152,9 @@ pnpm ide:smoke             # headless acceptance: boot -> create React/TS projec
 pnpm ide:smoke:multitab    # two tabs, two projects, one kernel each (D-033)
 ```
 
-Verified 2026-10-25: kernel online **572 ms**, project created, `npm install` inside the VM,
-Vite 7 dev server on 5173, preview painted **31 s** — 16/16 smoke checks green (screenshots and
+Verified 2026-10-25 (historical, on the then-pinned Vite 7; the templates ship Vite 8 since
+D-207): kernel online **572 ms**, project created, `npm install` inside the VM,
+Vite dev server on 5173, preview painted **31 s** — 16/16 smoke checks green (screenshots and
 `report.json` under `$FACILIS_TOOLING_DIR/smoke-artifacts/`). `build:app` (full `vite build`)
 is not part of that pass yet.
 
@@ -171,10 +172,12 @@ worker memory and the second tab boots **+2.5-2.9 s** (it restores the shared tr
 servers bind 5173 in their own VM, which is why the preview Service Worker routes per preview
 frame rather than per port. `pnpm ide:smoke:multitab` is the acceptance run (~4 min).
 
-**Vite version:** the upstream catalog's Vite 7 pin went with it (D-051). The one remaining
-template is `src/facilis/project-files.ts`, which pins the Vite version its own `pnpm ide:smoke`
-proves in the VM. Environment notes and the rest of the in-VM constraints:
-[`docs/DEV.md`](../docs/DEV.md).
+**Vite version:** the templates ship **Vite 8** (`8.3.5` in the examples). The version comes
+from the inlined example (`example-template.ts`), **not** from `src/facilis/project-files.ts`,
+which holds no Vite pin; D-207 lifts the D-021 Vite 7 pin (the upstream catalog's pin went with
+the catalog itself, D-051). The `@rolldown/binding-wasm32-wasi` entries stay so the wasm binding
+resolves in the WebContainer, and a Vite bump lands only with a green `pnpm ide:smoke`.
+Environment notes and the rest of the in-VM constraints: [`docs/DEV.md`](../docs/DEV.md).
 
 ## Where Facilis code goes
 
@@ -192,8 +195,8 @@ WebContainer (`facilis()` mounts Nitro + PGlite + `/__facilis/*`) and the only p
 IDE creates (D-051). The generated project **is the reference app `examples/todo-app`**
 (D-062): `example-template.ts` inlines its client, server, schema, locales and configs at IDE
 build time through `import.meta.glob(?raw)`, so the two cannot drift; `project-files.ts`
-writes only what the IDE must own (the npm wrapper with vendored `@facilis.dev/*` tarballs, a
-standalone `tsconfig.json`, the npm hooks), and `template-overrides.ts` adds only the IDE's
+writes only what the IDE must own (the npm wrapper, a standalone `tsconfig.json`, the npm
+hooks), and `template-overrides.ts` adds only the IDE's
 own bits: the liveness `ping` route the write smoke edits, the HMR hint plus its footer
 style, and the in-process Nitro runner. The framework probe is **not** in the project — 
 `scripts/dev/smoke-facilis.mjs` drives the endpoints from the IDE page, so a user's starter
@@ -205,14 +208,16 @@ runner needs `worker_threads` and a file-URL `import.meta.resolve`, which the VM
 provide), there is no `nitro.config.ts`, and `vite.config.ts` never imports Nitro (D-034).
 The probe also drives a full database roundtrip — register, log in, `POST /api/todos`, read
 the list back — and reports it to the smoke as `facilisDbInsert`/`facilisDbQuery`: PGlite,
-the migrations and the authorized-handler stack only prove themselves inside the VM, not in
-Node. Its `package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's
+the dev-boot schema reconcile and the authorized-handler stack only prove themselves inside the
+VM, not in Node (migrations are retired, D-158/D-201). Its `package.json` pins `@types/react`/`@types/react-dom` 19.3.0 because Monaco's
 TypeScript service only sees installed `@types/*.d.ts` — without them the editor reports
 TS2307 on `react`. The generated project installs with **npm**
-(D-032): the `@facilis.dev/*` tarballs are inlined into the create request (the manifest's
-`assets`, fetched same-origin by the IDE) and land in the project's `./vendor`, declared as
-`file:` dependencies,
-so no install reaches the studio over HTTP and the project stays installable outside the IDE.
+(D-032). The `@facilis.dev/*` packages are ordinary **registry dependencies**, installed from
+npm at each package's own committed version (`packages/*/package.json`); the IDE build compiles
+those versions into a per-package minimum and enforces it at boot — a project below it is
+blocked with an explicit update (D-166, D-198). A dev build can instead vendor the workspace
+packages locally into the project (D-196, `docs/DEV.md` §2); nothing is inlined as a tarball or
+declared as a `file:` dependency in a release project, which stays installable outside the IDE.
 The npm version is pinned in lockstep with the VM's Node — `NPM_VERSION` in
 `scripts/dev/vendor-assets.sh` must equal the template's `packageManager`, and
 `ide/src/facilis/package-manager.test.ts` enforces it. The constraints and the upstream bugs

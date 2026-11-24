@@ -62,7 +62,7 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
 - Source changes only through the validated write tools (D-181); a returned patch set is not
   part of the answer (D-192), and exploration can never touch the VFS.
 - No server-side execution: the IDE is a static SPA; git and files are in the browser/WebContainer.
-- No MCP or skills in phase 1; the design keeps the seam.
+- Phase 1 shipped without MCP or skills; the MCP client later landed on the same seam (D-118).
 - No replacement of the validator: tools change *how the model learns*, not *what is written*.
 
 ## 3. Architecture
@@ -79,7 +79,7 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
         │                 │              ToolRouter ──► VFS read (kernel, project-root confined)
         │                 │                    │      ├► @facilis.dev/analyze facts (schema/routes/graph)
         │                 │                    │      ├► /__facilis/manifest client
-        │                 │                    │      ├► (phase 3) MCP client
+        │                 │                    │      ├► (D-118) MCP client
         │                 │                    │      └► (D-181) write_file/delete_file ──► one-file §9.3
         │                 │                    │            validation ──► applyPatch ──► VFS write
         │                 │                    │
@@ -88,18 +88,8 @@ async bindings, lossless-JSON results, size/time guards, failure as data.
         │                 ▼
         └── final `AIResponse` (message + optional script) ──► shape check ──► transcript summary
 
-New modules (planned, all under `ide/src/ai/ptc/`):
-
-| Module | Role |
-|---|---|
-| `sandbox.ts` | creates/locks the iframe, owns the RPC, timeouts, termination |
-| `sandbox-frame.ts` | the in-iframe bootstrap (the only code that runs in the opaque realm) |
-| `script-runner.ts` | runs one program against the router, maps outcomes to the wire result |
-| `tools/registry.ts` | tool definitions: name, JSON-schema-ish signature, handler, caps |
-| `tools/policy.ts` | one path/secret/capability policy shared by context and tools |
-| `tools/vfs.ts`, `tools/analyzer.ts`, `tools/manifest.ts` | adapters over existing IDE seams |
-| `prompt-tools.ts` | generates the system-prompt tool section from the registry |
-| `trace.ts` | the per-turn exploration trace the UI renders |
+The modules that shipped (all under `ide/src/ai/ptc/`) are listed in the phase-1 landing notes
+below: `protocol.ts`, `policy.ts`, `tools.ts`, `tool-specs.ts`, `runner.ts`, `runner-frame.ts`.
 
 ## 4. Wire protocol (one JSON object per model turn)
 
@@ -183,7 +173,6 @@ confined to the project root, and go through one policy function.
 | `get_routes` | `{ prefix? }` | route facts: method, path, dbTables, permission, source |
 | `get_config` | `{}` | parsed `facilis.config.ts` facts (permissions, roles, tenant/owner columns) |
 | `get_manifest` | `{}` | live manifest summary (blocks, revision) — no secrets |
-| `get_i18n` | `{ locale? }` | catalogue keys + values (cap) |
 | `get_project_summary` | `{}` | counts by area + top-level names (cheap orientation) |
 | `validate` | `{ patches }` | the same `validatePatch()` findings a write uses (SPEC §9.3), run before writing a multi-file change; read-only, writes nothing |
 | `write_file` | `{ path, content }` | creates or replaces ONE project file; the one-file patch is validated (§9.3) before the VFS write (D-181) |
@@ -215,6 +204,9 @@ confined to the project root, and go through one policy function.
 | `web_fetch` | `{ url, maxChars? }` | GET a text-ish URL (text/*, JSON, XML) as text, ≤ 32k chars after secret redaction, response ≤ 1 MB; HTML reduced to text (D-175) |
 | `web_image` | `{ url }` | GET an image (≤ 5 MB) onto the D-112 image channel; shown to the user and sent to vision presets; ≤ 2 per program |
 | `web_download` | `{ url, path }` | GET any content type (≤ 5 MB) into a project path under `public/` only; overwrite allowed; ≤ 5 per program |
+
+The MCP client (D-118) adds a dynamic `mcp_<server>_<tool>` namespace: an enabled server's tools
+join the registry as ordinary PTC tools (`ide/src/ai/mcp/*`, wired in `chat-host.ts`).
 
 **The `validate` tool is the model's pre-write self-check.** The model can assemble a candidate
 patch set, validate it and fix every finding before it calls `write_file`/`delete_file`; each
@@ -370,6 +362,10 @@ first turn. The settings UI and the managed allowlist remain.
 
 ## 9. Skills (D-067)
 
+> Design record (D-067), kept as history: the skills extension was never implemented and is
+> withdrawn (D-205). PTC shipped as the chat's tool runtime (D-101/D-103); this section records
+> how skill capabilities were designed to narrow it, not a current contract.
+
 A skill is instructions + declared capabilities; PTC is how the model executes within them.
 
 - `capabilities.tools` narrows the router's allowlist for a turn; `capabilities.read` narrows
@@ -378,7 +374,6 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - No skill is auto-enabled; the trace shows which skill's capability authorized each call.
 - `network` stays `false` for every skill: the `web_*` family is a deployment capability of the
   host, not a skill capability (D-175), so a skill still cannot fetch by itself.
-- This finally gives the "skills runtime" in AI-SKILLS §1 a concrete executor instead of prose.
 
 ## 10. UX and audit
 
@@ -442,13 +437,14 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 - Remaining for phase 1: the eval corpus (needs a real provider/key; the first manual run is its
   seed) and the browser matrix.
 
-## 13. Open questions (O-016)
+## 13. Operational notes (O-016, closed)
 
-Resolved 2026-11-07 (D-101): sandbox substrate (opaque-origin iframe + inner blob Worker, proved
-by the phase-0 spike), PTC-pure protocol, spike-first order, and the `validate` self-check with
-the final gate kept as a safety net.
+O-016 is closed. The PTC core resolved 2026-11-07 (D-101) and shipped always-on (D-103): sandbox
+substrate (opaque-origin iframe + inner blob Worker, proved by the phase-0 spike), PTC-pure
+protocol, spike-first order, and the `validate` self-check with the final gate kept as a safety
+net. The MCP client landed (D-118); the skills extension was never built and is withdrawn (D-205).
 
-Still open:
+Watch-items on the shipped runtime (not pending features):
 
 1. **Conversation length:** with no quotas (D-108), a long turn is bounded only by the provider's
    context window; watch real sessions on the eval corpus.
