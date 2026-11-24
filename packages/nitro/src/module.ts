@@ -26,6 +26,7 @@ import {
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
 const MIDDLEWARE_DIR = new URL("./middleware/", import.meta.url);
+const PLUGINS_DIR = new URL("./plugins/", import.meta.url);
 // The package ships twice: src/*.ts from the workspace (bundlers strip the types) and
 // dist/*.js in a packed tarball, which a published or URL-installed project loads with a
 // plain ESM loader. Nitro needs real file paths for its handlers, so derive the extension
@@ -49,6 +50,7 @@ export function createFacilisNitroModule(): NitroModule {
       registerVirtualModules(nitro, rootDir);
       relocateNativeOpenApi(nitro);
       registerRuntimeHandlers(nitro);
+      registerTelemetryPlugin(nitro);
     },
   };
 }
@@ -263,6 +265,17 @@ function registerRuntimeHandlers(nitro: Nitro): void {
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("cors.ts") });
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("context.ts") });
   handlers.push({ route: "/**", middleware: true, handler: middlewareFile("session.ts") });
+}
+
+/**
+ * D-203: the backend instrumentation plugin is registered in every build and decides at boot
+ * from the deploy switch. Registration therefore never depends on the build's telemetry
+ * options, and a disabled deployment gets a no-op plugin instead of a spliced build.
+ */
+function registerTelemetryPlugin(nitro: Nitro): void {
+  const plugin = fileURLToPath(new URL(withRuntimeExt("telemetry.ts"), PLUGINS_DIR));
+  nitro.options.plugins ??= [];
+  if (!nitro.options.plugins.includes(plugin)) nitro.options.plugins.push(plugin);
 }
 
 function routeFile(name: string): string {

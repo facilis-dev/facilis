@@ -241,6 +241,19 @@ independent, and each one is checked against the target it needs.
 - Fail-closed: an option left behind a switch that is off is a build error, and so is an
   enabled build whose half has no target — no artifact ships a pipeline with nowhere to send.
 
+**What the backend emits (D-203 §1).** The framework instruments the server itself: a Nitro
+request span per request, one Postgres client span per statement, and a custom span per job
+attempt and per workflow transition. A request continues the browser's trace through the W3C
+`traceparent` header, so a page fetch and the API and DB work it triggers share one trace-id.
+The attribute vocabulary is closed and declaration-derived: `http.request.method`, `http.route`
+(the matched **template**, never the concrete path), `http.response.status_code`,
+`db.system.name`, `db.operation.name`, `db.collection.name`, and the `facilis.job.*` /
+`facilis.workflow.*` namespaced attributes. Values, query strings, bodies, header values and
+bind parameters are never exported, and a failed operation contributes an error status without
+its message (a driver or job error can repeat an input). The runtime switch is
+`FACILIS_TELEMETRY=on` in a **production** boot: any other value, and every dev/test boot
+(D-200), starts no pipeline at all. The collector target is the `exporterEndpoint` above.
+
 ## 4. Build outputs
 
 | Artifact | Consumer | Content |

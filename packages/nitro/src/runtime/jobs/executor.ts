@@ -1,6 +1,7 @@
 import type { FacilisDb } from "@facilis.dev/db";
 import { runAsSystem } from "@facilis.dev/db";
 
+import { withJobSpan } from "../telemetry/custom-spans.ts";
 import type { JobExecutor } from "./contracts.ts";
 
 /**
@@ -12,26 +13,30 @@ import type { JobExecutor } from "./contracts.ts";
  * policy-free client, the declaration is enforced and the trail names the job.
  */
 export function createSystemJobExecutor(db: FacilisDb): JobExecutor {
+  // D-203: one custom span per attempt, around the whole system elevation, so the job's DB
+  // spans continue it.
   return async ({ definition, data, job, signal }) =>
-    runAsSystem(
-      db,
-      {
-        actor: `system:job:${definition.name}`,
-        operation: `jobs:${definition.name}`,
-        reason: `Background job "${definition.name}" (attempt ${job.attempts})`,
-        // The declaration is required (possibly empty) and enforced inside the elevation: an
-        // undeclared relation fails closed instead of being audited after the fact (D-157).
-        dbTables: definition.dbTables,
-        rawSql: definition.rawSql === true,
-      },
-      async (systemDb) =>
-        definition.run({
-          jobId: job.id,
-          name: definition.name,
-          attempt: job.attempts,
-          data,
-          signal,
-          db: systemDb,
-        }),
+    withJobSpan(definition.name, job.attempts, () =>
+      runAsSystem(
+        db,
+        {
+          actor: `system:job:${definition.name}`,
+          operation: `jobs:${definition.name}`,
+          reason: `Background job "${definition.name}" (attempt ${job.attempts})`,
+          // The declaration is required (possibly empty) and enforced inside the elevation: an
+          // undeclared relation fails closed instead of being audited after the fact (D-157).
+          dbTables: definition.dbTables,
+          rawSql: definition.rawSql === true,
+        },
+        async (systemDb) =>
+          definition.run({
+            jobId: job.id,
+            name: definition.name,
+            attempt: job.attempts,
+            data,
+            signal,
+            db: systemDb,
+          }),
+      ),
     );
 }

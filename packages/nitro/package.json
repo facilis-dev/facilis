@@ -29,6 +29,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-trace": "3.1.1",
     "@types/node": "catalog:",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -57,6 +58,7 @@
     "@facilis.dev/core": "workspace:*",
     "@facilis.dev/db": "workspace:*",
     "@facilis.dev/storage": "workspace:*",
+    "@opentelemetry/api": "1.10.0",
     "drizzle-orm": "0.45.4",
     "zod": "4.6.7"
   },

@@ -158,6 +158,13 @@ export {
   isReadOnlySql,
   stripTrailingSemicolon,
 } from "./read-only-sql.ts";
+export { describeStatement, type QueryDescriptor } from "./describe-statement.ts";
+export {
+  currentQueryTrace,
+  runWithQueryTrace,
+  type QuerySpan,
+  type QueryTrace,
+} from "./query-trace.ts";
 export {
   guardDatabase,
   TableAccessError,

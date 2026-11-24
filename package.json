@@ -39,6 +39,7 @@
     "ai:eval": "VITE_DESIGN_EVAL=1 pnpm --filter @facilis.dev/ide exec vitest run src/ai/design-eval.live.test.ts"
   },
   "devDependencies": {
+    "@opentelemetry/api": "1.10.0",
     "@types/node": "catalog:",
     "oxlint": "catalog:",
     "prettier": "catalog:",

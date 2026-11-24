@@ -1,5 +1,10 @@
 import { hasPermission, type AuthContext } from "@facilis.dev/auth";
-import { guardDatabase, runWithPolicyScope, TableAccessError } from "@facilis.dev/db";
+import {
+  guardDatabase,
+  runWithPolicyScope,
+  runWithQueryTrace,
+  TableAccessError,
+} from "@facilis.dev/db";
 import type { z } from "zod";
 
 import { fail } from "./errors.ts";
@@ -230,9 +235,14 @@ export function defineAuthorizedHandler<
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;
         // this single cast bridges the conditional overload type to the actual value.
-        return await handler(
-          handlerEvent,
-          ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
+        // D-203: the request span's trace (installed by the Nitro adapter) must be visible to
+        // the driver while the handler runs, so its DB spans belong to this request. With
+        // telemetry off the trace is absent and this is a plain call.
+        return await runWithQueryTrace(event.context.trace, () =>
+          handler(
+            handlerEvent,
+            ctx as AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
+          ),
         );
       });
       status = result instanceof Response ? result.status : 200;

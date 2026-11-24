@@ -5,6 +5,8 @@ import type { PGlite as PgliteClient } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
+import { instrumentPostgresClient } from "./pg-query-instrumentation.ts";
+
 /**
  * PGlite must come from its CJS build (vendor/vivari/AGENTS.md, "In-VM databases"):
  * the ESM build locates `pglite.wasm` and `pglite.data` through `import.meta.url`, and
@@ -205,10 +207,13 @@ async function openPostgresDb(options: CreateDbOptions): Promise<FacilisDb> {
   }
 
   const schema = options.schema;
+  // D-203: the wrapped pool announces each statement (verb + relation) to the active request
+  // trace. The probe above ran before the wrapper, so boot never reports a query of its own.
+  const tracedPool = instrumentPostgresClient(pool);
   // Same generic collapse as the PGlite client: callers get builders from their tables.
   const db = (schema === undefined
-    ? drizzlePg(pool)
-    : drizzlePg(pool, { schema: { ...schema } })) as unknown as PgDatabaseLike;
+    ? drizzlePg(tracedPool)
+    : drizzlePg(tracedPool, { schema: { ...schema } })) as unknown as PgDatabaseLike;
 
   return {
     driver: "postgres",

@@ -1,5 +1,5 @@
 import type { AuthContext } from "@facilis.dev/auth";
-import type { FacilisDb } from "@facilis.dev/db";
+import type { FacilisDb, QueryTrace } from "@facilis.dev/db";
 
 import type { JobsApi } from "./jobs.ts";
 import type { TasksApi } from "./tasks.ts";
@@ -58,6 +58,12 @@ export interface FacilisEventContext {
      */
     clientAddress?: string;
   };
+  /**
+   * Framework-owned query trace (D-203 §1), set by the Nitro telemetry plugin before any
+   * route runs. The wrapper enters it for the handler so the Postgres driver can parent its
+   * spans to this request; absent when telemetry is off, and then nothing is traced.
+   */
+  trace?: QueryTrace;
   /**
    * Origin policy decided by the context middleware: the request-origin gate reads the
    * trusted allow-list from here, and the wrapper is the only consumer.

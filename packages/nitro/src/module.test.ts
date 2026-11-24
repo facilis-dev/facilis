@@ -37,6 +37,7 @@ interface MockOptions {
   alias: Record<string, string>;
   virtual: Record<string, string | (() => string | Promise<string>)>;
   handlers: Array<Record<string, unknown>>;
+  plugins: string[];
   openAPI?: { route?: string; production?: false | "runtime" | "prerender" };
   experimental: { openAPI?: boolean };
 }
@@ -53,6 +54,7 @@ function createMockNitro(overrides: Partial<MockOptions> = {}): MockNitro {
       alias: {},
       virtual: {},
       handlers: [],
+      plugins: [],
       experimental: { openAPI: true },
       ...overrides,
     },
@@ -113,6 +115,13 @@ describe("createFacilisNitroModule", () => {
     expect(middleware[0]?.["handler"]).toMatch(/middleware[\\/]cors\.ts$/);
     expect(middleware[1]?.["handler"]).toMatch(/middleware[\\/]context\.ts$/);
     expect(middleware[2]?.["handler"]).toMatch(/middleware[\\/]session\.ts$/);
+  });
+
+  it("registers the backend telemetry plugin once (D-203)", () => {
+    const mock = createMockNitro();
+    setup(mock);
+    expect(mock.options.plugins).toHaveLength(1);
+    expect(mock.options.plugins[0]).toMatch(/plugins[\\/]telemetry\.ts$/);
   });
 
   it("relocates Nitro's own OpenAPI handler to the internal route", () => {
