@@ -3,28 +3,39 @@
  * against spans an actual `TracerProvider` exported, not against a hand-rolled fake, so the
  * context wiring (parent trace, parent span) is the SDK's own.
  */
-import { metrics, type Tracer } from "@opentelemetry/api";
+import { metrics, type Sampler, type Tracer } from "@opentelemetry/api";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
   TracerProvider,
   type ReadableSpan,
+  type SpanProcessor,
 } from "@opentelemetry/sdk-trace";
 
 import type { TelemetryRuntime } from "./telemetry/runtime.ts";
 
 export interface SpanRecorder {
+  readonly provider: TracerProvider;
   readonly tracer: Tracer;
   readonly spans: () => ReadableSpan[];
   readonly shutdown: () => Promise<void>;
 }
 
-export function createSpanRecorder(): SpanRecorder {
+export interface SpanRecorderOptions {
+  /** Head sampler; absent keeps the SDK default (parent-based, always-on root). */
+  readonly sampler?: Sampler;
+  /** Processors that run before the in-memory exporter, e.g. RUM's value-free scrub. */
+  readonly beforeExport?: readonly SpanProcessor[];
+}
+
+export function createSpanRecorder(options: SpanRecorderOptions = {}): SpanRecorder {
   const exporter = new InMemorySpanExporter();
   const provider = new TracerProvider({
-    spanProcessors: [new SimpleSpanProcessor({ exporter })],
+    ...(options.sampler === undefined ? {} : { sampler: options.sampler }),
+    spanProcessors: [...(options.beforeExport ?? []), new SimpleSpanProcessor({ exporter })],
   });
   return {
+    provider,
     tracer: provider.getTracer("facilis-test"),
     spans: () => exporter.getFinishedSpans(),
     shutdown: () => provider.shutdown(),

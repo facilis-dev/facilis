@@ -67,7 +67,20 @@ implementation.
    spans under one trace-id, and the backend stitches them. The ingestion endpoint is a dumb pipe
    and does **no** correlation. Parent-based sampling propagates the decision via the trace-flags.
    SPA and API are typically same-origin (one Nitro deployment), so the CORS `Allow-Headers`
-   gotcha for `traceparent` does not arise; cross-origin deployments must allow the header.
+   gotcha for `traceparent` does not arise; cross-origin deployments must allow the header:
+   the API's `Access-Control-Allow-Headers` must include `traceparent` (the framework's CORS
+   preflight echoes the requested headers for allowed routes; an operator proxy in front of the
+   app must allow it too), or the browser strips the header and the trace splits.
+   **Orphan spans are expected, not a fault.** The two halves export independently (push-only,
+   no retries on the RUM export), so an ad-blocker that blocks the ingestion endpoint — or an
+   unreachable backend — leaves partial traces: the browser span still carries its
+   client-generated trace-id with no backend counterpart, or backend spans arrive with no
+   browser half. The trace-id and the sampled decision stay consistent on whichever half
+   survives; operators should read missing halves as blocked export paths, not lost requests
+   (guidance: `packages/rum/README.md`, `docs/MANAGED-DEPLOYMENT.md`). The integration gate
+   (`packages/nitro/src/runtime/telemetry/trace-correlation.test.ts`, issue #139) asserts one
+   trace-id across fetch → Nitro → DB, parent-based sampling consistency in both directions,
+   value-free attributes, the cross-origin allow-list, and the orphan behavior.
 
 5. **Deploy options (build-time, D-063/D-064).** `facilis.deploy.json` / config gains: telemetry
    enabled (default **off**), separate BE and FE toggles, exporter endpoint (operator collector),

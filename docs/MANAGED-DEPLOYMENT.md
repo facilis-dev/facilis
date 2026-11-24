@@ -245,6 +245,17 @@ independent, and each one is checked against the target it needs.
 request span per request, one Postgres client span per statement, and a custom span per job
 attempt and per workflow transition. A request continues the browser's trace through the W3C
 `traceparent` header, so a page fetch and the API and DB work it triggers share one trace-id.
+
+**Partial traces are expected (D-203 §4).** The browser and the server export independently and
+the RUM export never retries, so an ad-blocker that blocks the ingestion endpoint — or an
+unreachable backend — leaves orphan spans: a browser span with its client-generated trace-id and
+no backend counterpart, or backend spans with no browser half. The trace-id and the sampling
+decision stay consistent on whichever half survives; a missing half means a blocked export path,
+not a lost request, and a blocked export never affects the API request itself. When the API is
+cross-origin, its `Access-Control-Allow-Headers` must include `traceparent` (the framework's
+preflight echoes requested headers for allowed routes; an operator proxy must allow it too), or
+the browser strips the header and the trace splits.
+
 The attribute vocabulary is closed and declaration-derived: `http.request.method`, `http.route`
 (the matched **template**, never the concrete path), `http.response.status_code`,
 `db.system.name`, `db.operation.name`, `db.collection.name`, the `facilis.job.*` /

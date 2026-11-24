@@ -7,6 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./react": "./src/react.tsx",
+    "./config": "./src/config.ts",
+    "./instrumentations": "./src/instrumentations.ts",
+    "./scrub": "./src/scrub.ts",
     "./package.json": "./package.json"
   },
   "files": [

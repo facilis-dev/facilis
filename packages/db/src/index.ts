@@ -165,6 +165,9 @@ export {
   type QuerySpan,
   type QueryTrace,
 } from "./query-trace.ts";
+// The driver wrapper client.ts installs; exported so the framework's correlation gate can
+// exercise the same seam without reaching into package internals.
+export { instrumentPostgresClient } from "./pg-query-instrumentation.ts";
 export {
   guardDatabase,
   TableAccessError,

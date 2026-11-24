@@ -29,6 +29,9 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@facilis.dev/rum": "workspace:*",
+    "@opentelemetry/core": "3.1.1",
+    "@opentelemetry/instrumentation-fetch": "0.217.0",
     "@types/node": "catalog:",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
