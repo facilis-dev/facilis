@@ -237,8 +237,9 @@ export function ProjectGraphPanel() {
       data-testid="project-graph-panel"
       aria-label={t("projectGraph.title")}
       className={
-        "flex min-h-0 flex-col bg-editor " +
-        (fullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "h-full")
+        // The canvas keeps a usable minimum height; the chrome scrolls instead (issue #180).
+        "flex min-h-0 flex-col overflow-y-auto bg-editor " +
+        (fullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "absolute inset-0")
       }
     >
       <ProjectGraphToolbar
@@ -268,7 +269,7 @@ export function ProjectGraphPanel() {
         tableVisibility={layout.tableVisibility}
         onTableVisibilityChange={graph.changeTableVisibility}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-64 flex-1">
         <div className="relative min-h-0 flex-1">{body}</div>
         {selectedNode !== null && (
           <ProjectGraphInspector

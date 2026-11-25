@@ -192,14 +192,14 @@ export class TerminalSession {
     });
   }
 
-  switchTerminal(id: string) {
+  switchTerminal(id: string, openPanel = true) {
     const t0 = this.entries.get(id);
     if (!t0) return;
     // The console has its own panel tab; shells live under the Terminal tab.
     const patch: TerminalPatch =
       t0.kind === "console"
-        ? { panelTab: "console", panelCollapsed: false }
-        : { panelTab: "terminal", activeTermId: id, panelCollapsed: false };
+        ? { panelTab: "console", ...(openPanel && { panelCollapsed: false }) }
+        : { panelTab: "terminal", activeTermId: id, ...(openPanel && { panelCollapsed: false }) };
     this.host.patch(patch);
     // Fit + focus once React has flipped visibility.
     requestAnimationFrame(() => {
@@ -244,7 +244,8 @@ export class TerminalSession {
     if (this.host.activeTermId() === id) {
       const nextShell =
         [...this.order].reverse().find((x) => this.entries.get(x)?.kind === "shell") ?? null;
-      if (nextShell) this.switchTerminal(nextShell);
+      // Keep the panel's visibility: a replacement is not a user request (D-124).
+      if (nextShell) this.switchTerminal(nextShell, false);
       else this.host.patch({ activeTermId: null, panelTab: "console" });
     }
     this.sync();
