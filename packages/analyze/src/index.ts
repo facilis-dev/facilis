@@ -37,6 +37,13 @@ export {
 export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
 // The raw-client module list (invariant 5, D-213), shared with AI rule 9 and the route gate.
 export { isRawDbImport } from "./raw-db-imports.ts";
+// Locale parity (rule 13, D-218), shared with the analyzer diagnostic and the AI validator.
+export {
+  DEFAULT_LOCALE,
+  localeParityGaps,
+  type LocaleParityDirection,
+  type LocaleParityGap,
+} from "./locale-parity.ts";
 // The seed-only auth tables and literal raw-SQL writes (invariant 8, D-214), shared with rule 22.
 export {
   rawSqlSystemWriteSites,

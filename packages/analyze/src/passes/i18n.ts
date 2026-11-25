@@ -6,12 +6,34 @@
  */
 
 import { warning } from "../diagnostics.ts";
+import { DEFAULT_LOCALE, localeParityGaps } from "../locale-parity.ts";
 import type { ModuleGraph } from "../module-graph.ts";
 import type { Diagnostic, LocaleCatalogs } from "../types.ts";
-import { isRecord, relativePath, sortDiagnostics } from "./static-read.ts";
+import { isRecord, projectPath, relativePath, sortDiagnostics } from "./static-read.ts";
 
 const LOCALES_DIR = "locales/";
 const JSON_EXTENSION = ".json";
+
+/** Stable analyzer code for a key missing on one side of the parity contract (D-218). */
+export const I18N_LOCALE_PARITY_CODE = "i18n-locale-parity";
+
+const DEFAULT_CATALOGUE = LOCALES_DIR + DEFAULT_LOCALE + JSON_EXTENSION;
+
+function parityDiagnostics(
+  graph: ModuleGraph,
+  locales: Record<string, Readonly<Record<string, string>>>,
+): Diagnostic[] {
+  return localeParityGaps(locales).map((gap) => {
+    const secondary = LOCALES_DIR + gap.locale + JSON_EXTENSION;
+    const missingFrom = gap.direction === "missing-from-secondary" ? secondary : DEFAULT_CATALOGUE;
+    const presentIn = gap.direction === "missing-from-secondary" ? DEFAULT_CATALOGUE : secondary;
+    return warning(
+      I18N_LOCALE_PARITY_CODE,
+      'locale key "' + gap.key + '" is in ' + presentIn + " but missing from " + missingFrom + ".",
+      { file: projectPath(graph.root, missingFrom), line: 1 },
+    );
+  });
+}
 
 export interface LocaleResult {
   readonly locales: LocaleCatalogs;
@@ -62,5 +84,6 @@ export function readLocaleCatalogs(graph: ModuleGraph): LocaleResult {
     }
     locales[name] = catalog;
   }
+  diagnostics.push(...parityDiagnostics(graph, locales));
   return { locales, diagnostics: sortDiagnostics(diagnostics) };
 }

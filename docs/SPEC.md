@@ -1,11 +1,22 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.45 (import-cycle warning, D-217; issue #175)
+**Version:** 1.46 (i18n parity and dynamic `t()` keys, D-218; issue #176)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.46 — Dynamic `t()` keys and locale parity are warnings (D-218, issue #176). The
+  analyzer now keeps a `dynamicTranslationCalls` fact for a `t()` argument that is an
+  identifier, a call, a concatenation or a template literal with expressions, and reports
+  `i18n-dynamic-key` because the key cannot be verified; literal strings and
+  expression-free templates stay ordinary `translationCalls` and never warn. The locale
+  pass also reports `i18n-locale-parity` once per key/direction when a key in
+  `locales/en.json` is missing from a secondary `locales/*.json` (or vice versa); malformed
+  catalogues keep their single existing warning and are skipped. Rule 13
+  `i18n-keys-registered` carries both warnings over the effective post-patch facts, so the
+  validator stays at 23 rules. The shipped examples produce dynamic-key warnings only
+  (parity is clean) and no errors.
 - v1.45 — Import cycles are reported as warnings (D-217, issue #175). The analyzer computes
   the strongly connected components of the project's static import/re-export graph and reports
   `import-cycle` once per component with a representative closed path (capped at 8 entries);
@@ -2829,7 +2840,7 @@ Rules the AI must obey:
 | 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
 | 11 | `file-path-allowed` | error | `managed` (default): `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/` plus `facilis.config.ts`; AI patches never get the IDE writer's explicit `rootFiles`. `open`: any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage` segments, `package.json`/lockfiles/`.npmrc` and `AGENTS.md` (D-167) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
-| 13 | `i18n-keys-registered` | warning | All `t("key")` calls have keys in `locales/en.json` |
+| 13 | `i18n-keys-registered` | warning | All literal `t("key")` calls have keys in `locales/en.json`; a non-literal `t()` key warns as unverifiable, and every `locales/*.json` keeps key parity with `locales/en.json` in both directions (D-218) |
 | 14 | `migration-generated` | error | No authored `.sql`: DDL is generated into the release artifact (D-158); the schema must stay renderable |
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, the schema must stay renderable and consistent: the seed is generated at release, never authored |
@@ -2875,10 +2886,11 @@ checked ahead of the writes with the `validate` tool, which runs the same rules 
 nothing. Facts are AST-derived now:
 wrapper/body-read/`dbTables` cannot be spoofed by comments or strings, `dbColumns` uses Drizzle
 property names, imports cover static/re-export/dynamic/`require` and rules 10/15 ignore
-framework re-exported tables. Declared limits: i18n covers static `t()` keys and the effective
-default catalogue, authored-DDL detection is a `.sql` change in the patch, destructive detection
-covers tables/columns. A rejected write-tool call does not surface as a one-shot error: its
-findings feed the next tool call in the same turn. A malformed answer feeds the §9.4 shape repair.
+framework re-exported tables. Declared limits: i18n covers literal `t()` keys plus catalogue
+parity against `locales/en.json`, and a non-literal `t()` key is reported as unverifiable;
+authored-DDL detection is a `.sql` change in the patch, destructive detection covers
+tables/columns. A rejected write-tool call does not surface as a one-shot error: its findings
+feed the next tool call in the same turn. A malformed answer feeds the §9.4 shape repair.
 
 ### 9.4 Retry Loop
 

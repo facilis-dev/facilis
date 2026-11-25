@@ -1,13 +1,21 @@
 /**
- * Rule 13 `i18n-keys-registered` (warning, SPEC §9.3): every static `t("key")` call in
- * a patched file must have its key in the effective default-locale catalogue. Keys are
- * literal facts from the analyzer: an interpolated key cannot be checked and guessing would
- * produce false warnings.
+ * Rule 13 `i18n-keys-registered` (warning, SPEC §9.3): every static `t("key")` call in a
+ * patched file must have its key in the effective default-locale catalogue, a non-literal
+ * `t()` key is reported as unverifiable, and every secondary `locales/*.json` must keep
+ * parity with `locales/en.json` in both directions (D-218). Keys and catalogues are
+ * analyzer facts over the effective post-patch analysis: a dynamic key is never guessed and
+ * a malformed catalogue keeps its existing warning and is skipped.
  */
+
+import { localeParityGaps } from "@facilis.dev/analyze";
 
 import { LOCALES_PATH, type EffectiveState } from "../overlay.ts";
 import { isScriptPath } from "../paths.ts";
 import type { ValidationError } from "../types.ts";
+
+function secondaryPath(locale: string): string {
+  return "locales/" + locale + ".json";
+}
 
 export function i18nWarnings(state: EffectiveState): ValidationError[] {
   const warnings: ValidationError[] = [];
@@ -37,6 +45,39 @@ export function i18nWarnings(state: EffectiveState): ValidationError[] {
         line: call.source.line,
       });
     }
+    for (const call of facts.dynamicTranslationCalls) {
+      warnings.push({
+        rule: "i18n-keys-registered",
+        severity: "warning",
+        file: facts.path,
+        message:
+          "A t() call uses a non-literal key, so it cannot be verified against locales/en.json.",
+        fix_hint:
+          'Use a literal t("key") call where possible; a dynamic key is never guessed by the validator.',
+        line: call.source.line,
+      });
+    }
+  }
+  // The catalogue files are project-level facts: a gap is reported once per key/direction
+  // over the effective (post-patch) analysis, not once per patched file.
+  for (const gap of localeParityGaps(state.analysis.locales)) {
+    const secondary = secondaryPath(gap.locale);
+    const missingFrom = gap.direction === "missing-from-secondary" ? secondary : LOCALES_PATH;
+    const presentIn = gap.direction === "missing-from-secondary" ? LOCALES_PATH : secondary;
+    warnings.push({
+      rule: "i18n-keys-registered",
+      severity: "warning",
+      file: missingFrom,
+      message:
+        'locale key "' +
+        gap.key +
+        '" is in ' +
+        presentIn +
+        " but missing from " +
+        missingFrom +
+        ".",
+      fix_hint: "Keep locales/en.json and every secondary catalogue on the same key set.",
+    });
   }
   return warnings;
 }

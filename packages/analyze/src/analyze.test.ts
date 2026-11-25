@@ -35,6 +35,10 @@ describe("analyzeProject (fixture)", () => {
     // explicit "declared and unused" warning; the invalid wrapper remains an error.
     expect(analysis.diagnostics.map((entry) => entry.code).toSorted()).toEqual([
       "client-transport",
+      // D-218: the fixture's three non-literal t() calls are visible and warn.
+      "i18n-dynamic-key",
+      "i18n-dynamic-key",
+      "i18n-dynamic-key",
       "route-table-unused",
       "route-table-unused",
       "route-table-unused",

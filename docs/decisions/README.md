@@ -2,7 +2,7 @@
 
 # Decision index
 
-215 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+216 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -223,3 +223,4 @@ the file whose name starts with that ID.
 | [D-215](./D-215-a-project-route-may-not-shadow-a-framework-owned-path.md) | A project route may not shadow a framework-owned path | accepted | 2026-11-25 |
 | [D-216](./D-216-direct-opfs-access-warns-outside-the-kernel-bridge.md) | Direct OPFS access warns outside the kernel bridge | accepted | 2026-11-25 |
 | [D-217](./D-217-import-cycles-are-warnings.md) | Import cycles are warnings | accepted | 2026-11-25 |
+| [D-218](./D-218-i18n-parity-and-dynamic-t-keys-warn.md) | i18n parity and dynamic t() keys warn | accepted | 2026-11-25 |

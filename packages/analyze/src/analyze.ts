@@ -8,6 +8,7 @@ import {
 } from "./passes/prerender-vite.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
+import { dynamicTranslationKeyDiagnostics } from "./passes/i18n-keys.ts";
 import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
@@ -113,6 +114,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...jobs.diagnostics,
       ...jobRelations.diagnostics,
       ...locales.diagnostics,
+      // D-218: a non-literal t() key is visible but unverifiable (warn-only).
+      ...dynamicTranslationKeyDiagnostics(fileFacts),
       ...pages.diagnostics,
       ...prerender.diagnostics,
       ...(viteDeclaration?.unknown ?? []).map((fact) => error(fact.code, fact.reason, fact.source)),
