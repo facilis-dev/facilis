@@ -378,6 +378,13 @@ async function main() {
       "the tab labels the project by its folder name",
       afterBeta.title,
     );
+    // D-124: replacing a project closes its run terminal; the fallback switch to the
+    // boot shell must not pop the bottom panel open. An open panel collapsed the
+    // project-graph canvas at this viewport and culled the todos node (issue #180).
+    check(
+      await tabA.evaluate("window.__ide.getSnapshot().panelCollapsed === true"),
+      "replacing a project does not open the bottom panel (D-124)",
+    );
     const betaUp = await waitFor(
       tabA,
       "window.__ide.getSnapshot().ports.length === 1" +
@@ -506,6 +513,10 @@ async function main() {
     await tabA.screenshot(path.join(ARTIFACTS, "01-tab-a-todo.png"));
     await tabB.screenshot(path.join(ARTIFACTS, "02-tab-b-showcase.png"));
 
+    // React Flow measures its cards on animation frames, which a hidden tab pauses: the
+    // cards stay visibility:hidden and innerText reads empty. Drive the graph in the tab a
+    // user would be looking at (issue #180).
+    await tabB.send("Page.bringToFront");
     // ---- prerender toggle (D-202, issue #84): the static showcase has eligible pages ----
     // The example ships '/' and '/contact' declared (issue #86); the toggle exercises the
     // undeclared '/features' page. The full round trip on the vite.config.ts surface:
@@ -942,6 +953,9 @@ async function main() {
       "prerender: /todos stays the SPA shell (no island)",
       JSON.stringify({ status: todosHtml.status, island: todosHtml.body.includes('id="prerender-data"') }),
     );
+    // Focus the tab before driving its graph: a hidden tab pauses the animation frames
+    // React Flow measures its cards on, leaving them visibility:hidden (issue #180).
+    await tabA.send("Page.bringToFront");
     // The graph reports /todos ineligible with its reason (fail closed, D-202 §3). Same
     // inspector surface as the showcase toggle block above and smoke-panels.mjs: open the
     // activity, fit so React Flow keeps every node mounted, select the todos page node,
