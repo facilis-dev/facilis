@@ -22,6 +22,8 @@ export interface MutableElevation {
   readonly tablesUnknown: boolean;
   readonly used: Map<string, SourceRef>;
   readonly unresolved: SourceRef[];
+  /** insert/update/delete sites on the elevated client (D-212). */
+  readonly writes: SourceRef[];
   opaque: boolean;
 }
 
@@ -29,6 +31,10 @@ export interface MutableUsage {
   readonly used: Map<string, SourceRef>;
   readonly unresolved: SourceRef[];
   readonly rawSql: SourceRef[];
+  /** insert/update/delete sites on ctx.db outside elevations (D-212). */
+  readonly writes: SourceRef[];
+  /** ctx.jobs.enqueue/cancel sites; route-level like services (D-212). */
+  readonly jobEnqueues: SourceRef[];
   opaque: boolean;
   readonly elevations: MutableElevation[];
   /** Service API call sites, deduplicated by service (D-199). */
@@ -61,6 +67,8 @@ export function createUsage(): MutableUsage {
     used: new Map(),
     unresolved: [],
     rawSql: [],
+    writes: [],
+    jobEnqueues: [],
     opaque: false,
     elevations: [],
     services: new Map(),
@@ -93,6 +101,19 @@ export function addUnresolved(scope: RelationScope, source: SourceRef): void {
   bucket(scope).unresolved.push(source);
 }
 
+/** A write site belongs to the current elevation bucket, or to the route's ctx.db (D-212). */
+export function addWrite(scope: RelationScope, source: SourceRef): void {
+  bucket(scope).writes.push(source);
+}
+
+/**
+ * A job-queue mutation belongs to the route even inside an elevation callback: ctx.jobs is
+ * bound to the request transaction (D-107), like the service handles (D-199).
+ */
+export function addJobEnqueue(scope: RelationScope, source: SourceRef): void {
+  scope.usage.jobEnqueues.push(source);
+}
+
 export function markOpaque(scope: RelationScope): void {
   bucket(scope).opaque = true;
 }
@@ -105,6 +126,7 @@ function freezeElevation(elevation: MutableElevation): RouteElevationUsage {
     tables: [...elevation.tables],
     used,
     unresolved: [...elevation.unresolved],
+    writes: [...elevation.writes],
     tablesUnknown: elevation.tablesUnknown,
     opaque: elevation.opaque,
   };
@@ -119,6 +141,8 @@ export function freezeUsage(usage: MutableUsage): RouteRelationsFact {
     used: [...usage.used].map(([name, source]) => ({ name, source })),
     unresolved: [...usage.unresolved],
     rawSql: [...usage.rawSql],
+    writes: [...usage.writes],
+    jobEnqueues: [...usage.jobEnqueues],
     opaque: usage.opaque,
     elevations: usage.elevations.map(freezeElevation),
     services,

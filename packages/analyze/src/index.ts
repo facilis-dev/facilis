@@ -17,6 +17,14 @@ export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender
 export { routeFactId } from "./passes/route-location.ts";
 // The fixed service -> table surface (D-199), shared with AI validator rule 18.
 export { SERVICE_TABLES } from "./passes/route-services.ts";
+// The GET side-effect contract (D-212), shared with AI validator rule 21.
+export {
+  FRAMEWORK_GET_READ_EXEMPTIONS,
+  FRAMEWORK_GET_WRITE_EXEMPTIONS,
+  isGetLikeMethod,
+  routeGetSideEffects,
+  type GetSideEffects,
+} from "./passes/route-get-effects.ts";
 // The table access-class contract (D-211), shared with AI validator rule 20.
 export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
 export { createModuleGraph } from "./module-graph.ts";

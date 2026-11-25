@@ -178,7 +178,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 20 rules before it touches the VFS |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 21 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -337,7 +337,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── validator.ts          20-rule patch validator (D-101/D-103)
+│   │   │   ├── validator.ts          21-rule patch validator (D-101/D-103)
 │   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -795,7 +795,7 @@ Exports:
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
 - `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
-  20-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  21-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
   (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
   only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -2575,7 +2575,11 @@ whenever telemetry is disabled. The dev endpoints above are unchanged.
 - A GET route is side-effect free: `SameSite=Lax` sends the session cookie on a cross-site
 top-level GET navigation, so a state-changing GET is CSRF-able even with the origin gate (which
 covers unsafe methods only). The framework-owned SSO GET/ACS pair is the single, protocol-driven
-write path; an application route must not add another one (D-141).
+write path; an application route must not add another one (D-141). The analyzer diagnostic
+`route-get-side-effect` and AI validator rule 21 enforce this statically over the route's
+relation-usage facts (following project-local helper calls); an opaque handler body warns
+rather than guessing an error; the pinned exemptions are the SSO GET/ACS write pair (D-120),
+the email-verification link GET (D-156) and the framework read-only blueprint GETs (D-212).
 - CSRF is structural, not a per-route courtesy (D-141): `defineAuthorizedHandler` rejects an
   unsafe cross-site request (403) before the permission check, and a JSON/form route answers
   `415 unsupported_media_type` for any other media type — so `SameSite=Lax` is defense in depth,
@@ -2591,7 +2595,7 @@ write path; an application route must not add another one (D-141).
   with `retry-after` before touching the database. The window is in-process, so it resets on
   restart and is not shared across instances; revocation stays per client (the client and every
   token it issued), never per single token.
-- AI patches are **validated** before write (20 rules, §9.3)
+- AI patches are **validated** before write (21 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2750,7 +2754,7 @@ Rules the AI must obey:
 16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same change; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 17. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186): a short create form is a page-header button → dialog → save (a long or multi-step form keeps its own page); an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
-### 9.3 Patch Validator (20 Rules)
+### 9.3 Patch Validator (21 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2774,6 +2778,7 @@ Rules the AI must obey:
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 | 20 | `table-class-declared` | error | Every project table in the resulting `db/schema.ts` declares its access class (invariant 4, D-136): `.enableRLS()` + a policy, or an explicit `// system-only` comment on the line above the declaration. RLS with zero policies and an unreadable marker are warnings; framework re-exports are exempt (D-211) |
+| 21 | `get-side-effect-free` | error | A GET (or method-less ALL) route is side-effect free (§8.6): no insert/update/delete/execute on `ctx.db`/`ctx.sudo`/`ctx.system` and no job-queue mutation, following project-local helper calls. A proven write is an error; an opaque/uninspectable handler body is a warning, never a guessed error; pinned exemptions: the SSO GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework read-only blueprint GETs. Covers all effective GET-like routes (D-212) |
 
 Two structural checks run on every patch, with or without a context and before the numbered
 rules: a create/update patch must carry content (`content-present`), and a `.json` file it
@@ -2782,7 +2787,7 @@ reads only `locales/en.json` and only warns, while every catalogue is imported b
 a broken `locales/it.json` otherwise surfaces later as Vite's native JSON parser failing on a
 module whose path its error does not name (D-190).
 
-**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rule 20 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
+**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rules 20/21 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
 the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
@@ -2945,7 +2950,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 20-rule validator is applied at the `validate` self-check and at every write
+D-101/D-103); the 21-rule validator is applied at the `validate` self-check and at every write
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,

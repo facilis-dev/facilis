@@ -1,9 +1,9 @@
 /**
- * The SPEC §9.3 patch validator: 20 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 21 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
  * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;
- * rules 18-20 warn alongside their errors; every other finding is an error and makes `ok`
+ * rules 18-21 warn alongside their errors; every other finding is an error and makes `ok`
  * false, which is what stops the IDE's apply path before it writes anything (invariant 9).
  *
  * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
@@ -22,6 +22,7 @@ import {
 } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
+import { getSideEffectFreeFindings } from "./rules/get-side-effects.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
 import { jsonParseErrors } from "./rules/json-parse.ts";
 import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
@@ -85,6 +86,10 @@ export function validatePatch(
     const jobTables = jobTableDeclaredFindings(state);
     errors.push(...jobTables.errors);
     warnings.push(...jobTables.warnings);
+    // D-212 rule 21: GET routes must be side-effect free (SPEC §8.6), over the usage facts.
+    const getEffects = getSideEffectFreeFindings(state);
+    errors.push(...getEffects.errors);
+    warnings.push(...getEffects.warnings);
   }
   return { ok: errors.length === 0, errors, warnings, destructive, destructiveChanges: drops };
 }

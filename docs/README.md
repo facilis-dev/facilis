@@ -40,7 +40,7 @@ Start with one of these three, depending on the question:
 | [DESIGN.md](./DESIGN.md) | The visual system: tokens, type, motion, page anatomy and the AI's design block. |
 | [PATTERNS.md](./PATTERNS.md) | The list → detail → chart section standard used by the AI and humans. |
 | [UI-PATTERNS.md](./UI-PATTERNS.md) | The interaction defaults the AI applies: create dialog, calendar route, filter drawer, confirmations, responsive states (D-186). |
-| [AI-VALIDATION.md](./AI-VALIDATION.md) | Plain-language guide to the AI patch validator: the 20 rules with pass/fail examples. |
+| [AI-VALIDATION.md](./AI-VALIDATION.md) | Plain-language guide to the AI patch validator: the 21 rules with pass/fail examples. |
 | [AI-SKILLS.md](./AI-SKILLS.md) | AI trust boundary: provider/gateway policy, the blocking validator, PTC + MCP; the skills supply-chain design is historical (D-205). |
 | [CHAT-UX.md](./CHAT-UX.md) | Chat transcript and compaction direction (the file picker is still open). |
 

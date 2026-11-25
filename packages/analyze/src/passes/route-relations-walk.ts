@@ -27,9 +27,11 @@ import { serviceKindOf } from "./route-services.ts";
 import {
   createUsage,
   freezeUsage,
+  addJobEnqueue,
   addServiceUse,
   addUnresolved,
   addUse,
+  addWrite,
   markOpaque,
   type MutableUsage,
   type RelationScope,
@@ -39,6 +41,7 @@ import {
   chainClient,
   clientOf,
   resolveLocalFunction,
+  JOBS_CLIENT,
   ROUTE_CLIENT,
   type DbClient,
   type RelationIndex,
@@ -141,6 +144,11 @@ function handleCall(node: AstNode, scope: RelationScope): boolean {
       addServiceUse(scope, client.service, refOf(scope, node));
       return false;
     }
+    // The queue handle is not a db surface (D-162); its mutating calls are side effects (D-212).
+    if (client !== null && client.jobs === true) {
+      if (name === "enqueue" || name === "cancel") addJobEnqueue(scope, refOf(scope, node));
+      return false;
+    }
     if (name === "execute" && chainClient(object, scope.env, scope.contextName) !== null) {
       scope.usage.rawSql.push(refOf(scope, node));
       return false;
@@ -158,6 +166,7 @@ function handleCall(node: AstNode, scope: RelationScope): boolean {
       WRITE_METHODS.has(name) &&
       clientOf(object, scope.env, scope.contextName) !== null
     ) {
+      addWrite(scope, refOf(scope, node));
       recordRelation(scope, callArguments(node)[0]);
       return false;
     }
@@ -218,6 +227,8 @@ function functionScope(
       if (local === undefined) continue;
       const service = serviceKindOf(name);
       if (name === "db") env.set(local, ROUTE_CLIENT);
+      // Destructured queue handle (D-212); the job pass never sees ctx.jobs.
+      else if (name === "jobs") env.set(local, JOBS_CLIENT);
       // Destructured service handle (D-199); the job pass drops service uses.
       else if (service !== null) env.set(local, { elevation: null, service });
       else if (seed.elevations) {

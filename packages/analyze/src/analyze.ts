@@ -12,6 +12,7 @@ import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
 import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
@@ -95,6 +96,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...schema.diagnostics,
       ...views.diagnostics,
       ...routeRelations.diagnostics,
+      // D-212: GET routes must be side-effect free (SPEC §8.6), over the same usage facts.
+      ...routeGetEffectDiagnostics(routeRelations.routes),
       ...jobs.diagnostics,
       ...jobRelations.diagnostics,
       ...locales.diagnostics,

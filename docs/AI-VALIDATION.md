@@ -2,7 +2,7 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (20 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (21 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
@@ -58,6 +58,7 @@ a table without row-level security, or a file outside the places it is allowed t
 | 18 | `route-table-declared` | routes using tables they didn't declare | error |
 | 19 | `job-table-declared` | jobs using tables they didn't declare | error |
 | 20 | `table-class-declared` | tables with no declared access class | error |
+| 21 | `get-side-effect-free` | state-changing GET routes (CSRF via top-level navigation) | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -210,6 +211,22 @@ same contract, so an undeclared table fails closed in production too (D-157).
   is refused.
 - ⚠️ Declaring a table the route never uses is a warning, not an error.
 
+### Rule 21 `get-side-effect-free` — a GET route stays read-only
+
+`SameSite=Lax` sends the session cookie on a cross-site top-level GET navigation, so a GET
+that writes is CSRF-able even with the origin gate (which covers unsafe methods only). The
+check **follows local helper calls** and runs over **all** effective GET routes (and
+method-less routes, which serve GET too). The pinned exemptions are the framework SSO
+GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework
+read-only blueprint GETs; the runtime origin gate stays the security authority (D-212).
+
+- ✅ `db.select().from(todos)` in a `.get.ts` handler — a read.
+- ❌ `db.insert(todos)...` (or `update`/`delete`/`execute`) in a GET, directly or through a
+  local helper — move the write to a POST/PUT/PATCH/DELETE route.
+- ❌ `jobs.enqueue(...)` or `jobs.cancel(...)` in a GET — queue mutations are side effects.
+- ⚠️ A handler body the analyzer cannot fully inspect (a package helper receives the client)
+  is a warning, never a guessed error.
+
 ### Rule 17 `route-description` (warning) — every route explains itself
 
 Each patched route needs a one-sentence English `description` (≤ 120 characters), and it
@@ -357,7 +374,7 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 20-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 21-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
   D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint).

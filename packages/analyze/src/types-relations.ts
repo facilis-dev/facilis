@@ -38,6 +38,8 @@ export interface RouteElevationUsage {
   readonly tables: readonly string[];
   readonly used: readonly RouteRelationUse[];
   readonly unresolved: readonly SourceRef[];
+  /** insert/update/delete call sites on the elevated client (D-212 GET side-effect check). */
+  readonly writes: readonly SourceRef[];
   /** The elevation's `tables` option is missing or not statically readable. */
   readonly tablesUnknown: boolean;
   /** The elevated client reached a callee outside the project graph. */
@@ -59,6 +61,10 @@ export interface RouteRelationsFact {
   readonly unresolved: readonly SourceRef[];
   /** `db.execute(...)` call sites; legal only with rawSql: true. */
   readonly rawSql: readonly SourceRef[];
+  /** insert/update/delete call sites on ctx.db outside elevations (D-212). */
+  readonly writes: readonly SourceRef[];
+  /** ctx.jobs.enqueue/cancel call sites: queue mutations are side effects (D-212). */
+  readonly jobEnqueues: readonly SourceRef[];
   /** A project-external callee received the route's db client, so usage is incomplete. */
   readonly opaque: boolean;
   readonly elevations: readonly RouteElevationUsage[];
@@ -75,6 +81,8 @@ export const EMPTY_ROUTE_RELATIONS: RouteRelationsFact = {
   used: [],
   unresolved: [],
   rawSql: [],
+  writes: [],
+  jobEnqueues: [],
   opaque: false,
   elevations: [],
   services: [],

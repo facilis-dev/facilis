@@ -25,6 +25,7 @@ import { createOxcParser } from "./node.ts";
 import { buildConfigFacts } from "./passes/config.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import type { Parser } from "./parser.ts";
@@ -79,6 +80,8 @@ interface AppScan {
   readonly violations: readonly string[];
   /** Declared-but-unused warnings: the shipped apps must boot with zero (D-199). */
   readonly unused: readonly string[];
+  /** GET side-effect warnings (opaque bodies): visible, but never a guessed error (D-212). */
+  readonly getWarnings: readonly string[];
 }
 
 /** Run the analyzer over one app and report every route that breaks invariant 1 or 2. */
@@ -92,6 +95,7 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
   const bySourceFile = new Map(routeFacts.routes.map((route) => [route.sourceFile, route]));
   const violations: string[] = [];
   const unused: string[] = [];
+  const getWarnings: string[] = [];
   let routeFiles = 0;
   for (const path of graph.files.keys()) {
     if (!ROUTE_DIRS.some((routeDir) => path.startsWith(routeDir))) continue;
@@ -123,7 +127,14 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
     if (!RELATION_ERROR_CODES.has(diagnostic.code)) continue;
     violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
   }
-  return { routeFiles, violations, unused };
+  // D-212: a proven write in a GET is a violation; an opaque body only warns.
+  for (const diagnostic of routeGetEffectDiagnostics(relations.routes)) {
+    const file = diagnostic.source?.file ?? "unknown";
+    const where = label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message;
+    if (diagnostic.severity === "error") violations.push(where);
+    else getWarnings.push(where);
+  }
+  return { routeFiles, violations, unused, getWarnings };
 }
 
 function writeSource(root: string, path: string, source: string): void {
@@ -159,6 +170,19 @@ describe("SEC-12 route gate", () => {
     const parser = createOxcParser();
     const unused = apps.flatMap((app) => scanApp(app, relative(REPO_ROOT, app), parser).unused);
     expect(unused, "route-table-unused warnings:\n" + unused.join("\n")).toEqual([]);
+  });
+
+  it("ships no GET side-effect warning in examples/ and starter/ (D-212, ide:smoke contract)", () => {
+    const apps = ["examples", "starter"].flatMap((group) => appsWithRoutes(join(REPO_ROOT, group)));
+    expect(apps.length, "no app with server routes under examples/ or starter/").toBeGreaterThan(0);
+    const parser = createOxcParser();
+    const perApp = apps.map((app) => {
+      const scan = scanApp(app, relative(REPO_ROOT, app), parser);
+      return { app: relative(REPO_ROOT, app), warnings: scan.getWarnings };
+    });
+    const report = perApp.map((entry) => entry.app + ": " + entry.warnings.length).join("\n");
+    const all = perApp.flatMap((entry) => entry.warnings);
+    expect(all, "GET side-effect warnings per app:\n" + report + "\n" + all.join("\n")).toEqual([]);
   });
 
   it("flags deliberately broken handwritten routes", () => {
@@ -228,6 +252,67 @@ describe("SEC-12 route gate", () => {
       expect(report).toContain("dynamic-relation.get.ts: route-table-unresolved");
       expect(report).toContain("elevation.get.ts: route-elevation-undeclared");
       expect(report).not.toContain("good.get.ts");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("flags state-changing GET routes and exempts the SSO pair (D-212)", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "facilis-get-gate-"));
+    try {
+      writeSource(fixture, "db/schema.ts", FIXTURE_SCHEMA);
+      writeSource(
+        fixture,
+        "server/routes/get-insert.get.ts",
+        CORE +
+          'import { todos } from "~/db/schema";\n' +
+          'export default defineAuthorizedHandler({ permission: [], dbTables: ["todos"] }, async (_event, { db }) => db.insert(todos).values({}));\n',
+      );
+      writeSource(
+        fixture,
+        "server/routes/get-helper.get.ts",
+        CORE +
+          'import { notes } from "~/db/schema";\n' +
+          'export default defineAuthorizedHandler({ permission: [], dbTables: ["notes"] }, async (_event, { db }) => wipe(db));\n' +
+          "function wipe(client: { delete: (relation: unknown) => unknown }) { return client.delete(notes); }\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/get-enqueue.get.ts",
+        CORE +
+          'export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (_event, { jobs }) => jobs.enqueue("sync", {}));\n',
+      );
+      writeSource(
+        fixture,
+        "server/routes/get-read.get.ts",
+        CORE +
+          'import { todos } from "~/db/schema";\n' +
+          'export default defineAuthorizedHandler({ permission: [], dbTables: ["todos"] }, async (_event, { db }) => db.select().from(todos));\n',
+      );
+      const ssoWrite =
+        CORE +
+        'import { notes } from "~/db/schema";\n' +
+        'export default defineAuthorizedHandler({ permission: [], dbTables: ["notes"] }, async (_event, { system }) => system({ actor: "system:auth", operation: "auth:sso", reason: "y", tables: ["notes"] }, (systemDb) => systemDb.insert(notes).values({})));\n';
+      writeSource(fixture, "server/routes/api/auth/sso/[provider]/start.get.ts", ssoWrite);
+      writeSource(fixture, "server/routes/api/auth/sso/[provider]/callback.get.ts", ssoWrite);
+      writeSource(
+        fixture,
+        "server/routes/get-opaque.get.ts",
+        CORE +
+          'import { ownerIsolationPolicy } from "@facilis.dev/db";\n' +
+          'export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (_event, { db }) => ownerIsolationPolicy(db));\n',
+      );
+      const scan = scanApp(fixture, "fixture", createOxcParser());
+      const report = scan.violations.join("\n");
+      expect(scan.routeFiles).toBe(7);
+      expect(report).toContain("get-insert.get.ts: route-get-side-effect");
+      expect(report).toContain("get-helper.get.ts: route-get-side-effect");
+      expect(report).toContain("get-enqueue.get.ts: route-get-side-effect");
+      expect(report).not.toContain("get-read.get.ts");
+      expect(report).not.toContain("api/auth/sso");
+      expect(report).not.toContain("get-opaque.get.ts");
+      // The opaque body is a warning, never a guessed error.
+      expect(scan.getWarnings.join("\n")).toContain("get-opaque.get.ts: route-get-side-effect");
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }
