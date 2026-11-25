@@ -283,7 +283,7 @@ describe("telemetry ingestion route — scrub, dedup, forward", () => {
     expect(foreign.status).toBe(403);
   });
 
-  it("admits a browser vitals/error batch and scrubs it to the RUM vocabulary (D-208)", async () => {
+  it("admits a browser vitals/error batch and scrubs it to the RUM vocabulary (D-209)", async () => {
     const origin = uniqueOrigin();
     enable(origin);
     const rumBatch: OtlpExportRequest = {

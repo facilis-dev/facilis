@@ -24,7 +24,7 @@ export const DB_RELATION = "db.collection.name";
 export const DB_SYSTEM_POSTGRESQL = "postgresql";
 
 /**
- * Frontend RUM (D-208): the browser.web_vital semconv is still Development status, so the
+ * Frontend RUM (D-209): the browser.web_vital semconv is still Development status, so the
  * client pins its name/value/rating triple and adapts it to spans (the ingestion class
  * accepts spans only). Error spans carry type + source; message/stack are PII, never sent.
  */

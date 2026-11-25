@@ -52,7 +52,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 ## Open work
 
 - **Phase 4:** the eval corpus and the browser matrix.
-- **Production observability** via OpenTelemetry — implemented (D-203, D-208, D-209; epic #131): backend spans, frontend RUM, a framework-owned ingestion endpoint and operator collector guidance ([TELEMETRY.md](./TELEMETRY.md)); the D-119 log pipeline stays separate.
+- **Production observability** via OpenTelemetry — implemented (D-203, D-209, D-210; epic #131): backend spans, frontend RUM, a framework-owned ingestion endpoint and operator collector guidance ([TELEMETRY.md](./TELEMETRY.md)); the D-119 log pipeline stays separate.
 - **MCP polish:** the settings UI and the managed allowlist on the shipped MCP client (D-118; PTC.md phase 3 remainder). The skills extension is withdrawn (D-205); [AI-SKILLS.md](./AI-SKILLS.md) §8 keeps the design as history.
 - **Workflow retention/pruning and a dev inspection endpoint** ([WORKFLOWS.md](./WORKFLOWS.md), O-017).
 - **Open decisions:** O-005 (starter repo count), O-010 (auth schema reconcile), O-011

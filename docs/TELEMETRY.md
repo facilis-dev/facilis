@@ -124,7 +124,7 @@ Keep both reference-config rules even though Facilis payloads are already scrubb
   Using it for profiling, advertising or cross-site tracking changes the lawful basis and
   the consent answer (§7) — do not do it silently.
 
-## 7. Consent and lawful basis (D-209)
+## 7. Consent and lawful basis (D-210)
 
 **The operator is the data controller.** Facilis hosts nothing and receives nothing, so it
 is not a processor. Before enabling telemetry:
@@ -140,7 +140,7 @@ is not a processor. Before enabling telemetry:
   end-user IPs to the collector (§1), and the reference configs truncate any that arrive
   by other paths (§5).
 
-**v1 ships no framework consent gate** (D-209): telemetry is off by default and opt-in at
+**v1 ships no framework consent gate** (D-210): telemetry is off by default and opt-in at
 build time; a runtime consent UX is app-specific and deferred. If your assessment requires
 consent before any telemetry, keep telemetry disabled until your own consent flow allows
 enabling it in a build.

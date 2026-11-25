@@ -1,6 +1,6 @@
 # @facilis.dev/rum
 
-Framework-owned browser RUM for Facilis apps (issue #138, D-203 §2, D-208).
+Framework-owned browser RUM for Facilis apps (issue #138, D-203 §2, D-209).
 
 - Emits Core Web Vitals (LCP/INP/CLS/FCP/TTFB) as `browser.web_vital` spans, window and
   React-boundary errors as `browser.error` spans (type + source only, never message/stack),
@@ -9,7 +9,7 @@ Framework-owned browser RUM for Facilis apps (issue #138, D-203 §2, D-208).
   (`POST /__facilis/telemetry/v1/traces`) with the public write-only tenant key header.
 - `traceparent` propagates to the app's own origin only, never third parties.
 - URLs are scrubbed client-side (defense in depth; the server allowlist is the gate).
-- Operator collector guidance, privacy hardening and consent: `docs/TELEMETRY.md` (D-209).
+- Operator collector guidance, privacy hardening and consent: `docs/TELEMETRY.md` (D-210).
 - Production-only and opt-in: the `facilisRum()` Vite companion injects the
   `__FACILIS_RUM_CONFIG__` literal at build time. Dev/disabled builds are completely silent.
 
@@ -28,7 +28,7 @@ header and both sides honor it (parent-based sampling). The integration gate is
 `packages/nitro/src/runtime/telemetry/trace-correlation.test.ts`.
 
 **Orphan spans.** The browser and the server export independently, and the RUM export never
-retries (D-208). When an ad-blocker blocks the ingestion endpoint
+retries (D-209). When an ad-blocker blocks the ingestion endpoint
 (`POST /__facilis/telemetry/v1/traces`) or the backend is unreachable, traces arrive partial:
 
 - The browser span still carries its client-generated trace-id even when the request failed or

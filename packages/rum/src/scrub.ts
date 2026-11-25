@@ -1,5 +1,5 @@
 /**
- * Client-side value-free scrub (D-203 §2, D-208): defense in depth. The server allowlist
+ * Client-side value-free scrub (D-203 §2, D-209): defense in depth. The server allowlist
  * (packages/nitro/src/runtime/telemetry/ingest/scrub.ts) is the final gate; this processor
  * keeps the payload that leaves the browser already minimal, so no export path can carry
  * what the client never sends.

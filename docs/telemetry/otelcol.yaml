@@ -1,5 +1,5 @@
 # Facilis reference collector — generic OpenTelemetry Collector (otelcol-contrib).
-# D-203 §7 / D-209: a fail-closed redaction allowlist plus IP truncation, defense in
+# D-203 §7 / D-210: a fail-closed redaction allowlist plus IP truncation, defense in
 # depth behind the app-side scrub (spec §8.8). Facilis hosts nothing: point the app's
 # telemetry endpoint (deploy option exporterEndpoint / FACILIS_TELEMETRY_ENDPOINT) at
 # this receiver, and the exporter below at YOUR backend. See docs/TELEMETRY.md.

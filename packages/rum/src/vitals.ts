@@ -1,5 +1,5 @@
 /**
- * Core Web Vitals as spans (D-203 §2, D-208). The browser.web_vital semantic convention is
+ * Core Web Vitals as spans (D-203 §2, D-209). The browser.web_vital semantic convention is
  * still Development status: this pins its name/value/rating triple and adapts it to spans,
  * because the ingestion class accepts spans only (there is no metric surface). The
  * standard web-vitals build is used, never attribution: attribution entries carry element

@@ -1295,7 +1295,7 @@ production `404` guard (§6.8, §8.5), and dev stays local (D-200): inside the
 WebContainer/preview no telemetry leaves the machine. The route class itself — its gates and its
 relationship to invariant 1 — is defined in §8.8.
 
-Frontend RUM is framework-owned too (D-208): `@facilis.dev/rum` emits the Core Web Vitals as
+Frontend RUM is framework-owned too (D-209): `@facilis.dev/rum` emits the Core Web Vitals as
 `browser.web_vital` spans (the `browser.web_vital.name`/`.value`/`.rating` triple of the
 Development-status semconv, pinned and adapted to spans because this class accepts spans only),
 errors as `browser.error` spans carrying `error.type` and `facilis.rum.source` — never a
@@ -2687,7 +2687,7 @@ the WebContainer/preview no telemetry leaves the machine (D-200).
 origin can flood the route through XSS); the endpoint is observational. The D-119 audit pipeline
 stays separate and intact, and the collector credential stays server-side. Operator collector
 guidance — redaction allowlist, IP truncation, data minimization and the consent position — is in
-`docs/TELEMETRY.md` (D-209).
+`docs/TELEMETRY.md` (D-210).
 
 Invariant 6 is **unchanged**: this is a production surface, distinct from the dev-only
 `/__facilis/*` endpoints, which keep answering `404` in production (§8.5, §11.4). D-200's

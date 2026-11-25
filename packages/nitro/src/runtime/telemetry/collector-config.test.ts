@@ -1,6 +1,6 @@
 /**
  * The operator collector reference configs (docs/telemetry/) are part of the privacy
- * contract (D-203 §7, D-209): their redaction allowlists must not drift from the
+ * contract (D-203 §7, D-210): their redaction allowlists must not drift from the
  * framework vocabulary, and IP truncation must stay present. The app-side scrub is the
  * first gate; these configs are the operator-side defense in depth, so a vocabulary
  * change that forgets them fails here.

@@ -211,7 +211,7 @@ different set of readable hosts is a different build.
 Off by default and opt-in through this block only: enabling telemetry never adds a runtime
 switch, the exporters are compiled into the build (D-063/D-064). The two halves are
 independent, and each one is checked against the target it needs. Collector setup, privacy
-hardening and the consent position: [TELEMETRY.md](./TELEMETRY.md) (D-209).
+hardening and the consent position: [TELEMETRY.md](./TELEMETRY.md) (D-210).
 
 ```json
 "telemetry": {
@@ -281,7 +281,7 @@ the host passes to the server at boot:
 
 The FE option is read at **build** time (`vite build`: the `facilisRum()` companion compiles
 the `__FACILIS_RUM_CONFIG__` literal into the bundle), while the backend options above are read
-at server boot. The frontend client (`@facilis.dev/rum`, D-208) emits `browser.web_vital` spans
+at server boot. The frontend client (`@facilis.dev/rum`, D-209) emits `browser.web_vital` spans
 (the `browser.web_vital.name`/`.value`/`.rating` triple), `browser.error` spans
 (`error.type` + `facilis.rum.source` only, never message/stack) and document-load/fetch spans
 through the same ingestion route.

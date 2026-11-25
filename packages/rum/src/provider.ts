@@ -19,7 +19,7 @@ export function createRumProvider(config: RumConfig): WebTracerProvider {
   const provider = new WebTracerProvider({
     resource: resourceFromAttributes({
       "service.name": config.serviceName,
-      // RUM only boots in production builds (D-208), so the environment is a constant.
+      // RUM only boots in production builds (D-209), so the environment is a constant.
       "deployment.environment.name": "production",
       ...(config.deploymentId === null ? {} : { "deployment.id": config.deploymentId }),
     }),

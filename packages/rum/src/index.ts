@@ -1,5 +1,5 @@
 /**
- * Framework-owned browser RUM (issue #138, D-203 §2, D-208). bootRum() is called first in
+ * Framework-owned browser RUM (issue #138, D-203 §2, D-209). bootRum() is called first in
  * the framework template entry; it is a no-op unless the build injected a config literal
  * (production + deploy telemetry options) and a window exists. Disabled/dev is completely
  * silent: no zone patching, no provider, no instrumentation, no export (D-200).

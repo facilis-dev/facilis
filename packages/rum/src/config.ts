@@ -1,5 +1,5 @@
 /**
- * Build-time RUM configuration (D-208). The literal is injected by the facilisRum() Vite
+ * Build-time RUM configuration (D-209). The literal is injected by the facilisRum() Vite
  * companion at `vite build` time only; dev builds define it as null, so the client is
  * completely silent there (D-200). Nothing reads env at runtime: a browser has none.
  */

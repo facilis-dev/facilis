@@ -1,5 +1,5 @@
 /**
- * Frontend RUM build-time config (D-208, issue #138). The facilisRum() Vite companion reads
+ * Frontend RUM build-time config (D-209, issue #138). The facilisRum() Vite companion reads
  * this at `vite build` only and compiles the resolved literal into the bundle as
  * __FACILIS_RUM_CONFIG__. FE is an explicit opt-in (FACILIS_TELEMETRY_FE), off by default;
  * dev never injects a config, so the browser client stays silent there (D-200).

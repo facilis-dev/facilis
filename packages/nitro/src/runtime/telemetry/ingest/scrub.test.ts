@@ -174,7 +174,7 @@ describe("scrubExportRequest", () => {
   });
 });
 
-describe("frontend RUM vocabulary (D-208)", () => {
+describe("frontend RUM vocabulary (D-209)", () => {
   it("keeps the browser.web_vital triple, including a numeric (double) value", () => {
     const scrubbed = scrubExportRequest(
       payload([

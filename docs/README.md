@@ -16,7 +16,7 @@ Start with one of these three, depending on the question:
 | [SPEC.md](./SPEC.md) | The contract. If it disagrees with anything else, it wins. |
 | [STATUS.md](./STATUS.md) | Current state: implemented, open, retired, evidence. |
 | [DECISIONS.md](./DECISIONS.md) | Decision log: reading guide and the "Open" table (O-001…O-021). |
-| [decisions/](./decisions/README.md) | One file per decision (D-001…D-209) with a generated index; gated by `pnpm lint`. |
+| [decisions/](./decisions/README.md) | One file per decision (D-001…D-210) with a generated index; gated by `pnpm lint`. |
 | [../AGENTS.md](../AGENTS.md) | Conventions for working in this repository. |
 
 ## Environment and operation
@@ -29,7 +29,7 @@ Start with one of these three, depending on the question:
 | [MIGRATION-PLAN.md](./MIGRATION-PLAN.md) | Release-time DDL and artifacts (P0–P2, P5/P6 and the P4 preview slice landed; the deploy applier is withdrawn, D-204). |
 | [POSTGRES.md](./POSTGRES.md) | Running a generated app on Postgres. |
 | [LOGS.md](./LOGS.md) | Operator contract for access/error/audit/app logs. |
-| [TELEMETRY.md](./TELEMETRY.md) | Operator guide: collector setup, privacy hardening, data minimization, consent (D-203/D-209). |
+| [TELEMETRY.md](./TELEMETRY.md) | Operator guide: collector setup, privacy hardening, data minimization, consent (D-203/D-210). |
 
 ## Guides
 

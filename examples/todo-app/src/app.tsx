@@ -21,7 +21,7 @@ export function App() {
   // (pages keep calling plain t(), docs/FRONTEND.md section 6) whenever the locale changes.
   useLocale();
 
-  // Report-only RUM boundary (D-208): no fallback prop, so it renders null and only reports.
+  // Report-only RUM boundary (D-209): no fallback prop, so it renders null and only reports.
   return (
     <RumErrorBoundary>
       <SessionProvider>

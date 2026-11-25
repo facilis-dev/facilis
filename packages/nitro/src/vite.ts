@@ -152,7 +152,7 @@ export function facilis(): FacilisPlugins {
   return [
     plugin,
     facilisDevMetrics(),
-    // The RUM companion is the build-time mirror of dev metrics (D-208): apply "build"
+    // The RUM companion is the build-time mirror of dev metrics (D-209): apply "build"
     // only, so dev stays silent and a production build carries the config literal.
     facilisRum(),
     facilisPrerenderGate(getAnalysis),

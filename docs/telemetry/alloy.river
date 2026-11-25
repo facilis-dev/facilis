@@ -1,5 +1,5 @@
 // Facilis reference collector — Grafana Alloy.
-// D-203 §7 / D-209: a fail-closed redaction allowlist plus IP truncation, defense in
+// D-203 §7 / D-210: a fail-closed redaction allowlist plus IP truncation, defense in
 // depth behind the app-side scrub (spec §8.8). Point the app's telemetry endpoint at
 // this receiver; the exporter targets YOUR backend. Facilis hosts nothing.
 // See docs/TELEMETRY.md. Keep allowed_keys in sync with the framework vocabulary

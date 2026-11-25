@@ -24,7 +24,7 @@ export function createRumExporter(config: RumConfig): SpanExporter {
         const settle = (): void => {
           clearTimeout(timer);
           // Always report success: RUM must never break the app, and the server's span-id
-          // dedup rejects replays, so there are no retries (D-208).
+          // dedup rejects replays, so there are no retries (D-209).
           callback({ code: 0 });
         };
         // suppressTracing: the export request must never be traced by the fetch

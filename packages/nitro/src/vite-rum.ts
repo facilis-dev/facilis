@@ -1,4 +1,4 @@
-// Frontend RUM build-time enablement (D-208, issue #138).
+// Frontend RUM build-time enablement (D-209, issue #138).
 //
 // apply: "build" only — `vite dev` never sees this plugin, so dev/WebContainer stays
 // silent (D-200), the mirror of the dev-metrics companion's apply: "serve". The config is

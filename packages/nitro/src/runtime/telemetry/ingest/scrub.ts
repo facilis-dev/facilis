@@ -38,7 +38,7 @@ export const SPAN_ATTRIBUTE_ALLOWLIST: ReadonlySet<string> = new Set([
   WORKFLOW_NAME,
   WORKFLOW_STEP,
   WORKFLOW_STEP_KIND,
-  // Frontend RUM (D-208): the pinned vital triple and error type/source. The client
+  // Frontend RUM (D-209): the pinned vital triple and error type/source. The client
   // scrubs too (defense in depth); this allowlist remains the final gate.
   WEB_VITAL_NAME,
   WEB_VITAL_VALUE,
