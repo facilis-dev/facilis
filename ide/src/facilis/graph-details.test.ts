@@ -88,6 +88,7 @@ function tableFact(overrides: Partial<TableFact> = {}): TableFact {
     unsupported: [],
     policies: [],
     rlsEnabled: true,
+    systemOnly: false,
     scope: null,
     source: ref("db/schema.ts", 1),
     unknown: [],

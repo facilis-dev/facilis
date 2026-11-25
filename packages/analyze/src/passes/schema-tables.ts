@@ -25,6 +25,7 @@ import {
   type DslResolver,
 } from "./schema-dsl.ts";
 import { buildPolicyFacts } from "./schema-policies.ts";
+import { readTableClass } from "./schema-class.ts";
 
 export interface TableDraft {
   readonly fact: TableFact;
@@ -73,8 +74,9 @@ function buildTableDraft(input: {
   readonly config: ConfigFacts;
   readonly binding: string | null;
   readonly tableCall: TableCall;
+  readonly declarationStart: number | undefined;
 }): { draft: TableDraft; diagnostics: readonly Diagnostic[] } {
-  const { graph, file, resolver, enums, config, binding, tableCall } = input;
+  const { graph, file, resolver, enums, config, binding, tableCall, declarationStart } = input;
   const source = nodeRef(file, tableCall.call);
   const args = callArguments(tableCall.call);
   const unknowns: UnknownFact[] = [];
@@ -163,6 +165,16 @@ function buildTableDraft(input: {
   }
   const rlsEnabled = tableCall.methods.includes("enableRLS");
   const scope = scopeOf(columns, config);
+  const classScan = readTableClass({
+    graph,
+    file,
+    declarationStart,
+    name,
+    rlsEnabled,
+    policyCount: policyScan.policies.length,
+    source,
+  });
+  unknowns.push(...classScan.unknowns);
   const fact: TableFact = {
     name,
     binding,
@@ -177,6 +189,7 @@ function buildTableDraft(input: {
     unsupported,
     policies: policyScan.policies,
     rlsEnabled,
+    systemOnly: classScan.systemOnly,
     scope,
     source,
     unknown: unknowns,
@@ -192,6 +205,7 @@ function buildTableDraft(input: {
       ),
     );
   }
+  diagnostics.push(...classScan.diagnostics);
   return { draft: { fact, binding, references }, diagnostics };
 }
 
@@ -217,6 +231,7 @@ export function collectTableDrafts(
       config,
       binding,
       tableCall,
+      declarationStart: declarator.start,
     });
     drafts.push(result.draft);
     diagnostics.push(...result.diagnostics);

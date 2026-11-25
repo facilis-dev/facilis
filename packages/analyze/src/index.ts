@@ -17,11 +17,13 @@ export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender
 export { routeFactId } from "./passes/route-location.ts";
 // The fixed service -> table surface (D-199), shared with AI validator rule 18.
 export { SERVICE_TABLES } from "./passes/route-services.ts";
+// The table access-class contract (D-211), shared with AI validator rule 20.
+export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";
 export type { PathAlias } from "./path-resolver.ts";
-export type { Parser, ParseError, ParsedModule } from "./parser.ts";
+export type { Parser, ParseError, ParsedModule, SourceComment } from "./parser.ts";
 export { diagnostic, error, info, warning } from "./diagnostics.ts";
 export { computeRevision } from "./revision.ts";
 // The plan-shaped view of the schema facts (the Release Preview's planSchema input, #47).

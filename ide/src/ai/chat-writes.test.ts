@@ -263,6 +263,7 @@ describe("createChatWrites write_file", () => {
 
 const SCHEMA = `import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 
+// system-only: fixture table, reached only through the audited system identity (D-211)
 export const todos = pgTable("todos", {
   id: uuid("id").primaryKey(),
   title: text("title").notNull(),

@@ -1,11 +1,14 @@
 /**
- * Rules 10 `rls-on-scoped-table`, 14 `migration-generated` and 15
- * `destructive-confirmed` (SPEC §9.3), read from the effective code schema.
+ * Rules 10 `rls-on-scoped-table`, 14 `migration-generated`, 15
+ * `destructive-confirmed` and 20 `table-class-declared` (SPEC §9.3), read from the
+ * effective code schema.
  *
  * Only tables the project declares itself count (`source.file === db/schema.ts`): the
  * framework tables re-exported from `@facilis.dev/auth` ship their own RLS and must not be
  * re-flagged here. Scope is the analyzer's ScopeFact or a tenant/owner column property.
  */
+
+import { tableClassOf } from "@facilis.dev/analyze";
 
 import { SCHEMA_PATH, type EffectiveState } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";
@@ -59,6 +62,68 @@ export function rlsErrors(state: EffectiveState): ValidationError[] {
     );
   }
   return errors;
+}
+
+/**
+ * Rule 20: every project table in the resulting schema declares its access class
+ * (invariant 4, D-136/D-211) — RLS-scoped (`.enableRLS()` plus a policy) or explicitly
+ * system-only (the `// system-only` marker). Rule 10 covers scoped tables only; a plain
+ * `pgTable` without RLS gets no app-role privilege and its routes fail closed at runtime,
+ * so the class must be declared, not inferred. Like rule 10, the check audits every project
+ * table in the re-emitted schema, not only the new ones. An unreadable marker (a parser that
+ * exposes no comments) downgrades the finding to a warning: never a guessed error.
+ */
+export function tableClassFindings(state: EffectiveState): {
+  errors: ValidationError[];
+  warnings: ValidationError[];
+} {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationError[] = [];
+  if (!touchesSchema(state)) return { errors, warnings };
+  for (const table of state.afterSchemaTables) {
+    const declared = tableClassOf(table);
+    if (declared === "rls-scoped" || declared === "system-only") continue;
+    if (declared === "rls-no-policies") {
+      warnings.push({
+        rule: "table-class-declared",
+        severity: "warning",
+        file: SCHEMA_PATH,
+        message:
+          'Table "' +
+          table.name +
+          '" enables RLS but declares no policy in the patched db/schema.ts.',
+        fix_hint:
+          "Add a policy helper (tenantIsolationPolicy()/ownerIsolationPolicy() or pgPolicy) so the app role can reach its rows (invariant 4, D-136).",
+      });
+      continue;
+    }
+    const unreadable = table.unknown.some((entry) => entry.code === "schema-marker");
+    if (unreadable) {
+      warnings.push({
+        rule: "table-class-declared",
+        severity: "warning",
+        file: SCHEMA_PATH,
+        message:
+          'Table "' +
+          table.name +
+          '" has no RLS and its system-only marker cannot be read; the access class is not provable.',
+        fix_hint:
+          'Declare the class explicitly: .enableRLS() with a policy, or a "// system-only" comment on the line above the declaration (invariant 4, D-136/D-211).',
+      });
+      continue;
+    }
+    errors.push(
+      error(
+        "table-class-declared",
+        SCHEMA_PATH,
+        'Table "' +
+          table.name +
+          '" declares no access class in the patched db/schema.ts: no RLS policy and no system-only marker.',
+        'Add .enableRLS() and a policy helper (tenantIsolationPolicy()/ownerIsolationPolicy() or pgPolicy), or mark the table system-only with a "// system-only" comment on the line above its declaration. A table without RLS gets no app-role privilege and its routes fail closed at runtime (invariant 4, D-136/D-211).',
+      ),
+    );
+  }
+  return { errors, warnings };
 }
 
 // The directory is fixed: the folder is retired from generated projects (D-158), so it is not

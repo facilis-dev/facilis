@@ -128,6 +128,9 @@ export interface TableFact {
   readonly unsupported: readonly UnsupportedDeclarationFact[];
   readonly policies: readonly PolicyFact[];
   readonly rlsEnabled: boolean;
+  /** Explicit `// system-only` marker on the declaration (D-211). False when absent or
+   * unreadable; an unreadable marker carries a `schema-marker` unknown entry, never a guess. */
+  readonly systemOnly: boolean;
   readonly scope: ScopeFact | null;
   readonly source: SourceRef;
   readonly unknown: readonly UnknownFact[];

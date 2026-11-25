@@ -178,6 +178,7 @@ function buildLinkDraft(input: {
     unsupported: [],
     policies: linkPolicies(source),
     rlsEnabled: true,
+    systemOnly: false,
     scope: { column: "tenantId", kind: "tenant" },
     source,
     unknown: unknowns,

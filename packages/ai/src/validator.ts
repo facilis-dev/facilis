@@ -1,10 +1,10 @@
 /**
- * The SPEC §9.3 patch validator: 19 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 20 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
- * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 are
- * warnings (they never block); the others are errors and make `ok` false, which is what stops
- * the IDE's apply path before it writes anything (invariant 9).
+ * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;
+ * rules 18-20 warn alongside their errors; every other finding is an error and makes `ok`
+ * false, which is what stops the IDE's apply path before it writes anything (invariant 9).
  *
  * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
  * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
@@ -18,6 +18,7 @@ import {
   destructiveErrors,
   migrationErrors,
   rlsErrors,
+  tableClassFindings,
 } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
@@ -66,6 +67,10 @@ export function validatePatch(
     errors.push(...routeInputErrors(state));
     errors.push(...rawDbAccessErrors(state));
     errors.push(...rlsErrors(state));
+    // D-211 rule 20: every project table declares its access class (invariant 4).
+    const tableClass = tableClassFindings(state);
+    errors.push(...tableClass.errors);
+    warnings.push(...tableClass.warnings);
     errors.push(...importResolveErrors(state, context));
     warnings.push(...i18nWarnings(state));
     errors.push(...migrationErrors(patches));

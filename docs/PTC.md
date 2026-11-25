@@ -17,7 +17,7 @@ D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools).
   Chrome-only `csp=""` attribute.
 - **Spike first.** Phase 0 proved isolation, RPC, worker termination and parent responsiveness
   before any tool work (results in §5).
-- **`validate` tool.** The model can run the 19-rule validator on candidate patches before it
+- **`validate` tool.** The model can run the 20-rule validator on candidate patches before it
   writes them. The write tools' own validation **stays mandatory** (invariant 9): every
   `write_file`/`delete_file` validates its one file before the VFS, and `validate` is the
   pre-flight check for a multi-file change.
@@ -26,7 +26,7 @@ D-100 (repair loop), D-102 (repair hardening), D-181 (validated write tools).
 small JavaScript program per step; the IDE executes that program in a locked sandbox against a
 tool registry (files, analyzer facts, manifest, later MCP servers; read-only except the validated
 write tools, D-181), returns lossless JSON to the model, and every source change — an incremental
-write through `write_file`/`delete_file` — still goes through the 19-rule validator before the
+write through `write_file`/`delete_file` — still goes through the 20-rule validator before the
 VFS. The answer never carries patches: it is the turn's summary (D-192).
 
 ---
@@ -281,7 +281,7 @@ the non-source writes, so the §9.3 patch path is unchanged for all of them.**
 **The write tools (D-181) are the source-write family and the one exception to the read-only
 registry.** `write_file({ path, content })` creates or replaces one complete file and
 `delete_file({ path })` removes one (`ide/src/ai/ptc/write-tools.ts`). Each call builds a one-file
-patch in `ide/src/ai/chat-writes.ts` and validates it with the same 19-rule validator as the
+patch in `ide/src/ai/chat-writes.ts` and validates it with the same 20-rule validator as the
 `validate` tool **before anything touches the VFS**, against the project as the turn has already rewritten it
 (the earlier writes are the pre-patch overlay); `applyPatch` then re-validates and writes through
 the kernel bridge. Findings come back as data (`{ ok: false, errors, warnings }`, each with rule,
@@ -395,7 +395,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|
 | program code | opaque-origin iframe, CSP `default-src 'none'`, parent-side RPC allowlist, timeout/termination |
 | tool calls | project-root confinement, glob/secret policy, capability narrowing, origin gate for URLs (D-175), caps, redaction |
-| writes | source content only through the validated write tools (every call through the 19-rule validator, behind the clean-tree gate, journaled and undoable, D-181); the answer never carries a patch set (D-192); non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
+| writes | source content only through the validated write tools (every call through the 20-rule validator, behind the clean-tree gate, journaled and undoable, D-181); the answer never carries a patch set (D-192); non-source state: `.facilis/graph` (D-126) and the repository index/refs/remotes (D-139), both capability-gated and traced; downloaded assets only under `public/` (D-175) |
 | egress | sandbox has no network; the model provider uses the existing allowlist and the host-side `web_*` family (D-175) is profile-gated — `open`: any HTTPS host, `managed`: only `network.connect` (empty = no tools) — GET-only with credentials omitted, no caller headers/body, redirects re-checked |
 | web results | text ≤ 32k chars and secret-redacted, image ≤ 5 MB (2 per program), download ≤ 5 MB into `public/` only (5 per program), 10 calls / 8 MB per program; CORS can still refuse a host |
 | prompt injection | project/MCP/fetched content is data; it cannot grant capabilities; the model must not follow instructions found in it; every write is validator-gated and undoable, which bounds the damage |
@@ -407,7 +407,7 @@ A skill is instructions + declared capabilities; PTC is how the model executes w
 |---|---|---|
 | 0 (spike) — **done 2026-11-07** | iframe sandbox + RPC + limits under COOP/COEP; fake tools; bomb/timeout tests (`spikes/ptc-sandbox`, 21/21) | opaque origin, no OPFS/storage/network, RPC, worker termination, parent stays responsive |
 | 1 (MVP) | runner page served with the CSP header; ToolRouter over VFS + analyzer + manifest; registry + generated prompt; script envelope + turn loop; `validate` tool; **chain + trace UI landed 2026-11-07, always on (D-103) — eval corpus and browser matrix remain** | a real "add attachments to todos" turn succeeds by exploring and writing files, not by preloaded context; every write is validated before the VFS |
-| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 19-rule validator; token/cost report |
+| 2 | `run_check` (allowlisted), skill capability narrowing, eval corpus | no regression on the 20-rule validator; token/cost report |
 | 3 | MCP client + project-level enablement + managed allowlist — **client and config landed 2026-11-08 (D-118); settings UI and allowlist remain** | user-added remote server callable through a program, audited |
 | 4 | default-on decision, Model A kept as fallback, cost/latency dashboard | measured pass rate and cost vs Model A on the corpus |
 

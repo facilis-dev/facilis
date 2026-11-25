@@ -1,11 +1,20 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.39 (documentation-site template kind, D-168; issue #163)
+**Version:** 1.40 (table-class-declared rule, D-211; issue #169)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.40 — Every project table declares its access class (D-211, issue #169). Invariant 4
+  (D-136) is now statically enforced beyond rule 10's scoped tables: a project `pgTable`
+  needs `.enableRLS()` plus a policy set, or an explicit `// system-only` comment on the
+  line above its declaration. The analyzer reads the marker from parser comments
+  (`TableFact.systemOnly`) and reports `table-class-declared` (error) /
+  `table-rls-no-policies` (warning); an unreadable marker warns, never guesses an error.
+  `schema-gate.test.ts` gates the examples (D-154 pattern) and the AI validator gains rule 20
+  `table-class-declared`. Framework re-exports stay exempt; `ensureAppRole` and the runtime
+  grant boundary are unchanged. §8.4.6/§8.6/§9.3 follow.
 - v1.39 — The template registry gains the documentation-site kind (`examples/docs-app`,
   manifest id `facilis-docs`; D-168, issue #163): a static Vite + React + Tailwind site whose
   pages are Markdown/MDX files under `src/content/docs/`, with a content-tree sidebar,
@@ -169,7 +178,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 19 rules before it touches the VFS |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 20 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -328,7 +337,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── validator.ts          19-rule patch validator (D-101/D-103)
+│   │   │   ├── validator.ts          20-rule patch validator (D-101/D-103)
 │   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -786,7 +795,7 @@ Exports:
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
 - `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
-  19-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  20-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
   (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
   only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -2524,6 +2533,17 @@ account (D-142). `roles` and
 `role_permissions` are system-only: the release artifact's seed writes them, and permissions reach the app
 from `facilis.config.ts` through `expandRoles`, never from the table.
 
+**Explicit class declaration (D-211).** A project table declares its class in `db/**`:
+RLS-scoped is `.enableRLS()` plus a policy set; system-only is a `// system-only` comment
+(optionally `: reason`) on the line immediately above the declaration. The marker is a static
+declaration of intent, never a grant: `ensureAppRole` still classifies by the catalog alone,
+so a marked table stays unreachable from `ctx.db`. The analyzer reports `table-class-declared`
+(error) on a project table with neither class and `table-rls-no-policies` (warning) on RLS with
+zero policies; an unreadable marker (a parser that exposes no comments) downgrades the finding
+to a warning. Framework re-exports are exempt — they ship their own class.
+`schema-gate.test.ts` gates the examples (D-154 pattern) and validator rule 20
+`table-class-declared` covers patches (§9.3).
+
 **Graph, analyzer and drift.** The project graph labels a table without RLS **system-only**, in a
 neutral colour — it is a class, not a warning — and the Data Explorer's live badge uses the same
 label. It does not announce RLS on app-scoped tables — RLS is the default class — so only the
@@ -2571,7 +2591,7 @@ write path; an application route must not add another one (D-141).
   with `retry-after` before touching the database. The window is in-process, so it resets on
   restart and is not shared across instances; revocation stays per client (the client and every
   token it issued), never per single token.
-- AI patches are **validated** before write (19 rules, §9.3)
+- AI patches are **validated** before write (20 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2730,7 +2750,7 @@ Rules the AI must obey:
 16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same change; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 17. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186): a short create form is a page-header button → dialog → save (a long or multi-step form keeps its own page); an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
-### 9.3 Patch Validator (19 Rules)
+### 9.3 Patch Validator (20 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2753,6 +2773,7 @@ Rules the AI must obey:
 | 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
 | 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
+| 20 | `table-class-declared` | error | Every project table in the resulting `db/schema.ts` declares its access class (invariant 4, D-136): `.enableRLS()` + a policy, or an explicit `// system-only` comment on the line above the declaration. RLS with zero policies and an unreadable marker are warnings; framework re-exports are exempt (D-211) |
 
 Two structural checks run on every patch, with or without a context and before the numbered
 rules: a create/update patch must carry content (`content-present`), and a `.json` file it
@@ -2761,7 +2782,7 @@ reads only `locales/en.json` and only warns, while every catalogue is imported b
 a broken `locales/it.json` otherwise surfaces later as Vite's native JSON parser failing on a
 module whose path its error does not name (D-190).
 
-**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
+**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rule 20 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
 the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
@@ -2924,7 +2945,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 19-rule validator is applied at the `validate` self-check and at every write
+D-101/D-103); the 20-rule validator is applied at the `validate` self-check and at every write
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,

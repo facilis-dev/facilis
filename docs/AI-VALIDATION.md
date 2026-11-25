@@ -2,7 +2,7 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (19 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (20 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
@@ -57,6 +57,7 @@ a table without row-level security, or a file outside the places it is allowed t
 | 17 | `route-description` | routes with no (or stale) description | warning |
 | 18 | `route-table-declared` | routes using tables they didn't declare | error |
 | 19 | `job-table-declared` | jobs using tables they didn't declare | error |
+| 20 | `table-class-declared` | tables with no declared access class | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -244,6 +245,20 @@ tenant/owner column (`tenantId`, `ownerId`, …). Framework tables re-exported f
 - ❌ The same table without `.enableRLS()`, or with `() => []` (no policy). Dropping an
   existing policy fails too — the check audits all scoped tables, not just the new ones.
 
+### Rule 20 `table-class-declared` — every table declares its class
+
+When a patch touches `db/schema.ts`, **every** project table in the resulting schema must
+declare its access class (D-136/D-211): `.enableRLS()` **and** a policy, or an explicit
+`// system-only` comment on the line immediately above the declaration. Rule 10 only sees
+tenant/owner-scoped tables; this rule also catches the plain table that would silently get no
+app-role privilege and fail closed at runtime. Framework tables re-exported from
+`@facilis.dev/auth` / `@facilis.dev/db` ship their own class and are ignored.
+
+- ✅ `pgTable("todos", { ..., tenantId: tenantColumn() }, () => [tenantIsolationPolicy()]).enableRLS()`
+- ✅ `// system-only: audit trail` on the line above `export const audit = pgTable("audit", ...)`
+- ❌ A bare `pgTable(...)` with neither — error. `.enableRLS()` with `() => []` (no policy) is a
+  warning: RLS is on but the app role reaches no row. A marker the parser cannot read warns too.
+
 ### Rule 14 `migration-generated` — nobody hand-writes SQL migrations
 
 DDL is generated from `db/schema.ts` at release time (D-158). Any create/update under
@@ -342,7 +357,7 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 19-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 20-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
   D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint).

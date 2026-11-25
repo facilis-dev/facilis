@@ -137,6 +137,7 @@ export function facilisFilesDraft(source: SourceRef): TableDraft {
       unsupported: [],
       policies: [],
       rlsEnabled: false,
+      systemOnly: false,
       scope: null,
       source,
       unknown: [],
