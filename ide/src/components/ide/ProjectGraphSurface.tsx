@@ -14,6 +14,7 @@ import type { GraphSearchResult } from "@/facilis/graph-view-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
 import type { GraphLensHighlight } from "@/facilis/graph-surface/lenses.ts";
 import { focusHops, focusNeighborhood } from "@/facilis/graph-surface/focus.ts";
+import { writeSurfaceHud } from "@/facilis/graph-surface/hud.ts";
 import { startDirtyFrameLoop } from "@/facilis/graph-surface/frame-loop.ts";
 import { zoomCamera } from "@/facilis/graph-surface/camera.ts";
 import { resolveSurfacePalette } from "@/facilis/graph-surface/palette.ts";
@@ -128,6 +129,7 @@ export function ProjectGraphSurface({
           : focusNeighborhood(detail.neighbors, selected.id, focusHops(selected.kind)),
       lens,
     };
+    writeSurfaceHud(wrapRef.current, scene, cameraRef.current, selectedNodeId);
     dirtyRef.current = true;
   }, [selectedNodeId, search, scene, lens]);
   useEffect(() => {
@@ -213,6 +215,7 @@ export function ProjectGraphSurface({
           resolveSurfacePalette(canvas),
           uiRef.current,
         );
+        writeSurfaceHud(wrap, current, cameraRef.current, uiRef.current.selectedId);
         positionRichCard();
       },
       requestFrame: (callback) => requestAnimationFrame(callback),
@@ -260,7 +263,7 @@ export function ProjectGraphSurface({
   return (
     <div
       ref={wrapRef}
-      className="relative h-full w-full overflow-hidden bg-editor"
+      className="relative h-full min-h-40 w-full overflow-hidden bg-editor"
       data-testid="project-graph-canvas"
     >
       <canvas

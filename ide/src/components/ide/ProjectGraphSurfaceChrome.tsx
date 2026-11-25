@@ -31,6 +31,7 @@ export function ProjectGraphSurfaceChrome({
           <>
             <button
               type="button"
+              data-testid="project-graph-overview"
               className="shrink-0 rounded border border-border bg-panel px-2 py-1 text-muted-foreground hover:text-foreground"
               onClick={onBack}
             >
@@ -42,7 +43,10 @@ export function ProjectGraphSurfaceChrome({
             </span>
           </>
         ) : (
-          <span className="shrink-0 rounded border border-border bg-panel px-2 py-1 text-muted-foreground">
+          <span
+            data-testid="project-graph-overview"
+            className="shrink-0 rounded border border-border bg-panel px-2 py-1 text-muted-foreground"
+          >
             {t("projectGraph.surface.overview")}
           </span>
         )}

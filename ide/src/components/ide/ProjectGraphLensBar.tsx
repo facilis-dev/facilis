@@ -3,7 +3,7 @@
 // zero-match state. It overlays the canvas, so toggling a lens never resizes the surface or
 // re-runs layout. Every string is a t() key; every colour is a semantic theme token.
 
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import { useNarrowViewport } from "./use-narrow-viewport";
 import {
   DIAGNOSTIC_MESSAGE_KEYS,
@@ -13,6 +13,14 @@ import {
   type GraphLensId,
   type GraphLensSummary,
 } from "@/facilis/graph-surface/lenses.ts";
+
+/** The visible code on a narrow bar: the four answers still fit in one row. */
+const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
+  security: "projectGraph.surface.lens.security.short",
+  elevated: "projectGraph.surface.lens.elevated.short",
+  shared: "projectGraph.surface.lens.shared.short",
+  unknown: "projectGraph.surface.lens.unknown.short",
+};
 
 function LensSwitcher({
   lens,
@@ -25,8 +33,11 @@ function LensSwitcher({
     <div
       role="group"
       aria-label={t("projectGraph.surface.lens.title")}
-      className="pointer-events-auto flex flex-wrap gap-1 rounded-lg border bg-panel/95 p-1 shadow"
+      className="pointer-events-auto flex flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border bg-panel/95 p-1 shadow"
     >
+      <span className="shrink-0 px-1 text-[9px] uppercase tracking-wide text-muted-foreground">
+        {t("projectGraph.surface.lens.title")}
+      </span>
       {GRAPH_LENSES.map((definition) => {
         const active = definition.id === lens;
         return (
@@ -34,16 +45,19 @@ function LensSwitcher({
             key={definition.id}
             type="button"
             aria-pressed={active}
+            aria-label={t(definition.titleKey)}
+            title={t(definition.titleKey)}
             data-testid={"project-graph-lens-" + definition.id}
             onClick={() => onSelectLens(definition.id)}
             className={
-              "rounded px-2 py-1 text-[11px] " +
+              "shrink-0 rounded px-2 py-1 text-[11px] " +
               (active
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-accent/10 hover:text-foreground")
             }
           >
-            {t(definition.titleKey)}
+            <span className="hidden @sm:inline">{t(definition.titleKey)}</span>
+            <span className="@sm:hidden">{t(SHORT_KEYS[definition.id])}</span>
           </button>
         );
       })}
@@ -115,7 +129,7 @@ export function ProjectGraphLensBar({
     <div
       data-testid="project-graph-lens-bar"
       className={
-        "pointer-events-none absolute left-2 top-12 z-10 flex w-72 max-w-[calc(100%-1rem)] flex-col items-start gap-1 " +
+        "@container pointer-events-none absolute left-2 top-12 z-10 flex w-[calc(100%-1rem)] max-w-md flex-col items-start gap-1 " +
         (sheetOpen ? "max-h-[calc(40%-4rem)] overflow-y-auto" : "max-h-[calc(100%-4rem)]")
       }
     >

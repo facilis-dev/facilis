@@ -25,6 +25,8 @@ export const projectGraphEn = {
   "projectGraph.saveFailed": "Could not save the layout: {error}",
   "projectGraph.search": "Search nodes…",
   "projectGraph.filters": "Edges",
+  "projectGraph.filters.button": "Filters",
+  "projectGraph.filters.reset": "Reset filters",
   "projectGraph.edge.fk": "Foreign key",
   "projectGraph.edge.relation": "Relation",
   "projectGraph.edge.routeTable": "Route → table",
@@ -211,15 +213,19 @@ export const projectGraphEn = {
   // ── in-place lenses and analyzer diagnostics (D-212, issue #189) ────────────
   "projectGraph.surface.lens.title": "Q&A lenses",
   "projectGraph.surface.lens.security": "Q5 · Security",
+  "projectGraph.surface.lens.security.short": "Q5",
   "projectGraph.surface.lens.security.description":
     "Public routes that write or expose /admin, and project-owned tables without RLS.",
   "projectGraph.surface.lens.elevated": "Q4 · Elevated (sudo / system)",
+  "projectGraph.surface.lens.elevated.short": "Q4",
   "projectGraph.surface.lens.elevated.description":
     "Routes that touch data through audited sudo/system elevation, bypassing the caller's RLS.",
   "projectGraph.surface.lens.shared": "Q9 · Shared across groups",
+  "projectGraph.surface.lens.shared.short": "Q9",
   "projectGraph.surface.lens.shared.description":
     "Nodes referenced by two or more other domains: a change here ripples across groups.",
   "projectGraph.surface.lens.unknown": "Q17 · Unknown",
+  "projectGraph.surface.lens.unknown.short": "Q17",
   "projectGraph.surface.lens.unknown.description":
     "Declarations the analyzer could not read statically, so their facts may be incomplete.",
   "projectGraph.surface.lens.flags": "{count} flagged",

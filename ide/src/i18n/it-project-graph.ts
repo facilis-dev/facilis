@@ -26,6 +26,8 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.saveFailed": "Impossibile salvare il layout: {error}",
   "projectGraph.search": "Cerca nodi…",
   "projectGraph.filters": "Archi",
+  "projectGraph.filters.button": "Filtri",
+  "projectGraph.filters.reset": "Reimposta i filtri",
   "projectGraph.edge.fk": "Chiave esterna",
   "projectGraph.edge.relation": "Relazione",
   "projectGraph.edge.routeTable": "Route → tabella",
@@ -215,15 +217,19 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   // ── lenti in-place e diagnostiche dell'analizzatore (D-212, issue #189) ─────
   "projectGraph.surface.lens.title": "Lenti Q&A",
   "projectGraph.surface.lens.security": "Q5 · Sicurezza",
+  "projectGraph.surface.lens.security.short": "Q5",
   "projectGraph.surface.lens.security.description":
     "Rotte pubbliche che scrivono o espongono /admin, e tabelle di progetto senza RLS.",
   "projectGraph.surface.lens.elevated": "Q4 · Elevated (sudo / system)",
+  "projectGraph.surface.lens.elevated.short": "Q4",
   "projectGraph.surface.lens.elevated.description":
     "Rotte che toccano i dati con elevazione sudo/system auditata, aggirando la RLS del chiamante.",
   "projectGraph.surface.lens.shared": "Q9 · Condivisi tra gruppi",
+  "projectGraph.surface.lens.shared.short": "Q9",
   "projectGraph.surface.lens.shared.description":
     "Nodi referenziati da due o più altri domini: una modifica qui si propaga tra i gruppi.",
   "projectGraph.surface.lens.unknown": "Q17 · Unknown",
+  "projectGraph.surface.lens.unknown.short": "Q17",
   "projectGraph.surface.lens.unknown.description":
     "Dichiarazioni che l'analizzatore non ha letto staticamente: i fatti possono essere incompleti.",
   "projectGraph.surface.lens.flags": "{count} segnalati",
