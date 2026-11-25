@@ -28,11 +28,13 @@ import { buildRouteRelationFacts } from "./passes/route-relations.ts";
 import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
+import { reservedRoutePrefixDiagnostics } from "./passes/route-reserved-prefix.ts";
 import { rawSqlSystemWriteDiagnostics } from "./passes/raw-sql-system-write.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import type { Parser } from "./parser.ts";
 import { isRawDbImport } from "./raw-db-imports.ts";
+import { isReservedRouteFile } from "./reserved-route-paths.ts";
 import type { Diagnostic } from "./types.ts";
 
 /** Directories the analyzer lists as routes; keep in sync with passes/routes.ts. */
@@ -102,10 +104,19 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
   const unused: string[] = [];
   const getWarnings: string[] = [];
   let routeFiles = 0;
+  // D-215: the framework owns the route directory itself (invariant 6), so the file
+  // location fails before the route fact is even considered.
   for (const [path, file] of graph.files) {
     if (!ROUTE_DIRS.some((routeDir) => path.startsWith(routeDir))) continue;
     routeFiles += 1;
     const where = label + "/" + path;
+    if (isReservedRouteFile(path)) {
+      violations.push(
+        where +
+          ": reserved-route-prefix: the route file lives under a framework-owned route directory",
+      );
+      continue;
+    }
     // Invariant 5 parity with AI rule 9: a handwritten route may not build a raw client.
     for (const imported of file.module.imports) {
       if (!isRawDbImport(imported.specifier)) continue;
@@ -153,6 +164,13 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
       continue;
     }
     if (!RELATION_ERROR_CODES.has(diagnostic.code)) continue;
+    violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
+  }
+  // D-215: a project route may not shadow a framework-owned path (invariant 6).
+  for (const diagnostic of reservedRoutePrefixDiagnostics(routeFacts.routes)) {
+    const file = diagnostic.source?.file ?? "unknown";
+    // A file under the framework route directory already failed the location check above.
+    if (isReservedRouteFile(file)) continue;
     violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
   }
   // D-214: a literal raw-SQL write to a seed-only auth table is a violation (invariant 8).
@@ -345,7 +363,11 @@ describe("SEC-12 route gate", () => {
       expect(report).toContain("get-helper.get.ts: route-get-side-effect");
       expect(report).toContain("get-enqueue.get.ts: route-get-side-effect");
       expect(report).not.toContain("get-read.get.ts");
-      expect(report).not.toContain("api/auth/sso");
+      // D-215 makes an app route under /api/auth/sso an error; D-212 still exempts the pair
+      // from the GET side-effect rule, so the only SSO findings are reserved-route-prefix.
+      const ssoFindings = scan.violations.filter((entry) => entry.includes("api/auth/sso"));
+      expect(ssoFindings.length).toBeGreaterThan(0);
+      expect(ssoFindings.every((entry) => entry.includes("reserved-route-prefix"))).toBe(true);
       expect(report).not.toContain("get-opaque.get.ts");
       // The opaque body is a warning, never a guessed error.
       expect(scan.getWarnings.join("\n")).toContain("get-opaque.get.ts: route-get-side-effect");
@@ -468,5 +490,60 @@ describe("SEC-12 route gate", () => {
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }
+  });
+
+  it("flags project routes under a framework-owned path (D-215)", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "facilis-reserved-route-gate-"));
+    const readRoute = (): string =>
+      CORE +
+      "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n";
+    try {
+      writeSource(fixture, "server/routes/__facilis/x.get.ts", readRoute());
+      writeSource(fixture, "server/routes/_openapi.json.get.ts", readRoute());
+      writeSource(fixture, "server/routes/api/auth/token.post.ts", readRoute());
+      writeSource(fixture, "server/routes/api/auth/sso/callback.get.ts", readRoute());
+      writeSource(fixture, "server/routes/api/auth/login.post.ts", readRoute());
+      writeSource(fixture, "server/routes/api/files/[id].get.ts", readRoute());
+      writeSource(fixture, "server/routes/api/jobs/index.post.ts", readRoute());
+      writeSource(fixture, "server/routes/health.get.ts", readRoute());
+      writeSource(fixture, "server/routes/__facilisx.get.ts", readRoute());
+      writeSource(fixture, "server/routes/_openapi.get.ts", readRoute());
+      // Framework route layout: packages/nitro's own route files are not project routes.
+      writeSource(
+        fixture,
+        "packages/nitro/src/routes/manifest.get.ts",
+        "export default () => null;\n",
+      );
+      const scan = scanApp(fixture, "fixture", createOxcParser());
+      const report = scan.violations.join("\n");
+      expect(scan.routeFiles).toBe(10);
+      expect(report).toContain("__facilis/x.get.ts: reserved-route-prefix");
+      expect(report).toContain("_openapi.json.get.ts: reserved-route-prefix");
+      expect(report).toContain("api/auth/token.post.ts: reserved-route-prefix");
+      expect(report).toContain("api/auth/sso/callback.get.ts: reserved-route-prefix");
+      expect(report).not.toContain("api/auth/login.post.ts");
+      expect(report).not.toContain("api/files/[id].get.ts");
+      expect(report).not.toContain("api/jobs/index.post.ts");
+      expect(report).not.toContain("/health.get.ts:");
+      expect(report).not.toContain("__facilisx");
+      expect(report).not.toContain("/_openapi.get.ts:");
+      expect(report).not.toContain("packages/nitro/src/routes/manifest.get.ts");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("passes the shipped examples' routes under /api/auth, /api/files and /api/jobs (D-215)", () => {
+    const apps = ["examples", "starter"].flatMap((group) => appsWithRoutes(join(REPO_ROOT, group)));
+    expect(apps.length, "no app with server routes under examples/ or starter/").toBeGreaterThan(0);
+    const parser = createOxcParser();
+    const reserved = apps.flatMap((app) =>
+      scanApp(app, relative(REPO_ROOT, app), parser).violations.filter((entry) =>
+        entry.includes("reserved-route-prefix"),
+      ),
+    );
+    expect(reserved, "framework paths shadowed by shipped apps:\n" + reserved.join("\n")).toEqual(
+      [],
+    );
   });
 });

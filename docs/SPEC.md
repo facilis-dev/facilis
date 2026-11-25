@@ -1,11 +1,21 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.42 (raw-SQL system-table write, D-214; issue #172)
+**Version:** 1.43 (reserved-route-prefix rule, D-215; issue #173)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.43 — A project route may not shadow a framework-owned path (D-215, issue #173). The
+  analyzer derives each route's path from the Nitro file-router facts and reports
+  `reserved-route-prefix` for a route under `/__facilis/**` (manifest, health, dev consoles,
+  telemetry), the OpenAPI documents, the SSO namespace (`/api/auth/sso/**`) or the token
+  endpoint (`/api/auth/token`); a route file under `server/{routes,api}/__facilis/**` fails on
+  its location too. The pinned list is derived from `@facilis.dev/nitro`'s route constants and
+  drift-guarded by a test; `/api/files/**` and `/api/jobs/**` stay the app's own trees because
+  the framework registers no handler there, so the shipped apps are untouched. The AI validator
+  gains rule 23 `reserved-route-prefix`, and `routes-gate.test.ts` adds failing/passing
+  fixtures plus the shipped-example assertion. §8.6/§9.3 follow.
 - v1.42 — Literal raw-SQL writes to seed-only auth tables are flagged (D-214, issue #172). The
   analyzer records the literal SQL of `db.execute` (string/template, including inside
   `ctx.sudo`/`ctx.system`) and reports `raw-sql-system-write` when an INSERT/UPDATE/DELETE/DDL
@@ -193,7 +203,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 22 rules before it touches the VFS |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 23 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -352,7 +362,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── validator.ts          22-rule patch validator (D-101/D-103)
+│   │   │   ├── validator.ts          23-rule patch validator (D-101/D-103)
 │   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -810,7 +820,7 @@ Exports:
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
 - `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
-  22-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  23-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
   (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
   only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -2623,7 +2633,16 @@ the email-verification link GET (D-156) and the framework read-only blueprint GE
   `raw-sql-system-write`; AI validator rule 22 `raw-sql-system-table-write` blocks the same
   write for AI patches. Dynamic/interpolated SQL is skipped (the runtime audit remains the
   authority), SELECT via `sudo` is legitimate, and framework seed code is exempt.
-- AI patches are **validated** before write (22 rules, §9.3)
+- A project route never shadows a framework-owned path (D-215): the framework registers the
+  control plane (`/__facilis/**`), the OpenAPI documents, the SSO namespace
+  (`/api/auth/sso/**`) and the token endpoint (`/api/auth/token`) itself in dev and
+  production. The analyzer diagnostic `reserved-route-prefix` and AI validator rule 23 flag a
+  project route on one of those paths, and a route file under
+  `server/{routes,api}/__facilis/**` fails on its location. The reserved list is pinned from
+  `@facilis.dev/nitro`'s route constants and drift-guarded by a test; `/api/files/**` and
+  `/api/jobs/**` stay app routes because the framework registers no handler there. Routing
+  remains the authority; this is an additive early warning.
+- AI patches are **validated** before write (23 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2782,7 +2801,7 @@ Rules the AI must obey:
 16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same change; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 17. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186): a short create form is a page-header button → dialog → save (a long or multi-step form keeps its own page); an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
-### 9.3 Patch Validator (22 Rules)
+### 9.3 Patch Validator (23 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2808,6 +2827,7 @@ Rules the AI must obey:
 | 20 | `table-class-declared` | error | Every project table in the resulting `db/schema.ts` declares its access class (invariant 4, D-136): `.enableRLS()` + a policy, or an explicit `// system-only` comment on the line above the declaration. RLS with zero policies and an unreadable marker are warnings; framework re-exports are exempt (D-211) |
 | 21 | `get-side-effect-free` | error | A GET (or method-less ALL) route is side-effect free (§8.6): no insert/update/delete/execute on `ctx.db`/`ctx.sudo`/`ctx.system` and no job-queue mutation, following project-local helper calls. A proven write is an error; an opaque/uninspectable handler body is a warning, never a guessed error; pinned exemptions: the SSO GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework read-only blueprint GETs. Covers all effective GET-like routes (D-212) |
 | 22 | `raw-sql-system-table-write` | error | Literal raw SQL passed to `db.execute` on `ctx.db`/`ctx.sudo`/`ctx.system` does not write a seed-only auth table: `role_permissions`, `roles`, `user_roles`, `sessions` are written only by the release seed and the framework auth paths (invariant 8, D-158/D-204). Conservative verb+table matching (insert/update/delete/DDL); dynamic/interpolated SQL is skipped and SELECT via `sudo` is legitimate; framework seed code is exempt. Covers all effective routes and jobs, not only patched ones (D-214) |
+| 23 | `reserved-route-prefix` | error | A project route does not shadow a framework-owned path (invariant 6, D-107/D-116/D-120): `/__facilis/**` (manifest, health, dev consoles, telemetry), `/_openapi.json`, `/_facilis/openapi.json`, `/api/auth/sso/**` and `/api/auth/token`. A route file under `server/{routes,api}/__facilis/**` fails on its location; the pinned list is derived from `@facilis.dev/nitro`'s route constants and drift-guarded, while `/api/files/**` and `/api/jobs/**` are the app's own trees (D-215) |
 
 Two structural checks run on every patch, with or without a context and before the numbered
 rules: a create/update patch must carry content (`content-present`), and a `.json` file it
@@ -2816,7 +2836,7 @@ reads only `locales/en.json` and only warns, while every catalogue is imported b
 a broken `locales/it.json` otherwise surfaces later as Vite's native JSON parser failing on a
 module whose path its error does not name (D-190).
 
-**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rules 20/21 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
+**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rules 20-23 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
 allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
 the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
@@ -2979,7 +2999,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 22-rule validator is applied at the `validate` self-check and at every write
+D-101/D-103); the 23-rule validator is applied at the `validate` self-check and at every write
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,

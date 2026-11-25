@@ -2,14 +2,14 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (22 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (23 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
 
 The AI never writes to your project directly. Every file it wants to create or change is a
 **patch** (a path plus the full new content), and every patch goes through a **validator**
-first: 19 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
+first: 23 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
 is written* — the findings go back to the model, which fixes them in the same turn.
 **Warnings** never block a write; they are reported so you (or the model) can clean them up.
 The goal is simple: the AI can move fast, but it cannot ship a route without authorization,
@@ -60,6 +60,7 @@ a table without row-level security, or a file outside the places it is allowed t
 | 20 | `table-class-declared` | tables with no declared access class | error |
 | 21 | `get-side-effect-free` | state-changing GET routes (CSRF via top-level navigation) | error |
 | 22 | `raw-sql-system-table-write` | raw SQL writing a seed-only auth table | error |
+| 23 | `reserved-route-prefix` | app routes shadowing a framework-owned path | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -245,6 +246,24 @@ runtime audit remains the authority (D-214).
 - ⚠️ Not a finding: dynamic SQL (`db.execute(statement)`, interpolated templates) and writes to
   an ordinary project table.
 
+### Rule 23 `reserved-route-prefix` — app routes never shadow a framework path
+
+The framework registers its own handlers for the control plane (`/__facilis/**`: manifest,
+health, the dev consoles and telemetry), the OpenAPI documents (`/_openapi.json`,
+`/_facilis/openapi.json`), the SSO namespace (`/api/auth/sso/**`) and the token endpoint
+(`/api/auth/token`) in dev and production. An app route on one of those paths would shadow,
+or be shadowed by, framework code (invariant 6, D-107/D-116/D-120). A route file under
+`server/{routes,api}/__facilis/**` is rejected on its location too. `/api/files/**` and
+`/api/jobs/**` are **not** reserved: the framework registers no handler there and the shipped
+examples own them (D-215).
+
+- ✅ `server/routes/api/auth/login.post.ts`, `server/routes/api/files/[id].get.ts`,
+  `server/routes/api/jobs/index.post.ts`, `server/routes/health.get.ts`.
+- ❌ `server/routes/__facilis/x.get.ts` — the file lives under the framework route directory.
+- ❌ `server/routes/api/auth/token.post.ts`, `server/routes/api/auth/sso/callback.get.ts` —
+  shadowed framework paths.
+- ⚠️ Not a finding: a lookalike segment (`server/routes/__facilisx.get.ts`).
+
 ### Rule 17 `route-description` (warning) — every route explains itself
 
 Each patched route needs a one-sentence English `description` (≤ 120 characters), and it
@@ -392,8 +411,9 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 22-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 23-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
-  D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint).
+  D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint),
+  D-215 (framework-owned route paths).
 - `packages/ai/src/validator.ts` and `packages/ai/src/rules/` — the implementation.

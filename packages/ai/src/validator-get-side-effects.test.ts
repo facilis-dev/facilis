@@ -68,7 +68,10 @@ describe("rule 21 get-side-effect-free (SPEC §8.6, D-212)", () => {
       create("server/routes/api/auth/sso/[provider]/callback.get.ts", write),
     ]);
     expect(rulesOf(result.errors)).not.toContain(RULE);
-    expect(result.ok).toBe(true);
+    // D-215 makes an app route under /api/auth/sso an error; D-212 still exempts the pair from
+    // the GET side-effect rule, so reserved-route-prefix is the only finding.
+    expect(result.ok).toBe(false);
+    expect(result.errors.every((entry) => entry.rule === "reserved-route-prefix")).toBe(true);
   });
 
   it("warns, without blocking, when a package helper receives the client (opaque body)", () => {

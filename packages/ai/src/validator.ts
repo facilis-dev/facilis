@@ -1,9 +1,9 @@
 /**
- * The SPEC §9.3 patch validator: 22 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 23 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
  * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;
- * rules 18-21 warn alongside their errors; rule 22 and every other finding is an error that
+ * rules 18-21 warn alongside their errors; rules 22/23 and every other finding is an error that
  * makes `ok` false, which is what stops the IDE's apply path before it writes anything
  * (invariant 9).
  *
@@ -27,6 +27,7 @@ import { getSideEffectFreeFindings } from "./rules/get-side-effects.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
 import { jsonParseErrors } from "./rules/json-parse.ts";
 import { rawSqlSystemTableWriteErrors } from "./rules/raw-sql-system-tables.ts";
+import { reservedRoutePrefixErrors } from "./rules/reserved-route-prefix.ts";
 import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
 import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
@@ -92,6 +93,8 @@ export function validatePatch(
     const getEffects = getSideEffectFreeFindings(state);
     errors.push(...getEffects.errors);
     warnings.push(...getEffects.warnings);
+    // D-215 rule 23: a project route never shadows a framework-owned path (invariant 6).
+    errors.push(...reservedRoutePrefixErrors(state));
     // D-214 rule 22: literal raw SQL never writes a seed-only auth table (invariant 8).
     errors.push(...rawSqlSystemTableWriteErrors(state));
   }

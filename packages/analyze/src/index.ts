@@ -17,6 +17,14 @@ export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender
 export { routeFactId } from "./passes/route-location.ts";
 // The fixed service -> table surface (D-199), shared with AI validator rule 18.
 export { SERVICE_TABLES } from "./passes/route-services.ts";
+// The framework-owned route paths (invariant 6, D-215), shared with AI validator rule 23.
+export {
+  isReservedRouteFile,
+  RESERVED_ROUTE_DIRS,
+  RESERVED_ROUTE_PATHS,
+  reservedRoutePathOf,
+  type ReservedRoutePath,
+} from "./reserved-route-paths.ts";
 // The GET side-effect contract (D-212), shared with AI validator rule 21.
 export {
   FRAMEWORK_GET_READ_EXEMPTIONS,

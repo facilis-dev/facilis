@@ -499,7 +499,7 @@ A managed deployment defaults to `admission: "facilis-only"`:
 | AI egress | presets plus a custom base URL (`ide/src/ai/providers.ts`, `ide/src/ai/settings.ts`) | allowlisted providers/gateway only, custom base URL rejected; their hosts join `connect-src` | L2 |
 | AI web reads | host-side `web_*` tools (`ide/src/ai/ptc/web-tools.ts`) | `managed`: only origins in `network.connect`, empty list = no tools; GET-only, capped, downloads under `public/` only (D-175) | L2 |
 | AI key vs preview | the same-origin preview can read `vv-ai-settings` | preview isolation is a prerequisite for enabling AI | L0 |
-| AI patches | the 22-rule validator is **blocking** on every AI write (`packages/ai/`; [AI-VALIDATION.md](./AI-VALIDATION.md)) | the same blocking rules apply when `managed` enables AI (AI-SKILLS.md §4) | L1 |
+| AI patches | the 23-rule validator is **blocking** on every AI write (`packages/ai/`; [AI-VALIDATION.md](./AI-VALIDATION.md)) | the same blocking rules apply when `managed` enables AI (AI-SKILLS.md §4) | L1 |
 | Skills | none — skills are withdrawn (D-205) | no skills surface; the AI trust boundary stays the provider/gateway policy and the blocking validator (AI-SKILLS.md; §8 keeps the D-067 design as history) | — |
 | CSP / headers | shipped: the build generates the CSP and `headers.conf` (`ide/src/deploy/artifacts.ts`, §5) | hosting recipes (§5); the custom-mirror in-browser verification is still open (§12) | L2 |
 

@@ -2,7 +2,7 @@
 
 # Decision index
 
-212 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+213 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -220,3 +220,4 @@ the file whose name starts with that ID.
 | [D-212](./D-212-get-routes-are-side-effect-free.md) | GET routes are side-effect free | accepted | 2026-11-25 |
 | [D-213](./D-213-handwritten-routes-are-gated-for-zod-input-and-raw-client-imports.md) | Handwritten routes are gated for Zod input and raw-client imports | accepted | 2026-11-25 |
 | [D-214](./D-214-literal-raw-sql-writes-to-seed-only-auth-tables-are-an-error.md) | Literal raw-SQL writes to seed-only auth tables are an error | accepted | 2026-11-25 |
+| [D-215](./D-215-a-project-route-may-not-shadow-a-framework-owned-path.md) | A project route may not shadow a framework-owned path | accepted | 2026-11-25 |
