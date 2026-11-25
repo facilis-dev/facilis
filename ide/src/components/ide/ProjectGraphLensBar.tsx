@@ -61,7 +61,10 @@ function AnswerRows({
   onActivate: (nodeId: string) => void;
 }) {
   return (
-    <ul className="max-h-52 overflow-auto border-t">
+    <ul
+      aria-label={t("projectGraph.surface.lens.answers")}
+      className="max-h-52 overflow-auto border-t"
+    >
       {[...summary.byNode.entries()].map(([nodeId, entries]) => (
         <li key={nodeId} className="border-b last:border-b-0">
           <button
