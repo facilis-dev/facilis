@@ -1,18 +1,22 @@
-// The graph surface chrome (issues #184/#187): overview/domain breadcrumb and interaction hint.
-// Both are HUD controls, so the drawer's reserved column clamps them: a long breadcrumb or hint
-// can never slide under the floating inspector (#144).
+// The graph surface chrome (issues #184/#187/#191): overview/domain breadcrumb and interaction
+// hint. Both are HUD controls, so the drawer's reserved column clamps them: a long breadcrumb or
+// hint can never slide under the floating inspector (#144). When the inspector is a bottom sheet
+// the hint is hidden instead of hiding behind it.
 
 import { t } from "@/i18n";
 
 export function ProjectGraphSurfaceChrome({
   domain,
   reservedRight,
+  sheet,
   onBack,
 }: {
   /** null in overview mode; the open domain's name in detail mode. */
   domain: string | null;
   /** The drawer's reserved screen width, so the HUD stays outside it. */
   reservedRight: number;
+  /** The bottom sheet covers the bottom edge: the hint would sit behind it. */
+  sheet: boolean;
   onBack: () => void;
 }) {
   const maxWidth = reservedRight > 0 ? `calc(100% - ${reservedRight + 16}px)` : undefined;
@@ -43,12 +47,14 @@ export function ProjectGraphSurfaceChrome({
           </span>
         )}
       </nav>
-      <p
-        style={{ maxWidth }}
-        className="pointer-events-none absolute bottom-2 left-2 truncate rounded bg-panel/80 px-2 py-1 text-[10px] text-muted-foreground"
-      >
-        {t(domain !== null ? "projectGraph.surface.detailHint" : "projectGraph.surface.hint")}
-      </p>
+      {!sheet && (
+        <p
+          style={{ maxWidth }}
+          className="pointer-events-none absolute bottom-2 left-2 truncate rounded bg-panel/80 px-2 py-1 text-[10px] text-muted-foreground"
+        >
+          {t(domain !== null ? "projectGraph.surface.detailHint" : "projectGraph.surface.hint")}
+        </p>
+      )}
     </>
   );
 }

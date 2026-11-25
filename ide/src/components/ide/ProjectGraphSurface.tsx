@@ -1,4 +1,4 @@
-// The Canvas2D map-and-lens graph surface (D-211, issues #184/#185/#187): domain overview grid
+// The Canvas2D map-and-lens graph surface (D-211, issues #184/#185/#187/#191): domain overview grid
 // and drill-down swimlane detail. Layout is computed once per dataset/domain and cached on a
 // fingerprint that excludes search/selection/focus, so pan/zoom/search/focus never re-run layout
 // or move nodes — only the camera ref changes and the frame is marked dirty. Search arrives as
@@ -18,7 +18,7 @@ import { startDirtyFrameLoop } from "@/facilis/graph-surface/frame-loop.ts";
 import { zoomCamera } from "@/facilis/graph-surface/camera.ts";
 import { resolveSurfacePalette } from "@/facilis/graph-surface/palette.ts";
 import { surfaceLayoutKey } from "@/facilis/graph-surface/positions.ts";
-import { surfaceInsets } from "@/facilis/graph-surface/safe-area.ts";
+import { DRAWER_INSET } from "@/facilis/graph-surface/safe-area.ts";
 import {
   buildDetailScene,
   buildOverviewScene,
@@ -30,6 +30,7 @@ import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
 import { useGraphSurfaceCard } from "./use-graph-surface-card";
 import { useGraphSurfaceInteractions } from "./use-graph-surface-interactions";
+import { useNarrowViewport } from "./use-narrow-viewport";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
 
 export interface GraphJumpRequest {
@@ -74,6 +75,7 @@ export function ProjectGraphSurface({
   onMoveNode: (id: string, position: GraphPosition) => void;
   onViewportChange: (viewport: GraphViewport) => void;
 }) {
+  const sheet = useNarrowViewport();
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sizeRef = useRef<SurfaceSize>({ width: 0, height: 0, dpr: 1 });
@@ -141,6 +143,8 @@ export function ProjectGraphSurface({
       fitNonce,
       viewport,
       drawerOpen,
+      sheet,
+      selectedNodeId,
       onViewportChange,
     });
   // The rich card is placed from the draw loop (pan/zoom) and re-measured on open/resize.
@@ -266,7 +270,7 @@ export function ProjectGraphSurface({
         onPointerDown={pointer.onPointerDown}
         onPointerMove={pointer.onPointerMove}
         onPointerUp={pointer.onPointerUp}
-        onPointerCancel={pointer.onPointerUp}
+        onPointerCancel={pointer.onPointerCancel}
       />
       {richCard !== null && (
         <div className="pointer-events-none absolute inset-0 z-30">
@@ -275,7 +279,8 @@ export function ProjectGraphSurface({
       )}
       <ProjectGraphSurfaceChrome
         domain={mode.kind === "detail" ? mode.domain : null}
-        reservedRight={drawerOpen ? surfaceInsets(true).right : 0}
+        reservedRight={drawerOpen && !sheet ? DRAWER_INSET : 0}
+        sheet={sheet && drawerOpen}
         onBack={goOverview}
       />
     </div>

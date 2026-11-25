@@ -46,6 +46,12 @@ export function fitCamera(
   if (bounds.w <= 0 || bounds.h <= 0) return { tx: vw / 2, ty: vh / 2, scale: 1 };
   const raw = Math.min(maxScale, (vw - pad * 2) / bounds.w, (vh - pad * 2) / bounds.h);
   const scale = Math.max(minScale, Math.min(maxScale, raw));
+  if (raw < minScale) {
+    // The map is larger than the readable floor can show: anchor its top-left at the padding so
+    // the first columns are readable immediately and the rest is a pan away (#191), instead of
+    // centring an over-sized map and hiding both edges behind the viewport.
+    return { scale, tx: pad - bounds.x * scale, ty: pad - bounds.y * scale };
+  }
   return {
     scale,
     tx: vw / 2 - (bounds.x + bounds.w / 2) * scale,
@@ -74,16 +80,21 @@ export function centerCameraOn(
 }
 
 /**
- * Pan-only response to the drawer changing its reserved width: opening shifts the map left by
- * half the inset, closing shifts it back, and the scale is untouched (no zoom jump).
+ * Pan-only response to the drawer changing its reserved area: opening shifts the map by half the
+ * inset delta on each axis, closing shifts it back, and the scale is untouched (no zoom jump).
+ * Shared by the side column and the bottom sheet (#187/#191).
  */
-export function panCameraForInset(
+export function panCameraForInsets(
   camera: SurfaceCamera,
-  previousInset: number,
-  nextInset: number,
+  previous: { readonly right: number; readonly bottom: number },
+  next: { readonly right: number; readonly bottom: number },
 ): SurfaceCamera {
-  if (previousInset === nextInset) return camera;
-  return { ...camera, tx: camera.tx + (previousInset - nextInset) / 2 };
+  if (previous.right === next.right && previous.bottom === next.bottom) return camera;
+  return {
+    ...camera,
+    tx: camera.tx + (previous.right - next.right) / 2,
+    ty: camera.ty + (previous.bottom - next.bottom) / 2,
+  };
 }
 
 /** Zoom around a screen point, keeping the world point under the cursor fixed. */
@@ -128,6 +139,7 @@ export interface RestoreCameraInput {
   readonly width: number;
   readonly height: number;
   readonly insetRight?: number;
+  readonly insetBottom?: number;
 }
 
 /**
@@ -142,6 +154,7 @@ export function restoreCamera(input: RestoreCameraInput): SurfaceCamera {
   }
   return fitCamera(input.bounds, input.width, input.height, {
     insetRight: input.insetRight,
+    insetBottom: input.insetBottom,
     maxScale: 1.1,
   });
 }

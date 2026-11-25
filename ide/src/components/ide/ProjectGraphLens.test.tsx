@@ -47,6 +47,7 @@ function renderBar(lens: GraphLensId | null, diagnostics: readonly GraphDiagnost
       onSelectLens={vi.fn()}
       onClose={vi.fn()}
       onActivate={vi.fn()}
+      drawerOpen={false}
     />,
   );
 }

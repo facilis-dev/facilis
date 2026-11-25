@@ -61,7 +61,7 @@ export function ProjectGraphFooter({
         </p>
       )}
       {stats !== null && (
-        <ul className="flex flex-wrap items-center gap-1">
+        <ul className="hidden flex-wrap items-center gap-1 sm:flex">
           <li className="font-medium text-foreground">{t("projectGraph.legend")}</li>
           {(["page", "route", "table", "view", "workflow"] as const).map((kind) => (
             <li key={kind} className="rounded border px-1">

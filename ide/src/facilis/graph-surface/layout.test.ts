@@ -151,6 +151,28 @@ describe("overviewLayout", () => {
     expect(layout.links.every((link) => link.a !== link.b)).toBe(true);
   });
 
+  it("stays a multi-column grid at a 390px wide viewport (anti-reflow)", () => {
+    const wide = domainsOf(
+      ["a", ["pa"]],
+      ["b", ["pb"]],
+      ["c", ["pc"]],
+      ["d", ["pd"]],
+      ["e", ["pe"]],
+      ["f", ["pf"]],
+    );
+    const flat = overviewLayout(
+      wide,
+      wide.map((domain) => node("page", domain.nodeIds[0]!)),
+      [],
+    );
+    const columns = new Set(flat.cards.map((card) => card.rect.x));
+    const rows = new Set(flat.cards.map((card) => card.rect.y));
+    expect(columns.size).toBeGreaterThan(1);
+    expect(rows.size).toBeGreaterThan(1);
+    // No screen-size input reaches the layout: a phone uses the same grid, only panned.
+    expect(flat.bounds.w).toBeGreaterThan(390);
+  });
+
   it("is deterministic: same input, identical positions and links", () => {
     const a = overviewLayout(domains, nodes, edges);
     const b = overviewLayout(domains, nodes, edges);
@@ -186,6 +208,21 @@ describe("detailLayout", () => {
     edge("e6", "page-route", "r3", "p1"),
   ];
   const input = { domain: "admin", nodes, domainOf, edges };
+
+  it("keeps the pages | routes | data columns at a 390px wide viewport (anti-reflow)", () => {
+    const layout = detailLayout(input);
+    const page = layout.positions.get("p1")!;
+    const route = layout.positions.get("r1")!;
+    const table = layout.positions.get("t1")!;
+    // Three distinct columns still exist: narrow screens pan them, they never stack.
+    expect(new Set([page.x, route.x, table.x]).size).toBe(3);
+    expect(page.x).toBeLessThan(route.x);
+    expect(route.x).toBeLessThan(table.x);
+    const camera = fitCamera(layout.bounds, 390, 844, { insetBottom: 368 });
+    expect(camera.scale).toBeGreaterThanOrEqual(SURFACE_MIN_FIT_SCALE);
+    // At the readable floor the columns are wider than the phone viewport: pannable, not reflowed.
+    expect(layout.bounds.w * camera.scale).toBeGreaterThan(390);
+  });
 
   it("lays out horizontal swimlanes pages | routes | data with workflows below", () => {
     const layout = detailLayout(input);

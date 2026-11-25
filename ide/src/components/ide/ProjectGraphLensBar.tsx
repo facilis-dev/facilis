@@ -4,6 +4,7 @@
 // re-runs layout. Every string is a t() key; every colour is a semantic theme token.
 
 import { t } from "@/i18n";
+import { useNarrowViewport } from "./use-narrow-viewport";
 import {
   DIAGNOSTIC_MESSAGE_KEYS,
   GRAPH_LENSES,
@@ -94,6 +95,7 @@ export function ProjectGraphLensBar({
   onSelectLens,
   onClose,
   onActivate,
+  drawerOpen,
 }: {
   lens: GraphLensId | null;
   summary: GraphLensSummary | null;
@@ -101,12 +103,18 @@ export function ProjectGraphLensBar({
   onSelectLens: (lens: GraphLensId) => void;
   onClose: () => void;
   onActivate: (nodeId: string) => void;
+  /** The mobile bottom sheet reserves the lower 60%: keep the lens HUD above it (#191). */
+  drawerOpen: boolean;
 }) {
+  const sheetOpen = useNarrowViewport() && drawerOpen;
   const definition = lens === null ? null : lensDefinition(lens);
   return (
     <div
       data-testid="project-graph-lens-bar"
-      className="pointer-events-none absolute left-2 top-12 z-10 flex max-h-[calc(100%-4rem)] w-72 max-w-[calc(100%-1rem)] flex-col items-start gap-1"
+      className={
+        "pointer-events-none absolute left-2 top-12 z-10 flex w-72 max-w-[calc(100%-1rem)] flex-col items-start gap-1 " +
+        (sheetOpen ? "max-h-[calc(40%-4rem)] overflow-y-auto" : "max-h-[calc(100%-4rem)]")
+      }
     >
       <LensSwitcher lens={lens} onSelectLens={onSelectLens} />
       {definition !== null && summary !== null && (

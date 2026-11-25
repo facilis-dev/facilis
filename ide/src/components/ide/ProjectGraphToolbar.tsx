@@ -123,11 +123,7 @@ export function ProjectGraphToolbar({
             className="h-6 w-full rounded border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
           />
           {searchFocused && (
-            <ProjectGraphSearchResults
-              query={query}
-              results={results}
-              onJump={onJumpToNode}
-            />
+            <ProjectGraphSearchResults query={query} results={results} onJump={onJumpToNode} />
           )}
         </div>
         {/* Only the AI tools create a focus (D-171), and without this the dimmed canvas had no
@@ -230,14 +226,14 @@ export function ProjectGraphToolbar({
           <RefreshCw className={refreshing ? "animate-spin" : undefined} />
         </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-        <span>{t("projectGraph.filters")}</span>
+      <div className="flex w-full items-center gap-1.5 overflow-x-auto text-[10px] text-muted-foreground sm:flex-wrap sm:overflow-visible">
+        <span className="shrink-0">{t("projectGraph.filters")}</span>
         {GRAPH_EDGE_KINDS.map((kind) => {
           const hidden = hiddenEdgeKinds.includes(kind);
           return (
             <label
               key={kind}
-              className="flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
+              className="flex shrink-0 cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 hover:bg-accent"
             >
               <input
                 type="checkbox"

@@ -1,15 +1,27 @@
-// Pointer gestures for the graph surface (issues #184/#185): one-finger/mouse pan, two-finger
-// pinch zoom, hover hit-testing, click detection under a movement slop, and — in the detail view
-// only — node dragging with live edge follow and snap-to-column on release. Mouse and touch share
-// the same unified pointer events. The camera is a ref, so gestures never trigger React renders or
-// re-layout; they only mark the frame dirty. A second finger cancels a drag into a pinch.
+// Pointer gestures for the graph surface (issues #184/#185/#191): one-finger/mouse pan,
+// two-finger pinch zoom, hover hit-testing, tap detection under a movement slop, and — in the
+// detail view only — node dragging with live edge follow and snap-to-column on release. Mouse and
+// touch share the same unified PointerEvents; the canvas sets touch-action:none so the browser
+// never steals a gesture. The camera is a ref, so gestures never trigger React renders or layout;
+// they only mark the frame dirty. A second finger cancels a drag gracefully, and a pointer cancel
+// restores the node to its origin without committing a drop.
 
 import { useRef, type RefObject } from "react";
-import { worldPoint, zoomCamera, type SurfaceCamera } from "@/facilis/graph-surface/camera.ts";
-import { dragPosition, endNodeDrag, startNodeDrag, type NodeDrag } from "@/facilis/graph-surface/drag.ts";
+import { worldPoint, type SurfaceCamera } from "@/facilis/graph-surface/camera.ts";
+import {
+  dragPosition,
+  endNodeDrag,
+  startNodeDrag,
+  type NodeDrag,
+} from "@/facilis/graph-surface/drag.ts";
+import {
+  exceededTapSlop,
+  panCamera,
+  pinchCamera,
+  type PinchSample,
+  type PointerPoint,
+} from "@/facilis/graph-surface/gestures.ts";
 import { hitTestSurface, type SurfaceScene } from "@/facilis/graph-surface/scene.ts";
-
-const CLICK_SLOP_PX = 5;
 
 export function canvasLocalPoint(
   canvas: HTMLCanvasElement | null,
@@ -21,13 +33,15 @@ export function canvasLocalPoint(
 }
 
 interface GestureState {
-  startX: number;
-  startY: number;
-  tx: number;
-  ty: number;
+  readonly start: PointerPoint;
+  readonly camera: SurfaceCamera;
   moved: boolean;
-  pinch: number;
+  pinch: PinchSample | null;
   drag: NodeDrag | null;
+}
+
+function idleGesture(camera: SurfaceCamera, start: PointerPoint): GestureState {
+  return { start, camera, moved: false, pinch: null, drag: null };
 }
 
 export function useGraphSurfacePointer({
@@ -54,16 +68,21 @@ export function useGraphSurfacePointer({
   /** A pan/pinch/drag finished: the surface persists the viewport. */
   onGestureEnd: () => void;
 }) {
-  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
-  const gestureRef = useRef<GestureState>({
-    startX: 0,
-    startY: 0,
-    tx: 0,
-    ty: 0,
-    moved: false,
-    pinch: 0,
-    drag: null,
-  });
+  const pointersRef = useRef(new Map<number, PointerPoint>());
+  const gestureRef = useRef<GestureState>(idleGesture({ tx: 0, ty: 0, scale: 1 }, { x: 0, y: 0 }));
+
+  /** Re-anchor a gesture on the remaining pointer so a lifted finger never jumps the map. */
+  const reanchor = (moved: boolean) => {
+    const [remaining] = [...pointersRef.current.values()];
+    if (remaining === undefined) return;
+    gestureRef.current = {
+      start: remaining,
+      camera: cameraRef.current,
+      moved,
+      pinch: null,
+      drag: null,
+    };
+  };
 
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -79,12 +98,10 @@ export function useGraphSurfacePointer({
           ? startNodeDrag(current, world.x, world.y)
           : null;
       gestureRef.current = {
-        startX: point.x,
-        startY: point.y,
-        tx: cameraRef.current.tx,
-        ty: cameraRef.current.ty,
+        start: point,
+        camera: cameraRef.current,
         moved: false,
-        pinch: 0,
+        pinch: null,
         drag,
       };
       if (drag !== null) {
@@ -100,7 +117,7 @@ export function useGraphSurfacePointer({
       }
       // size === 2 guarantees both entries exist.
       const [a, b] = [...pointersRef.current.values()];
-      gesture.pinch = Math.hypot(a!.x - b!.x, a!.y - b!.y);
+      gesture.pinch = { a: a!, b: b! };
       gesture.moved = true;
     }
   };
@@ -126,19 +143,13 @@ export function useGraphSurfacePointer({
     if (pointers.size === 2) {
       // size === 2 guarantees both entries exist.
       const [a, b] = [...pointers.values()];
-      const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y);
-      if (gesture.pinch > 0 && dist > 0) {
-        const midX = (a!.x + b!.x) / 2;
-        const midY = (a!.y + b!.y) / 2;
-        cameraRef.current = zoomCamera(cameraRef.current, midX, midY, dist / gesture.pinch);
-        dirtyRef.current = true;
-      }
-      gesture.pinch = dist;
+      const sample: PinchSample = { a: a!, b: b! };
+      cameraRef.current = pinchCamera(cameraRef.current, gesture.pinch, sample);
+      gesture.pinch = sample;
+      dirtyRef.current = true;
       return;
     }
-    const dx = point.x - gesture.startX;
-    const dy = point.y - gesture.startY;
-    if (Math.abs(dx) + Math.abs(dy) > CLICK_SLOP_PX) gesture.moved = true;
+    if (gesture.moved || exceededTapSlop(gesture.start, point)) gesture.moved = true;
     if (gesture.drag !== null) {
       // Live node drag: edges follow the working rect; the camera stays put.
       if (gesture.moved) {
@@ -151,7 +162,7 @@ export function useGraphSurfacePointer({
       return;
     }
     if (gesture.moved) {
-      cameraRef.current = { ...cameraRef.current, tx: gesture.tx + dx, ty: gesture.ty + dy };
+      cameraRef.current = panCamera(gesture.camera, gesture.start, point);
       canvas.style.cursor = "grabbing";
       dirtyRef.current = true;
     }
@@ -185,20 +196,29 @@ export function useGraphSurfacePointer({
       }
       onGestureEnd();
     }
+    if (pointers.size === 1) reanchor(true);
+  };
+
+  /** Browser-cancelled pointer (e.g. a system gesture): undo the drag, never click or drop. */
+  const onPointerCancel = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const pointers = pointersRef.current;
+    pointers.delete(event.pointerId);
+    const gesture = gestureRef.current;
+    if (gesture.drag !== null) {
+      onNodeDragMove(gesture.drag.id, gesture.drag.origin.x, gesture.drag.origin.y);
+      gesture.drag = null;
+    }
+    if (canvas !== null) canvas.style.cursor = "grab";
     if (pointers.size === 1) {
-      // size === 1 guarantees the remaining entry exists.
-      const [remaining] = [...pointers.values()];
-      gestureRef.current = {
-        startX: remaining!.x,
-        startY: remaining!.y,
-        tx: cameraRef.current.tx,
-        ty: cameraRef.current.ty,
-        moved: true,
-        pinch: 0,
-        drag: null,
-      };
+      reanchor(true);
+      return;
+    }
+    if (pointers.size === 0) {
+      gestureRef.current = idleGesture(cameraRef.current, { x: 0, y: 0 });
+      onGestureEnd();
     }
   };
 
-  return { onPointerDown, onPointerMove, onPointerUp };
+  return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel };
 }

@@ -210,13 +210,12 @@ export function ProjectGraphPanel() {
       />
     );
   }
-
   return (
     <section
       data-testid="project-graph-panel"
       aria-label={t("projectGraph.title")}
       className={
-        "flex min-h-0 flex-col bg-editor " +
+        "flex min-h-0 flex-col overflow-hidden bg-editor " +
         (fullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "h-full")
       }
     >
@@ -261,6 +260,7 @@ export function ProjectGraphPanel() {
               onSelectLens={selectLens}
               onClose={closeLens}
               onActivate={jumpToNode}
+              drawerOpen={drawerOpen}
             />
           )}
         </div>
