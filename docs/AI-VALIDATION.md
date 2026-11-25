@@ -2,7 +2,7 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (21 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (22 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
@@ -59,6 +59,7 @@ a table without row-level security, or a file outside the places it is allowed t
 | 19 | `job-table-declared` | jobs using tables they didn't declare | error |
 | 20 | `table-class-declared` | tables with no declared access class | error |
 | 21 | `get-side-effect-free` | state-changing GET routes (CSRF via top-level navigation) | error |
+| 22 | `raw-sql-system-table-write` | raw SQL writing a seed-only auth table | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -227,6 +228,23 @@ read-only blueprint GETs; the runtime origin gate stays the security authority (
 - ⚠️ A handler body the analyzer cannot fully inspect (a package helper receives the client)
   is a warning, never a guessed error.
 
+### Rule 22 `raw-sql-system-table-write` — auth tables are written only by the release seed
+
+`role_permissions`, `roles`, `user_roles` and `sessions` are system-only: they are written
+only by the release artifact's seed statements and the framework's audited auth paths
+(invariant 8, D-158/D-204). A literal SQL statement passed to `db.execute` on `ctx.db`,
+`ctx.sudo` or `ctx.system` that inserts, updates, deletes or runs DDL against one of them is
+an error; `ctx.sudo` with `rawSql: true` does not make it legitimate. Only statements the
+analyzer can read are judged — a dynamic or interpolated SQL expression is skipped and the
+runtime audit remains the authority (D-214).
+
+- ✅ `db.execute("SELECT * FROM role_permissions")` through `sudo` — a read.
+- ❌ `db.execute("INSERT INTO role_permissions (role, permission) VALUES ('user', 'todos:read')")`.
+- ❌ `system(..., (db) => db.execute("DELETE FROM sessions"))` — elevation is audited, not a
+  licence to rewrite a seed-only table.
+- ⚠️ Not a finding: dynamic SQL (`db.execute(statement)`, interpolated templates) and writes to
+  an ordinary project table.
+
 ### Rule 17 `route-description` (warning) — every route explains itself
 
 Each patched route needs a one-sentence English `description` (≤ 120 characters), and it
@@ -374,7 +392,7 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 21-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 22-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
   D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint).

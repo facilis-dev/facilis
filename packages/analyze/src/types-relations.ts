@@ -22,6 +22,13 @@ export interface ViewFact {
 /** A framework service API with a fixed table surface (D-135, D-199). */
 export type ServiceKind = "tasks" | "workflows";
 
+/** One literal SQL statement passed to `db.execute` (D-214); opaque SQL is not recorded. */
+export interface RawSqlStatementFact {
+  /** The `db.execute` call site, so a finding can jump to the statement. */
+  readonly source: SourceRef;
+  readonly sql: string;
+}
+
 /** One relation (table or view) a route reaches through a db client. */
 export interface RouteRelationUse {
   readonly name: string;
@@ -61,6 +68,8 @@ export interface RouteRelationsFact {
   readonly unresolved: readonly SourceRef[];
   /** `db.execute(...)` call sites; legal only with rawSql: true. */
   readonly rawSql: readonly SourceRef[];
+  /** Literal SQL text of those sites (D-214); dynamic/unreadable SQL is absent. */
+  readonly rawSqlStatements: readonly RawSqlStatementFact[];
   /** insert/update/delete call sites on ctx.db outside elevations (D-212). */
   readonly writes: readonly SourceRef[];
   /** ctx.jobs.enqueue/cancel call sites: queue mutations are side effects (D-212). */
@@ -81,6 +90,7 @@ export const EMPTY_ROUTE_RELATIONS: RouteRelationsFact = {
   used: [],
   unresolved: [],
   rawSql: [],
+  rawSqlStatements: [],
   writes: [],
   jobEnqueues: [],
   opaque: false,

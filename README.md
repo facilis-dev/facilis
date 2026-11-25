@@ -30,7 +30,7 @@ Facilis redefines it:
 
 | | |
 |---|---|
-| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. The model runs as a PTC tool loop, and its output is validated against 21 rules before it touches disk. |
+| 🧠 **AI scaffolding** | Chat to generate Nitro routes, Drizzle schemas, and React pages built on a Tailwind CSS v4 + shadcn-style component layer the project owns. The model runs as a PTC tool loop, and its output is validated against 22 rules before it touches disk. |
 | 🛡️ **Structural security** | Session auth middleware + `defineAuthorizedHandler` + Row-Level Security + `drizzle-policy` + Zod. Five independent layers. A bug in one is caught by the next. |
 | 🎭 **Roles in code, not DB** | Declare roles and permissions in `facilis.config.ts`. The framework generates the schema, the seed and the RLS policies. No drift, no admin-panel-only setup. |
 | ⚡ **Vite-native runtime** | Nitro v3 runs as a Vite plugin. `vite dev` is the single dev server — one process, one port, one HMR loop for client and server. |
@@ -136,7 +136,7 @@ template is assembled from its example at build time, so there is no second copy
 
 Phases 0–4 are implemented and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131), Phase 6 (polish + demo) is in progress, and Phase 7+ is the post-MVP backlog. In practice:
 
-- **Chat** — the PTC tool runtime (the only mode, D-101/D-103), the 21-rule validator at proposal/Apply/write and the §9.4 repair loop.
+- **Chat** — the PTC tool runtime (the only mode, D-101/D-103), the 22-rule validator at proposal/Apply/write and the §9.4 repair loop.
 - **Visualizers** — the project graph with pages, explicit links, audited elevation, framework tables, declarative views (D-092/D-134/D-160) and workflow definitions (D-161); Entity Explorer and query console (D-083/D-097); Release Preview on the release-tag plan (D-086/D-158).
 - **Platform** — auth + SSO (D-120), external API clients (D-142), jobs (D-107), workflows and manual tasks (D-135), operator logs (D-119), binary storage (D-116/D-117), email verification (D-156).
 - **Delivery** — open/managed builds (D-063/D-064), offline app updates (D-065/D-070), release-time DDL artifacts (D-158; the deploy applier is withdrawn, D-204), prerendering + hydration of public pages (D-202, #158).

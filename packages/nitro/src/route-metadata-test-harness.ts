@@ -19,6 +19,7 @@ export function routeFact(
       used: [],
       unresolved: [],
       rawSql: [],
+      rawSqlStatements: [],
       writes: [],
       jobEnqueues: [],
       opaque: false,

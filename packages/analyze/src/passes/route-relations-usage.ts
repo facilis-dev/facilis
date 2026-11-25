@@ -6,6 +6,7 @@
 
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import type {
+  RawSqlStatementFact,
   RouteElevationUsage,
   RouteRelationUse,
   RouteRelationsFact,
@@ -31,6 +32,8 @@ export interface MutableUsage {
   readonly used: Map<string, SourceRef>;
   readonly unresolved: SourceRef[];
   readonly rawSql: SourceRef[];
+  /** The literal SQL of each readable execute site (D-214). */
+  readonly rawSqlStatements: RawSqlStatementFact[];
   /** insert/update/delete sites on ctx.db outside elevations (D-212). */
   readonly writes: SourceRef[];
   /** ctx.jobs.enqueue/cancel sites; route-level like services (D-212). */
@@ -67,6 +70,7 @@ export function createUsage(): MutableUsage {
     used: new Map(),
     unresolved: [],
     rawSql: [],
+    rawSqlStatements: [],
     writes: [],
     jobEnqueues: [],
     opaque: false,
@@ -141,6 +145,7 @@ export function freezeUsage(usage: MutableUsage): RouteRelationsFact {
     used: [...usage.used].map(([name, source]) => ({ name, source })),
     unresolved: [...usage.unresolved],
     rawSql: [...usage.rawSql],
+    rawSqlStatements: [...usage.rawSqlStatements],
     writes: [...usage.writes],
     jobEnqueues: [...usage.jobEnqueues],
     opaque: usage.opaque,

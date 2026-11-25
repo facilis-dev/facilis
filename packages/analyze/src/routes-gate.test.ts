@@ -25,7 +25,10 @@ import { createOxcParser } from "./node.ts";
 import { buildConfigFacts } from "./passes/config.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { buildJobFacts } from "./passes/jobs.ts";
+import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
+import { rawSqlSystemWriteDiagnostics } from "./passes/raw-sql-system-write.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import type { Parser } from "./parser.ts";
@@ -93,6 +96,7 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
   const schema = buildSchemaFacts(graph, config);
   const views = buildViewFacts(graph);
   const relations = buildRouteRelationFacts(graph, routeFacts.routes, schema.tables, views.views);
+  const jobRelations = buildJobRelationFacts(graph, buildJobFacts(graph).jobs, schema.tables, views.views);
   const bySourceFile = new Map(routeFacts.routes.map((route) => [route.sourceFile, route]));
   const violations: string[] = [];
   const unused: string[] = [];
@@ -149,6 +153,14 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
       continue;
     }
     if (!RELATION_ERROR_CODES.has(diagnostic.code)) continue;
+    violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
+  }
+  // D-214: a literal raw-SQL write to a seed-only auth table is a violation (invariant 8).
+  for (const diagnostic of rawSqlSystemWriteDiagnostics([
+    ...relations.routes.map((route) => route.relations),
+    ...Object.values(jobRelations.relations),
+  ])) {
+    const file = diagnostic.source?.file ?? "unknown";
     violations.push(label + "/" + file + ": " + diagnostic.code + ": " + diagnostic.message);
   }
   // D-212: a proven write in a GET is a violation; an opaque body only warns.
@@ -395,6 +407,64 @@ describe("SEC-12 route gate", () => {
       expect(report).not.toContain("/schema.post.ts:");
       expect(report).not.toContain("/read.get.ts:");
       expect(report).not.toContain("/schema-dsl.get.ts:");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("flags literal raw-SQL writes to seed-only auth tables (D-214)", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "facilis-raw-sql-gate-"));
+    const rawRoute = (body: string): string =>
+      CORE +
+      "export default defineAuthorizedHandler({ permission: [], dbTables: [], rawSql: true }, " +
+      body +
+      ");\n";
+    try {
+      writeSource(fixture, "db/schema.ts", FIXTURE_SCHEMA);
+      writeSource(
+        fixture,
+        "server/routes/insert-role-permissions.post.ts",
+        rawRoute('async (_event, { db }) => db.execute("INSERT INTO role_permissions (role, permission) VALUES (\'user\', \'todos:read\')")'),
+      );
+      writeSource(
+        fixture,
+        "server/routes/sudo-delete-sessions.post.ts",
+        rawRoute(
+          'async (_event, { sudo }) => sudo({ operation: "x", reason: "y", tables: [] }, (db) => db.execute("DELETE FROM sessions"))',
+        ),
+      );
+      writeSource(
+        fixture,
+        "server/routes/select-roles.post.ts",
+        rawRoute(
+          'async (_event, { sudo }) => sudo({ operation: "x", reason: "y", tables: [] }, (db) => db.execute("SELECT * FROM roles"))',
+        ),
+      );
+      writeSource(
+        fixture,
+        "server/routes/dynamic-role.post.ts",
+        rawRoute("async (_event, { db }) => db.execute(statement)"),
+      );
+      writeSource(
+        fixture,
+        "server/routes/ordinary-insert.post.ts",
+        rawRoute('async (_event, { db }) => db.execute("INSERT INTO todos (id) VALUES (1)")'),
+      );
+      writeSource(
+        fixture,
+        "server/jobs/purge-sessions.ts",
+        'import { defineJob } from "@facilis.dev/core";\n' +
+          'export default defineJob({ name: "purge-sessions", dbTables: [], rawSql: true, async run({ db }) { await db.execute("DELETE FROM sessions"); } });\n',
+      );
+      const scan = scanApp(fixture, "fixture", createOxcParser());
+      const report = scan.violations.join("\n");
+      expect(scan.routeFiles).toBe(5);
+      expect(report).toContain("insert-role-permissions.post.ts: raw-sql-system-write");
+      expect(report).toContain("sudo-delete-sessions.post.ts: raw-sql-system-write");
+      expect(report).toContain("server/jobs/purge-sessions.ts: raw-sql-system-write");
+      expect(report).not.toContain("select-roles.post.ts");
+      expect(report).not.toContain("dynamic-role.post.ts");
+      expect(report).not.toContain("ordinary-insert.post.ts");
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

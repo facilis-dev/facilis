@@ -2,7 +2,7 @@
 
 # Decision index
 
-211 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+212 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -219,3 +219,4 @@ the file whose name starts with that ID.
 | [D-211](./D-211-every-project-table-declares-its-class-system-only-is-a-comment-marker.md) | Every project table declares its class: system-only is a comment marker | accepted | 2026-11-25 |
 | [D-212](./D-212-get-routes-are-side-effect-free.md) | GET routes are side-effect free | accepted | 2026-11-25 |
 | [D-213](./D-213-handwritten-routes-are-gated-for-zod-input-and-raw-client-imports.md) | Handwritten routes are gated for Zod input and raw-client imports | accepted | 2026-11-25 |
+| [D-214](./D-214-literal-raw-sql-writes-to-seed-only-auth-tables-are-an-error.md) | Literal raw-SQL writes to seed-only auth tables are an error | accepted | 2026-11-25 |

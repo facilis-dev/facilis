@@ -13,6 +13,7 @@ import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
 import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
+import { rawSqlSystemWriteDiagnostics } from "./passes/raw-sql-system-write.ts";
 import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
@@ -98,6 +99,11 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...routeRelations.diagnostics,
       // D-212: GET routes must be side-effect free (SPEC §8.6), over the same usage facts.
       ...routeGetEffectDiagnostics(routeRelations.routes),
+      // D-214: literal raw SQL never writes a seed-only auth table (invariant 8).
+      ...rawSqlSystemWriteDiagnostics([
+        ...routeRelations.routes.map((route) => route.relations),
+        ...Object.values(jobRelations.relations),
+      ]),
       ...jobs.diagnostics,
       ...jobRelations.diagnostics,
       ...locales.diagnostics,

@@ -52,6 +52,7 @@ function emptyRelations(overrides: Partial<RouteRelationsFact> = {}): RouteRelat
     used: [],
     unresolved: [],
     rawSql: [],
+    rawSqlStatements: [],
     writes: [],
     jobEnqueues: [],
     opaque: false,

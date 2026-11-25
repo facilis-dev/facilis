@@ -217,6 +217,7 @@ export type {
   WorkflowStepNodeData,
 } from "./types-graph.ts";
 export type {
+  RawSqlStatementFact,
   RouteElevationUsage,
   RouteRelationUse,
   RouteRelationsFact,

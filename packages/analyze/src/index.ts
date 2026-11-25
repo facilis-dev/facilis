@@ -29,6 +29,15 @@ export {
 export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
 // The raw-client module list (invariant 5, D-213), shared with AI rule 9 and the route gate.
 export { isRawDbImport } from "./raw-db-imports.ts";
+// The seed-only auth tables and literal raw-SQL writes (invariant 8, D-214), shared with rule 22.
+export {
+  rawSqlSystemWriteSites,
+  readRawSqlArgument,
+  SYSTEM_ONLY_AUTH_TABLES,
+  systemTableWrites,
+  type RawSqlSystemWriteSite,
+  type RawSqlUsage,
+} from "./raw-sql-system-tables.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";

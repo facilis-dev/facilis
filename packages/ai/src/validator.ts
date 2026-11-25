@@ -1,10 +1,11 @@
 /**
- * The SPEC §9.3 patch validator: 21 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 22 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
  * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;
- * rules 18-21 warn alongside their errors; every other finding is an error and makes `ok`
- * false, which is what stops the IDE's apply path before it writes anything (invariant 9).
+ * rules 18-21 warn alongside their errors; rule 22 and every other finding is an error that
+ * makes `ok` false, which is what stops the IDE's apply path before it writes anything
+ * (invariant 9).
  *
  * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
  * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
@@ -25,6 +26,7 @@ import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
 import { getSideEffectFreeFindings } from "./rules/get-side-effects.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
 import { jsonParseErrors } from "./rules/json-parse.ts";
+import { rawSqlSystemTableWriteErrors } from "./rules/raw-sql-system-tables.ts";
 import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
 import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
@@ -90,6 +92,8 @@ export function validatePatch(
     const getEffects = getSideEffectFreeFindings(state);
     errors.push(...getEffects.errors);
     warnings.push(...getEffects.warnings);
+    // D-214 rule 22: literal raw SQL never writes a seed-only auth table (invariant 8).
+    errors.push(...rawSqlSystemTableWriteErrors(state));
   }
   return { ok: errors.length === 0, errors, warnings, destructive, destructiveChanges: drops };
 }

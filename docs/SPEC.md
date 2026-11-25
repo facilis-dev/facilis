@@ -1,11 +1,19 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.41 (handwritten-route gate, D-213; issue #171)
+**Version:** 1.42 (raw-SQL system-table write, D-214; issue #172)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.42 — Literal raw-SQL writes to seed-only auth tables are flagged (D-214, issue #172). The
+  analyzer records the literal SQL of `db.execute` (string/template, including inside
+  `ctx.sudo`/`ctx.system`) and reports `raw-sql-system-write` when an INSERT/UPDATE/DELETE/DDL
+  targets `role_permissions`, `roles`, `user_roles` or `sessions`; dynamic/interpolated SQL is
+  skipped (the runtime audit remains the authority), SELECT via `sudo` is legitimate, and
+  framework seed code is exempt. The AI validator gains rule 22 `raw-sql-system-table-write`,
+  and `routes-gate.test.ts` adds failing/passing fixtures plus the shipped-example assertion.
+  §8.6/§9.3 follow.
 - v1.41 — Handwritten routes are gated like AI writes for invariants 3 and 5 (D-213, issue
   #171). `routes-gate.test.ts` now also fails a shipped route that reads `body`/`form`
   without declaring the matching schema (a body-less GET stays exempt) and a route that imports
@@ -185,7 +193,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 21 rules before it touches the VFS |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 22 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -344,7 +352,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── validator.ts          21-rule patch validator (D-101/D-103)
+│   │   │   ├── validator.ts          22-rule patch validator (D-101/D-103)
 │   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -802,7 +810,7 @@ Exports:
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
 - `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
-  21-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  22-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
   (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
   only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
@@ -2608,7 +2616,14 @@ the email-verification link GET (D-156) and the framework read-only blueprint GE
   outside `@facilis.dev/db` (the `drizzle-orm` operators and `drizzle-orm/pg-core` table
   builders are the schema DSL and stay allowed). The runtime wrapper and the AI rules remain the
   authority; the gate is an early warning, never a replacement.
-- AI patches are **validated** before write (21 rules, §9.3)
+- Literal raw SQL never writes a seed-only auth table (D-214): `role_permissions`, `roles`,
+  `user_roles` and `sessions` are written only by the release seed and the framework's audited
+  auth paths. The analyzer records the literal SQL of `db.execute` on
+  `ctx.db`/`ctx.sudo`/`ctx.system` (string, template and `sql` tagged literals) and reports
+  `raw-sql-system-write`; AI validator rule 22 `raw-sql-system-table-write` blocks the same
+  write for AI patches. Dynamic/interpolated SQL is skipped (the runtime audit remains the
+  authority), SELECT via `sudo` is legitimate, and framework seed code is exempt.
+- AI patches are **validated** before write (22 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2767,7 +2782,7 @@ Rules the AI must obey:
 16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same change; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 17. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186): a short create form is a page-header button → dialog → save (a long or multi-step form keeps its own page); an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
-### 9.3 Patch Validator (21 Rules)
+### 9.3 Patch Validator (22 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
@@ -2792,6 +2807,7 @@ Rules the AI must obey:
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 | 20 | `table-class-declared` | error | Every project table in the resulting `db/schema.ts` declares its access class (invariant 4, D-136): `.enableRLS()` + a policy, or an explicit `// system-only` comment on the line above the declaration. RLS with zero policies and an unreadable marker are warnings; framework re-exports are exempt (D-211) |
 | 21 | `get-side-effect-free` | error | A GET (or method-less ALL) route is side-effect free (§8.6): no insert/update/delete/execute on `ctx.db`/`ctx.sudo`/`ctx.system` and no job-queue mutation, following project-local helper calls. A proven write is an error; an opaque/uninspectable handler body is a warning, never a guessed error; pinned exemptions: the SSO GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework read-only blueprint GETs. Covers all effective GET-like routes (D-212) |
+| 22 | `raw-sql-system-table-write` | error | Literal raw SQL passed to `db.execute` on `ctx.db`/`ctx.sudo`/`ctx.system` does not write a seed-only auth table: `role_permissions`, `roles`, `user_roles`, `sessions` are written only by the release seed and the framework auth paths (invariant 8, D-158/D-204). Conservative verb+table matching (insert/update/delete/DDL); dynamic/interpolated SQL is skipped and SELECT via `sudo` is legitimate; framework seed code is exempt. Covers all effective routes and jobs, not only patched ones (D-214) |
 
 Two structural checks run on every patch, with or without a context and before the numbered
 rules: a create/update patch must carry content (`content-present`), and a `.json` file it
@@ -2963,7 +2979,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 21-rule validator is applied at the `validate` self-check and at every write
+D-101/D-103); the 22-rule validator is applied at the `validate` self-check and at every write
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,

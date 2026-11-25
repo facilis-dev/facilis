@@ -19,6 +19,7 @@ import {
   type AstNode,
 } from "../ast/node.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
+import { readRawSqlArgument } from "../raw-sql-system-tables.ts";
 import { sourceRef } from "../source.ts";
 import type { RouteRelationsFact } from "../types-relations.ts";
 import type { ElevationKind, SourceRef } from "../types.ts";
@@ -150,7 +151,11 @@ function handleCall(node: AstNode, scope: RelationScope): boolean {
       return false;
     }
     if (name === "execute" && chainClient(object, scope.env, scope.contextName) !== null) {
-      scope.usage.rawSql.push(refOf(scope, node));
+      const source = refOf(scope, node);
+      scope.usage.rawSql.push(source);
+      // D-214: only literal SQL is recorded; dynamic SQL stays unknown (runtime audit).
+      const sql = readRawSqlArgument(callArguments(node)[0]);
+      if (sql !== null) scope.usage.rawSqlStatements.push({ source, sql });
       return false;
     }
     if (
