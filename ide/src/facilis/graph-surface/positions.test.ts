@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { buildProjectGraphView } from "../graph-model.ts";
 import { GET, PAGE, TODOS, graphOf, pageNode } from "../graph-model.test-fixtures.ts";
+import { matchGraphNodes } from "../graph-search.ts";
 import { emptyGraphLayout, roundCoordinate } from "../graph-layout-file.ts";
 import { withNodePosition } from "../graph-layout.ts";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "../graph-types.ts";
@@ -98,15 +99,19 @@ function rects(scene: DetailScene): [string, { x: number; y: number }][] {
 }
 
 describe("surfaceLayoutKey (search never re-runs layout)", () => {
-  it("is identical across search queries even though matched flags change", () => {
+  it("is unchanged by a search match pass: dimming never moves or rebuilds nodes", () => {
     const graph = graphOf([PAGE, GET, TODOS]);
-    const open = buildProjectGraphView({ graph, query: "" });
-    const searched = buildProjectGraphView({ graph, query: "pages" });
-    expect(searched.nodes.some((entry) => !entry.matched)).toBe(true);
-    expect(surfaceLayoutKey(searched)).toBe(surfaceLayoutKey(open));
-    // The drawn positions are identical too: a keystroke dims cards, it never moves them.
-    const pos = (view: ProjectGraphView) => view.nodes.map((entry) => [entry.id, entry.position]);
-    expect(pos(searched)).toEqual(pos(open));
+    const view = buildProjectGraphView({ graph });
+    const before = surfaceLayoutKey(view);
+    const nodesBefore = view.nodes;
+    const matched = matchGraphNodes(view.nodes, "pages");
+    expect(matched.size).toBeGreaterThan(0);
+    expect(matched.size).toBeLessThan(view.nodes.length);
+    // The match pass reads the cached model: same node objects, same fingerprint, same positions.
+    expect(view.nodes).toBe(nodesBefore);
+    expect(surfaceLayoutKey(view)).toBe(before);
+    const pos = (entry: ProjectGraphView) => entry.nodes.map((node) => [node.id, node.position]);
+    expect(pos(view)).toEqual(pos(buildProjectGraphView({ graph })));
   });
 
   it("changes when a saved position or the dataset changes", () => {

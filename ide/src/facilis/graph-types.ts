@@ -142,7 +142,11 @@ export interface ProjectGraphNode {
   readonly sourceFile: string | null;
   readonly position: GraphPosition;
   readonly data: ProjectGraphNodeData;
-  /** False when a search query excludes this node (it is drawn dimmed). */
+  /**
+   * Legacy draw flag, always true from the model builder (issue #186): search dimming is the
+   * canvas surface's debounced match set now, never a per-node model field. Kept for the
+   * retired React Flow cards that still read it.
+   */
   readonly matched: boolean;
   /** Table columns or view base tables are hidden when the node was collapsed earlier. */
   readonly collapsed: boolean;
@@ -168,6 +172,10 @@ export interface ProjectGraphStats {
   readonly hiddenEdges: number;
   /** Nodes removed by the table-visibility choice (0 in "all" mode, D-179). */
   readonly hiddenNodes: number;
+  /**
+   * Matching nodes. The builder reports every node (the model carries no query); the panel
+   * overrides this with the debounced match count before the toolbar shows it.
+   */
   readonly matches: number;
   readonly unknownNodes: number;
   /** Page → page explicit navigation edges. */
@@ -188,7 +196,6 @@ export interface ProjectGraphViewInput {
    */
   readonly tableVisibility?: GraphTableVisibility;
   readonly collapsed?: Readonly<Record<string, boolean>>;
-  readonly query?: string;
 }
 
 export interface ProjectGraphView {

@@ -11,7 +11,7 @@ import { t } from "@/i18n";
 import { loadProjectAnalysis, loadProjectSources } from "@/facilis/analyze-client";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
-import { buildProjectGraphView, sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
@@ -25,6 +25,7 @@ import { useIde } from "./useIde";
 import { usePrerenderToggle } from "./usePrerenderToggle";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
+import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
 
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
@@ -35,7 +36,6 @@ export function ProjectGraphPanel() {
   const [result, setResult] = useState<ProjectAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
-  const [query, setQuery] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
   const [fitNonce, setFitNonce] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -113,20 +113,13 @@ export function ProjectGraphPanel() {
 
   const analysis = result !== null && result.ok ? result.analysis : null;
   const prerenderFacts = analysis?.prerender ?? [];
-  const view = useMemo(
-    () =>
-      analysis === null
-        ? null
-        : buildProjectGraphView({
-            graph: analysis.graph,
-            positions: layout.nodes,
-            hiddenEdgeKinds: layout.hiddenEdges,
-            tableVisibility: layout.tableVisibility,
-            collapsed: layout.collapsed,
-            query,
-          }),
-    [analysis, layout, query],
+  // Incremental view model (#186): rebuilt only on dataset/saved-layout changes; the search
+  // input is debounced into a match pass, and selection/focus stay canvas draw state.
+  const { view, query, search, onQueryChange } = useProjectGraphViewModel(
+    analysis?.graph ?? null,
+    layout,
   );
+  const stats = view === null ? null : { ...view.stats, matches: search.matched.size };
   useEffect(() => {
     // Drop the previous project's map first: the keys are project-relative, so a stale
     // `src/app.tsx` would otherwise render the other project's source while this one loads.
@@ -211,7 +204,7 @@ export function ProjectGraphPanel() {
     body = (
       <ProjectGraphSurface
         view={view}
-        query={query}
+        search={search}
         fitNonce={fitNonce}
         selectedNodeId={selectedNodeId}
         savedPositions={layout.nodes}
@@ -234,10 +227,10 @@ export function ProjectGraphPanel() {
       }
     >
       <ProjectGraphToolbar
-        stats={view?.stats ?? null}
+        stats={stats}
         hiddenEdgeKinds={layout.hiddenEdges}
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={onQueryChange}
         fullscreen={fullscreen}
         onToggleFullscreen={() => setFullscreen((value) => !value)}
         onFit={() => setFitNonce((value) => value + 1)}
@@ -281,7 +274,7 @@ export function ProjectGraphPanel() {
         )}
       </div>
       <ProjectGraphFooter
-        stats={view?.stats ?? null}
+        stats={stats}
         diagnostics={diagnostics}
         layoutInvalid={graph.layoutInvalid}
       />

@@ -1,15 +1,19 @@
 // The Canvas2D map-and-lens graph surface (D-211, issues #184/#185): domain overview grid and
 // drill-down swimlane detail. Layout is computed once per dataset/domain and cached on a fingerprint
 // that excludes the search query, so pan/zoom/search never re-run layout or move nodes — only the
-// camera ref changes and the frame is marked dirty. Detail nodes drag with mouse AND touch, edges
-// follow live, and the dropped position snaps to its lane column and sticks (persisted by the panel
-// through the saved layout). The saved viewport is restored on open, never silently re-fit (D-127).
+// camera ref changes and the frame is marked dirty. Search arrives as the panel's debounced match
+// set (#186): selection, hover and matches are draw state here, never model rebuilds. Detail nodes
+// drag with mouse AND touch, edges follow live, and the dropped position snaps to its lane column
+// and sticks (persisted by the panel through the saved layout). The saved viewport is restored on
+// open, never silently re-fit (D-127).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "@/i18n";
 import type { GraphPosition, GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
+import type { GraphSearchResult } from "@/facilis/graph-view-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
+import { startDirtyFrameLoop } from "@/facilis/graph-surface/frame-loop.ts";
 import { worldPoint, zoomCamera } from "@/facilis/graph-surface/camera.ts";
 import { resolveSurfacePalette } from "@/facilis/graph-surface/palette.ts";
 import { surfaceLayoutKey, setNodeRect } from "@/facilis/graph-surface/positions.ts";
@@ -29,7 +33,7 @@ type SurfaceMode =
 
 export function ProjectGraphSurface({
   view,
-  query,
+  search,
   fitNonce,
   selectedNodeId,
   savedPositions,
@@ -40,7 +44,7 @@ export function ProjectGraphSurface({
   onViewportChange,
 }: {
   view: ProjectGraphView;
-  query: string;
+  search: GraphSearchResult;
   fitNonce: number;
   selectedNodeId: string | null;
   savedPositions: Readonly<Record<string, GraphPosition>>;
@@ -78,25 +82,23 @@ export function ProjectGraphSurface({
     mode.kind === "overview" ? overviewScene : (detailScene ?? overviewScene);
   // Latest-ref pattern: gesture handlers and the camera hook read the current scene synchronously.
   sceneRef.current = scene;
-  const matched = useMemo(
-    () => new Set(view.nodes.filter((node) => node.matched).map((node) => node.id)),
-    [view],
-  );
   const uiRef = useRef({
     hoverId: null as string | null,
     selectedId: null as string | null,
     query: "",
-    matched: new Set<string>(),
+    matched: new Set<string>() as ReadonlySet<string>,
   });
+  // Selection and the debounced match set are draw state: sync the frame's UI snapshot and mark
+  // the surface dirty — no scene, layout or node object is rebuilt here (issue #186).
   useEffect(() => {
     uiRef.current = {
       hoverId: hoverRef.current,
       selectedId: selectedNodeId,
-      query: query.trim().toLowerCase(),
-      matched,
+      query: search.query,
+      matched: search.matched,
     };
     dirtyRef.current = true;
-  }, [selectedNodeId, query, matched]);
+  }, [selectedNodeId, search]);
   useEffect(() => {
     dirtyRef.current = true;
   }, [scene]);
@@ -136,24 +138,25 @@ export function ProjectGraphSurface({
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(wrap);
-    let raf = 0;
-    const frame = () => {
-      raf = requestAnimationFrame(frame);
-      if (!dirtyRef.current) return;
-      dirtyRef.current = false;
-      const current = sceneRef.current;
-      const ctx = canvas.getContext("2d");
-      if (current === null || ctx === null) return;
-      drawSurface(
-        ctx,
-        current,
-        cameraRef.current,
-        sizeRef.current,
-        resolveSurfacePalette(canvas),
-        uiRef.current,
-      );
-    };
-    raf = requestAnimationFrame(frame);
+    const loop = startDirtyFrameLoop({
+      isDirty: () => dirtyRef.current,
+      draw: () => {
+        dirtyRef.current = false;
+        const current = sceneRef.current;
+        const ctx = canvas.getContext("2d");
+        if (current === null || ctx === null) return;
+        drawSurface(
+          ctx,
+          current,
+          cameraRef.current,
+          sizeRef.current,
+          resolveSurfacePalette(canvas),
+          uiRef.current,
+        );
+      },
+      requestFrame: (callback) => requestAnimationFrame(callback),
+      cancelFrame: (handle) => cancelAnimationFrame(handle),
+    });
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -170,7 +173,7 @@ export function ProjectGraphSurface({
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       observer.disconnect();
-      cancelAnimationFrame(raf);
+      loop.stop();
       canvas.removeEventListener("wheel", onWheel);
     };
   }, [cameraRef, restoreOrFit, scheduleViewportPersist]);
