@@ -196,7 +196,9 @@ export const projectGraphEn = {
   "projectGraph.prerender.usedByPages": "Prerendered pages calling it",
   "projectGraph.prerender.noUsedByPages": "No prerendered page calls this route.",
 
-  // ── map-and-lens canvas surface (D-211, issue #184) ─────────────────────────
+  // ── map-and-lens canvas surface (D-211, issues #184/#187) ───────────────────
+  "projectGraph.drawer": "Node details",
+  "projectGraph.searchResults": "Search results",
   "projectGraph.surface.canvasLabel": "Project graph map",
   "projectGraph.surface.breadcrumb": "Graph breadcrumb",
   "projectGraph.surface.overview": "Overview",

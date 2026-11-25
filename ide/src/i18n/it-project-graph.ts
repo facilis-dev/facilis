@@ -199,7 +199,9 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.prerender.usedByPages": "Pagine prerenderizzate che la chiamano",
   "projectGraph.prerender.noUsedByPages": "Nessuna pagina prerenderizzata chiama questa route.",
 
-  // ── map-and-lens canvas surface (D-211, issue #184) ─────────────────────────
+  // ── map-and-lens canvas surface (D-211, issues #184/#187) ───────────────────
+  "projectGraph.drawer": "Dettagli del nodo",
+  "projectGraph.searchResults": "Risultati della ricerca",
   "projectGraph.surface.canvasLabel": "Mappa del grafo del progetto",
   "projectGraph.surface.breadcrumb": "Percorso del grafo",
   "projectGraph.surface.overview": "Panoramica",

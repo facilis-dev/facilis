@@ -6,15 +6,17 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { GraphViewport } from "@/facilis/graph-layout";
 import {
+  SURFACE_MIN_FIT_SCALE,
+  centerCameraOn,
   fitCamera,
+  panCameraForInset,
   restoreCamera,
   viewportFromCamera,
   type SurfaceCamera,
 } from "@/facilis/graph-surface/camera.ts";
+import type { SurfaceRect } from "@/facilis/graph-surface/layout.ts";
 import type { SurfaceScene } from "@/facilis/graph-surface/scene.ts";
-
-/** The inspector is a w-80 (320px) side panel: fit reserves its width so cards never hide under it. */
-const INSPECTOR_WIDTH = 320;
+import { surfaceInsets } from "@/facilis/graph-surface/safe-area.ts";
 /** Wheel zoom has no "up" event: persist a short debounce after the last scroll. */
 const WHEEL_SAVE_DELAY_MS = 300;
 
@@ -31,6 +33,7 @@ export function useGraphSurfaceCamera({
   modeKey,
   fitNonce,
   viewport,
+  drawerOpen,
   onViewportChange,
 }: {
   sceneRef: RefObject<SurfaceScene | null>;
@@ -39,6 +42,8 @@ export function useGraphSurfaceCamera({
   modeKey: string;
   fitNonce: number;
   viewport: GraphViewport | undefined;
+  /** The floating drawer's state: fit reserves its column and toggling it pans the camera. */
+  drawerOpen: boolean;
   onViewportChange: (viewport: GraphViewport) => void;
 }) {
   const cameraRef = useRef<SurfaceCamera>({ tx: 0, ty: 0, scale: 1 });
@@ -48,7 +53,12 @@ export function useGraphSurfaceCamera({
   savedRef.current = viewport;
   const modeKeyRef = useRef(modeKey);
   modeKeyRef.current = modeKey;
+  const drawerOpenRef = useRef(drawerOpen);
+  drawerOpenRef.current = drawerOpen;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The inset the current camera was fitted/restored with: the drawer-pan delta baseline. */
+  const insetRef = useRef(surfaceInsets(false).right);
+  const previousModeRef = useRef(modeKey);
 
   // Only the overview camera is the project's saved viewport; detail cameras are session-only,
   // so a detail pan cannot leak a foreign world-space into the overview's next open.
@@ -61,12 +71,13 @@ export function useGraphSurfaceCamera({
     const current = sceneRef.current;
     const size = sizeRef.current;
     if (current === null || size.width === 0 || size.height === 0) return;
-    const insetRight = current.mode === "detail" ? INSPECTOR_WIDTH : 0;
+    const insetRight = surfaceInsets(drawerOpenRef.current).right;
     const camera = fitCamera(current.layout.bounds, size.width, size.height, {
       insetRight,
       maxScale: 1.1,
     });
     cameraRef.current = camera;
+    insetRef.current = insetRight;
     sessionRef.current.set(modeKeyRef.current, camera);
     dirtyRef.current = true;
     persist();
@@ -76,7 +87,7 @@ export function useGraphSurfaceCamera({
     const current = sceneRef.current;
     const size = sizeRef.current;
     if (current === null || size.width === 0 || size.height === 0) return;
-    const insetRight = current.mode === "detail" ? INSPECTOR_WIDTH : 0;
+    const insetRight = surfaceInsets(drawerOpenRef.current).right;
     const camera = restoreCamera({
       session: sessionRef.current.get(modeKeyRef.current),
       saved: modeKeyRef.current === "overview" ? savedRef.current : undefined,
@@ -86,6 +97,7 @@ export function useGraphSurfaceCamera({
       insetRight,
     });
     cameraRef.current = camera;
+    insetRef.current = insetRight;
     sessionRef.current.set(modeKeyRef.current, camera);
     dirtyRef.current = true;
   }, [sceneRef, sizeRef, dirtyRef]);
@@ -94,6 +106,53 @@ export function useGraphSurfaceCamera({
   useEffect(() => {
     restoreOrFit();
   }, [modeKey, restoreOrFit]);
+
+  // Opening/closing the drawer changes the reserved column: pan by half the delta so the free
+  // area stays centred on the same world point, and never touch the scale (issue #187).
+  useEffect(() => {
+    const next = surfaceInsets(drawerOpen).right;
+    const sameMode = previousModeRef.current === modeKey;
+    previousModeRef.current = modeKey;
+    if (!sameMode) {
+      // The mode effect already fitted/restored with the new inset: this is only the baseline.
+      insetRef.current = next;
+      return;
+    }
+    const previous = insetRef.current;
+    if (previous === next) return;
+    cameraRef.current = panCameraForInset(cameraRef.current, previous, next);
+    insetRef.current = next;
+    sessionRef.current.set(modeKeyRef.current, cameraRef.current);
+    dirtyRef.current = true;
+    persist();
+  }, [drawerOpen, modeKey, persist]);
+
+  /**
+   * Bring a world rect into the middle of the free area at a readable scale (search jump).
+   * The drawer inset is read live so the target lands left of the floating drawer.
+   */
+  const centerOn = useCallback(
+    (rect: SurfaceRect) => {
+      const size = sizeRef.current;
+      if (size.width === 0 || size.height === 0) return;
+      const current = sceneRef.current;
+      if (current === null) return;
+      const insetRight = surfaceInsets(drawerOpenRef.current).right;
+      const camera = centerCameraOn(
+        rect,
+        size.width,
+        size.height,
+        Math.max(SURFACE_MIN_FIT_SCALE, Math.min(1.1, cameraRef.current.scale)),
+        { insetRight },
+      );
+      cameraRef.current = camera;
+      insetRef.current = insetRight;
+      sessionRef.current.set(modeKeyRef.current, camera);
+      dirtyRef.current = true;
+      persist();
+    },
+    [sceneRef, sizeRef, dirtyRef, persist],
+  );
 
   // The Fit button (fitNonce) is the only explicit re-fit.
   const lastNonce = useRef(fitNonce);
@@ -124,5 +183,5 @@ export function useGraphSurfaceCamera({
     [],
   );
 
-  return { cameraRef, fitNow, restoreOrFit, noteGestureEnd, scheduleViewportPersist };
+  return { cameraRef, fitNow, restoreOrFit, centerOn, noteGestureEnd, scheduleViewportPersist };
 }

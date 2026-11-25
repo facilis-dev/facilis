@@ -52,7 +52,7 @@ export function ProjectGraphInspector({
   return (
     <aside
       data-testid="project-graph-inspector"
-      className="flex w-80 shrink-0 flex-col border-l bg-sidebar text-xs"
+      className="flex h-full w-full min-h-0 flex-col bg-sidebar text-xs"
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">

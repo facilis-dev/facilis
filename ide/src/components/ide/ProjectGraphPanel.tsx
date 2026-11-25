@@ -1,30 +1,33 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // `loadProjectAnalysis(controller)` and drawn fullscreen-capable in the editor area.
 //
-// The panel is the view half: analysis, search, fullscreen and the empty/error states live
-// here; the saved layout and its actions live in useProjectGraphLayout (which owns the
-// debounced writes to `.facilis/graph`). Nothing here touches the analyzer worker, and nothing
-// here writes outside the project's `.facilis` directory.
+// The panel is the view half: analysis, search jumps, the floating drawer and the empty/error
+// states live here; the saved layout and its actions live in useProjectGraphLayout (which owns
+// the debounced writes to `.facilis/graph`). Nothing here touches the analyzer worker, and
+// nothing here writes outside the project's `.facilis` directory.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
-import { loadProjectAnalysis, loadProjectSources } from "@/facilis/analyze-client";
+import { loadProjectSources } from "@/facilis/analyze-client";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import type { ProjectAnalysisResult } from "@/facilis/project-analysis";
 import { sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
-import { errText } from "@/vv/errors";
 import { ProjectGraphSurface } from "./ProjectGraphSurface";
+import { ProjectGraphDrawer } from "./ProjectGraphDrawer";
 import { ProjectGraphFooter } from "./ProjectGraphFooter";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
 import { ProjectGraphToolbar } from "./ProjectGraphToolbar";
+import type { ProjectGraphMode } from "./project-graph-surface-mode";
 import { useIde } from "./useIde";
 import { usePrerenderToggle } from "./usePrerenderToggle";
+import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
+import { useProjectGraphEscape } from "./useProjectGraphEscape";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
+import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
 import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
 
 export function ProjectGraphPanel() {
@@ -33,12 +36,14 @@ export function ProjectGraphPanel() {
   // openFolder() publishes the file index asynchronously, so at cold boot this is false while
   // the graph tab is already open; the analysis must wait, not read the empty snapshot.
   const indexReady = isProjectIndexReady(snap.files, root);
-  const [result, setResult] = useState<ProjectAnalysisResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [nonce, setNonce] = useState(0);
+  const { result, loading, refresh } = useProjectGraphAnalysis(c, root, indexReady);
   const [fullscreen, setFullscreen] = useState(false);
   const [fitNonce, setFitNonce] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // The drawer is independent from selection: X/Esc close it while the focus stays, and the
+  // next Esc clears the selection (issue #187 progressive Escape).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mode, setMode] = useState<ProjectGraphMode>({ kind: "overview" });
   // The sources the analyzer already read for this snapshot, so code previews never re-read
   // files one node at a time (loadProjectSources is cached per controller snapshot).
   const [sources, setSources] = useState<ReadonlyMap<string, string>>(new Map());
@@ -46,79 +51,18 @@ export function ProjectGraphPanel() {
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
-  const refresh = () => setNonce((value) => value + 1);
   // The prerender toggle writes the declaration, then re-analyzes without a reload (#84).
   const togglePrerender = usePrerenderToggle(c, root, refresh);
-
-  // Analysis: on mount, on refresh, and whenever the active project changes. The index gate
-  // is one-shot: after it opens, a later edit/import does not re-run the analysis per keystroke.
-  useEffect(() => {
-    if (root === null) {
-      setResult(null);
-      setLoading(false);
-      return;
-    }
-    if (!indexReady) {
-      // Still indexing: analyzing now would report an empty project (missing-config error).
-      setResult(null);
-      setLoading(true);
-      return;
-    }
-    let cancelled = false;
-    setResult(null);
-    setLoading(true);
-    void loadProjectAnalysis(c)
-      .then((next) => {
-        if (cancelled) return;
-        setResult(next);
-        setLoading(false);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setResult({ ok: false, error: errText(error) });
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [c, root, nonce, indexReady]);
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullscreen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [fullscreen]);
-  // Escape also leaves an AI focus (D-171), but only once the fullscreen listener above had its
-  // turn: exiting fullscreen is the bigger mode change, so one key press does one thing. Typing
-  // targets keep Escape for themselves (the note editor cancels the edit), so never steal it.
-  useEffect(() => {
-    if (focus === null || fullscreen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      const target = event.target;
-      const typing =
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT");
-      if (typing) return;
-      clearGraphFocus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [focus, fullscreen]);
 
   const analysis = result !== null && result.ok ? result.analysis : null;
   const prerenderFacts = analysis?.prerender ?? [];
   // Incremental view model (#186): rebuilt only on dataset/saved-layout changes; the search
   // input is debounced into a match pass, and selection/focus stay canvas draw state.
-  const { view, query, search, onQueryChange } = useProjectGraphViewModel(
+  const { view, query, search, onQueryChange, flushSearch } = useProjectGraphViewModel(
     analysis?.graph ?? null,
     layout,
   );
+
   const stats = view === null ? null : { ...view.stats, matches: search.matched.size };
   useEffect(() => {
     // Drop the previous project's map first: the keys are project-relative, so a stale
@@ -183,8 +127,58 @@ export function ProjectGraphPanel() {
   // A detail list may name a relation the graph did not draw (hidden table visibility, unresolved
   // names): selecting an id that has no node would close the inspector for no reason.
   const selectNode = (id: string) => {
-    if (nodeLabels.has(id)) setSelectedNodeId(id);
+    if (!nodeLabels.has(id)) return;
+    setSelectedNodeId(id);
+    setDrawerOpen(true);
   };
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    setDrawerOpen(id !== null);
+  }, []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const clearSelection = useCallback(() => {
+    setSelectedNodeId(null);
+    setDrawerOpen(false);
+  }, []);
+  const changeMode = useCallback((next: ProjectGraphMode) => {
+    setMode(next);
+    if (next.kind === "overview") {
+      setSelectedNodeId(null);
+      setDrawerOpen(false);
+    }
+  }, []);
+  const backToOverview = useCallback(() => {
+    setSelectedNodeId(null);
+    setDrawerOpen(false);
+    setMode({ kind: "overview" });
+  }, []);
+  // Search jump: drill to the node's domain, select it (the drawer opens) and ask the surface to
+  // centre the camera. The jump nonce makes a second jump to the same node re-centre too.
+  const onJump = useCallback((nodeId: string, domain: string) => {
+    setSelectedNodeId(nodeId);
+    setDrawerOpen(true);
+    setMode({ kind: "detail", domain });
+  }, []);
+  const { searchResults, jump, jumpToNode, submitSearch } = useProjectGraphSearchJump({
+    view,
+    query,
+    search,
+    flushSearch,
+    onJump,
+  });
+
+  useProjectGraphEscape({
+    fullscreen,
+    onExitFullscreen: () => setFullscreen(false),
+    focusActive: focus !== null,
+    onClearFocus: clearGraphFocus,
+    drawerOpen,
+    onCloseDrawer: closeDrawer,
+    selectedNodeId,
+    onClearSelection: clearSelection,
+    mode,
+    onOverview: backToOverview,
+  });
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.
   // Notes are content too: a graph with only annotations is not "empty" (D-126).
@@ -206,10 +200,14 @@ export function ProjectGraphPanel() {
         view={view}
         search={search}
         fitNonce={fitNonce}
+        mode={mode}
         selectedNodeId={selectedNodeId}
+        drawerOpen={drawerOpen}
+        jump={jump}
         savedPositions={layout.nodes}
         viewport={layout.viewport}
-        onSelectNode={setSelectedNodeId}
+        onModeChange={changeMode}
+        onSelectNode={handleSelectNode}
         onOpenNode={openNode}
         onMoveNode={graph.moveNode}
         onViewportChange={graph.changeViewport}
@@ -231,6 +229,9 @@ export function ProjectGraphPanel() {
         hiddenEdgeKinds={layout.hiddenEdges}
         query={query}
         onQueryChange={onQueryChange}
+        results={searchResults}
+        onJumpToNode={jumpToNode}
+        onSubmitSearch={submitSearch}
         fullscreen={fullscreen}
         onToggleFullscreen={() => setFullscreen((value) => !value)}
         onFit={() => setFitNonce((value) => value + 1)}
@@ -253,24 +254,26 @@ export function ProjectGraphPanel() {
         tableVisibility={layout.tableVisibility}
         onTableVisibilityChange={graph.changeTableVisibility}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div className="relative min-h-0 flex-1">{body}</div>
-        {selectedNode !== null && (
-          <ProjectGraphInspector
-            node={selectedNode}
-            edges={selectedEdges}
-            details={details.get(selectedNode.id) ?? null}
-            sources={sources}
-            nodeLabel={nodeLabel}
-            onClose={() => setSelectedNodeId(null)}
-            onOpenFileAt={openFileAt}
-            onOpenPreview={(path) => openPageInPreview(c, path)}
-            onSelectNode={selectNode}
-            nodes={view?.nodes ?? []}
-            prerenderFacts={prerenderFacts}
-            graphEdges={analysis?.graph.edges ?? []}
-            onTogglePrerender={togglePrerender}
-          />
+        {state === null && selectedNode !== null && drawerOpen && (
+          <ProjectGraphDrawer onClose={closeDrawer}>
+            <ProjectGraphInspector
+              node={selectedNode}
+              edges={selectedEdges}
+              details={details.get(selectedNode.id) ?? null}
+              sources={sources}
+              nodeLabel={nodeLabel}
+              onClose={closeDrawer}
+              onOpenFileAt={openFileAt}
+              onOpenPreview={(path) => openPageInPreview(c, path)}
+              onSelectNode={selectNode}
+              nodes={view?.nodes ?? []}
+              prerenderFacts={prerenderFacts}
+              graphEdges={analysis?.graph.edges ?? []}
+              onTogglePrerender={togglePrerender}
+            />
+          </ProjectGraphDrawer>
         )}
       </div>
       <ProjectGraphFooter

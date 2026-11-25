@@ -22,6 +22,8 @@ export interface ProjectGraphViewModel {
   /** The debounced match pass result: dims cards, never rebuilds the model. */
   readonly search: GraphSearchResult;
   readonly onQueryChange: (value: string) => void;
+  /** Enter: run the pending debounce now and return the match set immediately. */
+  readonly flushSearch: () => GraphSearchResult;
 }
 
 export function useProjectGraphViewModel(
@@ -47,5 +49,9 @@ export function useProjectGraphViewModel(
     },
     [model],
   );
-  return { view, query, search: model.searchResult, onQueryChange };
+  const flushSearch = useCallback(() => {
+    model.flush();
+    return model.searchResult;
+  }, [model]);
+  return { view, query, search: model.searchResult, onQueryChange, flushSearch };
 }

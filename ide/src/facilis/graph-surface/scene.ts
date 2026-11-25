@@ -7,6 +7,7 @@ import type { ProjectGraphEdge, ProjectGraphNode } from "../graph-types.ts";
 import type { GraphDomain } from "./domains.ts";
 import type { SurfaceCamera } from "./camera.ts";
 import { detailLayout, type DetailLayout } from "./detail.ts";
+import { buildNeighborIndex } from "./focus.ts";
 import { detailWithSavedPositions } from "./positions.ts";
 import { overviewLayout, type OverviewLayout } from "./layout.ts";
 import type { SurfacePalette } from "./palette.ts";
@@ -33,6 +34,8 @@ export interface SurfaceInteraction {
   /** The toolbar search, lowercased; empty means no dimming. */
   readonly query: string;
   readonly matched: ReadonlySet<string>;
+  /** The selected node's neighbourhood; null means selection does not dim anything. */
+  readonly focus: ReadonlySet<string> | null;
 }
 
 export interface OverviewScene {
@@ -49,6 +52,8 @@ export interface DetailScene {
   /** Automatic swimlane column x's: the snap targets for a dropped node (issue #185). */
   readonly columns: readonly number[];
   readonly nodeById: ReadonlyMap<string, ProjectGraphNode>;
+  /** Undirected adjacency over the full graph: the focus neighbourhood, never a layout input. */
+  readonly neighbors: ReadonlyMap<string, readonly string[]>;
 }
 
 export type SurfaceScene = OverviewScene | DetailScene;
@@ -78,7 +83,14 @@ export function buildDetailScene(
   for (const node of nodes) {
     if (domainOf.get(node.id) === domain) nodeById.set(node.id, node);
   }
-  return { mode: "detail", domain, layout, columns, nodeById };
+  return {
+    mode: "detail",
+    domain,
+    layout,
+    columns,
+    nodeById,
+    neighbors: buildNeighborIndex(edges),
+  };
 }
 
 export type SurfaceHit =
@@ -160,13 +172,21 @@ function drawDetailFrame(
     drawLaneHeader(ctx, header.x, header.y, header.lane, palette);
   }
   const searching = ui.query.length > 0;
-  const nodeAlpha = (id: string): number => (searching && !ui.matched.has(id) ? 0.2 : 1);
+  const focus = ui.focus;
+  const outsideFocus = (id: string): boolean => focus !== null && !focus.has(id);
+  const nodeAlpha = (id: string): number => {
+    let alpha = outsideFocus(id) ? 0.12 : 1;
+    if (searching && !ui.matched.has(id)) alpha = Math.min(alpha, 0.2);
+    return alpha;
+  };
   for (const edge of layout.edges) {
     const a = layout.positions.get(edge.source);
     const b = layout.positions.get(edge.target);
     if (a === undefined || b === undefined) continue;
     const elevated = edge.access === "elevated";
-    const dim = searching && !ui.matched.has(edge.source) && !ui.matched.has(edge.target);
+    const dim =
+      (outsideFocus(edge.source) && outsideFocus(edge.target)) ||
+      (searching && !ui.matched.has(edge.source) && !ui.matched.has(edge.target));
     drawEdge(ctx, a, b, elevated ? palette.elevated : palette.edges[edge.kind], {
       alpha: dim ? 0.06 : 0.35,
       width: 1.3,
@@ -178,14 +198,18 @@ function drawDetailFrame(
       const rect = layout.positions.get(localId);
       if (rect === undefined) continue;
       drawEdge(ctx, rect, port.rect, palette.muted, {
-        alpha: 0.25,
+        alpha: outsideFocus(localId) ? 0.05 : 0.25,
         width: 1.1,
         dashed: true,
         arrow: false,
       });
     }
     if (!rectVisible(port.rect, visible)) continue;
-    drawPort(ctx, port, palette, { active: ui.hoverId === port.id, alpha: 1 });
+    const portFocused = focus === null || port.links.some((id) => focus.has(id));
+    drawPort(ctx, port, palette, {
+      active: ui.hoverId === port.id,
+      alpha: portFocused ? 1 : 0.15,
+    });
   }
   for (const [id, rect] of layout.positions) {
     if (!rectVisible(rect, visible)) continue;

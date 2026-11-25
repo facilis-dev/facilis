@@ -6,9 +6,15 @@ import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { initI18n, setLocale } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "../graph-types.ts";
 import { deriveDomains, domainIndex } from "./domains.ts";
+import { focusHops, focusNeighborhood } from "./focus.ts";
 import type { SurfacePalette } from "./palette.ts";
 import { rectVisible, visibleWorldRect } from "./render.ts";
-import { buildDetailScene, buildOverviewScene, drawSurface, type SurfaceInteraction } from "./scene.ts";
+import {
+  buildDetailScene,
+  buildOverviewScene,
+  drawSurface,
+  type SurfaceInteraction,
+} from "./scene.ts";
 
 function node(kind: GraphNodeKind, id: string): ProjectGraphNode {
   const base = {
@@ -22,7 +28,17 @@ function node(kind: GraphNodeKind, id: string): ProjectGraphNode {
   };
   switch (kind) {
     case "page":
-      return { ...base, data: { kind, pagePath: "/" + id, pageKind: "page", callCount: 0, routePaths: [], preview: null } };
+      return {
+        ...base,
+        data: {
+          kind,
+          pagePath: "/" + id,
+          pageKind: "page",
+          callCount: 0,
+          routePaths: [],
+          preview: null,
+        },
+      };
     case "route":
       return {
         ...base,
@@ -42,9 +58,32 @@ function node(kind: GraphNodeKind, id: string): ProjectGraphNode {
         },
       };
     case "table":
-      return { ...base, data: { kind, table: id, columns: [], rlsEnabled: true, framework: false, scope: null, policies: [], unknown: false } };
+      return {
+        ...base,
+        data: {
+          kind,
+          table: id,
+          columns: [],
+          rlsEnabled: true,
+          framework: false,
+          scope: null,
+          policies: [],
+          unknown: false,
+        },
+      };
     case "view":
-      return { ...base, data: { kind, view: id, tables: [], permission: null, access: "invoker", unknown: false, usedByRoutes: [] } };
+      return {
+        ...base,
+        data: {
+          kind,
+          view: id,
+          tables: [],
+          permission: null,
+          access: "invoker",
+          unknown: false,
+          usedByRoutes: [],
+        },
+      };
     case "workflow":
       return { ...base, data: { kind, name: id, steps: [], unknown: false } };
   }
@@ -109,7 +148,14 @@ const CAMERA = { tx: 0, ty: 0, scale: 1 };
 const VIEW = { width: 400, height: 300, dpr: 1 };
 
 function interaction(overrides: Partial<SurfaceInteraction> = {}): SurfaceInteraction {
-  return { hoverId: null, selectedId: null, query: "", matched: new Set<string>(), ...overrides };
+  return {
+    hoverId: null,
+    selectedId: null,
+    query: "",
+    matched: new Set<string>(),
+    focus: null,
+    ...overrides,
+  };
 }
 
 /** t1 on screen, t2 far outside the viewport: the culling pair. */
@@ -176,6 +222,31 @@ describe("search dims, never hides", () => {
     expect(texts).toContain("t1");
     expect(texts.some((text) => text.startsWith("t2"))).toBe(true);
     expect(sets.some((entry) => entry.prop === "globalAlpha" && entry.value === 0.2)).toBe(true);
+  });
+});
+
+describe("selection focus dims the neighbourhood", () => {
+  it("keeps the page's routes and their tables bright, dims the rest", () => {
+    const domainOf = domainIndex(deriveDomains(NODES, EDGES));
+    const scene = buildDetailScene("core", NODES, domainOf, EDGES, {
+      p1: { x: 20, y: 20 },
+      r1: { x: 260, y: 20 },
+      t1: { x: 500, y: 20 },
+      t2: { x: 740, y: 20 },
+    });
+    const focus = focusNeighborhood(scene.neighbors, "p1", focusHops("page"));
+    expect([...focus].toSorted()).toEqual(["p1", "r1", "t1"]);
+    const { ctx, sets } = fakeCtx();
+    drawSurface(
+      ctx,
+      scene,
+      { tx: 0, ty: 0, scale: 1 },
+      { width: 1200, height: 300, dpr: 1 },
+      PALETTE,
+      interaction({ selectedId: "p1", focus }),
+    );
+    // t2 is outside the 2-hop neighbourhood: drawn, never hidden, at the focus alpha.
+    expect(sets.some((entry) => entry.prop === "globalAlpha" && entry.value === 0.12)).toBe(true);
   });
 });
 

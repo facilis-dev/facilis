@@ -53,6 +53,39 @@ export function fitCamera(
   };
 }
 
+/**
+ * Centre a world rect in the free viewport at a fixed scale: the search jump uses this so it
+ * never changes the zoom while bringing a node into view.
+ */
+export function centerCameraOn(
+  rect: SurfaceRect,
+  width: number,
+  height: number,
+  scale: number,
+  options: FitOptions = {},
+): SurfaceCamera {
+  const vw = Math.max(1, width - (options.insetRight ?? 0));
+  const vh = Math.max(1, height - (options.insetBottom ?? 0));
+  return {
+    scale,
+    tx: vw / 2 - (rect.x + rect.w / 2) * scale,
+    ty: vh / 2 - (rect.y + rect.h / 2) * scale,
+  };
+}
+
+/**
+ * Pan-only response to the drawer changing its reserved width: opening shifts the map left by
+ * half the inset, closing shifts it back, and the scale is untouched (no zoom jump).
+ */
+export function panCameraForInset(
+  camera: SurfaceCamera,
+  previousInset: number,
+  nextInset: number,
+): SurfaceCamera {
+  if (previousInset === nextInset) return camera;
+  return { ...camera, tx: camera.tx + (previousInset - nextInset) / 2 };
+}
+
 /** Zoom around a screen point, keeping the world point under the cursor fixed. */
 export function zoomCamera(
   camera: SurfaceCamera,
