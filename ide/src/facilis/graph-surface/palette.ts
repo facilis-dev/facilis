@@ -2,7 +2,8 @@
 // semantic role tokens at runtime, so a theme flip repaints the canvas. Edge tokens mirror
 // project-graph-edges.ts; system-color fallbacks only cover a document with no theme block.
 
-import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
+import type { GraphDiagnosticCode, GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
+import { DIAGNOSTIC_COLOR_TOKENS } from "./lenses.ts";
 
 const EDGE_TOKENS: Record<GraphEdgeKind, string> = {
   fk: "--brand",
@@ -32,6 +33,8 @@ export interface SurfacePalette {
   readonly elevated: string;
   readonly kinds: Readonly<Record<GraphNodeKind, string>>;
   readonly edges: Readonly<Record<GraphEdgeKind, string>>;
+  /** Lens highlight colours, keyed by diagnostic code (D-212). */
+  readonly diagnostics: Readonly<Record<GraphDiagnosticCode, string>>;
 }
 
 /** Read the active theme's role tokens once per frame batch; never hardcode palette colours. */
@@ -49,6 +52,10 @@ export function resolveSurfacePalette(element: HTMLElement): SurfacePalette {
   for (const kind of Object.keys(EDGE_TOKENS) as GraphEdgeKind[]) {
     edges[kind] = read(EDGE_TOKENS[kind], "CanvasText");
   }
+  const diagnostics = {} as Record<GraphDiagnosticCode, string>;
+  for (const code of Object.keys(DIAGNOSTIC_COLOR_TOKENS) as GraphDiagnosticCode[]) {
+    diagnostics[code] = read(DIAGNOSTIC_COLOR_TOKENS[code], "CanvasText");
+  }
   return {
     background: read("--editor", "Canvas"),
     card: read("--card", "Canvas"),
@@ -60,5 +67,6 @@ export function resolveSurfacePalette(element: HTMLElement): SurfacePalette {
     elevated: read("--warning", "CanvasText"),
     kinds,
     edges,
+    diagnostics,
   };
 }

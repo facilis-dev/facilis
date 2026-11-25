@@ -221,6 +221,49 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.detailHint":
     "Trascina un nodo per spostarlo · trascina lo sfondo per muoverti · rotella o pizzico per lo zoom",
 
+  // ── lenti in-place e diagnostiche dell'analizzatore (D-212, issue #189) ─────
+  "projectGraph.surface.lens.title": "Lenti Q&A",
+  "projectGraph.surface.lens.security": "Q5 · Sicurezza",
+  "projectGraph.surface.lens.security.description":
+    "Rotte pubbliche che scrivono o espongono /admin, e tabelle di progetto senza RLS.",
+  "projectGraph.surface.lens.elevated": "Q4 · Elevated (sudo / system)",
+  "projectGraph.surface.lens.elevated.description":
+    "Rotte che toccano i dati con elevazione sudo/system auditata, aggirando la RLS del chiamante.",
+  "projectGraph.surface.lens.shared": "Q9 · Condivisi tra gruppi",
+  "projectGraph.surface.lens.shared.description":
+    "Nodi referenziati da due o più altri domini: una modifica qui si propaga tra i gruppi.",
+  "projectGraph.surface.lens.unknown": "Q17 · Unknown",
+  "projectGraph.surface.lens.unknown.description":
+    "Dichiarazioni che l'analizzatore non ha letto staticamente: i fatti possono essere incompleti.",
+  "projectGraph.surface.lens.flags": "{count} segnalati",
+  "projectGraph.surface.lens.count": "Nodi segnalati: {count}",
+  "projectGraph.surface.lens.legend": "Legenda",
+  "projectGraph.surface.lens.close": "Chiudi la lente",
+  "projectGraph.surface.lens.answers": "Risposte",
+  "projectGraph.surface.lens.emptyTitle": "Nessun riscontro per questa lente",
+  "projectGraph.surface.lens.emptyHint":
+    "Questo progetto non ha riscontri per la lente {lens}. Chiudi la lente per tornare alla mappa completa: nulla è stato nascosto o spostato.",
+  "projectGraph.surface.lens.emptyLeave": "Chiudi la lente",
+  "projectGraph.surface.diag.title": "Diagnosi",
+  "projectGraph.surface.diag.publicWrite":
+    "Il permesso è 'public' ma la rotta scrive ({method}): chiunque può chiamarla. Richiedi un permesso di session/role o restringi il wrapper.",
+  "projectGraph.surface.diag.publicAdmin":
+    "Il permesso è 'public' e la rotta espone /admin: chiunque può chiamarla. Richiedi un permesso di session/role o restringi il wrapper.",
+  "projectGraph.surface.diag.tableNoRls":
+    "RLS disattivato sulla tabella di progetto '{table}': qualsiasi ruolo con grant legge/scrive ogni riga. Aggiungi RLS + una policy, o rendila system-only.",
+  "projectGraph.surface.diag.elevated":
+    "Tocca i dati con elevazione sudo/system auditata, bypassando la RLS del chiamante. Conferma che l'elevazione sia voluta e auditata.",
+  "projectGraph.surface.diag.shared":
+    "Referenziato da {count} altri domini ({domains}). Una modifica qui si propaga tra i gruppi; controlla l'impatto prima di modificarla.",
+  "projectGraph.surface.diag.unknown":
+    "L'analizzatore non ha letto staticamente questa dichiarazione: permessi/tabelle/colonne potrebbero essere incompleti. Apri il sorgente per verificare.",
+  "projectGraph.surface.diag.publicWrite.label": "Rotta di scrittura esposta",
+  "projectGraph.surface.diag.publicAdmin.label": "Rotta admin esposta",
+  "projectGraph.surface.diag.tableNoRls.label": "Tabella senza RLS",
+  "projectGraph.surface.diag.elevated.label": "Rotta elevated",
+  "projectGraph.surface.diag.shared.label": "Nodo condiviso",
+  "projectGraph.surface.diag.unknown.label": "Dichiarazione unknown",
+
   // ── on-demand rich card (issue #188) ────────────────────────────────────────
   "projectGraph.surface.card.label": "Scheda dettagliata del nodo",
   "projectGraph.surface.card.open": "Apri scheda dettagliata",

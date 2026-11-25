@@ -1,6 +1,6 @@
 // Progressive Escape for the project graph (D-211, issues #187/#188): exit fullscreen first,
 // then clear an AI focus (D-171), then close the rich card, then the floating drawer, then clear
-// the selection, then return to the overview. One key press does one thing; the ordering is the
+// the selection, then the active lens, then return to the overview. One key press does one thing; the ordering is the
 // pure resolveEscapeAction ladder so it can be tested without a DOM. Typing targets keep Escape
 // for themselves (the note editor cancels the edit), so the document listener never steals it.
 
@@ -29,6 +29,8 @@ export function useProjectGraphEscape({
   onCloseDrawer,
   selectedNodeId,
   onClearSelection,
+  lensActive,
+  onClearLens,
   mode,
   onOverview,
 }: {
@@ -42,6 +44,8 @@ export function useProjectGraphEscape({
   onCloseDrawer: () => void;
   selectedNodeId: string | null;
   onClearSelection: () => void;
+  lensActive: boolean;
+  onClearLens: () => void;
   mode: ProjectGraphMode;
   onOverview: () => void;
 }) {
@@ -55,6 +59,7 @@ export function useProjectGraphEscape({
         richCardOpen,
         drawerOpen,
         selectedNodeId,
+        lensActive,
         detail: mode.kind === "detail",
       });
       if (action === "exit-fullscreen") onExitFullscreen();
@@ -62,6 +67,7 @@ export function useProjectGraphEscape({
       else if (action === "close-rich-card") onCloseRichCard();
       else if (action === "close-drawer") onCloseDrawer();
       else if (action === "clear-selection") onClearSelection();
+      else if (action === "clear-lens") onClearLens();
       else if (action === "overview") onOverview();
     };
     document.addEventListener("keydown", onKey);
@@ -77,6 +83,8 @@ export function useProjectGraphEscape({
     onCloseDrawer,
     selectedNodeId,
     onClearSelection,
+    lensActive,
+    onClearLens,
     mode,
     onOverview,
   ]);

@@ -10,6 +10,7 @@ export type EscapeAction =
   | "close-rich-card"
   | "close-drawer"
   | "clear-selection"
+  | "clear-lens"
   | "overview"
   | "none";
 
@@ -21,6 +22,8 @@ export interface EscapeLadderState {
   readonly richCardOpen: boolean;
   readonly drawerOpen: boolean;
   readonly selectedNodeId: string | null;
+  /** An active lens is its own layer, cleared after the selection and before leaving detail. */
+  readonly lensActive: boolean;
   readonly detail: boolean;
 }
 
@@ -31,6 +34,7 @@ export function resolveEscapeAction(state: EscapeLadderState): EscapeAction {
   if (state.richCardOpen) return "close-rich-card";
   if (state.drawerOpen) return "close-drawer";
   if (state.selectedNodeId !== null) return "clear-selection";
+  if (state.lensActive) return "clear-lens";
   if (state.detail) return "overview";
   return "none";
 }

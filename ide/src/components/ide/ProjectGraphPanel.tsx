@@ -8,14 +8,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
-import { loadProjectSources } from "@/facilis/analyze-client";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
 import { sourcePathFor } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
+import { selectGraphSelection } from "@/facilis/graph-selection";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import { ProjectGraphSurface } from "./ProjectGraphSurface";
+import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphDrawer } from "./ProjectGraphDrawer";
+import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
 import { ProjectGraphFooter } from "./ProjectGraphFooter";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
@@ -29,6 +31,8 @@ import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
 import { useProjectGraphRichCard } from "./use-project-graph-rich-card";
 import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
+import { useProjectGraphLens } from "./use-project-graph-lens";
+import { useProjectGraphSources } from "./use-project-graph-sources";
 import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
 
 export function ProjectGraphPanel() {
@@ -45,9 +49,6 @@ export function ProjectGraphPanel() {
   // next Esc clears the selection (issue #187 progressive Escape).
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<ProjectGraphMode>({ kind: "overview" });
-  // The sources the analyzer already read for this snapshot, so code previews never re-read
-  // files one node at a time (loadProjectSources is cached per controller snapshot).
-  const [sources, setSources] = useState<ReadonlyMap<string, string>>(new Map());
   const graph = useProjectGraphLayout(c, root);
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
@@ -56,6 +57,7 @@ export function ProjectGraphPanel() {
   const togglePrerender = usePrerenderToggle(c, root, refresh);
 
   const analysis = result !== null && result.ok ? result.analysis : null;
+  const sources = useProjectGraphSources(c, analysis);
   const prerenderFacts = analysis?.prerender ?? [];
   // Incremental view model (#186): rebuilt only on dataset/saved-layout changes; the search
   // input is debounced into a match pass, and selection/focus stay canvas draw state.
@@ -65,23 +67,6 @@ export function ProjectGraphPanel() {
   );
 
   const stats = view === null ? null : { ...view.stats, matches: search.matched.size };
-  useEffect(() => {
-    // Drop the previous project's map first: the keys are project-relative, so a stale
-    // `src/app.tsx` would otherwise render the other project's source while this one loads.
-    setSources(new Map());
-    if (analysis === null) return;
-    let cancelled = false;
-    void loadProjectSources(c)
-      .then((loaded) => {
-        if (!cancelled && loaded.ok) setSources(loaded.files);
-      })
-      .catch(() => {
-        // A transient bridge failure leaves the snippets empty; the next analysis retries.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [c, analysis]);
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
   const pruneCurves = graph.pruneCurves;
@@ -93,18 +78,12 @@ export function ProjectGraphPanel() {
   const diagnostics = analysis?.diagnostics ?? [];
   const errors = diagnostics.filter((entry) => entry.severity === "error").length;
   const warnings = diagnostics.filter((entry) => entry.severity === "warning").length;
-
   const resetLayout = () => {
     graph.resetPositions();
     setFitNonce((value) => value + 1);
   };
-  const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  // Incident edges, both directions: the page inspector lists page links and the view inspector
-  // reads the routes that use it (incoming route-view edges).
-  const selectedEdges =
-    view?.edges.filter(
-      (edge) => edge.source === selectedNodeId || edge.target === selectedNodeId,
-    ) ?? [];
+  // Incident edges: the page inspector lists page links, the view inspector its routes.
+  const { node: selectedNode, edges: selectedEdges } = selectGraphSelection(view, selectedNodeId);
   // The inspector's detail facts (security flags, db columns, policies, foreign keys, page
   // calls, source lines) live on the Analysis the panel already holds, not on the drawn graph.
   const details = useMemo<ReadonlyMap<string, NodeDetails>>(
@@ -116,6 +95,17 @@ export function ProjectGraphPanel() {
     [view],
   );
   const nodeLabel = (id: string): string | null => nodeLabels.get(id) ?? null;
+  // Analyzer diagnostics are codes + params; the lens summary is pure draw state (#189).
+  const {
+    lens,
+    summary: lensSummary,
+    highlight: lensHighlightValue,
+    byNode: diagnosticsByNodeMap,
+    selectLens,
+    closeLens,
+  } = useProjectGraphLens(analysis?.graphDiagnostics, view);
+  const selectedDiagnostics =
+    selectedNodeId === null ? [] : (diagnosticsByNodeMap.get(selectedNodeId) ?? []);
   const openFileAt = (file: string, line: number) => {
     const path = sourcePathFor(root, file);
     if (path !== null) void c.openFileAt(path, line);
@@ -182,6 +172,8 @@ export function ProjectGraphPanel() {
     onCloseDrawer: closeDrawer,
     selectedNodeId,
     onClearSelection: clearSelection,
+    lensActive: lens !== null,
+    onClearLens: closeLens,
     mode,
     onOverview: backToOverview,
   });
@@ -211,6 +203,7 @@ export function ProjectGraphPanel() {
         drawerOpen={drawerOpen}
         richCard={richCard.card}
         jump={jump}
+        lens={lensHighlightValue}
         savedPositions={layout.nodes}
         viewport={layout.viewport}
         onModeChange={changeMode}
@@ -262,9 +255,22 @@ export function ProjectGraphPanel() {
         onTableVisibilityChange={graph.changeTableVisibility}
       />
       <div className="relative flex min-h-0 flex-1">
-        <div className="relative min-h-0 flex-1">{body}</div>
+        <div className="relative min-h-0 flex-1">
+          {body}
+          {state === null && view !== null && (
+            <ProjectGraphLensBar
+              lens={lens}
+              summary={lensSummary}
+              nodeLabel={nodeLabel}
+              onSelectLens={selectLens}
+              onClose={closeLens}
+              onActivate={jumpToNode}
+            />
+          )}
+        </div>
         {state === null && selectedNode !== null && drawerOpen && (
           <ProjectGraphDrawer onClose={closeDrawer}>
+            <ProjectGraphDiagnosisCallout diagnostics={selectedDiagnostics} />
             <ProjectGraphInspector
               node={selectedNode}
               edges={selectedEdges}

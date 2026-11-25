@@ -2,18 +2,18 @@
 // validated preview: world-space drawing, viewport culling, no per-node DOM. Colours come from
 // palette.ts (semantic role tokens, D-043/D-044), so a theme flip repaints the canvas.
 
-import type { GraphEdgeKind, GraphNodeKind } from "@facilis.dev/analyze";
+import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphNode } from "../graph-types.ts";
 import type { SurfaceCamera } from "./camera.ts";
 import type { SurfacePort } from "./detail.ts";
-import type { DomainOverviewCard, SurfaceRect } from "./layout.ts";
+import type { SurfaceRect } from "./layout.ts";
 import type { SurfacePalette } from "./palette.ts";
 
 export const SURFACE_FONT = "12px system-ui, sans-serif";
 export const SURFACE_FONT_BOLD = "600 13px system-ui, sans-serif";
-const FONT_TITLE = "600 18px system-ui, sans-serif";
-const FONT_STATS = "13px system-ui, sans-serif";
+export const FONT_TITLE = "600 18px system-ui, sans-serif";
+export const FONT_STATS = "13px system-ui, sans-serif";
 const FONT_HEADER = "600 12px system-ui, sans-serif";
 
 /** Edge kinds drawn dashed, mirroring project-graph-edges.ts (same role tokens). */
@@ -144,65 +144,6 @@ export interface CardDrawOptions {
   readonly alpha: number;
 }
 
-export function drawDomainCard(
-  ctx: CanvasRenderingContext2D,
-  card: DomainOverviewCard,
-  palette: SurfacePalette,
-  options: CardDrawOptions & { readonly matches: number | null },
-): void {
-  const { rect } = card;
-  ctx.globalAlpha = options.alpha;
-  roundRectPath(ctx, rect.x, rect.y, rect.w, rect.h, 14);
-  ctx.fillStyle = options.active ? palette.cardActive : palette.card;
-  ctx.fill();
-  ctx.lineWidth = options.active ? 2 : 1;
-  ctx.strokeStyle = options.active ? palette.accent : palette.border;
-  ctx.stroke();
-  ctx.fillStyle = palette.foreground;
-  ctx.font = FONT_TITLE;
-  ctx.fillText(truncateText(ctx, card.name, rect.w - 36), rect.x + 18, rect.y + 34);
-  ctx.font = FONT_STATS;
-  ctx.fillStyle = palette.muted;
-  const stats =
-    t("projectGraph.surface.nodeCount", { count: card.total }) +
-    " · " +
-    t("projectGraph.surface.linkCount", { count: card.links });
-  ctx.fillText(truncateText(ctx, stats, rect.w - 36), rect.x + 18, rect.y + 58);
-  let cx = rect.x + 18;
-  const cy = rect.y + 80;
-  ctx.font = SURFACE_FONT;
-  for (const kind of Object.keys(card.counts) as GraphNodeKind[]) {
-    const count = card.counts[kind];
-    if (count === 0) continue;
-    const label = t(("projectGraph.node." + kind) as MessageKey) + " " + count;
-    const w = ctx.measureText(label).width + 16;
-    if (cx + w > rect.x + rect.w - 12) break;
-    roundRectPath(ctx, cx, cy, w, 24, 7);
-    ctx.fillStyle = palette.background;
-    ctx.fill();
-    ctx.strokeStyle = palette.kinds[kind];
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = palette.kinds[kind];
-    ctx.fillText(label, cx + 8, cy + 16);
-    cx += w + 8;
-  }
-  ctx.fillStyle = palette.accent;
-  ctx.fillText(t("projectGraph.surface.openDomain"), rect.x + 18, rect.y + rect.h - 16);
-  if (options.matches !== null && options.matches > 0) {
-    const label = t("projectGraph.matches", { count: options.matches });
-    const w = ctx.measureText(label).width + 14;
-    roundRectPath(ctx, rect.x + rect.w - w - 12, rect.y + 12, w, 22, 7);
-    ctx.fillStyle = palette.background;
-    ctx.fill();
-    ctx.strokeStyle = palette.accent;
-    ctx.stroke();
-    ctx.fillStyle = palette.accent;
-    ctx.fillText(label, rect.x + rect.w - w - 5, rect.y + 27);
-  }
-  ctx.globalAlpha = 1;
-}
-
 function nodeSublabel(node: ProjectGraphNode): string {
   const data = node.data;
   switch (data.kind) {
@@ -231,7 +172,11 @@ export function drawNodeCard(
   node: ProjectGraphNode,
   rect: SurfaceRect,
   palette: SurfacePalette,
-  options: CardDrawOptions & { readonly selected: boolean },
+  options: CardDrawOptions & {
+    readonly selected: boolean;
+    /** The active lens's colour for this node; null when the node is not flagged. */
+    readonly lensColor: string | null;
+  },
 ): void {
   const color = palette.kinds[node.kind];
   ctx.globalAlpha = options.alpha;
@@ -241,6 +186,17 @@ export function drawNodeCard(
   ctx.lineWidth = options.selected ? 2 : 1;
   ctx.strokeStyle = options.selected ? color : options.active ? palette.accent : palette.border;
   ctx.stroke();
+  if (options.lensColor !== null) {
+    // Ring + dot: the node keeps its position and size, only its ink changes (#189).
+    roundRectPath(ctx, rect.x - 2, rect.y - 2, rect.w + 4, rect.h + 4, 11);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = options.lensColor;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(rect.x + rect.w - 11, rect.y + 11, 5, 0, Math.PI * 2);
+    ctx.fillStyle = options.lensColor;
+    ctx.fill();
+  }
   roundRectPath(ctx, rect.x, rect.y, 5, rect.h, 3);
   ctx.fillStyle = color;
   ctx.fill();

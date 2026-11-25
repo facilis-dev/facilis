@@ -2,7 +2,7 @@
 // are culled (no draw calls for them), search matches DIM cards instead of hiding them, and
 // selection is pure draw state — the scene's node objects are never rebuilt or mutated.
 import { beforeEach, describe, expect, it } from "vitest";
-import type { GraphNodeKind } from "@facilis.dev/analyze";
+import type { GraphDiagnosticCode, GraphNodeKind } from "@facilis.dev/analyze";
 import { initI18n, setLocale } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode } from "../graph-types.ts";
 import { deriveDomains, domainIndex } from "./domains.ts";
@@ -108,6 +108,14 @@ const PALETTE: SurfacePalette = {
     "route-view": "#00f",
     "view-base": "#888",
   },
+  diagnostics: {
+    publicWrite: "#f00",
+    publicAdmin: "#f00",
+    tableNoRls: "#f80",
+    elevated: "#f80",
+    shared: "#00f",
+    unknown: "#888",
+  },
 };
 
 interface RecordedCall {
@@ -154,6 +162,7 @@ function interaction(overrides: Partial<SurfaceInteraction> = {}): SurfaceIntera
     query: "",
     matched: new Set<string>(),
     focus: null,
+    lens: null,
     ...overrides,
   };
 }
@@ -265,5 +274,33 @@ describe("selection is draw state only", () => {
       expect(value).toBe(nodesBefore.find((entry) => entry.id === id));
     }
     expect(drawnTexts(second.calls)).toContain("t1");
+  });
+});
+describe("lens is draw state only", () => {
+  it("rings flagged nodes and dims the rest without moving nodes or the camera", () => {
+    const scene = culledScene();
+    const camera = { tx: 0, ty: 0, scale: 1 };
+    const positionsBefore = [...scene.layout.positions.entries()];
+    const nodesBefore = [...scene.nodeById.values()];
+    const { ctx, sets } = fakeCtx();
+    drawSurface(
+      ctx,
+      scene,
+      camera,
+      VIEW,
+      PALETTE,
+      interaction({
+        lens: {
+          flagged: new Set(["t1"]),
+          codeOf: new Map<string, GraphDiagnosticCode>([["t1", "publicWrite"]]),
+        },
+      }),
+    );
+    expect([...scene.layout.positions.entries()]).toEqual(positionsBefore);
+    expect([...scene.nodeById.values()]).toEqual(nodesBefore);
+    expect(camera).toEqual({ tx: 0, ty: 0, scale: 1 });
+    // The ring and the dimmed rest are ink only, never a layout change.
+    expect(sets.some((entry) => entry.prop === "lineWidth" && entry.value === 2.5)).toBe(true);
+    expect(sets.some((entry) => entry.prop === "globalAlpha" && entry.value === 0.12)).toBe(true);
   });
 });

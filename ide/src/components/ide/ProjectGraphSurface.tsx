@@ -12,6 +12,7 @@ import type { GraphPosition, GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphSearchResult } from "@/facilis/graph-view-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
+import type { GraphLensHighlight } from "@/facilis/graph-surface/lenses.ts";
 import { focusHops, focusNeighborhood } from "@/facilis/graph-surface/focus.ts";
 import { startDirtyFrameLoop } from "@/facilis/graph-surface/frame-loop.ts";
 import { zoomCamera } from "@/facilis/graph-surface/camera.ts";
@@ -46,6 +47,7 @@ export function ProjectGraphSurface({
   drawerOpen,
   richCard,
   jump,
+  lens,
   savedPositions,
   viewport,
   onModeChange,
@@ -62,6 +64,8 @@ export function ProjectGraphSurface({
   drawerOpen: boolean;
   richCard: RichCardRequest | null;
   jump: GraphJumpRequest | null;
+  /** The active lens highlight (draw state only; never a layout input). */
+  lens: GraphLensHighlight | null;
   savedPositions: Readonly<Record<string, GraphPosition>>;
   viewport: GraphViewport | undefined;
   onModeChange: (mode: ProjectGraphMode) => void;
@@ -103,6 +107,7 @@ export function ProjectGraphSurface({
     query: "",
     matched: new Set<string>() as ReadonlySet<string>,
     focus: null as ReadonlySet<string> | null,
+    lens: null as GraphLensHighlight | null,
   });
   // Selection focus and the debounced match set are draw state: sync the frame's UI snapshot and
   // mark the surface dirty — no scene, layout or node object is rebuilt here (issues #186/#187).
@@ -118,9 +123,10 @@ export function ProjectGraphSurface({
         selected === undefined || detail === null
           ? null
           : focusNeighborhood(detail.neighbors, selected.id, focusHops(selected.kind)),
+      lens,
     };
     dirtyRef.current = true;
-  }, [selectedNodeId, search, scene]);
+  }, [selectedNodeId, search, scene, lens]);
   useEffect(() => {
     dirtyRef.current = true;
   }, [scene, richCard]);

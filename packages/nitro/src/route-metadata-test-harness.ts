@@ -15,7 +15,14 @@ export function routeFact(
     rawSql: false,
     dbTables: [],
     dbColumns: [],
-    relations: { used: [], unresolved: [], rawSql: [], opaque: false, elevations: [], services: [] },
+    relations: {
+      used: [],
+      unresolved: [],
+      rawSql: [],
+      opaque: false,
+      elevations: [],
+      services: [],
+    },
     description: null,
     input: { body: false, form: false, query: false, params: false },
     handlerBodyRead: false,
@@ -59,6 +66,7 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     locales: {},
     diagnostics: [],
     graph: { nodes: [], edges: [] },
+    graphDiagnostics: [],
     ...overrides,
   };
 }

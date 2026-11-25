@@ -8,11 +8,12 @@ import type { GraphDomain } from "./domains.ts";
 import type { SurfaceCamera } from "./camera.ts";
 import { detailLayout, type DetailLayout } from "./detail.ts";
 import { buildNeighborIndex } from "./focus.ts";
+import { domainFlagCounts, type GraphLensHighlight } from "./lenses.ts";
 import { detailWithSavedPositions } from "./positions.ts";
 import { overviewLayout, type OverviewLayout } from "./layout.ts";
 import type { SurfacePalette } from "./palette.ts";
+import { drawDomainCard } from "./render-domain.ts";
 import {
-  drawDomainCard,
   drawEdge,
   drawLaneHeader,
   drawNodeCard,
@@ -36,6 +37,8 @@ export interface SurfaceInteraction {
   readonly matched: ReadonlySet<string>;
   /** The selected node's neighbourhood; null means selection does not dim anything. */
   readonly focus: ReadonlySet<string> | null;
+  /** The active lens highlight; null means no lens is active (issue #189). */
+  readonly lens: GraphLensHighlight | null;
 }
 
 export interface OverviewScene {
@@ -149,15 +152,37 @@ function drawOverviewFrame(
       if (domain !== undefined) matchesByDomain.set(domain, (matchesByDomain.get(domain) ?? 0) + 1);
     }
   }
+  // Lens badges are per-domain flag counts; the rest of the grid dims but never moves.
+  const lens = ui.lens;
+  const flagsByDomain = lens === null ? null : domainFlagCounts(scene.domainOf, lens.flagged);
+  const flagColors = new Map<string, string>();
+  if (lens !== null) {
+    for (const id of lens.flagged) {
+      const domain = scene.domainOf.get(id);
+      if (domain === undefined || flagColors.has(domain)) continue;
+      const code = lens.codeOf.get(id);
+      if (code !== undefined) flagColors.set(domain, palette.diagnostics[code]);
+    }
+  }
   for (const card of scene.layout.cards) {
     if (!rectVisible(card.rect, visible)) continue;
     const matches = searching ? (matchesByDomain.get(card.name) ?? 0) : null;
+    const flags = flagsByDomain?.get(card.name) ?? null;
+    let alpha = searching && matches === 0 ? 0.45 : 1;
+    if (flagsByDomain !== null && (flags ?? 0) === 0) alpha = Math.min(alpha, 0.35);
     drawDomainCard(ctx, card, palette, {
       active: ui.hoverId === card.name,
-      alpha: searching && matches === 0 ? 0.45 : 1,
+      alpha,
       matches,
+      flags,
+      flagColor: flagColors.get(card.name) ?? palette.accent,
     });
   }
+}
+
+/** A lens keeps the flagged nodes fully inked and dims the rest without moving anything. */
+function lensAlpha(flagged: boolean): number {
+  return flagged ? 1 : 0.12;
 }
 
 function drawDetailFrame(
@@ -173,8 +198,10 @@ function drawDetailFrame(
   }
   const searching = ui.query.length > 0;
   const focus = ui.focus;
+  const lens = ui.lens;
   const outsideFocus = (id: string): boolean => focus !== null && !focus.has(id);
   const nodeAlpha = (id: string): number => {
+    if (lens !== null) return lensAlpha(lens.flagged.has(id));
     let alpha = outsideFocus(id) ? 0.12 : 1;
     if (searching && !ui.matched.has(id)) alpha = Math.min(alpha, 0.2);
     return alpha;
@@ -185,8 +212,10 @@ function drawDetailFrame(
     if (a === undefined || b === undefined) continue;
     const elevated = edge.access === "elevated";
     const dim =
-      (outsideFocus(edge.source) && outsideFocus(edge.target)) ||
-      (searching && !ui.matched.has(edge.source) && !ui.matched.has(edge.target));
+      lens !== null
+        ? !lens.flagged.has(edge.source) && !lens.flagged.has(edge.target)
+        : (outsideFocus(edge.source) && outsideFocus(edge.target)) ||
+          (searching && !ui.matched.has(edge.source) && !ui.matched.has(edge.target));
     drawEdge(ctx, a, b, elevated ? palette.elevated : palette.edges[edge.kind], {
       alpha: dim ? 0.06 : 0.35,
       width: 1.3,
@@ -198,14 +227,24 @@ function drawDetailFrame(
       const rect = layout.positions.get(localId);
       if (rect === undefined) continue;
       drawEdge(ctx, rect, port.rect, palette.muted, {
-        alpha: outsideFocus(localId) ? 0.05 : 0.25,
+        alpha:
+          lens !== null
+            ? lens.flagged.has(localId)
+              ? 0.25
+              : 0.05
+            : outsideFocus(localId)
+              ? 0.05
+              : 0.25,
         width: 1.1,
         dashed: true,
         arrow: false,
       });
     }
     if (!rectVisible(port.rect, visible)) continue;
-    const portFocused = focus === null || port.links.some((id) => focus.has(id));
+    const portFocused =
+      lens !== null
+        ? port.links.some((id) => lens.flagged.has(id))
+        : focus === null || port.links.some((id) => focus.has(id));
     drawPort(ctx, port, palette, {
       active: ui.hoverId === port.id,
       alpha: portFocused ? 1 : 0.15,
@@ -215,10 +254,12 @@ function drawDetailFrame(
     if (!rectVisible(rect, visible)) continue;
     const node = scene.nodeById.get(id);
     if (node === undefined) continue;
+    const code = lens?.codeOf.get(id);
     drawNodeCard(ctx, node, rect, palette, {
       active: ui.hoverId === id,
       selected: ui.selectedId === id,
       alpha: nodeAlpha(id),
+      lensColor: code === undefined ? null : palette.diagnostics[code],
     });
   }
 }

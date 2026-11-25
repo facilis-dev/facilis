@@ -11,6 +11,7 @@ const BASE: EscapeLadderState = {
   richCardOpen: false,
   drawerOpen: false,
   selectedNodeId: null,
+  lensActive: false,
   detail: false,
 };
 
@@ -22,6 +23,22 @@ describe("resolveEscapeAction", () => {
     expect(resolveEscapeAction({ ...BASE, selectedNodeId: "table:todos" })).toBe("clear-selection");
     expect(resolveEscapeAction({ ...BASE, detail: true })).toBe("overview");
     expect(resolveEscapeAction(BASE)).toBe("none");
+  });
+
+  it("clears the active lens after the selection and before leaving the detail", () => {
+    expect(resolveEscapeAction({ ...BASE, lensActive: true })).toBe("clear-lens");
+    expect(resolveEscapeAction({ ...BASE, lensActive: true, detail: true })).toBe("clear-lens");
+    expect(
+      resolveEscapeAction({
+        ...BASE,
+        lensActive: true,
+        drawerOpen: true,
+        selectedNodeId: "table:todos",
+      }),
+    ).toBe("close-drawer");
+    expect(resolveEscapeAction({ ...BASE, lensActive: true, selectedNodeId: "table:todos" })).toBe(
+      "clear-selection",
+    );
   });
 
   it("closes the rich card before the drawer and selection", () => {
