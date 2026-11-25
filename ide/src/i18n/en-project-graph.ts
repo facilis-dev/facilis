@@ -195,4 +195,20 @@ export const projectGraphEn = {
   "projectGraph.prerender.writeFailed": "Could not update the prerender declaration: {error}",
   "projectGraph.prerender.usedByPages": "Prerendered pages calling it",
   "projectGraph.prerender.noUsedByPages": "No prerendered page calls this route.",
+
+  // ── map-and-lens canvas surface (D-211, issue #184) ─────────────────────────
+  "projectGraph.surface.canvasLabel": "Project graph map",
+  "projectGraph.surface.breadcrumb": "Graph breadcrumb",
+  "projectGraph.surface.overview": "Overview",
+  "projectGraph.surface.nodeCount": "{count} nodes",
+  "projectGraph.surface.linkCount": "{count} links",
+  "projectGraph.surface.openDomain": "Click to open",
+  "projectGraph.surface.lane.page": "Pages",
+  "projectGraph.surface.lane.route": "Routes",
+  "projectGraph.surface.lane.data": "Data (tables + views)",
+  "projectGraph.surface.lane.workflow": "Workflows",
+  "projectGraph.surface.portOut": "→ {domain} ×{count}",
+  "projectGraph.surface.portIn": "← {domain} ×{count}",
+  "projectGraph.surface.rls": "RLS",
+  "projectGraph.surface.hint": "Drag to pan · scroll or pinch to zoom · click a domain to open it",
 } as const;

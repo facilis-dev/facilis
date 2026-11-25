@@ -16,7 +16,7 @@ import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
 import { errText } from "@/vv/errors";
-import { ProjectGraphCanvas } from "./ProjectGraphCanvas";
+import { ProjectGraphSurface } from "./ProjectGraphSurface";
 import { ProjectGraphFooter } from "./ProjectGraphFooter";
 import { ProjectGraphInspector } from "./ProjectGraphInspector";
 import { ProjectGraphStateView, type ProjectGraphState } from "./ProjectGraphStates";
@@ -209,25 +209,13 @@ export function ProjectGraphPanel() {
     body = <ProjectGraphStateView state={state} onRefresh={refresh} />;
   } else if (view !== null) {
     body = (
-      <ProjectGraphCanvas
+      <ProjectGraphSurface
         view={view}
-        viewport={layout.viewport ?? null}
+        query={query}
         fitNonce={fitNonce}
-        edgeCurves={layout.edgeCurves}
-        focus={focus}
-        notes={graph.notes}
-        addNoteNonce={graph.addNoteNonce}
         selectedNodeId={selectedNodeId}
         onSelectNode={setSelectedNodeId}
-        onMoveNode={graph.moveNode}
-        onToggleCollapse={graph.toggleCollapsed}
         onOpenNode={openNode}
-        onViewportChange={graph.changeViewport}
-        onEdgeCurveChange={graph.changeEdgeCurve}
-        onCreateNote={graph.createNote}
-        onMoveNote={graph.moveNote}
-        onEditNote={graph.editNote}
-        onDeleteNote={graph.deleteNote}
       />
     );
   }

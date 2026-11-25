@@ -198,4 +198,21 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
     "Impossibile aggiornare la dichiarazione di prerender: {error}",
   "projectGraph.prerender.usedByPages": "Pagine prerenderizzate che la chiamano",
   "projectGraph.prerender.noUsedByPages": "Nessuna pagina prerenderizzata chiama questa route.",
+
+  // ── map-and-lens canvas surface (D-211, issue #184) ─────────────────────────
+  "projectGraph.surface.canvasLabel": "Mappa del grafo del progetto",
+  "projectGraph.surface.breadcrumb": "Percorso del grafo",
+  "projectGraph.surface.overview": "Panoramica",
+  "projectGraph.surface.nodeCount": "{count} nodi",
+  "projectGraph.surface.linkCount": "{count} collegamenti",
+  "projectGraph.surface.openDomain": "Clicca per aprire",
+  "projectGraph.surface.lane.page": "Pagine",
+  "projectGraph.surface.lane.route": "Route",
+  "projectGraph.surface.lane.data": "Dati (tabelle + viste)",
+  "projectGraph.surface.lane.workflow": "Workflow",
+  "projectGraph.surface.portOut": "→ {domain} ×{count}",
+  "projectGraph.surface.portIn": "← {domain} ×{count}",
+  "projectGraph.surface.rls": "RLS",
+  "projectGraph.surface.hint":
+    "Trascina per spostarti · rotella o pizzico per lo zoom · clicca un dominio per aprirlo",
 };
