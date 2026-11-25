@@ -5,7 +5,6 @@
 // states live here; the saved layout and its actions live in useProjectGraphLayout (which owns
 // the debounced writes to `.facilis/graph`). Nothing here touches the analyzer worker, and
 // nothing here writes outside the project's `.facilis` directory.
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
@@ -34,7 +33,6 @@ import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
 import { useProjectGraphLens } from "./use-project-graph-lens";
 import { useProjectGraphSources } from "./use-project-graph-sources";
 import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
-
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
@@ -55,7 +53,6 @@ export function ProjectGraphPanel() {
   const focus = useProjectGraphFocus();
   // The prerender toggle writes the declaration, then re-analyzes without a reload (#84).
   const togglePrerender = usePrerenderToggle(c, root, refresh);
-
   const analysis = result !== null && result.ok ? result.analysis : null;
   const sources = useProjectGraphSources(c, analysis);
   const prerenderFacts = analysis?.prerender ?? [];
@@ -65,7 +62,6 @@ export function ProjectGraphPanel() {
     analysis?.graph ?? null,
     layout,
   );
-
   const stats = view === null ? null : { ...view.stats, matches: search.matched.size };
   // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
   // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
@@ -268,7 +264,7 @@ export function ProjectGraphPanel() {
             />
           )}
         </div>
-        {state === null && selectedNode !== null && drawerOpen && (
+        {state === null && selectedNode !== null && drawerOpen && view !== null && (
           <ProjectGraphDrawer onClose={closeDrawer}>
             <ProjectGraphDiagnosisCallout diagnostics={selectedDiagnostics} />
             <ProjectGraphInspector
@@ -282,7 +278,11 @@ export function ProjectGraphPanel() {
               onOpenFileAt={openFileAt}
               onOpenPreview={(path) => openPageInPreview(c, path)}
               onSelectNode={selectNode}
-              nodes={view?.nodes ?? []}
+              view={view}
+              diagnostics={analysis?.graphDiagnostics ?? []}
+              detailsMap={details}
+              onNavigateNode={jumpToNode}
+              nodes={view.nodes}
               prerenderFacts={prerenderFacts}
               graphEdges={analysis?.graph.edges ?? []}
               onTogglePrerender={togglePrerender}

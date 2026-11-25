@@ -4,10 +4,10 @@
 
 import Maximize2 from "~icons/lucide/maximize-2";
 import X from "~icons/lucide/x";
-import type { GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
+import type { GraphDiagnostic, GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
-import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
+import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { prerenderFactForPage, prerenderedPagesForRoute } from "@/facilis/graph-prerender";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
@@ -15,6 +15,7 @@ import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
 import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
 import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
+import { ProjectGraphAnswers } from "./ProjectGraphAnswers";
 
 export interface ProjectGraphInspectorProps {
   node: ProjectGraphNode;
@@ -27,6 +28,13 @@ export interface ProjectGraphInspectorProps {
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
+  /** The drawn graph, for the answer sections' pure projections (issue #190). */
+  view: ProjectGraphView;
+  diagnostics: readonly GraphDiagnostic[];
+  /** Every node's analyzer details: Q10 joins workflows to the table they touch. */
+  detailsMap: ReadonlyMap<string, NodeDetails>;
+  /** Selecting an answer row reuses the search jump: select, drill to its domain, centre it. */
+  onNavigateNode: (nodeId: string) => void;
   /** The drawn page nodes, for the route satellite's prerendered-page join (D-202). */
   nodes: readonly ProjectGraphNode[];
   prerenderFacts: readonly PrerenderEligibilityFact[];
@@ -46,6 +54,10 @@ export function ProjectGraphInspector({
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
+  view,
+  diagnostics,
+  detailsMap,
+  onNavigateNode,
   nodes,
   prerenderFacts,
   graphEdges,
@@ -81,6 +93,14 @@ export function ProjectGraphInspector({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
+        <ProjectGraphAnswers
+          node={node}
+          view={view}
+          details={detailsMap}
+          diagnostics={diagnostics}
+          onNavigateNode={onNavigateNode}
+          onOpenFileAt={onOpenFileAt}
+        />
         {node.data.kind === "route" && (
           <ProjectGraphRouteDetails
             {...shared}
