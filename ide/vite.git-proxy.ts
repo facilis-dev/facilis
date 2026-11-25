@@ -7,7 +7,12 @@
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
-import { createGitProxy, parseAllowedHosts } from "./git-proxy/handler.mjs";
+import {
+  createGitProxy,
+  parseAllowedHosts,
+  parseOrigins,
+  parseRequireAuth,
+} from "./git-proxy/handler.mjs";
 
 const MOUNT = "/git-proxy";
 
@@ -68,10 +73,12 @@ export function gitProxyDevPlugin(): Plugin {
   return {
     name: "facilis-git-proxy",
     configureServer(server) {
-      // Same env var as the Pages deployment. Read once, at server start: the allowlist
-      // is configuration, not per-request state.
+      // Same env vars as the Pages deployment. Read once, at server start: what the proxy
+      // accepts is configuration, not per-request state.
       const allow = parseAllowedHosts(process.env.GIT_PROXY_ALLOW);
-      const proxy = createGitProxy({ allow });
+      const allowedOrigins = parseOrigins(process.env.GIT_PROXY_ALLOWED_ORIGINS);
+      const requireAuthorization = parseRequireAuth(process.env.GIT_PROXY_REQUIRE_AUTH);
+      const proxy = createGitProxy({ allow, allowedOrigins, requireAuthorization });
       server.middlewares.use(MOUNT, (req, res) => {
         void handle(req, res, proxy);
       });

@@ -67,7 +67,8 @@ export const gitRemoteEn = {
     "GitHub sign-in is not configured in this deployment — use an access token.",
   "gitAuth.tokenLabel": "Access token",
   "gitAuth.tokenPlaceholder": "ghp_…, glpat-…, …",
-  "gitAuth.tokenHint": "Needed for a private repository. Used for this operation and never stored.",
+  "gitAuth.tokenHint":
+    "Needed for a private repository, and for any repository when the deployment's git proxy requires a token. Used for this operation and never stored.",
   "gitAuth.tokenHintWrite":
     "Needed for a private repository and for pushing. Used for this operation and never stored.",
   "gitAuth.tokenInstead": "Use an access token instead",
@@ -98,6 +99,12 @@ export const gitRemoteEn = {
   "clone.emptyDescription":
     "It is cloned and opened; add the Facilis app here and then commit and push it.",
   "clone.emptyAction": "Create the project",
+
+  // ── clone refused by the proxy's token requirement (D-208) ───────────────
+  "clone.proxyAuthRequiredTitle": "Access token required",
+  "clone.proxyAuthRequiredDescription":
+    "This installation's git proxy requires a token for every repository, including public ones. Add an access token below and try again.",
+  "clone.failed": "Clone failed: {error}",
   "scaffold.doneTitle": "Facilis project created",
   "scaffold.doneDescription": "Run it, then commit and push from Source Control.",
   "scaffold.alreadyProject": "This folder already contains a project.",

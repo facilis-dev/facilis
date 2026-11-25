@@ -3,17 +3,21 @@
 //
 // Same handler as the Cloudflare Pages Function, wrapped in a plain http.Server so an
 // operator who does not use Pages can still serve the IDE behind this proxy. It keeps
-// the proxy contract: one startup line, no per-request output, no storage.
+// the proxy contract: one startup line, no per-request output, no storage. Git traffic needs a
+// token unless `--allow-anonymous` is passed (D-208).
 
 import http from "node:http";
 import { Readable } from "node:stream";
-import { createGitProxy, parseAllowedHosts } from "../../ide/git-proxy/handler.mjs";
+import { createGitProxy, parseAllowedHosts, parseOrigins } from "../../ide/git-proxy/handler.mjs";
 
 const DEFAULT_PORT = 8787;
 
 function parseArgs(argv) {
   let port = DEFAULT_PORT;
   let allow;
+  /** @type {string[]} */
+  const origins = [];
+  let requireAuth = true;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--port" || arg.startsWith("--port=")) {
@@ -27,11 +31,19 @@ function parseArgs(argv) {
       allow = arg === "--allow" ? argv[index + 1] : arg.slice("--allow=".length);
       if (arg === "--allow") index += 1;
       if (allow === undefined) throw new Error("--allow needs a comma-separated host list");
+    } else if (arg === "--allow-origin" || arg.startsWith("--allow-origin=")) {
+      const origin =
+        arg === "--allow-origin" ? argv[index + 1] : arg.slice("--allow-origin=".length);
+      if (arg === "--allow-origin") index += 1;
+      if (origin === undefined) throw new Error("--allow-origin needs an origin");
+      origins.push(origin);
+    } else if (arg === "--allow-anonymous") {
+      requireAuth = false;
     } else {
       throw new Error(`unknown option: ${arg}`);
     }
   }
-  return { port, allow };
+  return { port, allow, origins, requireAuth };
 }
 
 /** Build the browser-equivalent request from the Node request. */
@@ -91,15 +103,22 @@ async function handle(req, res, proxy, port) {
   }
 }
 
-const { port, allow } = parseArgs(process.argv.slice(2));
+const { port, allow, origins, requireAuth } = parseArgs(process.argv.slice(2));
 const allowedHosts = parseAllowedHosts(allow);
-const proxy = createGitProxy({ allow: allowedHosts });
+const allowedOrigins = parseOrigins(origins.join(","));
+const proxy = createGitProxy({
+  allow: allowedHosts,
+  allowedOrigins,
+  requireAuthorization: requireAuth,
+});
 const server = http.createServer((req, res) => {
   void handle(req, res, proxy, port);
 });
 
 server.listen(port, "127.0.0.1", () => {
   console.log(
-    `git proxy listening on http://127.0.0.1:${port} (allow: ${allowedHosts.join(", ")})`,
+    `git proxy listening on http://127.0.0.1:${port} (allow: ${allowedHosts.join(", ")}; ` +
+      `origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(", ") : "same host"}; ` +
+      `auth: ${requireAuth ? "required" : "optional (--allow-anonymous)"})`,
   );
 });

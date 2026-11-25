@@ -117,9 +117,11 @@ export function ImportRemoteDialog() {
           onProgress: onCloneProgress,
         });
       }
-      // No proxy (or a clone that failed once the proxy answered) keeps today's REST
+      // No proxy (or a clone that failed for another reason) keeps today's REST
       // importer: cloneGitRepo's own toast explains the failed attempt, then this runs.
-      // A password cannot authenticate the API, so it never reaches this fallback.
+      // An auth-required 401 throws instead (D-208), so the dialog stays open on the
+      // token field. A password cannot authenticate the API, so it never reaches this
+      // fallback.
       if (!ok && (user === "" || cloneUrl === null)) {
         ok = await c.importGitRepo(repo.trim(), {
           onProgress,

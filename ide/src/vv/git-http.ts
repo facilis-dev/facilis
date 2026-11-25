@@ -191,6 +191,32 @@ export async function guarded<T>(
   }
 }
 
+/**
+ * Whether the failure is the deployment's proxy refusing anonymous git traffic
+ * (D-208). Its 401 body is the fixed "authorization required" string sent by
+ * ide/git-proxy/handler.mjs — pinned on both sides by tests — so a host's own
+ * 401 (bad or missing token for a private repository) never matches. Walks the
+ * cause chain because guarded() re-wraps the original error.
+ */
+export function isProxyAuthRequired(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
+    const { code, data } = current as Error & { code?: unknown; data?: unknown };
+    if (code === "HttpError" && typeof data === "object" && data !== null) {
+      const { statusCode, response } = data as { statusCode?: unknown; response?: unknown };
+      if (
+        statusCode === 401 &&
+        typeof response === "string" &&
+        response.includes("authorization required")
+      ) {
+        return true;
+      }
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
 // ── lazy git loading (Buffer first, then the ~1 MB chunk) ──
 
 let bufferReady: Promise<void> | null = null;

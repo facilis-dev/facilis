@@ -68,7 +68,7 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "gitAuth.tokenLabel": "Token di accesso",
   "gitAuth.tokenPlaceholder": "ghp_…, glpat-…, …",
   "gitAuth.tokenHint":
-    "Serve per un repository privato. Usato per questa operazione e mai salvato.",
+    "Serve per un repository privato e, se il proxy git di questa installazione richiede un token, per qualsiasi repository. Usato per questa operazione e mai salvato.",
   "gitAuth.tokenHintWrite":
     "Serve per un repository privato e per il push. Usato per questa operazione e mai salvato.",
   "gitAuth.tokenInstead": "Usa un token di accesso",
@@ -100,6 +100,10 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "clone.emptyDescription":
     "È clonato e aperto; aggiungi qui l'app Facilis, poi fai commit e push.",
   "clone.emptyAction": "Crea il progetto",
+  "clone.proxyAuthRequiredTitle": "Token di accesso richiesto",
+  "clone.proxyAuthRequiredDescription":
+    "Il proxy git di questa installazione richiede un token per qualsiasi repository, anche pubblico. Aggiungi un token di accesso qui sotto e riprova.",
+  "clone.failed": "Clone non riuscito: {error}",
   "scaffold.doneTitle": "Progetto Facilis creato",
   "scaffold.doneDescription": "Avvialo, poi fai commit e push da Source Control.",
   "scaffold.alreadyProject": "Questa cartella contiene già un progetto.",
