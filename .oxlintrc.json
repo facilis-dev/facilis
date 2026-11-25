@@ -103,6 +103,48 @@
       "rules": {
         "no-restricted-imports": "off"
       }
+    },
+    {
+      "files": ["ide/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-properties": [
+          "warn",
+          {
+            "property": "getDirectory",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          },
+          {
+            "property": "getDirectoryHandle",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          },
+          {
+            "property": "getFileHandle",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          },
+          {
+            "property": "createWritable",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          },
+          {
+            "property": "showDirectoryPicker",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          }
+        ],
+        "no-restricted-globals": [
+          "warn",
+          {
+            "name": "showDirectoryPicker",
+            "message": "OPFS is the kernel's write-behind mirror; Studio writes go through kernel.writeFiles (invariant 7, D-216). Kernel-bridge modules under ide/src/vv are the pinned exemption."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["ide/src/vv/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-properties": "off",
+        "no-restricted-globals": "off"
+      }
     }
   ]
 }

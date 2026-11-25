@@ -1,11 +1,17 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.43 (reserved-route-prefix rule, D-215; issue #173)
+**Version:** 1.44 (direct-OPFS warning in the IDE, D-216; issue #174)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.44 — The IDE warns when code outside the kernel bridge touches OPFS directly (D-216, issue
+  #174). An oxlint override for `ide/**/*.{ts,tsx}` restricts `navigator.storage.getDirectory`,
+  `showDirectoryPicker` and the File System handle calls (`getDirectoryHandle`,
+  `getFileHandle`, `createWritable`); `ide/src/vv/**` is the pinned exemption, so the kernel
+  bridge keeps driving the mirror (invariant 7). The restriction is warn-only, adds no analyzer
+  pass and no validator rule (§9.3 stays at 23 rules), and leaves the raw-client ban intact.
 - v1.43 — A project route may not shadow a framework-owned path (D-215, issue #173). The
   analyzer derives each route's path from the Nitro file-router facts and reports
   `reserved-route-prefix` for a route under `/__facilis/**` (manifest, health, dev consoles,
@@ -3020,6 +3026,12 @@ await this.kernel.writeFiles(patch.map(f => ({
 ```
 
 This triggers HMR (client) and worker reload (server), updates the revision hash, and mirrors to OPFS automatically.
+
+Since D-216 (`pnpm lint`), oxlint **warns** — never errors — when code under `ide/src` outside the
+kernel bridge `ide/src/vv/**` calls OPFS directly (`navigator.storage.getDirectory`,
+`showDirectoryPicker`, or a handle's `getDirectoryHandle`/`getFileHandle`/`createWritable`).
+The bridge modules are the pinned exemption because they are the layer that owns the mirror;
+anything else is a write path that skipped the VFS.
 
 ### 10.4 isomorphic-git on VFS
 
