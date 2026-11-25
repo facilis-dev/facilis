@@ -188,6 +188,23 @@ describe("saveGraphLayout", () => {
     expect(files[IGNORE]).toBe(afterFirst);
   });
 
+  // The canvas surface ships no note annotations in epic #182 (D-214), but the files are team
+  // state (D-126): a project that already has notes must keep them byte-for-byte across a load
+  // and the next save, even though no UI action edits them any more.
+  it("round-trips existing note files unchanged through load and save", async () => {
+    const notePath = ROOT + "/" + noteFilePath(NOTE);
+    const positionPath = ROOT + "/" + elementPath(NOTE);
+    const { controller, files } = fakeController({
+      [ROOT + "/" + GRAPH_NOTES_DIR + "/" + UUID + ".md"]: "# Nota\n",
+      [positionPath]: position(NOTE, 30, 40),
+    });
+    const loaded = await loadGraphLayout(controller, ROOT);
+    expect(loaded.layout.notes[NOTE]).toEqual(note);
+    await saveGraphLayout(controller, ROOT, loaded.layout);
+    expect(files[notePath]).toBe("# Nota\n");
+    expect(files[positionPath]).toBe(position(NOTE, 30, 40));
+  });
+
   it("removes the obsolete single-file layout after a successful save", async () => {
     const { controller, removed } = fakeController({
       [ROOT + "/" + GRAPH_LEGACY_PATH]: JSON.stringify({ version: 1 }),

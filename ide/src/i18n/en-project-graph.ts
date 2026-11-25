@@ -48,7 +48,6 @@ export const projectGraphEn = {
   "projectGraph.legend": "Legend",
   "projectGraph.hint":
     "Drag a node to move it, double-click to open its rich card. Click a domain to drill down. Scroll or pinch to zoom, drag the pane to pan.",
-  "projectGraph.addNote": "Add note",
   "projectGraph.input.body": "body",
   "projectGraph.input.form": "form",
   "projectGraph.input.query": "query",
@@ -184,6 +183,15 @@ export const projectGraphEn = {
   "projectGraph.drawer": "Node details",
   "projectGraph.searchResults": "Search results",
   "projectGraph.surface.canvasLabel": "Project graph map",
+  "projectGraph.surface.a11y.label": "Project graph nodes",
+  "projectGraph.surface.a11y.hint":
+    "Keyboard navigation of the same nodes the map draws; selecting one opens its details.",
+  "projectGraph.surface.a11y.node": "{label} ({kind})",
+  "projectGraph.surface.a11y.kind.page": "page",
+  "projectGraph.surface.a11y.kind.route": "route",
+  "projectGraph.surface.a11y.kind.table": "table",
+  "projectGraph.surface.a11y.kind.view": "view",
+  "projectGraph.surface.a11y.kind.workflow": "workflow",
   "projectGraph.surface.breadcrumb": "Graph breadcrumb",
   "projectGraph.surface.overview": "Overview",
   "projectGraph.surface.nodeCount": "{count} nodes",

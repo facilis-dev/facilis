@@ -9,14 +9,12 @@
 // The AI graph tools write the same files through graph-layout.ts and announce it on
 // `graph-live`; the subscription below is why "organise my graph" shows up without a reload.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { IdeController } from "@/vv/controller";
 import {
   GRAPH_LAYOUT_SAVE_DELAY_MS,
-  addGraphNote,
   emptyGraphLayout,
   loadGraphLayout,
-  newNoteId,
   pruneGraphCurves,
   resetGraphLayoutPositions,
   saveGraphLayout,
@@ -24,36 +22,24 @@ import {
   withEdgeCurve,
   withHiddenEdgeKind,
   withNodePosition,
-  withNotePosition,
-  withNoteText,
   withTableVisibility,
   withViewport,
-  withoutGraphNote,
   type GraphLayoutFile,
   type GraphPosition,
   type GraphTableVisibility,
   type GraphViewport,
 } from "@/facilis/graph-layout";
 import { subscribeGraphLayoutChanged } from "@/facilis/graph-live";
-import type { GraphCurve, GraphNote } from "@/facilis/graph-types";
+import type { GraphCurve } from "@/facilis/graph-types";
 import type { ProjectGraphSaveState } from "./ProjectGraphToolbar";
 
 export interface ProjectGraphLayout {
   readonly layout: GraphLayoutFile;
-  /** The saved notes, sorted by id so the canvas sees a stable list. */
-  readonly notes: readonly GraphNote[];
   readonly layoutLoaded: boolean;
   readonly layoutInvalid: boolean;
   readonly saveState: ProjectGraphSaveState;
   readonly saveError: string | null;
-  /** Increment a counter: the canvas turns it into "add a note at the viewport centre". */
-  readonly addNoteNonce: number;
-  readonly requestAddNote: () => void;
-  readonly createNote: (position: GraphPosition) => void;
   readonly moveNode: (id: string, position: GraphPosition) => void;
-  readonly moveNote: (id: string, position: GraphPosition) => void;
-  readonly editNote: (id: string, text: string) => void;
-  readonly deleteNote: (id: string) => void;
   readonly toggleCollapsed: (id: string) => void;
   readonly toggleEdgeKind: (kind: GraphLayoutFile["hiddenEdges"][number], hidden: boolean) => void;
   readonly changeTableVisibility: (visibility: GraphTableVisibility) => void;
@@ -77,7 +63,6 @@ export function useProjectGraphLayout(
   const [layoutInvalid, setLayoutInvalid] = useState(false);
   const [saveState, setSaveState] = useState<ProjectGraphSaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [addNoteNonce, setAddNoteNonce] = useState(0);
   const savedLayout = useRef<GraphLayoutFile | null>(null);
   const latestLayout = useRef(layout);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,7 +125,7 @@ export function useProjectGraphLayout(
     [controller, root],
   );
 
-  // Debounce: every drag/filter/collapse/note edit writes the files once it settles.
+  // Debounce: every drag/filter/collapse writes the files once it settles.
   useEffect(() => {
     if (root === null || !layoutLoaded) return;
     if (savedLayout.current === layout) return;
@@ -183,35 +168,9 @@ export function useProjectGraphLayout(
     });
   }, [controller, root, clearTimer]);
 
-  const notes = useMemo(() => {
-    const ids = Object.keys(layout.notes).toSorted();
-    return ids.flatMap((id) => {
-      const note = layout.notes[id];
-      return note === undefined ? [] : [note];
-    });
-  }, [layout.notes]);
-
-  const createNote = useCallback((position: GraphPosition) => {
-    const note: GraphNote = { id: newNoteId(), x: position.x, y: position.y, text: "" };
-    setLayout((current) => addGraphNote(current, note));
-  }, []);
-  const requestAddNote = useCallback(() => setAddNoteNonce((value) => value + 1), []);
   const moveNode = useCallback(
     (id: string, position: GraphPosition) =>
       setLayout((current) => withNodePosition(current, id, position)),
-    [],
-  );
-  const moveNote = useCallback(
-    (id: string, position: GraphPosition) =>
-      setLayout((current) => withNotePosition(current, id, position)),
-    [],
-  );
-  const editNote = useCallback(
-    (id: string, text: string) => setLayout((current) => withNoteText(current, id, text)),
-    [],
-  );
-  const deleteNote = useCallback(
-    (id: string) => setLayout((current) => withoutGraphNote(current, id)),
     [],
   );
   const toggleCollapsed = useCallback((id: string) => {
@@ -245,18 +204,11 @@ export function useProjectGraphLayout(
 
   return {
     layout,
-    notes,
     layoutLoaded,
     layoutInvalid,
     saveState,
     saveError,
-    addNoteNonce,
-    requestAddNote,
-    createNote,
     moveNode,
-    moveNote,
-    editNote,
-    deleteNote,
     toggleCollapsed,
     toggleEdgeKind,
     changeTableVisibility,

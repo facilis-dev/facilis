@@ -175,7 +175,6 @@ export function ProjectGraphPanel() {
   });
 
   // The panel owns the lifecycle; the four non-canvas states live in their own component.
-  // Notes are content too: a graph with only annotations is not "empty" (D-126).
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
   // While the index is still landing there is no result for this project yet: loading outranks
@@ -183,7 +182,7 @@ export function ProjectGraphPanel() {
   else if (!indexReady) state = { kind: "loading" };
   else if (result !== null && !result.ok) state = { kind: "error", error: result.error };
   else if (view === null || !layoutLoaded) state = { kind: "loading" };
-  else if (view.nodes.length === 0 && graph.notes.length === 0) state = { kind: "empty" };
+  else if (view.nodes.length === 0) state = { kind: "empty" };
 
   let body: React.ReactNode = null;
   if (state !== null) {
@@ -231,11 +230,6 @@ export function ProjectGraphPanel() {
         onToggleFullscreen={() => setFullscreen((value) => !value)}
         onFit={() => setFitNonce((value) => value + 1)}
         onResetLayout={resetLayout}
-        // With no canvas on screen (the "empty" state) the toolbar must still be able to place
-        // the first note, so create it directly at a deterministic origin.
-        onAddNote={
-          state === null ? graph.requestAddNote : () => graph.createNote({ x: 120, y: 120 })
-        }
         onSave={graph.saveNow}
         onRefresh={refresh}
         refreshing={loading}

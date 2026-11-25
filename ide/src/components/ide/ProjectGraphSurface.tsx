@@ -25,6 +25,7 @@ import {
   drawSurface,
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
+import { ProjectGraphNodeList } from "./ProjectGraphNodeList";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
 import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
@@ -260,7 +261,7 @@ export function ProjectGraphSurface({
     <div
       ref={wrapRef}
       className="relative h-full w-full overflow-hidden bg-editor"
-      data-testid="project-graph-surface"
+      data-testid="project-graph-canvas"
     >
       <canvas
         ref={canvasRef}
@@ -277,6 +278,13 @@ export function ProjectGraphSurface({
           {richCard.render(richCardLayout, cardRef)}
         </div>
       )}
+      <ProjectGraphNodeList
+        nodes={view.nodes}
+        domains={domains}
+        detailDomain={mode.kind === "detail" ? mode.domain : null}
+        onSelectNode={onSelectNode}
+        onOpenDomain={(domain) => onModeChange({ kind: "detail", domain })}
+      />
       <ProjectGraphSurfaceChrome
         domain={mode.kind === "detail" ? mode.domain : null}
         reservedRight={drawerOpen && !sheet ? DRAWER_INSET : 0}

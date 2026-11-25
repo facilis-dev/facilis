@@ -49,7 +49,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.legend": "Legenda",
   "projectGraph.hint":
     "Trascina un nodo per spostarlo, doppio clic per aprire la scheda dettagliata. Clicca un dominio per aprirlo. Scorri o pizzica per lo zoom, trascina lo sfondo per spostarti.",
-  "projectGraph.addNote": "Aggiungi nota",
   "projectGraph.input.body": "corpo",
   "projectGraph.input.form": "form",
   "projectGraph.input.query": "query",
@@ -187,6 +186,15 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.drawer": "Dettagli del nodo",
   "projectGraph.searchResults": "Risultati della ricerca",
   "projectGraph.surface.canvasLabel": "Mappa del grafo del progetto",
+  "projectGraph.surface.a11y.label": "Nodi del grafo del progetto",
+  "projectGraph.surface.a11y.hint":
+    "Navigazione da tastiera degli stessi nodi disegnati dalla mappa; selezionarne uno apre i dettagli.",
+  "projectGraph.surface.a11y.node": "{label} ({kind})",
+  "projectGraph.surface.a11y.kind.page": "pagina",
+  "projectGraph.surface.a11y.kind.route": "rotta",
+  "projectGraph.surface.a11y.kind.table": "tabella",
+  "projectGraph.surface.a11y.kind.view": "vista",
+  "projectGraph.surface.a11y.kind.workflow": "workflow",
   "projectGraph.surface.breadcrumb": "Percorso del grafo",
   "projectGraph.surface.overview": "Panoramica",
   "projectGraph.surface.nodeCount": "{count} nodi",

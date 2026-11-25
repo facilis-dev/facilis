@@ -2,7 +2,7 @@
 
 # Decision index
 
-211 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+212 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -219,3 +219,4 @@ the file whose name starts with that ID.
 | [D-211](./D-211-the-project-graph-is-a-map-and-lens-canvas-diagnostics-are-analyzer.md) | The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n | accepted | 2026-11-25 |
 | [D-212](./D-212-in-place-graph-lenses-use-analyzer-diagnostic-codes-resolved-via-i18n.md) | In-place graph lenses use analyzer diagnostic codes resolved via i18n | accepted | 2026-11-25 |
 | [D-213](./D-213-the-project-graph-has-one-canvas-surface-react-flow-is-retired.md) | The project graph has one canvas surface; React Flow is retired | accepted | 2026-11-25 |
+| [D-214](./D-214-the-canvas-graph-ships-no-note-annotations-note-files-stay-preserved.md) | The canvas graph ships no note annotations; note files stay preserved | accepted | 2026-11-25 |
