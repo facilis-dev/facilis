@@ -1,0 +1,6 @@
+{
+  "extends": "nitro/tsconfig",
+  "compilerOptions": {
+    "strict": true
+  }
+}

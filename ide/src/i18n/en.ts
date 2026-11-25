@@ -23,6 +23,7 @@ import { runEn } from "./en-run";
 import { previewEn } from "./en-preview";
 import { scaffoldEn } from "./en-scaffold";
 import { prerenderEn } from "./en-prerender";
+import { telemetryLinkoutEn } from "./en-telemetry-linkout";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -287,4 +288,7 @@ export const en = {
 
   // ── prerender run + preview badge (D-202, issue #85) ─────────────────────
   ...prerenderEn,
+
+  // ── observability link-out (D-203 §6, #140) ─────────────────────────────
+  ...telemetryLinkoutEn,
 } as const;

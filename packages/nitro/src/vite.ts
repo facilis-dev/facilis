@@ -12,6 +12,7 @@ import { facilisPrerenderEngine } from "./prerender-engine.ts";
 import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
+import { facilisRum } from "./vite-rum.ts";
 import type { RouteMetadataMap } from "./types.ts";
 import { RESOLVED_OPENAPI_META_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
 
@@ -151,6 +152,9 @@ export function facilis(): FacilisPlugins {
   return [
     plugin,
     facilisDevMetrics(),
+    // The RUM companion is the build-time mirror of dev metrics (D-209): apply "build"
+    // only, so dev stays silent and a production build carries the config literal.
+    facilisRum(),
     facilisPrerenderGate(getAnalysis),
     prerenderEngine.plugin,
     facilisPrerenderServing(() => root),

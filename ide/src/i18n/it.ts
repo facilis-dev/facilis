@@ -16,6 +16,7 @@ import { tourIt } from "./it-tour";
 import { runIt } from "./it-run";
 import { previewIt } from "./it-preview";
 import { scaffoldIt } from "./it-scaffold";
+import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -273,4 +274,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── guided tour (D-128) ─────────────────────────────────────────────────
   ...tourIt,
+
+  // ── observability link-out (D-203 §6, #140) ─────────────────────────────
+  ...telemetryLinkoutIt,
 };

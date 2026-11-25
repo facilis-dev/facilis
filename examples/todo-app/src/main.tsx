@@ -1,3 +1,4 @@
+import { bootRum } from "@facilis.dev/rum";
 import { StrictMode, useEffect } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -7,6 +8,9 @@ import { appBasePath } from "./lib/api.ts";
 import { applyStoredLocale, initI18n } from "./lib/i18n.tsx";
 import { PrerenderDataProvider, readPrerenderIsland, shouldHydrate } from "./lib/prerender.tsx";
 import { initTheme } from "./lib/theme.ts";
+
+// Framework RUM boots first: production-only and opt-in, a silent no-op otherwise (D-209).
+bootRum();
 
 // The theme is applied before mount on both paths: it only writes <html data-theme> outside the
 // React tree, so it cannot cause a hydration mismatch. Catalogues boot with the default locale

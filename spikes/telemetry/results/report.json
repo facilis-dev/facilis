@@ -1,0 +1,140 @@
+{
+  "generatedAt": "2026-11-24T14:39:42.964Z",
+  "trace": {
+    "traceId": "61f1f9865a18c3f1d100a5a128484e70",
+    "spans": [
+      {
+        "traceId": "61f1f9865a18c3f1d100a5a128484e70",
+        "spanId": "103c503180b943f6",
+        "parentSpanId": "5b41600174a57f4c",
+        "name": "SELECT items",
+        "serviceName": "facilis-spike-app",
+        "attributes": {
+          "db.system": "sqlite",
+          "db.operation": "select",
+          "db.table": "items"
+        },
+        "via": "unknown"
+      },
+      {
+        "traceId": "61f1f9865a18c3f1d100a5a128484e70",
+        "spanId": "5b41600174a57f4c",
+        "parentSpanId": "ab22e7a66cec852b",
+        "name": "GET /api/items",
+        "serviceName": "facilis-spike-app",
+        "attributes": {
+          "http.request.method": "GET",
+          "http.response.status_code": 200,
+          "http.route": "/api/items"
+        },
+        "via": "unknown"
+      },
+      {
+        "traceId": "61f1f9865a18c3f1d100a5a128484e70",
+        "spanId": "ab22e7a66cec852b",
+        "parentSpanId": null,
+        "name": "HTTP GET",
+        "serviceName": "facilis-spike-web",
+        "attributes": {},
+        "via": "ingestion"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "browser_fetch_succeeded",
+      "ok": true,
+      "detail": "{\"done\":true,\"status\":200,\"items\":3}"
+    },
+    {
+      "name": "fe_span_exported",
+      "ok": true,
+      "detail": "via=ingestion name=HTTP GET"
+    },
+    {
+      "name": "single_trace_id",
+      "ok": true,
+      "detail": "web=61f1f9865a18c3f1d100a5a128484e70 server=61f1f9865a18c3f1d100a5a128484e70 db=61f1f9865a18c3f1d100a5a128484e70"
+    },
+    {
+      "name": "server_parent_is_fetch",
+      "ok": true,
+      "detail": "server.parent=ab22e7a66cec852b fetch.span=ab22e7a66cec852b"
+    },
+    {
+      "name": "db_parent_is_request",
+      "ok": true,
+      "detail": "db.parent=5b41600174a57f4c server.span=5b41600174a57f4c"
+    },
+    {
+      "name": "span_attributes_value_free",
+      "ok": true,
+      "detail": "attrs=http.request.method,http.response.status_code,http.route"
+    },
+    {
+      "name": "origin_wrong_rejected",
+      "ok": true,
+      "detail": "403 origin_rejected"
+    },
+    {
+      "name": "origin_null_rejected",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "origin_missing_rejected",
+      "ok": true,
+      "detail": "403"
+    },
+    {
+      "name": "malformed_json_rejected",
+      "ok": true,
+      "detail": "400 invalid_json"
+    },
+    {
+      "name": "otlp_schema_rejected",
+      "ok": true,
+      "detail": "400 invalid_otlp"
+    },
+    {
+      "name": "body_cap_rejected",
+      "ok": true,
+      "detail": "413 payload_too_large"
+    },
+    {
+      "name": "batch_cap_rejected",
+      "ok": true,
+      "detail": "400 batch_too_large"
+    },
+    {
+      "name": "scrub_strips_values",
+      "ok": true,
+      "detail": "200 attrs=http.route,http.request.method,db.table name=GET /orders/:id"
+    },
+    {
+      "name": "span_dedup",
+      "ok": true,
+      "detail": "status=200 rejected=1 stored=1"
+    },
+    {
+      "name": "unknown_path_404",
+      "ok": true,
+      "detail": "404"
+    },
+    {
+      "name": "method_not_allowed_absent",
+      "ok": true,
+      "detail": "404"
+    },
+    {
+      "name": "disabled_is_404",
+      "ok": true,
+      "detail": "404 not_found"
+    },
+    {
+      "name": "rate_limit_429",
+      "ok": true,
+      "detail": "retry-after=3 code=rate_limited"
+    }
+  ]
+}

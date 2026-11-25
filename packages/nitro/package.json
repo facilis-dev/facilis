@@ -29,6 +29,9 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@facilis.dev/rum": "workspace:*",
+    "@opentelemetry/core": "3.1.1",
+    "@opentelemetry/instrumentation-fetch": "0.217.0",
     "@types/node": "catalog:",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -40,7 +43,8 @@
     "rolldown": "1.2.15",
     "typescript": "catalog:",
     "vite": "8.3.5",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "^2.8.1"
   },
   "peerDependencies": {
     "nitro": "3.0.260903-beta",
@@ -57,6 +61,12 @@
     "@facilis.dev/core": "workspace:*",
     "@facilis.dev/db": "workspace:*",
     "@facilis.dev/storage": "workspace:*",
+    "@opentelemetry/api": "1.10.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "0.301.2",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.301.2",
+    "@opentelemetry/resources": "3.1.1",
+    "@opentelemetry/sdk-metrics": "3.1.1",
+    "@opentelemetry/sdk-trace": "3.1.1",
     "drizzle-orm": "0.45.4",
     "zod": "4.6.7"
   },

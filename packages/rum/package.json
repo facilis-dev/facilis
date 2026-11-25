@@ -1,0 +1,77 @@
+{
+  "name": "@facilis.dev/rum",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Facilis framework-owned browser RUM: web vitals, errors and document/fetch spans exported as OTLP/JSON to the app's own ingestion route (D-203/D-209).",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx",
+    "./config": "./src/config.ts",
+    "./instrumentations": "./src/instrumentations.ts",
+    "./scrub": "./src/scrub.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "dev": "tsc -p tsconfig.json --noEmit --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/context-zone": "2.12.1",
+    "@opentelemetry/core": "2.12.1",
+    "@opentelemetry/instrumentation": "0.217.0",
+    "@opentelemetry/instrumentation-document-load": "0.62.0",
+    "@opentelemetry/instrumentation-fetch": "0.217.0",
+    "@opentelemetry/instrumentation-xml-http-request": "0.217.0",
+    "@opentelemetry/otlp-transformer": "0.217.0",
+    "@opentelemetry/resources": "2.12.1",
+    "@opentelemetry/sdk-trace-web": "2.12.1",
+    "web-vitals": "5.3.0",
+    "zone.js": "0.16.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "oxlint": "catalog:",
+    "react": "19.3.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facilis-dev/facilis.git",
+    "directory": "packages/rum"
+  },
+  "homepage": "https://github.com/facilis-dev/facilis/tree/main/packages/rum#readme",
+  "bugs": {
+    "url": "https://github.com/facilis-dev/facilis/issues"
+  },
+  "keywords": [
+    "facilis",
+    "framework",
+    "vite",
+    "nitro",
+    "low-code"
+  ]
+}

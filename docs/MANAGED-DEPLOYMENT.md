@@ -123,6 +123,8 @@ The field reference is `DeploymentInput` in `ide/src/deploy/types.ts`:
   "skills": { "allow": [] },
 
   "network": { "connect": ["https://npm.acme.example"] },
+
+  "telemetry": { "enabled": false },
   "updates": { "channel": "approved", "baseline": "2026.11" }
 }
 ```
@@ -203,6 +205,114 @@ not a bug in the gate. And because the list is compiled into the build (§3: one
 origin), every declared origin — the registry mirror, the git proxy, a provider — also becomes
 readable by the AI: an origin an operator declares is an origin the page already trusts, and a
 different set of readable hosts is a different build.
+
+### Production telemetry (D-203)
+
+Off by default and opt-in through this block only: enabling telemetry never adds a runtime
+switch, the exporters are compiled into the build (D-063/D-064). The two halves are
+independent, and each one is checked against the target it needs. Collector setup, privacy
+hardening and the consent position: [TELEMETRY.md](./TELEMETRY.md) (D-210).
+
+```json
+"telemetry": {
+  "enabled": true,
+  "be": { "enabled": true },
+  "fe": { "enabled": true },
+  "exporterEndpoint": "https://otlp.acme.example/v1/traces",
+  "tenantKey": "pub_write_only_...",
+  "sampling": 0.1,
+  "originAllowlist": ["https://app.acme.example"],
+  "dashboardUrl": "https://grafana.acme.example"
+}
+```
+
+- `enabled` is the master switch; an enabled build without `be`/`fe` keys turns both halves on.
+- `exporterEndpoint` is required when `be` is on: Nitro exports there, server-side, so the
+  collector never appears in the browser policy. `tenantKey` is required when `fe` is on: it is
+  the **public, write-only** key the page presents to the ingestion route (the collector
+  credential stays server-side, so the artifact never carries it).
+- `sampling` is a head-sampling ratio between 0 and 1; the default is 1 (keep everything).
+- `originAllowlist` names the exact origins (`scheme://host[:port]`, no path and no wildcard)
+  allowed to POST to the ingestion route. Empty leaves the route reachable from the app's own
+  origin only.
+- `dashboardUrl` is the operator's dashboard; the IDE opens it as a link-out (v1 has no
+  backend query, D-203).
+- The managed CSP's `connect-src` carries the ingestion route as `'self'` (the route is
+  same-origin) and the `dashboardUrl` host; `environment.json` records which halves are on.
+- Fail-closed: an option left behind a switch that is off is a build error, and so is an
+  enabled build whose half has no target — no artifact ships a pipeline with nowhere to send.
+
+**What the backend emits (D-203 §1).** The framework instruments the server itself: a Nitro
+request span per request, one Postgres client span per statement, and a custom span per job
+attempt and per workflow transition. A request continues the browser's trace through the W3C
+`traceparent` header, so a page fetch and the API and DB work it triggers share one trace-id.
+
+**Partial traces are expected (D-203 §4).** The browser and the server export independently and
+the RUM export never retries, so an ad-blocker that blocks the ingestion endpoint — or an
+unreachable backend — leaves orphan spans: a browser span with its client-generated trace-id and
+no backend counterpart, or backend spans with no browser half. The trace-id and the sampling
+decision stay consistent on whichever half survives; a missing half means a blocked export path,
+not a lost request, and a blocked export never affects the API request itself. When the API is
+cross-origin, its `Access-Control-Allow-Headers` must include `traceparent` (the framework's
+preflight echoes requested headers for allowed routes; an operator proxy must allow it too), or
+the browser strips the header and the trace splits.
+
+The attribute vocabulary is closed and declaration-derived: `http.request.method`, `http.route`
+(the matched **template**, never the concrete path), `http.response.status_code`,
+`db.system.name`, `db.operation.name`, `db.collection.name`, the `facilis.job.*` /
+`facilis.workflow.*` namespaced attributes. Values, query strings, bodies, header values and
+bind parameters are never exported, and a failed operation contributes an error status without
+its message (a driver or job error can repeat an input). The runtime switch is
+`FACILIS_TELEMETRY=on` in a **production** boot: any other value, and every dev/test boot
+(D-200), starts no pipeline at all. The collector target is the `exporterEndpoint` above, which
+the host passes to the server at boot:
+
+| Variable | Meaning |
+|---|---|
+| `FACILIS_TELEMETRY` | `on` starts the pipeline; anything else leaves it absent. |
+| `FACILIS_TELEMETRY_FE` | build-time: `on` enables the frontend RUM client (`@facilis.dev/rum`); requires the tenant key. Off by default. |
+| `FACILIS_TELEMETRY_ENDPOINT` | collector base URL (for example `https://otel.acme.example:4318`); the framework appends `/v1/traces` and `/v1/metrics`. Required when the switch is on. |
+| `FACILIS_TELEMETRY_SAMPLING` | root-span ratio `0`–`1`; the deploy `sampling` value. Unset or invalid keeps everything. |
+| `FACILIS_TELEMETRY_SERVICE` | `service.name` on every exported resource; defaults to `facilis-app`. |
+| `FACILIS_DEPLOYMENT_ID` | exported as `deployment.id`; optional, and useful when several deployments share one collector. |
+| `FACILIS_TELEMETRY_ORIGINS` | comma-separated exact origins (`scheme://host[:port]`) allowed to POST to the ingestion route; the deploy `originAllowlist`. Empty leaves the route reachable from the app's own origin only. |
+| `FACILIS_TELEMETRY_TENANT_KEY` | the public write-only key the page presents in the `x-facilis-telemetry-key` header; the deploy `tenantKey`. Unset rejects every ingestion POST (a backend-only deployment has no browser writer). |
+| `FACILIS_TELEMETRY_SPANS_PER_MIN` | per-origin/IP/tenant span-per-minute token-bucket cap for the ingestion route; default 24. Unset or invalid keeps the default. |
+
+The FE option is read at **build** time (`vite build`: the `facilisRum()` companion compiles
+the `__FACILIS_RUM_CONFIG__` literal into the bundle), while the backend options above are read
+at server boot. The frontend client (`@facilis.dev/rum`, D-209) emits `browser.web_vital` spans
+(the `browser.web_vital.name`/`.value`/`.rating` triple), `browser.error` spans
+(`error.type` + `facilis.rum.source` only, never message/stack) and document-load/fetch spans
+through the same ingestion route.
+
+A production boot with the switch on but no usable endpoint exports nothing and logs one
+warning: the build refuses that combination, so it means the process was started outside its
+artifact's deploy settings. Spans are batched and metrics are collected periodically; both
+flush on graceful shutdown, so a rolling deploy does not truncate the traces of its last
+requests. Retries are the OTLP exporter's own (bounded attempts, `Retry-After`-aware backoff),
+and a collector that stays unreachable costs telemetry, never the app.
+
+**The ingestion route (SPEC §6.10/§8.8, D-203 §3).** The browser half posts OTLP/JSON to
+`POST /__facilis/telemetry/v1/traces`, a framework-mounted route the app cannot author or
+configure — the named exception to invariant 1, with gates instead of auth. It is registered
+in every build but answers `404` unless the switch is on in a **production** boot (every
+dev/test boot included, D-200), and `405` on any non-POST method when enabled; there is no
+read or query surface. A POST passes, in order: the exact origin allowlist
+(`FACILIS_TELEMETRY_ORIGINS`, `"null"` and wildcards rejected, empty = the app's own origin
+only), the public tenant key (`x-facilis-telemetry-key` must equal
+`FACILIS_TELEMETRY_TENANT_KEY`), a span/min token-bucket rate limit evaluated **before** the
+body is read (`429` + `retry-after`), the 1 MiB body cap checked from `content-length` and a
+streamed counter (`413`), OTLP schema validation and a 256-span batch cap (`400`), the
+framework attribute allowlist (raw URLs, query strings, bodies, headers, input values and PII
+are stripped; legacy browser semconv keys are mapped onto the vocabulary), and span-id dedup
+to blunt replay. The scrubbed payload is forwarded to `FACILIS_TELEMETRY_ENDPOINT` +
+`/v1/traces`; the collector credential never travels to the browser and no browser-supplied
+credential is forwarded. Responses carry codes and OTLP partial-success counts only, never
+application data; an unreachable collector is `502` and costs telemetry, never the app.
+RUM input is spoofable: the route is observational, not a security boundary, and the D-119
+audit pipeline stays separate. The dev-only `/__facilis/*` guards are per-route and do not
+catch this production surface (invariant 6 unchanged).
 
 ## 4. Build outputs
 

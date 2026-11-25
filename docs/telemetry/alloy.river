@@ -1,0 +1,103 @@
+// Facilis reference collector — Grafana Alloy.
+// D-203 §7 / D-210: a fail-closed redaction allowlist plus IP truncation, defense in
+// depth behind the app-side scrub (spec §8.8). Point the app's telemetry endpoint at
+// this receiver; the exporter targets YOUR backend. Facilis hosts nothing.
+// See docs/TELEMETRY.md. Keep allowed_keys in sync with the framework vocabulary
+// (packages/nitro/src/runtime/telemetry/vocabulary.ts); collector-config.test.ts
+// fails on drift.
+
+otelcol.receiver.otlp "facilis" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.transform.facilis.input]
+  }
+}
+
+otelcol.processor.transform "facilis" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context = "resource"
+    statements = [
+      "keep_keys(resource.attributes, [\"service.name\", \"deployment.id\", \"deployment.environment.name\", \"telemetry.sdk.name\", \"telemetry.sdk.language\", \"telemetry.sdk.version\"])",
+    ]
+  }
+
+  trace_statements {
+    context = "span"
+    statements = [
+      // IP truncation: IPv4 keeps /24, IPv6 keeps /48. Facilis never forwards the
+      // end-user IP; this covers client.address injected by your proxy or arriving
+      // from other OTLP sources. River has no collector-style env substitution, so
+      // the OTTL capture reference is a plain $1 here (the YAML twin uses $$1).
+      "replace_pattern(attributes[\"client.address\"], \"^([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\\.[0-9]{1,3}$\", \"$1.0/24\")",
+      "replace_pattern(attributes[\"client.address\"], \"^([0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}):.*$\", \"$1::/48\")",
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.redaction.facilis.input]
+  }
+}
+
+otelcol.processor.redaction "facilis" {
+  allow_all_keys = false
+  allowed_keys = [
+    "http.request.method",
+    "http.route",
+    "http.response.status_code",
+    "db.system.name",
+    "db.operation.name",
+    "db.collection.name",
+    "facilis.job.name",
+    "facilis.job.attempt",
+    "facilis.workflow.name",
+    "facilis.workflow.step",
+    "facilis.workflow.step.kind",
+    "browser.web_vital.name",
+    "browser.web_vital.value",
+    "browser.web_vital.rating",
+    "error.type",
+    "facilis.rum.source",
+    // Legacy semconv aliases browser SDKs may still emit on a direct export.
+    "http.method",
+    "http.status_code",
+    "db.system",
+    "db.operation",
+    "db.table",
+    // The truncated client address (see the transform processor above).
+    "client.address",
+  ]
+  blocked_key_patterns = [
+    ".*token.*",
+    ".*secret.*",
+    ".*password.*",
+    ".*authorization.*",
+    ".*cookie.*",
+    ".*api_key.*",
+  ]
+
+  output {
+    traces = [otelcol.processor.batch.facilis.input]
+  }
+}
+
+otelcol.processor.batch "facilis" {
+  output {
+    traces = [otelcol.exporter.otlphttp.backend.input]
+  }
+}
+
+otelcol.exporter.otlphttp "backend" {
+  client {
+    endpoint = "https://tempo.example.com"
+  }
+
+  // The backend credential stays server-side (environment), never in the app/browser.
+  headers = {
+    authorization = "Bearer " + env("COLLECTOR_BACKEND_TOKEN"),
+  }
+}

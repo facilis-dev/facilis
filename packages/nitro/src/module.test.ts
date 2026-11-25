@@ -13,6 +13,7 @@ import {
   NATIVE_OPENAPI_ROUTE,
   OPENAPI_FACADE_ROUTE,
   SSO_ROUTE,
+  TELEMETRY_TRACES_ROUTE,
   TOKEN_ROUTE,
 } from "./constants.ts";
 import {
@@ -37,6 +38,7 @@ interface MockOptions {
   alias: Record<string, string>;
   virtual: Record<string, string | (() => string | Promise<string>)>;
   handlers: Array<Record<string, unknown>>;
+  plugins: string[];
   openAPI?: { route?: string; production?: false | "runtime" | "prerender" };
   experimental: { openAPI?: boolean };
 }
@@ -53,6 +55,7 @@ function createMockNitro(overrides: Partial<MockOptions> = {}): MockNitro {
       alias: {},
       virtual: {},
       handlers: [],
+      plugins: [],
       experimental: { openAPI: true },
       ...overrides,
     },
@@ -113,6 +116,29 @@ describe("createFacilisNitroModule", () => {
     expect(middleware[0]?.["handler"]).toMatch(/middleware[\\/]cors\.ts$/);
     expect(middleware[1]?.["handler"]).toMatch(/middleware[\\/]context\.ts$/);
     expect(middleware[2]?.["handler"]).toMatch(/middleware[\\/]session\.ts$/);
+  });
+
+  it("mounts the telemetry ingestion route in dev and production without an env gate (D-203)", () => {
+    // The handler itself answers 404 unless the deploy enabled telemetry in a production
+    // boot; registration is unconditional like SSO/token, and the dev-only 404 guards are
+    // per-route, so invariant 6 is untouched.
+    for (const dev of [true, false]) {
+      const mock = createMockNitro({ dev });
+      setup(mock);
+      const ingestion = mock.options.handlers.filter(
+        (handler) => handler["route"] === TELEMETRY_TRACES_ROUTE,
+      );
+      expect(ingestion).toHaveLength(1);
+      expect(ingestion[0]?.["env"]).toBeUndefined();
+      expect(ingestion[0]?.["handler"]).toMatch(/routes[\\/]telemetry-traces\.ts$/);
+    }
+  });
+
+  it("registers the backend telemetry plugin once (D-203)", () => {
+    const mock = createMockNitro();
+    setup(mock);
+    expect(mock.options.plugins).toHaveLength(1);
+    expect(mock.options.plugins[0]).toMatch(/plugins[\\/]telemetry\.ts$/);
   });
 
   it("relocates Nitro's own OpenAPI handler to the internal route", () => {
@@ -264,8 +290,13 @@ describe("createFacilisNitroModule", () => {
 
     const routes = mock.options.handlers.filter((handler) => handler["middleware"] !== true);
     // The SSO namespace and the token endpoint are framework auth in production too
-    // (D-120, v3a); nothing dev-only ships.
-    expect(routes.map((handler) => handler["route"])).toEqual([SSO_ROUTE, TOKEN_ROUTE]);
+    // (D-120, v3a); the ingestion route is framework infrastructure in every environment
+    // (D-203) and answers 404 itself when disabled. Nothing dev-only ships.
+    expect(routes.map((handler) => handler["route"])).toEqual([
+      SSO_ROUTE,
+      TOKEN_ROUTE,
+      TELEMETRY_TRACES_ROUTE,
+    ]);
     // Auth still works in production: middleware is environment-agnostic.
     expect(mock.options.handlers.filter((handler) => handler["middleware"] === true)).toHaveLength(
       3,

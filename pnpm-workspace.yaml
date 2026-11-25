@@ -18,6 +18,9 @@ catalog:
 allowBuilds:
   core-js: false
   esbuild: false
+  # protobufjs (via @opentelemetry/otlp-transformer's proto serializer) only prints a
+  # version-scheme warning in postinstall; no build artifact depends on it.
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - "@xyflow/react@12.12.1"

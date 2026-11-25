@@ -1,0 +1,22 @@
+{
+  "name": "spike-telemetry",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway spike (issue #133, epic #131, D-203): framework ingestion route + FE/DB trace correlation",
+  "scripts": {
+    "spike": "node run.mjs",
+    "collector": "node collector.mjs"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.10.0",
+    "@opentelemetry/context-async-hooks": "3.1.1",
+    "@opentelemetry/core": "3.1.1",
+    "@opentelemetry/otlp-transformer": "0.301.2",
+    "@opentelemetry/resources": "3.1.1",
+    "@opentelemetry/sdk-node": "0.301.2",
+    "@opentelemetry/sdk-trace": "3.1.1",
+    "@opentelemetry/semantic-conventions": "1.45.0",
+    "nitro": "3.0.260903-beta",
+    "zod": "4.1.12"
+  }
+}

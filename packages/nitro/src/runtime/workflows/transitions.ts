@@ -5,6 +5,7 @@
 import type { JobJson, WorkflowDefinition, WorkflowProgressEntry } from "@facilis.dev/core";
 
 import { formatIssues } from "../jobs/engine-support.ts";
+import { withWorkflowSpan } from "../telemetry/custom-spans.ts";
 import type { StoredTask } from "../tasks/contracts.ts";
 import type { StoredWorkflow, WorkflowRuntimeDeps } from "./contracts.ts";
 import { dispatch } from "./dispatch.ts";
@@ -33,9 +34,13 @@ export async function stepWorkflow(
   now: Now,
   workflow: StoredWorkflow,
 ): Promise<void> {
-  if (workflow.status === "waiting") return resume(deps, now, workflow);
-  if (workflow.currentJobId !== null) return advance(deps, now, workflow);
-  return dispatch(deps, now, workflow, 1);
+  // D-203: one custom span per transition, named by the step the chain is on.
+  const step = workflow.plan[workflow.currentStep];
+  return withWorkflowSpan(workflow.name, workflow.currentStep, step?.kind ?? "unknown", () => {
+    if (workflow.status === "waiting") return resume(deps, now, workflow);
+    if (workflow.currentJobId !== null) return advance(deps, now, workflow);
+    return dispatch(deps, now, workflow, 1);
+  });
 }
 
 /** A decided/expired/cancelled waiting task resumes or fails the chain (§8.2). */

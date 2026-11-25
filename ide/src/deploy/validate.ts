@@ -4,6 +4,18 @@
 // The posture is fail-closed: unknown keys are errors (a typo in "allow" must not
 // silently leave the allowlist empty) and every field is checked before use.
 
+import {
+  checkKeys,
+  fieldBoolean,
+  fieldEnum,
+  fieldObject,
+  fieldString,
+  fieldStringArray,
+  fieldUrl,
+  isObject,
+  parseUrl,
+} from "./fields.ts";
+import { checkTelemetry } from "./telemetry.ts";
 import type { DeploymentInput } from "./types.ts";
 
 /** Raised for both validation and invariant failures; the message lists every issue. */
@@ -17,97 +29,6 @@ export class DeploymentError extends Error {
   }
 }
 
-type Obj = Record<string, unknown>;
-
-function isObject(value: unknown): value is Obj {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function checkKeys(obj: Obj, allowed: readonly string[], at: string, issues: string[]): void {
-  for (const key of Object.keys(obj)) {
-    if (!allowed.includes(key)) issues.push(at + "." + key + ": unknown key");
-  }
-}
-
-function fieldObject(obj: Obj, key: string, at: string, issues: string[]): Obj | undefined {
-  const value = obj[key];
-  if (value === undefined) return undefined;
-  if (!isObject(value)) {
-    issues.push(at + "." + key + ": expected an object");
-    return undefined;
-  }
-  return value;
-}
-
-function fieldString(obj: Obj, key: string, at: string, issues: string[]): string | undefined {
-  const value = obj[key];
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") {
-    issues.push(at + "." + key + ": expected a string");
-    return undefined;
-  }
-  return value;
-}
-
-function fieldBoolean(obj: Obj, key: string, at: string, issues: string[]): boolean | undefined {
-  const value = obj[key];
-  if (value === undefined) return undefined;
-  if (typeof value !== "boolean") {
-    issues.push(at + "." + key + ": expected a boolean");
-    return undefined;
-  }
-  return value;
-}
-
-function fieldEnum<T extends string>(
-  obj: Obj,
-  key: string,
-  at: string,
-  allowed: readonly T[],
-  issues: string[],
-): T | undefined {
-  const value = fieldString(obj, key, at, issues);
-  if (value === undefined) return undefined;
-  if (!(allowed as readonly string[]).includes(value)) {
-    issues.push(at + "." + key + ": expected one of " + allowed.join(", "));
-    return undefined;
-  }
-  return value as T;
-}
-
-function fieldStringArray(
-  obj: Obj,
-  key: string,
-  at: string,
-  issues: string[],
-): string[] | undefined {
-  const value = obj[key];
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item === "")) {
-    issues.push(at + "." + key + ": expected an array of non-empty strings");
-    return undefined;
-  }
-  return value as string[];
-}
-
-/** An absolute http(s) URL is the only shape a registry, an origin or a gateway may take. */
-function fieldUrl(obj: Obj, key: string, at: string, issues: string[]): string | undefined {
-  const value = fieldString(obj, key, at, issues);
-  if (value === undefined) return undefined;
-  const url = parseUrl(value);
-  if (url === null) issues.push(at + "." + key + ": expected an absolute http(s) URL");
-  return url === null ? undefined : value;
-}
-
-export function parseUrl(value: string): URL | null {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
-  } catch {
-    return null;
-  }
-}
-
 const TOP_KEYS = [
   "schemaVersion",
   "profile",
@@ -117,6 +38,7 @@ const TOP_KEYS = [
   "ai",
   "skills",
   "network",
+  "telemetry",
   "updates",
 ] as const;
 
@@ -235,6 +157,9 @@ export function validateDeployment(raw: unknown): DeploymentInput {
     checkKeys(network, ["connect"], "deployment.network", issues);
     fieldStringArray(network, "connect", "deployment.network", issues);
   }
+
+  const telemetry = fieldObject(raw, "telemetry", "deployment", issues);
+  if (telemetry) checkTelemetry(telemetry, issues);
 
   const updates = fieldObject(raw, "updates", "deployment", issues);
   if (updates) {

@@ -20,6 +20,7 @@
     "@facilis.dev/core": "workspace:*",
     "@facilis.dev/db": "workspace:*",
     "@facilis.dev/nitro": "workspace:*",
+    "@facilis.dev/rum": "workspace:*",
     "@facilis.dev/storage": "workspace:*",
     "@facilis.dev/time": "workspace:*",
     "@fontsource-variable/geist": "5.2.9",

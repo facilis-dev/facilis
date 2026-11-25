@@ -116,9 +116,10 @@ export async function publishedMetadata(name) {
   if (!response.ok) throw new Error(`registry lookup for ${name} returned HTTP ${response.status}`);
   return response.json();
 }
+// .tsx entries (@facilis.dev/rum's ./react) emit as .js exactly like .ts ones.
 const toDist = (value) =>
   typeof value === "string" && value.startsWith("./src/")
-    ? `./dist/${value.slice("./src/".length).replace(/\.ts$/, ".js")}`
+    ? `./dist/${value.slice("./src/".length).replace(/\.tsx?$/, ".js")}`
     : value;
 function rewriteTargets(node) {
   if (typeof node === "string") return toDist(node);

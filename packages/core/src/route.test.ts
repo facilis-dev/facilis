@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod";
 import type { AuthContext } from "@facilis.dev/auth";
-import type { FacilisDb } from "@facilis.dev/db";
+import { currentQueryTrace, type FacilisDb, type QueryTrace } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import {
@@ -268,6 +268,24 @@ describe("defineAuthorizedHandler", () => {
       "facilis: authorized handler failed",
       expect.any(Error),
     );
+  });
+
+  it("enters the request's query trace for the handler and leaves it after", async () => {
+    // D-203: the Nitro telemetry adapter puts the trace on the event; the driver reads it
+    // through the AsyncLocalStorage scope the wrapper opens around the handler.
+    const trace: QueryTrace = { startQuerySpan: () => ({ end: () => undefined }) };
+    const seen: (QueryTrace | undefined)[] = [];
+    const route = defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => {
+      seen.push(currentQueryTrace());
+      return null;
+    });
+    const event = makeEvent();
+    event.context.trace = trace;
+
+    await route(event);
+
+    expect(seen).toEqual([trace]);
+    expect(currentQueryTrace()).toBeUndefined();
   });
 
   it("lets a thrown Response through untouched", async () => {

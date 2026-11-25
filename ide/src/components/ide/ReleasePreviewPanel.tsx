@@ -20,6 +20,7 @@ import {
 } from "@/facilis/release-preview-model";
 import { devBase } from "@/facilis/dev-base";
 import { ReleasePreviewContent, type CodeLiveState } from "./ReleasePreviewContent";
+import { TelemetryLinkout } from "./TelemetryLinkout";
 import { useIde } from "./useIde";
 
 export function ReleasePreviewPanel() {
@@ -115,6 +116,8 @@ export function ReleasePreviewPanel() {
           onRetry={() => setNonce((value) => value + 1)}
         />
       </div>
+      {/* D-203 §6 (#140): link-out to the operator dashboard; absent unless configured. */}
+      <TelemetryLinkout />
     </aside>
   );
 }
