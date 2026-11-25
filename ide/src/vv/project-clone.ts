@@ -16,6 +16,7 @@ import { synthesizeManifest } from "./project-import";
 import { errText } from "./errors";
 import type { FileTree } from "./file-tree";
 import { createGitFs } from "./git-fs";
+import { isProxyAuthRequired } from "./git-http";
 import { cloneRepo, probeProxy, proxyBase, type Credentials } from "./git-remote";
 import type { KernelBridge } from "./kernel";
 import { normDir } from "./path-utils";
@@ -49,7 +50,8 @@ async function freeDirFor(name: string, host: ProjectImportHost): Promise<string
 /**
  * Clone `url` into a new project and open it. Returns false when the deployment has
  * no working proxy: that is a "not available here", not a failure, so the dialog can
- * fall back to the REST import without a scary toast.
+ * fall back to the REST import without a scary toast. Throws when the proxy demands
+ * a token (D-208): the dialog must stay open on the token field, not downgrade.
  */
 export async function cloneIntoProject(
   bridge: KernelBridge,
@@ -75,7 +77,16 @@ export async function cloneIntoProject(
       onProgress: opts.onProgress,
     });
   } catch (err) {
-    toast.error("Clone failed: " + errText(err));
+    if (isProxyAuthRequired(err)) {
+      // The proxy refuses anonymous git traffic by default (D-208): say why a
+      // token is needed and rethrow, so the dialog keeps the token field in
+      // reach instead of silently falling back to the REST importer.
+      toast.error(t("clone.proxyAuthRequiredTitle"), {
+        description: t("clone.proxyAuthRequiredDescription"),
+      });
+      throw new Error(t("clone.proxyAuthRequiredDescription"), { cause: err });
+    }
+    toast.error(t("clone.failed", { error: errText(err) }));
     return false;
   }
 

@@ -44,6 +44,10 @@ worth using — it stays a candidate if the allowlist ever has to grow.
 in the Pages project, `--allow-origin` on the standalone server); same-origin needs no
 configuration, because the deployment's own host is always the caller. Anonymous clones of public
 repositories are the behaviour the default costs: the copy in the git dialogs now says the token
-may be required for any repository, and the import dialog falls back to the REST importer where
-the host serves one. The handler stays stateless, logging-free and storage-free, and the host
-allowlist stays the outer boundary.
+may be required for any repository, and an anonymous clone that the proxy refuses with 401 is
+surfaced with a dedicated message ("this installation's git proxy requires a token") that keeps
+the import dialog open on the token field — it does not silently fall back to the REST importer,
+which would lose the .git history without explaining why. The REST fallback remains for
+deployments without a working proxy and for clone failures unrelated to the token requirement.
+The handler stays stateless, logging-free and storage-free, and the host allowlist stays the
+outer boundary.

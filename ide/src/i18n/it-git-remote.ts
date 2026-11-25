@@ -100,6 +100,10 @@ export const gitRemoteIt: Partial<Record<MessageKey, string>> = {
   "clone.emptyDescription":
     "È clonato e aperto; aggiungi qui l'app Facilis, poi fai commit e push.",
   "clone.emptyAction": "Crea il progetto",
+  "clone.proxyAuthRequiredTitle": "Token di accesso richiesto",
+  "clone.proxyAuthRequiredDescription":
+    "Il proxy git di questa installazione richiede un token per qualsiasi repository, anche pubblico. Aggiungi un token di accesso qui sotto e riprova.",
+  "clone.failed": "Clone non riuscito: {error}",
   "scaffold.doneTitle": "Progetto Facilis creato",
   "scaffold.doneDescription": "Avvialo, poi fai commit e push da Source Control.",
   "scaffold.alreadyProject": "Questa cartella contiene già un progetto.",

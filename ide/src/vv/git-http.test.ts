@@ -11,6 +11,7 @@ import {
   branchForEmptyRemote,
   createGitHttp,
   emptyRemoteBranch,
+  isProxyAuthRequired,
   proxyUrlFor,
   resolveProxyBase,
 } from "./git-http";
@@ -140,5 +141,30 @@ describe("empty remotes (D-080)", () => {
       "https://github.com/o/r.git",
     );
     expect(populated).toBeNull();
+  });
+});
+
+function httpError(statusCode: number, response: string): Error {
+  return Object.assign(new Error(`HTTP Error: ${statusCode}`), {
+    code: "HttpError",
+    data: { statusCode, statusMessage: "", response },
+  });
+}
+
+describe("isProxyAuthRequired", () => {
+  it("matches the proxy's 401 body, also through guarded's wrapper", () => {
+    const raw = httpError(401, "authorization required");
+    expect(isProxyAuthRequired(raw)).toBe(true);
+    expect(isProxyAuthRequired(new Error("HTTP Error: 401 Unauthorized", { cause: raw }))).toBe(
+      true,
+    );
+  });
+
+  it("does not match a host's own 401, other statuses, or non-errors", () => {
+    expect(isProxyAuthRequired(httpError(401, "Bad credentials"))).toBe(false);
+    expect(isProxyAuthRequired(httpError(403, "authorization required"))).toBe(false);
+    expect(isProxyAuthRequired(new Error("HTTP Error: 401 Unauthorized"))).toBe(false);
+    expect(isProxyAuthRequired(null)).toBe(false);
+    expect(isProxyAuthRequired("authorization required")).toBe(false);
   });
 });

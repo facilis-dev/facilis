@@ -334,6 +334,9 @@ describe("caller controls (D-208)", () => {
     );
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("www-authenticate")).toBe('Basic realm="git-proxy"');
+    // The IDE's clone flow matches this exact body to tell the proxy's token
+    // requirement apart from a host 401 (isProxyAuthRequired, D-208).
+    expect(await anonymous.text()).toBe("authorization required");
     expect(recorder.calls).toHaveLength(0);
 
     const deniedPush = await proxy.fetch(
