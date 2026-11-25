@@ -12,6 +12,7 @@ import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { importCycleDiagnostics } from "./passes/import-cycle.ts";
 import { reservedRoutePrefixDiagnostics } from "./passes/route-reserved-prefix.ts";
 import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
 import { rawSqlSystemWriteDiagnostics } from "./passes/raw-sql-system-write.ts";
@@ -100,6 +101,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...routeRelations.diagnostics,
       // D-215: a project route may not shadow a framework-owned path (invariant 6).
       ...reservedRoutePrefixDiagnostics(routes.routes),
+      // D-217: one warning per import cycle over project-internal static edges (warn-only).
+      ...importCycleDiagnostics(graph, fileFacts),
       // D-212: GET routes must be side-effect free (SPEC §8.6), over the same usage facts.
       ...routeGetEffectDiagnostics(routeRelations.routes),
       // D-214: literal raw SQL never writes a seed-only auth table (invariant 8).

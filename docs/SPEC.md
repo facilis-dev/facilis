@@ -1,11 +1,17 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.44 (direct-OPFS warning in the IDE, D-216; issue #174)
+**Version:** 1.45 (import-cycle warning, D-217; issue #175)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.45 — Import cycles are reported as warnings (D-217, issue #175). The analyzer computes
+  the strongly connected components of the project's static import/re-export graph and reports
+  `import-cycle` once per component with a representative closed path (capped at 8 entries);
+  a self-import counts as a one-node cycle. Framework and `node_modules` overlays are
+  excluded. The diagnostic is warn-only: no AI validator rule is added (§9.3 stays at 23
+  rules) and the shipped examples stay cycle-free.
 - v1.44 — The IDE warns when code outside the kernel bridge touches OPFS directly (D-216, issue
   #174). An oxlint override for `ide/**/*.{ts,tsx}` restricts `navigator.storage.getDirectory`,
   `showDirectoryPicker` and the File System handle calls (`getDirectoryHandle`,
@@ -1190,7 +1196,7 @@ config runs inside the WebContainer, where only the bundler's oxc is proven to l
 values are explicit (`null`/unknown entries, never defaults), the DSL is forced by the
 `defineAuthorizedHandler`/`defineConfig`/`pgTable`/`api()`/`t()` contract, and the runtime
 wrapper remains the security boundary. Used by the IDE project graph and patch validation, the
-AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the installed framework declarations it would otherwise lack by inlining `@facilis.dev/auth` and `@facilis.dev/db`'s source at build time (D-130), so re-exported framework tables and their edges reach the graph without a `node_modules` crawl.
+AI validator, and the Nitro manifest/OpenAPI facts. The browser IDE supplies the installed framework declarations it would otherwise lack by inlining `@facilis.dev/auth` and `@facilis.dev/db`'s source at build time (D-130), so re-exported framework tables and their edges reach the graph without a `node_modules` crawl. It also reports `import-cycle` (warning) once per strongly connected component of the project's static import/re-export graph, naming a representative cycle path capped at eight entries; framework and `node_modules` overlays are excluded, and a self-import is a one-node cycle (D-217).
 
 ## 6. The `/__facilis/manifest` Endpoint
 

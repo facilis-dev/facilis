@@ -2,7 +2,7 @@
 
 # Decision index
 
-214 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+215 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -222,3 +222,4 @@ the file whose name starts with that ID.
 | [D-214](./D-214-literal-raw-sql-writes-to-seed-only-auth-tables-are-an-error.md) | Literal raw-SQL writes to seed-only auth tables are an error | accepted | 2026-11-25 |
 | [D-215](./D-215-a-project-route-may-not-shadow-a-framework-owned-path.md) | A project route may not shadow a framework-owned path | accepted | 2026-11-25 |
 | [D-216](./D-216-direct-opfs-access-warns-outside-the-kernel-bridge.md) | Direct OPFS access warns outside the kernel bridge | accepted | 2026-11-25 |
+| [D-217](./D-217-import-cycles-are-warnings.md) | Import cycles are warnings | accepted | 2026-11-25 |
