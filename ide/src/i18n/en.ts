@@ -22,6 +22,7 @@ import { tourEn } from "./en-tour";
 import { runEn } from "./en-run";
 import { previewEn } from "./en-preview";
 import { scaffoldEn } from "./en-scaffold";
+import { prerenderEn } from "./en-prerender";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -283,4 +284,7 @@ export const en = {
 
   // ── guided tour (D-128) ─────────────────────────────────────────────────
   ...tourEn,
+
+  // ── prerender run + preview badge (D-202, issue #85) ─────────────────────
+  ...prerenderEn,
 } as const;

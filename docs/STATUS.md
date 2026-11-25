@@ -45,6 +45,7 @@ table is SPEC §12 and the still-open items are the open-items table in DECISION
 | `pnpm build` | every package and app builds |
 | `pnpm ide:smoke` | the framework boots in the IDE's WebContainer (Wasm/assets/browser setup in DEV.md) |
 | `pnpm ide:smoke:multitab` | one project per tab, two tabs at once |
+| `pnpm ide:smoke:prerender` | the in-VM prerender build + preview (D-202, #85): ~50-route fixture, hydration, fail-closed ineligible build |
 | `examples/todo-app/scripts/verify-headless.sh` | the end-to-end API contract |
 | `pnpm pg:e2e` | the Postgres path |
 
