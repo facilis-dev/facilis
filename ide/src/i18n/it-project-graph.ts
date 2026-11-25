@@ -94,6 +94,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.marker.notNull": "obbligatorio",
   "projectGraph.marker.unique": "unico",
   "projectGraph.marker.default": "predefinito",
+  "projectGraph.marker.fk": "Chiave esterna",
   "projectGraph.marker.unknown": "sconosciuto",
   "projectGraph.node.page": "pagina",
   "projectGraph.node.route": "route",
@@ -219,4 +220,18 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
     "Trascina per spostarti · rotella o pizzico per lo zoom · clicca un dominio per aprirlo",
   "projectGraph.surface.detailHint":
     "Trascina un nodo per spostarlo · trascina lo sfondo per muoverti · rotella o pizzico per lo zoom",
+
+  // ── on-demand rich card (issue #188) ────────────────────────────────────────
+  "projectGraph.surface.card.label": "Scheda dettagliata del nodo",
+  "projectGraph.surface.card.open": "Apri scheda dettagliata",
+  "projectGraph.surface.card.close": "Chiudi scheda dettagliata",
+  "projectGraph.surface.card.routes": "Route",
+  "projectGraph.surface.card.noDetails": "Dati non disponibili per questo nodo.",
+  "projectGraph.surface.card.more": "+{count} altri",
+  "projectGraph.surface.card.marker.pk": "PK",
+  "projectGraph.surface.card.marker.nn": "NN",
+  "projectGraph.surface.card.marker.uq": "UQ",
+  "projectGraph.surface.card.marker.def": "DEF",
+  "projectGraph.surface.card.marker.fk": "FK",
+  "projectGraph.surface.card.marker.unknown": "?",
 };

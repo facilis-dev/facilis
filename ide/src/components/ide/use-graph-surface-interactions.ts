@@ -1,16 +1,17 @@
-// Canvas interactions for the map-and-lens surface (issues #184/#185/#187): click to enter a
-// domain or select a node, hover hit-testing, live node drag and double-click to open source.
-// Kept out of ProjectGraphSurface so the component stays under the line limit; all callbacks
-// update refs and mark the frame dirty, never React state during a gesture.
+// Canvas interactions for the map-and-lens surface (issues #184/#185/#187/#188): click to enter
+// a domain or select a node, hover hit-testing, live node drag, and a second click on the same
+// node (mouse double-click or touch double-tap) to open its on-demand rich card. Kept out of
+// ProjectGraphSurface so the component stays under the line limit; all callbacks update refs and
+// mark the frame dirty, never React state during a gesture.
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { RefObject } from "react";
-import type { ProjectGraphNode } from "@/facilis/graph-model";
 import { worldPoint, type SurfaceCamera } from "@/facilis/graph-surface/camera.ts";
+import { isDoubleTap, type TapMark } from "@/facilis/graph-surface/card-trigger.ts";
 import { setNodeRect } from "@/facilis/graph-surface/positions.ts";
 import { hitTestSurface, type SurfaceScene } from "@/facilis/graph-surface/scene.ts";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
-import { canvasLocalPoint, useGraphSurfacePointer } from "./use-graph-surface-pointer";
+import { useGraphSurfacePointer } from "./use-graph-surface-pointer";
 
 export function useGraphSurfaceInteractions({
   canvasRef,
@@ -19,7 +20,7 @@ export function useGraphSurfaceInteractions({
   dirtyRef,
   hoverRef,
   onSelectNode,
-  onOpenNode,
+  onOpenRichCard,
   onMoveNode,
   onModeChange,
   onGestureEnd,
@@ -30,7 +31,7 @@ export function useGraphSurfaceInteractions({
   dirtyRef: RefObject<boolean>;
   hoverRef: RefObject<string | null>;
   onSelectNode: (id: string | null) => void;
-  onOpenNode: (node: ProjectGraphNode) => void;
+  onOpenRichCard: (id: string) => void;
   onMoveNode: (id: string, position: { x: number; y: number }) => void;
   onModeChange: (mode: ProjectGraphMode) => void;
   onGestureEnd: () => void;
@@ -44,6 +45,8 @@ export function useGraphSurfaceInteractions({
     [hoverRef, dirtyRef],
   );
 
+  const lastTapRef = useRef<TapMark | null>(null);
+
   const handleClick = useCallback(
     (screenX: number, screenY: number) => {
       const current = sceneRef.current;
@@ -51,22 +54,29 @@ export function useGraphSurfaceInteractions({
       const point = worldPoint(cameraRef.current, screenX, screenY);
       const hit = hitTestSurface(current, point.x, point.y);
       if (hit === null) {
+        lastTapRef.current = null;
         onSelectNode(null);
         return;
       }
       if (hit.kind === "domain") {
+        lastTapRef.current = null;
         onSelectNode(null);
         onModeChange({ kind: "detail", domain: hit.name });
         return;
       }
       if (hit.kind === "port") {
+        lastTapRef.current = null;
         onSelectNode(null);
         onModeChange({ kind: "detail", domain: hit.domain });
         return;
       }
+      const now = Date.now();
+      const doubleTap = isDoubleTap(lastTapRef.current, hit.id, now);
+      lastTapRef.current = doubleTap ? null : { id: hit.id, at: now };
       onSelectNode(hit.id);
+      if (doubleTap) onOpenRichCard(hit.id);
     },
-    [sceneRef, cameraRef, onSelectNode, onModeChange],
+    [sceneRef, cameraRef, onSelectNode, onModeChange, onOpenRichCard],
   );
 
   // Live drag: mutate the working rect so edges follow this frame; no layout, no React render.
@@ -105,16 +115,5 @@ export function useGraphSurfaceInteractions({
     onGestureEnd,
   });
 
-  const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const current = sceneRef.current;
-    if (current === null || current.mode !== "detail") return;
-    const point = canvasLocalPoint(canvasRef.current, event);
-    const world = worldPoint(cameraRef.current, point.x, point.y);
-    const hit = hitTestSurface(current, world.x, world.y);
-    if (hit === null || hit.kind !== "node") return;
-    const node = current.nodeById.get(hit.id);
-    if (node !== undefined) onOpenNode(node);
-  };
-
-  return { pointer, onDoubleClick };
+  return { pointer };
 }

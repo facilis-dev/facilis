@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { t } from "@/i18n";
 import type { GraphPosition, GraphViewport } from "@/facilis/graph-layout";
-import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
+import type { ProjectGraphView } from "@/facilis/graph-model";
 import type { GraphSearchResult } from "@/facilis/graph-view-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
 import { focusHops, focusNeighborhood } from "@/facilis/graph-surface/focus.ts";
@@ -25,7 +25,9 @@ import {
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
+import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
+import { useGraphSurfaceCard } from "./use-graph-surface-card";
 import { useGraphSurfaceInteractions } from "./use-graph-surface-interactions";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
 
@@ -42,12 +44,13 @@ export function ProjectGraphSurface({
   mode,
   selectedNodeId,
   drawerOpen,
+  richCard,
   jump,
   savedPositions,
   viewport,
   onModeChange,
   onSelectNode,
-  onOpenNode,
+  onOpenRichCard,
   onMoveNode,
   onViewportChange,
 }: {
@@ -57,12 +60,13 @@ export function ProjectGraphSurface({
   mode: ProjectGraphMode;
   selectedNodeId: string | null;
   drawerOpen: boolean;
+  richCard: RichCardRequest | null;
   jump: GraphJumpRequest | null;
   savedPositions: Readonly<Record<string, GraphPosition>>;
   viewport: GraphViewport | undefined;
   onModeChange: (mode: ProjectGraphMode) => void;
   onSelectNode: (id: string | null) => void;
-  onOpenNode: (node: ProjectGraphNode) => void;
+  onOpenRichCard: (id: string) => void;
   onMoveNode: (id: string, position: GraphPosition) => void;
   onViewportChange: (viewport: GraphViewport) => void;
 }) {
@@ -73,7 +77,6 @@ export function ProjectGraphSurface({
   const dirtyRef = useRef(true);
   const hoverRef = useRef<string | null>(null);
   const pendingJumpRef = useRef<string | null>(null);
-
   // Layout caching: the fingerprint covers the dataset (nodes, edges, saved positions) but NOT the
   // query, selection or focus, so those interactions reuse the cached scene instead of re-layouting.
   const layoutKey = useMemo(() => surfaceLayoutKey(view), [view]);
@@ -120,7 +123,7 @@ export function ProjectGraphSurface({
   }, [selectedNodeId, search, scene]);
   useEffect(() => {
     dirtyRef.current = true;
-  }, [scene]);
+  }, [scene, richCard]);
 
   const modeKey = mode.kind === "overview" ? "overview" : "detail:" + mode.domain;
   const { cameraRef, restoreOrFit, centerOn, noteGestureEnd, scheduleViewportPersist } =
@@ -134,6 +137,17 @@ export function ProjectGraphSurface({
       drawerOpen,
       onViewportChange,
     });
+  // The rich card is placed from the draw loop (pan/zoom) and re-measured on open/resize.
+  const {
+    cardRef,
+    layout: richCardLayout,
+    position: positionRichCard,
+  } = useGraphSurfaceCard({
+    sceneRef,
+    cameraRef,
+    sizeRef,
+    nodeId: richCard?.nodeId ?? null,
+  });
 
   // A search jump asks for a node; the panel already switched mode. Centre it once the detail
   // scene exists, at a readable scale, with the drawer's column reserved.
@@ -188,6 +202,7 @@ export function ProjectGraphSurface({
           resolveSurfacePalette(canvas),
           uiRef.current,
         );
+        positionRichCard();
       },
       requestFrame: (callback) => requestAnimationFrame(callback),
       cancelFrame: (handle) => cancelAnimationFrame(handle),
@@ -211,21 +226,21 @@ export function ProjectGraphSurface({
       loop.stop();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [cameraRef, restoreOrFit, scheduleViewportPersist]);
+  }, [cameraRef, restoreOrFit, scheduleViewportPersist, positionRichCard]);
 
   const goOverview = useCallback(() => {
     onSelectNode(null);
     onModeChange({ kind: "overview" });
   }, [onSelectNode, onModeChange]);
 
-  const { pointer, onDoubleClick } = useGraphSurfaceInteractions({
+  const { pointer } = useGraphSurfaceInteractions({
     canvasRef,
     cameraRef,
     sceneRef,
     dirtyRef,
     hoverRef,
     onSelectNode,
-    onOpenNode,
+    onOpenRichCard,
     onMoveNode,
     onModeChange,
     onGestureEnd: noteGestureEnd,
@@ -246,8 +261,12 @@ export function ProjectGraphSurface({
         onPointerMove={pointer.onPointerMove}
         onPointerUp={pointer.onPointerUp}
         onPointerCancel={pointer.onPointerUp}
-        onDoubleClick={onDoubleClick}
       />
+      {richCard !== null && (
+        <div className="pointer-events-none absolute inset-0 z-30">
+          {richCard.render(richCardLayout, cardRef)}
+        </div>
+      )}
       <ProjectGraphSurfaceChrome
         domain={mode.kind === "detail" ? mode.domain : null}
         reservedRight={drawerOpen ? surfaceInsets(true).right : 0}

@@ -93,6 +93,7 @@ export const projectGraphEn = {
   "projectGraph.marker.notNull": "required",
   "projectGraph.marker.unique": "unique",
   "projectGraph.marker.default": "default",
+  "projectGraph.marker.fk": "Foreign key",
   "projectGraph.marker.unknown": "unknown",
   "projectGraph.node.page": "page",
   "projectGraph.node.route": "route",
@@ -215,4 +216,18 @@ export const projectGraphEn = {
   "projectGraph.surface.hint": "Drag to pan · scroll or pinch to zoom · click a domain to open it",
   "projectGraph.surface.detailHint":
     "Drag a node to move it · drag the pane to pan · scroll or pinch to zoom",
+
+  // ── on-demand rich card (issue #188) ────────────────────────────────────────
+  "projectGraph.surface.card.label": "Node rich card",
+  "projectGraph.surface.card.open": "Open rich card",
+  "projectGraph.surface.card.close": "Close rich card",
+  "projectGraph.surface.card.routes": "Routes",
+  "projectGraph.surface.card.noDetails": "Facts unavailable for this node.",
+  "projectGraph.surface.card.more": "+{count} more",
+  "projectGraph.surface.card.marker.pk": "PK",
+  "projectGraph.surface.card.marker.nn": "NN",
+  "projectGraph.surface.card.marker.uq": "UQ",
+  "projectGraph.surface.card.marker.def": "DEF",
+  "projectGraph.surface.card.marker.fk": "FK",
+  "projectGraph.surface.card.marker.unknown": "?",
 } as const;

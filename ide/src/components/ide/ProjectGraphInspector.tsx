@@ -2,6 +2,7 @@
 // layout and the kind switch; the facts, the source snippet and the styling primitives live in
 // the per-kind section modules, so no one file grows past the limit as sections are added.
 
+import Maximize2 from "~icons/lucide/maximize-2";
 import X from "~icons/lucide/x";
 import type { GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export interface ProjectGraphInspectorProps {
   sources: ReadonlyMap<string, string>;
   nodeLabel: (id: string) => string | null;
   onClose: () => void;
+  onExpand: () => void;
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
@@ -40,6 +42,7 @@ export function ProjectGraphInspector({
   sources,
   nodeLabel,
   onClose,
+  onExpand,
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
@@ -58,6 +61,15 @@ export function ProjectGraphInspector({
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
           {t("projectGraph.details")}
         </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("projectGraph.surface.card.open")}
+          title={t("projectGraph.surface.card.open")}
+          onClick={onExpand}
+        >
+          <Maximize2 />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

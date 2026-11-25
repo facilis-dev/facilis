@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
 import { loadProjectSources } from "@/facilis/analyze-client";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
-import { sourcePathFor, type ProjectGraphNode } from "@/facilis/graph-model";
+import { sourcePathFor } from "@/facilis/graph-model";
 import { buildGraphDetails, type NodeDetails } from "@/facilis/graph-details";
 import { clearGraphFocus } from "@/facilis/graph-focus";
 import { openPageInPreview } from "@/facilis/graph-open-preview";
@@ -27,6 +27,7 @@ import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphEscape } from "./useProjectGraphEscape";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
+import { useProjectGraphRichCard } from "./use-project-graph-rich-card";
 import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
 import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
 
@@ -97,11 +98,6 @@ export function ProjectGraphPanel() {
     graph.resetPositions();
     setFitNonce((value) => value + 1);
   };
-  const openSource = (sourceFile: string | null) => {
-    const path = sourcePathFor(root, sourceFile);
-    if (path !== null) void c.openFile(path);
-  };
-  const openNode = (node: ProjectGraphNode) => openSource(node.sourceFile);
   const selectedNode = view?.nodes.find((node) => node.id === selectedNodeId) ?? null;
   // Incident edges, both directions: the page inspector lists page links and the view inspector
   // reads the routes that use it (incoming route-view edges).
@@ -136,6 +132,14 @@ export function ProjectGraphPanel() {
     setDrawerOpen(id !== null);
   }, []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  // The rich card is view state only; it closes when the selection leaves its node.
+  const richCard = useProjectGraphRichCard({
+    selectedNodeId,
+    view,
+    details,
+    nodeLabel,
+    onSelectNode: selectNode,
+  });
   const clearSelection = useCallback(() => {
     setSelectedNodeId(null);
     setDrawerOpen(false);
@@ -172,6 +176,8 @@ export function ProjectGraphPanel() {
     onExitFullscreen: () => setFullscreen(false),
     focusActive: focus !== null,
     onClearFocus: clearGraphFocus,
+    richCardOpen: richCard.card !== null,
+    onCloseRichCard: richCard.close,
     drawerOpen,
     onCloseDrawer: closeDrawer,
     selectedNodeId,
@@ -203,12 +209,13 @@ export function ProjectGraphPanel() {
         mode={mode}
         selectedNodeId={selectedNodeId}
         drawerOpen={drawerOpen}
+        richCard={richCard.card}
         jump={jump}
         savedPositions={layout.nodes}
         viewport={layout.viewport}
         onModeChange={changeMode}
         onSelectNode={handleSelectNode}
-        onOpenNode={openNode}
+        onOpenRichCard={richCard.open}
         onMoveNode={graph.moveNode}
         onViewportChange={graph.changeViewport}
       />
@@ -265,6 +272,7 @@ export function ProjectGraphPanel() {
               sources={sources}
               nodeLabel={nodeLabel}
               onClose={closeDrawer}
+              onExpand={() => richCard.open(selectedNode.id)}
               onOpenFileAt={openFileAt}
               onOpenPreview={(path) => openPageInPreview(c, path)}
               onSelectNode={selectNode}
