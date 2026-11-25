@@ -2,7 +2,7 @@
 
 # Decision index
 
-207 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+208 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -215,3 +215,4 @@ the file whose name starts with that ID.
 | [D-207](./D-207-the-templates-ship-vite-8-the-vite-7-pin-is-lifted.md) | The templates ship Vite 8; the Vite 7 pin is lifted | accepted | 2026-11-24 |
 | [D-208](./D-208-the-git-proxy-bounds-its-callers-by-origin-can-require-a-token-and.md) | The git proxy bounds its callers by origin, can require a token, and rate-limits at the edge | accepted | 2026-11-21 |
 | [D-209](./D-209-frontend-rum-is-a-browser-only-package-enabled-by-a-build-time-define.md) | Frontend RUM is a browser-only package enabled by a build-time define | accepted | 2026-11-24 |
+| [D-210](./D-210-rum-consent-is-an-operator-obligation-v1-ships-no-framework-consent.md) | RUM consent is an operator obligation; v1 ships no framework consent gate | accepted | 2026-11-24 |

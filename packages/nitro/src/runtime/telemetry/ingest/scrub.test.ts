@@ -242,3 +242,95 @@ describe("frontend RUM vocabulary (D-208)", () => {
     expect(SPAN_ATTRIBUTE_ALLOWLIST.has("http.user_agent")).toBe(false);
   });
 });
+
+describe("scrub hardening (issue #141)", () => {
+  function spanAttributes(result: ReturnType<typeof scrubExportRequest>): OtlpAttribute[] {
+    return result.payload.resourceSpans[0]?.scopeSpans[0]?.spans[0]?.attributes ?? [];
+  }
+
+  it("drops non-finite numbers (JSON parses 1e999 as Infinity; it serializes to null)", () => {
+    const result = scrubExportRequest(
+      payload([
+        attr("browser.web_vital.value", { doubleValue: Number.POSITIVE_INFINITY }),
+        attr("facilis.job.attempt", { intValue: Number.POSITIVE_INFINITY }),
+        attr("http.response.status_code", { intValue: 200 }),
+      ]),
+    );
+    expect(spanAttributes(result).map((a) => a.key)).toEqual(["http.response.status_code"]);
+    expect(result.droppedAttributes).toBeGreaterThanOrEqual(2);
+  });
+
+  it("scrubs query strings and concrete ids inside http.route values", () => {
+    const result = scrubExportRequest(
+      payload([attr("http.route", { stringValue: "/orders/123?token=secret#frag" })]),
+    );
+    expect(spanAttributes(result)[0]?.value).toEqual({ stringValue: "/orders/:id" });
+  });
+
+  it("reduces absolute-URL http.route values to the templated pathname", () => {
+    const result = scrubExportRequest(
+      payload([
+        attr("http.route", {
+          stringValue: "https://app.example/users/0af76519-16cd-43dd-8448-eb211c80319c?x=1",
+        }),
+      ]),
+    );
+    expect(spanAttributes(result)[0]?.value).toEqual({ stringValue: "/users/:id" });
+  });
+
+  it("templates email-shaped path segments in names and route values", () => {
+    expect(sanitizeSpanName("GET /users/alice@example.com/edit")).toBe("GET /users/:id/edit");
+    const result = scrubExportRequest(
+      payload([attr("http.route", { stringValue: "/users/alice@example.com" })]),
+    );
+    expect(spanAttributes(result)[0]?.value).toEqual({ stringValue: "/users/:id" });
+  });
+
+  it("reduces absolute-URL span names to the templated pathname (no scheme/host leak)", () => {
+    expect(sanitizeSpanName("https://app.example/orders/123?token=secret")).toBe("/orders/:id");
+    expect(sanitizeSpanName("http://internal-host:8080/admin")).toBe("/admin");
+  });
+
+  it("templates uppercase UUIDs like lowercase ones", () => {
+    expect(sanitizeSpanName("GET /u/0AF76519-16CD-43DD-8448-EB211C80319C")).toBe("GET /u/:id");
+  });
+
+  it("drops span events and links structurally (exception prose never forwards)", () => {
+    // Zod ignores unknown fields, so a parsed payload can still carry events/links at runtime.
+    const input = {
+      resourceSpans: [
+        {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: TRACE,
+                  spanId: SPAN,
+                  name: "browser.error",
+                  startTimeUnixNano: "1",
+                  endTimeUnixNano: "2",
+                  attributes: [],
+                  events: [
+                    {
+                      name: "exception",
+                      attributes: [
+                        attr("exception.message", { stringValue: "alice@example.com failed" }),
+                      ],
+                    },
+                  ],
+                  links: [{ traceId: TRACE, spanId: SPAN }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as unknown as OtlpExportRequest;
+    const result = scrubExportRequest(input);
+    const span = result.payload.resourceSpans[0]?.scopeSpans[0]?.spans[0];
+    expect(span).toBeDefined();
+    expect("events" in (span as object)).toBe(false);
+    expect("links" in (span as object)).toBe(false);
+    expect(JSON.stringify(result.payload)).not.toContain("alice");
+  });
+});

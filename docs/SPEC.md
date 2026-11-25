@@ -2674,7 +2674,9 @@ data; it forwards the payload to the operator's collector, which is the only con
   duration, declared table names, and the frontend RUM names `browser.web_vital.name`,
   `browser.web_vital.value`, `browser.web_vital.rating`, `error.type`, `facilis.rum.source`)
   that strips raw URLs, query strings, bodies, headers and input values, plus span-id dedup to
-  blunt replay.
+  blunt replay. URL-bearing attribute values (`http.route`) and span names are reduced to
+  templated pathnames — absolute URLs lose scheme/host, and UUID, numeric and email-shaped
+  segments collapse to `:id` — and non-finite numbers are dropped.
 
 **Disabled means absent.** The route exists only when build-time deploy options enable telemetry
 (D-063/D-064, §6.10): disabled is `404`, never `401`/`403`, so a deployment that does not want
@@ -2683,7 +2685,9 @@ the WebContainer/preview no telemetry leaves the machine (D-200).
 
 **Not a boundary, and not an audit trail.** RUM input is spoofable and noisy by nature (an allowed
 origin can flood the route through XSS); the endpoint is observational. The D-119 audit pipeline
-stays separate and intact, and the collector credential stays server-side.
+stays separate and intact, and the collector credential stays server-side. Operator collector
+guidance — redaction allowlist, IP truncation, data minimization and the consent position — is in
+`docs/TELEMETRY.md` (D-209).
 
 Invariant 6 is **unchanged**: this is a production surface, distinct from the dev-only
 `/__facilis/*` endpoints, which keep answering `404` in production (§8.5, §11.4). D-200's

@@ -52,7 +52,7 @@ export const SPAN_ATTRIBUTE_ALLOWLIST: ReadonlySet<string> = new Set([
  * metadata onto the framework vocabulary before the allowlist runs. Raw-URL keys
  * (http.url, url.full, http.target) have no mapping and are stripped with everything else.
  */
-const LEGACY_SPAN_KEYS: ReadonlyMap<string, string> = new Map([
+export const LEGACY_SPAN_KEYS: ReadonlyMap<string, string> = new Map([
   ["http.method", HTTP_METHOD],
   ["http.status_code", HTTP_STATUS],
   ["db.system", DB_SYSTEM],
@@ -75,27 +75,56 @@ export const RESOURCE_ATTRIBUTE_ALLOWLIST: ReadonlySet<string> = new Set([
 
 const UUID = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi;
 const NUMERIC_SEGMENT = /\/\d+(?=\/|$)/g;
+// An email-shaped segment is an identifier, not a route: template it like any other id.
+const EMAIL_SEGMENT = /\/[^/?#\s]*@[^/?#\s]*(?=\/|$)/g;
 const MAX_ATTRIBUTE_STRING = 128;
 const MAX_SPAN_NAME = 120;
 
-/** Span names are exported too: drop any query/fragment and collapse concrete ids. */
-export function sanitizeSpanName(name: string): string {
-  const withoutQuery = name.split(/[?#]/)[0] ?? "";
+/** Absolute http(s) URLs must not leak scheme/host into names or route values. */
+function pathnameOf(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.protocol === "http:" || url.protocol === "https:") return url.pathname;
+  } catch {
+    // Not an absolute URL: a route template or a fixed span name, kept as-is.
+  }
+  return raw;
+}
+
+/** Query/fragment strip, absolute-URL reduction and id templating, shared by names and routes. */
+function scrubPath(raw: string, cap: number): string {
+  const withoutQuery = pathnameOf(raw).split(/[?#]/)[0] ?? "";
   return withoutQuery
     .replace(UUID, "/:id")
     .replace(NUMERIC_SEGMENT, "/:id")
-    .slice(0, MAX_SPAN_NAME);
+    .replace(EMAIL_SEGMENT, "/:id")
+    .slice(0, cap);
+}
+
+/** Span names are exported too: drop any query/fragment and collapse concrete ids. */
+export function sanitizeSpanName(name: string): string {
+  return scrubPath(name, MAX_SPAN_NAME);
 }
 
 /** Allowlisted keys still carry only scalars: an allowed key must not smuggle a structure. */
-function sanitizeValue(value: AnyValue): AnyValue | null {
+function sanitizeValue(value: AnyValue, key: string): AnyValue | null {
   if (typeof value.stringValue === "string") {
-    return { stringValue: value.stringValue.slice(0, MAX_ATTRIBUTE_STRING) };
+    // http.route is the one URL-bearing allowlisted key: a spoofed client could put a
+    // query string or a concrete id in its value, so it gets the same scrub as a name.
+    const text =
+      key === HTTP_ROUTE
+        ? scrubPath(value.stringValue, MAX_ATTRIBUTE_STRING)
+        : value.stringValue.slice(0, MAX_ATTRIBUTE_STRING);
+    return { stringValue: text };
   }
-  if (typeof value.intValue === "string" || typeof value.intValue === "number") {
+  // Non-finite numbers (JSON parses 1e999 as Infinity) serialize to null: never a metric.
+  if (typeof value.intValue === "string") {
     return { intValue: value.intValue };
   }
-  if (typeof value.doubleValue === "number") {
+  if (typeof value.intValue === "number" && Number.isFinite(value.intValue)) {
+    return { intValue: value.intValue };
+  }
+  if (typeof value.doubleValue === "number" && Number.isFinite(value.doubleValue)) {
     return { doubleValue: value.doubleValue };
   }
   if (typeof value.boolValue === "boolean") {
@@ -113,7 +142,7 @@ function scrubAttributes(
   let dropped = 0;
   for (const attribute of attributes ?? []) {
     const key = legacyKeys?.get(attribute.key) ?? attribute.key;
-    const value = allowlist.has(key) ? sanitizeValue(attribute.value) : null;
+    const value = allowlist.has(key) ? sanitizeValue(attribute.value, key) : null;
     if (value === null) {
       dropped += 1;
     } else {

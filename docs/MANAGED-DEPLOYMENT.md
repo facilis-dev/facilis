@@ -210,7 +210,8 @@ different set of readable hosts is a different build.
 
 Off by default and opt-in through this block only: enabling telemetry never adds a runtime
 switch, the exporters are compiled into the build (D-063/D-064). The two halves are
-independent, and each one is checked against the target it needs.
+independent, and each one is checked against the target it needs. Collector setup, privacy
+hardening and the consent position: [TELEMETRY.md](./TELEMETRY.md) (D-209).
 
 ```json
 "telemetry": {

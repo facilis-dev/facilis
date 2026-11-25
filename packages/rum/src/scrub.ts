@@ -53,12 +53,14 @@ const URL_BEARING: ReadonlySet<string> = new Set([
 // to ":id" so span names and paths stay low-cardinality route templates.
 const UUID = /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi;
 const NUMERIC_SEGMENT = /\/\d+(?=\/|$)/g;
+// An email-shaped segment is an identifier, not a route (mirrors the server's pattern).
+const EMAIL_SEGMENT = /\/[^/?#\s]*@[^/?#\s]*(?=\/|$)/g;
 const MAX_SPAN_NAME = 120;
 const MAX_ATTRIBUTE_STRING = 128;
 
-/** Replace UUID and numeric path segments with ":id" (the server's templating). */
+/** Replace UUID, numeric and email-shaped path segments with ":id" (the server's templating). */
 export function templateSegments(path: string): string {
-  return path.replace(UUID, "/:id").replace(NUMERIC_SEGMENT, "/:id");
+  return path.replace(UUID, "/:id").replace(NUMERIC_SEGMENT, "/:id").replace(EMAIL_SEGMENT, "/:id");
 }
 
 /** Keep only the pathname: query, fragment, scheme, host and userinfo never leave. */
@@ -92,9 +94,20 @@ export function scrubSpanAttributes(attributes: Attributes): Attributes {
   return kept;
 }
 
+/** Absolute http(s) URLs must not leak scheme/host into span names (mirrors the server). */
+function pathnameOf(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.protocol === "http:" || url.protocol === "https:") return url.pathname;
+  } catch {
+    // Not an absolute URL: a route template or a fixed span name, kept as-is.
+  }
+  return raw;
+}
+
 /** Span names get the same query/fragment strip and id templating, capped like the server. */
 export function scrubSpanName(name: string): string {
-  const withoutQuery = name.split(/[?#]/)[0] ?? "";
+  const withoutQuery = pathnameOf(name).split(/[?#]/)[0] ?? "";
   return templateSegments(withoutQuery).slice(0, MAX_SPAN_NAME);
 }
 

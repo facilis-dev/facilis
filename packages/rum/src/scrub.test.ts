@@ -148,3 +148,19 @@ describe("ScrubProcessor", () => {
     await expect(processor.forceFlush()).resolves.toBeUndefined();
   });
 });
+
+describe("scrub hardening (issue #141)", () => {
+  it("templates uppercase UUIDs and email-shaped segments", () => {
+    expect(templateSegments("/u/0AF76519-16CD-43DD-8448-EB211C80319C")).toBe("/u/:id");
+    expect(templateSegments("/users/alice@example.com/edit")).toBe("/users/:id/edit");
+    expect(scrubUrl("https://app.example/users/alice@example.com?x=1")).toBe("/users/:id");
+  });
+
+  it("reduces absolute-URL span names to the templated pathname (no scheme/host leak)", () => {
+    expect(scrubSpanName("https://app.example/orders/123?token=secret")).toBe("/orders/:id");
+    expect(scrubSpanName("http://internal-host:8080/admin")).toBe("/admin");
+    // Fixed RUM names and route templates are not URLs and stay untouched.
+    expect(scrubSpanName("browser.web_vital")).toBe("browser.web_vital");
+    expect(scrubSpanName("GET /orders/:id")).toBe("GET /orders/:id");
+  });
+});

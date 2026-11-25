@@ -9,6 +9,7 @@ Framework-owned browser RUM for Facilis apps (issue #138, D-203 §2, D-208).
   (`POST /__facilis/telemetry/v1/traces`) with the public write-only tenant key header.
 - `traceparent` propagates to the app's own origin only, never third parties.
 - URLs are scrubbed client-side (defense in depth; the server allowlist is the gate).
+- Operator collector guidance, privacy hardening and consent: `docs/TELEMETRY.md` (D-209).
 - Production-only and opt-in: the `facilisRum()` Vite companion injects the
   `__FACILIS_RUM_CONFIG__` literal at build time. Dev/disabled builds are completely silent.
 
