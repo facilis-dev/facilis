@@ -1,20 +1,18 @@
-// The Canvas2D map-and-lens graph surface (D-211, issue #184): domain overview grid and
-// drill-down swimlane detail, ported from the validated static preview. Layout is computed once
-// per dataset/domain (useMemo) and cached; pan/zoom only moves the camera ref and marks the
-// frame dirty, so interaction never re-runs layout and idle frames cost nothing. The same
-// spatial layout serves desktop and mobile — touch pans and pinches instead of reflowing.
+// The Canvas2D map-and-lens graph surface (D-211, issues #184/#185): domain overview grid and
+// drill-down swimlane detail. Layout is computed once per dataset/domain and cached on a fingerprint
+// that excludes the search query, so pan/zoom/search never re-run layout or move nodes — only the
+// camera ref changes and the frame is marked dirty. Detail nodes drag with mouse AND touch, edges
+// follow live, and the dropped position snaps to its lane column and sticks (persisted by the panel
+// through the saved layout). The saved viewport is restored on open, never silently re-fit (D-127).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "@/i18n";
+import type { GraphPosition, GraphViewport } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
-import {
-  fitCamera,
-  worldPoint,
-  zoomCamera,
-  type SurfaceCamera,
-} from "@/facilis/graph-surface/camera.ts";
+import { worldPoint, zoomCamera } from "@/facilis/graph-surface/camera.ts";
 import { resolveSurfacePalette } from "@/facilis/graph-surface/palette.ts";
+import { surfaceLayoutKey, setNodeRect } from "@/facilis/graph-surface/positions.ts";
 import {
   buildDetailScene,
   buildOverviewScene,
@@ -23,10 +21,8 @@ import {
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
+import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
 import { canvasLocalPoint, useGraphSurfacePointer } from "./use-graph-surface-pointer";
-
-/** The inspector is a w-80 (320px) side panel: fit reserves its width so cards never hide under it. */
-const INSPECTOR_WIDTH = 320;
 
 type SurfaceMode =
   { readonly kind: "overview" } | { readonly kind: "detail"; readonly domain: string };
@@ -36,41 +32,52 @@ export function ProjectGraphSurface({
   query,
   fitNonce,
   selectedNodeId,
+  savedPositions,
+  viewport,
   onSelectNode,
   onOpenNode,
+  onMoveNode,
+  onViewportChange,
 }: {
   view: ProjectGraphView;
   query: string;
   fitNonce: number;
   selectedNodeId: string | null;
+  savedPositions: Readonly<Record<string, GraphPosition>>;
+  viewport: GraphViewport | undefined;
   onSelectNode: (id: string | null) => void;
   onOpenNode: (node: ProjectGraphNode) => void;
+  onMoveNode: (id: string, position: GraphPosition) => void;
+  onViewportChange: (viewport: GraphViewport) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const cameraRef = useRef<SurfaceCamera>({ tx: 0, ty: 0, scale: 1 });
-  const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
+  const sizeRef = useRef<SurfaceSize>({ width: 0, height: 0, dpr: 1 });
   const sceneRef = useRef<SurfaceScene | null>(null);
   const dirtyRef = useRef(true);
   const hoverRef = useRef<string | null>(null);
   const [mode, setMode] = useState<SurfaceMode>({ kind: "overview" });
 
-  // Layout caching: these memos depend on the data and the mode only — never on the camera.
-  const domains = useMemo(() => deriveDomains(view.nodes, view.edges), [view]);
+  // Layout caching: the fingerprint covers the dataset (nodes, edges, saved positions) but NOT the
+  // query or matched flags, so a search keystroke reuses the cached scene instead of re-layouting.
+  const layoutKey = useMemo(() => surfaceLayoutKey(view), [view]);
+  const domains = useMemo(() => deriveDomains(view.nodes, view.edges), [layoutKey]);
   const domainOf = useMemo(() => domainIndex(domains), [domains]);
   const overviewScene = useMemo(
     () => buildOverviewScene(domains, view.nodes, view.edges),
-    [domains, view],
+    [domains, layoutKey],
   );
   const detailScene = useMemo(
     () =>
       mode.kind === "detail"
-        ? buildDetailScene(mode.domain, view.nodes, domainOf, view.edges)
+        ? buildDetailScene(mode.domain, view.nodes, domainOf, view.edges, savedPositions)
         : null,
-    [mode, view, domainOf],
+    [mode, layoutKey, domainOf, savedPositions],
   );
   const scene: SurfaceScene =
     mode.kind === "overview" ? overviewScene : (detailScene ?? overviewScene);
+  // Latest-ref pattern: gesture handlers and the camera hook read the current scene synchronously.
+  sceneRef.current = scene;
   const matched = useMemo(
     () => new Set(view.nodes.filter((node) => node.matched).map((node) => node.id)),
     [view],
@@ -90,30 +97,23 @@ export function ProjectGraphSurface({
     };
     dirtyRef.current = true;
   }, [selectedNodeId, query, matched]);
-
-  const fitNow = useCallback(() => {
-    const current = sceneRef.current;
-    const size = sizeRef.current;
-    if (current === null || size.width === 0 || size.height === 0) return;
-    const insetRight = current.mode === "detail" ? INSPECTOR_WIDTH : 0;
-    cameraRef.current = fitCamera(current.layout.bounds, size.width, size.height, {
-      insetRight,
-      maxScale: 1.1,
-    });
-    dirtyRef.current = true;
-  }, []);
-
   useEffect(() => {
-    sceneRef.current = scene;
     dirtyRef.current = true;
   }, [scene]);
-  // Fit on mode/fit requests only: a data refresh or a keystroke must not snap the camera back.
-  const modeKey = mode.kind === "overview" ? "overview" : "detail:" + mode.domain;
-  useEffect(() => {
-    fitNow();
-  }, [modeKey, fitNonce, fitNow]);
 
-  // Resize + the dirty-only render loop. Resize keeps the camera; the first real size fits.
+  const modeKey = mode.kind === "overview" ? "overview" : "detail:" + mode.domain;
+  const { cameraRef, restoreOrFit, noteGestureEnd, scheduleViewportPersist } = useGraphSurfaceCamera({
+    sceneRef,
+    sizeRef,
+    dirtyRef,
+    modeKey,
+    fitNonce,
+    viewport,
+    onViewportChange,
+  });
+
+  // Resize + the dirty-only render loop. Resize keeps the camera; the first real size restores the
+  // saved viewport (or fits a first-ever open). Wheel zoom persists on a short debounce.
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
@@ -130,7 +130,7 @@ export function ProjectGraphSurface({
       dirtyRef.current = true;
       if (!fitted && rect.width > 0) {
         fitted = true;
-        fitNow();
+        restoreOrFit();
       }
     };
     resize();
@@ -165,6 +165,7 @@ export function ProjectGraphSurface({
         factor,
       );
       dirtyRef.current = true;
+      scheduleViewportPersist();
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => {
@@ -172,7 +173,7 @@ export function ProjectGraphSurface({
       cancelAnimationFrame(raf);
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [fitNow]);
+  }, [cameraRef, restoreOrFit, scheduleViewportPersist]);
 
   const enterDomain = useCallback(
     (domain: string) => {
@@ -203,6 +204,27 @@ export function ProjectGraphSurface({
     dirtyRef.current = true;
   }, []);
 
+  // Live drag: mutate the working rect so edges follow this frame; no layout, no React render.
+  const handleNodeDragMove = useCallback((id: string, x: number, y: number) => {
+    const current = sceneRef.current;
+    if (current === null || current.mode !== "detail") return;
+    setNodeRect(current.layout.positions, id, x, y);
+    dirtyRef.current = true;
+  }, []);
+
+  // Release: the hook already snapped the drop to a lane column. Show it at once and commit it to
+  // the saved layout (debounced write); the rebuilt scene applies it as an override, so it sticks.
+  const handleNodeDragEnd = useCallback(
+    (id: string, x: number, y: number) => {
+      const current = sceneRef.current;
+      if (current === null || current.mode !== "detail") return;
+      setNodeRect(current.layout.positions, id, x, y);
+      dirtyRef.current = true;
+      onMoveNode(id, { x, y });
+    },
+    [onMoveNode],
+  );
+
   const pointer = useGraphSurfacePointer({
     canvasRef,
     cameraRef,
@@ -210,6 +232,9 @@ export function ProjectGraphSurface({
     dirtyRef,
     onClick: handleClick,
     onHover: setHover,
+    onNodeDragMove: handleNodeDragMove,
+    onNodeDragEnd: handleNodeDragEnd,
+    onGestureEnd: noteGestureEnd,
   });
 
   const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {

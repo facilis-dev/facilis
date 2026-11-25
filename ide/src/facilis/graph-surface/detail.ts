@@ -37,7 +37,8 @@ export interface SurfacePort {
 }
 
 export interface DetailLayout {
-  readonly positions: ReadonlyMap<string, SurfaceRect>;
+  /** The working rects: a live drag mutates this map in place (edges follow), never re-layout. */
+  readonly positions: Map<string, SurfaceRect>;
   readonly headers: readonly LaneHeader[];
   readonly ports: readonly SurfacePort[];
   /** Internal edges, one distinct edge per ordered connection. */

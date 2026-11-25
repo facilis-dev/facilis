@@ -2,10 +2,12 @@
 // A scene is built once per dataset/domain and cached; drawing reads it plus the camera, so a
 // pan/zoom frame never re-runs layout. The caller redraws only when dirty (idle cost is zero).
 
+import type { GraphPosition } from "../graph-layout-file.ts";
 import type { ProjectGraphEdge, ProjectGraphNode } from "../graph-types.ts";
 import type { GraphDomain } from "./domains.ts";
 import type { SurfaceCamera } from "./camera.ts";
 import { detailLayout, type DetailLayout } from "./detail.ts";
+import { detailWithSavedPositions } from "./positions.ts";
 import { overviewLayout, type OverviewLayout } from "./layout.ts";
 import type { SurfacePalette } from "./palette.ts";
 import {
@@ -44,6 +46,8 @@ export interface DetailScene {
   readonly mode: "detail";
   readonly domain: string;
   readonly layout: DetailLayout;
+  /** Automatic swimlane column x's: the snap targets for a dropped node (issue #185). */
+  readonly columns: readonly number[];
   readonly nodeById: ReadonlyMap<string, ProjectGraphNode>;
 }
 
@@ -66,13 +70,15 @@ export function buildDetailScene(
   nodes: readonly ProjectGraphNode[],
   domainOf: ReadonlyMap<string, string>,
   edges: readonly ProjectGraphEdge[],
+  saved: Readonly<Record<string, GraphPosition>> = {},
 ): DetailScene {
-  const layout = detailLayout({ domain, nodes, domainOf, edges });
+  const auto = detailLayout({ domain, nodes, domainOf, edges });
+  const { layout, columns } = detailWithSavedPositions(auto, saved);
   const nodeById = new Map<string, ProjectGraphNode>();
   for (const node of nodes) {
     if (domainOf.get(node.id) === domain) nodeById.set(node.id, node);
   }
-  return { mode: "detail", domain, layout, nodeById };
+  return { mode: "detail", domain, layout, columns, nodeById };
 }
 
 export type SurfaceHit =

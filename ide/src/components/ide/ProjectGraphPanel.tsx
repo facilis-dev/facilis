@@ -214,8 +214,12 @@ export function ProjectGraphPanel() {
         query={query}
         fitNonce={fitNonce}
         selectedNodeId={selectedNodeId}
+        savedPositions={layout.nodes}
+        viewport={layout.viewport}
         onSelectNode={setSelectedNodeId}
         onOpenNode={openNode}
+        onMoveNode={graph.moveNode}
+        onViewportChange={graph.changeViewport}
       />
     );
   }

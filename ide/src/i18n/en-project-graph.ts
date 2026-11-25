@@ -211,4 +211,6 @@ export const projectGraphEn = {
   "projectGraph.surface.portIn": "← {domain} ×{count}",
   "projectGraph.surface.rls": "RLS",
   "projectGraph.surface.hint": "Drag to pan · scroll or pinch to zoom · click a domain to open it",
+  "projectGraph.surface.detailHint":
+    "Drag a node to move it · drag the pane to pan · scroll or pinch to zoom",
 } as const;

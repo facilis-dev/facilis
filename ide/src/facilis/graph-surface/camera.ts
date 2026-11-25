@@ -2,6 +2,7 @@
 // drawer space and clamps to a readable scale floor; zoom keeps the cursor's world point fixed.
 // Split from layout.ts so both stay under the 300-line source limit.
 
+import type { GraphViewport } from "../graph-layout-file.ts";
 import type { SurfaceRect } from "./layout.ts";
 
 /** The camera is a pure translate+scale transform from world space to screen space. */
@@ -74,4 +75,40 @@ export function worldPoint(
   screenY: number,
 ): { x: number; y: number } {
   return { x: (screenX - camera.tx) / camera.scale, y: (screenY - camera.ty) / camera.scale };
+}
+
+/** The persisted viewport (D-127) is the camera's translate+scale under its legacy names. */
+export function cameraFromViewport(viewport: GraphViewport): SurfaceCamera {
+  return { tx: viewport.x, ty: viewport.y, scale: viewport.zoom };
+}
+
+export function viewportFromCamera(camera: SurfaceCamera): GraphViewport {
+  return { x: camera.tx, y: camera.ty, zoom: camera.scale };
+}
+
+export interface RestoreCameraInput {
+  /** The camera this mode last had in the current session (overview <-> detail round trips). */
+  readonly session?: SurfaceCamera;
+  /** The saved viewport from viewport.json; only the overview restores it on open. */
+  readonly saved?: GraphViewport;
+  readonly bounds: SurfaceRect;
+  readonly width: number;
+  readonly height: number;
+  readonly insetRight?: number;
+}
+
+/**
+ * Restore, never silently re-fit (D-127): a session camera wins, then a valid saved viewport,
+ * and only a first-ever open fits. This is what kills the open-time snap-back of #145.
+ */
+export function restoreCamera(input: RestoreCameraInput): SurfaceCamera {
+  if (input.session !== undefined) return input.session;
+  const saved = input.saved;
+  if (saved !== undefined && Number.isFinite(saved.zoom) && saved.zoom > 0) {
+    return cameraFromViewport(saved);
+  }
+  return fitCamera(input.bounds, input.width, input.height, {
+    insetRight: input.insetRight,
+    maxScale: 1.1,
+  });
 }

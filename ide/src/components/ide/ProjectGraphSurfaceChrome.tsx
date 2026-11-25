@@ -38,7 +38,7 @@ export function ProjectGraphSurfaceChrome({
         )}
       </nav>
       <p className="pointer-events-none absolute bottom-2 left-2 rounded bg-panel/80 px-2 py-1 text-[10px] text-muted-foreground">
-        {t("projectGraph.surface.hint")}
+        {t(domain !== null ? "projectGraph.surface.detailHint" : "projectGraph.surface.hint")}
       </p>
     </>
   );

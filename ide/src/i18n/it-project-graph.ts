@@ -215,4 +215,6 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.rls": "RLS",
   "projectGraph.surface.hint":
     "Trascina per spostarti · rotella o pizzico per lo zoom · clicca un dominio per aprirlo",
+  "projectGraph.surface.detailHint":
+    "Trascina un nodo per spostarlo · trascina lo sfondo per muoverti · rotella o pizzico per lo zoom",
 };
