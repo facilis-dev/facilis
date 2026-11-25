@@ -29,6 +29,7 @@ import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import type { Parser } from "./parser.ts";
+import { isRawDbImport } from "./raw-db-imports.ts";
 import type { Diagnostic } from "./types.ts";
 
 /** Directories the analyzer lists as routes; keep in sync with passes/routes.ts. */
@@ -97,10 +98,20 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
   const unused: string[] = [];
   const getWarnings: string[] = [];
   let routeFiles = 0;
-  for (const path of graph.files.keys()) {
+  for (const [path, file] of graph.files) {
     if (!ROUTE_DIRS.some((routeDir) => path.startsWith(routeDir))) continue;
     routeFiles += 1;
     const where = label + "/" + path;
+    // Invariant 5 parity with AI rule 9: a handwritten route may not build a raw client.
+    for (const imported of file.module.imports) {
+      if (!isRawDbImport(imported.specifier)) continue;
+      violations.push(
+        where +
+          ': no-raw-db-access: importing "' +
+          imported.specifier +
+          '" is a raw database client outside @facilis.dev/db',
+      );
+    }
     const route = bySourceFile.get(path);
     if (route === undefined) {
       violations.push(where + ": no route fact; the filename is not a Nitro route location");
@@ -116,6 +127,19 @@ function scanApp(appRoot: string, label: string, parser: Parser): AppScan {
         reasonFor(routeFacts.diagnostics, "db-tables-present", path) ||
         reasonFor(routeFacts.diagnostics, "route-config-static", path);
       violations.push(where + ": dbTables is not statically declared; " + reason);
+    }
+    // Invariant 3 parity with AI rule 8; a body-less GET legitimately declares no schema.
+    if (route.handlerBodyRead && !route.input.body) {
+      violations.push(
+        where +
+          ": route-input-validated: the handler reads the request body but the route declares no body schema",
+      );
+    }
+    if (route.handlerFormRead && !route.input.form) {
+      violations.push(
+        where +
+          ": route-input-validated: the handler reads the multipart form but the route declares no form schema",
+      );
     }
   }
   for (const diagnostic of relations.diagnostics) {
@@ -300,7 +324,7 @@ describe("SEC-12 route gate", () => {
         "server/routes/get-opaque.get.ts",
         CORE +
           'import { ownerIsolationPolicy } from "@facilis.dev/db";\n' +
-          'export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (_event, { db }) => ownerIsolationPolicy(db));\n',
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (_event, { db }) => ownerIsolationPolicy(db));\n",
       );
       const scan = scanApp(fixture, "fixture", createOxcParser());
       const report = scan.violations.join("\n");
@@ -313,6 +337,64 @@ describe("SEC-12 route gate", () => {
       expect(report).not.toContain("get-opaque.get.ts");
       // The opaque body is a warning, never a guessed error.
       expect(scan.getWarnings.join("\n")).toContain("get-opaque.get.ts: route-get-side-effect");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("flags body reads without a schema and raw-client imports (D-213)", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "facilis-input-gate-"));
+    try {
+      writeSource(fixture, "db/schema.ts", FIXTURE_SCHEMA);
+      writeSource(
+        fixture,
+        "server/routes/no-schema.post.ts",
+        CORE +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (event) => event.body);\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/no-form.post.ts",
+        CORE +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async (event) => event.form);\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/schema.post.ts",
+        CORE +
+          'import { z } from "zod";\n' +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [], body: z.object({ title: z.string() }) }, async (_event, { body }) => body);\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/read.get.ts",
+        CORE +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => null);\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/raw-client.get.ts",
+        CORE +
+          'import { drizzle } from "drizzle-orm/pglite";\n' +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => drizzle);\n",
+      );
+      writeSource(
+        fixture,
+        "server/routes/schema-dsl.get.ts",
+        CORE +
+          'import { sql } from "drizzle-orm";\n' +
+          'import { pgTable } from "drizzle-orm/pg-core";\n' +
+          "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, async () => (sql, pgTable));\n",
+      );
+      const scan = scanApp(fixture, "fixture", createOxcParser());
+      const report = scan.violations.join("\n");
+      expect(scan.routeFiles).toBe(6);
+      expect(report).toContain("no-schema.post.ts: route-input-validated");
+      expect(report).toContain("no-form.post.ts: route-input-validated");
+      expect(report).toContain("raw-client.get.ts: no-raw-db-access");
+      expect(report).not.toContain("/schema.post.ts:");
+      expect(report).not.toContain("/read.get.ts:");
+      expect(report).not.toContain("/schema-dsl.get.ts:");
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

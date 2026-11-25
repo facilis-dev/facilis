@@ -2,7 +2,7 @@
 
 # Decision index
 
-210 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+211 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -218,3 +218,4 @@ the file whose name starts with that ID.
 | [D-210](./D-210-rum-consent-is-an-operator-obligation-v1-ships-no-framework-consent.md) | RUM consent is an operator obligation; v1 ships no framework consent gate | accepted | 2026-11-24 |
 | [D-211](./D-211-every-project-table-declares-its-class-system-only-is-a-comment-marker.md) | Every project table declares its class: system-only is a comment marker | accepted | 2026-11-25 |
 | [D-212](./D-212-get-routes-are-side-effect-free.md) | GET routes are side-effect free | accepted | 2026-11-25 |
+| [D-213](./D-213-handwritten-routes-are-gated-for-zod-input-and-raw-client-imports.md) | Handwritten routes are gated for Zod input and raw-client imports | accepted | 2026-11-25 |

@@ -27,6 +27,8 @@ export {
 } from "./passes/route-get-effects.ts";
 // The table access-class contract (D-211), shared with AI validator rule 20.
 export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
+// The raw-client module list (invariant 5, D-213), shared with AI rule 9 and the route gate.
+export { isRawDbImport } from "./raw-db-imports.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";

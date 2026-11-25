@@ -9,7 +9,78 @@
     "no-console": "warn",
     "no-var": "error",
     "eqeqeq": ["error", "smart"],
-    "prefer-const": "error"
+    "prefer-const": "error",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "drizzle-orm/pglite",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213). Use the policy-scoped db from the handler context."
+          },
+          {
+            "name": "drizzle-orm/node-postgres",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213). Use the policy-scoped db from the handler context."
+          },
+          {
+            "name": "drizzle-orm/postgres-js",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213). Use the policy-scoped db from the handler context."
+          },
+          {
+            "name": "drizzle-orm/bun-sqlite",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/neon",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/vercel-postgres",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/aws-data-api",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/libsql",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/expo-sqlite",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/d1",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/op-sqlite",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/singlestore",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "drizzle-orm/tidb-serverless",
+            "message": "Raw Drizzle clients live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "@electric-sql/pglite",
+            "message": "Raw database drivers live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "postgres",
+            "message": "Raw database drivers live only in @facilis.dev/db (invariant 5, D-213)."
+          },
+          {
+            "name": "pg",
+            "message": "Raw database drivers live only in @facilis.dev/db (invariant 5, D-213)."
+          }
+        ]
+      }
+    ]
   },
   "ignorePatterns": [
     "**/node_modules/**",
@@ -25,6 +96,12 @@
       "files": ["scripts/**/*.mjs"],
       "rules": {
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["packages/db/**"],
+      "rules": {
+        "no-restricted-imports": "off"
       }
     }
   ]

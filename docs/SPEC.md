@@ -1,11 +1,18 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.40 (table-class-declared rule, D-211; issue #169)
+**Version:** 1.41 (handwritten-route gate, D-213; issue #171)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.41 — Handwritten routes are gated like AI writes for invariants 3 and 5 (D-213, issue
+  #171). `routes-gate.test.ts` now also fails a shipped route that reads `body`/`form`
+  without declaring the matching schema (a body-less GET stays exempt) and a route that imports
+  a raw database client; the raw-client module list is one shared analyzer export consumed by
+  the gate and AI rule 9. `.oxlintrc.json` bans those entrypoints with the built-in
+  `no-restricted-imports` outside `packages/db`, while `drizzle-orm` operators and
+  `drizzle-orm/pg-core` table builders stay allowed. §8.6/§9.3 follow.
 - v1.40 — Every project table declares its access class (D-211, issue #169). Invariant 4
   (D-136) is now statically enforced beyond rule 10's scoped tables: a project `pgTable`
   needs `.enableRLS()` plus a policy set, or an explicit `// system-only` comment on the
@@ -2595,6 +2602,12 @@ the email-verification link GET (D-156) and the framework read-only blueprint GE
   with `retry-after` before touching the database. The window is in-process, so it resets on
   restart and is not shared across instances; revocation stays per client (the client and every
   token it issued), never per single token.
+- Handwritten routes are gated like AI writes (D-213): `routes-gate.test.ts` checks the
+  body/form schema parity of invariant 3 and the raw-client ban of invariant 5 over every shipped
+  route tree, and oxlint's `no-restricted-imports` rejects a raw database client entrypoint
+  outside `@facilis.dev/db` (the `drizzle-orm` operators and `drizzle-orm/pg-core` table
+  builders are the schema DSL and stay allowed). The runtime wrapper and the AI rules remain the
+  authority; the gate is an early warning, never a replacement.
 - AI patches are **validated** before write (21 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
@@ -2765,8 +2778,8 @@ Rules the AI must obey:
 | 5 | `db-columns-valid` | warning | All `dbColumns` format and exist |
 | 6 | `permission-valid` | error | Every `permission` exists in `config.auth.permissions` |
 | 7 | `block-import-valid` | error | Every block import matches a `BlockManifest` |
-| 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required |
-| 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis.dev/db` |
+| 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required. Also gated over the shipped route trees (D-213) |
+| 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis.dev/db`; oxlint `no-restricted-imports` enforces the module ban workspace-wide (D-213) |
 | 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
 | 11 | `file-path-allowed` | error | `managed` (default): `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/` plus `facilis.config.ts`; AI patches never get the IDE writer's explicit `rootFiles`. `open`: any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage` segments, `package.json`/lockfiles/`.npmrc` and `AGENTS.md` (D-167) |
 | 12 | `import-resolves` | error | All imports resolve (relative or in `node_modules`) |
