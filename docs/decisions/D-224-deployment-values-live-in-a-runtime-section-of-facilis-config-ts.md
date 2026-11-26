@@ -62,6 +62,7 @@ from `facilis.config.ts` and the read sites from the project's code, then report
 | `runtime-key-missing` | a system package requires `X`, the file does not declare it | error (the message carries the line) |
 | `runtime-key-server-only` | a `runtime` key read from client-reachable code, or a `public` key read through `ctx.runtime` | error |
 | `runtime-key-unused` | declared, read by nobody | warning |
+| `vite-env-direct` | `import.meta.env.VITE_*` read in the project's `src/**` or `server/**` | warning |
 
 **Framework requirements are visible, not buried.** Each package exports a declarative
 `runtimeRequirements` list — key, surface, secret, and an optional condition expressed over static
@@ -99,6 +100,15 @@ only client accessor, backed by the `__FACILIS_PUBLIC_CONFIG__` define — the R
 generalized, no inline script and no CSP risk. The Studio and the manifest expose the schema (names,
 types, values for `public`, `secret` flags for `runtime`) and never server secret values;
 `.env.example` is generated from it and `pnpm facilis:env` prints provenance with redaction.
+
+**`VITE_*` stays Vite's passthrough, with a nudge.** Third-party libraries keep reading
+`import.meta.env.VITE_*` and the default `envPrefix` is untouched, because `public` values reach the
+client through the define, not through Vite's env system. In the project's own `src/**` and
+`server/**` a read is reported as `vite-env-direct` (warning): that code ships to the browser, so a
+value belongs in `public` — typed, validated, secret-forbidden — and is read through
+`publicConfig()`. Warn-only, like `import-cycle` (D-217): no AI-validator rule is added and §9.3 stays
+at 23. There is no suppression comment; a third-party integration that needs the raw variable reads it
+inside the library, where the analyzer never looks.
 
 **Defaults are the app's, and they stop following the framework.** A default written in the file is
 part of the app's code: when a framework release changes its recommended value, an existing project
@@ -167,8 +177,9 @@ no environment; a per-deployment browser value is a route, not a config.
 ignored, fatal vs refusal); canonical tooling values covering exactly the schema's keys, never merged
 at runtime; `defineConfig`
 rejects the moved keys with the replacement in the message; a boot test asserting the aggregated error
-report and exit code; analyzer tests for the five diagnostics plus `no-direct-env` (framework error,
-project warning); a non-leak test asserting that `JSON.stringify(resolved)`, template interpolation and
+report and exit code; analyzer tests for the six diagnostics plus `no-direct-env` (framework error,
+project warning) and `vite-env-direct` (project code warns, `vite.config.ts` and dependencies are
+exempt); a non-leak test asserting that `JSON.stringify(resolved)`, template interpolation and
 an inspect never contain a secret value, and that a blank secret is fatal; a `public` bundling test
 proving `publicConfig()` is frozen into the client and that a secret marker under `public` does not
 compile; the examples/template requirement gate; `pnpm facilis:env` snapshot (provenance, redaction).

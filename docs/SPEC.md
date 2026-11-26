@@ -22,7 +22,8 @@
   `storage.driver|bucket|region|endpoint|forcePathStyle` move into `runtime`;
   `FACILIS_TELEMETRY` is renamed `FACILIS_TELEMETRY_ENABLED`; no alias is kept. The resolved objects are
   `ctx.runtime` in a request, `runtimeEnv()` elsewhere and `publicConfig()` in the client.
-  §7.1/§7.4/§8.4.6 follow.
+  `VITE_*` stays Vite's passthrough for third-party libraries and a read in project code warns
+  (`vite-env-direct`). §7.1/§7.4/§8.4.6 follow.
 - v1.46 — Dynamic `t()` keys and locale parity are warnings (D-218, issue #176). The
   analyzer now keeps a `dynamicTranslationCalls` fact for a `t()` argument that is an
   identifier, a call, a concatenation or a template literal with expressions, and reports
@@ -1520,7 +1521,10 @@ does not declare it), `runtime-key-server-only` (a `runtime` key read from clien
 `public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning. Each
 package exports `runtimeRequirements` (key, surface, secret, optional condition over static config
 values) and a gate holds the shipped examples and the IDE template to the union. `ctx.runtime` is
-server-only; `publicConfig()` is the only client accessor.
+server-only; `publicConfig()` is the only client accessor. `import.meta.env.VITE_*` stays Vite's
+passthrough for third-party libraries (`envPrefix` unchanged — `public` values arrive through the
+define), and a read in the project's own `src/**` or `server/**` is the warning `vite-env-direct`,
+pointing at `public`.
 
 ### 7.2 `BlockManifest`
 
