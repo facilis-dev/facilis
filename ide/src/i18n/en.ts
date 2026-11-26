@@ -138,6 +138,8 @@ export const en = {
   "create.directoryPlaceholder": "/home/user/projects/my-app",
   "create.runInit": "Install and run",
   "create.runInitHint": "install dependencies and start the dev server after creating.",
+  "create.runInitHintLimited":
+    "install dependencies and start the dev server after creating (off by default on this device).",
   "create.submit": "Create",
   "create.creating": "Creating…",
   "create.waiting": "Waiting for the runtime…",

@@ -74,9 +74,12 @@ export function TitleBar() {
     snap.workspaceFolders.find((f) => f.id === snap.activeFolderId)?.rootPath ?? null;
   const externalPort = c.preview.externalPreviewPort(activeRoot, snap.ports);
   return (
-    <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-sidebar pr-2 pl-3 text-sm">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-sidebar pr-2 pl-3 text-sm lg:gap-3">
+      {/* The narrow shell keeps only the title, the Run control and the status bar:
+          everything here is a desktop affordance with a place in the drawer or the
+          bottom navigation (issue #195). */}
       <button
-        className="flex shrink-0 items-center"
+        className="hidden shrink-0 items-center lg:flex"
         onClick={() => c.goHome()}
         title={t("title.home")}
         aria-label={t("app.name")}
@@ -98,7 +101,8 @@ export function TitleBar() {
             onClick={() => c.stopRun()}
             aria-label={t("run.stopHint")}
           >
-            <Square className="size-3.5" /> {t("run.stop")}
+            <Square className="size-3.5" />{" "}
+            <span className="hidden sm:inline">{t("run.stop")}</span>
           </Button>
         ) : (
           <Button
@@ -107,20 +111,25 @@ export function TitleBar() {
             onClick={() => c.runActiveFolder()}
             aria-label={t("run.startHint")}
           >
-            <Play className="size-4" /> {t("run.start")}
+            <Play className="size-4" /> <span className="hidden sm:inline">{t("run.start")}</span>
           </Button>
         )}
         <Tooltip>
           <TooltipTrigger
             onClick={openStudioInNewTab}
             aria-label={t("title.openNewTab")}
-            className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="hidden size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
           >
             <ExternalLink className="size-4" />
           </TooltipTrigger>
           <TooltipContent side="bottom">{t("title.newTab")}</TooltipContent>
         </Tooltip>
-        <Button variant="ghost" size="sm" onClick={() => c.goHome()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="hidden lg:inline-flex"
+          onClick={() => c.goHome()}
+        >
           <Home className="size-4" /> {t("title.home")}
         </Button>
         <div aria-hidden className="mx-1 h-5 w-px bg-border" />
@@ -128,60 +137,64 @@ export function TitleBar() {
           <TooltipTrigger
             onClick={() => tourStore.start()}
             aria-label={t("tour.helpAria")}
-            className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="hidden size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
           >
             <CircleHelp className="size-4" />
           </TooltipTrigger>
           <TooltipContent side="bottom">{t("tour.helpAria")}</TooltipContent>
         </Tooltip>
-        <LayoutToggle
-          label={t("title.toggleSidebar")}
-          keys="⌘B"
-          shown={!snap.sidebarCollapsed}
-          onClick={() => c.toggleSidebar()}
-          On={PanelLeft}
-          Off={PanelLeftOff}
-        />
-        <LayoutToggle
-          label={t("title.togglePreview")}
-          keys="⌥⌘B"
-          shown={!snap.previewCollapsed}
-          onClick={() => c.togglePreview()}
-          On={PanelRight}
-          Off={PanelRightOff}
-        />
-        {/* The external preview is the point of hiding the panel, so the control must
+        {/* Layout toggles and the external preview are split-pane affordances: the
+            narrow shell reaches the same surfaces from its bottom navigation. */}
+        <div className="hidden items-center gap-1 lg:flex">
+          <LayoutToggle
+            label={t("title.toggleSidebar")}
+            keys="⌘B"
+            shown={!snap.sidebarCollapsed}
+            onClick={() => c.toggleSidebar()}
+            On={PanelLeft}
+            Off={PanelLeftOff}
+          />
+          <LayoutToggle
+            label={t("title.togglePreview")}
+            keys="⌥⌘B"
+            shown={!snap.previewCollapsed}
+            onClick={() => c.togglePreview()}
+            On={PanelRight}
+            Off={PanelRightOff}
+          />
+          {/* The external preview is the point of hiding the panel, so the control must
             stay here when the panel is gone — disabled, never hidden, when nothing runs. */}
-        {snap.workspaceFolders.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              onClick={() => {
-                if (externalPort === null) return;
-                if (!c.preview.openExternalPreview(externalPort))
-                  toast.error(t("preview.openExternalBlocked"));
-              }}
-              aria-disabled={externalPort === null}
-              aria-label={
-                externalPort === null
+          {snap.workspaceFolders.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                onClick={() => {
+                  if (externalPort === null) return;
+                  if (!c.preview.openExternalPreview(externalPort))
+                    toast.error(t("preview.openExternalBlocked"));
+                }}
+                aria-disabled={externalPort === null}
+                aria-label={
+                  externalPort === null
+                    ? t("preview.openExternalDisabled")
+                    : t("preview.openExternalHint")
+                }
+                className={cn(
+                  "flex size-7 items-center justify-center rounded transition-colors",
+                  externalPort === null
+                    ? "cursor-not-allowed text-muted-foreground/40"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <Monitor className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {externalPort === null
                   ? t("preview.openExternalDisabled")
-                  : t("preview.openExternalHint")
-              }
-              className={cn(
-                "flex size-7 items-center justify-center rounded transition-colors",
-                externalPort === null
-                  ? "cursor-not-allowed text-muted-foreground/40"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <Monitor className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {externalPort === null
-                ? t("preview.openExternalDisabled")
-                : t("preview.openExternalHint")}
-            </TooltipContent>
-          </Tooltip>
-        )}
+                  : t("preview.openExternalHint")}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );

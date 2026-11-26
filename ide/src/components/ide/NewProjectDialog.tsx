@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { t } from "@/i18n";
 import { DEFAULT_TEMPLATE_KEY, type TemplateKey } from "@/facilis/templates";
+import { runRisk } from "@/vv/run-consent";
 import { useIde } from "./useIde";
+
 import { TemplatePicker } from "./TemplatePicker";
 
 // Shared directory field with live validation against the VFS + registry.
@@ -154,6 +156,11 @@ function useQueuedCreate(effectiveDir: string) {
   return { busy, queued, inFlight, lateError, label, reset, guardClose, run };
 }
 
+// A phone-class device defaults to "create only": installing and starting the dev
+// server there is slow and can end with the tab closed (run-consent.ts). The user can
+// still tick the box; the controller asks for confirmation before it runs anyway.
+const LIMITED_DEVICE = runRisk() === "limited";
+
 export function NewProjectDialog({
   open,
   onOpenChange,
@@ -165,7 +172,7 @@ export function NewProjectDialog({
   const [name, setName] = useState("");
   const [dir, setDir] = useState("");
   const [dirTouched, setDirTouched] = useState(false);
-  const [runInit, setRunInit] = useState(true);
+  const [runInit, setRunInit] = useState(!LIMITED_DEVICE);
   const [template, setTemplate] = useState<TemplateKey>(DEFAULT_TEMPLATE_KEY);
 
   const effectiveDir = dirTouched ? dir : name.trim() ? c.defaultDirFor(name) : "";
@@ -181,7 +188,7 @@ export function NewProjectDialog({
       setName("");
       setDir("");
       setDirTouched(false);
-      setRunInit(true);
+      setRunInit(!LIMITED_DEVICE);
       setTemplate(DEFAULT_TEMPLATE_KEY);
       reset();
     }
@@ -245,7 +252,9 @@ export function NewProjectDialog({
             />
             <span>
               {t("create.runInit")}{" "}
-              <span className="text-muted-foreground">{t("create.runInitHint")}</span>
+              <span className="text-muted-foreground">
+                {t(LIMITED_DEVICE ? "create.runInitHintLimited" : "create.runInitHint")}
+              </span>
             </span>
           </label>
         </div>

@@ -47,6 +47,8 @@ import {
   warmRegistryConnection,
   type RunPhase,
 } from "./run-phase";
+import { requestRunConsent } from "./run-consent";
+import { copyPathToClipboard } from "./copy-path";
 import type { GitImportOptions } from "./git-import";
 import { GitRemoteSession } from "./git-remote-session";
 import { createWorkdirReload } from "./workdir-reload";
@@ -1685,6 +1687,9 @@ export class IdeController {
   runProject(rootPath: string) {
     const root = normDir(rootPath);
     void frameworkRunGate(this.bridge, root, () => {
+      // On a phone the dev server is the step to confirm (run-consent.ts), once the
+      // framework gate is past; every run path comes through here.
+      if (requestRunConsent(root)) return;
       const manifest = this.folderManifests.get(root);
       const running = this.runningProjects.get(root);
       if (running && running.terminalId && this.terminals.has(running.terminalId)) {
@@ -2143,12 +2148,7 @@ export class IdeController {
   }
 
   copyPath(abs: string) {
-    try {
-      void navigator.clipboard?.writeText(abs);
-      this.status(`copied path: ${abs}`);
-    } catch {
-      toast.error("Clipboard unavailable");
-    }
+    copyPathToClipboard(abs, (text) => this.status(text));
   }
 
   // ── UI toggles ──

@@ -32,4 +32,19 @@ export const runEn = {
   "run.failed": "Start failed",
   "run.failedHint": "The project did not start — open the terminal to see why",
   "run.showTerminal": "Show terminal",
+
+  // ── the device confirmation before install + dev server (run-consent.ts) ──
+  "run.confirm.title": "Start the dev server on this device?",
+  "run.confirm.body":
+    "This device has limited memory for running a project in the browser. The graph, the editor and the files work without it.",
+  "run.confirm.costInstall": "Downloads the project's dependencies from npm.",
+  "run.confirm.costMemory": "The dev server can take close to a gigabyte of memory in this tab.",
+  "run.confirm.costTime": "The first start can take minutes, and the browser may close the tab.",
+  "run.confirm.start": "Start anyway",
+  "run.confirm.notNow": "Not now",
+
+  // ── the narrow shell's bottom navigation (below 1024px, issue #195) ──────
+  "shell.mobile.files": "Files",
+  "shell.mobile.code": "Code",
+  "shell.mobile.preview": "Preview",
 } as const;
