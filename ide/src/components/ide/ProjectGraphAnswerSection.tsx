@@ -6,6 +6,8 @@ import { t } from "@/i18n";
 import type { GraphAnswerSection } from "@/facilis/graph-surface/answers-types";
 import { Chip, EmptyNote, SECTION_TITLE } from "./ProjectGraphDetailsSection";
 import { ProjectGraphAnswerRow } from "./ProjectGraphAnswerRow";
+import { ProjectGraphQuestionHint } from "./ProjectGraphQuestionHint";
+import { ANSWER_QUESTION_CODES } from "@/facilis/graph-surface/questions.ts";
 
 /** How many rows show before the "+N more" control: the drawer stays readable. */
 const VISIBLE_LIMIT = 5;
@@ -32,7 +34,11 @@ export function ProjectGraphAnswerSection({
       className="rounded border bg-card/40"
     >
       <summary className="flex cursor-pointer items-center gap-1 px-1.5 py-1">
-        <span className={SECTION_TITLE + " min-w-0 flex-1 truncate"}>{t(section.titleKey)}</span>
+        <span className={SECTION_TITLE + " min-w-0 flex-1 truncate"}>
+          <ProjectGraphQuestionHint code={ANSWER_QUESTION_CODES[section.id]}>
+            {t(section.titleKey)}
+          </ProjectGraphQuestionHint>
+        </span>
         <Chip>{section.rows.length}</Chip>
       </summary>
       <div className="space-y-1 px-1.5 pb-1.5">

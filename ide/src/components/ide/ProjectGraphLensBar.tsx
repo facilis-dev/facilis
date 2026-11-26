@@ -13,6 +13,7 @@ import {
   type GraphLensId,
   type GraphLensSummary,
 } from "@/facilis/graph-surface/lenses.ts";
+import { lensQuestionKey } from "@/facilis/graph-surface/questions.ts";
 
 /** The visible code on a narrow bar: the four answers still fit in one row. */
 const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -35,18 +36,24 @@ function LensSwitcher({
       aria-label={t("projectGraph.surface.lens.title")}
       className="pointer-events-auto flex flex-nowrap items-center gap-1 overflow-x-auto rounded-lg border bg-panel/95 p-1 shadow"
     >
-      <span className="shrink-0 px-1 text-[9px] uppercase tracking-wide text-muted-foreground">
+      <span
+        className="shrink-0 px-1 text-[9px] uppercase tracking-wide text-muted-foreground"
+        title={t("projectGraph.surface.question.hint")}
+      >
         {t("projectGraph.surface.lens.title")}
       </span>
       {GRAPH_LENSES.map((definition) => {
         const active = definition.id === lens;
+        // A Q-code alone means nothing: the hover text is the review question the lens answers.
+        const title = t(definition.titleKey);
+        const question = t(lensQuestionKey(definition.id));
         return (
           <button
             key={definition.id}
             type="button"
             aria-pressed={active}
-            aria-label={t(definition.titleKey)}
-            title={t(definition.titleKey)}
+            aria-label={title + " — " + question}
+            title={question}
             data-testid={"project-graph-lens-" + definition.id}
             onClick={() => onSelectLens(definition.id)}
             className={
