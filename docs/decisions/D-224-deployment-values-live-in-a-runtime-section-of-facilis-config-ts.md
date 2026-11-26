@@ -31,11 +31,15 @@ export default defineConfig({
 });
 ```
 
-- **Defaults live in the schema, once.** Each field of the runtime Zod schema carries its own
-  `.default(...)`; `DEFAULT_RUNTIME` is `runtimeSchema.parse({})`, a read-only snapshot used by the
-  manifest, `.env.example` and `pnpm facilis:env`, never a second table to keep in step. A project
-  declares only what it changes. Absent/undefined takes the default; an explicit `null` is a value —
-  "not set" for an optional key, never "absent".
+- **Defaults are explicit, in one table.** `DEFAULT_RUNTIME` in
+  `packages/core/src/runtime-config/defaults.ts` is a frozen literal that lists every key with its
+  value, readable top to bottom without replaying a rule. Its type is the resolved schema type, so a
+  missing or extra key is a TypeScript error rather than a test someone can forget to write. The
+  runtime schema declares types only — no `.default()` on these fields, or there would be two places
+  to look for the same fact. Merge is `{ ...DEFAULT_RUNTIME, ...project.runtime }`, then the
+  environment, then one validation of the whole object. A project declares only what it changes;
+  absent means "take the explicit default", and an explicit `null` is a value — "not set" for an
+  optional key, never "absent".
 - **Defaults never vary by environment.** Where the behaviour is environment-dependent the default is
   an explicit literal and the rule lives in one documented place: `logSink: "auto"` becomes files in
   dev/test and stdout elsewhere (D-119), `logDir: null` means the framework location under the project
@@ -136,7 +140,8 @@ strings for secrets, with redaction applied by the logger*: one `console.log(ctx
 serialized error defeats it, and nothing in the type system stops it.
 
 **Verification.** Resolver unit tests (precedence, JSON arrays, unknown-name suggestion, build-only
-ignored, fatal vs refusal, every key defaulted-or-secret); `defineConfig` rejects the moved keys with
+ignored, fatal vs refusal); `DEFAULT_RUNTIME` covering exactly the schema's keys (a compile-time
+guarantee plus one runtime assertion); `defineConfig` rejects the moved keys with
 the replacement in the message; a boot test asserting the aggregated error report and exit code;
 analyzer tests for `no-direct-env` (framework error, project warning); a non-leak test asserting that
 `JSON.stringify(resolved)`, template interpolation and an inspect of the resolved object never contain

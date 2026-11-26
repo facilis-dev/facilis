@@ -1451,7 +1451,8 @@ interface FacilisConfig {
     // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: DEFAULT_RUNTIME < this section < process env.
     // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a
     // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
-    // Every non-secret key has a schema default; DEFAULT_RUNTIME = runtimeSchema.parse({}) is its snapshot.
+    // Every key has an explicit default in DEFAULT_RUNTIME (packages/core/src/runtime-config/defaults.ts);
+    // the schema declares types only, never .default() for these fields.
     // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
     databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
