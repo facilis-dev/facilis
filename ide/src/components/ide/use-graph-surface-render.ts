@@ -28,6 +28,7 @@ export function useGraphSurfaceRender({
   restoreOrFit,
   scheduleViewportPersist,
   positionRichCard,
+  positionNotes,
   getInsets,
 }: {
   wrapRef: RefObject<HTMLDivElement | null>;
@@ -40,6 +41,8 @@ export function useGraphSurfaceRender({
   restoreOrFit: () => void;
   scheduleViewportPersist: () => void;
   positionRichCard: () => void;
+  /** The notes overlay follows the same camera frame without a React render (issue #194). */
+  positionNotes: () => void;
   /** Read live: the HUD/drawer insets change with the mode and the sheet, not per frame. */
   getInsets: () => SurfaceInsets;
 }): void {
@@ -93,6 +96,7 @@ export function useGraphSurfaceRender({
           getInsetsRef.current(),
         );
         positionRichCard();
+        positionNotes();
       },
       requestFrame: (callback) => requestAnimationFrame(callback),
       cancelFrame: (handle) => cancelAnimationFrame(handle),
@@ -127,5 +131,6 @@ export function useGraphSurfaceRender({
     restoreOrFit,
     scheduleViewportPersist,
     positionRichCard,
+    positionNotes,
   ]);
 }

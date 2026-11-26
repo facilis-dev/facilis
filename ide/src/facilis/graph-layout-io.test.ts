@@ -11,7 +11,14 @@ import {
   type GraphLayoutFile,
 } from "./graph-layout-file";
 import { elementPath, noteFilePath } from "./graph-layout-files";
-import { loadGraphLayout, saveGraphLayout } from "./graph-layout";
+import {
+  addGraphNote,
+  loadGraphLayout,
+  saveGraphLayout,
+  withNotePosition,
+  withNoteText,
+  withoutGraphNote,
+} from "./graph-layout";
 import type { GraphNote } from "./graph-types";
 
 const ROOT = "/w/app";
@@ -148,6 +155,21 @@ describe("saveGraphLayout", () => {
     expect(written.get(IGNORE)).toContain("!graph/\n!graph/**\ngraph/viewport.json");
     expect(removed).toEqual([]);
     expect(files[IGNORE]).toBeDefined();
+  });
+
+  it("round-trips a note through create, move, edit and delete", async () => {
+    const { controller } = fakeController({});
+    let value = addGraphNote(emptyGraphLayout(), note);
+    value = withNotePosition(value, NOTE, { x: 1, y: 2 });
+    value = withNoteText(value, NOTE, "# Edited\n");
+    await saveGraphLayout(controller, ROOT, value);
+    expect((await loadGraphLayout(controller, ROOT)).layout.notes).toEqual({
+      [NOTE]: { ...note, x: 1, y: 2, text: "# Edited\n" },
+    });
+
+    const removed = withoutGraphNote(value, NOTE);
+    await saveGraphLayout(controller, ROOT, removed, value);
+    expect((await loadGraphLayout(controller, ROOT)).layout.notes).toEqual({});
   });
 
   it("writes only the element that changed when the previous layout is given", async () => {

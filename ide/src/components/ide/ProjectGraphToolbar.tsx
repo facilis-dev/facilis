@@ -11,6 +11,7 @@ import RotateCcw from "~icons/lucide/rotate-ccw";
 import Save from "~icons/lucide/save";
 import Scan from "~icons/lucide/scan";
 import ScanEye from "~icons/lucide/scan-eye";
+import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function ProjectGraphToolbar({
   onToggleFullscreen,
   onFit,
   onResetLayout,
+  onAddNote,
   onSave,
   onRefresh,
   refreshing,
@@ -61,6 +63,8 @@ export function ProjectGraphToolbar({
   onToggleFullscreen: () => void;
   onFit: () => void;
   onResetLayout: () => void;
+  /** Ask the surface to create a note at the centre of its visible content box. */
+  onAddNote: () => void;
   onSave: () => void;
   onRefresh: () => void;
   refreshing: boolean;
@@ -133,6 +137,17 @@ export function ProjectGraphToolbar({
               <ScanEye />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            data-testid="project-graph-add-note"
+            aria-label={t("projectGraph.addNote")}
+            title={t("projectGraph.addNote")}
+            disabled={stats === null}
+            onClick={onAddNote}
+          >
+            <StickyNote />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"

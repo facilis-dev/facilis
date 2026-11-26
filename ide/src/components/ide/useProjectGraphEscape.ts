@@ -1,8 +1,8 @@
-// Progressive Escape for the project graph (D-211, issues #187/#188): exit fullscreen first,
-// then clear an AI focus (D-171), then close the rich card, then the floating drawer, then clear
-// the selection, then the active lens, then return to the overview. One key press does one thing; the ordering is the
-// pure resolveEscapeAction ladder so it can be tested without a DOM. Typing targets keep Escape
-// for themselves (the note editor cancels the edit), so the document listener never steals it.
+// Progressive Escape for the project graph (D-211, issues #187/#188/#194): cancel an open note
+// editor first, then exit fullscreen, then clear an AI focus (D-171), then close the rich card,
+// then the floating drawer, then clear the selection, then the active lens, then return to the
+// overview. One key press does one thing; the ordering is the pure resolveEscapeAction ladder so
+// it can be tested without a DOM. Typing targets keep Escape for themselves.
 
 import { useEffect } from "react";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
@@ -19,6 +19,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function useProjectGraphEscape({
+  noteEditing,
+  onCancelNoteEdit,
   fullscreen,
   onExitFullscreen,
   focusActive,
@@ -34,6 +36,8 @@ export function useProjectGraphEscape({
   mode,
   onOverview,
 }: {
+  noteEditing: boolean;
+  onCancelNoteEdit: () => void;
   fullscreen: boolean;
   onExitFullscreen: () => void;
   focusActive: boolean;
@@ -53,6 +57,7 @@ export function useProjectGraphEscape({
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       const action = resolveEscapeAction({
+        noteEditing,
         fullscreen,
         typing: isTypingTarget(event.target),
         focusActive,
@@ -62,7 +67,8 @@ export function useProjectGraphEscape({
         lensActive,
         detail: mode.kind === "detail",
       });
-      if (action === "exit-fullscreen") onExitFullscreen();
+      if (action === "cancel-note-edit") onCancelNoteEdit();
+      else if (action === "exit-fullscreen") onExitFullscreen();
       else if (action === "clear-focus") onClearFocus();
       else if (action === "close-rich-card") onCloseRichCard();
       else if (action === "close-drawer") onCloseDrawer();
@@ -73,6 +79,8 @@ export function useProjectGraphEscape({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [
+    noteEditing,
+    onCancelNoteEdit,
     fullscreen,
     onExitFullscreen,
     focusActive,

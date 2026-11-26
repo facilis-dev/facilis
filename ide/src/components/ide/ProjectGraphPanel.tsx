@@ -28,6 +28,7 @@ import { useProjectGraphAnalysis } from "./useProjectGraphAnalysis";
 import { useProjectGraphEscape } from "./useProjectGraphEscape";
 import { useProjectGraphFocus } from "./useProjectGraphFocus";
 import { useProjectGraphLayout } from "./useProjectGraphLayout";
+import { useProjectGraphNotes } from "./use-project-graph-notes";
 import { useProjectGraphRichCard } from "./use-project-graph-rich-card";
 import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
 import { useProjectGraphLens } from "./use-project-graph-lens";
@@ -43,11 +44,11 @@ export function ProjectGraphPanel() {
   const [fullscreen, setFullscreen] = useState(false);
   const [fitNonce, setFitNonce] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  // The drawer is independent from selection: X/Esc close it while the focus stays, and the
-  // next Esc clears the selection (issue #187 progressive Escape).
+  // The drawer is independent from selection: X/Esc close it, the next Esc clears the selection.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<ProjectGraphMode>({ kind: "overview" });
   const graph = useProjectGraphLayout(c, root);
+  const noteState = useProjectGraphNotes(graph);
   const layout = graph.layout;
   // The AI graph tools announce which nodes/edges to focus here (D-171); it is view state only.
   const focus = useProjectGraphFocus();
@@ -158,6 +159,8 @@ export function ProjectGraphPanel() {
   });
 
   useProjectGraphEscape({
+    noteEditing: noteState.noteEditing,
+    onCancelNoteEdit: noteState.cancelNoteEdit,
     fullscreen,
     onExitFullscreen: () => setFullscreen(false),
     focusActive: focus !== null,
@@ -182,7 +185,7 @@ export function ProjectGraphPanel() {
   else if (!indexReady) state = { kind: "loading" };
   else if (result !== null && !result.ok) state = { kind: "error", error: result.error };
   else if (view === null || !layoutLoaded) state = { kind: "loading" };
-  else if (view.nodes.length === 0) state = { kind: "empty" };
+  else if (view.nodes.length === 0 && noteState.notes.length === 0) state = { kind: "empty" };
 
   let body: React.ReactNode = null;
   if (state !== null) {
@@ -201,6 +204,7 @@ export function ProjectGraphPanel() {
         lens={lensHighlightValue}
         savedPositions={layout.nodes}
         viewport={layout.viewport}
+        noteState={noteState}
         onModeChange={changeMode}
         onSelectNode={handleSelectNode}
         onOpenRichCard={richCard.open}
@@ -230,6 +234,7 @@ export function ProjectGraphPanel() {
         onToggleFullscreen={() => setFullscreen((value) => !value)}
         onFit={() => setFitNonce((value) => value + 1)}
         onResetLayout={resetLayout}
+        onAddNote={state === null ? noteState.requestAddNote : noteState.createNoteHere}
         onSave={graph.saveNow}
         onRefresh={refresh}
         refreshing={loading}

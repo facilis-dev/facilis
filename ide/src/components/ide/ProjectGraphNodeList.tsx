@@ -10,7 +10,7 @@
 import { useCallback, useId, useMemo } from "react";
 import type { GraphNodeKind } from "@facilis.dev/analyze";
 import { t, type MessageKey } from "@/i18n";
-import type { ProjectGraphNode } from "@/facilis/graph-types";
+import type { GraphNote, ProjectGraphNode } from "@/facilis/graph-types";
 import {
   A11Y_NODE_TEST_IDS,
   buildA11yNodeGroups,
@@ -18,6 +18,7 @@ import {
   type A11yNodeGroup,
 } from "@/facilis/graph-surface/a11y-nodes.ts";
 import { domainIndex, type GraphDomain } from "@/facilis/graph-surface/domains.ts";
+import { noteTitle } from "@/facilis/graph-surface/notes.ts";
 
 const KIND_LABEL_KEYS: Readonly<Record<GraphNodeKind, MessageKey>> = {
   page: "projectGraph.surface.a11y.kind.page",
@@ -57,14 +58,19 @@ export function ProjectGraphNodeList({
   nodes,
   domains,
   detailDomain,
+  notes = [],
   onSelectNode,
+  onSelectNote,
   onOpenDomain,
 }: {
   nodes: readonly ProjectGraphNode[];
   domains: readonly GraphDomain[];
   /** null in the overview; the open domain in the drill-down. */
   detailDomain: string | null;
+  /** The saved annotations, mirrored as buttons so keyboard users can reach them (#194). */
+  notes?: readonly GraphNote[];
   onSelectNode: (id: string) => void;
+  onSelectNote?: (id: string) => void;
   onOpenDomain: (domain: string) => void;
 }) {
   const headingPrefix = useId();
@@ -117,6 +123,28 @@ export function ProjectGraphNodeList({
           </div>
         );
       })}
+      {notes.length > 0 && (
+        <div role="group" aria-labelledby={headingPrefix + "-notes"}>
+          <h2 id={headingPrefix + "-notes"}>{t("projectGraph.surface.a11y.notes")}</h2>
+          <ul>
+            {notes.map((note) => {
+              const title = noteTitle(note.text) || t("projectGraph.noteEmpty");
+              return (
+                <li key={note.id}>
+                  <button
+                    type="button"
+                    data-testid="project-graph-note"
+                    aria-label={title}
+                    onClick={() => onSelectNote?.(note.id)}
+                  >
+                    {title}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

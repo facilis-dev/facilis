@@ -51,6 +51,10 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.legend": "Legenda",
   "projectGraph.hint":
     "Trascina un nodo per spostarlo, doppio clic per aprire la scheda dettagliata. Clicca un dominio per aprirlo. Scorri o pizzica per lo zoom, trascina lo sfondo per spostarti.",
+  "projectGraph.addNote": "Aggiungi nota",
+  "projectGraph.noteEmpty": "Nota vuota — clicca per modificare",
+  "projectGraph.noteDelete": "Elimina nota",
+  "projectGraph.noteHint": "Clicca per modificare. Ctrl+Invio salva, Esc annulla.",
   "projectGraph.input.body": "corpo",
   "projectGraph.input.form": "form",
   "projectGraph.input.query": "query",
@@ -191,6 +195,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.a11y.label": "Nodi del grafo del progetto",
   "projectGraph.surface.a11y.hint":
     "Navigazione da tastiera degli stessi nodi disegnati dalla mappa; selezionarne uno apre i dettagli.",
+  "projectGraph.surface.a11y.notes": "Note",
   "projectGraph.surface.a11y.node": "{label} ({kind})",
   "projectGraph.surface.a11y.kind.page": "pagina",
   "projectGraph.surface.a11y.kind.route": "rotta",

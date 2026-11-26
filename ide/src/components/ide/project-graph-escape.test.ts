@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { resolveEscapeAction, type EscapeLadderState } from "./project-graph-escape.ts";
 
 const BASE: EscapeLadderState = {
+  noteEditing: false,
   fullscreen: false,
   typing: false,
   focusActive: false,
@@ -56,6 +57,25 @@ describe("resolveEscapeAction", () => {
     expect(resolveEscapeAction({ ...BASE, typing: true, drawerOpen: true })).toBe("ignore");
     expect(resolveEscapeAction({ ...BASE, typing: true, fullscreen: true })).toBe(
       "exit-fullscreen",
+    );
+  });
+
+  it("cancels an open note editor before the drawer, selection or lens ladder", () => {
+    expect(
+      resolveEscapeAction({
+        ...BASE,
+        noteEditing: true,
+        drawerOpen: true,
+        selectedNodeId: "table:todos",
+        lensActive: true,
+        detail: true,
+      }),
+    ).toBe("cancel-note-edit");
+    expect(resolveEscapeAction({ ...BASE, noteEditing: true, typing: true })).toBe(
+      "cancel-note-edit",
+    );
+    expect(resolveEscapeAction({ ...BASE, noteEditing: true, fullscreen: true })).toBe(
+      "cancel-note-edit",
     );
   });
 });

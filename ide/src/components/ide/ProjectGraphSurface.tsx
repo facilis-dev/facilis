@@ -22,13 +22,16 @@ import {
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
 import { ProjectGraphNodeList } from "./ProjectGraphNodeList";
+import { ProjectGraphNotesLayer } from "./ProjectGraphNotesLayer";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
 import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
 import { useGraphSurfaceRender } from "./use-graph-surface-render";
 import { useGraphSurfaceCard } from "./use-graph-surface-card";
 import { useGraphSurfaceInteractions } from "./use-graph-surface-interactions";
+import { useGraphSurfaceNotes } from "./use-graph-surface-notes";
 import { useNarrowViewport } from "./use-narrow-viewport";
+import type { ProjectGraphNoteState } from "./use-project-graph-notes";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
 
 export interface GraphJumpRequest {
@@ -49,6 +52,7 @@ export function ProjectGraphSurface({
   lens,
   savedPositions,
   viewport,
+  noteState,
   onModeChange,
   onSelectNode,
   onOpenRichCard,
@@ -67,6 +71,7 @@ export function ProjectGraphSurface({
   lens: GraphLensHighlight | null;
   savedPositions: Readonly<Record<string, GraphPosition>>;
   viewport: GraphViewport | undefined;
+  noteState: ProjectGraphNoteState;
   onModeChange: (mode: ProjectGraphMode) => void;
   onSelectNode: (id: string | null) => void;
   onOpenRichCard: (id: string) => void;
@@ -157,6 +162,24 @@ export function ProjectGraphSurface({
     nodeId: richCard?.nodeId ?? null,
   });
 
+  // The notes overlay reads the same camera/insets as the canvas and places its cards from
+  // the draw loop; the DOM never re-renders per frame (issue #194).
+  const getInsets = useCallback(
+    () => drawerInsets(sheet, sizeRef.current.height, drawerOpen),
+    [sheet, drawerOpen],
+  );
+  const { registerNote, positionNotes, selectedNoteId, focusNote, startEditingNote } =
+    useGraphSurfaceNotes({
+      notes: noteState.notes,
+      addNoteNonce: noteState.addNoteNonce,
+      createNote: noteState.createNote,
+      startNoteEdit: noteState.startNoteEdit,
+      cameraRef,
+      sizeRef,
+      getInsets,
+      centerOn,
+    });
+
   // A search jump asks for a node; the panel already switched mode. Centre it once the detail
   // scene exists, at a readable scale, with the drawer's column reserved.
   useEffect(() => {
@@ -184,7 +207,8 @@ export function ProjectGraphSurface({
     restoreOrFit,
     scheduleViewportPersist,
     positionRichCard,
-    getInsets: () => drawerInsets(sheet, sizeRef.current.height, drawerOpen),
+    positionNotes,
+    getInsets,
   });
 
   const goOverview = useCallback(() => {
@@ -221,6 +245,18 @@ export function ProjectGraphSurface({
         onPointerUp={pointer.onPointerUp}
         onPointerCancel={pointer.onPointerCancel}
       />
+      <ProjectGraphNotesLayer
+        notes={noteState.notes}
+        registerNote={registerNote}
+        cameraRef={cameraRef}
+        editingNoteId={noteState.editingNoteId}
+        selectedNoteId={selectedNoteId}
+        onStartEdit={startEditingNote}
+        onCommitEdit={noteState.editNote}
+        onCloseEditor={noteState.cancelNoteEdit}
+        onDeleteNote={noteState.deleteNote}
+        onMoveNote={noteState.moveNote}
+      />
       {richCard !== null && (
         <div className="pointer-events-none absolute inset-0 z-30">
           {richCard.render(richCardLayout, cardRef)}
@@ -230,7 +266,9 @@ export function ProjectGraphSurface({
         nodes={view.nodes}
         domains={domains}
         detailDomain={mode.kind === "detail" ? mode.domain : null}
+        notes={noteState.notes}
         onSelectNode={onSelectNode}
+        onSelectNote={focusNote}
         onOpenDomain={(domain) => onModeChange({ kind: "detail", domain })}
       />
       <ProjectGraphSurfaceChrome

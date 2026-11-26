@@ -1,9 +1,10 @@
-// The progressive Escape ladder for the project graph (D-211, issues #187/#188), as a pure
-// decision so the ordering is testable without a DOM. One key press does one thing:
-// fullscreen -> AI focus -> rich card -> drawer -> selection -> overview. Typing targets keep
-// Escape for themselves; a fullscreen surface still exits first (the existing behaviour).
+// The progressive Escape ladder for the project graph (D-211, issues #187/#188/#194), as a pure
+// decision so the ordering is testable without a DOM. One key press does one thing: note edit ->
+// fullscreen -> AI focus -> rich card -> drawer -> selection -> lens -> overview. Typing targets
+// keep Escape for themselves; closing the note editor is the one layer that always wins.
 
 export type EscapeAction =
+  | "cancel-note-edit"
   | "exit-fullscreen"
   | "ignore"
   | "clear-focus"
@@ -15,6 +16,8 @@ export type EscapeAction =
   | "none";
 
 export interface EscapeLadderState {
+  /** A note textarea is open: Escape cancels it before any other layer. */
+  readonly noteEditing: boolean;
   readonly fullscreen: boolean;
   /** The key event's target is an input, textarea, select or contenteditable. */
   readonly typing: boolean;
@@ -28,6 +31,7 @@ export interface EscapeLadderState {
 }
 
 export function resolveEscapeAction(state: EscapeLadderState): EscapeAction {
+  if (state.noteEditing) return "cancel-note-edit";
   if (state.fullscreen) return "exit-fullscreen";
   if (state.typing) return "ignore";
   if (state.focusActive) return "clear-focus";
