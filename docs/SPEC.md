@@ -6,17 +6,23 @@
 
 **Changelog:**
 
-- v1.47 — Deployment values are a `runtime` section of `facilis.config.ts` (D-224). Core
-  defaults merge underneath the project's declarations and the process environment overrides
-  both; each flat key maps to exactly one variable, `FACILIS_` + UPPER_SNAKE(key), so no name is
-  computed from a nested path. Secrets are declared as `{ secret: true }` and never carry a value
-  in the file. The keys of the other sections stay build-time: a `FACILIS_*` name that maps to no
-  `runtime` key is a fatal boot error, except the literal build-only allowlist
-  (`FACILIS_DEV_METRICS`, `FACILIS_TELEMETRY_FE`). `db.mode`, `logging.level`,
-  `logging.trustProxy` and `storage.driver|bucket|region|endpoint|forcePathStyle` move into
-  `runtime`; `FACILIS_TELEMETRY` is renamed `FACILIS_TELEMETRY_ENABLED`; no alias is kept. The
-  resolved object is `ctx.runtime` in a request and `runtimeEnv()` everywhere else, one frozen
-  object per process. §7.1/§7.4/§8.4.6 follow.
+- v1.47 — Deployment values are `runtime` and `public` sections of `facilis.config.ts` (D-224).
+  The file belongs to the app: every key is declared with a literal value or, for the server surface
+  only, `{ secret: true }` (the source is the environment, never a value). `runtime` is read at boot
+  and overridden by `FACILIS_<KEY>`; `public` is baked into the client bundle at build and overridden
+  by `FACILIS_PUBLIC_<KEY>` only then. Each flat key maps to exactly one variable, so no name is
+  computed from a nested path. The framework merges no defaults: it exports canonical values for the
+  generator and the missing-key message only. A key read but not declared, declared without a value, or
+  required by a system package and absent from the file is an analyzer error
+  (`runtime-key-undeclared` / `-unset` / `-missing`, plus `-server-only` and `-unused`); every package
+  exports its `runtimeRequirements` and a gate holds the examples and the IDE template to them. Secrets
+  resolve to a `SecretString` box. Other sections stay build-time: a `FACILIS_*` name that maps to no
+  `runtime` key is a fatal boot error, except the build-only allowlist (`FACILIS_DEV_METRICS`,
+  `FACILIS_TELEMETRY_FE`). `db.mode`, `logging.level`, `logging.trustProxy` and
+  `storage.driver|bucket|region|endpoint|forcePathStyle` move into `runtime`;
+  `FACILIS_TELEMETRY` is renamed `FACILIS_TELEMETRY_ENABLED`; no alias is kept. The resolved objects are
+  `ctx.runtime` in a request, `runtimeEnv()` elsewhere and `publicConfig()` in the client.
+  §7.1/§7.4/§8.4.6 follow.
 - v1.46 — Dynamic `t()` keys and locale parity are warnings (D-218, issue #176). The
   analyzer now keeps a `dynamicTranslationCalls` fact for a `t()` argument that is an
   identifier, a call, a concatenation or a template literal with expressions, and reports
@@ -1447,12 +1453,12 @@ interface FacilisConfig {
   security: {                  // D-141; request-origin policy for unsafe methods
     trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []
   }
-  runtime: {                   // D-224: the ONLY deployment-tunable surface; core defaults underneath
-    // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: DEFAULT_RUNTIME < this section < process env.
+  runtime: {                   // D-224: the server surface a deployment can override
+    // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: this value < process env at boot.
+    // Every key the framework reads must be declared here with a literal or a secret marker, or the
+    // build fails (runtime-key-unset / runtime-key-missing). No framework default is merged.
     // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a
     // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
-    // Every key has an explicit default in DEFAULT_RUNTIME (packages/core/src/runtime-config/defaults.ts);
-    // the schema declares types only, never .default() for these fields.
     // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
     databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
@@ -1496,8 +1502,25 @@ interface FacilisConfig {
     // development only
     stateDir: string | null                        // FACILIS_STATE_DIR
   }
+  public: {                    // D-224: baked into the client bundle at build time; never a secret
+    // Each key maps to FACILIS_PUBLIC_<UPPER_SNAKE(key)>, read by the build only. A browser has no
+    // environment and nothing can change these after the bundle exists. Secrets are a type error here.
+    appName: string
+    apiBaseUrl: string
+    features: Record<string, boolean>
+  }
 }
 ```
+
+**`runtime` and `public` are declared and statically verified (D-224).** The analyzer reads the
+declared keys from the file and the read sites from the project's code, and reports
+`runtime-key-undeclared` (a key read but not declared), `runtime-key-unset` (declared without a
+literal and without a secret marker), `runtime-key-missing` (a system package requires it and the file
+does not declare it), `runtime-key-server-only` (a `runtime` key read from client-reachable code, or a
+`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning. Each
+package exports `runtimeRequirements` (key, surface, secret, optional condition over static config
+values) and a gate holds the shipped examples and the IDE template to the union. `ctx.runtime` is
+server-only; `publicConfig()` is the only client accessor.
 
 ### 7.2 `BlockManifest`
 
