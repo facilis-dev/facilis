@@ -2,7 +2,7 @@
 // 300-line source limit. A job always runs system-scoped (D-107), so D-157 applies to its
 // `db` client without the elevation dimension routes have: no `ctx.sudo`/`ctx.system`.
 
-import type { RouteRelationUse } from "./types-relations.ts";
+import type { RawSqlStatementFact, RouteRelationUse } from "./types-relations.ts";
 import type { SourceRef, UnknownFact } from "./types.ts";
 
 /** One `server/jobs/**` definition: the `defineJob({...})` default export. */
@@ -23,6 +23,8 @@ export interface JobRelationsFact {
   readonly unresolved: readonly SourceRef[];
   /** `db.execute(...)` call sites; legal only with rawSql: true. */
   readonly rawSql: readonly SourceRef[];
+  /** Literal SQL text of those sites (D-214); dynamic/unreadable SQL is absent. */
+  readonly rawSqlStatements: readonly RawSqlStatementFact[];
   /** A project-external callee received the job's db client, so usage is incomplete. */
   readonly opaque: boolean;
 }
@@ -36,5 +38,6 @@ export const EMPTY_JOB_RELATIONS: JobRelationsFact = {
   used: [],
   unresolved: [],
   rawSql: [],
+  rawSqlStatements: [],
   opaque: true,
 };

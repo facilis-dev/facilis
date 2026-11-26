@@ -17,11 +17,47 @@ export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender
 export { routeFactId } from "./passes/route-location.ts";
 // The fixed service -> table surface (D-199), shared with AI validator rule 18.
 export { SERVICE_TABLES } from "./passes/route-services.ts";
+// The framework-owned route paths (invariant 6, D-215), shared with AI validator rule 23.
+export {
+  isReservedRouteFile,
+  RESERVED_ROUTE_DIRS,
+  RESERVED_ROUTE_PATHS,
+  reservedRoutePathOf,
+  type ReservedRoutePath,
+} from "./reserved-route-paths.ts";
+// The GET side-effect contract (D-212), shared with AI validator rule 21.
+export {
+  FRAMEWORK_GET_READ_EXEMPTIONS,
+  FRAMEWORK_GET_WRITE_EXEMPTIONS,
+  isGetLikeMethod,
+  routeGetSideEffects,
+  type GetSideEffects,
+} from "./passes/route-get-effects.ts";
+// The table access-class contract (D-211), shared with AI validator rule 20.
+export { tableClassOf, type TableClass } from "./passes/schema-class.ts";
+// The raw-client module list (invariant 5, D-213), shared with AI rule 9 and the route gate.
+export { isRawDbImport } from "./raw-db-imports.ts";
+// Locale parity (rule 13, D-218), shared with the analyzer diagnostic and the AI validator.
+export {
+  DEFAULT_LOCALE,
+  localeParityGaps,
+  type LocaleParityDirection,
+  type LocaleParityGap,
+} from "./locale-parity.ts";
+// The seed-only auth tables and literal raw-SQL writes (invariant 8, D-214), shared with rule 22.
+export {
+  rawSqlSystemWriteSites,
+  readRawSqlArgument,
+  SYSTEM_ONLY_AUTH_TABLES,
+  systemTableWrites,
+  type RawSqlSystemWriteSite,
+  type RawSqlUsage,
+} from "./raw-sql-system-tables.ts";
 export { createModuleGraph } from "./module-graph.ts";
 export type { Binding, ModuleGraph, ProjectFile } from "./module-graph.ts";
 export { createPathResolver, normalizePath } from "./path-resolver.ts";
 export type { PathAlias } from "./path-resolver.ts";
-export type { Parser, ParseError, ParsedModule } from "./parser.ts";
+export type { Parser, ParseError, ParsedModule, SourceComment } from "./parser.ts";
 export { diagnostic, error, info, warning } from "./diagnostics.ts";
 export { computeRevision } from "./revision.ts";
 // The plan-shaped view of the schema facts (the Release Preview's planSchema input, #47).

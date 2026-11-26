@@ -124,6 +124,8 @@ export function schemaUnknown(reason: string, source: SourceRef): UnknownFact {
 
 function severityOf(code: string): Severity {
   if (code === "fk-target-known") return "warning";
+  // An unreadable system-only marker is uncertainty, not a proven violation (D-211).
+  if (code === "schema-marker") return "warning";
   if (code === "unknown") return "info";
   return "error";
 }

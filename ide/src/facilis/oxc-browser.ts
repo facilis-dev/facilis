@@ -47,7 +47,13 @@ export function createBrowserOxcParser(): Parser {
           source: { file: filename, line: start === null ? 1 : lineOf(source, start) },
         };
       });
-      return { program, errors };
+      const comments = result.comments.map((comment) => ({
+        type: comment.type,
+        value: comment.value,
+        start: comment.start,
+        end: comment.end,
+      }));
+      return { program, errors, comments };
     },
   };
 }

@@ -10,13 +10,11 @@
  * `require()` share the same AST truth.
  */
 
+import { isRawDbImport } from "@facilis.dev/analyze";
+
 import type { EffectiveState } from "../overlay.ts";
 import { normalizeProjectPath } from "../paths.ts";
 import type { ImportAlias, ImportFact, PatchContext, ValidationError } from "../types.ts";
-
-const RAW_DRIVER =
-  /^drizzle-orm\/(?:pglite|node-postgres|postgres-js|bun-sqlite|neon|vercel-postgres|aws-data-api|libsql|expo-sqlite|d1|op-sqlite|singlestore|tidb-serverless)$/;
-const RAW_CLIENTS = new Set(["@electric-sql/pglite", "postgres", "pg"]);
 
 const NODE_BUILTINS = new Set([
   "assert",
@@ -111,12 +109,14 @@ export function rawDbAccessErrors(state: EffectiveState): ValidationError[] {
   for (const facts of state.patchedFileFacts) {
     const imports = statementImports(facts.imports);
     for (const imported of imports) {
-      if (!RAW_DRIVER.test(imported.specifier) && !RAW_CLIENTS.has(imported.specifier)) continue;
+      if (!isRawDbImport(imported.specifier)) continue;
       errors.push(
         error(
           "no-raw-db-access",
           facts.path,
-          'Importing "' + imported.specifier + '" is a raw database client outside @facilis.dev/db.',
+          'Importing "' +
+            imported.specifier +
+            '" is a raw database client outside @facilis.dev/db.',
           "Go through the policy-scoped db the handler receives (invariant 5).",
           imported.source.line,
         ),

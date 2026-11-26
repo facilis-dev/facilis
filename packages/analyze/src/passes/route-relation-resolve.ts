@@ -33,9 +33,13 @@ export interface DbClient {
   readonly elevation: number | null;
   /** The framework service API this handle denotes (D-199); null is a plain db client. */
   readonly service: ServiceKind | null;
+  /** True for the ctx.jobs queue handle (D-212); absent on plain db/service clients. */
+  readonly jobs?: boolean;
 }
 
 export const ROUTE_CLIENT: DbClient = { elevation: null, service: null };
+/** The job-queue handle: its mutations are side effects, not a project db surface (D-212). */
+export const JOBS_CLIENT: DbClient = { elevation: null, service: null, jobs: true };
 export type ClientEnv = ReadonlyMap<string, DbClient>;
 
 export type RelationResolution =
@@ -160,6 +164,7 @@ export function clientOf(
     if (object?.type === "Identifier" && identifierName(object) === contextName) {
       const name = memberName(expression);
       if (name === "db") return ROUTE_CLIENT;
+      if (name === "jobs") return JOBS_CLIENT;
       const service = serviceKindOf(name);
       if (service !== null) return { elevation: null, service };
     }

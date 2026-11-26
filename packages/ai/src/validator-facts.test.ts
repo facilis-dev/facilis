@@ -45,8 +45,8 @@ describe("schema facts use Drizzle property names", () => {
   });
 });
 
-describe("translation facts are literal-only", () => {
-  it("checks static string and template keys, skips interpolated ones (rule 13)", () => {
+describe("translation facts separate literal keys from dynamic ones", () => {
+  it("checks static string and template keys, warns on interpolated ones (rule 13)", () => {
     const content = `import { t } from "./lib/i18n";
 
 export const registered = t("app.title");
@@ -58,6 +58,7 @@ export const dynamic = t(\`dynamic.\${suffix}\`);
     const warnings = result.warnings.filter((entry) => entry.rule === "i18n-keys-registered");
     expect(warnings.map((entry) => entry.message)).toEqual([
       't("missing.template") is not registered in locales/en.json.',
+      "A t() call uses a non-literal key, so it cannot be verified against locales/en.json.",
     ]);
   });
 });

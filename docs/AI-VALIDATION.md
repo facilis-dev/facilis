@@ -2,14 +2,14 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (19 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (23 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
 
 The AI never writes to your project directly. Every file it wants to create or change is a
 **patch** (a path plus the full new content), and every patch goes through a **validator**
-first: 19 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
+first: 23 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
 is written* — the findings go back to the model, which fixes them in the same turn.
 **Warnings** never block a write; they are reported so you (or the model) can clean them up.
 The goal is simple: the AI can move fast, but it cannot ship a route without authorization,
@@ -57,6 +57,10 @@ a table without row-level security, or a file outside the places it is allowed t
 | 17 | `route-description` | routes with no (or stale) description | warning |
 | 18 | `route-table-declared` | routes using tables they didn't declare | error |
 | 19 | `job-table-declared` | jobs using tables they didn't declare | error |
+| 20 | `table-class-declared` | tables with no declared access class | error |
+| 21 | `get-side-effect-free` | state-changing GET routes (CSRF via top-level navigation) | error |
+| 22 | `raw-sql-system-table-write` | raw SQL writing a seed-only auth table | error |
+| 23 | `reserved-route-prefix` | app routes shadowing a framework-owned path | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -209,6 +213,57 @@ same contract, so an undeclared table fails closed in production too (D-157).
   is refused.
 - ⚠️ Declaring a table the route never uses is a warning, not an error.
 
+### Rule 21 `get-side-effect-free` — a GET route stays read-only
+
+`SameSite=Lax` sends the session cookie on a cross-site top-level GET navigation, so a GET
+that writes is CSRF-able even with the origin gate (which covers unsafe methods only). The
+check **follows local helper calls** and runs over **all** effective GET routes (and
+method-less routes, which serve GET too). The pinned exemptions are the framework SSO
+GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework
+read-only blueprint GETs; the runtime origin gate stays the security authority (D-212).
+
+- ✅ `db.select().from(todos)` in a `.get.ts` handler — a read.
+- ❌ `db.insert(todos)...` (or `update`/`delete`/`execute`) in a GET, directly or through a
+  local helper — move the write to a POST/PUT/PATCH/DELETE route.
+- ❌ `jobs.enqueue(...)` or `jobs.cancel(...)` in a GET — queue mutations are side effects.
+- ⚠️ A handler body the analyzer cannot fully inspect (a package helper receives the client)
+  is a warning, never a guessed error.
+
+### Rule 22 `raw-sql-system-table-write` — auth tables are written only by the release seed
+
+`role_permissions`, `roles`, `user_roles` and `sessions` are system-only: they are written
+only by the release artifact's seed statements and the framework's audited auth paths
+(invariant 8, D-158/D-204). A literal SQL statement passed to `db.execute` on `ctx.db`,
+`ctx.sudo` or `ctx.system` that inserts, updates, deletes or runs DDL against one of them is
+an error; `ctx.sudo` with `rawSql: true` does not make it legitimate. Only statements the
+analyzer can read are judged — a dynamic or interpolated SQL expression is skipped and the
+runtime audit remains the authority (D-214).
+
+- ✅ `db.execute("SELECT * FROM role_permissions")` through `sudo` — a read.
+- ❌ `db.execute("INSERT INTO role_permissions (role, permission) VALUES ('user', 'todos:read')")`.
+- ❌ `system(..., (db) => db.execute("DELETE FROM sessions"))` — elevation is audited, not a
+  licence to rewrite a seed-only table.
+- ⚠️ Not a finding: dynamic SQL (`db.execute(statement)`, interpolated templates) and writes to
+  an ordinary project table.
+
+### Rule 23 `reserved-route-prefix` — app routes never shadow a framework path
+
+The framework registers its own handlers for the control plane (`/__facilis/**`: manifest,
+health, the dev consoles and telemetry), the OpenAPI documents (`/_openapi.json`,
+`/_facilis/openapi.json`), the SSO namespace (`/api/auth/sso/**`) and the token endpoint
+(`/api/auth/token`) in dev and production. An app route on one of those paths would shadow,
+or be shadowed by, framework code (invariant 6, D-107/D-116/D-120). A route file under
+`server/{routes,api}/__facilis/**` is rejected on its location too. `/api/files/**` and
+`/api/jobs/**` are **not** reserved: the framework registers no handler there and the shipped
+examples own them (D-215).
+
+- ✅ `server/routes/api/auth/login.post.ts`, `server/routes/api/files/[id].get.ts`,
+  `server/routes/api/jobs/index.post.ts`, `server/routes/health.get.ts`.
+- ❌ `server/routes/__facilis/x.get.ts` — the file lives under the framework route directory.
+- ❌ `server/routes/api/auth/token.post.ts`, `server/routes/api/auth/sso/callback.get.ts` —
+  shadowed framework paths.
+- ⚠️ Not a finding: a lookalike segment (`server/routes/__facilisx.get.ts`).
+
 ### Rule 17 `route-description` (warning) — every route explains itself
 
 Each patched route needs a one-sentence English `description` (≤ 120 characters), and it
@@ -243,6 +298,20 @@ tenant/owner column (`tenantId`, `ownerId`, …). Framework tables re-exported f
 - ✅ `pgTable("todos", { ..., tenantId: tenantColumn() }, () => [tenantIsolationPolicy(), ownerIsolationPolicy()]).enableRLS()`
 - ❌ The same table without `.enableRLS()`, or with `() => []` (no policy). Dropping an
   existing policy fails too — the check audits all scoped tables, not just the new ones.
+
+### Rule 20 `table-class-declared` — every table declares its class
+
+When a patch touches `db/schema.ts`, **every** project table in the resulting schema must
+declare its access class (D-136/D-211): `.enableRLS()` **and** a policy, or an explicit
+`// system-only` comment on the line immediately above the declaration. Rule 10 only sees
+tenant/owner-scoped tables; this rule also catches the plain table that would silently get no
+app-role privilege and fail closed at runtime. Framework tables re-exported from
+`@facilis.dev/auth` / `@facilis.dev/db` ship their own class and are ignored.
+
+- ✅ `pgTable("todos", { ..., tenantId: tenantColumn() }, () => [tenantIsolationPolicy()]).enableRLS()`
+- ✅ `// system-only: audit trail` on the line above `export const audit = pgTable("audit", ...)`
+- ❌ A bare `pgTable(...)` with neither — error. `.enableRLS()` with `() => []` (no policy) is a
+  warning: RLS is on but the app role reaches no row. A marker the parser cannot read warns too.
 
 ### Rule 14 `migration-generated` — nobody hand-writes SQL migrations
 
@@ -342,8 +411,9 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 19-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 23-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
-  D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint).
+  D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint),
+  D-215 (framework-owned route paths).
 - `packages/ai/src/validator.ts` and `packages/ai/src/rules/` — the implementation.

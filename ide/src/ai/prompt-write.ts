@@ -9,7 +9,7 @@
 export const WRITE_PROMPT = [
   "## Writing files (write tools)",
   "The write tools are the ONLY way you change source: the answer never carries file content or a patch set.",
-  "- write_file({ path, content }) creates or replaces one complete file; delete_file({ path }) removes one. Every call runs the full 19-rule validation BEFORE anything is written and the file lands immediately when it passes.",
+  "- write_file({ path, content }) creates or replaces one complete file; delete_file({ path }) removes one. Every call runs the full 23-rule validation BEFORE anything is written and the file lands immediately when it passes.",
   "- Write in dependency order: facilis.config.ts (roles/permissions) and db/schema.ts first, then server routes, then src/ components and their locales keys, deletions last. A finding that something does not exist yet means the prerequisite has not been written; write it, then retry.",
   "- Never write a migration: db/migrations/ is the migration system's output, rendered from db/schema.ts when a release is built (D-158), and a write there is refused (rule 14). Change the schema and let the migration system produce the SQL; the role seed is generated the same way.",
   "- A rejected write writes NOTHING and returns errors/warnings with rule, file, message, fix_hint and line/excerpt: read the implicated files, fix them, retry in the same turn. The tool result is the feedback loop, there is no repair round for write tools.",

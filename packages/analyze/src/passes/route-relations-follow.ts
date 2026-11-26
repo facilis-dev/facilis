@@ -121,6 +121,7 @@ export function handleElevation(
     tablesUnknown,
     used: new Map(),
     unresolved: [],
+    writes: [],
     opaque: false,
   };
   const index = scope.usage.elevations.push(elevation) - 1;

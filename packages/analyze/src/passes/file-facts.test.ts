@@ -56,10 +56,33 @@ describe("buildFileFacts", () => {
     ]);
   });
 
-  it("reads literal t() keys and skips interpolated ones", () => {
+  it("keeps literal t() keys and exposes the non-literal ones", () => {
     const i18n = fixtureFacts().find((file) => file.path === "src/lib/i18n.ts");
     expect(i18n?.translationCalls.map((call) => call.key)).toEqual(["todos.title", "todos.empty"]);
+    expect(i18n?.dynamicTranslationCalls.map((call) => call.kind)).toEqual([
+      "identifier",
+      "template",
+      "call",
+    ]);
     expect(i18n?.calls.filter((call) => call.name === "t")).toHaveLength(5);
+  });
+
+  it("classifies concatenations and leaves static templates literal", () => {
+    const [file] = factsOf({
+      "src/page.ts":
+        'export const a = t("static.key");\n' +
+        "export const b = t(`static.template`);\n" +
+        'export const c = t("prefix." + suffix);\n' +
+        "export const d = t(key);\n",
+    });
+    expect(file?.translationCalls.map((call) => call.key)).toEqual([
+      "static.key",
+      "static.template",
+    ]);
+    expect(file?.dynamicTranslationCalls.map((call) => call.kind)).toEqual([
+      "concatenation",
+      "identifier",
+    ]);
   });
 
   it("returns one entry per parsed source file in path order", () => {

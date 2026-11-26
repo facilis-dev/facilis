@@ -151,6 +151,7 @@ export const widgets = table("widgets", {
     expect(result.diagnostics.map((entry) => entry.code).toSorted()).toEqual([
       "rls-on-scoped-table",
       "schema-static",
+      "table-class-declared",
     ]);
   });
 
@@ -204,6 +205,8 @@ export const orphan = pgTable("orphan", {
     expect(result.diagnostics.map((entry) => entry.code).toSorted()).toEqual([
       "fk-target-known",
       "schema-static",
+      "table-class-declared",
+      "table-class-declared",
     ]);
   });
 });
