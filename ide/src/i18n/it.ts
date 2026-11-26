@@ -132,6 +132,8 @@ export const it: Partial<Record<MessageKey, string>> = {
   "create.directoryPlaceholder": "/home/user/projects/my-app",
   "create.runInit": "Installa ed esegui",
   "create.runInitHint": "installa le dipendenze e avvia il dev server dopo la creazione.",
+  "create.runInitHintLimited":
+    "installa le dipendenze e avvia il dev server dopo la creazione (disattivato su questo dispositivo).",
   "create.submit": "Crea",
   "create.creating": "Creazione…",
   "create.waiting": "In attesa del runtime…",

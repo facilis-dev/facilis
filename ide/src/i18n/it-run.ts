@@ -31,4 +31,19 @@ export const runIt = {
   "run.failed": "Avvio non riuscito",
   "run.failedHint": "Il progetto non si è avviato — apri il terminale per vedere il motivo",
   "run.showTerminal": "Mostra terminale",
+
+  // ── la conferma sul dispositivo prima di install + dev server (run-consent.ts) ──
+  "run.confirm.title": "Avviare il dev server su questo dispositivo?",
+  "run.confirm.body":
+    "Questo dispositivo ha poca memoria per eseguire un progetto nel browser. Il grafo, l'editor e i file funzionano anche senza.",
+  "run.confirm.costInstall": "Scarica le dipendenze del progetto da npm.",
+  "run.confirm.costMemory": "Il dev server può occupare quasi un gigabyte di memoria in questa scheda.",
+  "run.confirm.costTime": "Il primo avvio può richiedere minuti e il browser può chiudere la scheda.",
+  "run.confirm.start": "Avvia comunque",
+  "run.confirm.notNow": "Non ora",
+
+  // ── la navigazione inferiore della shell stretta (sotto 1024px, issue #195) ──
+  "shell.mobile.files": "File",
+  "shell.mobile.code": "Codice",
+  "shell.mobile.preview": "Anteprima",
 } as const;

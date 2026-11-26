@@ -1,21 +1,7 @@
-import { useEffect, useRef } from "react";
-import { usePanelRef } from "react-resizable-panels";
+import { useEffect, useLayoutEffect } from "react";
 import { useTheme } from "next-themes";
 import { appearanceOf } from "@/ui-themes";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TitleBar } from "./TitleBar";
-import { ActivityBar } from "./ActivityBar";
-import { Explorer } from "./Explorer";
-import { SearchPane } from "./SearchPane";
-import { DebugPanel } from "./DebugPanel";
-import { SourceControlPanel } from "./SourceControlPanel";
-import { ChatPanel } from "./ChatPanel";
-import { DataExplorerPanel } from "./DataExplorerPanel";
-import { ReleasePreviewPanel } from "./ReleasePreviewPanel";
-import { LogsPanel } from "./LogsPanel";
-import { EditorGroup } from "./EditorGroup";
-import { TerminalPanel } from "./TerminalPanel";
-import { PreviewPanel } from "./PreviewPanel";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
 import { TourHost } from "@/components/tour/TourHost";
@@ -27,10 +13,17 @@ import { ImportRemoteDialog } from "./ImportRemoteDialog";
 import { ResetEverythingDialog } from "./ResetEverythingDialog";
 import { PushRemoteDialog } from "./PushRemoteDialog";
 import { ScaffoldTemplateDialog } from "./ScaffoldTemplateDialog";
+import { RunOnDeviceDialog } from "./RunOnDeviceDialog";
+import { DesktopShell } from "./DesktopShell";
+import { NarrowShell } from "./NarrowShell";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
-import { DEBUG_PANEL_ENABLED } from "@/facilis/debug-panel-flag";
 import { isWordWrapChord } from "@/vv/editor-prefs";
+import { useNarrowShell } from "@/vv/narrow-shell";
+
+// Once per page load: the compact defaults are applied on the first narrow render
+// only, so dragging the window across the breakpoint keeps the user's own layout.
+let compactSettled = false;
 
 export function AppShell() {
   const { c, snap } = useIde();
@@ -39,47 +32,16 @@ export function AppShell() {
   // The view can still be "chat" from the activity bar, so it falls back to the
   // Explorer instead of leaving an empty sidebar.
   const chatEnabled = aiAvailable(deployment);
-  // Chat is text-heavy, so opening it widens the sidebar and leaving it restores
-  // the Explorer width. Only the automatic widen is undone: a width the user
-  // dragged themselves (anything above the widen target) is left alone.
-  const sidebarPanel = usePanelRef();
-  const widenedForPanel = useRef(false);
-  const chatOpen = chatEnabled && snap.activeView === "chat" && !snap.sidebarCollapsed;
-  // The release diff wants room too: it is unreadable in the Explorer's 16% width, so it
-  // gets the same automatic widening as the chat.
-  const roomyView = chatOpen || snap.activeView === "release";
-  useEffect(() => {
-    // The panel is unmounted while the sidebar is collapsed; restoring it (e.g. switching
-    // from the chat to a sidebar view) can run this effect before the library has
-    // registered the new layout, and getSize() throws "Layout not found".
-    // Defer to the next frame and retry a few times instead of crashing the shell.
-    let attempts = 0;
-    const applyWidth = () => {
-      const panel = sidebarPanel.current;
-      if (!panel) return;
-      let percent: number;
-      try {
-        percent = panel.getSize().asPercentage;
-      } catch {
-        if (attempts < 5) {
-          attempts += 1;
-          requestAnimationFrame(applyWidth);
-        }
-        return;
-      }
-      if (roomyView) {
-        if (percent < 22) {
-          widenedForPanel.current = true;
-          panel.resize("28%");
-        }
-      } else if (widenedForPanel.current && percent >= 26) {
-        widenedForPanel.current = false;
-        panel.resize("16%");
-      }
-    };
-    const frame = requestAnimationFrame(applyWidth);
-    return () => cancelAnimationFrame(frame);
-  }, [roomyView, sidebarPanel, snap.sidebarCollapsed]);
+  const narrow = useNarrowShell();
+
+  // A phone cannot show the rail and the preview side by side: start on the code
+  // surface with the drawer closed, then let the user open what they need.
+  useLayoutEffect(() => {
+    if (!narrow || compactSettled) return;
+    compactSettled = true;
+    if (!snap.sidebarCollapsed) c.toggleSidebar(false);
+    if (!snap.previewCollapsed) c.togglePreview(false);
+  }, [c, narrow, snap.previewCollapsed, snap.sidebarCollapsed]);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -182,72 +144,11 @@ export function AppShell() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden text-foreground">
       <TitleBar />
-      <div className="flex min-h-0 flex-1">
-        <ActivityBar />
-        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-          {!snap.sidebarCollapsed && (
-            <>
-              <ResizablePanel
-                panelRef={sidebarPanel}
-                id="explorer"
-                defaultSize="16%"
-                minSize="10%"
-                maxSize="45%"
-              >
-                <div data-tour="sidebar" className="h-full min-h-0">
-                  {snap.activeView === "search" ? (
-                    <SearchPane />
-                  ) : DEBUG_PANEL_ENABLED && snap.activeView === "debug" ? (
-                    <DebugPanel />
-                  ) : snap.activeView === "scm" ? (
-                    <SourceControlPanel />
-                  ) : snap.activeView === "data" ? (
-                    <DataExplorerPanel />
-                  ) : snap.activeView === "release" ? (
-                    <ReleasePreviewPanel />
-                  ) : snap.activeView === "logs" ? (
-                    <LogsPanel />
-                  ) : snap.activeView === "chat" && chatEnabled ? (
-                    <ChatPanel />
-                  ) : (
-                    <Explorer />
-                  )}
-                </div>
-              </ResizablePanel>
-              <ResizableHandle />
-            </>
-          )}
-          <ResizablePanel id="center" defaultSize="52%" minSize="25%">
-            <ResizablePanelGroup orientation="vertical">
-              <ResizablePanel id="editor" defaultSize="65%" minSize="20%">
-                <div data-tour="editor" className="h-full min-h-0">
-                  <EditorGroup />
-                </div>
-              </ResizablePanel>
-              {!snap.panelCollapsed && (
-                <>
-                  <ResizableHandle />
-                  <ResizablePanel id="terminal" defaultSize="35%" minSize="10%">
-                    <div data-tour="console" className="h-full min-h-0">
-                      <TerminalPanel />
-                    </div>
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
-          </ResizablePanel>
-          {!snap.previewCollapsed && (
-            <>
-              <ResizableHandle />
-              <ResizablePanel id="preview" defaultSize="32%">
-                <div data-tour="preview" className="h-full min-h-0">
-                  <PreviewPanel />
-                </div>
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
-      </div>
+      {narrow ? (
+        <NarrowShell chatEnabled={chatEnabled} />
+      ) : (
+        <DesktopShell chatEnabled={chatEnabled} />
+      )}
       <StatusBar />
       <TourHost />
       <CommandPalette />
@@ -256,6 +157,7 @@ export function AppShell() {
       <PushRemoteDialog />
       <GitRemoteDialog />
       <ScaffoldTemplateDialog />
+      <RunOnDeviceDialog />
       {/* Home overlays the (kept-mounted) IDE so the editor/terminals survive a
           round-trip to Home and back. */}
       {snap.view === "home" && <HomeView />}

@@ -26,6 +26,7 @@ import { runWriteChecks } from "./smoke-write.mjs";
 import { runChatChecks } from "./smoke-chat.mjs";
 import { runPanelChecks } from "./smoke-panels.mjs";
 import { runLocalPackagesChecks } from "./smoke-local-packages.mjs";
+import { runMobileChecks } from "./smoke-mobile.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -54,6 +55,7 @@ let writeReport = null;
 let chatReport = null;
 let panelReport = null;
 let localPackagesReport = null;
+let mobileReport = null;
 const check = (ok, label, detail = "") => {
   console.log((ok ? "PASS " : "FAIL ") + label + (detail ? "  " + detail : ""));
   if (!ok) failures.push(label);
@@ -167,6 +169,15 @@ async function main() {
     fontconfigFile: fs.existsSync(FONTCONFIG) ? FONTCONFIG : "",
   });
   const page = await openPage(chrome.client, dev.url);
+  // The shell is narrow below 1024px (issue #195) and headless Chrome defaults to
+  // 800x600: pin a desktop viewport so this run asserts the desktop layout, and let
+  // smoke-mobile.mjs override it at the end for the 390x844 pass.
+  await page.send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
 
   const marks = async () => (await page.evaluate("window.__vvBoot || []")).map((mark) => mark.name);
   const waitForMark = async (name, limitMs) => {
@@ -287,6 +298,8 @@ async function main() {
   );
   check(!/Vivari Studio/.test(previewBody), "preview is the project, not the studio shell");
   check(previewBody.length > 0, "preview document has text", previewBody.slice(0, 80));
+
+
 
   // The IDE creates only Facilis projects now, so the framework probes always run.
   // The Facilis probe exposes its endpoint results as data-* attributes on its own
@@ -520,6 +533,19 @@ async function main() {
     }
   }
 
+  // Issue #195: the narrow shell at 390x844, in its own tab so this run's preview and
+  // console probes stay untouched (a viewport switch here would remount the shell).
+  try {
+    mobileReport = await runMobileChecks({
+      client: chrome.client,
+      devUrl: dev.url,
+      check,
+      ARTIFACTS,
+    });
+  } catch (error) {
+    check(false, "mobile checks ran", String(error));
+  }
+
   const report = {
     url: dev.url,
     template: "facilis",
@@ -553,6 +579,7 @@ async function main() {
     ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
     ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
     ...(localPackagesReport ? { localPackages: { checks: localPackagesReport.checks } } : {}),
+    ...(mobileReport ? { mobile: { checks: mobileReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
   pruneSmokeArtifacts({
