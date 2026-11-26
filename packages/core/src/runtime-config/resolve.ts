@@ -18,6 +18,10 @@ import {
  */
 export type EnvLike = Readonly<Record<string, string | undefined>>;
 
+/** Where a resolved value came from: the app's file, or the process environment (D-224). */
+export type RuntimeConfigSource = "declared" | "env";
+export type RuntimeConfigSources = Readonly<Record<string, RuntimeConfigSource>>;
+
 export const ENV_PREFIX = "FACILIS_";
 export const PUBLIC_ENV_PREFIX = "FACILIS_PUBLIC_";
 /** Build-only switches: a runtime boot ignores them instead of failing (D-224). */
@@ -42,10 +46,15 @@ export function envNameFor(key: string, prefix: string = ENV_PREFIX): string {
 export function resolveRuntimeConfig(input: {
   readonly runtime?: FacilisRuntimeDeclarations;
   readonly env?: EnvLike;
-}): { readonly runtime: FacilisRuntimeConfig; readonly problems: readonly RuntimeConfigProblem[] } {
+}): {
+  readonly runtime: FacilisRuntimeConfig;
+  readonly sources: RuntimeConfigSources;
+  readonly problems: readonly RuntimeConfigProblem[];
+} {
   const env = input.env ?? {};
   const declared = input.runtime ?? {};
   const runtime: Record<string, FacilisRuntimeValue> = {};
+  const sources: Record<string, RuntimeConfigSource> = {};
   const problems: RuntimeConfigProblem[] = [];
   const expectedNames = new Set<string>();
 
@@ -54,18 +63,29 @@ export function resolveRuntimeConfig(input: {
     expectedNames.add(envName);
     const raw = env[envName];
     if (isSecretMarker(declaration)) {
-      if (raw === undefined) runtime[key] = null;
-      else if (raw.trim() === "") problems.push(problem("empty-secret", envName, key, "exported empty; omit it or set a value"));
-      else runtime[key] = new SecretString(raw);
+      if (raw === undefined) {
+        runtime[key] = null;
+        sources[key] = "declared";
+      } else if (raw.trim() === "") {
+        problems.push(problem("empty-secret", envName, key, "exported empty; omit it or set a value"));
+      } else {
+        runtime[key] = new SecretString(raw);
+        sources[key] = "env";
+      }
       continue;
     }
     if (raw === undefined) {
       runtime[key] = declaration;
+      sources[key] = "declared";
       continue;
     }
     const parsed = parseEnvValue(raw, declaration);
-    if (parsed.ok) runtime[key] = parsed.value;
-    else problems.push(problem("invalid-env", envName, key, parsed.expected));
+    if (parsed.ok) {
+      runtime[key] = parsed.value;
+      sources[key] = "env";
+    } else {
+      problems.push(problem("invalid-env", envName, key, parsed.expected));
+    }
   }
 
   for (const [name, value] of Object.entries(env)) {
@@ -82,17 +102,26 @@ export function resolveRuntimeConfig(input: {
     );
   }
 
-  return { runtime: Object.freeze(runtime), problems: Object.freeze(problems) };
+  return {
+    runtime: Object.freeze(runtime),
+    sources: Object.freeze(sources),
+    problems: Object.freeze(problems),
+  };
 }
 
 /** Build-time companion: `FACILIS_PUBLIC_<KEY>` overrides the declared value, and only then. */
 export function resolvePublicConfig(input: {
   readonly public?: FacilisPublicConfig;
   readonly env?: EnvLike;
-}): { readonly public: FacilisPublicConfig; readonly problems: readonly RuntimeConfigProblem[] } {
+}): {
+  readonly public: FacilisPublicConfig;
+  readonly sources: RuntimeConfigSources;
+  readonly problems: readonly RuntimeConfigProblem[];
+} {
   const env = input.env ?? {};
   const declared = input.public ?? {};
   const resolved: Record<string, JsonValue> = {};
+  const sources: Record<string, RuntimeConfigSource> = {};
   const problems: RuntimeConfigProblem[] = [];
   const expectedNames = new Set<string>();
 
@@ -102,11 +131,16 @@ export function resolvePublicConfig(input: {
     const raw = env[envName];
     if (raw === undefined) {
       resolved[key] = declaration;
+      sources[key] = "declared";
       continue;
     }
     const parsed = parseEnvValue(raw, declaration);
-    if (parsed.ok) resolved[key] = parsed.value;
-    else problems.push(problem("invalid-env", envName, key, parsed.expected));
+    if (parsed.ok) {
+      resolved[key] = parsed.value;
+      sources[key] = "env";
+    } else {
+      problems.push(problem("invalid-env", envName, key, parsed.expected));
+    }
   }
 
   for (const [name, value] of Object.entries(env)) {
@@ -122,7 +156,11 @@ export function resolvePublicConfig(input: {
     );
   }
 
-  return { public: Object.freeze(resolved), problems: Object.freeze(problems) };
+  return {
+    public: Object.freeze(resolved),
+    sources: Object.freeze(sources),
+    problems: Object.freeze(problems),
+  };
 }
 
 export function formatRuntimeProblems(problems: readonly RuntimeConfigProblem[]): string {

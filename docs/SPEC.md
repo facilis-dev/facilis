@@ -1511,9 +1511,10 @@ declared keys from the file and the read sites from the project's code, and repo
 `runtime-key-undeclared` (a key read but not declared), `runtime-key-unset` (declared without a
 literal and without a secret marker), `runtime-key-missing` (a system package requires it and the file
 does not declare it), `runtime-key-server-only` (a `runtime` key read from client-reachable code, or a
-`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning. Each
-package exports `runtimeRequirements` (key, surface, secret, optional condition over static config
-values) and a gate holds the shipped examples and the IDE template to the union. `ctx.runtime` is
+`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning. The
+framework exports one `runtimeRequirements` table from `@facilis.dev/core` (key, surface, secret,
+optional condition over static config values) and a gate holds the shipped examples and the IDE
+template to it. `ctx.runtime` is
 server-only; `publicConfig()` is the only client accessor. `import.meta.env.VITE_*` stays Vite's
 passthrough for third-party libraries (`envPrefix` unchanged — `public` values arrive through the
 define), and a read in the project's own `src/**` or `server/**` is the warning `vite-env-direct`,

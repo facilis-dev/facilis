@@ -64,11 +64,12 @@ from `facilis.config.ts` and the read sites from the project's code, then report
 | `runtime-key-unused` | declared, read by nobody | warning |
 | `vite-env-direct` | `import.meta.env.VITE_*` read in the project's `src/**` or `server/**` | warning |
 
-**Framework requirements are visible, not buried.** Each package exports a declarative
-`runtimeRequirements` list — key, surface, secret, and an optional condition expressed over static
-config values (`{ when: { storageDriver: "s3" } }`), never a function the analyzer cannot evaluate.
-The generator writes the union into new projects, and a gate over the shipped examples and the IDE
-template asserts every required key is declared. A package that starts reading a new key without the
+**Framework requirements are visible, not buried.** The framework exports one declarative
+`runtimeRequirements` list from `@facilis.dev/core` — key, surface, secret, and an optional condition
+expressed over static config values (`{ when: { storageDriver: "s3" } }`), never a function the
+analyzer cannot evaluate. One table is what the analyzer, the generator and the `runtime-key-missing`
+message read, so they cannot disagree. The generator writes it into new projects, and a gate over the
+shipped examples and the IDE template asserts every required key is declared. A package that starts reading a new key without the
 examples being updated fails the gate. This is the same declaration-plus-verification shape as
 `dbTables` (D-157).
 

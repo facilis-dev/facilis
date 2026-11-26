@@ -88,6 +88,14 @@ Setup:
    query, no telemetry token, no remote feed into the IDE). Managed CSP must allow it in
    `connect-src` (MANAGED-DEPLOYMENT §3).
 
+Both the switch and every key are declared under `runtime` in `facilis.config.ts` (D-224),
+so a deployment's telemetry surface is readable in the repository: `telemetryEnabled` maps
+to `FACILIS_TELEMETRY_ENABLED`, alongside `telemetryEndpoint`, `telemetryOrigins`,
+`telemetrySampling`, `telemetryService`, `telemetrySpansPerMin` and the secret
+`telemetryTenantKey` (`FACILIS_TELEMETRY_TENANT_KEY`). `FACILIS_TELEMETRY_FE` stays the
+build-only frontend switch. Variable names and precedence are in MANAGED-DEPLOYMENT §3 and
+D-224.
+
 ## 5. Privacy hardening at the collector
 
 The app-side scrub is the first gate; the collector is **defense in depth** (D-203 §7).

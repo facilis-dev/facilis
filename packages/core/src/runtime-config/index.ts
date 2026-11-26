@@ -27,8 +27,15 @@ export {
   resolveRuntimeConfig,
   runtimeEnv,
 } from "./resolve.ts";
-export type { EnvLike, RuntimeConfigProblem, RuntimeConfigProblemCode } from "./resolve.ts";
+export type {
+  EnvLike,
+  RuntimeConfigProblem,
+  RuntimeConfigProblemCode,
+  RuntimeConfigSource,
+  RuntimeConfigSources,
+} from "./resolve.ts";
 export { KNOWN_RUNTIME_KEYS, PUBLIC_CANONICAL, RUNTIME_CANONICAL } from "./defaults.ts";
+export { ENV_EXAMPLE_HEADER, renderEnvExample } from "./env-example.ts";
 export type { KnownRuntimeKey } from "./defaults.ts";
 export { publicConfig } from "./public.ts";
 export { runtimeRequirements } from "./requirements.ts";

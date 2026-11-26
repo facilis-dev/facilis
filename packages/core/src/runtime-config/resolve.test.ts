@@ -108,17 +108,41 @@ describe("resolveRuntimeConfig", () => {
     const { runtime } = resolveRuntimeConfig({ runtime: {}, env: { FACILIS_LOG_LEVEL: "debug" } });
     expect(runtime).not.toHaveProperty("logLevel");
   });
+
+  it("reports provenance per key, declared or environment", () => {
+    const { runtime, sources } = resolveRuntimeConfig({
+      runtime: { logLevel: "info", logTrustProxy: false, databaseUrl: { secret: true } },
+      env: { FACILIS_LOG_TRUST_PROXY: "1", FACILIS_DATABASE_URL: "postgres://a.test/db" },
+    });
+    expect(sources).toEqual({ logLevel: "declared", logTrustProxy: "env", databaseUrl: "env" });
+    expect(Object.keys(sources).toSorted()).toEqual(Object.keys(runtime).toSorted());
+  });
+
+  it("reports declared provenance for an absent secret", () => {
+    const { sources } = resolveRuntimeConfig({ runtime: { databaseUrl: { secret: true } }, env: {} });
+    expect(sources).toEqual({ databaseUrl: "declared" });
+  });
+
+  it("leaves an invalid environment value out of provenance", () => {
+    const { runtime, sources } = resolveRuntimeConfig({
+      runtime: { logMaxBytes: 1024 },
+      env: { FACILIS_LOG_MAX_BYTES: "nope" },
+    });
+    expect(runtime).not.toHaveProperty("logMaxBytes");
+    expect(sources).not.toHaveProperty("logMaxBytes");
+  });
 });
 
 describe("resolvePublicConfig", () => {
   it("overrides a baked value at build time only", () => {
-    const { public: values, problems } = resolvePublicConfig({
+    const { public: values, sources: publicSources, problems } = resolvePublicConfig({
       public: { appName: "My app", features: { comments: true } },
       env: { FACILIS_PUBLIC_APP_NAME: "Deployed app" },
     });
     expect(values["appName"]).toBe("Deployed app");
     expect(values["features"]).toEqual({ comments: true });
     expect(problems).toEqual([]);
+    expect(publicSources).toEqual({ appName: "env", features: "declared" });
   });
 
   it("reports an unknown public variable", () => {
