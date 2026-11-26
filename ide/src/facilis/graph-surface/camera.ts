@@ -4,6 +4,7 @@
 
 import type { GraphViewport } from "../graph-layout-file.ts";
 import type { SurfaceRect } from "./layout.ts";
+import type { SurfaceInsets } from "./safe-area.ts";
 
 /** The camera is a pure translate+scale transform from world space to screen space. */
 export interface SurfaceCamera {
@@ -18,6 +19,8 @@ export const SURFACE_MAX_ZOOM = 3;
 export const SURFACE_MIN_FIT_SCALE = 0.85;
 
 export interface FitOptions {
+  /** Top HUD rows (breadcrumb + lens switcher): content is placed below them (#144/#182). */
+  readonly insetTop?: number;
   readonly insetRight?: number;
   readonly insetBottom?: number;
   readonly maxScale?: number;
@@ -36,26 +39,27 @@ export function fitCamera(
   height: number,
   options: FitOptions = {},
 ): SurfaceCamera {
+  const insetTop = options.insetTop ?? 0;
   const insetRight = options.insetRight ?? 0;
   const insetBottom = options.insetBottom ?? 0;
   const maxScale = options.maxScale ?? 1.1;
   const minScale = options.minScale ?? SURFACE_MIN_FIT_SCALE;
   const pad = options.pad ?? 48;
   const vw = Math.max(1, width - insetRight);
-  const vh = Math.max(1, height - insetBottom);
-  if (bounds.w <= 0 || bounds.h <= 0) return { tx: vw / 2, ty: vh / 2, scale: 1 };
+  const vh = Math.max(1, height - insetTop - insetBottom);
+  if (bounds.w <= 0 || bounds.h <= 0) return { tx: vw / 2, ty: insetTop + vh / 2, scale: 1 };
   const raw = Math.min(maxScale, (vw - pad * 2) / bounds.w, (vh - pad * 2) / bounds.h);
   const scale = Math.max(minScale, Math.min(maxScale, raw));
   if (raw < minScale) {
     // The map is larger than the readable floor can show: anchor its top-left at the padding so
     // the first columns are readable immediately and the rest is a pan away (#191), instead of
     // centring an over-sized map and hiding both edges behind the viewport.
-    return { scale, tx: pad - bounds.x * scale, ty: pad - bounds.y * scale };
+    return { scale, tx: pad - bounds.x * scale, ty: insetTop + pad - bounds.y * scale };
   }
   return {
     scale,
     tx: vw / 2 - (bounds.x + bounds.w / 2) * scale,
-    ty: vh / 2 - (bounds.y + bounds.h / 2) * scale,
+    ty: insetTop + vh / 2 - (bounds.y + bounds.h / 2) * scale,
   };
 }
 
@@ -70,12 +74,13 @@ export function centerCameraOn(
   scale: number,
   options: FitOptions = {},
 ): SurfaceCamera {
+  const insetTop = options.insetTop ?? 0;
   const vw = Math.max(1, width - (options.insetRight ?? 0));
-  const vh = Math.max(1, height - (options.insetBottom ?? 0));
+  const vh = Math.max(1, height - insetTop - (options.insetBottom ?? 0));
   return {
     scale,
     tx: vw / 2 - (rect.x + rect.w / 2) * scale,
-    ty: vh / 2 - (rect.y + rect.h / 2) * scale,
+    ty: insetTop + vh / 2 - (rect.y + rect.h / 2) * scale,
   };
 }
 
@@ -86,14 +91,21 @@ export function centerCameraOn(
  */
 export function panCameraForInsets(
   camera: SurfaceCamera,
-  previous: { readonly right: number; readonly bottom: number },
-  next: { readonly right: number; readonly bottom: number },
+  previous: SurfaceInsets,
+  next: SurfaceInsets,
 ): SurfaceCamera {
-  if (previous.right === next.right && previous.bottom === next.bottom) return camera;
+  if (
+    previous.top === next.top &&
+    previous.right === next.right &&
+    previous.bottom === next.bottom
+  ) {
+    return camera;
+  }
   return {
     ...camera,
     tx: camera.tx + (previous.right - next.right) / 2,
-    ty: camera.ty + (previous.bottom - next.bottom) / 2,
+    // The free-area centre is (height + top - bottom) / 2, so a top change moves content DOWN.
+    ty: camera.ty + (next.top - next.bottom - (previous.top - previous.bottom)) / 2,
   };
 }
 
@@ -138,6 +150,7 @@ export interface RestoreCameraInput {
   readonly bounds: SurfaceRect;
   readonly width: number;
   readonly height: number;
+  readonly insetTop?: number;
   readonly insetRight?: number;
   readonly insetBottom?: number;
 }
@@ -153,6 +166,7 @@ export function restoreCamera(input: RestoreCameraInput): SurfaceCamera {
     return cameraFromViewport(saved);
   }
   return fitCamera(input.bounds, input.width, input.height, {
+    insetTop: input.insetTop,
     insetRight: input.insetRight,
     insetBottom: input.insetBottom,
     maxScale: 1.1,

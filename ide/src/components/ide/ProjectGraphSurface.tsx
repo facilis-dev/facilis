@@ -14,22 +14,18 @@ import type { GraphSearchResult } from "@/facilis/graph-view-model";
 import { deriveDomains, domainIndex } from "@/facilis/graph-surface/domains.ts";
 import type { GraphLensHighlight } from "@/facilis/graph-surface/lenses.ts";
 import { focusHops, focusNeighborhood } from "@/facilis/graph-surface/focus.ts";
-import { writeSurfaceHud } from "@/facilis/graph-surface/hud.ts";
-import { startDirtyFrameLoop } from "@/facilis/graph-surface/frame-loop.ts";
-import { zoomCamera } from "@/facilis/graph-surface/camera.ts";
-import { resolveSurfacePalette } from "@/facilis/graph-surface/palette.ts";
 import { surfaceLayoutKey } from "@/facilis/graph-surface/positions.ts";
-import { DRAWER_INSET } from "@/facilis/graph-surface/safe-area.ts";
+import { DRAWER_INSET, drawerInsets } from "@/facilis/graph-surface/safe-area.ts";
 import {
   buildDetailScene,
   buildOverviewScene,
-  drawSurface,
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
 import { ProjectGraphNodeList } from "./ProjectGraphNodeList";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
 import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
+import { useGraphSurfaceRender } from "./use-graph-surface-render";
 import { useGraphSurfaceCard } from "./use-graph-surface-card";
 import { useGraphSurfaceInteractions } from "./use-graph-surface-interactions";
 import { useNarrowViewport } from "./use-narrow-viewport";
@@ -129,7 +125,6 @@ export function ProjectGraphSurface({
           : focusNeighborhood(detail.neighbors, selected.id, focusHops(selected.kind)),
       lens,
     };
-    writeSurfaceHud(wrapRef.current, scene, cameraRef.current, selectedNodeId);
     dirtyRef.current = true;
   }, [selectedNodeId, search, scene, lens]);
   useEffect(() => {
@@ -176,71 +171,21 @@ export function ProjectGraphSurface({
     centerOn(rect);
   }, [jump, scene, centerOn]);
 
-  // Resize + the dirty-only render loop. Resize keeps the camera; the first real size restores the
-  // saved viewport (or fits a first-ever open). Wheel zoom persists on a short debounce.
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    const canvas = canvasRef.current;
-    if (wrap === null || canvas === null) return;
-    let fitted = false;
-    const resize = () => {
-      const rect = wrap.getBoundingClientRect();
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      sizeRef.current = { width: rect.width, height: rect.height, dpr };
-      canvas.width = Math.max(1, Math.round(rect.width * dpr));
-      canvas.height = Math.max(1, Math.round(rect.height * dpr));
-      canvas.style.width = rect.width + "px";
-      canvas.style.height = rect.height + "px";
-      dirtyRef.current = true;
-      if (!fitted && rect.width > 0) {
-        fitted = true;
-        restoreOrFit();
-      }
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(wrap);
-    const loop = startDirtyFrameLoop({
-      isDirty: () => dirtyRef.current,
-      draw: () => {
-        dirtyRef.current = false;
-        const current = sceneRef.current;
-        const ctx = canvas.getContext("2d");
-        if (current === null || ctx === null) return;
-        drawSurface(
-          ctx,
-          current,
-          cameraRef.current,
-          sizeRef.current,
-          resolveSurfacePalette(canvas),
-          uiRef.current,
-        );
-        writeSurfaceHud(wrap, current, cameraRef.current, uiRef.current.selectedId);
-        positionRichCard();
-      },
-      requestFrame: (callback) => requestAnimationFrame(callback),
-      cancelFrame: (handle) => cancelAnimationFrame(handle),
-    });
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const factor = Math.exp(-event.deltaY * 0.0015);
-      cameraRef.current = zoomCamera(
-        cameraRef.current,
-        event.clientX - rect.left,
-        event.clientY - rect.top,
-        factor,
-      );
-      dirtyRef.current = true;
-      scheduleViewportPersist();
-    };
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      observer.disconnect();
-      loop.stop();
-      canvas.removeEventListener("wheel", onWheel);
-    };
-  }, [cameraRef, restoreOrFit, scheduleViewportPersist, positionRichCard]);
+  // Resize + the dirty-only render loop. The free content box reserves the top HUD rows and the
+  // drawer, so fit/centre never place a card under a control (#144/#182).
+  useGraphSurfaceRender({
+    wrapRef,
+    canvasRef,
+    sizeRef,
+    sceneRef,
+    cameraRef,
+    dirtyRef,
+    uiRef,
+    restoreOrFit,
+    scheduleViewportPersist,
+    positionRichCard,
+    getInsets: () => drawerInsets(sheet, sizeRef.current.height, drawerOpen),
+  });
 
   const goOverview = useCallback(() => {
     onSelectNode(null);

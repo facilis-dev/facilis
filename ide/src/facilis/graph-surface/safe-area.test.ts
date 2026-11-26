@@ -15,7 +15,9 @@ import {
 } from "./camera.ts";
 import {
   DRAWER_INSET,
+  HUD_TOP_INSET,
   SHEET_MAX_HEIGHT,
+  contentBox,
   drawerGeometry,
   drawerInsets,
   drawerMode,
@@ -75,8 +77,8 @@ describe("#155: fit never collapses below the readable floor", () => {
     const camera = { tx: 10, ty: 20, scale: 1.3 };
     const panned = panCameraForInsets(
       camera,
-      { right: 0, bottom: 0 },
-      { right: DRAWER_INSET, bottom: 0 },
+      { top: HUD_TOP_INSET, right: 0, bottom: 0 },
+      { top: HUD_TOP_INSET, right: DRAWER_INSET, bottom: 0 },
     );
     expect(panned.scale).toBe(camera.scale);
     // The world point at the free-area centre is the same before and after.
@@ -137,7 +139,11 @@ describe("#191: mobile bottom sheet", () => {
       w: MOBILE.width - 16,
       h: SHEET_MAX_HEIGHT,
     });
-    expect(geometry.insets).toEqual({ right: 0, bottom: SHEET_MAX_HEIGHT + 8 });
+    expect(geometry.insets).toEqual({
+      top: HUD_TOP_INSET,
+      right: 0,
+      bottom: SHEET_MAX_HEIGHT + 8,
+    });
   });
 
   it("reserves the sheet height in fit so the map opens above it", () => {
@@ -164,6 +170,65 @@ describe("#191: mobile bottom sheet", () => {
     expect(centerY + (node.h / 2) * camera.scale).toBeLessThanOrEqual(
       MOBILE.height - bottomInset + 0.001,
     );
+  });
+
+  it("reserves the top HUD in the camera fit, never under the lens switcher", () => {
+    const insets = drawerInsets(false, HEIGHT, false);
+    const box = contentBox(WIDTH, HEIGHT, insets);
+    expect(box.y).toBe(HUD_TOP_INSET);
+    expect(box.y + box.h).toBe(HEIGHT);
+    const hud = hudLayout(WIDTH, HEIGHT, false);
+    // What fit sees: the free viewport is the content box, not the full surface.
+    const camera = fitCamera(BOUNDS, WIDTH, HEIGHT, {
+      insetTop: insets.top,
+      insetRight: insets.right,
+      insetBottom: insets.bottom,
+      maxScale: 1.1,
+    });
+    const fitted = screenRect(camera, BOUNDS);
+    expect(fitted.top).toBeGreaterThanOrEqual(hud.lensBar.y + hud.lensBar.h);
+    expect(fitted.top).toBeGreaterThanOrEqual(box.y);
+    expect(fitted.bottom).toBeLessThanOrEqual(box.y + box.h + 0.001);
+    expect(
+      rectsOverlap(
+        {
+          x: fitted.left,
+          y: fitted.top,
+          w: fitted.right - fitted.left,
+          h: fitted.bottom - fitted.top,
+        },
+        hud.breadcrumb,
+      ),
+    ).toBe(false);
+    expect(
+      rectsOverlap(
+        {
+          x: fitted.left,
+          y: fitted.top,
+          w: fitted.right - fitted.left,
+          h: fitted.bottom - fitted.top,
+        },
+        hud.lensBar,
+      ),
+    ).toBe(false);
+  });
+
+  it("centres a detail node inside the content box, below the top HUD", () => {
+    const node = { x: 40, y: -30, w: 216, h: 56 };
+    const insets = drawerInsets(true, MOBILE.height, true);
+    const camera = centerCameraOn(node, MOBILE.width, MOBILE.height, 0.85, {
+      insetTop: insets.top,
+      insetRight: insets.right,
+      insetBottom: insets.bottom,
+    });
+    const box = contentBox(MOBILE.width, MOBILE.height, insets);
+    const rect = {
+      top: node.y * camera.scale + camera.ty,
+      bottom: (node.y + node.h) * camera.scale + camera.ty,
+    };
+    expect(rect.top).toBeGreaterThanOrEqual(box.y);
+    // Above the sheet: the bottom inset keeps the node out of the drawer.
+    expect(rect.bottom).toBeLessThanOrEqual(box.y + box.h + 0.001);
   });
 
   it("keeps the HUD hint above the sheet and disjoint from it at 390x844", () => {

@@ -23,6 +23,7 @@ export function ProjectGraphSurfaceChrome({
   return (
     <>
       <nav
+        data-testid="project-graph-breadcrumb"
         aria-label={t("projectGraph.surface.breadcrumb")}
         style={{ maxWidth }}
         className="absolute left-2 top-2 flex items-center gap-1 overflow-hidden text-xs"

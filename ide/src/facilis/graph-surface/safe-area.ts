@@ -14,6 +14,17 @@ export const DRAWER_GAP = 8;
 export const DRAWER_TOP = 48;
 /** HUD elements keep this gap from each other and from the drawer. */
 export const HUD_GAP = 8;
+/** Breadcrumb row: top gap + one text-xs line with its border. */
+export const HUD_BREADCRUMB_HEIGHT = 30;
+/** The lens switcher row starts under the breadcrumb (Tailwind `top-12`). */
+export const HUD_LENS_BAR_TOP = 48;
+/** The collapsed lens switcher: p-1 + one line of Q&A chips. */
+export const HUD_LENS_BAR_HEIGHT = 32;
+/**
+ * The top HUD footprint fit/centre must clear: the breadcrumb AND the lens switcher row, plus a
+ * gap before the first card. A domain card under the switcher is the #144 overlap class.
+ */
+export const HUD_TOP_INSET = HUD_LENS_BAR_TOP + HUD_LENS_BAR_HEIGHT + HUD_GAP;
 /** Below this viewport width the inspector is a bottom sheet, not a side column. */
 export const DRAWER_SHEET_BREAKPOINT = 640;
 /** The sheet fills at most this fraction of the surface height (it scrolls inside). */
@@ -29,6 +40,8 @@ export const DRAWER_INSET = DRAWER_WIDTH + DRAWER_GAP * 2;
 export type DrawerMode = "side" | "sheet";
 
 export interface SurfaceInsets {
+  /** HUD row(s) pinned to the top of the surface: fit and centre stay below it. */
+  readonly top: number;
   readonly right: number;
   readonly bottom: number;
 }
@@ -72,18 +85,34 @@ export interface DrawerGeometry {
   readonly insets: SurfaceInsets;
 }
 
-/** The camera inset for the current drawer state: a right column or a bottom sheet. */
+/**
+ * The camera inset for the current HUD/drawer state: the top HUD is always reserved, and the
+ * drawer adds a right column or a bottom sheet. Every camera path (fit, centre, restore) reads
+ * this one function, so no control can cover content.
+ */
 export function drawerInsets(sheet: boolean, height: number, drawerOpen: boolean): SurfaceInsets {
-  if (!drawerOpen) return { right: 0, bottom: 0 };
+  const top = HUD_TOP_INSET;
+  if (!drawerOpen) return { top, right: 0, bottom: 0 };
   return sheet
-    ? { right: 0, bottom: sheetHeight(height) + DRAWER_GAP }
-    : { right: DRAWER_INSET, bottom: 0 };
+    ? { top, right: 0, bottom: sheetHeight(height) + DRAWER_GAP }
+    : { top, right: DRAWER_INSET, bottom: 0 };
+}
+
+/** The free content box after every inset: fit/centre compute over THIS, never the full surface. */
+export function contentBox(width: number, height: number, insets: SurfaceInsets): SurfaceRect {
+  return {
+    x: 0,
+    y: insets.top,
+    w: Math.max(0, width - insets.right),
+    h: Math.max(0, height - insets.top - insets.bottom),
+  };
 }
 
 /** The full drawer geometry, including the reserved camera inset. */
 export function drawerGeometry(width: number, height: number, drawerOpen: boolean): DrawerGeometry {
   const mode = drawerMode(width);
-  if (!drawerOpen) return { mode, rect: null, insets: { right: 0, bottom: 0 } };
+  if (!drawerOpen)
+    return { mode, rect: null, insets: drawerInsets(mode === "sheet", height, false) };
   return {
     mode,
     rect: mode === "sheet" ? sheetRect(width, height) : drawerRect(width, height),
@@ -93,6 +122,8 @@ export function drawerGeometry(width: number, height: number, drawerOpen: boolea
 
 export interface HudLayout {
   readonly breadcrumb: SurfaceRect;
+  /** The collapsed lens switcher row under the breadcrumb. */
+  readonly lensBar: SurfaceRect;
   readonly hint: SurfaceRect;
   /** null when the drawer is closed. */
   readonly drawer: SurfaceRect | null;
@@ -113,7 +144,18 @@ export function hudLayout(width: number, height: number, drawerOpen: boolean): H
       ? Math.max(0, drawer.y - HUD_GAP - HINT_HEIGHT)
       : Math.max(0, height - HUD_GAP - HINT_HEIGHT);
   return {
-    breadcrumb: { x: HUD_GAP, y: HUD_GAP, w: Math.max(0, Math.min(260, leftLimit)), h: 30 },
+    breadcrumb: {
+      x: HUD_GAP,
+      y: HUD_GAP,
+      w: Math.max(0, Math.min(260, leftLimit)),
+      h: HUD_BREADCRUMB_HEIGHT,
+    },
+    lensBar: {
+      x: HUD_GAP,
+      y: HUD_LENS_BAR_TOP,
+      w: Math.max(0, Math.min(448, leftLimit)),
+      h: HUD_LENS_BAR_HEIGHT,
+    },
     hint: { x: HUD_GAP, y: hintY, w: Math.max(0, Math.min(320, leftLimit)), h: HINT_HEIGHT },
     drawer,
   };

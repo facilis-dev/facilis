@@ -168,6 +168,10 @@ const GRAPH_SNAPSHOT = `(() => {
     columns: root ? root.getAttribute('data-graph-columns') : null,
     camera: root ? root.getAttribute('data-graph-camera') : null,
     selectedY: root ? root.getAttribute('data-graph-selected-y') : null,
+    selectedRect: root ? root.getAttribute('data-graph-selected-rect') : null,
+    bounds: root ? root.getAttribute('data-graph-bounds') : null,
+    content: root ? root.getAttribute('data-graph-content') : null,
+    hudTop: root ? root.getAttribute('data-graph-hud-top') : null,
     nodeLists: document.querySelectorAll('[data-testid="project-graph-node-list"]').length,
     testIds: document.querySelectorAll('[data-testid^="project-graph-"]').length,
     canScrollX: document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -177,6 +181,50 @@ const GRAPH_SNAPSHOT = `(() => {
 
 async function graphSnapshot(page) {
   return JSON.parse(await page.evaluate(GRAPH_SNAPSHOT));
+}
+
+// The HUD is DOM (breadcrumb + lens switcher), the graph is canvas: measure both against the same
+// surface root and prove numerically that content and selection stay outside the HUD rows (#144).
+const HUD_RECTS = `(() => {
+  const root = document.querySelector('[data-testid="project-graph-canvas"]');
+  if (!root) return JSON.stringify(null);
+  const base = root.getBoundingClientRect();
+  const parts = ['project-graph-breadcrumb', 'project-graph-lens-bar']
+    .map((id) => {
+      const element = document.querySelector('[data-testid="' + id + '"]');
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { id, x: rect.x - base.x, y: rect.y - base.y, w: rect.width, h: rect.height };
+    })
+    .filter(Boolean);
+  if (parts.length === 0) return JSON.stringify(null);
+  const left = Math.min(...parts.map((part) => part.x));
+  const right = Math.max(...parts.map((part) => part.x + part.w));
+  const top = Math.min(...parts.map((part) => part.y));
+  const bottom = Math.max(...parts.map((part) => part.y + part.h));
+  return JSON.stringify({ parts, union: { x: left, y: top, w: right - left, h: bottom - top } });
+})()`;
+
+const parseRect = (value) => {
+  const [x, y, w, h] = value ? value.split(",").map(Number) : [];
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)
+    ? { x, y, w, h }
+    : null;
+};
+const rectsIntersect = (a, b) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** The DOM HUD union plus the canvas data attributes of the content box / bounds / selection. */
+async function hudOverlap(page) {
+  const hud = JSON.parse(await page.evaluate(HUD_RECTS));
+  const state = await graphSnapshot(page);
+  return {
+    hud,
+    state,
+    content: parseRect(state.content),
+    bounds: parseRect(state.bounds),
+    selected: parseRect(state.selectedRect),
+  };
 }
 
 /** 390x844 with touch, the issue #191 acceptance viewport. */
@@ -341,6 +389,22 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "project graph: accessible node list rendered",
     JSON.stringify({ nodeLists: surface.nodeLists, testIds: surface.testIds }),
   );
+  // The old #144 class: a HUD overlay on top of a domain card. Compare the measured DOM HUD union
+  // with the scene bounds (every drawn card is inside it) and with the reserved content box.
+  const overviewHud = await hudOverlap(page);
+  record(
+    overviewHud.hud !== null &&
+      overviewHud.content !== null &&
+      overviewHud.bounds !== null &&
+      !rectsIntersect(overviewHud.bounds, overviewHud.hud.union) &&
+      overviewHud.bounds.y >= overviewHud.hud.union.y + overviewHud.hud.union.h - 1,
+    "project graph: HUD never covers a domain card",
+    JSON.stringify({
+      hud: overviewHud.hud === null ? null : overviewHud.hud.union,
+      content: overviewHud.content,
+      bounds: overviewHud.bounds,
+    }),
+  );
   record(
     await waitFor(page, COUNT('[data-testid="project-graph-table"]') + " > 0", 15000),
     "project graph: tables rendered",
@@ -387,6 +451,23 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     prerenderBlocked,
     "prerender: ineligible page blocks the toggle with its reason",
     prerenderState,
+  );
+  // Centre-on-node must keep the selected card fully below the HUD rows (#144).
+  await waitForGraphState(
+    page,
+    (state) => state.mode === "detail" && state.selectedRect !== null && state.selectedRect !== "",
+    5000,
+  );
+  const detailHud = await hudOverlap(page);
+  record(
+    detailHud.hud !== null &&
+      detailHud.selected !== null &&
+      !rectsIntersect(detailHud.selected, detailHud.hud.union),
+    "prerender: selected node is not covered by the HUD",
+    JSON.stringify({
+      selected: detailHud.selected,
+      hud: detailHud.hud === null ? null : detailHud.hud.union,
+    }),
   );
   await page.screenshot(ARTIFACTS + "/05c-prerender-inspector.png");
 
@@ -437,12 +518,22 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     JSON.stringify({ mode: mobileOverview.mode, columns: mobileOverview.columns }),
   );
   const cameraBefore = mobileOverview.camera;
-  const box = mobileOverview.canvasBox;
-  if (box !== null) {
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    await touchDrag(page, { x, y }, { x: x + 70, y: y + 45 });
+  // The mobile IDE can clip the panel against a sibling pane: hit-test a point that the canvas
+  // actually owns instead of assuming its geometric centre is reachable.
+  const panStart = await page.evaluate(
+    "(() => { const canvas = document.querySelector('[data-testid=\"project-graph-canvas\"] canvas');" +
+      " if (!canvas) return null; const rect = canvas.getBoundingClientRect();" +
+      " const maxX = Math.min(rect.right, window.innerWidth) - 20;" +
+      " const maxY = Math.min(rect.bottom, window.innerHeight) - 20;" +
+      " for (let y = Math.max(20, Math.min(rect.top, window.innerHeight) + 20); y < maxY; y += 20) {" +
+      " for (let x = Math.max(20, Math.min(rect.left, window.innerWidth) + 20); x < maxX; x += 20) {" +
+      " if (document.elementFromPoint(x, y) === canvas) return { x, y }; } }" +
+      " return null; })()",
+  );
+  if (panStart !== null) {
+    await touchDrag(page, panStart, { x: panStart.x + 70, y: panStart.y + 45 });
   }
+  const box = panStart;
   const panned = await waitForGraphState(
     page,
     (state) => state.camera !== null && state.camera !== cameraBefore,

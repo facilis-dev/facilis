@@ -65,7 +65,7 @@ export function useGraphSurfaceCamera({
   sheetRef.current = sheet;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** The insets the current camera was fitted/restored with: the drawer-pan delta baseline. */
-  const insetRef = useRef<SurfaceInsets>({ right: 0, bottom: 0 });
+  const insetRef = useRef<SurfaceInsets>({ top: 0, right: 0, bottom: 0 });
   const previousModeRef = useRef(modeKey);
 
   // Only the overview camera is the project's saved viewport; detail cameras are session-only,
@@ -81,6 +81,7 @@ export function useGraphSurfaceCamera({
     if (current === null || size.width === 0 || size.height === 0) return;
     const insets = drawerInsets(sheetRef.current, size.height, drawerOpenRef.current);
     const camera = fitCamera(current.layout.bounds, size.width, size.height, {
+      insetTop: insets.top,
       insetRight: insets.right,
       insetBottom: insets.bottom,
       maxScale: 1.1,
@@ -103,6 +104,7 @@ export function useGraphSurfaceCamera({
       bounds: current.layout.bounds,
       width: size.width,
       height: size.height,
+      insetTop: insets.top,
       insetRight: insets.right,
       insetBottom: insets.bottom,
     });
@@ -153,7 +155,7 @@ export function useGraphSurfaceCamera({
         size.width,
         size.height,
         Math.max(SURFACE_MIN_FIT_SCALE, Math.min(1.1, cameraRef.current.scale)),
-        { insetRight: insets.right, insetBottom: insets.bottom },
+        { insetTop: insets.top, insetRight: insets.right, insetBottom: insets.bottom },
       );
       cameraRef.current = camera;
       insetRef.current = insets;
