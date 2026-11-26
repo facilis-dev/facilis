@@ -686,6 +686,9 @@ importers:
 
   packages/analyze:
     dependencies:
+      '@facilis.dev/core':
+        specifier: workspace:*
+        version: link:../core
       '@facilis.dev/db':
         specifier: workspace:*
         version: link:../db

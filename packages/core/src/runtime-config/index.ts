@@ -31,3 +31,5 @@ export type { EnvLike, RuntimeConfigProblem, RuntimeConfigProblemCode } from "./
 export { KNOWN_RUNTIME_KEYS, PUBLIC_CANONICAL, RUNTIME_CANONICAL } from "./defaults.ts";
 export type { KnownRuntimeKey } from "./defaults.ts";
 export { publicConfig } from "./public.ts";
+export { runtimeRequirements } from "./requirements.ts";
+export type { RuntimeRequirement, RuntimeRequirementWhen } from "./requirements.ts";

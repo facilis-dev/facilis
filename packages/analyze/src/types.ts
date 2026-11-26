@@ -5,6 +5,7 @@ import type { ProjectGraph } from "./types-graph.ts";
 import type { GraphDiagnostic } from "./graph-diagnostics.ts";
 import type { WorkflowFact, WorkflowTablesFact } from "./types-workflows.ts";
 import type { ConfigPrerenderFacts, PrerenderEligibilityFact } from "./types-prerender.ts";
+import type { ConfigRuntimeFacts } from "./types-runtime.ts";
 
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
@@ -52,6 +53,8 @@ export interface ConfigFacts {
   readonly ownerColumns: readonly string[];
   /** Prerender allowlist declaration (D-202); unreadable values are unknown, never guessed. */
   readonly prerender: ConfigPrerenderFacts;
+  /** The declared `runtime` / `public` keys and values (D-224); data, never a security fact. */
+  readonly runtimeConfig: ConfigRuntimeFacts;
   readonly unknown: readonly UnknownFact[];
 }
 
