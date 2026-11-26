@@ -1,4 +1,4 @@
-// The project graph's lens state (D-212, #189), split from the panel to keep both under the
+// The project graph's lens state (D-220, #189), split from the panel to keep both under the
 // 300-line source limit. Lenses are draw state only: this hook never touches the layout, the
 // saved positions or the camera, and every derived value is memoized on the analyzer facts.
 

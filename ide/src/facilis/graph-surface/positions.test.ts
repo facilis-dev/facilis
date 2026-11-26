@@ -1,4 +1,4 @@
-// Stability regressions for the map-and-lens surface (D-211, issue #185, killing #145):
+// Stability regressions for the map-and-lens surface (D-219, issue #185, killing #145):
 // layout is a pure function of the dataset (never the camera or the search query), saved positions
 // pin nodes across sibling add/remove/hide and edge filters, a dropped node sticks after rebuild,
 // and the saved viewport is restored instead of silently re-fitting (D-127).

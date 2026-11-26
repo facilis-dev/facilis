@@ -1,4 +1,4 @@
-# D-211 — The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n
+# D-219 — The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n
 **Status:** accepted (2026-11-25)
 
 **Context.** The project graph is unusable in daily use. The canvas-first layered-lenses epic

@@ -1,4 +1,4 @@
-// The floating inspector drawer (D-211, issues #187/#191): dismissible, overlaying the canvas
+// The floating inspector drawer (D-219, issues #187/#191): dismissible, overlaying the canvas
 // instead of stealing a permanent column. Wide viewports keep the right column; narrow ones turn
 // it into a bottom sheet that reserves its height in fit/centre, scrolls its content and clears
 // the device safe area. X (inside the inspector header), Esc and a pointer-down outside all close

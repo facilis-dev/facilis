@@ -1,4 +1,4 @@
-// Search-jump resolution (D-211, issue #187): the first matched node and its domain. This is
+// Search-jump resolution (D-219, issue #187): the first matched node and its domain. This is
 // the pure half of "Enter or click a result drills to the node's domain"; the surface centring
 // and selection are covered by safe-area/camera and draw tests.
 

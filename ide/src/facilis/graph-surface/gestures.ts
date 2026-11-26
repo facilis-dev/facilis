@@ -1,4 +1,4 @@
-// Pure pointer gesture math for the graph surface (D-211, issue #191). The canvas always uses
+// Pure pointer gesture math for the graph surface (D-219, issue #191). The canvas always uses
 // touch-action:none and one unified PointerEvent pipeline, so a finger and a mouse share this
 // module: one pointer pans, two pointers pinch about their midpoint, and a tap is a pointer that
 // never crossed the slop. Keeping the math here makes touch behaviour testable without a DOM and

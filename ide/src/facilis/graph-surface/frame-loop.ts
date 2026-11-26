@@ -1,4 +1,4 @@
-// The dirty-only redraw loop (D-211, issue #184, kept under test by #186): a frame draws only
+// The dirty-only redraw loop (D-219, issue #184, kept under test by #186): a frame draws only
 // when something marked the surface dirty, so idle frames cost one boolean check and zero draw
 // work. Scheduling is injected (requestAnimationFrame in the app, a fake queue in tests), which
 // keeps the loop unit-testable without a DOM.

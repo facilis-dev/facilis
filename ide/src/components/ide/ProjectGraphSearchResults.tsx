@@ -1,4 +1,4 @@
-// Search results for the graph jump (D-211, issue #187): a compact list under the toolbar
+// Search results for the graph jump (D-219, issue #187): a compact list under the toolbar
 // input. Clicking a row (or pressing Enter in the input) drills to the node's domain, centres
 // the camera and selects it. Presentational only; the panel owns the jump.
 

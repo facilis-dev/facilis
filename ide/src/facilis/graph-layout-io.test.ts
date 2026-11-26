@@ -225,7 +225,7 @@ describe("saveGraphLayout", () => {
     expect(files[IGNORE]).toBe(afterFirst);
   });
 
-  // The canvas surface ships no note annotations in epic #182 (D-214), but the files are team
+  // The canvas surface ships no note annotations in epic #182 (D-222), but the files are team
   // state (D-126): a project that already has notes must keep them byte-for-byte across a load
   // and the next save, even though no UI action edits them any more.
   it("round-trips existing note files unchanged through load and save", async () => {

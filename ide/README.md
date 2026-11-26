@@ -61,14 +61,14 @@ ide/                        # this app — the fork surface
 
 The project graph tab (`src/components/ide/ProjectGraphPanel.tsx`) renders the one graph the
 analyzer produces from the project (D-092): pages, routes, tables, views and workflows with
-their edges. It is a Canvas2D map-and-lens surface (D-211): a domain overview with labelled
+their edges. It is a Canvas2D map-and-lens surface (D-219): a domain overview with labelled
 cross-domain ports, a drill-down detail with pages / routes / data / workflow swimlanes, a
 cached layout and a pure camera transform, draggable nodes that snap to their column and a
 saved viewport. Positions, viewport and notes persist under `.facilis/graph/` (D-126), and the
 analyzer's facts are its only input.
 
 The four in-place lenses — security, elevated, shared and unknown — highlight flagged nodes
-without moving or hiding them (D-212): a banner, legend, count, per-domain badges and a
+without moving or hiding them (D-220): a banner, legend, count, per-domain badges and a
 clickable answer list, with an explicit empty state. The same analyzer diagnostic codes feed
 the drawer's per-node diagnosis callout, the on-demand rich card and the inspector. Every
 user-facing string is an en/it `t()` key in `src/i18n/en-project-graph.ts` and

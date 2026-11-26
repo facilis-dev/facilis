@@ -8,10 +8,15 @@ import {
 } from "./passes/prerender-vite.ts";
 import { buildFileFacts } from "./passes/file-facts.ts";
 import { readLocaleCatalogs } from "./passes/i18n.ts";
+import { dynamicTranslationKeyDiagnostics } from "./passes/i18n-keys.ts";
 import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { importCycleDiagnostics } from "./passes/import-cycle.ts";
+import { reservedRoutePrefixDiagnostics } from "./passes/route-reserved-prefix.ts";
+import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
+import { rawSqlSystemWriteDiagnostics } from "./passes/raw-sql-system-write.ts";
 import { routeSystemTableDiagnostics } from "./passes/route-tables.ts";
 import { buildSchemaFacts } from "./passes/schema.ts";
 import { buildScreens } from "./passes/screens.ts";
@@ -96,9 +101,22 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...schema.diagnostics,
       ...views.diagnostics,
       ...routeRelations.diagnostics,
+      // D-215: a project route may not shadow a framework-owned path (invariant 6).
+      ...reservedRoutePrefixDiagnostics(routes.routes),
+      // D-217: one warning per import cycle over project-internal static edges (warn-only).
+      ...importCycleDiagnostics(graph, fileFacts),
+      // D-212: GET routes must be side-effect free (SPEC §8.6), over the same usage facts.
+      ...routeGetEffectDiagnostics(routeRelations.routes),
+      // D-214: literal raw SQL never writes a seed-only auth table (invariant 8).
+      ...rawSqlSystemWriteDiagnostics([
+        ...routeRelations.routes.map((route) => route.relations),
+        ...Object.values(jobRelations.relations),
+      ]),
       ...jobs.diagnostics,
       ...jobRelations.diagnostics,
       ...locales.diagnostics,
+      // D-218: a non-literal t() key is visible but unverifiable (warn-only).
+      ...dynamicTranslationKeyDiagnostics(fileFacts),
       ...pages.diagnostics,
       ...prerender.diagnostics,
       ...(viteDeclaration?.unknown ?? []).map((fact) => error(fact.code, fact.reason, fact.source)),
@@ -142,7 +160,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     locales: locales.locales,
     diagnostics,
     graph: projectGraph,
-    // D-212 (#189): the IDE lenses read codes + params, never analyzer prose.
+    // D-220 (#189): the IDE lenses read codes + params, never analyzer prose.
     graphDiagnostics: buildGraphDiagnostics({
       graph: projectGraph,
       routes: routes.routes,

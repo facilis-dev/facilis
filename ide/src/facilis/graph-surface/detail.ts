@@ -1,4 +1,4 @@
-// Swimlane detail layout for the map-and-lens surface (D-211, issue #184): pages | routes |
+// Swimlane detail layout for the map-and-lens surface (D-219, issue #184): pages | routes |
 // data side by side, workflows below, cross-domain ports at the sides. Split from layout.ts so
 // both stay under the 300-line source limit. Deterministic and screen-size independent.
 

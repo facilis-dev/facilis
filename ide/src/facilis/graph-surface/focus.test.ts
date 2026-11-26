@@ -1,4 +1,4 @@
-// Selection focus regression tests (D-211, issue #187): a PAGE keeps its routes AND their
+// Selection focus regression tests (D-219, issue #187): a PAGE keeps its routes AND their
 // tables/views bright (2 hops, so Q3 is visible on canvas); every other kind keeps one hop, and
 // nothing outside the neighbourhood survives. Pure adjacency math, no DOM.
 

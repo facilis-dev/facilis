@@ -1,5 +1,5 @@
-// The graph's diagnostic fact set (D-212, issue #189): stable codes plus structured params,
-// never prose. The IDE resolves each code through its own i18n catalogue (D-043/D-211), so the
+// The graph's diagnostic fact set (D-220, issue #189): stable codes plus structured params,
+// never prose. The IDE resolves each code through its own i18n catalogue (D-043/D-219), so the
 // same facts render in every locale and a new language never touches the analyzer.
 //
 // The derivation is pure and deterministic: the same facts always produce the same diagnostics,

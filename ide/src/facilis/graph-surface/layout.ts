@@ -1,4 +1,4 @@
-// Deterministic layouts for the map-and-lens surface (D-211, issue #184), ported from the
+// Deterministic layouts for the map-and-lens surface (D-219, issue #184), ported from the
 // validated static preview. Computed ONCE per dataset/domain and cached by the caller: pan and
 // zoom are pure camera transforms and never re-run layout. No screen-size branch exists here,
 // so desktop and mobile share the exact same spatial layout (pan instead of reflow).

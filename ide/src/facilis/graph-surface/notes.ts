@@ -1,4 +1,4 @@
-// Graph notes on the map-and-lens surface (issue #194, D-126/D-214): a note is a markdown
+// Graph notes on the map-and-lens surface (issue #194, D-126/D-222): a note is a markdown
 // annotation whose x/y live in the graph's world coordinates — the same space the detail scene
 // draws saved node positions in. These helpers stay pure so world->screen placement, content-box
 // culling and the new-note anchor are testable without a DOM.

@@ -1,4 +1,4 @@
-// Progressive Escape for the project graph (D-211, issues #187/#188/#194): cancel an open note
+// Progressive Escape for the project graph (D-219, issues #187/#188/#194): cancel an open note
 // editor first, then exit fullscreen, then clear an AI focus (D-171), then close the rich card,
 // then the floating drawer, then clear the selection, then the active lens, then return to the
 // overview. One key press does one thing; the ordering is the pure resolveEscapeAction ladder so

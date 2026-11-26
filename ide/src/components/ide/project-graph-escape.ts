@@ -1,4 +1,4 @@
-// The progressive Escape ladder for the project graph (D-211, issues #187/#188/#194), as a pure
+// The progressive Escape ladder for the project graph (D-219, issues #187/#188/#194), as a pure
 // decision so the ordering is testable without a DOM. One key press does one thing: note edit ->
 // fullscreen -> AI focus -> rich card -> drawer -> selection -> lens -> overview. Typing targets
 // keep Escape for themselves; closing the note editor is the one layer that always wins.

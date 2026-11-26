@@ -152,9 +152,19 @@ export interface ImportFact {
   readonly source: SourceRef;
 }
 
-/** One literal `t("key")` call; interpolated keys are skipped because they are not static. */
+/** One literal `t("key")` call; interpolated keys are not static and live below. */
 export interface TranslationCallFact {
   readonly key: string;
+  readonly source: SourceRef;
+}
+
+/** The argument shape of a non-literal `t(...)` call (D-218); the key itself is unknown. */
+export type TranslationKeyKind =
+  "identifier" | "call" | "concatenation" | "template" | "expression";
+
+/** One `t(...)` call whose key cannot be read statically: present, but unverifiable. */
+export interface DynamicTranslationCallFact {
+  readonly kind: TranslationKeyKind;
   readonly source: SourceRef;
 }
 
@@ -169,6 +179,8 @@ export interface FileFacts {
   readonly path: string;
   readonly imports: readonly ImportFact[];
   readonly translationCalls: readonly TranslationCallFact[];
+  /** Non-literal `t()` calls, in source order (D-218: they warn, never error). */
+  readonly dynamicTranslationCalls: readonly DynamicTranslationCallFact[];
   readonly calls: readonly CallFact[];
 }
 
@@ -218,6 +230,7 @@ export type {
   WorkflowStepNodeData,
 } from "./types-graph.ts";
 export type {
+  RawSqlStatementFact,
   RouteElevationUsage,
   RouteRelationUse,
   RouteRelationsFact,
@@ -259,6 +272,6 @@ export interface Analysis {
   readonly locales: LocaleCatalogs;
   readonly diagnostics: readonly Diagnostic[];
   readonly graph: ProjectGraph;
-  /** The graph lens facts (D-212, #189): stable codes plus params, never prose. */
+  /** The graph lens facts (D-220, #189): stable codes plus params, never prose. */
   readonly graphDiagnostics: readonly GraphDiagnostic[];
 }

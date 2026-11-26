@@ -1,4 +1,4 @@
-// Draw-level guarantees of the map-and-lens surface (D-211, issues #184/#186): offscreen nodes
+// Draw-level guarantees of the map-and-lens surface (D-219, issues #184/#186): offscreen nodes
 // are culled (no draw calls for them), search matches DIM cards instead of hiding them, and
 // selection is pure draw state — the scene's node objects are never rebuilt or mutated.
 import { beforeEach, describe, expect, it } from "vitest";

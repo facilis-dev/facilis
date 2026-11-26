@@ -1,4 +1,4 @@
-// The surface camera lifecycle (D-211, issue #185, D-127): restore the session/saved camera on
+// The surface camera lifecycle (D-219, issue #185, D-127): restore the session/saved camera on
 // open and on mode changes instead of silently re-fitting, fit only on the explicit Fit button,
 // and persist the overview camera to the git-ignored viewport.json on gesture end. Pan/zoom stay
 // pure camera transforms — this hook never touches node positions or re-runs layout.

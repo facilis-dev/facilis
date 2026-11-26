@@ -2,7 +2,7 @@
 
 # Decision index
 
-213 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+221 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -216,8 +216,16 @@ the file whose name starts with that ID.
 | [D-208](./D-208-the-git-proxy-bounds-its-callers-by-origin-can-require-a-token-and.md) | The git proxy bounds its callers by origin, can require a token, and rate-limits at the edge | accepted | 2026-11-21 |
 | [D-209](./D-209-frontend-rum-is-a-browser-only-package-enabled-by-a-build-time-define.md) | Frontend RUM is a browser-only package enabled by a build-time define | accepted | 2026-11-24 |
 | [D-210](./D-210-rum-consent-is-an-operator-obligation-v1-ships-no-framework-consent.md) | RUM consent is an operator obligation; v1 ships no framework consent gate | accepted | 2026-11-24 |
-| [D-211](./D-211-the-project-graph-is-a-map-and-lens-canvas-diagnostics-are-analyzer.md) | The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n | accepted | 2026-11-25 |
-| [D-212](./D-212-in-place-graph-lenses-use-analyzer-diagnostic-codes-resolved-via-i18n.md) | In-place graph lenses use analyzer diagnostic codes resolved via i18n | accepted | 2026-11-25 |
-| [D-213](./D-213-the-project-graph-has-one-canvas-surface-react-flow-is-retired.md) | The project graph has one canvas surface; React Flow is retired | accepted | 2026-11-25 |
-| [D-214](./D-214-the-canvas-graph-ships-no-note-annotations-note-files-stay-preserved.md) | The canvas graph ships no note annotations; note files stay preserved | accepted | 2026-11-25 |
-| [D-215](./D-215-graph-group-overrides-are-per-node-team-state-in-groups-key-json.md) | Graph group overrides are per-node team state in `groups/<key>.json` | accepted | 2026-11-26 |
+| [D-211](./D-211-every-project-table-declares-its-class-system-only-is-a-comment-marker.md) | Every project table declares its class: system-only is a comment marker | accepted | 2026-11-25 |
+| [D-212](./D-212-get-routes-are-side-effect-free.md) | GET routes are side-effect free | accepted | 2026-11-25 |
+| [D-213](./D-213-handwritten-routes-are-gated-for-zod-input-and-raw-client-imports.md) | Handwritten routes are gated for Zod input and raw-client imports | accepted | 2026-11-25 |
+| [D-214](./D-214-literal-raw-sql-writes-to-seed-only-auth-tables-are-an-error.md) | Literal raw-SQL writes to seed-only auth tables are an error | accepted | 2026-11-25 |
+| [D-215](./D-215-a-project-route-may-not-shadow-a-framework-owned-path.md) | A project route may not shadow a framework-owned path | accepted | 2026-11-25 |
+| [D-216](./D-216-direct-opfs-access-warns-outside-the-kernel-bridge.md) | Direct OPFS access warns outside the kernel bridge | accepted | 2026-11-25 |
+| [D-217](./D-217-import-cycles-are-warnings.md) | Import cycles are warnings | accepted | 2026-11-25 |
+| [D-218](./D-218-i18n-parity-and-dynamic-t-keys-warn.md) | i18n parity and dynamic t() keys warn | accepted | 2026-11-25 |
+| [D-219](./D-219-the-project-graph-is-a-map-and-lens-canvas-diagnostics-are-analyzer.md) | The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n | accepted | 2026-11-25 |
+| [D-220](./D-220-in-place-graph-lenses-use-analyzer-diagnostic-codes-resolved-via-i18n.md) | In-place graph lenses use analyzer diagnostic codes resolved via i18n | accepted | 2026-11-25 |
+| [D-221](./D-221-the-project-graph-has-one-canvas-surface-react-flow-is-retired.md) | The project graph has one canvas surface; React Flow is retired | accepted | 2026-11-25 |
+| [D-222](./D-222-graph-notes-are-rendered-as-culled-dom-cards-on-the-canvas-surface.md) | Graph notes are rendered as culled DOM cards on the canvas surface | accepted | 2026-11-26 |
+| [D-223](./D-223-graph-group-overrides-are-per-node-team-state-in-groups-key-json.md) | Graph group overrides are per-node team state in `groups/<key>.json` | accepted | 2026-11-26 |

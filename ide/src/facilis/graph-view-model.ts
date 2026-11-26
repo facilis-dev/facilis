@@ -1,4 +1,4 @@
-// The incremental graph view-model owner (issue #186, D-211). The node/edge model is rebuilt
+// The incremental graph view-model owner (issue #186, D-219). The node/edge model is rebuilt
 // ONLY when the dataset or the saved layout inputs change (analysis, saved positions, edge-kind
 // filter, table visibility, collapsed cards). Search is a debounced match pass over the cached
 // nodes — it never rebuilds node objects — and selection/focus never reach this module at all:

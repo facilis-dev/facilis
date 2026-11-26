@@ -50,7 +50,13 @@ export function buildRouteRelationFacts(
       handler === undefined ||
       (handler.type !== "ArrowFunctionExpression" && handler.type !== "FunctionExpression")
     ) {
-      const relations: RouteRelationsFact = EMPTY_ROUTE_RELATIONS;
+      // A valid wrapper whose handler body cannot be inspected keeps its usage unknown
+      // (opaque), so the GET side-effect rule warns instead of guessing (D-212). An invalid
+      // wrapper keeps the explicitly empty usage: the wrapper error is the finding.
+      const relations: RouteRelationsFact =
+        route.wrapper === "valid"
+          ? { ...EMPTY_ROUTE_RELATIONS, opaque: true }
+          : EMPTY_ROUTE_RELATIONS;
       enriched.push({ ...route, relations });
       continue;
     }

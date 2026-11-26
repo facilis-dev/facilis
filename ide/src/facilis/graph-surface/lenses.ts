@@ -1,4 +1,4 @@
-// The graph lenses and their diagnostic-code contract (D-212, #189). Analyzer facts carry a
+// The graph lenses and their diagnostic-code contract (D-220, #189). Analyzer facts carry a
 // stable code plus params; this module is the ONE place that maps code -> i18n key and code ->
 // semantic colour token, so no component ever hardcodes prose or a palette value (D-043/D-044).
 

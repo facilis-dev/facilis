@@ -8,11 +8,25 @@
  * reads it, so a construct outside the static subset is simply absent rather than guessed.
  */
 
-import { identifierName, literalString, nodeArray, type AstNode } from "../ast/node.ts";
+import {
+  identifierName,
+  literalString,
+  nodeArray,
+  unwrapExpression,
+  type AstNode,
+} from "../ast/node.ts";
 import { walk } from "../ast/walk.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import { sourceRef } from "../source.ts";
-import type { CallFact, FileFacts, ImportFact, SourceRef, TranslationCallFact } from "../types.ts";
+import type {
+  CallFact,
+  DynamicTranslationCallFact,
+  FileFacts,
+  ImportFact,
+  SourceRef,
+  TranslationCallFact,
+  TranslationKeyKind,
+} from "../types.ts";
 
 function refOf(file: ProjectFile, node: AstNode): SourceRef {
   return sourceRef(file.path, file.lines, typeof node.start === "number" ? node.start : 0);
@@ -98,15 +112,33 @@ function templateString(node: AstNode | undefined): string | undefined {
   return typeof raw === "string" ? raw : undefined;
 }
 
-function translationCalls(file: ProjectFile): TranslationCallFact[] {
-  const calls: TranslationCallFact[] = [];
+/** The argument shape of a non-literal t() key, for the "cannot be verified" warning. */
+function dynamicKeyKind(argument: AstNode | undefined): TranslationKeyKind {
+  const node = unwrapExpression(argument);
+  if (node === undefined) return "expression";
+  if (node.type === "Identifier") return "identifier";
+  if (node.type === "CallExpression") return "call";
+  if (node.type === "BinaryExpression" && node.operator === "+") return "concatenation";
+  if (node.type === "TemplateLiteral") return "template";
+  return "expression";
+}
+
+interface TranslationFacts {
+  readonly literal: TranslationCallFact[];
+  readonly dynamic: DynamicTranslationCallFact[];
+}
+
+function translationFacts(file: ProjectFile): TranslationFacts {
+  const literal: TranslationCallFact[] = [];
+  const dynamic: DynamicTranslationCallFact[] = [];
   walk(file.program, (node) => {
     if (node.type !== "CallExpression" || identifierName(node.callee) !== "t") return;
     const argument = nodeArray(node, "arguments")[0];
     const key = literalString(argument) ?? templateString(argument);
-    if (key !== undefined) calls.push({ key, source: refOf(file, node) });
+    if (key !== undefined) literal.push({ key, source: refOf(file, node) });
+    else dynamic.push({ kind: dynamicKeyKind(argument), source: refOf(file, node) });
   });
-  return calls;
+  return { literal, dynamic };
 }
 
 function bareCalls(file: ProjectFile): CallFact[] {
@@ -132,10 +164,14 @@ export function buildFileFacts(graph: ModuleGraph): readonly FileFacts[] {
   const files = [...graph.files.values()].toSorted((left, right) =>
     left.path.localeCompare(right.path),
   );
-  return files.map((file) => ({
-    path: file.path,
-    imports: [...declarationImports(file), ...expressionImports(file)].toSorted(byPosition),
-    translationCalls: translationCalls(file),
-    calls: bareCalls(file),
-  }));
+  return files.map((file) => {
+    const translations = translationFacts(file);
+    return {
+      path: file.path,
+      imports: [...declarationImports(file), ...expressionImports(file)].toSorted(byPosition),
+      translationCalls: translations.literal,
+      dynamicTranslationCalls: translations.dynamic,
+      calls: bareCalls(file),
+    };
+  });
 }

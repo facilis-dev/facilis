@@ -1,4 +1,4 @@
-// The surface camera (D-211, issue #184): a pure translate+scale transform. Fit reserves
+// The surface camera (D-219, issue #184): a pure translate+scale transform. Fit reserves
 // drawer space and clamps to a readable scale floor; zoom keeps the cursor's world point fixed.
 // Split from layout.ts so both stay under the 300-line source limit.
 

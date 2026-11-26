@@ -1,7 +1,7 @@
-# D-215 — Graph group overrides are per-node team state in `groups/<key>.json`
+# D-223 — Graph group overrides are per-node team state in `groups/<key>.json`
 **Status:** accepted (2026-11-26)
 
-**Context.** D-211 groups the map by feature: routes take their URL path (skipping the technical
+**Context.** D-219 groups the map by feature: routes take their URL path (skipping the technical
 `api` prefix), pages join the routes they call, and schema objects join their strongest
 referrer. The rule is deterministic but not always what the user wants: a route can serve a
 feature whose name is not its first path segment, a page can be a cross-cutting shell, and a

@@ -1,7 +1,7 @@
 // The graph search match pass (issue #186): a pure, incremental computation over the EXISTING
 // view-model nodes. It returns the matched ids without rebuilding or mutating any node/edge
 // object, so a debounced keystroke costs one predicate sweep — never a model rebuild. Matches
-// dim cards on the canvas; they never hide nodes (D-211).
+// dim cards on the canvas; they never hide nodes (D-219).
 
 import { matchesNodeQuery } from "./graph-node-data.ts";
 import type { ProjectGraphNode } from "./graph-types.ts";

@@ -33,7 +33,7 @@ export interface SurfacePalette {
   readonly elevated: string;
   readonly kinds: Readonly<Record<GraphNodeKind, string>>;
   readonly edges: Readonly<Record<GraphEdgeKind, string>>;
-  /** Lens highlight colours, keyed by diagnostic code (D-212). */
+  /** Lens highlight colours, keyed by diagnostic code (D-220). */
   readonly diagnostics: Readonly<Record<GraphDiagnosticCode, string>>;
 }
 

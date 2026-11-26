@@ -1,4 +1,4 @@
-// The Canvas2D map-and-lens graph surface (D-211, issues #184/#185/#187/#191): domain overview grid
+// The Canvas2D map-and-lens graph surface (D-219, issues #184/#185/#187/#191): domain overview grid
 // and drill-down swimlane detail. Layout is computed once per dataset/domain and cached on a
 // fingerprint that excludes search/selection/focus, so pan/zoom/search/focus never re-run layout
 // or move nodes — only the camera ref changes and the frame is marked dirty. Search arrives as

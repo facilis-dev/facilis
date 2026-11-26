@@ -1,10 +1,11 @@
 /**
- * The SPEC §9.3 patch validator: 19 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 23 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
- * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 are
- * warnings (they never block); the others are errors and make `ok` false, which is what stops
- * the IDE's apply path before it writes anything (invariant 9).
+ * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;
+ * rules 18-21 warn alongside their errors; rules 22/23 and every other finding is an error that
+ * makes `ok` false, which is what stops the IDE's apply path before it writes anything
+ * (invariant 9).
  *
  * Every contextual rule reads @facilis.dev/analyze's fact model (D-092): the effective
  * post-patch Analysis supplied by the caller, never a re-parse of the patch text.
@@ -18,11 +19,15 @@ import {
   destructiveErrors,
   migrationErrors,
   rlsErrors,
+  tableClassFindings,
 } from "./rules/database.ts";
 import { i18nWarnings } from "./rules/i18n.ts";
 import { importResolveErrors, rawDbAccessErrors } from "./rules/imports.ts";
+import { getSideEffectFreeFindings } from "./rules/get-side-effects.ts";
 import { jobTableDeclaredFindings } from "./rules/job-relations.ts";
 import { jsonParseErrors } from "./rules/json-parse.ts";
+import { rawSqlSystemTableWriteErrors } from "./rules/raw-sql-system-tables.ts";
+import { reservedRoutePrefixErrors } from "./rules/reserved-route-prefix.ts";
 import { routeTableDeclaredFindings } from "./rules/route-relations.ts";
 import { routeDescriptionWarnings } from "./rules/routes-description.ts";
 import {
@@ -66,6 +71,10 @@ export function validatePatch(
     errors.push(...routeInputErrors(state));
     errors.push(...rawDbAccessErrors(state));
     errors.push(...rlsErrors(state));
+    // D-211 rule 20: every project table declares its access class (invariant 4).
+    const tableClass = tableClassFindings(state);
+    errors.push(...tableClass.errors);
+    warnings.push(...tableClass.warnings);
     errors.push(...importResolveErrors(state, context));
     warnings.push(...i18nWarnings(state));
     errors.push(...migrationErrors(patches));
@@ -80,6 +89,14 @@ export function validatePatch(
     const jobTables = jobTableDeclaredFindings(state);
     errors.push(...jobTables.errors);
     warnings.push(...jobTables.warnings);
+    // D-212 rule 21: GET routes must be side-effect free (SPEC §8.6), over the usage facts.
+    const getEffects = getSideEffectFreeFindings(state);
+    errors.push(...getEffects.errors);
+    warnings.push(...getEffects.warnings);
+    // D-215 rule 23: a project route never shadows a framework-owned path (invariant 6).
+    errors.push(...reservedRoutePrefixErrors(state));
+    // D-214 rule 22: literal raw SQL never writes a seed-only auth table (invariant 8).
+    errors.push(...rawSqlSystemTableWriteErrors(state));
   }
   return { ok: errors.length === 0, errors, warnings, destructive, destructiveChanges: drops };
 }

@@ -1,4 +1,4 @@
-// The on-demand rich card for a graph node (D-211, issue #188). It is the same analyzer facts
+// The on-demand rich card for a graph node (D-219, issue #188). It is the same analyzer facts
 // the inspector joins, shown on demand anchored to the node; the shell owns dismissal and the
 // kind switch, and every per-kind body is a small module of its own. The card never fits,
 // centres or moves the camera or the scene: placement lives in the surface and card-position.ts.

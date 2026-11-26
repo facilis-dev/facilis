@@ -189,7 +189,8 @@ as every other consumer. Each parsed source file contributes a `FileFacts`:
 | Fact | Read from | Consumed by |
 |---|---|---|
 | `imports` (`specifier`, `kind`, `local`, `imported`, `source`) | `ImportDeclaration`, `export … from`, `import()`, `require()` | rules 7, 9, 12 |
-| `translationCalls` (`key`, `source`) | literal `t("…")` / non-interpolated template; interpolated keys are skipped | rule 13 |
+| `translationCalls` (`key`, `source`) | literal `t("…")` / non-interpolated template | rule 13 |
+| `dynamicTranslationCalls` (`kind`, `source`) | non-literal `t()` argument (identifier, call, concatenation, template with expressions); warns as unverifiable | rule 13 |
 | `calls` (`name`, `source`) | bare-identifier calls (`drizzle(…)`, `t(…)`) | rule 9 |
 | `handlerBodyRead` (on `RouteFact`) | `.body` member access or `{ body }` object-pattern in the handler | rule 8 |
 | `input` (on `RouteFact`) | presence of `body`/`query`/`params` in the wrapper config | rule 8 |

@@ -1,4 +1,4 @@
-// Search jump resolution (D-211, issue #187): the first debounced match plus the domain its
+// Search jump resolution (D-219, issue #187): the first debounced match plus the domain its
 // node belongs to. The panel turns this into `mode=detail`, a selection and a camera request;
 // keeping the resolution pure makes the "drill to the node's domain" rule testable.
 

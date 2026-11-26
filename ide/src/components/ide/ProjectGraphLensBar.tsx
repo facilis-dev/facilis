@@ -1,4 +1,4 @@
-// The in-place lens overlay (D-212, #189): a persistent lens switcher plus, while a lens is
+// The in-place lens overlay (D-220, #189): a persistent lens switcher plus, while a lens is
 // active, its banner (title, description, colour legend, total), the answer list and an explicit
 // zero-match state. It overlays the canvas, so toggling a lens never resizes the surface or
 // re-runs layout. Every string is a t() key; every colour is a semantic theme token.

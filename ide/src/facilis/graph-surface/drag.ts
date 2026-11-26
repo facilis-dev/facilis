@@ -1,4 +1,4 @@
-// The node-drag pipeline for the detail view (D-211, issue #185): grab a node, follow the
+// The node-drag pipeline for the detail view (D-219, issue #185): grab a node, follow the
 // pointer live (edges track the working rect), and on release snap to the nearest swimlane
 // column. Pure functions so the gesture math is regression-testable without a DOM; the pointer
 // hook wires them to mouse AND touch through unified pointer events. The overview never drags.

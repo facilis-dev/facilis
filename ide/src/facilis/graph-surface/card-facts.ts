@@ -1,4 +1,4 @@
-// Pure fact extraction for the on-demand rich card (D-211, issue #188). The card shows the
+// Pure fact extraction for the on-demand rich card (D-219, issue #188). The card shows the
 // analyzer facts the graph already joined in graph-details.ts; these helpers make the per-kind
 // content testable without a DOM and keep long lists bounded with an explicit overflow count.
 

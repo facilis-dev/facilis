@@ -201,7 +201,7 @@ export const projectGraphEn = {
   "projectGraph.prerender.usedByPages": "Prerendered pages calling it",
   "projectGraph.prerender.noUsedByPages": "No prerendered page calls this route.",
 
-  // ── map-and-lens canvas surface (D-211, issues #184/#187) ───────────────────
+  // ── map-and-lens canvas surface (D-219, issues #184/#187) ───────────────────
   "projectGraph.drawer": "Node details",
   "projectGraph.searchResults": "Search results",
   "projectGraph.surface.canvasLabel": "Project graph map",
@@ -231,7 +231,7 @@ export const projectGraphEn = {
   "projectGraph.surface.detailHint":
     "Drag a node to move it · drag the pane to pan · scroll or pinch to zoom",
 
-  // ── in-place lenses and analyzer diagnostics (D-212, issue #189) ────────────
+  // ── in-place lenses and analyzer diagnostics (D-220, issue #189) ────────────
   "projectGraph.surface.lens.title": "Q&A lenses",
   "projectGraph.surface.lens.security": "Q5 · Security",
   "projectGraph.surface.lens.security.short": "Q5",

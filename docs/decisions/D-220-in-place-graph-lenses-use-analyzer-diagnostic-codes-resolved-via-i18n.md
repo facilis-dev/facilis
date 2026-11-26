@@ -1,7 +1,7 @@
-# D-212 — In-place graph lenses use analyzer diagnostic codes resolved via i18n
+# D-220 — In-place graph lenses use analyzer diagnostic codes resolved via i18n
 **Status:** accepted (2026-11-25)
 
-**Context.** D-211 fixes the map-and-lens direction: lenses are in-place highlights, never
+**Context.** D-219 fixes the map-and-lens direction: lenses are in-place highlights, never
 separate modes, and the graph's messages obey "codes, not prose". Child #189 is the contract
 child of epic #182. Before it, the preview answered Q4/Q5/Q9/Q17 with hardcoded English strings
 inside the canvas bundle, which meant a new locale touched analysis code and the answer list

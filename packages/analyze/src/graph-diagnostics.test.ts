@@ -1,4 +1,4 @@
-// The analyzer's lens facts (D-212, #189): every code, its structured params and a clean case.
+// The analyzer's lens facts (D-220, #189): every code, its structured params and a clean case.
 // The graph is built from the same facts fixture the graph tests use, so ids stay identical.
 
 import { describe, expect, it } from "vitest";

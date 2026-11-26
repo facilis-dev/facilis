@@ -1,4 +1,4 @@
-// Canvas2D draw primitives for the map-and-lens surface (D-211, issue #184), ported from the
+// Canvas2D draw primitives for the map-and-lens surface (D-219, issue #184), ported from the
 // validated preview: world-space drawing, viewport culling, no per-node DOM. Colours come from
 // palette.ts (semantic role tokens, D-043/D-044), so a theme flip repaints the canvas.
 

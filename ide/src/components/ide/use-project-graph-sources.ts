@@ -1,4 +1,4 @@
-// The sources the analyzer already read for this snapshot (D-211, #187/#188), split from the
+// The sources the analyzer already read for this snapshot (D-219, #187/#188), split from the
 // panel to keep it under the 300-line source limit. loadProjectSources is cached per controller
 // snapshot, so the drawer's code previews never re-read files one node at a time.
 

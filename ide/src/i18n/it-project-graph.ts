@@ -205,7 +205,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.prerender.usedByPages": "Pagine prerenderizzate che la chiamano",
   "projectGraph.prerender.noUsedByPages": "Nessuna pagina prerenderizzata chiama questa route.",
 
-  // ── map-and-lens canvas surface (D-211, issues #184/#187) ───────────────────
+  // ── map-and-lens canvas surface (D-219, issues #184/#187) ───────────────────
   "projectGraph.drawer": "Dettagli del nodo",
   "projectGraph.searchResults": "Risultati della ricerca",
   "projectGraph.surface.canvasLabel": "Mappa del grafo del progetto",
@@ -236,7 +236,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.detailHint":
     "Trascina un nodo per spostarlo · trascina lo sfondo per muoverti · rotella o pizzico per lo zoom",
 
-  // ── lenti in-place e diagnostiche dell'analizzatore (D-212, issue #189) ─────
+  // ── lenti in-place e diagnostiche dell'analizzatore (D-220, issue #189) ─────
   "projectGraph.surface.lens.title": "Lenti Q&A",
   "projectGraph.surface.lens.security": "Q5 · Sicurezza",
   "projectGraph.surface.lens.security.short": "Q5",

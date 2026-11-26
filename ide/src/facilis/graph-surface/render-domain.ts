@@ -1,4 +1,4 @@
-// The overview domain card (D-211, #184; lens badges D-212, #189), split from render.ts so
+// The overview domain card (D-219, #184; lens badges D-220, #189), split from render.ts so
 // both drawing modules stay under the 300-line source limit.
 
 import type { GraphNodeKind } from "@facilis.dev/analyze";

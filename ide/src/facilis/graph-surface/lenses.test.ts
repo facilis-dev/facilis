@@ -1,4 +1,4 @@
-// The code -> i18n -> lens contract (D-212, #189). These are the invariants the canvas and the
+// The code -> i18n -> lens contract (D-220, #189). These are the invariants the canvas and the
 // answer list rely on: one mapping, no prose, no colour literals, and draw-only state that never
 // touches the layout fingerprint (nodes never move under a lens).
 

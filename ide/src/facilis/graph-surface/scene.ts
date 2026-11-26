@@ -1,4 +1,4 @@
-// Scene assembly and the single-frame draw for the map-and-lens surface (D-211, issue #184).
+// Scene assembly and the single-frame draw for the map-and-lens surface (D-219, issue #184).
 // A scene is built once per dataset/domain and cached; drawing reads it plus the camera, so a
 // pan/zoom frame never re-runs layout. The caller redraws only when dirty (idle cost is zero).
 

@@ -1,4 +1,4 @@
-// The dirty-only redraw loop (D-211, issues #184/#186): idle frames must do ZERO draw work,
+// The dirty-only redraw loop (D-219, issues #184/#186): idle frames must do ZERO draw work,
 // a dirty frame draws exactly once, and stopping cancels the pending frame. Scheduling is a
 // fake frame queue here, so the assertions are exact frame counts, not wall-clock guesses.
 import { describe, expect, it } from "vitest";

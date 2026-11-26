@@ -1,4 +1,4 @@
-// Positions the rich card anchored to its node (D-211, issue #188). The surface calls
+// Positions the rich card anchored to its node (D-219, issue #188). The surface calls
 // position() from the dirty-only draw loop, so pan/zoom keeps the card glued to the node without
 // a React render per frame; opening/closing and resizes re-measure. Placement itself is pure
 // (card-position.ts) and never touches the scene, the layout or the camera.

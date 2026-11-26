@@ -1,4 +1,4 @@
-// HUD and drawer safe-area geometry for the map-and-lens surface (D-211, issues #144/#155/#187/
+// HUD and drawer safe-area geometry for the map-and-lens surface (D-219, issues #144/#155/#187/
 // #191). The inspector reserves a right column on wide viewports and a bottom sheet on narrow
 // ones: fit, centre, the breadcrumb and the hint all read these numbers from one place, so no
 // control can overlap the drawer and fit never forgets its footprint. Pure geometry, unit-testable

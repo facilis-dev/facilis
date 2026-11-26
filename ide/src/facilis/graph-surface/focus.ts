@@ -1,4 +1,4 @@
-// Selection focus for the map-and-lens surface (D-211, issue #187): selecting a node dims
+// Selection focus for the map-and-lens surface (D-219, issue #187): selecting a node dims
 // everything outside its neighbourhood. A PAGE reaches two hops (page -> routes -> tables/views)
 // so its data is visible on the canvas; every other kind reaches one. The neighbourhood is
 // computed from the cached adjacency index — draw state only, never a model or layout rebuild.

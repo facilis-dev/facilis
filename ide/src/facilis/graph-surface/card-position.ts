@@ -1,4 +1,4 @@
-// Rich-card placement for the map-and-lens surface (D-211, issue #188): the card is anchored
+// Rich-card placement for the map-and-lens surface (D-219, issue #188): the card is anchored
 // to its node in screen space and clamped to the viewport. Placement is a pure function of the
 // node's world rect and the camera, so opening a card never touches the scene, the layout or the
 // camera — spatial constancy is a property of this module, not a rendering convention.

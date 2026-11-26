@@ -1,4 +1,4 @@
-// Search-jump resolution for the project graph (D-211, issue #187): the debounced match set
+// Search-jump resolution for the project graph (D-219, issue #187): the debounced match set
 // plus the pure first-match/domain rule, exposed as a jump request the surface centres on.
 // Kept out of the panel so the panel stays under the line limit.
 

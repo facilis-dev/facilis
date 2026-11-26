@@ -1,5 +1,5 @@
 // Saved-position overrides and the dataset fingerprint for the map-and-lens surface
-// (D-211, issue #185). Layout is cached per dataset: the fingerprint excludes the search query
+// (D-219, issue #185). Layout is cached per dataset: the fingerprint excludes the search query
 // and the matched flags, so a keystroke never re-runs layout. Saved positions (D-126) pin a
 // node's rect over the automatic swimlane placement, so adding/hiding a sibling cannot shift it,
 // and a dropped node sticks where the user put it instead of snapping back (#145).

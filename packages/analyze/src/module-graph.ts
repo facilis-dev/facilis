@@ -1,7 +1,7 @@
 import { isSourceFile, readJson as parseJson } from "./json.ts";
 import { parseModuleInfo, type ModuleInfo } from "./module-info.ts";
 import { createPathResolver, normalizePath, type PathAlias } from "./path-resolver.ts";
-import type { ParseError, Parser } from "./parser.ts";
+import type { ParseError, Parser, SourceComment } from "./parser.ts";
 import type { AstNode } from "./ast/node.ts";
 import { sourceLines, type SourceLines } from "./source.ts";
 
@@ -12,6 +12,9 @@ export interface ProjectFile {
   readonly lines: SourceLines;
   readonly program: AstNode;
   readonly errors: readonly ParseError[];
+  /** Parser-reported comments; null when the parser does not expose them, so a marker that
+   * cannot be read stays distinguishable from a file without one (D-211). */
+  readonly comments: readonly SourceComment[] | null;
   readonly module: ModuleInfo;
 }
 
@@ -55,6 +58,7 @@ export function createModuleGraph(input: ModuleGraphInput): ModuleGraph {
       lines,
       program: parsed.program,
       errors: parsed.errors,
+      comments: parsed.comments ?? null,
       module: parseModuleInfo(path, lines, parsed.program),
     });
   }

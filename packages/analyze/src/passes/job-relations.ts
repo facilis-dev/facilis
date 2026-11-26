@@ -45,6 +45,7 @@ function toJobRelations(usage: ReturnType<typeof scanFunctionUsage>): JobRelatio
     used: usage.used,
     unresolved: usage.unresolved,
     rawSql: usage.rawSql,
+    rawSqlStatements: usage.rawSqlStatements,
     opaque: usage.opaque,
   };
 }

@@ -1,4 +1,4 @@
-// The node-drag pipeline and its persistence (D-211, issue #185, D-126/D-127): grab math, live
+// The node-drag pipeline and its persistence (D-219, issue #185, D-126/D-127): grab math, live
 // follow, snap-to-column release, and the round-trip through the real per-element state files —
 // a dragged position writes one small file, survives reload as an override, and never snaps back.
 import { describe, expect, it } from "vitest";
