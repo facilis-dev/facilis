@@ -118,30 +118,5 @@ describe("buildProjectGraphView layout", () => {
   });
 });
 
-describe("buildProjectGraphView search", () => {
-  const graph = graphOf([PAGE, GET, TODOS, PROJECTS, ACTIVE_TODOS, WORKFLOW], []);
-
-  it("matches labels, paths, permissions, column names, view and workflow facts", () => {
-    for (const query of [
-      "todos",
-      "GET",
-      "todos:read",
-      "created_at",
-      "active_todos",
-      "definer",
-      "purge",
-      "tasks:decide",
-    ]) {
-      const view = buildProjectGraphView({ graph, query });
-      expect(view.stats.matches, query).toBeGreaterThan(0);
-    }
-    const none = buildProjectGraphView({ graph, query: "nothing-here" });
-    expect(none.stats.matches).toBe(0);
-    expect(none.nodes.every((node) => !node.matched)).toBe(true);
-  });
-
-  it("treats a blank query as matching everything", () => {
-    const view = buildProjectGraphView({ graph, query: "   " });
-    expect(view.stats.matches).toBe(view.nodes.length);
-  });
-});
+// Search coverage moved to graph-search.test.ts (issue #186): the match pass is incremental
+// and the model builder no longer takes a query.

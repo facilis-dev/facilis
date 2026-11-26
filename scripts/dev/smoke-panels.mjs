@@ -117,6 +117,231 @@ const EXPLORER_DETAIL =
 
 const COUNT = (selector) => "document.querySelectorAll(" + JSON.stringify(selector) + ").length";
 
+// A canvas that exists but has no area, or draws nothing, is the blank-canvas regression this
+// gate exists to catch (#182). Measure the surface root and its inner canvas, and sample the
+// painted pixels against the canvas background: a passed check means a human would SEE a graph.
+const GRAPH_SNAPSHOT = `(() => {
+  const root = document.querySelector('[data-testid="project-graph-canvas"]');
+  const panel = document.querySelector('[data-testid="project-graph-panel"]');
+  const canvas = root ? root.querySelector('canvas') : null;
+  const box = (element) => {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    return { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) };
+  };
+  let painted = -1;
+  let pixels = null;
+  let background = null;
+  if (canvas && canvas.width > 0 && canvas.height > 0) {
+    try {
+      const ctx = canvas.getContext('2d');
+      const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = image.data;
+      background = [data[0], data[1], data[2], data[3]];
+      let count = 0;
+      // Sample every 4th pixel on a small panel: enough evidence of a frame, cheap enough to
+      // run on every poll while the analysis loads.
+      for (let index = 0; index < data.length; index += 16) {
+        if (
+          Math.abs(data[index] - background[0]) > 10 ||
+          Math.abs(data[index + 1] - background[1]) > 10 ||
+          Math.abs(data[index + 2] - background[2]) > 10
+        ) count += 1;
+      }
+      painted = count;
+      pixels = { width: canvas.width, height: canvas.height, sampled: Math.ceil(data.length / 16) };
+    } catch (error) {
+      painted = -2;
+      background = String(error && error.message ? error.message : error);
+    }
+  }
+  return JSON.stringify({
+    panel: panel !== null,
+    root: root !== null,
+    rootBox: box(root),
+    canvasBox: box(canvas),
+    canvasPixels: pixels,
+    painted,
+    background,
+    mode: root ? root.getAttribute('data-graph-mode') : null,
+    domain: root ? root.getAttribute('data-graph-domain') : null,
+    columns: root ? root.getAttribute('data-graph-columns') : null,
+    camera: root ? root.getAttribute('data-graph-camera') : null,
+    selectedY: root ? root.getAttribute('data-graph-selected-y') : null,
+    selectedRect: root ? root.getAttribute('data-graph-selected-rect') : null,
+    bounds: root ? root.getAttribute('data-graph-bounds') : null,
+    content: root ? root.getAttribute('data-graph-content') : null,
+    hudTop: root ? root.getAttribute('data-graph-hud-top') : null,
+    nodeLists: document.querySelectorAll('[data-testid="project-graph-node-list"]').length,
+    testIds: document.querySelectorAll('[data-testid^="project-graph-"]').length,
+    canScrollX: document.documentElement.scrollWidth > window.innerWidth + 1,
+    text: panel ? (panel.innerText || '').slice(-240) : '',
+  });
+})()`;
+
+async function graphSnapshot(page) {
+  return JSON.parse(await page.evaluate(GRAPH_SNAPSHOT));
+}
+
+// The HUD is DOM (breadcrumb + lens switcher), the graph is canvas: measure both against the same
+// surface root and prove numerically that content and selection stay outside the HUD rows (#144).
+const HUD_RECTS = `(() => {
+  const root = document.querySelector('[data-testid="project-graph-canvas"]');
+  if (!root) return JSON.stringify(null);
+  const base = root.getBoundingClientRect();
+  const parts = ['project-graph-breadcrumb', 'project-graph-lens-bar']
+    .map((id) => {
+      const element = document.querySelector('[data-testid="' + id + '"]');
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { id, x: rect.x - base.x, y: rect.y - base.y, w: rect.width, h: rect.height };
+    })
+    .filter(Boolean);
+  if (parts.length === 0) return JSON.stringify(null);
+  const left = Math.min(...parts.map((part) => part.x));
+  const right = Math.max(...parts.map((part) => part.x + part.w));
+  const top = Math.min(...parts.map((part) => part.y));
+  const bottom = Math.max(...parts.map((part) => part.y + part.h));
+  return JSON.stringify({ parts, union: { x: left, y: top, w: right - left, h: bottom - top } });
+})()`;
+
+const parseRect = (value) => {
+  const [x, y, w, h] = value ? value.split(",").map(Number) : [];
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)
+    ? { x, y, w, h }
+    : null;
+};
+const rectsIntersect = (a, b) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** The DOM HUD union plus the canvas data attributes of the content box / bounds / selection. */
+async function hudOverlap(page) {
+  const hud = JSON.parse(await page.evaluate(HUD_RECTS));
+  const state = await graphSnapshot(page);
+  return {
+    hud,
+    state,
+    content: parseRect(state.content),
+    bounds: parseRect(state.bounds),
+    selected: parseRect(state.selectedRect),
+  };
+}
+
+/** 390x844 with touch, the issue #191 acceptance viewport. */
+async function emulatePhone(page, mobile) {
+  if (mobile) {
+    await page.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await page.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    return;
+  }
+  await page.send("Emulation.clearDeviceMetricsOverride");
+  await page.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}
+
+/** One-finger drag through CDP touch events; the canvas reacts through real PointerEvents. */
+async function touchDrag(page, from, to, steps = 10) {
+  const point = (x, y) => ({
+    x: Math.round(x),
+    y: Math.round(y),
+    radiusX: 2,
+    radiusY: 2,
+    force: 1,
+    id: 1,
+  });
+  await page.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [point(from.x, from.y)],
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await sleep(16);
+    const x = from.x + ((to.x - from.x) * step) / steps;
+    const y = from.y + ((to.y - from.y) * step) / steps;
+    await page.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [point(x, y)],
+    });
+  }
+  await sleep(80);
+  await page.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
+const OVERVIEW_CLICK =
+  "(() => { const back = document.querySelector('[data-testid=\"project-graph-overview\"]');" +
+  " if (back && back.tagName === 'BUTTON') back.click(); return true; })()";
+
+// The no-reflow reference must be a domain that really has several lanes. The a11y list groups
+// the overview by domain, so pick a node in the group with the most lane kinds: clicking it
+// drills into that domain and opens the inspector, exactly like a canvas click.
+const PICK_RICHEST = `(() => {
+  const groups = [...document.querySelectorAll('[data-testid="project-graph-node-list"] [role="group"]')];
+  const LANE = { 'project-graph-page': 'page', 'project-graph-route': 'route', 'project-graph-table': 'data', 'project-graph-view': 'data', 'project-graph-workflow': 'workflow' };
+  let best = null;
+  for (const group of groups) {
+    const buttons = [...group.querySelectorAll('button[data-testid^="project-graph-"]')];
+    const lanes = new Set(buttons.map((button) => LANE[button.getAttribute('data-testid')] ?? button.getAttribute('data-testid')));
+    const heading = group.querySelector('h2');
+    const candidate = { domain: heading ? heading.textContent : '', lanes: lanes.size, group };
+    if (candidate.lanes < 2) continue;
+    if (best === null || candidate.lanes > best.lanes) best = candidate;
+  }
+  if (best === null) return JSON.stringify({ domain: null, lanes: 0, clicked: 'NONE' });
+  const button = best.group.querySelector('button[data-testid="project-graph-page"]') || best.group.querySelector('button');
+  button.click();
+  return JSON.stringify({ domain: best.domain, lanes: best.lanes, clicked: button.getAttribute('data-testid') });
+})()`;
+
+async function pickRichestNode(page) {
+  return JSON.parse(await page.evaluate(PICK_RICHEST));
+}
+
+async function drawerState(page) {
+  return JSON.parse(
+    await page.evaluate(
+      "(() => { const d = document.querySelector('[data-testid=\"project-graph-drawer\"]');" +
+        " const r = d ? d.getBoundingClientRect() : null;" +
+        " return JSON.stringify({ layout: d ? d.getAttribute('data-layout') : null," +
+        " rect: r ? { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) } : null," +
+        " overflowX: document.documentElement.scrollWidth - window.innerWidth," +
+        " viewport: { width: window.innerWidth, height: window.innerHeight } }); })()",
+    ),
+  );
+}
+
+// Poll until the surface paints something, logging every state transition: the failure mode
+// we chase is "DOM mounted, canvas blank", so the log must show geometry and pixel counts.
+async function waitForGraphState(page, predicate, limitMs) {
+  const until = Date.now() + limitMs;
+  let snapshot = await graphSnapshot(page);
+  while (Date.now() < until) {
+    if (predicate(snapshot)) return snapshot;
+    await sleep(250);
+    snapshot = await graphSnapshot(page);
+  }
+  return snapshot;
+}
+
+async function waitForPaintedGraph(page, limitMs) {
+  const until = Date.now() + limitMs;
+  let previous = "";
+  let snapshot = await graphSnapshot(page);
+  while (Date.now() < until) {
+    const next = JSON.stringify(snapshot);
+    if (next !== previous) {
+      console.log("graph surface: " + next);
+      previous = next;
+    }
+    if (snapshot.root && snapshot.painted > 0) return snapshot;
+    await sleep(2000);
+    snapshot = await graphSnapshot(page);
+  }
+  return snapshot;
+}
+
 export async function runPanelChecks({ page, check, ARTIFACTS }) {
   const checks = [];
   const record = (ok, label, detail = "") => {
@@ -138,26 +363,58 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     ),
     "project graph: panel mounted",
   );
-  const graphCanvas = await waitFor(
-    page,
-    "Boolean(document.querySelector('[data-testid=\"project-graph-canvas\"]'))",
-    60000,
-  );
+  const surface = await waitForPaintedGraph(page, 240000);
   record(
-    graphCanvas,
+    surface.root,
     "project graph: analyzer result rendered",
-    graphCanvas ? "" : await page.evaluate("(document.body.innerText || '').slice(0, 400)"),
+    surface.root ? "" : JSON.stringify(surface).slice(0, 400),
   );
   record(
-    await waitFor(page, COUNT('[data-testid="project-graph-table"]') + " > 0", 30000),
+    surface.root !== null && surface.rootBox.width >= 200 && surface.rootBox.height >= 160,
+    "project graph: canvas has a usable area",
+    surface.root === null ? "NO SURFACE" : JSON.stringify(surface.rootBox),
+  );
+  record(
+    surface.painted > 0,
+    "project graph: canvas painted",
+    JSON.stringify({
+      painted: surface.painted,
+      canvasBox: surface.canvasBox,
+      pixels: surface.canvasPixels,
+      background: surface.background,
+    }),
+  );
+  record(
+    surface.nodeLists > 0 && surface.testIds > 0,
+    "project graph: accessible node list rendered",
+    JSON.stringify({ nodeLists: surface.nodeLists, testIds: surface.testIds }),
+  );
+  // The old #144 class: a HUD overlay on top of a domain card. Compare the measured DOM HUD union
+  // with the scene bounds (every drawn card is inside it) and with the reserved content box.
+  const overviewHud = await hudOverlap(page);
+  record(
+    overviewHud.hud !== null &&
+      overviewHud.content !== null &&
+      overviewHud.bounds !== null &&
+      !rectsIntersect(overviewHud.bounds, overviewHud.hud.union) &&
+      overviewHud.bounds.y >= overviewHud.hud.union.y + overviewHud.hud.union.h - 1,
+    "project graph: HUD never covers a domain card",
+    JSON.stringify({
+      hud: overviewHud.hud === null ? null : overviewHud.hud.union,
+      content: overviewHud.content,
+      bounds: overviewHud.bounds,
+    }),
+  );
+  record(
+    await waitFor(page, COUNT('[data-testid="project-graph-table"]') + " > 0", 15000),
     "project graph: tables rendered",
   );
   record(
-    await waitFor(page, COUNT('[data-testid="project-graph-route"]') + " > 0", 30000),
+    await waitFor(page, COUNT('[data-testid="project-graph-route"]') + " > 0", 15000),
     "project graph: routes rendered",
   );
   record(
-    await waitFor(page, COUNT('[data-testid="project-graph-page"]') + " > 0", 30000),
+    await waitFor(page, COUNT('[data-testid="project-graph-page"]') + " > 0", 15000),
     "project graph: pages rendered",
   );
   await page.screenshot(ARTIFACTS + "/05b-project-graph.png");
@@ -195,7 +452,159 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "prerender: ineligible page blocks the toggle with its reason",
     prerenderState,
   );
+  // Centre-on-node must keep the selected card fully below the HUD rows (#144).
+  await waitForGraphState(
+    page,
+    (state) => state.mode === "detail" && state.selectedRect !== null && state.selectedRect !== "",
+    5000,
+  );
+  const detailHud = await hudOverlap(page);
+  record(
+    detailHud.hud !== null &&
+      detailHud.selected !== null &&
+      !rectsIntersect(detailHud.selected, detailHud.hud.union),
+    "prerender: selected node is not covered by the HUD",
+    JSON.stringify({
+      selected: detailHud.selected,
+      hud: detailHud.hud === null ? null : detailHud.hud.union,
+    }),
+  );
   await page.screenshot(ARTIFACTS + "/05c-prerender-inspector.png");
+
+  // Desktop reference for the no-reflow assertion: the same multi-lane detail domain must keep
+  // its swimlane count on a phone, because the layout is screen-size independent by design.
+  await page.evaluate(OVERVIEW_CLICK);
+  await waitForGraphState(page, (state) => state.mode === "overview", 5000);
+  const desktopPick = await pickRichestNode(page);
+  const desktopDetail = await waitForGraphState(
+    page,
+    (state) => state.mode === "detail" && state.domain === desktopPick.domain,
+    15000,
+  );
+  console.log("desktop detail: " + JSON.stringify({ desktopPick, desktopDetail }));
+
+  // ── Mobile acceptance (issue #191): 390x844 with emulated touch. The hard requirement is
+  // that the phone keeps the spatial layout and the drawer becomes a bottom sheet — the graph
+  // must never reflow the swimlanes into one column. ──
+  await emulatePhone(page, true);
+  await sleep(1000);
+  await page.evaluate(OVERVIEW_CLICK);
+  const mobileOverview = await waitForGraphState(
+    page,
+    (state) => state.mode === "overview" && state.painted > 0,
+    15000,
+  );
+  console.log("mobile overview: " + JSON.stringify(mobileOverview));
+  record(
+    mobileOverview.root !== null &&
+      mobileOverview.rootBox.width >= 120 &&
+      mobileOverview.rootBox.height >= 240,
+    "mobile: graph canvas has area at 390x844",
+    mobileOverview.root === null ? "NO SURFACE" : JSON.stringify(mobileOverview.rootBox),
+  );
+  record(
+    mobileOverview.root !== null &&
+      mobileOverview.painted > 0 &&
+      mobileOverview.canvasPixels !== null,
+    "mobile: graph canvas painted at 390x844",
+    JSON.stringify({
+      painted: mobileOverview.painted,
+      pixels: mobileOverview.canvasPixels,
+    }),
+  );
+  record(
+    mobileOverview.mode === "overview" && Number(mobileOverview.columns) >= 2,
+    "mobile: overview keeps its domain grid",
+    JSON.stringify({ mode: mobileOverview.mode, columns: mobileOverview.columns }),
+  );
+  const cameraBefore = mobileOverview.camera;
+  // The mobile IDE can clip the panel against a sibling pane: hit-test a point that the canvas
+  // actually owns instead of assuming its geometric centre is reachable.
+  const panStart = await page.evaluate(
+    "(() => { const canvas = document.querySelector('[data-testid=\"project-graph-canvas\"] canvas');" +
+      " if (!canvas) return null; const rect = canvas.getBoundingClientRect();" +
+      " const maxX = Math.min(rect.right, window.innerWidth) - 20;" +
+      " const maxY = Math.min(rect.bottom, window.innerHeight) - 20;" +
+      " for (let y = Math.max(20, Math.min(rect.top, window.innerHeight) + 20); y < maxY; y += 20) {" +
+      " for (let x = Math.max(20, Math.min(rect.left, window.innerWidth) + 20); x < maxX; x += 20) {" +
+      " if (document.elementFromPoint(x, y) === canvas) return { x, y }; } }" +
+      " return null; })()",
+  );
+  if (panStart !== null) {
+    await touchDrag(page, panStart, { x: panStart.x + 70, y: panStart.y + 45 });
+  }
+  const box = panStart;
+  const panned = await waitForGraphState(
+    page,
+    (state) => state.camera !== null && state.camera !== cameraBefore,
+    5000,
+  );
+  record(
+    box !== null && panned.camera !== cameraBefore,
+    "mobile: one-finger drag pans the camera",
+    JSON.stringify({ before: cameraBefore, after: panned.camera }),
+  );
+  await page.screenshot(ARTIFACTS + "/05d-mobile-overview.png");
+
+  const mobilePick = await pickRichestNode(page);
+  const mobileDetail = await waitForGraphState(
+    page,
+    (state) => state.mode === "detail" && state.domain === mobilePick.domain,
+    15000,
+  );
+  const drawer = await drawerState(page);
+  console.log("mobile detail: " + JSON.stringify({ mobileDetail, drawer }));
+  record(
+    mobilePick.domain !== null && mobileDetail.mode === "detail",
+    "mobile: a node opens the detail view",
+    JSON.stringify({ pick: mobilePick, mode: mobileDetail.mode, domain: mobileDetail.domain }),
+  );
+  record(
+    mobileDetail.mode === "detail" &&
+      desktopDetail.mode === "detail" &&
+      Number(mobileDetail.columns) >= 2 &&
+      mobilePick.domain === desktopPick.domain &&
+      mobileDetail.columns === desktopDetail.columns,
+    "mobile: detail swimlanes keep their columns",
+    JSON.stringify({
+      mobile: mobileDetail.columns,
+      desktop: desktopDetail.columns,
+      domain: mobileDetail.domain,
+      picked: mobilePick.domain,
+    }),
+  );
+  const nodeAboveSheet =
+    drawer.rect !== null &&
+    mobileDetail.rootBox !== null &&
+    mobileDetail.selectedY !== null &&
+    mobileDetail.selectedY !== "" &&
+    mobileDetail.rootBox.y + Number(mobileDetail.selectedY) < drawer.rect.y;
+  record(
+    drawer.layout === "sheet" && nodeAboveSheet,
+    "mobile: drawer opens as a bottom sheet with the node above it",
+    JSON.stringify({
+      layout: drawer.layout,
+      drawerTop: drawer.rect === null ? null : drawer.rect.y,
+      nodeY:
+        mobileDetail.rootBox === null || !mobileDetail.selectedY
+          ? null
+          : Math.round(mobileDetail.rootBox.y + Number(mobileDetail.selectedY)),
+    }),
+  );
+  record(
+    drawer.overflowX <= 1,
+    "mobile: no horizontal overflow",
+    JSON.stringify({ overflowX: drawer.overflowX, viewport: drawer.viewport }),
+  );
+  await page.screenshot(ARTIFACTS + "/05e-mobile-detail.png");
+  await emulatePhone(page, false);
+  await sleep(500);
+  const backToDesktop = await page.evaluate("window.innerWidth");
+  record(
+    backToDesktop > 700,
+    "mobile: emulation reset for the remaining checks",
+    "innerWidth=" + backToDesktop,
+  );
 
   // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar reads the
   // schema and the console posts through the preview proxy. Clicking the active activity

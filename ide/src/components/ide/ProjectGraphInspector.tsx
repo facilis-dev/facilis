@@ -2,18 +2,23 @@
 // layout and the kind switch; the facts, the source snippet and the styling primitives live in
 // the per-kind section modules, so no one file grows past the limit as sections are added.
 
+import Maximize2 from "~icons/lucide/maximize-2";
 import X from "~icons/lucide/x";
-import type { GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
+import { useMemo } from "react";
+import type { GraphDiagnostic, GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
-import type { ProjectGraphEdge, ProjectGraphNode } from "@/facilis/graph-model";
+import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { prerenderFactForPage, prerenderedPagesForRoute } from "@/facilis/graph-prerender";
+import { CORE_DOMAIN, deriveDomainAssignments } from "@/facilis/graph-surface/domains.ts";
+import { ProjectGraphGroupControl } from "./ProjectGraphGroupControl";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
 import { ProjectGraphViewDetails } from "./ProjectGraphViewDetails";
 import { ProjectGraphWorkflowDetails } from "./ProjectGraphWorkflowDetails";
+import { ProjectGraphAnswers } from "./ProjectGraphAnswers";
 
 export interface ProjectGraphInspectorProps {
   node: ProjectGraphNode;
@@ -22,15 +27,26 @@ export interface ProjectGraphInspectorProps {
   sources: ReadonlyMap<string, string>;
   nodeLabel: (id: string) => string | null;
   onClose: () => void;
+  onExpand: () => void;
   onOpenFileAt: (file: string, line: number) => void;
   onOpenPreview: (path: string) => void;
   onSelectNode: (id: string) => void;
+  /** The drawn graph, for the answer sections' pure projections (issue #190). */
+  view: ProjectGraphView;
+  diagnostics: readonly GraphDiagnostic[];
+  /** Every node's analyzer details: Q10 joins workflows to the table they touch. */
+  detailsMap: ReadonlyMap<string, NodeDetails>;
+  /** Selecting an answer row reuses the search jump: select, drill to its domain, centre it. */
+  onNavigateNode: (nodeId: string) => void;
   /** The drawn page nodes, for the route satellite's prerendered-page join (D-202). */
   nodes: readonly ProjectGraphNode[];
   prerenderFacts: readonly PrerenderEligibilityFact[];
   /** The unfiltered analyzer edges: hiding an edge kind must not hide prerender callers. */
   graphEdges: readonly GraphEdge[];
   onTogglePrerender: (path: string, enabled: boolean) => Promise<boolean>;
+  /** Per-node feature-group overrides, and the mutation that pins/clears one. */
+  groups: Readonly<Record<string, string>>;
+  onSetGroup: (id: string, group: string | null) => void;
 }
 
 export function ProjectGraphInspector({
@@ -40,24 +56,53 @@ export function ProjectGraphInspector({
   sources,
   nodeLabel,
   onClose,
+  onExpand,
   onOpenFileAt,
   onOpenPreview,
   onSelectNode,
+  view,
+  diagnostics,
+  detailsMap,
+  onNavigateNode,
   nodes,
   prerenderFacts,
   graphEdges,
   onTogglePrerender,
+  groups,
+  onSetGroup,
 }: ProjectGraphInspectorProps) {
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
+  const assignments = useMemo(
+    () => deriveDomainAssignments(view.nodes, view.edges, groups),
+    [view, groups],
+  );
+  const assignment = assignments.get(node.id) ?? {
+    group: CORE_DOMAIN,
+    reason: "core" as const,
+    evidence: null,
+  };
+  const groupNames = useMemo(
+    () => [...new Set([...assignments.values()].map((entry) => entry.group))].toSorted(),
+    [assignments],
+  );
   return (
     <aside
       data-testid="project-graph-inspector"
-      className="flex w-80 shrink-0 flex-col border-l bg-sidebar text-xs"
+      className="flex h-full w-full min-h-0 flex-col bg-sidebar text-xs"
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
           {t("projectGraph.details")}
         </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("projectGraph.surface.card.open")}
+          title={t("projectGraph.surface.card.open")}
+          onClick={onExpand}
+        >
+          <Maximize2 />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -69,6 +114,21 @@ export function ProjectGraphInspector({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
+        <ProjectGraphGroupControl
+          nodeId={node.id}
+          assignment={assignment}
+          groups={groupNames}
+          onSetGroup={onSetGroup}
+        />
+        <ProjectGraphAnswers
+          node={node}
+          view={view}
+          details={detailsMap}
+          diagnostics={diagnostics}
+          groups={groups}
+          onNavigateNode={onNavigateNode}
+          onOpenFileAt={onOpenFileAt}
+        />
         {node.data.kind === "route" && (
           <ProjectGraphRouteDetails
             {...shared}

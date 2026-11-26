@@ -1,7 +1,8 @@
 // The project graph's saved state (AST graph contract §7, D-126). The state is split across
 // small files under `.facilis/graph` so version control works: `layout.json` holds the view
-// settings, `nodes.jsonl` one line per position, `edges.jsonl` one line per manual bend and
-// `notes/<uuid>.md` one markdown file per annotation. Moving a node on one branch and moving
+// settings, `positions/<key>.json` one position per node, `bends/<key>.json` one manual bend,
+// `groups/<key>.json` one pinned feature group and `notes/<uuid>.md` one annotation. Moving a
+// node on one branch and moving
 // another node on another branch are different lines (or files) and merge automatically; only
 // the same element conflicts, and then on one visible line.
 //
@@ -30,6 +31,8 @@ export const GRAPH_LAYOUT_PATH = GRAPH_DIR + "/layout.json";
 export const GRAPH_POSITIONS_DIR = GRAPH_DIR + "/positions";
 /** One small bend file per manually curved edge. */
 export const GRAPH_BENDS_DIR = GRAPH_DIR + "/bends";
+/** One small override file per node whose feature group the user pinned. */
+export const GRAPH_GROUPS_DIR = GRAPH_DIR + "/groups";
 export const GRAPH_NOTES_DIR = GRAPH_DIR + "/notes";
 export const GRAPH_VIEWPORT_PATH = GRAPH_DIR + "/viewport.json";
 /** The single-file state written by the first shipped panel (v1/v2), migrated on read. */
@@ -53,6 +56,8 @@ export interface GraphLayoutFile {
   readonly collapsed: Readonly<Record<string, boolean>>;
   /** Manual edge bends, keyed by edge id; a missing id means the automatic path. */
   readonly edgeCurves: Readonly<Record<string, GraphCurve>>;
+  /** Manual feature-group overrides, keyed by node id; a missing id means the automatic group. */
+  readonly groups: Readonly<Record<string, string>>;
   /** Markdown annotations, keyed by `note:<uuid>`; the body is one file per note. */
   readonly notes: Readonly<Record<string, GraphNote>>;
   /** Per machine, written to the git-ignored viewport file. */
@@ -82,6 +87,7 @@ export function emptyGraphLayout(): GraphLayoutFile {
     tableVisibility: "all",
     collapsed: {},
     edgeCurves: {},
+    groups: {},
     notes: {},
   };
 }
@@ -188,6 +194,7 @@ export function parseGraphLayout(text: string | null | undefined): ParsedGraphLa
       tableVisibility: readTableVisibility(raw),
       collapsed: readCollapsed(raw.collapsed),
       edgeCurves: readCurves(raw.edgeCurves),
+      groups: {},
       notes: {},
       ...(viewport === null ? {} : { viewport }),
     },
@@ -218,6 +225,8 @@ export function mergeGraphLayout(
     // Edge ids are not node ids: stale curves are dropped by pruneGraphCurves when the panel
     // next sees the graph, so merge just carries the map along.
     edgeCurves: layout.edgeCurves,
+    // A pinned group is user intent: keep it even while the node is temporarily absent.
+    groups: layout.groups,
     notes: layout.notes,
     ...(layout.viewport === undefined ? {} : { viewport: layout.viewport }),
   };
@@ -255,6 +264,7 @@ export function resetGraphLayoutPositions(layout: GraphLayoutFile): GraphLayoutF
     tableVisibility: layout.tableVisibility,
     collapsed: {},
     edgeCurves: {},
+    groups: layout.groups,
     notes: layout.notes,
   };
 }

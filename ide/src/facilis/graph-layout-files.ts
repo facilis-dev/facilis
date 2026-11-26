@@ -5,6 +5,7 @@
 //   .facilis/graph/layout.json           view settings (pretty JSON)
 //   .facilis/graph/positions/<key>.json  one {"id","x","y"} per analysis node or note
 //   .facilis/graph/bends/<key>.json      one manual bend per edge
+//   .facilis/graph/groups/<key>.json     one pinned feature group per node
 //   .facilis/graph/notes/<uuid>.md       one markdown file per annotation
 //   .facilis/graph/viewport.json         pan/zoom (git-ignored: per machine)
 //
@@ -19,6 +20,7 @@
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
 import {
   GRAPH_BENDS_DIR,
+  GRAPH_GROUPS_DIR,
   GRAPH_LAYOUT_PATH,
   GRAPH_LAYOUT_VERSION,
   GRAPH_NOTES_DIR,
@@ -47,6 +49,7 @@ import {
   type GraphNote,
   type GraphTableVisibility,
 } from "./graph-types";
+import { groupText, readGroupOverrides } from "./graph-layout-groups.ts";
 
 /** The raw text of each state file; `null`/`undefined`/`""` all mean "absent". */
 export interface GraphLayoutFiles {
@@ -56,6 +59,8 @@ export interface GraphLayoutFiles {
   readonly positions?: Readonly<Record<string, string>>;
   /** Bends directory: file name → text. */
   readonly bends?: Readonly<Record<string, string>>;
+  /** Groups directory: file name → text. */
+  readonly groups?: Readonly<Record<string, string>>;
   /** Notes directory: note id → markdown. */
   readonly notes?: Readonly<Record<string, string>>;
   /** The pre-D-126 single file, read only while `.facilis/graph/` does not exist yet. */
@@ -117,6 +122,10 @@ export function bendPath(edgeId: string): string {
   return GRAPH_BENDS_DIR + "/" + elementFileName(edgeId);
 }
 
+export function groupPath(nodeId: string): string {
+  return GRAPH_GROUPS_DIR + "/" + elementFileName(nodeId);
+}
+
 function positionText(id: string, position: GraphPosition): string {
   return (
     JSON.stringify({ id, x: roundCoordinate(position.x), y: roundCoordinate(position.y) }) + "\n"
@@ -152,6 +161,7 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
     viewportText !== null ||
     Object.keys(files.positions ?? {}).length > 0 ||
     Object.keys(files.bends ?? {}).length > 0 ||
+    Object.keys(files.groups ?? {}).length > 0 ||
     Object.keys(notes).length > 0;
   if (!hasState) {
     // Migration: v1/v2 kept everything in `.facilis/graph.json`; the next save writes v3.
@@ -193,6 +203,7 @@ export function decodeGraphLayout(files: GraphLayoutFiles): ParsedGraphLayout {
       tableVisibility,
       collapsed,
       edgeCurves,
+      groups: readGroupOverrides(files.groups),
       notes: layoutNotes,
       ...(viewport === null ? {} : { viewport }),
     },
@@ -243,6 +254,9 @@ export function encodeGraphLayout(layout: GraphLayoutFile): readonly GraphLayout
   }
   for (const [id, curve] of sortedEntries(layout.edgeCurves)) {
     writes.push({ path: bendPath(id), contents: positionText(id, curve) });
+  }
+  for (const [id, group] of sortedEntries(layout.groups)) {
+    writes.push({ path: groupPath(id), contents: groupText(id, group) });
   }
   const viewport = layout.viewport;
   writes.push({

@@ -23,7 +23,8 @@ import { buildScreens } from "./passes/screens.ts";
 import { buildViewFacts } from "./passes/views.ts";
 import { buildWorkflowFacts } from "./passes/workflows.ts";
 import { buildWorkflowTableFacts } from "./passes/workflow-tables.ts";
-import { buildProjectGraph } from "./graph.ts";
+import { buildProjectGraph, type GraphInput } from "./graph.ts";
+import { buildGraphDiagnostics } from "./graph-diagnostics.ts";
 import { createModuleGraph, type ModuleGraph } from "./module-graph.ts";
 import type { PathAlias } from "./path-resolver.ts";
 import type { Parser } from "./parser.ts";
@@ -129,6 +130,17 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     ),
   );
 
+  const graphInput: GraphInput = {
+    routes: routes.routes,
+    tables: schema.tables,
+    relations: schema.relations,
+    pages: pages.pages,
+    views: views.views,
+    screens,
+    workflows: workflows.workflows,
+  };
+  const projectGraph = buildProjectGraph(graphInput);
+
   return {
     revision: computeRevision(input.files),
     files: [...graph.files.keys()].toSorted((left, right) => left.localeCompare(right)),
@@ -147,14 +159,12 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     fileFacts,
     locales: locales.locales,
     diagnostics,
-    graph: buildProjectGraph({
+    graph: projectGraph,
+    // D-220 (#189): the IDE lenses read codes + params, never analyzer prose.
+    graphDiagnostics: buildGraphDiagnostics({
+      graph: projectGraph,
       routes: routes.routes,
       tables: schema.tables,
-      relations: schema.relations,
-      pages: pages.pages,
-      views: views.views,
-      screens,
-      workflows: workflows.workflows,
     }),
   };
 }

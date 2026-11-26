@@ -69,6 +69,8 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     locales: {},
     diagnostics: [],
     graph: { nodes: [], edges: [] },
+    // The graph lens facts are required on an Analysis (D-220); adapters ignore them.
+    graphDiagnostics: [],
     ...overrides,
   };
 }

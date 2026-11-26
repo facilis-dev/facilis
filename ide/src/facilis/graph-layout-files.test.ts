@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GRAPH_BENDS_DIR,
+  GRAPH_GROUPS_DIR,
   GRAPH_LAYOUT_PATH,
   GRAPH_LAYOUT_VERSION,
   GRAPH_NOTES_DIR,
@@ -15,6 +16,7 @@ import {
   elementFileName,
   elementPath,
   encodeGraphLayout,
+  groupPath,
   noteFilePath,
   noteIdFromFileName,
 } from "./graph-layout-files";
@@ -48,6 +50,7 @@ describe("decodeGraphLayout", () => {
         "b.json": position(NOTE, 30, 40),
       },
       bends: { "c.json": position("fk:1", 2, -3) },
+      groups: { "g.json": JSON.stringify({ id: "table:todos", group: "auth" }) },
       notes: { [NOTE]: note.text },
     });
     expect(decoded.source).toBe("ok");
@@ -58,6 +61,7 @@ describe("decodeGraphLayout", () => {
       tableVisibility: "all",
       collapsed: { "table:todos": true },
       edgeCurves: { "fk:1": { x: 2, y: -3 } },
+      groups: { "table:todos": "auth" },
       notes: { [NOTE]: note },
       viewport: { x: 5, y: 6, zoom: 0.5 },
     });
@@ -156,6 +160,7 @@ describe("encodeGraphLayout", () => {
         hiddenEdges: ["relation", "fk"],
         tableVisibility: "used",
         collapsed: { "table:todos": true },
+        groups: { "table:todos": "auth" },
         notes: { [NOTE]: note },
         viewport: { x: 1, y: 2, zoom: 0.5 },
       }),
@@ -171,6 +176,9 @@ describe("encodeGraphLayout", () => {
     );
     expect(files.get(elementPath(NOTE))).toBe(position(NOTE, 30, 40));
     expect(files.get(GRAPH_BENDS_DIR + "/fk%3A1.json")).toBe(position("fk:1", 1, 2));
+    expect(files.get(GRAPH_GROUPS_DIR + "/table%3Atodos.json")).toBe(
+      JSON.stringify({ id: "table:todos", group: "auth" }) + "\n",
+    );
     expect(files.get(GRAPH_NOTES_DIR + "/" + UUID + ".md")).toBe(note.text);
     expect(JSON.parse(files.get(GRAPH_VIEWPORT_PATH) ?? "")).toEqual({ x: 1, y: 2, zoom: 0.5 });
   });
@@ -215,6 +223,7 @@ describe("encodeGraphLayout", () => {
       hiddenEdges: ["fk"],
       tableVisibility: "used",
       collapsed: { "table:todos": true },
+      groups: { "table:todos": "auth" },
       notes: { [NOTE]: note },
       viewport: { x: 1, y: 2, zoom: 1 },
     });
@@ -227,6 +236,7 @@ describe("encodeGraphLayout", () => {
         [elementFileName(NOTE)]: files.get(elementPath(NOTE)) ?? "",
       },
       bends: { [elementFileName("fk:1")]: files.get(bendPath("fk:1")) ?? "" },
+      groups: { [elementFileName("table:todos")]: files.get(groupPath("table:todos")) ?? "" },
       notes: { [NOTE]: files.get(noteFilePath(NOTE) ?? "") ?? "" },
     });
     expect(decoded.source).toBe("ok");

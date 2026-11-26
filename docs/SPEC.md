@@ -3011,7 +3011,7 @@ depends on (D-018, D-030).
 | Feature | Location | Approach |
 |---|---|---|
 | AI Chat | `ChatPanel.tsx` + new activity | Calls `controller.applyPatch()` |
-| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis.dev/analyze` (D-092): pages → routes → tables → views (D-160) and workflow definitions (D-161) plus FK/`relations()` edges, route→view `dbTables` edges and view→base-table edges; route cards carry the wrapper config's one-sentence description (D-129); fullscreen, edge filters, drag; committable, merge-friendly layout + markdown notes in `.facilis/graph/` (D-126); per-node details inspector joined from the analysis (security flags, db columns, policies, foreign keys, static db usage, source lines), line-anchored source snippets and the schematic page mini-page drawn on page cards and in the inspector, shaped by the page kind — app shell, split auth screen, bare page (D-170, D-176, D-178) |
+| Project graph | `ProjectGraphPanel.tsx` + `project-graph` editor tab | One graph from `@facilis.dev/analyze` (D-092): pages → routes → tables → views (D-160) and workflow definitions (D-161) plus FK/`relations()` edges, route→view `dbTables` edges and view→base-table edges; route cards carry the wrapper config's one-sentence description (D-129); a Canvas2D map-and-lens surface (D-219/D-221): domain overview with cross-domain ports, drill-down swimlanes (pages / routes / data / workflows), cached layout, pure-transform camera, draggable nodes, edge filters and table visibility, fullscreen, and a committable layout + markdown notes under `.facilis/graph/` (D-126); in-place security / elevated / shared / unknown lenses whose analyzer diagnostic codes resolve through i18n (D-220); a floating inspector drawer / mobile bottom sheet, on-demand rich cards, line-anchored source snippets and the schematic page mini-page shaped by the page kind — app shell, split auth screen, bare page (D-170, D-176, D-178); per-page prerender toggle and eligibility facts (D-202) |
 | Commit graph | `CommitGraphPanel.tsx` + `commit-graph` editor tab | React Flow over the local git log: lanes, merge edges, branch/HEAD cards, details inspector (D-088) |
 | Diff tab | `EditorPanes.tsx` + `diff-session.ts` | Every SCM change opens a side-by-side HEAD ↔ working-tree diff, first hunk revealed (D-089) |
 | Entity Explorer | `DataExplorerPanel.tsx` + activity view + `data-query` tab | Live code ↔ DB diff and a read-only SQL console with Create-view (optional declared view permission, D-098), through a kernel-mediated same-origin dev proxy (D-097); declared tables from `@facilis.dev/analyze` still planned (O-011) |
@@ -3027,8 +3027,9 @@ D-101/D-103); the 23-rule validator is applied at the `validate` self-check and 
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,
-merge-friendly layout under `.facilis/graph/` (D-126/D-134/D-160); Source Control opens per-change
-diffs and the commit graph (D-088/D-089). There is no Studio tasks inbox tab: the inbox/decide
+merge-friendly layout under `.facilis/graph/` (D-126/D-134/D-160), drawn by the Canvas2D map-and-lens
+surface with its in-place lenses and analyzer diagnostics (D-219/D-220/D-221); Source Control opens
+per-change diffs and the commit graph (D-088/D-089). There is no Studio tasks inbox tab: the inbox/decide
 routes are app-owned and the graph is the only workflow surface the IDE adds (D-161). Open: the
 eval corpus/browser matrix (§9) and the declared-AST half of the Entity Explorer (O-011).
 

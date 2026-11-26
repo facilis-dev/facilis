@@ -2,7 +2,7 @@
 
 # Decision index
 
-216 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+221 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -224,3 +224,8 @@ the file whose name starts with that ID.
 | [D-216](./D-216-direct-opfs-access-warns-outside-the-kernel-bridge.md) | Direct OPFS access warns outside the kernel bridge | accepted | 2026-11-25 |
 | [D-217](./D-217-import-cycles-are-warnings.md) | Import cycles are warnings | accepted | 2026-11-25 |
 | [D-218](./D-218-i18n-parity-and-dynamic-t-keys-warn.md) | i18n parity and dynamic t() keys warn | accepted | 2026-11-25 |
+| [D-219](./D-219-the-project-graph-is-a-map-and-lens-canvas-diagnostics-are-analyzer.md) | The project graph is a map-and-lens canvas; diagnostics are analyzer codes resolved via i18n | accepted | 2026-11-25 |
+| [D-220](./D-220-in-place-graph-lenses-use-analyzer-diagnostic-codes-resolved-via-i18n.md) | In-place graph lenses use analyzer diagnostic codes resolved via i18n | accepted | 2026-11-25 |
+| [D-221](./D-221-the-project-graph-has-one-canvas-surface-react-flow-is-retired.md) | The project graph has one canvas surface; React Flow is retired | accepted | 2026-11-25 |
+| [D-222](./D-222-graph-notes-are-rendered-as-culled-dom-cards-on-the-canvas-surface.md) | Graph notes are rendered as culled DOM cards on the canvas surface | accepted | 2026-11-26 |
+| [D-223](./D-223-graph-group-overrides-are-per-node-team-state-in-groups-key-json.md) | Graph group overrides are per-node team state in `groups/<key>.json` | accepted | 2026-11-26 |

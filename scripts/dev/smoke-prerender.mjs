@@ -411,17 +411,17 @@ async function waitForReindex(page, markerAbsPath) {
   );
 }
 
-// React Flow renders only the cards inside the viewport (onlyRenderVisibleElements), and a
-// 50-page column never fits at once: select whichever page card IS rendered. The build is
-// project-wide, so every page satellite offers the same action; the gate navigates the
-// preview to the declared route it asserts afterwards.
+// The canvas surface ships an accessible mirror of the graph (#182): one real button per node,
+// grouped by domain/lane inside an sr-only list. The overview button drills into its domain and
+// selects the node, opening the inspector. The build is project-wide, so every page node offers
+// the same action; the gate navigates the preview to the declared route it asserts afterwards.
 async function selectAnyPageNode(page) {
   return waitFor(
     page,
     "(() => { const n = document.querySelector('[data-testid=\"project-graph-page\"]');" +
       " if (!n) return false; n.click(); return true; })()",
     30000,
-    "a rendered page node",
+    "a page node in the accessible graph list",
   );
 }
 

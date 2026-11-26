@@ -10,6 +10,14 @@ export { analyzeProject, DEFAULT_TRANSPORT } from "./analyze.ts";
 export type { AnalyzeInput } from "./analyze.ts";
 export { buildProjectGraph } from "./graph.ts";
 export type { GraphInput } from "./graph.ts";
+// The lens diagnostics contract (D-220, #189): stable codes + structured params, no prose.
+export {
+  buildGraphDiagnostics,
+  GRAPH_DIAGNOSTIC_CODES,
+  type GraphDiagnostic,
+  type GraphDiagnosticCode,
+  type GraphDiagnosticParamMap,
+} from "./graph-diagnostics.ts";
 export { ROUTE_DESCRIPTION_MAX_CHARS } from "./passes/route-description.ts";
 // The fail-closed prerender eligibility contract (D-202), shared with both build gates.
 export { formatPrerenderReasons, prerenderBuildErrors } from "./passes/prerender.ts";

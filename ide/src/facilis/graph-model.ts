@@ -1,7 +1,8 @@
 // The project-graph view model: the analyzer's one ProjectGraph (`@facilis.dev/analyze`) mapped
-// to what React Flow draws, plus the deterministic layered auto-layout. Pure: no React, no
+// to what the canvas draws, plus the deterministic layered auto-layout. Pure: no React, no
 // bridge, no IO, so the geometry and the filters are unit-testable and a refresh can rebuild
-// the view without touching the editor.
+// the view without touching the editor. The model carries NO search state (issue #186): the
+// debounced match pass lives in graph-search.ts and dims cards without rebuilding nodes.
 //
 // Layout is four columns — pages, routes, tables, workflows — with FK/relation edges staying
 // inside the tables column. Views are schema objects too, so they sit in the tables column
@@ -11,8 +12,9 @@
 
 import type { GraphEdgeKind, GraphNodeKind, ProjectGraph } from "@facilis.dev/analyze";
 import { pageData, routeData, tableData, viewData } from "./graph-model-data";
-import { matchesNodeQuery, workflowData } from "./graph-node-data";
+import { workflowData } from "./graph-node-data";
 import { hiddenTableNodeIds } from "./graph-system";
+import { isTableEdge, orderTables } from "./graph-table-order";
 import { GRAPH_EDGE_KINDS, type GraphPosition } from "./graph-layout";
 import {
   GRAPH_COLUMNS,
@@ -52,48 +54,6 @@ const ROW_PITCH = { page: 200, route: 112, table: 190, view: 150, workflow: 150 
 
 /** Blank space between the last table row and the first view row in the schema column. */
 const VIEW_GAP = 56;
-
-function isTableEdge(edge: ProjectGraphEdge): boolean {
-  return edge.kind === "fk" || edge.kind === "relation";
-}
-
-/**
- * Order the table column by FK/relation dependency (a table before the tables it points at),
- * breaking ties lexicographically so the same graph always produces the same rows. Cycles —
- * legal in a schema — fall back to the lexicographically first remaining id.
- */
-function orderTables(
-  tables: readonly ProjectGraphNode[],
-  edges: readonly ProjectGraphEdge[],
-): string[] {
-  const ids = tables.map((node) => node.id).toSorted();
-  const idSet = new Set(ids);
-  const outgoing = new Map<string, string[]>(ids.map((id) => [id, []]));
-  const incoming = new Map<string, number>(ids.map((id) => [id, 0]));
-  const seen = new Set<string>();
-  for (const edge of edges) {
-    if (!isTableEdge(edge) || !idSet.has(edge.source) || !idSet.has(edge.target)) continue;
-    if (edge.source === edge.target) continue;
-    const pair = edge.source + "\u0000" + edge.target;
-    if (seen.has(pair)) continue;
-    seen.add(pair);
-    outgoing.get(edge.source)?.push(edge.target);
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-  }
-  const remaining = new Set(ids);
-  const order: string[] = [];
-  while (remaining.size > 0) {
-    const ready = [...remaining].toSorted();
-    const next = ready.find((id) => (incoming.get(id) ?? 0) === 0) ?? ready[0];
-    if (next === undefined) break;
-    order.push(next);
-    remaining.delete(next);
-    for (const target of outgoing.get(next) ?? []) {
-      incoming.set(target, Math.max(0, (incoming.get(target) ?? 0) - 1));
-    }
-  }
-  return order;
-}
 
 function autoPositions(
   pages: readonly ProjectGraphNode[],
@@ -148,7 +108,6 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
   const positions = input.positions ?? {};
   const hidden = new Set<GraphEdgeKind>(input.hiddenEdgeKinds ?? []);
   const collapsed = input.collapsed ?? {};
-  const needle = (input.query ?? "").trim().toLowerCase();
 
   // First occurrence wins, so a defensive duplicate cannot produce two React Flow nodes
   // with the same id (and every edge still points at the retained node).
@@ -209,8 +168,10 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
     });
   const tables = visibleNodes.filter((node) => node.kind === "table");
   const tableOrder = orderTables(tables, allVisibleEdges.filter(isTableEdge));
+  // Index Map, not .find per row: the ordering lookup is O(T), not O(T^2) (issue #186).
+  const tableById = new Map(tables.map((node) => [node.id, node] as const));
   const orderedTables = tableOrder
-    .map((id) => tables.find((node) => node.id === id))
+    .map((id) => tableById.get(id))
     .filter((node): node is ProjectGraphNode => node !== undefined);
   const views = visibleNodes
     .filter((node) => node.kind === "view")
@@ -232,8 +193,7 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       saved !== undefined && Number.isFinite(saved.x) && Number.isFinite(saved.y)
         ? { x: saved.x, y: saved.y }
         : (auto.get(node.id) ?? { x: 0, y: 0 });
-    const base = { ...node, data, position };
-    return { ...base, matched: matchesNodeQuery(base, needle) };
+    return { ...node, data, position };
   });
 
   const visible = allVisibleEdges.filter((edge) => !hidden.has(edge.kind));
@@ -251,7 +211,9 @@ export function buildProjectGraphView(input: ProjectGraphViewInput): ProjectGrap
       edges: visible.length,
       hiddenEdges: hiddenCount,
       hiddenNodes: hiddenNodeIds.size,
-      matches: positioned.filter((node) => node.matched).length,
+      // No query lives in the model: every node matches until the panel applies the debounced
+      // match count (graph-search.ts) on top of these stats.
+      matches: positioned.length,
       unknownNodes: positioned.filter((node) => node.data.kind !== "page" && node.data.unknown)
         .length,
       pageLinks: visible.filter((edge) => edge.kind === "page-link").length,

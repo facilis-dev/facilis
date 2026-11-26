@@ -2,6 +2,7 @@ import type { EnumFact, RelationFact, TableFact } from "./types-schema.ts";
 import type { JobFact, JobRelationsFact } from "./types-jobs.ts";
 import type { RouteRelationsFact, ViewFact } from "./types-relations.ts";
 import type { ProjectGraph } from "./types-graph.ts";
+import type { GraphDiagnostic } from "./graph-diagnostics.ts";
 import type { WorkflowFact, WorkflowTablesFact } from "./types-workflows.ts";
 import type { ConfigPrerenderFacts, PrerenderEligibilityFact } from "./types-prerender.ts";
 
@@ -271,4 +272,6 @@ export interface Analysis {
   readonly locales: LocaleCatalogs;
   readonly diagnostics: readonly Diagnostic[];
   readonly graph: ProjectGraph;
+  /** The graph lens facts (D-220, #189): stable codes plus params, never prose. */
+  readonly graphDiagnostics: readonly GraphDiagnostic[];
 }

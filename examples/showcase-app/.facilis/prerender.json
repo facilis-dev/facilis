@@ -1,0 +1,9 @@
+{
+  "outDir": "/home/deepseek/workspace/facilis/facilis-repo/.agents/worktrees/feat/epic-182-graph-map-lens/examples/showcase-app/dist",
+  "routes": [
+    "/",
+    "/contact"
+  ],
+  "origin": "https://showcase.example.com",
+  "builtAt": 1795669816132
+}

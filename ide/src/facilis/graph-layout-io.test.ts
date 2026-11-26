@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { IdeController } from "@/vv/controller";
 import {
   GRAPH_BENDS_DIR,
+  GRAPH_GROUPS_DIR,
   GRAPH_LAYOUT_PATH,
   GRAPH_LEGACY_PATH,
   GRAPH_NOTES_DIR,
@@ -10,8 +11,15 @@ import {
   emptyGraphLayout,
   type GraphLayoutFile,
 } from "./graph-layout-file";
-import { elementPath, noteFilePath } from "./graph-layout-files";
-import { loadGraphLayout, saveGraphLayout } from "./graph-layout";
+import { elementPath, groupPath, noteFilePath } from "./graph-layout-files";
+import {
+  addGraphNote,
+  loadGraphLayout,
+  saveGraphLayout,
+  withNotePosition,
+  withNoteText,
+  withoutGraphNote,
+} from "./graph-layout";
 import type { GraphNote } from "./graph-types";
 
 const ROOT = "/w/app";
@@ -78,6 +86,10 @@ describe("loadGraphLayout", () => {
       [ROOT + "/" + GRAPH_POSITIONS_DIR + "/a.json"]: position("table:todos", 10, 20),
       [ROOT + "/" + GRAPH_POSITIONS_DIR + "/b.json"]: position(NOTE, 30, 40),
       [ROOT + "/" + GRAPH_BENDS_DIR + "/c.json"]: position("fk:1", 2, -3),
+      [ROOT + "/" + GRAPH_GROUPS_DIR + "/g.json"]: JSON.stringify({
+        id: "table:todos",
+        group: "auth",
+      }),
       [ROOT + "/" + GRAPH_VIEWPORT_PATH]: JSON.stringify({ x: 5, y: 6, zoom: 0.5 }),
       [ROOT + "/" + GRAPH_NOTES_DIR + "/" + UUID + ".md"]: "# Nota\n",
     });
@@ -87,6 +99,7 @@ describe("loadGraphLayout", () => {
     expect(loaded.layout.hiddenEdges).toEqual(["relation"]);
     expect(loaded.layout.collapsed).toEqual({ "table:todos": true });
     expect(loaded.layout.edgeCurves).toEqual({ "fk:1": { x: 2, y: -3 } });
+    expect(loaded.layout.groups).toEqual({ "table:todos": "auth" });
     expect(loaded.layout.viewport).toEqual({ x: 5, y: 6, zoom: 0.5 });
     expect(loaded.layout.notes).toEqual({ [NOTE]: note });
     expect(loaded.layout.tableVisibility).toBe("all");
@@ -116,10 +129,15 @@ describe("loadGraphLayout", () => {
 describe("saveGraphLayout", () => {
   it("round-trips the table visibility through the saved files", async () => {
     const { controller } = fakeController({});
-    await saveGraphLayout(controller, ROOT, layout({ tableVisibility: "project" }));
+    await saveGraphLayout(
+      controller,
+      ROOT,
+      layout({ tableVisibility: "project", groups: { "table:todos": "auth" } }),
+    );
     const loaded = await loadGraphLayout(controller, ROOT);
     expect(loaded.source).toBe("ok");
     expect(loaded.layout.tableVisibility).toBe("project");
+    expect(loaded.layout.groups).toEqual({ "table:todos": "auth" });
   });
 
   it("writes the state files and the gitignore allowlist on a first save", async () => {
@@ -127,6 +145,7 @@ describe("saveGraphLayout", () => {
     const value = layout({
       nodes: { "table:todos": { x: 7, y: 8 } },
       edgeCurves: { "fk:1": { x: 1, y: 2 } },
+      groups: { "table:todos": "auth" },
       notes: { [NOTE]: note },
       viewport: { x: 1, y: 2, zoom: 1 },
     });
@@ -140,6 +159,9 @@ describe("saveGraphLayout", () => {
       position("table:todos", 7, 8),
     );
     expect(written.get(ROOT + "/" + elementPath(NOTE))).toBe(position(NOTE, 30, 40));
+    expect(written.get(ROOT + "/" + groupPath("table:todos"))).toBe(
+      JSON.stringify({ id: "table:todos", group: "auth" }) + "\n",
+    );
     expect(written.get(ROOT + "/" + noteFilePath(NOTE))).toBe("# Nota\n");
     expect(JSON.parse(written.get(ROOT + "/" + GRAPH_LAYOUT_PATH) ?? "")).toMatchObject({
       version: 3,
@@ -148,6 +170,21 @@ describe("saveGraphLayout", () => {
     expect(written.get(IGNORE)).toContain("!graph/\n!graph/**\ngraph/viewport.json");
     expect(removed).toEqual([]);
     expect(files[IGNORE]).toBeDefined();
+  });
+
+  it("round-trips a note through create, move, edit and delete", async () => {
+    const { controller } = fakeController({});
+    let value = addGraphNote(emptyGraphLayout(), note);
+    value = withNotePosition(value, NOTE, { x: 1, y: 2 });
+    value = withNoteText(value, NOTE, "# Edited\n");
+    await saveGraphLayout(controller, ROOT, value);
+    expect((await loadGraphLayout(controller, ROOT)).layout.notes).toEqual({
+      [NOTE]: { ...note, x: 1, y: 2, text: "# Edited\n" },
+    });
+
+    const removed = withoutGraphNote(value, NOTE);
+    await saveGraphLayout(controller, ROOT, removed, value);
+    expect((await loadGraphLayout(controller, ROOT)).layout.notes).toEqual({});
   });
 
   it("writes only the element that changed when the previous layout is given", async () => {
@@ -186,6 +223,23 @@ describe("saveGraphLayout", () => {
     expect(afterFirst?.match(/^!graph\/$/gm)).toHaveLength(1);
     await saveGraphLayout(controller, ROOT, value);
     expect(files[IGNORE]).toBe(afterFirst);
+  });
+
+  // The canvas surface ships no note annotations in epic #182 (D-222), but the files are team
+  // state (D-126): a project that already has notes must keep them byte-for-byte across a load
+  // and the next save, even though no UI action edits them any more.
+  it("round-trips existing note files unchanged through load and save", async () => {
+    const notePath = ROOT + "/" + noteFilePath(NOTE);
+    const positionPath = ROOT + "/" + elementPath(NOTE);
+    const { controller, files } = fakeController({
+      [ROOT + "/" + GRAPH_NOTES_DIR + "/" + UUID + ".md"]: "# Nota\n",
+      [positionPath]: position(NOTE, 30, 40),
+    });
+    const loaded = await loadGraphLayout(controller, ROOT);
+    expect(loaded.layout.notes[NOTE]).toEqual(note);
+    await saveGraphLayout(controller, ROOT, loaded.layout);
+    expect(files[notePath]).toBe("# Nota\n");
+    expect(files[positionPath]).toBe(position(NOTE, 30, 40));
   });
 
   it("removes the obsolete single-file layout after a successful save", async () => {
