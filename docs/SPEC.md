@@ -1,11 +1,22 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.46 (i18n parity and dynamic `t()` keys, D-218; issue #176)
+**Version:** 1.47 (a `runtime` section is the only deployment-tunable surface, D-224)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.47 — Deployment values are a `runtime` section of `facilis.config.ts` (D-224). Core
+  defaults merge underneath the project's declarations and the process environment overrides
+  both; each flat key maps to exactly one variable, `FACILIS_` + UPPER_SNAKE(key), so no name is
+  computed from a nested path. Secrets are declared as `{ secret: true }` and never carry a value
+  in the file. The keys of the other sections stay build-time: a `FACILIS_*` name that maps to no
+  `runtime` key is a fatal boot error, except the literal build-only allowlist
+  (`FACILIS_DEV_METRICS`, `FACILIS_TELEMETRY_FE`). `db.mode`, `logging.level`,
+  `logging.trustProxy` and `storage.driver|bucket|region|endpoint|forcePathStyle` move into
+  `runtime`; `FACILIS_TELEMETRY` is renamed `FACILIS_TELEMETRY_ENABLED`; no alias is kept. The
+  resolved object is `ctx.runtime` in a request and `runtimeEnv()` everywhere else, one frozen
+  object per process. §7.1/§7.4/§8.4.6 follow.
 - v1.46 — Dynamic `t()` keys and locale parity are warnings (D-218, issue #176). The
   analyzer now keeps a `dynamicTranslationCalls` fact for a `t()` argument that is an
   identifier, a call, a concatenation or a template literal with expressions, and reports
@@ -1436,6 +1447,52 @@ interface FacilisConfig {
   security: {                  // D-141; request-origin policy for unsafe methods
     trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []
   }
+  runtime: {                   // D-224: the ONLY deployment-tunable surface; core defaults underneath
+    // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: DEFAULT_RUNTIME < this section < process env.
+    // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a string.
+    // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
+    databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
+    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
+    // operator logging (D-119): level is the project default, the sink/dir belong to the operator
+    logLevel: "debug" | "info" | "warn" | "error"  // FACILIS_LOG_LEVEL
+    logSink: "auto" | "stdout" | "file" | "both"   // FACILIS_LOG_SINK
+    logDir: string | null                          // FACILIS_LOG_DIR
+    logMaxBytes: number                            // FACILIS_LOG_MAX_BYTES
+    logKeep: number                                // FACILIS_LOG_KEEP
+    logTrustProxy: boolean                         // FACILIS_LOG_TRUST_PROXY
+    // binary storage (D-116/D-117): the keys are secrets, never in the file
+    storageDriver: "local" | "s3"                  // FACILIS_STORAGE_DRIVER
+    storageSecret: Secret<string>                  // FACILIS_STORAGE_SECRET
+    s3Bucket: string | null                        // FACILIS_S3_BUCKET
+    s3Region: string | null                        // FACILIS_S3_REGION
+    s3Endpoint: string | null                      // FACILIS_S3_ENDPOINT
+    s3ForcePathStyle: boolean | null               // FACILIS_S3_FORCE_PATH_STYLE
+    s3AccessKeyId: Secret<string>                  // FACILIS_S3_ACCESS_KEY_ID
+    s3SecretAccessKey: Secret<string>              // FACILIS_S3_SECRET_ACCESS_KEY
+    s3SessionToken: Secret<string>                 // FACILIS_S3_SESSION_TOKEN
+    storageEncryptionKey: Secret<string>           // FACILIS_STORAGE_ENCRYPTION_KEY
+    storageEncryptionKeyId: string | null          // FACILIS_STORAGE_ENCRYPTION_KEY_ID
+    storageEncryptionRetiredKeys: string[]         // FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS (JSON)
+    // deployment identity
+    publicOrigin: string | null                    // FACILIS_PUBLIC_ORIGIN
+    tenantId: string | null                        // FACILIS_TENANT_ID
+    deploymentId: string | null                    // FACILIS_DEPLOYMENT_ID
+    // auth bootstrap and email verification (D-150, D-156)
+    initialAdmin: string | null                    // FACILIS_INITIAL_ADMIN
+    initialAdminToken: Secret<string>              // FACILIS_INITIAL_ADMIN_TOKEN
+    emailWebhookUrl: string | null                 // FACILIS_EMAIL_WEBHOOK_URL
+    emailWebhookToken: Secret<string>              // FACILIS_EMAIL_WEBHOOK_TOKEN
+    // telemetry (D-203, D-209)
+    telemetryEnabled: boolean                      // FACILIS_TELEMETRY_ENABLED
+    telemetryEndpoint: string | null               // FACILIS_TELEMETRY_ENDPOINT
+    telemetryOrigins: string[]                     // FACILIS_TELEMETRY_ORIGINS (JSON)
+    telemetrySampling: number                      // FACILIS_TELEMETRY_SAMPLING
+    telemetryService: string | null                // FACILIS_TELEMETRY_SERVICE
+    telemetrySpansPerMin: number                   // FACILIS_TELEMETRY_SPANS_PER_MIN
+    telemetryTenantKey: Secret<string>             // FACILIS_TELEMETRY_TENANT_KEY
+    // development only
+    stateDir: string | null                        // FACILIS_STATE_DIR
+  }
 }
 ```
 
@@ -1590,6 +1647,7 @@ interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   jobs: JobsApi                               // server-only job queue (D-107), no HTTP surface
   storage: StorageApi                         // binary storage, §5.10; degrades when unavailable
   log: FacilisLogger                          // request logger (D-119)
+  runtime: FacilisRuntimeConfig               // resolved once at boot, frozen; the only env surface (D-224)
   requestId: string                           // correlation id, set by the logging middleware
 }
 
