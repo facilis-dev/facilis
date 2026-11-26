@@ -35,6 +35,8 @@ import {
   type FacilisSecurityConfig,
 } from "./security-config.ts";
 import { crossCheckConfig } from "./config-validation.ts";
+import { publicSectionSchema, runtimeSectionSchema } from "./runtime-config/schema.ts";
+import type { FacilisPublicConfig, FacilisRuntimeDeclarations } from "./runtime-config/schema.ts";
 import {
   facilisStorageConfigSchema,
   type FacilisStorageConfig,
@@ -151,6 +153,10 @@ export interface FacilisConfig {
   readonly nitro: FacilisNitroOptions;
   /** Route-level prerendering allowlist (D-202); `{ routes: [] }` means off. */
   readonly prerender: FacilisPrerenderConfig;
+  /** Server surface overridable at boot (D-224): every key the app reads is declared here. */
+  readonly runtime: FacilisRuntimeDeclarations;
+  /** Values baked into the client bundle at build time (D-224); never a secret. */
+  readonly public: FacilisPublicConfig;
 }
 
 /**
@@ -193,6 +199,10 @@ export interface FacilisConfigInput {
   };
   /** Route-level prerendering (D-202); every key has a default. */
   readonly prerender?: FacilisPrerenderConfigInput;
+  /** Server surface overridable at boot (D-224); keys the app reads are keys it declares. */
+  readonly runtime?: FacilisRuntimeDeclarations;
+  /** Client surface baked at build time (D-224); no secret marker is accepted here. */
+  readonly public?: FacilisPublicConfig;
 }
 
 const DEFAULT_RELEASE_REF = "main";
@@ -259,6 +269,8 @@ const baseConfigSchema = z.strictObject({
   logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
   prerender: facilisPrerenderConfigSchema,
+  runtime: runtimeSectionSchema,
+  public: publicSectionSchema,
 });
 
 /**
