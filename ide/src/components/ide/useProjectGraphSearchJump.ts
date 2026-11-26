@@ -19,12 +19,15 @@ export interface ProjectGraphSearchJump {
 
 export function useProjectGraphSearchJump({
   view,
+  groups,
   query,
   search,
   flushSearch,
   onJump,
 }: {
   view: ProjectGraphView | null;
+  /** Per-node feature-group overrides, so a jump opens the group the user pinned. */
+  groups: Readonly<Record<string, string>>;
   query: string;
   search: GraphSearchResult;
   flushSearch: () => GraphSearchResult;
@@ -32,8 +35,8 @@ export function useProjectGraphSearchJump({
 }): ProjectGraphSearchJump {
   const [jump, setJump] = useState<GraphJumpRequest | null>(null);
   const domainOf = useMemo(
-    () => domainIndex(deriveDomains(view?.nodes ?? [], view?.edges ?? [])),
-    [view],
+    () => domainIndex(deriveDomains(view?.nodes ?? [], view?.edges ?? [], groups)),
+    [view, groups],
   );
   // A pending keystroke yields an empty list instead of the previous (stale) match set.
   const searchResults = useMemo(() => {

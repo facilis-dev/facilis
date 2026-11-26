@@ -31,6 +31,7 @@ export {
 } from "./graph-types";
 export {
   GRAPH_DIR,
+  GRAPH_GROUPS_DIR,
   GRAPH_LAYOUT_PATH,
   GRAPH_LAYOUT_SAVE_DELAY_MS,
   GRAPH_LAYOUT_VERSION,
@@ -55,6 +56,7 @@ export {
   elementFileName,
   elementPath,
   encodeGraphLayout,
+  groupPath,
   noteFilePath,
 } from "./graph-layout-files";
 export { loadGraphLayout, saveGraphLayout, type GraphLayoutLoad } from "./graph-layout-io";
@@ -148,6 +150,26 @@ function withoutCurve(
     if (id !== edgeId) next[id] = curve;
   }
   return next;
+}
+
+/** Pin a node to a feature group, or clear the pin with null/blank to return to the rule. */
+export function withNodeGroup(
+  layout: GraphLayoutFile,
+  id: string,
+  group: string | null,
+): GraphLayoutFile {
+  const next = group?.trim() ?? "";
+  const current = layout.groups[id];
+  if (next === "") {
+    if (current === undefined) return layout;
+    const groups: Record<string, string> = {};
+    for (const [entryId, value] of Object.entries(layout.groups)) {
+      if (entryId !== id) groups[entryId] = value;
+    }
+    return { ...layout, groups };
+  }
+  if (current === next) return layout;
+  return { ...layout, groups: { ...layout.groups, [id]: next } };
 }
 
 /** `note:<uuid>`: the uuid is the on-disk markdown file name. */

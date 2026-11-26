@@ -23,6 +23,7 @@ import {
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
+  withNodeGroup,
   withNodePosition,
   withNotePosition,
   withNoteText,
@@ -55,6 +56,8 @@ export interface ProjectGraphLayout {
   readonly moveNote: (id: string, position: GraphPosition) => void;
   readonly editNote: (id: string, text: string) => void;
   readonly deleteNote: (id: string) => void;
+  /** Pin a node to a feature group; null/blank restores the automatic rule. */
+  readonly setNodeGroup: (id: string, group: string | null) => void;
   readonly toggleCollapsed: (id: string) => void;
   readonly toggleEdgeKind: (kind: GraphLayoutFile["hiddenEdges"][number], hidden: boolean) => void;
   readonly changeTableVisibility: (visibility: GraphTableVisibility) => void;
@@ -216,6 +219,10 @@ export function useProjectGraphLayout(
     (id: string) => setLayout((current) => withoutGraphNote(current, id)),
     [],
   );
+  const setNodeGroup = useCallback(
+    (id: string, group: string | null) => setLayout((current) => withNodeGroup(current, id, group)),
+    [],
+  );
   const toggleCollapsed = useCallback((id: string) => {
     setLayout((current) => withCollapsed(current, id, current.collapsed[id] !== true));
   }, []);
@@ -259,6 +266,7 @@ export function useProjectGraphLayout(
     moveNote,
     editNote,
     deleteNote,
+    setNodeGroup,
     toggleCollapsed,
     toggleEdgeKind,
     changeTableVisibility,

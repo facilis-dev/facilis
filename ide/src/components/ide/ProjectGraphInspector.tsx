@@ -4,12 +4,15 @@
 
 import Maximize2 from "~icons/lucide/maximize-2";
 import X from "~icons/lucide/x";
+import { useMemo } from "react";
 import type { GraphDiagnostic, GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { prerenderFactForPage, prerenderedPagesForRoute } from "@/facilis/graph-prerender";
+import { CORE_DOMAIN, deriveDomainAssignments } from "@/facilis/graph-surface/domains.ts";
+import { ProjectGraphGroupControl } from "./ProjectGraphGroupControl";
 import { ProjectGraphPageDetails } from "./ProjectGraphPageDetails";
 import { ProjectGraphRouteDetails } from "./ProjectGraphRouteDetails";
 import { ProjectGraphTableDetails } from "./ProjectGraphTableDetails";
@@ -41,6 +44,9 @@ export interface ProjectGraphInspectorProps {
   /** The unfiltered analyzer edges: hiding an edge kind must not hide prerender callers. */
   graphEdges: readonly GraphEdge[];
   onTogglePrerender: (path: string, enabled: boolean) => Promise<boolean>;
+  /** Per-node feature-group overrides, and the mutation that pins/clears one. */
+  groups: Readonly<Record<string, string>>;
+  onSetGroup: (id: string, group: string | null) => void;
 }
 
 export function ProjectGraphInspector({
@@ -62,8 +68,23 @@ export function ProjectGraphInspector({
   prerenderFacts,
   graphEdges,
   onTogglePrerender,
+  groups,
+  onSetGroup,
 }: ProjectGraphInspectorProps) {
   const shared = { node, sources, nodeLabel, onOpenFileAt, onSelectNode };
+  const assignments = useMemo(
+    () => deriveDomainAssignments(view.nodes, view.edges, groups),
+    [view, groups],
+  );
+  const assignment = assignments.get(node.id) ?? {
+    group: CORE_DOMAIN,
+    reason: "core" as const,
+    evidence: null,
+  };
+  const groupNames = useMemo(
+    () => [...new Set([...assignments.values()].map((entry) => entry.group))].toSorted(),
+    [assignments],
+  );
   return (
     <aside
       data-testid="project-graph-inspector"
@@ -93,11 +114,18 @@ export function ProjectGraphInspector({
         </Button>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-2">
+        <ProjectGraphGroupControl
+          nodeId={node.id}
+          assignment={assignment}
+          groups={groupNames}
+          onSetGroup={onSetGroup}
+        />
         <ProjectGraphAnswers
           node={node}
           view={view}
           details={detailsMap}
           diagnostics={diagnostics}
+          groups={groups}
           onNavigateNode={onNavigateNode}
           onOpenFileAt={onOpenFileAt}
         />

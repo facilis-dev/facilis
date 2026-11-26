@@ -57,8 +57,7 @@ export function ProjectGraphPanel() {
   const analysis = result !== null && result.ok ? result.analysis : null;
   const sources = useProjectGraphSources(c, analysis);
   const prerenderFacts = analysis?.prerender ?? [];
-  // Incremental view model (#186): rebuilt only on dataset/saved-layout changes; the search
-  // input is debounced into a match pass, and selection/focus stay canvas draw state.
+  // Incremental view model (#186): rebuilt on dataset/saved-layout changes only; search debounce.
   const { view, query, search, onQueryChange, flushSearch } = useProjectGraphViewModel(
     analysis?.graph ?? null,
     layout,
@@ -143,8 +142,7 @@ export function ProjectGraphPanel() {
     setDrawerOpen(false);
     setMode({ kind: "overview" });
   }, []);
-  // Search jump: drill to the node's domain, select it (the drawer opens) and ask the surface to
-  // centre the camera. The jump nonce makes a second jump to the same node re-centre too.
+  // Search jump: drill to the node's domain, select it and ask the surface to centre it.
   const onJump = useCallback((nodeId: string, domain: string) => {
     setSelectedNodeId(nodeId);
     setDrawerOpen(true);
@@ -152,12 +150,12 @@ export function ProjectGraphPanel() {
   }, []);
   const { searchResults, jump, jumpToNode, submitSearch } = useProjectGraphSearchJump({
     view,
+    groups: layout.groups,
     query,
     search,
     flushSearch,
     onJump,
   });
-
   useProjectGraphEscape({
     noteEditing: noteState.noteEditing,
     onCancelNoteEdit: noteState.cancelNoteEdit,
@@ -177,7 +175,6 @@ export function ProjectGraphPanel() {
     onOverview: backToOverview,
   });
 
-  // The panel owns the lifecycle; the four non-canvas states live in their own component.
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
   // While the index is still landing there is no result for this project yet: loading outranks
@@ -204,6 +201,7 @@ export function ProjectGraphPanel() {
         lens={lensHighlightValue}
         savedPositions={layout.nodes}
         viewport={layout.viewport}
+        groups={layout.groups}
         noteState={noteState}
         onModeChange={changeMode}
         onSelectNode={handleSelectNode}
@@ -285,6 +283,8 @@ export function ProjectGraphPanel() {
               prerenderFacts={prerenderFacts}
               graphEdges={analysis?.graph.edges ?? []}
               onTogglePrerender={togglePrerender}
+              groups={layout.groups}
+              onSetGroup={graph.setNodeGroup}
             />
           </ProjectGraphDrawer>
         )}

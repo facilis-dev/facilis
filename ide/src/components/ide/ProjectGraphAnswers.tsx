@@ -17,6 +17,8 @@ export interface ProjectGraphAnswersProps {
   view: ProjectGraphView;
   details: ReadonlyMap<string, NodeDetails>;
   diagnostics: readonly GraphDiagnostic[];
+  /** Per-node feature-group overrides, so Q8/Q9 report the groups the map draws. */
+  groups?: Readonly<Record<string, string>>;
   onNavigateNode: (nodeId: string) => void;
   onOpenFileAt: (file: string, line: number) => void;
 }
@@ -26,12 +28,13 @@ export function ProjectGraphAnswers({
   view,
   details,
   diagnostics,
+  groups = {},
   onNavigateNode,
   onOpenFileAt,
 }: ProjectGraphAnswersProps) {
   const context = useMemo(
-    () => createAnswerContext(view, details, diagnostics),
-    [view, details, diagnostics],
+    () => createAnswerContext(view, details, diagnostics, groups),
+    [view, details, diagnostics, groups],
   );
   const sections = useMemo(() => buildNodeAnswerSections(node, context), [node, context]);
   return (

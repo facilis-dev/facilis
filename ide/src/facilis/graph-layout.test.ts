@@ -8,6 +8,7 @@ import {
   withCollapsed,
   withEdgeCurve,
   withHiddenEdgeKind,
+  withNodeGroup,
   withNodePosition,
   withNotePosition,
   withTableVisibility,
@@ -46,6 +47,7 @@ describe("parseGraphLayout (v1/v2 migration)", () => {
       tableVisibility: "all",
       collapsed: { "table:todos": true },
       edgeCurves: {},
+      groups: {},
       notes: {},
       viewport: { x: 1, y: 2, zoom: 0.8 },
     });
@@ -170,6 +172,7 @@ describe("mutations", () => {
       hiddenEdges: ["relation"],
       tableVisibility: "used",
       edgeCurves: { "fk:1": { x: 2, y: 3 } },
+      groups: { "table:todos": "auth" },
       notes: { [NOTE]: note() },
       viewport: { x: 0, y: 0, zoom: 1 },
     });
@@ -180,8 +183,22 @@ describe("mutations", () => {
       tableVisibility: "used",
       collapsed: {},
       edgeCurves: {},
+      groups: { "table:todos": "auth" },
       notes: { [NOTE]: note() },
     });
+  });
+
+  it("pins a node group and clears it with identity", () => {
+    const base = layout();
+    const pinned = withNodeGroup(base, "table:todos", "auth");
+    expect(base.groups).toEqual({});
+    expect(pinned.groups).toEqual({ "table:todos": "auth" });
+    expect(withNodeGroup(pinned, "table:todos", "auth")).toBe(pinned);
+    expect(withNodeGroup(pinned, "table:todos", "  ")).toEqual({
+      ...pinned,
+      groups: {},
+    });
+    expect(withNodeGroup(base, "table:todos", null)).toBe(base);
   });
 
   it("changes the table visibility and keeps identity on a no-op", () => {

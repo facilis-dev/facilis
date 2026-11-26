@@ -12,6 +12,7 @@ export function createAnswerContext(
   view: ProjectGraphView,
   details: ReadonlyMap<string, NodeDetails>,
   diagnostics: readonly GraphDiagnostic[],
+  groups: Readonly<Record<string, string>> = {},
 ): GraphAnswerContext {
   const byId = new Map(view.nodes.map((node) => [node.id, node] as const));
   const outgoing = new Map<string, ProjectGraphEdge[]>();
@@ -29,7 +30,7 @@ export function createAnswerContext(
     details,
     diagnostics,
     byId,
-    domainOf: domainIndex(deriveDomains(view.nodes, view.edges)),
+    domainOf: domainIndex(deriveDomains(view.nodes, view.edges, groups)),
     outgoing,
     incoming,
   };

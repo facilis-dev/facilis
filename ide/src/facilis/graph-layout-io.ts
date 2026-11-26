@@ -10,6 +10,7 @@ import type { IdeController } from "@/vv/controller";
 import {
   GRAPH_BENDS_DIR,
   GRAPH_DIR,
+  GRAPH_GROUPS_DIR,
   GRAPH_LAYOUT_PATH,
   GRAPH_LEGACY_PATH,
   GRAPH_NOTES_DIR,
@@ -89,19 +90,20 @@ export async function loadGraphLayout(
     readText(controller, root + "/" + GRAPH_LAYOUT_PATH),
     readText(controller, root + "/" + GRAPH_VIEWPORT_PATH),
   ]);
-  const [positions, bends, notes] = await Promise.all([
+  const [positions, bends, groups, notes] = await Promise.all([
     readDirFiles(controller, root + "/" + GRAPH_POSITIONS_DIR),
     readDirFiles(controller, root + "/" + GRAPH_BENDS_DIR),
+    readDirFiles(controller, root + "/" + GRAPH_GROUPS_DIR),
     readNoteBodies(controller, root + "/" + GRAPH_NOTES_DIR),
   ]);
   const hasV3 =
     layout.trim() !== "" ||
     viewport.trim() !== "" ||
-    [positions, bends, notes].some((files) => Object.keys(files).length > 0);
+    [positions, bends, groups, notes].some((files) => Object.keys(files).length > 0);
   // Only pay for the legacy read when the v3 files are absent: a migrated project must not
   // resurrect positions from the old file.
   const legacy = hasV3 ? null : await readText(controller, root + "/" + GRAPH_LEGACY_PATH);
-  const parsed = decodeGraphLayout({ layout, viewport, positions, bends, notes, legacy });
+  const parsed = decodeGraphLayout({ layout, viewport, positions, bends, groups, notes, legacy });
   return { layout: parsed.layout, source: parsed.source };
 }
 
@@ -155,6 +157,7 @@ export async function saveGraphLayout(
     controller.bridge.request("vv-mkdirp", { path: root + "/" + GRAPH_DIR }),
     controller.bridge.request("vv-mkdirp", { path: root + "/" + GRAPH_POSITIONS_DIR }),
     controller.bridge.request("vv-mkdirp", { path: root + "/" + GRAPH_BENDS_DIR }),
+    controller.bridge.request("vv-mkdirp", { path: root + "/" + GRAPH_GROUPS_DIR }),
     controller.bridge.request("vv-mkdirp", { path: root + "/" + GRAPH_NOTES_DIR }),
   ]);
   await ensureGraphTracked(controller, root);

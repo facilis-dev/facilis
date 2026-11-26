@@ -52,6 +52,7 @@ export function ProjectGraphSurface({
   lens,
   savedPositions,
   viewport,
+  groups,
   noteState,
   onModeChange,
   onSelectNode,
@@ -71,6 +72,8 @@ export function ProjectGraphSurface({
   lens: GraphLensHighlight | null;
   savedPositions: Readonly<Record<string, GraphPosition>>;
   viewport: GraphViewport | undefined;
+  /** Per-node feature-group overrides from the saved layout. */
+  groups: Readonly<Record<string, string>>;
   noteState: ProjectGraphNoteState;
   onModeChange: (mode: ProjectGraphMode) => void;
   onSelectNode: (id: string | null) => void;
@@ -89,7 +92,7 @@ export function ProjectGraphSurface({
   // Layout caching: the fingerprint covers the dataset (nodes, edges, saved positions) but NOT the
   // query, selection or focus, so those interactions reuse the cached scene instead of re-layouting.
   const layoutKey = useMemo(() => surfaceLayoutKey(view), [view]);
-  const domains = useMemo(() => deriveDomains(view.nodes, view.edges), [layoutKey]);
+  const domains = useMemo(() => deriveDomains(view.nodes, view.edges, groups), [layoutKey, groups]);
   const domainOf = useMemo(() => domainIndex(domains), [domains]);
   const overviewScene = useMemo(
     () => buildOverviewScene(domains, view.nodes, view.edges),

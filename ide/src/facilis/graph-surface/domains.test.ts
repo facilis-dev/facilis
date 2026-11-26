@@ -1,8 +1,14 @@
-// Domain derivation rules (issue #184): file-location groups for pages/routes, reference votes
-// for schema objects and workflows, framework tables apart, deterministic ordering.
+// Domain derivation rules (issue #184): feature groups across lanes (route path, page calls,
+// reference votes for schema objects/workflows), framework tables apart, deterministic ordering.
 import { describe, expect, it } from "vitest";
 import type { ProjectGraphEdge, ProjectGraphNode } from "../graph-types.ts";
-import { CORE_DOMAIN, FRAMEWORK_DOMAIN, deriveDomains, domainIndex } from "./domains.ts";
+import {
+  CORE_DOMAIN,
+  FRAMEWORK_DOMAIN,
+  deriveDomainAssignments,
+  deriveDomains,
+  domainIndex,
+} from "./domains.ts";
 
 function page(id: string, sourceFile: string | null): ProjectGraphNode {
   return {
@@ -113,7 +119,7 @@ const names = (nodes: readonly ProjectGraphNode[], edges: readonly ProjectGraphE
   deriveDomains(nodes, edges).map((domain) => domain.name);
 
 describe("deriveDomains", () => {
-  it("groups pages by the directory segment under src/pages, with core as fallback", () => {
+  it("groups pages by the directory segment under src/pages, then by page path", () => {
     const nodes = [
       page("admin-users", "src/pages/admin/users.tsx"),
       page("admin-deep", "src/pages/admin/settings/deep.tsx"),
@@ -122,12 +128,13 @@ describe("deriveDomains", () => {
       page("orphan", null),
     ];
     const domains = deriveDomains(nodes, []);
-    expect(domains.map((d) => d.name)).toEqual(["admin", "core", "shop"]);
+    expect(domains.map((d) => d.name)).toEqual(["admin", "home", "orphan", "shop"]);
     expect(domains[0]?.nodeIds).toEqual(["admin-deep", "admin-users"]);
-    expect(domains[1]?.nodeIds).toEqual(["home", "orphan"]);
+    expect(domains[1]?.nodeIds).toEqual(["home"]);
+    expect(domains[2]?.nodeIds).toEqual(["orphan"]);
   });
 
-  it("groups routes by server/routes directory, then path segment, then core", () => {
+  it("groups routes by feature path, skipping the technical /api prefix", () => {
     const nodes = [
       route("r-admin", "server/routes/admin/users.get.ts", "/admin/users"),
       route("r-api", "server/routes/todos.get.ts", "/api/todos"),
@@ -135,7 +142,41 @@ describe("deriveDomains", () => {
       route("r-nofile", null, "/billing/invoices"),
     ];
     const domains = deriveDomains(nodes, []);
-    expect(domains.map((d) => d.name)).toEqual(["admin", "api", "billing", "core"]);
+    expect(domains.map((d) => d.name)).toEqual(["admin", "billing", "core", "todos"]);
+  });
+
+  it("groups a feature across pages, routes and tables", () => {
+    const nodes = [
+      page("p-login", "src/pages/login.tsx"),
+      page("p-register", "src/pages/register.tsx"),
+      page("p-todos", "src/pages/todos.tsx"),
+      route("r-login", "server/routes/api/auth/login.post.ts", "/api/auth/login"),
+      route("r-register", "server/routes/api/auth/register.post.ts", "/api/auth/register"),
+      route("r-todos", "server/routes/api/todos/index.get.ts", "/api/todos"),
+      table("users"),
+      table("todos"),
+    ];
+    const edges = [
+      edge("page-route", "p-login", "r-login"),
+      edge("page-route", "p-register", "r-register"),
+      edge("page-route", "p-todos", "r-todos"),
+      edge("route-table", "r-login", "users"),
+      edge("route-table", "r-register", "users"),
+      edge("route-table", "r-todos", "todos"),
+    ];
+    const domains = deriveDomains(nodes, edges);
+    expect(domains.find((d) => d.name === "auth")?.nodeIds).toEqual([
+      "p-login",
+      "p-register",
+      "r-login",
+      "r-register",
+      "users",
+    ]);
+    expect(domains.find((d) => d.name === "todos")?.nodeIds).toEqual([
+      "p-todos",
+      "r-todos",
+      "todos",
+    ]);
   });
 
   it("assigns tables to the group with the most incoming route references", () => {
@@ -192,14 +233,14 @@ describe("deriveDomains", () => {
     expect(domains.find((d) => d.name === "admin")?.nodeIds).toEqual(["r1"]);
   });
 
-  it("does not let page-route votes move a route out of its file group", () => {
+  it("moves a page into the feature of the routes it calls without moving the route", () => {
     const nodes = [
       page("p", "src/pages/shop/index.tsx"),
       route("r", "server/routes/admin/a.get.ts", "/admin/a"),
     ];
     const domains = deriveDomains(nodes, [edge("page-route", "p", "r")]);
-    expect(domains.find((d) => d.name === "admin")?.nodeIds).toEqual(["r"]);
-    expect(domains.find((d) => d.name === "shop")?.nodeIds).toEqual(["p"]);
+    expect(domains.find((d) => d.name === "admin")?.nodeIds).toEqual(["p", "r"]);
+    expect(domains.find((d) => d.name === "shop")).toBeUndefined();
   });
 
   it("returns domains sorted by name with sorted members, whatever the input order", () => {
@@ -223,5 +264,60 @@ describe("deriveDomains", () => {
     expect(index.get("p")).toBe("admin");
     expect(index.get("t")).toBe(CORE_DOMAIN);
     expect(index.get("w")).toBe(CORE_DOMAIN);
+  });
+});
+
+describe("deriveDomainAssignments", () => {
+  const nodes = [
+    page("p-login", "src/pages/login.tsx"),
+    route("r-auth", "server/routes/api/auth/login.post.ts", "/api/auth/login"),
+    table("users"),
+    page("p-home", "src/pages/index.tsx"),
+  ];
+  const edges = [edge("page-route", "p-login", "r-auth"), edge("route-table", "r-auth", "users")];
+
+  it("explains route, page-call, reference and fallback assignments", () => {
+    const assignments = deriveDomainAssignments(nodes, edges);
+    expect(assignments.get("r-auth")).toEqual({
+      group: "auth",
+      reason: "route-path",
+      evidence: "/api/auth/login",
+    });
+    expect(assignments.get("p-login")).toEqual({
+      group: "auth",
+      reason: "page-calls",
+      evidence: "/api/auth/login",
+    });
+    expect(assignments.get("users")).toEqual({
+      group: "auth",
+      reason: "reference",
+      evidence: null,
+    });
+    expect(assignments.get("p-home")).toEqual({
+      group: "p-home",
+      reason: "page-path",
+      evidence: "/p-home",
+    });
+  });
+
+  it("applies a node override first, and the override feeds the nodes that refer to it", () => {
+    const assignments = deriveDomainAssignments(nodes, edges, { "r-auth": "security" });
+    expect(assignments.get("r-auth")).toEqual({
+      group: "security",
+      reason: "override",
+      evidence: null,
+    });
+    expect(assignments.get("p-login")?.group).toBe("security");
+    expect(assignments.get("users")?.group).toBe("security");
+  });
+
+  it("lets a page and a table be pinned independently", () => {
+    const assignments = deriveDomainAssignments(nodes, edges, {
+      "p-login": "public",
+      users: "people",
+    });
+    expect(assignments.get("p-login")?.group).toBe("public");
+    expect(assignments.get("users")?.group).toBe("people");
+    expect(assignments.get("r-auth")?.group).toBe("auth");
   });
 });

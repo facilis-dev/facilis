@@ -232,13 +232,13 @@ describe("inspector answers", () => {
 
   it("Q8 groups external references and includes same-domain views", () => {
     const rows = externalReferences(byId(USERS.id), ctx);
-    expect(rows.some((row) => row.nodeId === API_ROUTE.id && row.group === "api")).toBe(true);
+    expect(rows.some((row) => row.nodeId === API_ROUTE.id && row.group === "users")).toBe(true);
     expect(rows.some((row) => row.nodeId === ACTIVE_USERS.id)).toBe(true);
   });
 
   it("Q9 counts references per domain and stays empty below two domains", () => {
     const rows = sharedGroups(byId(USERS.id), ctx);
-    expect(new Set(rows.map((row) => row.group))).toEqual(new Set(["api", "core"]));
+    expect(new Set(rows.map((row) => row.group))).toEqual(new Set(["core", "users"]));
     expect(rows.find((row) => row.nodeId === API_ROUTE.id)?.detailParams).toEqual({ count: 1 });
     expect(sharedGroups(byId(TODOS.id), ctx)).toEqual([]);
   });
