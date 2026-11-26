@@ -103,7 +103,7 @@ async function bootstrap(): Promise<BootstrapState> {
   // The environment, not the config alone, decides where data lives (D-068): a deployment
   // sets a Postgres URL and the same build runs there. Every refusal is a warning, so a
   // misconfigured production boot degrades to "no database" instead of crashing.
-  const resolved = resolveDbTarget(projectConfig, runtime, process.env);
+  const resolved = resolveDbTarget(runtime, process.env);
   warnings.push(...resolved.warnings);
   if (resolved.target === null) {
     return {

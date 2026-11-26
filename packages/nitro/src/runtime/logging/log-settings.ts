@@ -25,7 +25,6 @@ export const LOG_SINK_ENV = "FACILIS_LOG_SINK";
 export const LOG_DIR_ENV = "FACILIS_LOG_DIR";
 export const LOG_MAX_BYTES_ENV = "FACILIS_LOG_MAX_BYTES";
 export const LOG_KEEP_ENV = "FACILIS_LOG_KEEP";
-export const LOG_LEVEL_ENV = "FACILIS_LOG_LEVEL";
 
 /** 10 MiB keeps a dev log bounded while the IDE editor can still read it comfortably. */
 export const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
@@ -47,7 +46,7 @@ export interface ResolvedLogSettings {
   readonly dir: string;
   readonly maxBytes: number;
   readonly keep: number;
-  /** Environment override for `logging.level`; null keeps the project config. */
+  /** The declared `runtime.logLevel`; null means app/access entries are suppressed. */
   readonly level: LogLevel | null;
 }
 
@@ -157,9 +156,21 @@ function parseBoundedInteger(
 
 function parseLevel(raw: unknown, warnings: LogSettingsWarning[]): LogLevel | null {
   const value = typeof raw === "string" ? raw.trim() : "";
-  if (value === "") return null;
+  if (value === "") {
+    warnings.push(
+      warning(
+        "runtime.logLevel is not declared; app and access entries are suppressed (set FACILIS_LOG_LEVEL).",
+        "logging_level_missing",
+      ),
+    );
+    return null;
+  }
   if (!isLogLevel(value)) {
-    warnings.push(warning(`${LOG_LEVEL_ENV}="${value}" is not a log level; keeping logging.level.`));
+    warnings.push(
+      warning(
+        `FACILIS_LOG_LEVEL="${value}" is not a log level; app and access entries are suppressed.`,
+      ),
+    );
     return null;
   }
   return value;
@@ -171,6 +182,6 @@ function stringValue(raw: unknown): string | undefined {
   return value.length === 0 ? undefined : value;
 }
 
-function warning(message: string): LogSettingsWarning {
-  return { code: "logging_env_invalid", message };
+function warning(message: string, code = "logging_env_invalid"): LogSettingsWarning {
+  return { code, message };
 }

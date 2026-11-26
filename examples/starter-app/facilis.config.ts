@@ -2,10 +2,7 @@ import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   release: { ref: "origin/main" },
-  // Dev default. Production refuses in-memory PGlite: set FACILIS_DATABASE_URL (or
-  // DATABASE_URL) and the runtime opens Postgres instead (D-068).
   db: {
-    mode: "pglite",
     tenantColumns: ["tenantId", "tenant_id"],
     ownerColumns: ["ownerId", "owner_id", "userId", "user_id"],
   },
@@ -24,10 +21,15 @@ export default defineConfig({
   // Operator logging (D-119): entries are JSON Lines files under <project>/.facilis/logs in
   // development and stdout in production; the sink itself is environment-owned.
   logging: {
-    level: "info",
     access: true,
     errors: true,
     includeUserAgent: false,
-    trustProxy: false,
+  },
+  // Deployment surface (D-224). Dev default: in-memory PGlite. Production refuses it: set
+  // FACILIS_DATABASE_URL (or DATABASE_URL) and the runtime opens Postgres instead (D-068).
+  runtime: {
+    databaseMode: "pglite",
+    logLevel: "info",
+    logTrustProxy: false,
   },
 });

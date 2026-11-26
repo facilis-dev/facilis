@@ -1,8 +1,4 @@
-import type {
-  FacilisConfig,
-  FacilisRuntimeConfig,
-  ManifestWarning,
-} from "@facilis.dev/core";
+import type { FacilisRuntimeConfig, ManifestWarning } from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "./env.ts";
 import { runtimeSecret, runtimeString } from "./runtime-values.ts";
@@ -30,7 +26,6 @@ export interface ResolvedDbTarget {
  * or, worse, silently writing a production app to the in-memory PGlite cluster.
  */
 export function resolveDbTarget(
-  config: FacilisConfig | null,
   runtime: FacilisRuntimeConfig,
   env: NodeJS.ProcessEnv,
 ): ResolvedDbTarget {
@@ -43,8 +38,18 @@ export function resolveDbTarget(
     return { target: { driver: "postgres", url }, warnings: [] };
   }
 
-  // D-224 P3 removes this fallback: runtime.databaseMode now wins, db.mode stays as the default.
-  const mode = runtimeString(runtime, "databaseMode") ?? config?.db.mode ?? "pglite";
+  const mode = runtimeString(runtime, "databaseMode")?.trim();
+  if (mode === undefined || mode.length === 0) {
+    return {
+      target: null,
+      warnings: [
+        warning(
+          "db_database_mode_missing",
+          'runtime.databaseMode is not declared; set FACILIS_DATABASE_MODE to "pglite" or "postgres".',
+        ),
+      ],
+    };
+  }
 
   if (mode === "pglite") {
     if (isProductionEnvironment(env)) {
@@ -67,7 +72,7 @@ export function resolveDbTarget(
       warnings: [
         warning(
           "db_url_missing",
-          'db.mode is "postgres" but neither FACILIS_DATABASE_URL nor DATABASE_URL is set.',
+          'runtime.databaseMode is "postgres" but neither FACILIS_DATABASE_URL nor DATABASE_URL is set.',
         ),
       ],
     };
@@ -79,7 +84,7 @@ export function resolveDbTarget(
     warnings: [
       warning(
         "db_mode_unsupported",
-        `db.mode "${mode}" has no runtime driver; use "pglite" or "postgres".`,
+        `runtime.databaseMode "${mode}" has no runtime driver; use "pglite" or "postgres".`,
       ),
     ],
   };

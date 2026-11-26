@@ -104,7 +104,7 @@ afterEach(() => {
 describe("telemetry ingestion route — disabled means absent", () => {
   it("answers 404 on POST and GET when the switch is off", async () => {
     process.env["NODE_ENV"] = "production";
-    delete process.env["FACILIS_TELEMETRY"];
+    delete process.env["FACILIS_TELEMETRY_ENABLED"];
     for (const method of ["POST", "GET"]) {
       const response = await handler(
         event("https://app.acme.example", { method, body: method === "POST" ? "{}" : undefined }),

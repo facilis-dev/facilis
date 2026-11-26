@@ -22,6 +22,10 @@ import {
 import { isProductionEnvironment } from "./env.ts";
 import { runtimeSecret } from "./runtime-values.ts";
 import { resolveEncryptionKeys } from "./storage-keys.ts";
+import {
+  resolveStorageTarget,
+  type EffectiveStorageConfig,
+} from "./storage-target-config.ts";
 
 /**
  * Resolve the binary-storage runtime from the config + resolved runtime section (D-053, D-224).
@@ -38,7 +42,7 @@ export interface ResolvedStorage {
 
 export interface ResolveStorageDeps {
   /** Test seam: build the low-level driver without touching the filesystem or the network. */
-  readonly createDriver?: (config: FacilisConfig["storage"], rootDir: string) => StorageDriver;
+  readonly createDriver?: (config: EffectiveStorageConfig, rootDir: string) => StorageDriver;
   /** Test seam: the HMAC secret (defaults to FACILIS_STORAGE_SECRET / a per-boot random). */
   readonly secret?: string;
   /** Test seam: the dev fallback secret. */
@@ -56,8 +60,13 @@ export function resolveStorage(
   projectRoot: string,
   deps: ResolveStorageDeps = {},
 ): ResolvedStorage {
-  const storageConfig = effectiveStorageConfig(config?.storage ?? DEFAULT_STORAGE_CONFIG, runtime);
   const production = isProductionEnvironment(env);
+  const target = resolveStorageTarget(runtime);
+  if (target.target === null) return { storage: null, warnings: target.warnings };
+  const storageConfig: EffectiveStorageConfig = {
+    ...(config?.storage ?? DEFAULT_STORAGE_CONFIG),
+    ...target.target,
+  };
   const warnings: ManifestWarning[] = [];
 
   if (storageConfig.driver === "local" && production) {
@@ -66,7 +75,7 @@ export function resolveStorage(
       warnings: [
         warning(
           "storage_local_in_production",
-          'Production refuses the local file driver: set storage.driver to "s3" and an S3-compatible bucket.',
+          'Production refuses the local file driver: set runtime.storageDriver to "s3" (FACILIS_STORAGE_DRIVER) and an S3-compatible bucket.',
         ),
       ],
     };
@@ -82,7 +91,7 @@ export function resolveStorage(
       warnings: [
         warning(
           "storage_s3_credentials_missing",
-          "S3 storage needs FACILIS_S3_ACCESS_KEY_ID and FACILIS_S3_SECRET_ACCESS_KEY.",
+          "S3 storage needs runtime.s3AccessKeyId and runtime.s3SecretAccessKey; set FACILIS_S3_ACCESS_KEY_ID and FACILIS_S3_SECRET_ACCESS_KEY.",
         ),
       ],
     };
@@ -144,7 +153,7 @@ export function resolveStorage(
 }
 
 function createDriver(
-  config: FacilisConfig["storage"],
+  config: EffectiveStorageConfig,
   runtime: FacilisRuntimeConfig,
   projectRoot: string,
 ): StorageDriver {
@@ -153,8 +162,8 @@ function createDriver(
   }
   const accessKeyId = runtimeSecret(runtime, "s3AccessKeyId");
   const secretAccessKey = runtimeSecret(runtime, "s3SecretAccessKey");
-  // Config validation already requires bucket/region; the guard keeps a hand-edited or
-  // older virtual config from reaching the driver with nulls.
+  // The resolver already refuses a target without bucket/region; the guard keeps a hand-built
+  // target from reaching the driver with nulls.
   if (
     config.bucket === null ||
     config.region === null ||
@@ -162,7 +171,7 @@ function createDriver(
     secretAccessKey === null
   ) {
     throw new Error(
-      "S3 storage requires storage.bucket, storage.region, FACILIS_S3_ACCESS_KEY_ID and FACILIS_S3_SECRET_ACCESS_KEY",
+      "S3 storage requires runtime.s3Bucket, runtime.s3Region, FACILIS_S3_ACCESS_KEY_ID and FACILIS_S3_SECRET_ACCESS_KEY",
     );
   }
   const sessionToken = runtimeSecret(runtime, "s3SessionToken");
@@ -180,7 +189,7 @@ function createDriver(
 function createStorageApi(
   driver: StorageDriver,
   secret: string,
-  config: FacilisConfig["storage"],
+  config: EffectiveStorageConfig,
 ): StorageApi {
   const signing = isSigningDriver(driver) ? driver : null;
   const api: StorageApi = {
@@ -226,40 +235,6 @@ function readSecret(
   // Dev tokens only need to live for the boot (five-minute TTL); a per-boot secret keeps
   // the zero-config dev path working without writing a secret to the project.
   return (deps.randomSecret ?? (() => randomBytes(32).toString("hex")))();
-}
-
-/**
- * Runtime keys win over the build-time storage section (D-224). The section fallback survives
- * only until P3 removes the moved keys.
- */
-function effectiveStorageConfig(
-  base: FacilisConfig["storage"],
-  runtime: FacilisRuntimeConfig,
-): FacilisConfig["storage"] {
-  const driver = runtime["storageDriver"];
-  const bucket = runtime["s3Bucket"];
-  const region = runtime["s3Region"];
-  const endpoint = runtime["s3Endpoint"];
-  const forcePathStyle = runtime["s3ForcePathStyle"];
-  return {
-    ...base,
-    // D-224 P3 removes this fallback.
-    driver: driver === "local" || driver === "s3" ? driver : base.driver,
-    // D-224 P3 removes this fallback.
-    bucket: bucket === undefined ? base.bucket : typeof bucket === "string" ? bucket : null,
-    // D-224 P3 removes this fallback.
-    region: region === undefined ? base.region : typeof region === "string" ? region : null,
-    // D-224 P3 removes this fallback.
-    endpoint:
-      endpoint === undefined ? base.endpoint : typeof endpoint === "string" ? endpoint : null,
-    // D-224 P3 removes this fallback.
-    forcePathStyle:
-      forcePathStyle === undefined
-        ? base.forcePathStyle
-        : typeof forcePathStyle === "boolean"
-          ? forcePathStyle
-          : null,
-  };
 }
 
 function warning(code: string, message: string): ManifestWarning {

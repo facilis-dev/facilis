@@ -1,6 +1,6 @@
 import type { SchemaSnapshot } from "@facilis.dev/db";
 
-import type { DbMode, FacilisConfig } from "./config.ts";
+import { DB_MODES, type DbMode, type FacilisConfig } from "./config.ts";
 
 /**
  * Manifest contract (SPEC §6.1, §6.2, §7.2, §7.3).
@@ -156,7 +156,7 @@ export function buildManifest(input: BuildManifestInput): FacilisManifest {
 export interface ManifestSummary {
   readonly framework: ManifestFrameworkVersions;
   readonly project: {
-    readonly dbMode: DbMode;
+    readonly dbMode: DbMode | null;
     readonly releaseRef: string;
     readonly defaultLocale: string;
   };
@@ -176,6 +176,14 @@ export interface ManifestSummary {
   readonly locales: readonly string[];
 }
 
+/** The resolved runtime declaration, never the removed build-time `db.mode` (D-224). */
+function readDbMode(config: FacilisConfig): DbMode | null {
+  const declared = config.runtime["databaseMode"];
+  return typeof declared === "string" && (DB_MODES as readonly string[]).includes(declared)
+    ? (declared as DbMode)
+    : null;
+}
+
 export function summarizeManifest(manifest: FacilisManifest): ManifestSummary {
   const tables = manifest.schema.tables;
   const config = manifest.project.config;
@@ -183,7 +191,7 @@ export function summarizeManifest(manifest: FacilisManifest): ManifestSummary {
   return {
     framework: manifest.framework,
     project: {
-      dbMode: config.db.mode,
+      dbMode: readDbMode(config),
       releaseRef: config.release.ref,
       defaultLocale: manifest.i18n.defaultLocale,
     },

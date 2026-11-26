@@ -24,8 +24,9 @@ export const CONFIG = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   release: { ref: "origin/main" },
-  db: { mode: "pglite" },
+  db: {},
   i18n: { defaultLocale: "en", locales: ["en"] },
+  runtime: { databaseMode: "pglite" },
   auth: {
     permissions: ["todos:read", "todos:write"],
     roles: { admin: ["*"], user: ["todos:read", "todos:write"] },

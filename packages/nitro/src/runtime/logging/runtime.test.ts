@@ -77,7 +77,7 @@ function stdoutRuntime(overrides: RuntimeOverrides = {}) {
     dir: "/tmp/facilis-logs-unused",
     maxBytes: DEFAULT_LOG_MAX_BYTES,
     keep: DEFAULT_LOG_KEEP,
-    level: null,
+    level: "info",
     ...overrides.settings,
   };
   const runtime = createLoggingRuntime({
@@ -123,7 +123,7 @@ describe("createLoggingRuntime", () => {
   });
 
   it("filters app entries by level", () => {
-    const { runtime, entries } = stdoutRuntime({ config: { level: "warn" } });
+    const { runtime, entries } = stdoutRuntime({ settings: { level: "warn" } });
     const log = runtime.logger(meta());
 
     log.debug("debug");
@@ -136,7 +136,8 @@ describe("createLoggingRuntime", () => {
 
   it("never filters audit entries", () => {
     const { runtime, entries } = stdoutRuntime({
-      config: { level: "error", access: false, errors: false },
+      config: { access: false, errors: false },
+      settings: { level: "error" },
     });
 
     runtime.record(auditEntry());

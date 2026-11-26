@@ -2,10 +2,10 @@ import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
   db: {
-    mode: "pglite",
     tenantColumns: ["tenantId", "tenant_id"],
     ownerColumns: ["ownerId", "owner_id"],
   },
+  runtime: { databaseMode: "pglite" },
   i18n: { defaultLocale: "en", locales: ["en"] },
   auth: {
     permissions: ["stats:read"],

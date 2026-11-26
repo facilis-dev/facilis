@@ -1391,7 +1391,6 @@ depth; the §8.8 attribute allowlist remains the gate.
 interface FacilisConfig {
   release: { ref: string }
   db: {
-    mode: "pglite" | "postgres" | "json"   // D-068: an env URL wins over this; "json" not implemented
     tenantColumns: string[]
     ownerColumns: string[]
   }
@@ -1435,21 +1434,15 @@ interface FacilisConfig {
     persist: boolean           // keep the queue in facilis_jobs (default true)
   }
   storage: {                   // D-116/D-117; every key has a default, secrets stay in env (§5.10)
-    driver: "local" | "s3"     // default "local"; "s3" is required in production
-    bucket: string | null      // required with driver "s3"
-    region: string | null      // required with driver "s3"
-    endpoint: string | null    // S3-compatible endpoint (R2, MinIO); null = AWS S3
-    forcePathStyle: boolean | null  // null = driver default
+    // The target (driver, bucket, region, endpoint, path style) is runtime config (D-224).
     maxUploadBytes: number     // default 10 MiB; hard cap 100 MiB
     tokenTtlSeconds: number    // download-token lifetime, default 300 s; max 24 h
     encryption: { enabled: boolean }  // at-rest encryption, default false; keys stay in env (D-117)
   }
-  logging: {                   // D-119; every key has a default, the sink stays in env
-    level: "debug" | "info" | "warn" | "error"   // default "info"; FACILIS_LOG_LEVEL overrides
+  logging: {                   // D-119; every key has a default, level and sink stay in runtime/env
     access: boolean            // one access entry per authorized request, default true
     errors: boolean            // server-side error entries, default true
     includeUserAgent: boolean  // default false
-    trustProxy: boolean        // trust x-forwarded-for, default false
   }
   security: {                  // D-141; request-origin policy for unsafe methods
     trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []

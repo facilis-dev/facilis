@@ -63,6 +63,7 @@ function downloadDb(row: Inserted): PolicyScopedDatabase {
 }
 
 const ENCRYPTION_RUNTIME = {
+  storageDriver: "local",
   storageEncryptionKey: Buffer.alloc(32, 11).toString("base64"),
 };
 
@@ -72,7 +73,7 @@ describe("encrypted upload/download path", () => {
     const resolved = resolveStorage(
       defineConfig({
         auth: { roles: { user: [] }, defaultRole: "user" },
-        storage: { driver: "local", encryption: { enabled: true } },
+        storage: { encryption: { enabled: true } },
       }),
       ENCRYPTION_RUNTIME,
       { NODE_ENV: "development" },
@@ -128,7 +129,7 @@ describe("encrypted upload/download path", () => {
     const resolved = resolveStorage(
       defineConfig({
         auth: { roles: { user: [] }, defaultRole: "user" },
-        storage: { driver: "local", encryption: { enabled: true } },
+        storage: { encryption: { enabled: true } },
       }),
       ENCRYPTION_RUNTIME,
       { NODE_ENV: "development" },

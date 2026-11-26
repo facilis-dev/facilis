@@ -60,7 +60,7 @@ function stdoutSettings(): ResolvedLogSettings {
     dir: "/tmp/facilis-logs-unused",
     maxBytes: DEFAULT_LOG_MAX_BYTES,
     keep: DEFAULT_LOG_KEEP,
-    level: null,
+    level: "info",
   };
 }
 
@@ -136,7 +136,7 @@ describe("facilis-context middleware", () => {
 
   it("takes the first x-forwarded-for value only behind a trusted proxy", async () => {
     bootstrapMock.getBootstrap.mockResolvedValue(
-      state({ loggingConfig: { ...DEFAULT_LOGGING_CONFIG, trustProxy: true } }),
+      state({ runtime: { logTrustProxy: true } }),
     );
     const harness = makeEvent({
       "user-agent": "test-agent/1.0",
@@ -156,7 +156,7 @@ describe("facilis-context middleware", () => {
     expect(untrusted.context.facilis?.clientAddress).toBeUndefined();
 
     bootstrapMock.getBootstrap.mockResolvedValue(
-      state({ loggingConfig: { ...DEFAULT_LOGGING_CONFIG, trustProxy: true } }),
+      state({ runtime: { logTrustProxy: true } }),
     );
     const trusted = makeEvent({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" });
     await handler(trusted.event);
@@ -166,14 +166,14 @@ describe("facilis-context middleware", () => {
   it("caps a 10 000-character x-forwarded-for before the log line is written", async () => {
     const lines: string[] = [];
     const logging = createLoggingRuntime({
-      config: { ...DEFAULT_LOGGING_CONFIG, trustProxy: true },
+      config: DEFAULT_LOGGING_CONFIG,
       settings: stdoutSettings(),
       writeStdout: (line) => lines.push(line),
     });
     bootstrapMock.getBootstrap.mockResolvedValue(
       state({
         logging,
-        loggingConfig: { ...DEFAULT_LOGGING_CONFIG, trustProxy: true },
+        runtime: { logTrustProxy: true },
       }),
     );
     const harness = makeEvent({ "x-forwarded-for": `${"9".repeat(10_000)}, 10.0.0.1` });

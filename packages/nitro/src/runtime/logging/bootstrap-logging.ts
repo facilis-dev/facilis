@@ -2,7 +2,6 @@ import {
   DEFAULT_LOGGING_CONFIG,
   type FacilisLoggingConfig,
   type FacilisRuntimeConfig,
-  type LogLevel,
   type ManifestWarning,
 } from "@facilis.dev/core";
 
@@ -42,7 +41,7 @@ export function createBootstrapLogging(input: BootstrapLoggingInput): BootstrapL
     projectRoot: input.projectRoot,
     ...(input.production === undefined ? {} : { production: input.production }),
   });
-  const config = effectiveLoggingConfig(input.loggingConfig, resolved.settings.level);
+  const config = input.loggingConfig ?? DEFAULT_LOGGING_CONFIG;
   const runtime = createLoggingRuntime({
     config,
     settings: resolved.settings,
@@ -53,14 +52,4 @@ export function createBootstrapLogging(input: BootstrapLoggingInput): BootstrapL
     config,
     warnings: [...resolved.warnings, ...runtime.warnings],
   };
-}
-
-/** `logging.level` is the one config value the environment may override. */
-export function effectiveLoggingConfig(
-  loggingConfig: FacilisLoggingConfig | null,
-  levelOverride: LogLevel | null,
-): FacilisLoggingConfig {
-  // D-224 P3 removes this fallback: runtime.logLevel now wins, logging.level stays as the default.
-  const base = loggingConfig ?? DEFAULT_LOGGING_CONFIG;
-  return levelOverride === null ? base : { ...base, level: levelOverride };
 }

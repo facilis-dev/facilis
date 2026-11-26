@@ -101,7 +101,6 @@ export interface FacilisReleaseConfig {
 }
 
 export interface FacilisDbConfig {
-  readonly mode: DbMode;
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
 }
@@ -144,11 +143,11 @@ export interface FacilisConfig {
   readonly jobs: FacilisJobsConfig;
   /** Workflow runner settings (D-135, docs/WORKFLOWS.md §10). */
   readonly workflows: FacilisWorkflowsConfig;
-  /** Binary uploads (D-053): driver, bucket and the framework limits. */
+  /** Binary uploads (D-053): the framework limits; the target is runtime config (D-224). */
   readonly storage: FacilisStorageConfig;
   /** Request-origin policy; always present so the wrapper never guesses (SPEC §8). */
   readonly security: FacilisSecurityConfig;
-  /** Operator logging defaults (D-119): level and what is collected; sinks are env-owned. */
+  /** Operator logging defaults (D-119): what is collected; level and sinks are runtime-owned. */
   readonly logging: FacilisLoggingConfig;
   readonly nitro: FacilisNitroOptions;
   /** Route-level prerendering allowlist (D-202); `{ routes: [] }` means off. */
@@ -166,7 +165,6 @@ export interface FacilisConfig {
 export interface FacilisConfigInput {
   readonly release?: { readonly ref?: string };
   readonly db?: {
-    readonly mode?: DbMode;
     readonly tenantColumns?: readonly string[];
     readonly ownerColumns?: readonly string[];
   };
@@ -189,9 +187,9 @@ export interface FacilisConfigInput {
   readonly jobs?: FacilisJobsConfigInput;
   /** Workflow runner settings (D-135); every key has a default. */
   readonly workflows?: FacilisWorkflowsConfigInput;
-  /** Binary uploads (D-053, D-117); every key has a default. */
+  /** Binary upload limits (D-053, D-117); every key has a default. */
   readonly storage?: FacilisStorageConfigInput;
-  /** Logging defaults (D-119); every key has a default and the environment overrides them. */
+  /** Logging defaults (D-119); the level lives in `runtime` (D-224). */
   readonly logging?: FacilisLoggingConfigInput;
   /** Request-origin allow-list; defaults to same-origin only. */
   readonly security?: {
@@ -212,7 +210,6 @@ const DEFAULT_LOCALE = "en";
 const DEFAULT_SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
 
 const DEFAULT_DB_CONFIG = {
-  mode: "pglite" as const,
   tenantColumns: [DEFAULT_TENANT_COLUMN],
   ownerColumns: [DEFAULT_OWNER_COLUMN],
 };
@@ -228,7 +225,6 @@ const releaseSchema = z
 
 const dbSchema = z
   .strictObject({
-    mode: z.enum(DB_MODES).default("pglite"),
     tenantColumns: z.array(z.string().min(1)).default([DEFAULT_TENANT_COLUMN]),
     ownerColumns: z.array(z.string().min(1)).default([DEFAULT_OWNER_COLUMN]),
   })

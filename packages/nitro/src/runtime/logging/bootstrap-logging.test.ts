@@ -9,9 +9,9 @@ import {
   type FacilisRuntimeConfig,
 } from "@facilis.dev/core";
 
-import { createBootstrapLogging, effectiveLoggingConfig } from "./bootstrap-logging.ts";
+import { createBootstrapLogging } from "./bootstrap-logging.ts";
 
-const RUNTIME: FacilisRuntimeConfig = {};
+const RUNTIME: FacilisRuntimeConfig = { logLevel: "info" };
 
 let root: string;
 
@@ -68,53 +68,62 @@ describe("createBootstrapLogging", () => {
     expect((JSON.parse(lines[0] ?? "{}") as Record<string, unknown>)["kind"]).toBe("access");
   });
 
-  it("honours the project logging config", () => {
+  it("honours the project logging config and takes the level from runtime", () => {
     const state = createBootstrapLogging({
       loggingConfig: {
-        level: "warn",
         access: false,
         errors: false,
         includeUserAgent: true,
-        trustProxy: true,
       },
-      runtime: RUNTIME,
+      runtime: { logLevel: "warn" },
       env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 
-    expect(state.config).toMatchObject({
-      level: "warn",
+    expect(state.config).toEqual({
       access: false,
       errors: false,
       includeUserAgent: true,
-      trustProxy: true,
     });
+    expect(state.logging.settings.level).toBe("warn");
     state.logging.record(accessEntry());
     expect(existsSync(join(root, ".facilis", "logs", "access.jsonl"))).toBe(false);
   });
 
-  it("lets FACILIS_LOG_LEVEL override the config level", () => {
+  it("takes the level from runtime.logLevel", () => {
     const state = createBootstrapLogging({
       loggingConfig: DEFAULT_LOGGING_CONFIG,
       runtime: { logLevel: "debug" },
-      env: { FACILIS_LOG_LEVEL: "debug" },
+      env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 
-    expect(state.config.level).toBe("debug");
-    expect(state.logging.config.level).toBe("debug");
+    expect(state.logging.settings.level).toBe("debug");
   });
 
-  it("keeps the config level and warns on an invalid override", () => {
+  it("suppresses app entries and warns on an invalid level", () => {
     const state = createBootstrapLogging({
       loggingConfig: DEFAULT_LOGGING_CONFIG,
       runtime: { logLevel: "verbose" },
-      env: { FACILIS_LOG_LEVEL: "verbose" },
+      env: { NODE_ENV: "development" },
       projectRoot: root,
     });
 
-    expect(state.config.level).toBe("info");
+    expect(state.logging.settings.level).toBeNull();
     expect(state.warnings.map((warning) => warning.code)).toEqual(["logging_env_invalid"]);
+  });
+
+  it("suppresses app entries and warns when runtime.logLevel is not declared", () => {
+    const state = createBootstrapLogging({
+      loggingConfig: DEFAULT_LOGGING_CONFIG,
+      runtime: {},
+      env: { NODE_ENV: "development" },
+      projectRoot: root,
+    });
+
+    expect(state.logging.settings.level).toBeNull();
+    expect(state.warnings.map((warning) => warning.code)).toEqual(["logging_level_missing"]);
+    expect(state.warnings[0]?.message).toContain("FACILIS_LOG_LEVEL");
   });
 
   it("defaults to stdout in production", () => {
@@ -139,7 +148,7 @@ describe("createBootstrapLogging", () => {
   it("forwards invalid environment values as warnings", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
-      runtime: { logSink: "cloud", logMaxBytes: Number.NaN },
+      runtime: { logLevel: "info", logSink: "cloud", logMaxBytes: Number.NaN },
       env: { FACILIS_LOG_SINK: "cloud", FACILIS_LOG_MAX_BYTES: "nope" },
       projectRoot: root,
     });
@@ -152,15 +161,3 @@ describe("createBootstrapLogging", () => {
   });
 });
 
-describe("effectiveLoggingConfig", () => {
-  it("falls back to the defaults", () => {
-    expect(effectiveLoggingConfig(null, null)).toEqual(DEFAULT_LOGGING_CONFIG);
-  });
-
-  it("applies the level override without mutating the base", () => {
-    const base = { ...DEFAULT_LOGGING_CONFIG, access: false };
-
-    expect(effectiveLoggingConfig(base, "debug")).toEqual({ ...base, level: "debug" });
-    expect(base.level).toBe("info");
-  });
-});

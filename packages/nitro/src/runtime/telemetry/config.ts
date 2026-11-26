@@ -12,7 +12,7 @@ import { SecretString } from "@facilis.dev/core";
 import { isProductionEnvironment } from "../env.ts";
 
 /** The deploy-time switch; only an explicit "on" enables the pipeline. */
-export const TELEMETRY_ENV = "FACILIS_TELEMETRY";
+export const TELEMETRY_ENV = "FACILIS_TELEMETRY_ENABLED";
 /** The operator's collector base URL; the framework appends the per-signal path. */
 export const TELEMETRY_ENDPOINT_ENV = "FACILIS_TELEMETRY_ENDPOINT";
 /** Head-sampling ratio for root spans, 0..1; unset keeps everything. */

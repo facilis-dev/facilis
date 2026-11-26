@@ -34,7 +34,6 @@ const SPEC_AUTH = {
 const FULL_CONFIG: FacilisConfig = {
   release: { ref: "main" },
   db: {
-    mode: "pglite",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
   },
@@ -57,11 +56,6 @@ const FULL_CONFIG: FacilisConfig = {
   },
   workflows: { tickIntervalMs: 750, persist: false, defaultTaskTtlMs: 60_000 },
   storage: {
-    driver: "s3",
-    bucket: "facilis-files",
-    region: "auto",
-    endpoint: "https://example.r2.cloudflarestorage.com",
-    forcePathStyle: true,
     maxUploadBytes: 5 * 1024 * 1024,
     tokenTtlSeconds: 120,
     encryption: { enabled: true },
@@ -70,7 +64,13 @@ const FULL_CONFIG: FacilisConfig = {
   security: { trustedOrigins: ["https://app.example.com"] },
   nitro: { serverDir: "./backend" },
   prerender: { routes: ["/", "/about"], origin: "https://example.com" },
-  runtime: { logLevel: "debug", databaseUrl: { secret: true } },
+  runtime: {
+    databaseMode: "pglite",
+    storageDriver: "s3",
+    logLevel: "debug",
+    logTrustProxy: true,
+    databaseUrl: { secret: true },
+  },
   public: { appName: "Facilis" },
 };
 
@@ -87,7 +87,6 @@ describe("defineConfig", () => {
 
     expect(config.release).toEqual({ ref: "main" });
     expect(config.db).toEqual({
-      mode: "pglite",
       tenantColumns: ["tenantId"],
       ownerColumns: ["ownerId"],
     });
@@ -254,10 +253,10 @@ describe("defineConfig", () => {
     ).toThrow(/Unrecognized key/);
   });
 
-  it("rejects an invalid database mode", () => {
+  it("rejects the removed db.mode key instead of keeping a second home", () => {
     expect(() =>
-      defineConfig({ ...FULL_CONFIG, db: { ...FULL_CONFIG.db, mode: "sqlite" } as never }),
-    ).toThrow(/mode/);
+      defineConfig({ ...FULL_CONFIG, db: { ...FULL_CONFIG.db, mode: "pglite" } as never }),
+    ).toThrow(/Unrecognized key/);
   });
 
   it("rejects a non-positive session duration", () => {
