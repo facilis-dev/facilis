@@ -3,9 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_LOGGING_CONFIG, type AccessLogEntry } from "@facilis.dev/core";
+import {
+  DEFAULT_LOGGING_CONFIG,
+  type AccessLogEntry,
+  type FacilisRuntimeConfig,
+} from "@facilis.dev/core";
 
 import { createBootstrapLogging, effectiveLoggingConfig } from "./bootstrap-logging.ts";
+
+const RUNTIME: FacilisRuntimeConfig = {};
 
 let root: string;
 
@@ -34,6 +40,7 @@ describe("createBootstrapLogging", () => {
   it("uses the documented defaults when the project config failed", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
+      runtime: RUNTIME,
       env: { NODE_ENV: "development" },
       projectRoot: root,
     });
@@ -47,6 +54,7 @@ describe("createBootstrapLogging", () => {
   it("writes access entries into the project's .facilis/logs in development", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
+      runtime: RUNTIME,
       env: { NODE_ENV: "development" },
       projectRoot: root,
     });
@@ -69,6 +77,7 @@ describe("createBootstrapLogging", () => {
         includeUserAgent: true,
         trustProxy: true,
       },
+      runtime: RUNTIME,
       env: { NODE_ENV: "development" },
       projectRoot: root,
     });
@@ -87,6 +96,7 @@ describe("createBootstrapLogging", () => {
   it("lets FACILIS_LOG_LEVEL override the config level", () => {
     const state = createBootstrapLogging({
       loggingConfig: DEFAULT_LOGGING_CONFIG,
+      runtime: { logLevel: "debug" },
       env: { FACILIS_LOG_LEVEL: "debug" },
       projectRoot: root,
     });
@@ -98,6 +108,7 @@ describe("createBootstrapLogging", () => {
   it("keeps the config level and warns on an invalid override", () => {
     const state = createBootstrapLogging({
       loggingConfig: DEFAULT_LOGGING_CONFIG,
+      runtime: { logLevel: "verbose" },
       env: { FACILIS_LOG_LEVEL: "verbose" },
       projectRoot: root,
     });
@@ -110,6 +121,7 @@ describe("createBootstrapLogging", () => {
     const lines: string[] = [];
     const state = createBootstrapLogging({
       loggingConfig: null,
+      runtime: RUNTIME,
       env: { NODE_ENV: "production" },
       projectRoot: root,
       writeStdout: (line) => lines.push(line),
@@ -127,6 +139,7 @@ describe("createBootstrapLogging", () => {
   it("forwards invalid environment values as warnings", () => {
     const state = createBootstrapLogging({
       loggingConfig: null,
+      runtime: { logSink: "cloud", logMaxBytes: Number.NaN },
       env: { FACILIS_LOG_SINK: "cloud", FACILIS_LOG_MAX_BYTES: "nope" },
       projectRoot: root,
     });

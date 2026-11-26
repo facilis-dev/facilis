@@ -1,13 +1,28 @@
 import { resolve } from "node:path";
 
+import type { FacilisRuntimeConfig, FacilisRuntimeValue } from "@facilis.dev/core";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOG_KEEP, DEFAULT_LOG_MAX_BYTES, resolveLogSettings } from "./log-settings.ts";
 
 const ROOT = "/tmp/facilis-project";
 
+/** Mirrors what the resolver hands the boot from the same environment. */
+function runtimeFrom(env: Record<string, string>): FacilisRuntimeConfig {
+  const runtime: Record<string, FacilisRuntimeValue> = {};
+  if (env["FACILIS_LOG_SINK"] !== undefined) runtime["logSink"] = env["FACILIS_LOG_SINK"];
+  if (env["FACILIS_LOG_DIR"] !== undefined) runtime["logDir"] = env["FACILIS_LOG_DIR"];
+  if (env["FACILIS_LOG_MAX_BYTES"] !== undefined) {
+    runtime["logMaxBytes"] = Number(env["FACILIS_LOG_MAX_BYTES"]);
+  }
+  if (env["FACILIS_LOG_KEEP"] !== undefined) runtime["logKeep"] = Number(env["FACILIS_LOG_KEEP"]);
+  if (env["FACILIS_LOG_LEVEL"] !== undefined) runtime["logLevel"] = env["FACILIS_LOG_LEVEL"];
+  return runtime;
+}
+
 function resolveWith(env: Record<string, string> = {}, production?: boolean) {
   return resolveLogSettings({
+    runtime: runtimeFrom(env),
     env: { NODE_ENV: "development", ...env },
     projectRoot: ROOT,
     ...(production === undefined ? {} : { production }),

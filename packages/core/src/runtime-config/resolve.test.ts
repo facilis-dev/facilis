@@ -7,6 +7,7 @@ import {
   assertNoRuntimeProblems,
   envNameFor,
   installRuntimeConfig,
+  peekRuntimeConfig,
   resolvePublicConfig,
   resolveRuntimeConfig,
   runtimeEnv,
@@ -142,6 +143,12 @@ describe("assertNoRuntimeProblems", () => {
 describe("runtimeEnv", () => {
   it("refuses to answer before the boot installs it", () => {
     expect(() => runtimeEnv()).toThrow(/not installed/);
+  });
+
+  it("peeks an empty, frozen config before the boot installs it", () => {
+    const empty = peekRuntimeConfig();
+    expect(empty).toEqual({});
+    expect(Object.isFrozen(empty)).toBe(true);
   });
 
   it("returns the same frozen object once installed", () => {

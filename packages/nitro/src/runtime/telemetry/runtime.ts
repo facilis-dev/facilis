@@ -5,6 +5,7 @@
  * every call site then does nothing at all — no span, no SDK, no attribute building. The Nitro
  * plugin is the only place that installs it, and tests may install a recorder instead.
  */
+import type { FacilisRuntimeConfig } from "@facilis.dev/core";
 import type { Meter, Tracer } from "@opentelemetry/api";
 
 import { readTelemetryConfig } from "./config.ts";
@@ -39,18 +40,19 @@ export function activeTelemetry(): TelemetryRuntime | null {
  * shrink the batch timers.
  */
 export function bootstrapTelemetry(
+  runtime: FacilisRuntimeConfig,
   env: NodeJS.ProcessEnv = process.env,
   tuning?: TelemetryExportTuning,
 ): TelemetryInstallation | null {
   installed = null;
-  const config = readTelemetryConfig(env);
+  const config = readTelemetryConfig(runtime, env);
   if (!config.enabled) return null;
   if (config.endpoint === null) {
     // The deploy build refuses a switched-on pipeline without a collector, so this boot was
     // started outside the build that produced it. Dropping the export is the only safe answer;
     // the warning keeps the misconfiguration visible.
     console.warn(
-      "facilis: FACILIS_TELEMETRY is on but FACILIS_TELEMETRY_ENDPOINT is not an http(s) URL; no telemetry is exported",
+      "facilis: FACILIS_TELEMETRY_ENABLED is on but FACILIS_TELEMETRY_ENDPOINT is not an http(s) URL; no telemetry is exported",
     );
     return null;
   }

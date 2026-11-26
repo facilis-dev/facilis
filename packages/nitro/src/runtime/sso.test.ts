@@ -42,7 +42,7 @@ function eventWithUrl(
 describe("resolvePublicOrigin", () => {
   it("prefers FACILIS_PUBLIC_ORIGIN", () => {
     const origin = resolvePublicOrigin(eventWithUrl("http://localhost:5173/x"), {
-      FACILIS_PUBLIC_ORIGIN: "https://app.example.com/",
+      publicOrigin: "https://app.example.com/",
     });
     expect(origin).toBe("https://app.example.com");
   });
@@ -50,12 +50,12 @@ describe("resolvePublicOrigin", () => {
   it("keeps a configured base path (IDE preview) and strips trailing slashes", () => {
     expect(
       resolvePublicOrigin(eventWithUrl("http://localhost:5173/x"), {
-        FACILIS_PUBLIC_ORIGIN: "http://localhost:5173/preview/3000",
+        publicOrigin: "http://localhost:5173/preview/3000",
       }),
     ).toBe("http://localhost:5173/preview/3000");
     expect(
       resolvePublicOrigin(eventWithUrl("http://localhost:5173/x"), {
-        FACILIS_PUBLIC_ORIGIN: "https://app.example.com/base/path///",
+        publicOrigin: "https://app.example.com/base/path///",
       }),
     ).toBe("https://app.example.com/base/path");
   });
@@ -78,12 +78,12 @@ describe("resolvePublicOrigin", () => {
   it("refuses a malformed or non-http origin instead of redirecting to it", () => {
     expect(() =>
       resolvePublicOrigin(eventWithUrl("http://localhost/x"), {
-        FACILIS_PUBLIC_ORIGIN: "not a url",
+        publicOrigin: "not a url",
       }),
     ).toThrow(/FACILIS_PUBLIC_ORIGIN/);
     expect(() =>
       resolvePublicOrigin(eventWithUrl("http://localhost/x"), {
-        FACILIS_PUBLIC_ORIGIN: "ftp://app.example.com",
+        publicOrigin: "ftp://app.example.com",
       }),
     ).toThrow(/http/);
     expect(() =>
@@ -91,7 +91,7 @@ describe("resolvePublicOrigin", () => {
     ).toThrow(/origin/);
     expect(() =>
       resolvePublicOrigin(eventWithUrl("http://localhost/x"), {
-        FACILIS_PUBLIC_ORIGIN: "https://app.example.com/?x=1",
+        publicOrigin: "https://app.example.com/?x=1",
       }),
     ).toThrow(/query/);
   });

@@ -1,4 +1,5 @@
 import { defineHandler } from "nitro";
+import { runtimeEnv } from "@facilis.dev/core";
 
 import { jsonResult, toResponse } from "../runtime/http.ts";
 import { readTelemetryConfig, type TelemetryConfig } from "../runtime/telemetry/config.ts";
@@ -38,7 +39,7 @@ function depsFor(config: TelemetryConfig): IngestDeps {
 }
 
 export default defineHandler(async (event) => {
-  const config = readTelemetryConfig();
+  const config = readTelemetryConfig(runtimeEnv());
   // Disabled means absent (SPEC §8.8): 404, never 401/403, in every non-production boot too.
   if (!config.enabled || config.endpoint === null) {
     return toResponse(jsonResult(404, { code: "not_found" }));

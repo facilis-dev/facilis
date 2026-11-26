@@ -135,6 +135,7 @@ export function assertNoRuntimeProblems(problems: readonly RuntimeConfigProblem[
 }
 
 let installed: FacilisRuntimeConfig | null = null;
+const EMPTY_RUNTIME: FacilisRuntimeConfig = Object.freeze({});
 
 /** Installed once by the boot; every non-request consumer reads the same frozen object. */
 export function installRuntimeConfig(runtime: FacilisRuntimeConfig): void {
@@ -146,6 +147,14 @@ export function runtimeEnv(): FacilisRuntimeConfig {
     throw new Error("runtime config is not installed: resolve it during boot (D-224)");
   }
   return installed;
+}
+
+/**
+ * Non-throwing read for paths that must work before a boot (unit tests, a request that never
+ * reached the middleware): an uninstalled process sees an empty, frozen config, never a throw.
+ */
+export function peekRuntimeConfig(): FacilisRuntimeConfig {
+  return installed ?? EMPTY_RUNTIME;
 }
 
 type Parsed = { readonly ok: true; readonly value: JsonValue } | { readonly ok: false; readonly expected: string };

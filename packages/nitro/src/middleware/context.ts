@@ -50,7 +50,7 @@ const handler = async (event: H3Event): Promise<void> => {
   });
   context.facilis = {
     db: state.db,
-    defaultTenantId: readDefaultTenantId(),
+    defaultTenantId: readDefaultTenantId(state.runtime),
     ...(clientAddress === undefined ? {} : { clientAddress }),
     // ctx.log and the access/error streams are structural for every authorized handler
     // (D-119): attach the runtime and the one id all entries of this request share.

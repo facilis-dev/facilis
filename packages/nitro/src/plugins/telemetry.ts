@@ -8,11 +8,14 @@
 import { definePlugin } from "nitro";
 import { useNitroHooks } from "nitro/app";
 
+import { bootProjectConfig } from "../runtime/runtime-config-boot.ts";
 import { createHttpSpanHooks } from "../runtime/telemetry/http-span.ts";
 import { bootstrapTelemetry } from "../runtime/telemetry/runtime.ts";
 
 export default definePlugin(() => {
-  const installation = bootstrapTelemetry();
+  // The runtime section must be installed before the pipeline reads it; this is the same
+  // one-per-process resolution the first request's bootstrap reuses.
+  const installation = bootstrapTelemetry(bootProjectConfig().runtime);
   if (installation === null) return;
 
   const hooks = useNitroHooks();

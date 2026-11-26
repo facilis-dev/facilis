@@ -18,6 +18,7 @@ import { throttleRouteRequest, type RateLimitWindow } from "./rate-limit.ts";
 import { parseRequestInput } from "./request-input.ts";
 import { isRequestOriginAllowed } from "./request-security.ts";
 import { resolveScope } from "./route-scope.ts";
+import { peekRuntimeConfig } from "./runtime-config/resolve.ts";
 import { unavailableStorage } from "./storage.ts";
 import { createElevationContext } from "./sudo.ts";
 
@@ -231,6 +232,7 @@ export function defineAuthorizedHandler<
           workflows: requestWorkflows,
           storage,
           log: requestLog.log,
+          runtime: peekRuntimeConfig(),
           requestId: requestLog.requestId,
         };
         // Runtime guarantee: privileged routes have a session, public routes are nullable;

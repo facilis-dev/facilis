@@ -24,6 +24,7 @@ function state(db: FacilisDb | null): BootstrapState {
   return {
     db,
     config: null,
+    runtime: {},
     warnings: [],
     startedAt: "2026-11-06T00:00:00.000Z",
     jobs: null,

@@ -16,6 +16,7 @@
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { FacilisDb } from "@facilis.dev/db";
+import type { FacilisRuntimeConfig } from "@facilis.dev/core";
 
 /** Per-project, non-source state directory (dev database, binary blobs). */
 export const FACILIS_STATE_DIR = ".facilis";
@@ -34,8 +35,16 @@ export interface DevDbSnapshotter {
   lastSnapshotAt(): number | null;
 }
 
-export function devDbSnapshotPath(projectRoot: string): string {
-  return join(projectRoot, DEV_DB_SNAPSHOT_FILE);
+/** The declared dev state directory, or null to keep the framework default. */
+export function stateDirOf(runtime: FacilisRuntimeConfig): string | null {
+  const value = runtime["stateDir"];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+export function devDbSnapshotPath(projectRoot: string, stateDir: string | null = null): string {
+  return stateDir === null
+    ? join(projectRoot, DEV_DB_SNAPSHOT_FILE)
+    : join(projectRoot, stateDir, "db", "snapshot.tar.gz");
 }
 
 /**
@@ -46,8 +55,11 @@ export function devDbSnapshotPath(projectRoot: string): string {
  * own .gitignore was written before this directory existed. Written idempotently, and
  * never overwriting a file the user may have edited.
  */
-export async function ensureFacilisStateDir(projectRoot: string): Promise<void> {
-  const dir = join(projectRoot, FACILIS_STATE_DIR);
+export async function ensureFacilisStateDir(
+  projectRoot: string,
+  stateDir: string | null = null,
+): Promise<void> {
+  const dir = join(projectRoot, stateDir ?? FACILIS_STATE_DIR);
   await mkdir(dir, { recursive: true });
   const ignore = join(dir, ".gitignore");
   try {
@@ -71,6 +83,8 @@ export interface DevDbSnapshotterOptions {
   readonly db: SnapshotSource;
   readonly projectRoot: string;
   readonly snapshotPath?: string;
+  /** Resolved `runtime.stateDir`; null keeps the `.facilis` default. */
+  readonly stateDir?: string | null;
   readonly intervalMs?: number;
   /** Called with a failed dump/write; the previous snapshot stays valid. */
   readonly onError?: (error: unknown) => void;
@@ -82,7 +96,8 @@ export interface DevDbSnapshotterOptions {
  */
 export function installDevDbSnapshotter(options: DevDbSnapshotterOptions): DevDbSnapshotter {
   const { db, projectRoot } = options;
-  const snapshotPath = options.snapshotPath ?? devDbSnapshotPath(projectRoot);
+  const stateDir = options.stateDir ?? null;
+  const snapshotPath = options.snapshotPath ?? devDbSnapshotPath(projectRoot, stateDir);
   const intervalMs = options.intervalMs ?? SNAPSHOT_INTERVAL_MS;
   // Nothing has been dumped yet: the first tick persists the boot state (migrations,
   // seeds), not just the first request-driven write after it.
@@ -101,7 +116,7 @@ export function installDevDbSnapshotter(options: DevDbSnapshotterOptions): DevDb
     const activityAtStart = db.activity();
     try {
       const bytes = await db.snapshot();
-      await ensureFacilisStateDir(projectRoot);
+      await ensureFacilisStateDir(projectRoot, stateDir);
       await writeAtomic(snapshotPath, bytes);
       seen = activityAtStart;
       lastSnapshotAt = Date.now();

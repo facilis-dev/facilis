@@ -1,15 +1,20 @@
+import {
+  SecretString,
+  type FacilisRuntimeConfig,
+  type JsonValue,
+} from "@facilis.dev/core";
 import { isValidEncryptionKeyId, type StorageEncryptionKeys } from "@facilis.dev/storage";
 
+import { runtimeSecret, runtimeString } from "./runtime-values.ts";
+
 /**
- * Resolve the optional at-rest encryption keys from the environment (D-117).
+ * Resolve the optional at-rest encryption keys from the runtime section (D-117, D-224).
  *
  * The active key encrypts new blobs; retired keys only decrypt blobs whose header names
  * them, which is what makes rotation possible without rewriting content-addressed bodies.
  * Values are base64 (recommended) or 64-character hex, and must decode to 32 bytes.
  */
-const KEY_ENV = "FACILIS_STORAGE_ENCRYPTION_KEY";
-const KEY_ID_ENV = "FACILIS_STORAGE_ENCRYPTION_KEY_ID";
-const RETIRED_KEYS_ENV = "FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS";
+
 const DEFAULT_KEY_ID = "primary";
 const KEY_BYTES = 32;
 
@@ -17,9 +22,9 @@ export type EncryptionKeyResolution =
   | { readonly keys: StorageEncryptionKeys }
   | { readonly keys: null; readonly problem: "missing" | "invalid"; readonly message: string };
 
-export function resolveEncryptionKeys(env: NodeJS.ProcessEnv): EncryptionKeyResolution {
-  const rawKey = readEnv(env, KEY_ENV);
-  if (rawKey === undefined) {
+export function resolveEncryptionKeys(runtime: FacilisRuntimeConfig): EncryptionKeyResolution {
+  const rawKey = runtimeSecret(runtime, "storageEncryptionKey");
+  if (rawKey === null) {
     return {
       keys: null,
       problem: "missing",
@@ -27,7 +32,7 @@ export function resolveEncryptionKeys(env: NodeJS.ProcessEnv): EncryptionKeyReso
         "Set FACILIS_STORAGE_ENCRYPTION_KEY (base64 or hex, 32 bytes) because storage.encryption.enabled is true.",
     };
   }
-  const keyId = readEnv(env, KEY_ID_ENV) ?? DEFAULT_KEY_ID;
+  const keyId = runtimeString(runtime, "storageEncryptionKeyId")?.trim() ?? DEFAULT_KEY_ID;
   if (!isValidEncryptionKeyId(keyId)) {
     return invalid("FACILIS_STORAGE_ENCRYPTION_KEY_ID must match [A-Za-z0-9._-]{1,64}.");
   }
@@ -40,15 +45,19 @@ export function resolveEncryptionKeys(env: NodeJS.ProcessEnv): EncryptionKeyReso
   // inherited value instead of an own key.
   const keys: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
   keys[keyId] = activeKey;
-  const retiredRaw = readEnv(env, RETIRED_KEYS_ENV);
-  if (retiredRaw !== undefined) {
+  const retiredRaw = retiredKeysValue(runtime);
+  if (retiredRaw !== undefined && retiredRaw !== null) {
     let parsed: unknown;
-    try {
-      parsed = JSON.parse(retiredRaw);
-    } catch {
-      return invalid(
-        "FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS must be a JSON object of key id to key.",
-      );
+    if (retiredRaw instanceof SecretString) {
+      try {
+        parsed = JSON.parse(retiredRaw.reveal());
+      } catch {
+        return invalid(
+          "FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS must be a JSON object of key id to key.",
+        );
+      }
+    } else {
+      parsed = retiredRaw;
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return invalid(
@@ -85,9 +94,9 @@ function decodeKey(value: string): Uint8Array | null {
   return decoded.length === KEY_BYTES ? new Uint8Array(decoded) : null;
 }
 
-function readEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const value = env[name]?.trim();
-  return value === undefined || value.length === 0 ? undefined : value;
+/** The retired-key map is a secret boxed as JSON text, or a declared literal object. */
+function retiredKeysValue(runtime: FacilisRuntimeConfig): JsonValue | SecretString | undefined {
+  return runtime["storageEncryptionRetiredKeys"];
 }
 
 function invalid(message: string): EncryptionKeyResolution {

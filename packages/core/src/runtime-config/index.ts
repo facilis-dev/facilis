@@ -21,6 +21,7 @@ export {
   envNameFor,
   formatRuntimeProblems,
   installRuntimeConfig,
+  peekRuntimeConfig,
   PUBLIC_ENV_PREFIX,
   resolvePublicConfig,
   resolveRuntimeConfig,

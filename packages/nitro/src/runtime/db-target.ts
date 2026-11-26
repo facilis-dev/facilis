@@ -1,6 +1,11 @@
-import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
+import type {
+  FacilisConfig,
+  FacilisRuntimeConfig,
+  ManifestWarning,
+} from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "./env.ts";
+import { runtimeSecret, runtimeString } from "./runtime-values.ts";
 
 /** Driver a booting project can open; mirrors @facilis.dev/db's `DbDriver`. */
 export type DbTargetDriver = "pglite" | "postgres";
@@ -26,16 +31,20 @@ export interface ResolvedDbTarget {
  */
 export function resolveDbTarget(
   config: FacilisConfig | null,
+  runtime: FacilisRuntimeConfig,
   env: NodeJS.ProcessEnv,
 ): ResolvedDbTarget {
   // A hosting panel that defines the variable but leaves it blank is "not configured": an
   // empty URL would otherwise reach the driver and surface as a confusing connection error.
-  const url = readUrl(env["FACILIS_DATABASE_URL"]) ?? readUrl(env["DATABASE_URL"]);
+  // DATABASE_URL stays the host convention; FACILIS_DATABASE_URL is the runtime key.
+  const url =
+    readUrl(runtimeSecret(runtime, "databaseUrl") ?? undefined) ?? readUrl(env["DATABASE_URL"]);
   if (url !== undefined) {
     return { target: { driver: "postgres", url }, warnings: [] };
   }
 
-  const mode = config?.db.mode ?? "pglite";
+  // D-224 P3 removes this fallback: runtime.databaseMode now wins, db.mode stays as the default.
+  const mode = runtimeString(runtime, "databaseMode") ?? config?.db.mode ?? "pglite";
 
   if (mode === "pglite") {
     if (isProductionEnvironment(env)) {

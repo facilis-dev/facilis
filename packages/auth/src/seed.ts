@@ -14,6 +14,9 @@ export interface SeedEntry {
   readonly permission: string;
 }
 
+/** The resolved `runtime` slice bootstrap needs; structural so auth does not depend on core. */
+export type InitialAdminRuntime = Readonly<Record<string, unknown>>;
+
 /**
  * Pure projection of `config.auth.roles` into `role_permissions` rows (SPEC §5.3/§8.4.2).
  * Wildcards stay literal ("*") exactly as the reference seed shows; the table is written
@@ -57,10 +60,10 @@ export function seedStatements(config: AuthConfig): string[] {
 }
 
 /**
- * Grants `admin` to the user whose email matches FACILIS_INITIAL_ADMIN (SPEC §8.4.3).
+ * Grants `admin` to the user whose email matches `runtime.initialAdmin` (SPEC §8.4.3).
  *
  * The email alone is not a credential: it is public and the registration route is public, so
- * the promotion ALSO requires the operator's one-time FACILIS_INITIAL_ADMIN_TOKEN (D-150).
+ * the promotion ALSO requires the operator's one-time `runtime.initialAdminToken` (D-150).
  * Both variables must be set; a missing token fails closed, the token is compared in constant
  * time, and the promotion happens only while no admin exists yet, so a deploy that keeps the
  * token configured after bootstrap cannot be re-triggered. Accepts a user id or email; returns
@@ -70,10 +73,11 @@ export async function registerInitialAdmin(
   db: PolicyScopedDatabase,
   userIdOrEmail: string,
   bootstrapToken?: string,
+  runtime: InitialAdminRuntime = {},
 ): Promise<boolean> {
-  const expected = readInitialAdminEmail();
+  const expected = readInitialAdminEmail(runtime);
   if (expected === null) return false;
-  const expectedToken = readInitialAdminToken();
+  const expectedToken = readInitialAdminToken(runtime);
   if (expectedToken === null || bootstrapToken === undefined) return false;
   if (!(await tokenMatches(bootstrapToken, expectedToken))) return false;
   // One-time: an admin already assigned means bootstrap is over, even if the env stays set.
@@ -92,14 +96,29 @@ export async function registerInitialAdmin(
   return true;
 }
 
-function readInitialAdminEmail(): string | null {
-  const configured = process.env.FACILIS_INITIAL_ADMIN?.trim();
+function readInitialAdminEmail(runtime: InitialAdminRuntime): string | null {
+  const configured = readRuntimeString(runtime["initialAdmin"])?.trim();
   return configured === undefined || configured.length === 0 ? null : normalizeEmail(configured);
 }
 
-function readInitialAdminToken(): string | null {
-  const configured = process.env.FACILIS_INITIAL_ADMIN_TOKEN?.trim();
+function readInitialAdminToken(runtime: InitialAdminRuntime): string | null {
+  const configured = readRuntimeString(runtime["initialAdminToken"])?.trim();
   return configured === undefined || configured.length === 0 ? null : configured;
+}
+
+/** A literal or a SecretString box; the box never leaves this module as a string elsewhere. */
+function readRuntimeString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "reveal" in value &&
+    typeof (value as { reveal: unknown }).reveal === "function"
+  ) {
+    const revealed: unknown = (value as { reveal: () => unknown }).reveal();
+    return typeof revealed === "string" ? revealed : undefined;
+  }
+  return undefined;
 }
 
 /**

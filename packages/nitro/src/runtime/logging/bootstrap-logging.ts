@@ -1,6 +1,7 @@
 import {
   DEFAULT_LOGGING_CONFIG,
   type FacilisLoggingConfig,
+  type FacilisRuntimeConfig,
   type LogLevel,
   type ManifestWarning,
 } from "@facilis.dev/core";
@@ -19,6 +20,7 @@ import { createLoggingRuntime, type LoggingRuntime } from "./runtime.ts";
 export interface BootstrapLoggingInput {
   /** The project's `logging` section, or null when the project config failed to load. */
   readonly loggingConfig: FacilisLoggingConfig | null;
+  readonly runtime: FacilisRuntimeConfig;
   readonly env: NodeJS.ProcessEnv;
   readonly projectRoot: string;
   /** Test seam: override the NODE_ENV-derived production detection. */
@@ -35,6 +37,7 @@ export interface BootstrapLogging {
 
 export function createBootstrapLogging(input: BootstrapLoggingInput): BootstrapLogging {
   const resolved = resolveLogSettings({
+    runtime: input.runtime,
     env: input.env,
     projectRoot: input.projectRoot,
     ...(input.production === undefined ? {} : { production: input.production }),
@@ -57,6 +60,7 @@ export function effectiveLoggingConfig(
   loggingConfig: FacilisLoggingConfig | null,
   levelOverride: LogLevel | null,
 ): FacilisLoggingConfig {
+  // D-224 P3 removes this fallback: runtime.logLevel now wins, logging.level stays as the default.
   const base = loggingConfig ?? DEFAULT_LOGGING_CONFIG;
   return levelOverride === null ? base : { ...base, level: levelOverride };
 }

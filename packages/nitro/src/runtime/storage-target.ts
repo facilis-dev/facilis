@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   DEFAULT_STORAGE_CONFIG,
   type FacilisConfig,
+  type FacilisRuntimeConfig,
   type ManifestWarning,
   type StorageApi,
 } from "@facilis.dev/core";
@@ -19,13 +20,14 @@ import {
 } from "@facilis.dev/storage";
 
 import { isProductionEnvironment } from "./env.ts";
+import { runtimeSecret } from "./runtime-values.ts";
 import { resolveEncryptionKeys } from "./storage-keys.ts";
 
 /**
- * Resolve the binary-storage runtime from the project config + environment (D-053).
+ * Resolve the binary-storage runtime from the config + resolved runtime section (D-053, D-224).
  *
- * The environment, not the config, holds credentials and the token secret, so the
- * committed facilis.config.ts never carries a secret. Every refusal is a manifest warning
+ * The runtime section, not the build-time storage config, holds credentials and the token
+ * secret, so the committed facilis.config.ts never carries a secret. Every refusal is a warning
  * and yields a null storage: the app keeps booting and only the file routes answer
  * `storage_unavailable`, exactly like the database target (D-068).
  */
@@ -45,19 +47,16 @@ export interface ResolveStorageDeps {
   readonly encryptionKeys?: StorageEncryptionKeys;
 }
 
-const SECRET_ENV = "FACILIS_STORAGE_SECRET";
-const S3_KEY_ENV = "FACILIS_S3_ACCESS_KEY_ID";
-const S3_SECRET_ENV = "FACILIS_S3_SECRET_ACCESS_KEY";
-const S3_SESSION_ENV = "FACILIS_S3_SESSION_TOKEN";
 const LOCAL_ROOT = join(".facilis", "binary");
 
 export function resolveStorage(
   config: FacilisConfig | null,
+  runtime: FacilisRuntimeConfig,
   env: NodeJS.ProcessEnv,
   projectRoot: string,
   deps: ResolveStorageDeps = {},
 ): ResolvedStorage {
-  const storageConfig = config?.storage ?? DEFAULT_STORAGE_CONFIG;
+  const storageConfig = effectiveStorageConfig(config?.storage ?? DEFAULT_STORAGE_CONFIG, runtime);
   const production = isProductionEnvironment(env);
   const warnings: ManifestWarning[] = [];
 
@@ -75,7 +74,8 @@ export function resolveStorage(
 
   if (
     storageConfig.driver === "s3" &&
-    (readEnv(env, S3_KEY_ENV) === undefined || readEnv(env, S3_SECRET_ENV) === undefined)
+    (runtimeSecret(runtime, "s3AccessKeyId") === null ||
+      runtimeSecret(runtime, "s3SecretAccessKey") === null)
   ) {
     return {
       storage: null,
@@ -88,7 +88,7 @@ export function resolveStorage(
     };
   }
 
-  const secret = readSecret(env, deps);
+  const secret = readSecret(runtime, deps, production);
   if (secret === null) {
     return {
       storage: null,
@@ -106,7 +106,7 @@ export function resolveStorage(
     if (deps.encryptionKeys !== undefined) {
       encryptionKeys = deps.encryptionKeys;
     } else {
-      const resolved = resolveEncryptionKeys(env);
+      const resolved = resolveEncryptionKeys(runtime);
       if (resolved.keys === null) {
         return {
           storage: null,
@@ -127,7 +127,7 @@ export function resolveStorage(
   try {
     const baseDriver =
       deps.createDriver?.(storageConfig, projectRoot) ??
-      createDriver(storageConfig, env, projectRoot);
+      createDriver(storageConfig, runtime, projectRoot);
     const driver =
       encryptionKeys === null
         ? baseDriver
@@ -145,33 +145,33 @@ export function resolveStorage(
 
 function createDriver(
   config: FacilisConfig["storage"],
-  env: NodeJS.ProcessEnv,
+  runtime: FacilisRuntimeConfig,
   projectRoot: string,
 ): StorageDriver {
   if (config.driver === "local") {
     return createLocalStorage({ rootDir: join(projectRoot, LOCAL_ROOT) });
   }
-  const accessKeyId = readEnv(env, S3_KEY_ENV);
-  const secretAccessKey = readEnv(env, S3_SECRET_ENV);
+  const accessKeyId = runtimeSecret(runtime, "s3AccessKeyId");
+  const secretAccessKey = runtimeSecret(runtime, "s3SecretAccessKey");
   // Config validation already requires bucket/region; the guard keeps a hand-edited or
   // older virtual config from reaching the driver with nulls.
   if (
     config.bucket === null ||
     config.region === null ||
-    accessKeyId === undefined ||
-    secretAccessKey === undefined
+    accessKeyId === null ||
+    secretAccessKey === null
   ) {
     throw new Error(
       "S3 storage requires storage.bucket, storage.region, FACILIS_S3_ACCESS_KEY_ID and FACILIS_S3_SECRET_ACCESS_KEY",
     );
   }
-  const sessionToken = readEnv(env, S3_SESSION_ENV);
+  const sessionToken = runtimeSecret(runtime, "s3SessionToken");
   return createS3Storage({
     bucket: config.bucket,
     region: config.region,
     accessKeyId,
     secretAccessKey,
-    ...(sessionToken === undefined ? {} : { sessionToken }),
+    ...(sessionToken === null ? {} : { sessionToken }),
     ...(config.endpoint === null ? {} : { endpoint: config.endpoint }),
     ...(config.forcePathStyle === null ? {} : { forcePathStyle: config.forcePathStyle }),
   });
@@ -214,19 +214,52 @@ function isSigningDriver(driver: StorageDriver): driver is SigningStorageDriver 
   return typeof (driver as Partial<SigningStorageDriver>).signedGetUrl === "function";
 }
 
-function readSecret(env: NodeJS.ProcessEnv, deps: ResolveStorageDeps): string | null {
+function readSecret(
+  runtime: FacilisRuntimeConfig,
+  deps: ResolveStorageDeps,
+  production: boolean,
+): string | null {
   if (deps.secret !== undefined) return deps.secret.length === 0 ? null : deps.secret;
-  const fromEnv = readEnv(env, SECRET_ENV);
-  if (fromEnv !== undefined) return fromEnv;
-  if (isProductionEnvironment(env)) return null;
+  const fromRuntime = runtimeSecret(runtime, "storageSecret")?.trim();
+  if (fromRuntime !== undefined && fromRuntime.length > 0) return fromRuntime;
+  if (production) return null;
   // Dev tokens only need to live for the boot (five-minute TTL); a per-boot secret keeps
   // the zero-config dev path working without writing a secret to the project.
   return (deps.randomSecret ?? (() => randomBytes(32).toString("hex")))();
 }
 
-function readEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const value = env[name]?.trim();
-  return value === undefined || value.length === 0 ? undefined : value;
+/**
+ * Runtime keys win over the build-time storage section (D-224). The section fallback survives
+ * only until P3 removes the moved keys.
+ */
+function effectiveStorageConfig(
+  base: FacilisConfig["storage"],
+  runtime: FacilisRuntimeConfig,
+): FacilisConfig["storage"] {
+  const driver = runtime["storageDriver"];
+  const bucket = runtime["s3Bucket"];
+  const region = runtime["s3Region"];
+  const endpoint = runtime["s3Endpoint"];
+  const forcePathStyle = runtime["s3ForcePathStyle"];
+  return {
+    ...base,
+    // D-224 P3 removes this fallback.
+    driver: driver === "local" || driver === "s3" ? driver : base.driver,
+    // D-224 P3 removes this fallback.
+    bucket: bucket === undefined ? base.bucket : typeof bucket === "string" ? bucket : null,
+    // D-224 P3 removes this fallback.
+    region: region === undefined ? base.region : typeof region === "string" ? region : null,
+    // D-224 P3 removes this fallback.
+    endpoint:
+      endpoint === undefined ? base.endpoint : typeof endpoint === "string" ? endpoint : null,
+    // D-224 P3 removes this fallback.
+    forcePathStyle:
+      forcePathStyle === undefined
+        ? base.forcePathStyle
+        : typeof forcePathStyle === "boolean"
+          ? forcePathStyle
+          : null,
+  };
 }
 
 function warning(code: string, message: string): ManifestWarning {

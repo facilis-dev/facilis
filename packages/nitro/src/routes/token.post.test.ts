@@ -69,6 +69,7 @@ function state(projectConfig: FacilisConfig | null): BootstrapState {
   return {
     db,
     config: projectConfig,
+    runtime: {},
     warnings: [],
     startedAt: "2026-11-10T00:00:00.000Z",
     jobs: null,

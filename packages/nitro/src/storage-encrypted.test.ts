@@ -62,8 +62,8 @@ function downloadDb(row: Inserted): PolicyScopedDatabase {
   } as unknown as PolicyScopedDatabase;
 }
 
-const ENCRYPTION_ENV = {
-  FACILIS_STORAGE_ENCRYPTION_KEY: Buffer.alloc(32, 11).toString("base64"),
+const ENCRYPTION_RUNTIME = {
+  storageEncryptionKey: Buffer.alloc(32, 11).toString("base64"),
 };
 
 describe("encrypted upload/download path", () => {
@@ -74,7 +74,8 @@ describe("encrypted upload/download path", () => {
         auth: { roles: { user: [] }, defaultRole: "user" },
         storage: { driver: "local", encryption: { enabled: true } },
       }),
-      { NODE_ENV: "development", ...ENCRYPTION_ENV },
+      ENCRYPTION_RUNTIME,
+      { NODE_ENV: "development" },
       project,
       { secret: "test-secret" },
     );
@@ -129,7 +130,8 @@ describe("encrypted upload/download path", () => {
         auth: { roles: { user: [] }, defaultRole: "user" },
         storage: { driver: "local", encryption: { enabled: true } },
       }),
-      { NODE_ENV: "development", ...ENCRYPTION_ENV },
+      ENCRYPTION_RUNTIME,
+      { NODE_ENV: "development" },
       project,
       { secret: "test-secret" },
     );

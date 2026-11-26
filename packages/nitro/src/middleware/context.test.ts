@@ -26,6 +26,7 @@ function state(overrides: Partial<BootstrapState> = {}): BootstrapState {
   return {
     db: DB,
     config: null,
+    runtime: {},
     warnings: [],
     startedAt: "2026-11-08T12:00:00.000Z",
     jobs: null,

@@ -7,6 +7,8 @@
  * default, and dev is off regardless of the flag — inside the WebContainer/preview no
  * telemetry leaves the machine (D-200).
  */
+import { SecretString } from "@facilis.dev/core";
+
 import { isProductionEnvironment } from "../env.ts";
 
 /** The deploy-time switch; only an explicit "on" enables the pipeline. */
@@ -52,24 +54,26 @@ export interface TelemetryConfig {
   readonly spansPerMinute: number;
 }
 
-export function readTelemetryConfig(env: NodeJS.ProcessEnv = process.env): TelemetryConfig {
-  const requested = env[TELEMETRY_ENV]?.trim() === "on";
+export function readTelemetryConfig(
+  runtime: Readonly<Record<string, unknown>>,
+  env: NodeJS.ProcessEnv = process.env,
+): TelemetryConfig {
   // Fail-closed toward "no telemetry" (D-146): a dev/test boot never starts the pipeline, even
   // when the deploy leaked its environment into the process.
   return {
-    enabled: requested && isProductionEnvironment(env),
-    endpoint: readEndpoint(env[TELEMETRY_ENDPOINT_ENV]),
-    sampling: readSampling(env[TELEMETRY_SAMPLING_ENV]),
-    serviceName: readNonEmpty(env[TELEMETRY_SERVICE_ENV]) ?? DEFAULT_SERVICE_NAME,
-    deploymentId: readNonEmpty(env[DEPLOYMENT_ID_ENV]),
-    allowedOrigins: readOrigins(env[TELEMETRY_ORIGINS_ENV]),
-    tenantKey: readTenantKey(env[TELEMETRY_TENANT_KEY_ENV]),
-    spansPerMinute: readSpansPerMinute(env[TELEMETRY_SPANS_PER_MIN_ENV]),
+    enabled: runtime["telemetryEnabled"] === true && isProductionEnvironment(env),
+    endpoint: readEndpoint(runtime["telemetryEndpoint"]),
+    sampling: readSampling(runtime["telemetrySampling"]),
+    serviceName: readNonEmpty(runtime["telemetryService"]) ?? DEFAULT_SERVICE_NAME,
+    deploymentId: readNonEmpty(runtime["deploymentId"]),
+    allowedOrigins: readOrigins(runtime["telemetryOrigins"]),
+    tenantKey: readTenantKey(runtime["telemetryTenantKey"]),
+    spansPerMinute: readSpansPerMinute(runtime["telemetrySpansPerMin"]),
   };
 }
 
-function readNonEmpty(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
+function readNonEmpty(value: unknown): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed === "" ? null : trimmed;
 }
 
@@ -78,7 +82,7 @@ function readNonEmpty(value: string | undefined): string | null {
  * appends `/v1/traces` and `/v1/metrics` itself, so a config cannot point two signals at
  * unrelated paths.
  */
-function readEndpoint(value: string | undefined): string | null {
+function readEndpoint(value: unknown): string | null {
   const raw = readNonEmpty(value);
   if (raw === null) return null;
   try {
@@ -92,21 +96,22 @@ function readEndpoint(value: string | undefined): string | null {
 }
 
 /** An out-of-range or unparsable ratio keeps everything rather than silently sampling nothing. */
-function readSampling(value: string | undefined): number {
-  const raw = value?.trim() ?? "";
-  if (raw === "") return 1;
-  const ratio = Number(raw);
-  return Number.isFinite(ratio) && ratio >= 0 && ratio <= 1 ? ratio : 1;
+function readSampling(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : 1;
 }
 
 /**
  * Origins are reduced to scheme+host+port (the deploy block does the same): no path, no
  * wildcard, no "null". An unparsable entry is dropped, shrinking the allowlist — fail-closed.
  */
-function readOrigins(value: string | undefined): string[] {
+function readOrigins(value: unknown): string[] {
   const origins: string[] = [];
-  for (const entry of (value ?? "").split(",")) {
-    const trimmed = entry.trim();
+  const entries =
+    typeof value === "string" ? value.split(",") : Array.isArray(value) ? value : [];
+  for (const entry of entries) {
+    const trimmed = typeof entry === "string" ? entry.trim() : "";
     if (trimmed === "" || trimmed === "*" || trimmed === "null") continue;
     try {
       const url = new URL(trimmed);
@@ -120,15 +125,15 @@ function readOrigins(value: string | undefined): string[] {
 }
 
 /** A key with whitespace could never survive proxy header handling: treat it as unset. */
-function readTenantKey(value: string | undefined): string | null {
-  const raw = value?.trim() ?? "";
+function readTenantKey(value: unknown): string | null {
+  const text = value instanceof SecretString ? value.reveal() : value;
+  const raw = typeof text === "string" ? text.trim() : "";
   return raw === "" || /\s/.test(raw) ? null : raw;
 }
 
 /** An out-of-range or unparsable cap falls back to the default rather than admitting a flood. */
-function readSpansPerMinute(value: string | undefined): number {
-  const raw = value?.trim() ?? "";
-  if (raw === "") return DEFAULT_SPANS_PER_MINUTE;
-  const cap = Number(raw);
-  return Number.isFinite(cap) && cap > 0 ? cap : DEFAULT_SPANS_PER_MINUTE;
+function readSpansPerMinute(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_SPANS_PER_MINUTE;
 }
