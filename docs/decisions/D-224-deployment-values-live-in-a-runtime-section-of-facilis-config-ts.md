@@ -31,9 +31,17 @@ export default defineConfig({
 });
 ```
 
-- **Defaults live in core.** `DEFAULT_RUNTIME` in `@facilis.dev/core` carries a default for every
-  non-secret key; `defineConfig` merges the project's section over it (the same shape as
-  `DEFAULT_NITRO_OPTIONS`, D-034). A project declares only what it changes.
+- **Defaults live in the schema, once.** Each field of the runtime Zod schema carries its own
+  `.default(...)`; `DEFAULT_RUNTIME` is `runtimeSchema.parse({})`, a read-only snapshot used by the
+  manifest, `.env.example` and `pnpm facilis:env`, never a second table to keep in step. A project
+  declares only what it changes. Absent/undefined takes the default; an explicit `null` is a value —
+  "not set" for an optional key, never "absent".
+- **Defaults never vary by environment.** Where the behaviour is environment-dependent the default is
+  an explicit literal and the rule lives in one documented place: `logSink: "auto"` becomes files in
+  dev/test and stdout elsewhere (D-119), `logDir: null` means the framework location under the project
+  root, and `databaseMode: "pglite"` / `storageDriver: "local"` are development defaults that the
+  existing production rules then refuse (D-068, D-116). A default is never a silent production
+  fallback. Changing a default ships with the artifact; an override does not.
 - **Precedence**, lowest to highest: `DEFAULT_RUNTIME` → the project's `runtime` section → the
   process environment. The first two are build-time values carried by the artifact; the third is
   the operator's and is never baked.
@@ -41,8 +49,13 @@ export default defineConfig({
   `FACILIS_` + the key in UPPER_SNAKE (`logTrustProxy` → `FACILIS_LOG_TRUST_PROXY`). Keys are flat,
   so two paths can never collide and no `__` depth separator exists.
 - **Secrets carry no value in the file.** `{ secret: true }` declares the key and its env var; the
-  value comes only from the environment, is validated as a non-empty string when present, is redacted
-  in every error, boot log and generated artifact, and never reaches the manifest values.
+  value comes only from the environment, is validated as a non-empty string when present, and is
+  represented as a `SecretString` box, never a bare string: `reveal()` is the only way to obtain the
+  value, while `toJSON`, `toString` and the Node inspect hook answer `"[redacted]"`. A debug log, a
+  serialized error or a manifest dump therefore cannot leak it by accident. A secret has no default:
+  absent means `null`, and the subsystem that needs it decides — `storageDriver: "s3"` without keys is
+  a refusal with a warning (D-053), not a boot failure. A var exported empty is fatal: a blank secret
+  is always a configuration mistake.
 - **A key that is not in `runtime` is not overridable, by construction.** The build-time sections
   (`auth.roles`, `i18n.locales`, `prerender.routes`, `security`, the schema) get no environment
   mapping at all, so the drift against the seeded `role_permissions` projection (D-158) cannot happen.
@@ -60,6 +73,10 @@ export default defineConfig({
   `databaseMode` that contradicts `databaseUrl`. A *subsystem refusal* keeps today's behaviour
   (D-053, D-068): a declared-but-unusable storage driver or an unreachable database degrades that
   subsystem with a warning instead of taking the boot down.
+
+**A key is complete only with a decided default.** A test walks the runtime schema and fails for a
+  key that is neither `secret` nor carries a default, so adding a knob is a deliberate choice between
+  "this has a framework default" and "the operator must supply it".
 
 **Moved keys.** For a value to have one home, the deployment-tunable keys leave the build-time
 sections: `db.mode` → `runtime.databaseMode`; `logging.level`, `logging.trustProxy` →
@@ -114,9 +131,14 @@ the variable name is computed, so reading the code tells you nothing without rep
 and two nested paths can collide. *A separate catalog file*: a second surface to discover, and the
 project's default for a knob lives away from the config it belongs to. *A nested `runtime`*: the
 `_` separator makes `a.bC` and `a.b.c` the same name; flat keys cannot. *Aliasing the old names*:
-nothing is deployed at `0.1.x`, and an alias table is a second source of truth to maintain.
+nothing is deployed at `0.1.x`, and an alias table is a second source of truth to maintain. *Plain
+strings for secrets, with redaction applied by the logger*: one `console.log(ctx.runtime)` or one
+serialized error defeats it, and nothing in the type system stops it.
 
-**Verification.** Resolver unit tests (precedence, JSON arrays, secret redaction, unknown-name
-suggestion, build-only ignored, fatal vs refusal); `defineConfig` rejects the moved keys with the
-replacement in the message; a boot test asserting the aggregated error report and exit code; analyzer
-tests for `no-direct-env` (framework error, project warning); `pnpm facilis:env` snapshot.
+**Verification.** Resolver unit tests (precedence, JSON arrays, unknown-name suggestion, build-only
+ignored, fatal vs refusal, every key defaulted-or-secret); `defineConfig` rejects the moved keys with
+the replacement in the message; a boot test asserting the aggregated error report and exit code;
+analyzer tests for `no-direct-env` (framework error, project warning); a non-leak test asserting that
+`JSON.stringify(resolved)`, template interpolation and an inspect of the resolved object never contain
+a secret's value, and that a blank secret is fatal; `pnpm facilis:env` snapshot (provenance,
+redaction).

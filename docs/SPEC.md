@@ -1449,7 +1449,9 @@ interface FacilisConfig {
   }
   runtime: {                   // D-224: the ONLY deployment-tunable surface; core defaults underneath
     // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: DEFAULT_RUNTIME < this section < process env.
-    // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a string.
+    // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a
+    // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
+    // Every non-secret key has a schema default; DEFAULT_RUNTIME = runtimeSchema.parse({}) is its snapshot.
     // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
     databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
@@ -1471,8 +1473,8 @@ interface FacilisConfig {
     s3SecretAccessKey: Secret<string>              // FACILIS_S3_SECRET_ACCESS_KEY
     s3SessionToken: Secret<string>                 // FACILIS_S3_SESSION_TOKEN
     storageEncryptionKey: Secret<string>           // FACILIS_STORAGE_ENCRYPTION_KEY
-    storageEncryptionKeyId: string | null          // FACILIS_STORAGE_ENCRYPTION_KEY_ID
-    storageEncryptionRetiredKeys: string[]         // FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS (JSON)
+    storageEncryptionKeyId: string                 // FACILIS_STORAGE_ENCRYPTION_KEY_ID; default "primary"
+    storageEncryptionRetiredKeys: Secret<Record<string, string>> // FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS (JSON keyId -> key)
     // deployment identity
     publicOrigin: string | null                    // FACILIS_PUBLIC_ORIGIN
     tenantId: string | null                        // FACILIS_TENANT_ID
