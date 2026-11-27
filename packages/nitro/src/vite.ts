@@ -5,13 +5,14 @@ import { nitro } from "nitro/vite";
 
 import type { Analysis } from "@facilis.dev/analyze";
 
-import { loadNitroOptions } from "./config.ts";
+import { loadFacilisConfig, mergeNitroOptions } from "./config.ts";
 import { createFacilisNitroModule } from "./module.ts";
 import { facilisPrerenderServing } from "./prerender-dev.ts";
 import { facilisPrerenderEngine } from "./prerender-engine.ts";
 import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
+import { publicConfigDefine } from "./vite-public.ts";
 import { facilisRum } from "./vite-rum.ts";
 import type { RouteMetadataMap } from "./types.ts";
 import { RESOLVED_OPENAPI_META_ID, VIRTUAL_OPENAPI_META_ID } from "./virtual-ids.ts";
@@ -101,7 +102,13 @@ export function facilis(): FacilisPlugins {
     // project's plugins array (e.g. facilis() before react()) can change that.
     async config(userConfig) {
       const projectRoot = userConfig.root === undefined ? process.cwd() : resolve(userConfig.root);
-      return { nitro: await loadNitroOptions(projectRoot) };
+      const projectConfig = await loadFacilisConfig(projectRoot);
+      return {
+        nitro: mergeNitroOptions(projectConfig?.nitro),
+        // The public section travels as a define, resolved once per build (D-224): no inline
+        // script, no CSP surface, nothing readable after the bundle exists.
+        define: publicConfigDefine(projectConfig),
+      };
     },
 
     configResolved(config) {

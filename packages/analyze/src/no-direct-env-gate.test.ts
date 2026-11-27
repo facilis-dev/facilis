@@ -19,7 +19,8 @@ const PARSER = createOxcParser();
 
 /** path (relative to packages/) -> why the direct read is legitimate. */
 const ALLOWED: Readonly<Record<string, string>> = {
-  "auth/src/sso/login.ts": "per-provider secret names are declared in config; this is the injectable default",
+  "auth/src/sso/login.ts":
+    "per-provider secret names are declared in config; this is the injectable default",
   "auth/src/sso/providers.ts": "same seam: the caller passes the environment",
   "nitro/src/prerender-data.ts": "the build swaps NODE_ENV while rendering the prerender pass",
   "nitro/src/runtime/bootstrap.ts": "the boot passes NODE_ENV into the resolvers",
@@ -31,6 +32,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "nitro/src/runtime/telemetry/rum-build-config.ts": "build-time RUM switch",
   "nitro/src/runtime/telemetry/runtime.ts": "injectable default for the export target",
   "nitro/src/vite-dev-metrics.ts": "build/serve plugin switch (D-200)",
+  "nitro/src/vite-public.ts": "build plugin: resolves the public section once per build (D-224)",
   "nitro/src/vite-rum.ts": "build plugin switch (D-209)",
 };
 

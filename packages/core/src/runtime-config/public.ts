@@ -11,5 +11,7 @@ const EMPTY: FacilisPublicConfig = Object.freeze({});
 /** The only client accessor for baked values; never process.env, never a server key. */
 export function publicConfig(): FacilisPublicConfig {
   if (typeof __FACILIS_PUBLIC_CONFIG__ === "undefined") return EMPTY;
-  return __FACILIS_PUBLIC_CONFIG__;
+  // The define is a literal per reference site; freezing it keeps a caller from mutating what
+  // the build baked (D-224).
+  return Object.freeze(__FACILIS_PUBLIC_CONFIG__);
 }
