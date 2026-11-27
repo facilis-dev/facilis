@@ -22,6 +22,8 @@ export interface LensLine {
 export interface LensRow {
   readonly nodeId: string;
   readonly lines: readonly LensLine[];
+  /** Domain heading for grouped state lenses; null renders a flat row. */
+  readonly group?: string | null;
 }
 
 export function LensSection({
@@ -150,8 +152,15 @@ export function AnswerList({
       aria-label={t("projectGraph.surface.lens.answers")}
       className="max-h-52 overflow-auto border-t"
     >
-      {rows.map((row) => (
+      {rows.map((row, rowIndex) => (
         <li key={row.nodeId} className="border-b last:border-b-0">
+          {row.group !== undefined &&
+            row.group !== null &&
+            row.group !== rows[rowIndex - 1]?.group && (
+              <p className="px-2 pt-1.5 text-[9px] uppercase tracking-wide text-muted-foreground">
+                {row.group}
+              </p>
+            )}
           <button
             type="button"
             data-testid={"project-graph-lens-answer-" + row.nodeId}

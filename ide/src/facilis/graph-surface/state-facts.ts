@@ -57,6 +57,8 @@ export interface GraphLensState {
   readonly highlight?: readonly string[];
   /** A declared lens's chooser, rendered by the banner; omitted when the lens has none. */
   readonly picker?: GraphLensPicker;
+  /** Node id -> domain, when the lens's answers are grouped by domain. */
+  readonly groups?: ReadonlyMap<string, string>;
 }
 
 /** What the lens bar renders: analyzer diagnostics or a state lens's normalised facts. */

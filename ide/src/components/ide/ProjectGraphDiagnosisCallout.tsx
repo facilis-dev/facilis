@@ -67,11 +67,11 @@ export function ProjectGraphDiagnosisCallout({
       {facts.length > 0 && definition !== null && (
         <section
           data-testid="project-graph-state-callout"
-          aria-label={t("projectGraph.surface.state.title")}
+          aria-label={t(definition.titleKey)}
           className="shrink-0 border-b bg-panel px-3 py-2"
         >
           <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("projectGraph.surface.state.title")}
+            {t(definition.titleKey)}
           </h3>
           <ul className="mt-1 space-y-1.5">
             {facts.map((fact, index) => {

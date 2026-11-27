@@ -30,4 +30,6 @@ export const projectGraphQuestionsEn = {
     "Q19 — What changed since the agent's checkpoint, and which nodes own those files?",
   "projectGraph.surface.question.q20":
     "Q20 — What can a role reach: which routes, pages and tables does its permission set unlock?",
+  "projectGraph.surface.question.q21":
+    "Q21 — Which pages prerender at build time, which are eligible but undeclared, and what blocks the rest?",
 };

@@ -21,6 +21,7 @@ import {
   type RuntimeLensController,
 } from "@/facilis/graph-surface/runtime-lens-source.ts";
 import { lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
+import { buildPrerenderLensState } from "@/facilis/graph-surface/prerender-lens.ts";
 import { buildReachLensState, defaultReachRole } from "@/facilis/graph-surface/reach-lens.ts";
 import {
   diagnosticsByNode,
@@ -117,12 +118,17 @@ export function useProjectGraphLens(
     () => (lens === "reach" ? buildReachLensState(config, view, selectedRole, setRole) : null),
     [lens, config, view, selectedRole],
   );
+  const prerender = useMemo(
+    () => (lens === "prerender" ? buildPrerenderLensState(analysis?.prerender ?? [], view) : null),
+    [lens, analysis, view],
+  );
   const lensView = useMemo<GraphLensView | null>(() => {
     if (lens === null) return null;
     if (summary !== null) return { kind: "diagnostics", summary };
     if (reach !== null) return { kind: "state", state: reach };
+    if (prerender !== null) return { kind: "state", state: prerender };
     return state === null ? null : { kind: "state", state };
-  }, [lens, summary, reach, state]);
+  }, [lens, summary, reach, prerender, state]);
   const highlight = useMemo<GraphLensHighlight | null>(() => {
     if (lensView === null) return null;
     if (lensView.kind === "diagnostics") return lensHighlight(lensView.summary);

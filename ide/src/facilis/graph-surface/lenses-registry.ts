@@ -33,6 +33,18 @@ const CODES_BY_LENS: Readonly<Record<GraphLensId, readonly GraphLensCode[]>> = {
     "state.elevatedRoute",
     "state.noReach",
   ],
+  prerender: [
+    "state.prerendered",
+    "state.prerenderEligible",
+    "state.privateApi",
+    "state.authGuarded",
+    "state.unknownSecurity",
+    "state.dynamicPath",
+    "state.redirect",
+    "state.prerenderIneligible",
+    "state.prerenderUnknown",
+    "state.noPages",
+  ],
 };
 
 const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -43,6 +55,7 @@ const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   runtime: "projectGraph.surface.lens.runtime",
   changes: "projectGraph.surface.lens.changes",
   reach: "projectGraph.surface.lens.reach",
+  prerender: "projectGraph.surface.lens.prerender",
 };
 
 const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -53,6 +66,7 @@ const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   runtime: "projectGraph.surface.lens.runtime.description",
   changes: "projectGraph.surface.lens.changes.description",
   reach: "projectGraph.surface.lens.reach.description",
+  prerender: "projectGraph.surface.lens.prerender.description",
 };
 
 const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
@@ -63,6 +77,7 @@ const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
   runtime: "live",
   changes: "workspace",
   reach: "declared",
+  prerender: "declared",
 };
 
 const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -73,6 +88,7 @@ const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   runtime: "projectGraph.surface.lens.runtime.short",
   changes: "projectGraph.surface.lens.changes.short",
   reach: "projectGraph.surface.lens.reach.short",
+  prerender: "projectGraph.surface.lens.prerender.short",
 };
 
 const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
@@ -83,6 +99,7 @@ const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
   runtime: "--success",
   changes: "--warning",
   reach: "--info",
+  prerender: "--success",
 };
 
 /** Per-code legend text and colour for the IDE's own `state.*` vocabulary (D-224 §2). */
@@ -162,6 +179,56 @@ const STATE_LEGEND: Readonly<
   "state.noReach": {
     messageKey: "projectGraph.surface.state.noReach",
     labelKey: "projectGraph.surface.state.noReach.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.prerendered": {
+    messageKey: "projectGraph.surface.state.prerendered",
+    labelKey: "projectGraph.surface.state.prerendered.label",
+    colorToken: "--success",
+  },
+  "state.prerenderEligible": {
+    messageKey: "projectGraph.surface.state.prerenderEligible",
+    labelKey: "projectGraph.surface.state.prerenderEligible.label",
+    colorToken: "--info",
+  },
+  "state.privateApi": {
+    messageKey: "projectGraph.surface.state.privateApi",
+    labelKey: "projectGraph.surface.state.privateApi.label",
+    colorToken: "--warning",
+  },
+  "state.authGuarded": {
+    messageKey: "projectGraph.surface.state.authGuarded",
+    labelKey: "projectGraph.surface.state.authGuarded.label",
+    colorToken: "--warning",
+  },
+  "state.unknownSecurity": {
+    messageKey: "projectGraph.surface.state.unknownSecurity",
+    labelKey: "projectGraph.surface.state.unknownSecurity.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.dynamicPath": {
+    messageKey: "projectGraph.surface.state.dynamicPath",
+    labelKey: "projectGraph.surface.state.dynamicPath.label",
+    colorToken: "--warning",
+  },
+  "state.redirect": {
+    messageKey: "projectGraph.surface.state.redirect",
+    labelKey: "projectGraph.surface.state.redirect.label",
+    colorToken: "--warning",
+  },
+  "state.prerenderIneligible": {
+    messageKey: "projectGraph.surface.state.prerenderIneligible",
+    labelKey: "projectGraph.surface.state.prerenderIneligible.label",
+    colorToken: "--warning",
+  },
+  "state.prerenderUnknown": {
+    messageKey: "projectGraph.surface.state.prerenderUnknown",
+    labelKey: "projectGraph.surface.state.prerenderUnknown.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.noPages": {
+    messageKey: "projectGraph.surface.state.noPages",
+    labelKey: "projectGraph.surface.state.noPages.label",
     colorToken: "--muted-foreground",
   },
 };

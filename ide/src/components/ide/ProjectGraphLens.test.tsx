@@ -206,6 +206,35 @@ describe("ProjectGraphLensBar", () => {
     expect(html).toContain(">admin</option>");
   });
 
+  it("renders an ineligible prerender page with the blocking route", () => {
+    const html = renderBar("prerender", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        facts: [
+          {
+            nodeId: "page:/todos",
+            code: "state.privateApi",
+            params: { path: "/todos", route: "GET /api/todos" },
+          },
+        ],
+        totals: {
+          key: "projectGraph.surface.state.prerender.totals",
+          count: 1,
+          params: { prerendered: 0, eligible: 0, ineligible: 1, unknown: 0 },
+        },
+        params: {},
+        contextKey: null,
+        emptyKey: null,
+        emptyHintKey: null,
+        badges: new Map([["page:/todos", { text: "API", colorToken: "--warning" }]]),
+        highlight: ["page:/todos"],
+      },
+    });
+    expect(html).toContain("Q21 · Prerender");
+    expect(html).toContain("pages: 1 · prerendered: 0 · eligible: 0 · ineligible: 1 · unknown: 0");
+    expect(html).toContain("Calls GET /api/todos, which requires a permission");
+  });
+
   it("shows an explicit empty state when a lens matches nothing", () => {
     const html = renderBar("shared", [WRITE]);
     expect(html).toContain("project-graph-lens-empty");
@@ -253,7 +282,7 @@ describe("ProjectGraphDiagnosisCallout", () => {
       />,
     );
     expect(html).toContain("project-graph-state-callout");
-    expect(html).toContain("Live signals");
+    expect(html).toContain("Q18 · Runtime");
     expect(html).toContain("Server errors");
     expect(html).toContain("2 of 5 requests failed with a 5xx (40%).");
   });

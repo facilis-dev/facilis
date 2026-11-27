@@ -15,6 +15,7 @@ export const GRAPH_LENS_IDS = [
   "runtime",
   "changes",
   "reach",
+  "prerender",
 ] as const;
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
 

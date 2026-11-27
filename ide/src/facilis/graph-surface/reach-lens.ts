@@ -5,6 +5,7 @@
 
 import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphView } from "../graph-model";
+import { deriveDomains, domainIndex } from "./domains.ts";
 import { buildNeighborIndex, focusNeighborhood } from "./focus.ts";
 import type { GraphLensPicker, GraphLensState, GraphStateFact } from "./state-facts.ts";
 
@@ -233,5 +234,6 @@ export function buildReachLensState(
     badges,
     highlight: [...highlight],
     picker: pickerFor(config, selected, onSelect),
+    groups: domainIndex(deriveDomains(view.nodes, view.edges)),
   };
 }

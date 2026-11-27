@@ -87,4 +87,49 @@ export const stateLensesEn = {
   "projectGraph.surface.state.reach.role": "Role",
   "projectGraph.surface.state.reach.emptyHint":
     "Pick another role, or declare the missing permission in facilis.config.ts.",
+
+  // ── prerender lens (#202) ───────────────────────────────────────────────────
+  "projectGraph.surface.lens.prerender": "Q21 · Prerender",
+  "projectGraph.surface.lens.prerender.short": "Q21",
+  "projectGraph.surface.lens.prerender.description":
+    "Which pages prerender at build time: declared and eligible, eligible but undeclared, or blocked with the analyzer's reason.",
+  "projectGraph.surface.state.prerendered": "Prerendered: {path} is declared and eligible.",
+  "projectGraph.surface.state.prerendered.label": "Prerendered",
+  "projectGraph.surface.state.prerendered.short": "PR",
+  "projectGraph.surface.state.prerenderEligible":
+    "Eligible but not declared: add {path} to the prerender allowlist.",
+  "projectGraph.surface.state.prerenderEligible.label": "Eligible, not declared",
+  "projectGraph.surface.state.prerenderEligible.short": "EL",
+  "projectGraph.surface.state.privateApi":
+    "Calls {route}, which requires a permission, so the page cannot prerender.",
+  "projectGraph.surface.state.privateApi.label": "Private API",
+  "projectGraph.surface.state.privateApi.short": "API",
+  "projectGraph.surface.state.authGuarded": "The page is behind authentication.",
+  "projectGraph.surface.state.authGuarded.label": "Auth-guarded",
+  "projectGraph.surface.state.authGuarded.short": "AUTH",
+  "projectGraph.surface.state.unknownSecurity":
+    "A dependency's security could not be read statically.",
+  "projectGraph.surface.state.unknownSecurity.label": "Unknown security",
+  "projectGraph.surface.state.unknownSecurity.short": "?",
+  "projectGraph.surface.state.dynamicPath":
+    "The path has a dynamic parameter, so it has no single prerendered URL.",
+  "projectGraph.surface.state.dynamicPath.label": "Dynamic path",
+  "projectGraph.surface.state.dynamicPath.short": "DYN",
+  "projectGraph.surface.state.redirect": "The page redirects instead of rendering.",
+  "projectGraph.surface.state.redirect.label": "Redirect",
+  "projectGraph.surface.state.redirect.short": "RDR",
+  "projectGraph.surface.state.prerenderIneligible":
+    "Ineligible, but the analyzer named no blocker.",
+  "projectGraph.surface.state.prerenderIneligible.label": "Ineligible",
+  "projectGraph.surface.state.prerenderIneligible.short": "!",
+  "projectGraph.surface.state.prerenderUnknown":
+    "No prerender fact for {path}; the analyzer could not decide.",
+  "projectGraph.surface.state.prerenderUnknown.label": "Unknown",
+  "projectGraph.surface.state.prerenderUnknown.short": "?",
+  "projectGraph.surface.state.noPages": "No routed page to evaluate for prerender.",
+  "projectGraph.surface.state.noPages.label": "No pages",
+  "projectGraph.surface.state.prerender.totals":
+    "pages: {count} · prerendered: {prerendered} · eligible: {eligible} · ineligible: {ineligible} · unknown: {unknown}",
+  "projectGraph.surface.state.prerender.emptyHint":
+    "Add a route to a page, or open the inspector to see the analyzer's prerender facts.",
 };

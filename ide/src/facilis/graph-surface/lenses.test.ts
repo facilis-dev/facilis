@@ -93,6 +93,7 @@ describe("lens contract", () => {
       "runtime",
       "changes",
       "reach",
+      "prerender",
     ]);
     expect(GRAPH_LENSES[0].codes).toEqual(["publicWrite", "publicAdmin", "tableNoRls"]);
     expect(GRAPH_LENSES[0].legend).toHaveLength(3);
@@ -199,6 +200,7 @@ describe("lens registry (D-224, #198)", () => {
       ["runtime", "live"],
       ["changes", "workspace"],
       ["reach", "declared"],
+      ["prerender", "declared"],
     ]);
     for (const lens of GRAPH_LENSES) {
       expect(GRAPH_LENS_SOURCES).toContain(lens.source);

@@ -39,6 +39,7 @@ describe("graph question codes", () => {
       runtime: "Q18",
       changes: "Q19",
       reach: "Q20",
+      prerender: "Q21",
     });
   });
 });

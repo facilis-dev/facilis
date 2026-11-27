@@ -31,4 +31,6 @@ export const projectGraphQuestionsIt = {
     "Q19 — Cosa è cambiato dal checkpoint dell'agente e quali nodi possiedono quei file?",
   "projectGraph.surface.question.q20":
     "Q20 — Cosa può raggiungere un ruolo: quali route, pagine e tabelle sbloccano i suoi permessi?",
+  "projectGraph.surface.question.q21":
+    "Q21 — Quali pagine vengono prerenderizzate alla build, quali sono idonee ma non dichiarate e cosa blocca le altre?",
 };

@@ -89,4 +89,50 @@ export const stateLensesIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.state.reach.role": "Ruolo",
   "projectGraph.surface.state.reach.emptyHint":
     "Scegli un altro ruolo o dichiara il permesso mancante in facilis.config.ts.",
+
+  // ── prerender lens (#202) ───────────────────────────────────────────────────
+  "projectGraph.surface.lens.prerender": "Q21 · Prerender",
+  "projectGraph.surface.lens.prerender.short": "Q21",
+  "projectGraph.surface.lens.prerender.description":
+    "Quali pagine vengono pre-renderizzate alla build: dichiarate e idonee, idonee ma non dichiarate, oppure bloccate con il motivo dell'analizzatore.",
+  "projectGraph.surface.state.prerendered": "Pre-renderizzata: {path} è dichiarata e idonea.",
+  "projectGraph.surface.state.prerendered.label": "Pre-renderizzata",
+  "projectGraph.surface.state.prerendered.short": "PR",
+  "projectGraph.surface.state.prerenderEligible":
+    "Idonea ma non dichiarata: aggiungi {path} alla allowlist del prerender.",
+  "projectGraph.surface.state.prerenderEligible.label": "Idonea, non dichiarata",
+  "projectGraph.surface.state.prerenderEligible.short": "EL",
+  "projectGraph.surface.state.privateApi":
+    "Chiama {route}, che richiede un permesso, quindi la pagina non può essere pre-renderizzata.",
+  "projectGraph.surface.state.privateApi.label": "API privata",
+  "projectGraph.surface.state.privateApi.short": "API",
+  "projectGraph.surface.state.authGuarded": "La pagina è dietro autenticazione.",
+  "projectGraph.surface.state.authGuarded.label": "Protetta da auth",
+  "projectGraph.surface.state.authGuarded.short": "AUTH",
+  "projectGraph.surface.state.unknownSecurity":
+    "La sicurezza di una dipendenza non è leggibile staticamente.",
+  "projectGraph.surface.state.unknownSecurity.label": "Sicurezza sconosciuta",
+  "projectGraph.surface.state.unknownSecurity.short": "?",
+  "projectGraph.surface.state.dynamicPath":
+    "Il percorso ha un parametro dinamico, quindi non ha un unico URL pre-renderizzato.",
+  "projectGraph.surface.state.dynamicPath.label": "Percorso dinamico",
+  "projectGraph.surface.state.dynamicPath.short": "DYN",
+  "projectGraph.surface.state.redirect": "La pagina reindirizza invece di renderizzare.",
+  "projectGraph.surface.state.redirect.label": "Redirect",
+  "projectGraph.surface.state.redirect.short": "RDR",
+  "projectGraph.surface.state.prerenderIneligible":
+    "Non idonea, ma l'analizzatore non ha indicato un blocco.",
+  "projectGraph.surface.state.prerenderIneligible.label": "Non idonea",
+  "projectGraph.surface.state.prerenderIneligible.short": "!",
+  "projectGraph.surface.state.prerenderUnknown":
+    "Nessun fatto di prerender per {path}; l'analizzatore non ha potuto decidere.",
+  "projectGraph.surface.state.prerenderUnknown.label": "Sconosciuta",
+  "projectGraph.surface.state.prerenderUnknown.short": "?",
+  "projectGraph.surface.state.noPages":
+    "Nessuna pagina con una route da valutare per il prerender.",
+  "projectGraph.surface.state.noPages.label": "Nessuna pagina",
+  "projectGraph.surface.state.prerender.totals":
+    "pagine: {count} · pre-renderizzate: {prerendered} · idonee: {eligible} · non idonee: {ineligible} · sconosciute: {unknown}",
+  "projectGraph.surface.state.prerender.emptyHint":
+    "Aggiungi una route a una pagina, oppure apri l'inspector per vedere i fatti di prerender dell'analizzatore.",
 };

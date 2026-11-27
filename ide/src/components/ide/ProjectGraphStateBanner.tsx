@@ -40,6 +40,7 @@ export function ProjectGraphStateBanner({
 }) {
   const rows: LensRow[] = [...factsByNode(state.facts).entries()].map(([nodeId, facts]) => ({
     nodeId,
+    group: state.groups?.get(nodeId) ?? null,
     lines: facts.flatMap((fact) => {
       const legend = legendEntryOf(definition, fact.code);
       return legend === null
@@ -47,6 +48,11 @@ export function ProjectGraphStateBanner({
         : [{ key: legend.messageKey, params: fact.params, colorToken: legend.colorToken }];
     }),
   }));
+  // A stable sort: within a domain the lens's own state order (prerendered first) survives.
+  const ordered =
+    state.groups === undefined
+      ? rows
+      : rows.toSorted((left, right) => (left.group ?? "").localeCompare(right.group ?? ""));
   return (
     <LensSection definition={definition} onClose={onClose}>
       <LensLegend
@@ -71,14 +77,14 @@ export function ProjectGraphStateBanner({
           </select>
         </label>
       )}
-      {rows.length === 0 ? (
+      {ordered.length === 0 ? (
         <EmptyState
           title={t(state.emptyKey ?? "projectGraph.surface.state.emptyTitle", state.params)}
           hint={state.emptyHintKey === null ? null : t(state.emptyHintKey)}
           onClose={onClose}
         />
       ) : (
-        <AnswerList rows={rows} nodeLabel={nodeLabel} onActivate={onActivate} />
+        <AnswerList rows={ordered} nodeLabel={nodeLabel} onActivate={onActivate} />
       )}
     </LensSection>
   );
