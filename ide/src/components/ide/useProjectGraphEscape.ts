@@ -8,7 +8,9 @@ import { useEffect } from "react";
 import type { ProjectGraphMode } from "./project-graph-surface-mode";
 import { resolveEscapeAction } from "./project-graph-escape";
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** Inputs, textareas, selects and contenteditable keep their keys; the Escape ladder and
+ * the shortcut dispatcher share this rule. */
+export function isTypingTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
     (target.isContentEditable ||

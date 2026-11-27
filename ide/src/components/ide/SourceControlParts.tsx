@@ -57,7 +57,9 @@ export function Section({
       <div className="group flex h-6 items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {icon}
         <span className="flex-1">{title}</span>
-        <span className="inline-flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Opacity, never hidden: a display:none child cannot take focus, so the
+            focus-within reveal would never fire (issue #215). */}
+        <span className="inline-flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           {actions}
         </span>
         {count > 0 && (
@@ -80,19 +82,24 @@ export function Row({
 }) {
   const dir = dirName(ch.path);
   return (
-    <div
-      className="group flex h-6 cursor-pointer items-center gap-1.5 px-2 hover:bg-accent"
-      onClick={onOpen}
-      title={ch.path}
-    >
-      <FileIcon name={baseName(ch.path)} className="size-3.5 shrink-0" />
-      <span className="truncate text-xs text-foreground">{baseName(ch.path)}</span>
-      {dir && <span className="truncate text-[11px] text-muted-foreground">{dir}</span>}
-      <span className="ml-auto flex shrink-0 items-center gap-0.5">
-        <span
-          className="hidden items-center gap-0.5 group-hover:flex"
-          onClick={(e) => e.stopPropagation()}
-        >
+    <div className="group flex h-6 cursor-pointer items-center gap-1.5 px-2 hover:bg-accent">
+      <button
+        type="button"
+        onClick={onOpen}
+        title={ch.path}
+        // Stable hook for the browser gate: the row's classes are presentation, and the
+        // a11y work moved the click target from the row to this button (issue #215).
+        data-scm-change={ch.path}
+        aria-label={`${t("scm.openDiff")}: ${ch.path}`}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        <FileIcon name={baseName(ch.path)} className="size-3.5 shrink-0" />
+        <span className="truncate text-xs text-foreground">{baseName(ch.path)}</span>
+        {dir && <span className="truncate text-[11px] text-muted-foreground">{dir}</span>}
+      </button>
+      <span className="flex shrink-0 items-center gap-0.5">
+        {/* Revealed whenever the row (button or one of these actions) has focus. */}
+        <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           {children}
         </span>
         <span

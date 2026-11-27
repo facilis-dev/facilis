@@ -13,6 +13,7 @@ import type {
 } from "@/ai/commit-generation";
 import type { RepoState, ScmSession } from "@/vv/scm-session";
 import { createCommitBox, type CommitBoxSnapshot } from "./commit-box-state";
+import { formatChord } from "./shortcuts";
 
 function failureText(failure: CommitGenerationFailure): string {
   if (failure.reason === "unconfigured") return t("scm.generate.noModel");
@@ -52,7 +53,10 @@ export function CommitBoxView({
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canCommit) onCommit();
         }}
-        placeholder={t("scm.messagePlaceholder", { branch: repo.currentBranch ?? "HEAD" })}
+        placeholder={t("scm.messagePlaceholder", {
+          chord: formatChord({ key: "Enter", mod: true }),
+          branch: repo.currentBranch ?? "HEAD",
+        })}
         className="min-h-16 resize-none text-xs"
       />
       <div className="flex gap-1.5">

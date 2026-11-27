@@ -21,11 +21,12 @@ import {
   buildOverviewScene,
   type SurfaceScene,
 } from "@/facilis/graph-surface/scene.ts";
-import { ProjectGraphNodeList } from "./ProjectGraphNodeList";
+import { ProjectGraphNodeRail } from "./ProjectGraphNodeRail";
 import { ProjectGraphNotesLayer } from "./ProjectGraphNotesLayer";
 import { ProjectGraphSurfaceChrome } from "./ProjectGraphSurfaceChrome";
 import type { RichCardRequest } from "./ProjectGraphRichCard";
 import { useGraphSurfaceCamera, type SurfaceSize } from "./use-graph-surface-camera";
+import { useGraphSurfaceKeyboard } from "./use-graph-surface-keyboard";
 import { useGraphSurfaceRender } from "./use-graph-surface-render";
 import { useGraphSurfaceCard } from "./use-graph-surface-card";
 import { useGraphSurfaceInteractions } from "./use-graph-surface-interactions";
@@ -140,7 +141,7 @@ export function ProjectGraphSurface({
   }, [scene, richCard]);
 
   const modeKey = mode.kind === "overview" ? "overview" : "detail:" + mode.domain;
-  const { cameraRef, restoreOrFit, centerOn, noteGestureEnd, scheduleViewportPersist } =
+  const { cameraRef, fitNow, restoreOrFit, centerOn, noteGestureEnd, scheduleViewportPersist } =
     useGraphSurfaceCamera({
       sceneRef,
       sizeRef,
@@ -153,6 +154,15 @@ export function ProjectGraphSurface({
       selectedNodeId,
       onViewportChange,
     });
+  // Keyboard pan/zoom/fit on the focusable canvas; it reuses the pointer camera transforms and
+  // persists on the same debounce, so a keyboard pan survives a reload (issue #213).
+  const { onKeyDown: onCanvasKeyDown } = useGraphSurfaceKeyboard({
+    cameraRef,
+    sizeRef,
+    dirtyRef,
+    fitNow,
+    scheduleViewportPersist,
+  });
   // The rich card is placed from the draw loop (pan/zoom) and re-measured on open/resize.
   const {
     cardRef,
@@ -242,7 +252,9 @@ export function ProjectGraphSurface({
         ref={canvasRef}
         role="application"
         aria-label={t("projectGraph.surface.canvasLabel")}
-        className="block cursor-grab touch-none select-none"
+        tabIndex={0}
+        className="block cursor-grab touch-none select-none outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        onKeyDown={onCanvasKeyDown}
         onPointerDown={pointer.onPointerDown}
         onPointerMove={pointer.onPointerMove}
         onPointerUp={pointer.onPointerUp}
@@ -265,11 +277,12 @@ export function ProjectGraphSurface({
           {richCard.render(richCardLayout, cardRef)}
         </div>
       )}
-      <ProjectGraphNodeList
+      <ProjectGraphNodeRail
         nodes={view.nodes}
         domains={domains}
         detailDomain={mode.kind === "detail" ? mode.domain : null}
         notes={noteState.notes}
+        selectedNodeId={selectedNodeId}
         onSelectNode={onSelectNode}
         onSelectNote={focusNote}
         onOpenDomain={(domain) => onModeChange({ kind: "detail", domain })}

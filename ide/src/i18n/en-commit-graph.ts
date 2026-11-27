@@ -29,4 +29,8 @@ export const commitGraphEn = {
   "commitGraph.detailsBranches": "Branches",
   "commitGraph.detailsNone": "No branch points at this commit.",
   "commitGraph.openBranch": "Check out {branch}",
+  "commitGraph.list.label": "Commits",
+  "commitGraph.list.hint": "Up/Down move, Enter opens, Escape closes.",
+  "commitGraph.list.option": "{message} ({short})",
+  "commitGraph.list.selected": "Selected {short}: {message}",
 } as const;

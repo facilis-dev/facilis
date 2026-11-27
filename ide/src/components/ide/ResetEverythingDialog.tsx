@@ -14,10 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
 import { RESET_CONFIRMATION, confirmsResetEverything } from "@/vv/reset-confirmation";
 import { resetUi } from "@/vv/reset-ui";
+import { BusyStatus } from "./BusyStatus";
+import { ConfirmNameField } from "./ConfirmNameField";
 import { useIde } from "./useIde";
 
 export function ResetEverythingDialog() {
@@ -26,6 +27,11 @@ export function ResetEverythingDialog() {
   const [busy, setBusy] = useState(false);
   const open = useSyncExternalStore(resetUi.subscribe, resetUi.getSnapshot);
   const confirmed = confirmsResetEverything(typed);
+  // The message is why the confirm button is still disabled; it is tied to the input.
+  const mismatch =
+    typed.length > 0 && !confirmed
+      ? t("reset.confirmMismatch", { word: RESET_CONFIRMATION })
+      : null;
 
   useEffect(() => {
     if (open) {
@@ -57,21 +63,15 @@ export function ResetEverythingDialog() {
           <DialogTitle>{t("reset.title")}</DialogTitle>
           <DialogDescription>{t("reset.body")}</DialogDescription>
         </DialogHeader>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("reset.confirmLabel", { word: RESET_CONFIRMATION })}
-          </span>
-          <Input
-            autoFocus
-            value={typed}
-            placeholder={RESET_CONFIRMATION}
-            aria-invalid={typed.length > 0 && !confirmed}
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void confirmReset();
-            }}
-          />
-        </label>
+        <ConfirmNameField
+          label={t("reset.confirmLabel", { word: RESET_CONFIRMATION })}
+          value={typed}
+          placeholder={RESET_CONFIRMATION}
+          error={mismatch}
+          onChange={setTyped}
+          onSubmit={() => void confirmReset()}
+        />
+        {busy && <BusyStatus>{t("reset.busy")}</BusyStatus>}
         <DialogFooter>
           <Button variant="outline" onClick={() => resetUi.close()} disabled={busy}>
             {t("common.cancel")}

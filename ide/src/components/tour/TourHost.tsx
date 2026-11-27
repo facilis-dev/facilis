@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useIde } from "@/components/ide/useIde";
+import { useBlockingLayer } from "@/components/ide/use-blocking-layer";
 import { isAutomationContext, shouldAutoStartTour } from "@/tour/tour-store";
 import type { TourAction } from "@/tour/tour-types";
 import type { IdeController } from "@/vv/controller";
+import { startTour } from "./tour-focus";
 import { TourOverlay } from "./TourOverlay";
 import { tourStore } from "./tour-store-instance";
 import { useTour } from "./use-tour";
@@ -34,6 +36,9 @@ function runStepAction(controller: IdeController, action: TourAction): void {
 export function TourHost() {
   const { c, snap } = useIde();
   const { snapshot, steps, skip } = useTour();
+  // The tour is a sibling of the workspace frame and covers it like Home does (#217): the
+  // shell behind it must not be tabbable or shortcut-active while a step is up.
+  useBlockingLayer("tour", snapshot.active);
   const autoStarted = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,7 +67,7 @@ export function TourHost() {
       autoTimer.current = null;
       autoStarted.current = true;
       // A manual replay can win the race; never yank it back to step one.
-      if (!tourStore.getSnapshot().active) tourStore.start();
+      if (!tourStore.getSnapshot().active) startTour(null);
     }, AUTO_START_DELAY_MS);
     return () => {
       if (autoTimer.current !== null) {

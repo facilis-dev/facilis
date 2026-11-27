@@ -685,7 +685,13 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "(() => { const c = document.querySelector('[data-testid=\"project-graph-lens-security\"]');" +
       " return c === null ? '' : (c.getAttribute('title') || '') + '|' + (c.getAttribute('aria-label') || ''); })()",
   );
-  record(chipHint.includes("⌘⇧L"), "lens bar: chip teaches the picker chord", chipHint);
+  // The chip teaches the picker chord in the platform's own spelling (issue #223): the
+  // registry formats it, so the assertion has to follow the platform the browser reports
+  // rather than assume the macOS glyphs.
+  const lensChord = await page.evaluate(
+    "/mac|iphone|ipad/i.test(navigator.platform) ? '⌘⇧L' : 'Ctrl+Shift+L'",
+  );
+  record(chipHint.includes(lensChord), "lens bar: chip teaches the picker chord", chipHint);
   await page.screenshot(ARTIFACTS + "/05f-lens-palette.png");
   // The palette closes before the next command: wait out its exit animation so the following
   // open is not queued behind a closing dialog.

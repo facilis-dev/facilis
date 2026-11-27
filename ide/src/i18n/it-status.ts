@@ -1,0 +1,35 @@
+// Status-bar strings (Italian), spread into the `it` catalogue in it.ts.
+export const statusIt = {
+  "status.goToLineDialog": "Vai alla riga",
+  "status.goToLineHint": "Digita un numero di riga fra 1 e {count} per saltarci.",
+  "status.indentationDialog": "Indentazione",
+  "status.languageModeDialog": "Seleziona modalità linguaggio",
+  "status.languageModeEmpty": "Nessuna modalità linguaggio corrispondente.",
+  "status.languageAuto": "Rilevamento automatico",
+  "status.branch": "Branch corrente",
+  "status.frameworkPackages":
+    "Versioni minime di @facilis.dev/* richieste da questa build (core {version}) — i nuovi progetti fissano ogni pacchetto esattamente: {packages}",
+  "status.goToLine": "Vai a riga/colonna",
+  "status.indent": "Scegli indentazione",
+  "status.language": "Scegli linguaggio",
+  "status.python": "Servizio linguaggio Python (jedi, black)",
+  "status.position": "Riga {line}, Col {column}",
+  "status.error": "errore",
+  "status.errors": "errori",
+  "status.warning": "avviso",
+  "status.warnings": "avvisi",
+  "status.selections": "({count} selezioni)",
+  "status.selected": "({count} selezionati)",
+  "status.device.memoryPressure": "Memoria sotto pressione",
+  "status.device.lowMemory": "Poca RAM",
+  "status.device.slowBoot": "Avvio lento",
+  "status.device.lowStorage": "Spazio quasi esaurito",
+  "status.device.hint":
+    "Questa scheda esegue l'intera VM. Chiudere altre schede e app libera la memoria che le serve.",
+  "status.perf.capture": "Snapshot",
+  "status.perf.capturing": "Cattura…",
+  "status.perf.hint":
+    "Cattura il report di prestazioni di questa scheda — latenza di risposta del filesystem, conteggi VFS, processi guest e coda del terminale — per una segnalazione",
+  "status.perf.saved": "Snapshot delle prestazioni salvato: {file}",
+  "status.perf.failed": "Non è stato possibile catturare lo snapshot delle prestazioni.",
+} as const;

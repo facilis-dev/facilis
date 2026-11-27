@@ -7,14 +7,6 @@ import FolderPlus from "~icons/lucide/folder-plus";
 import RefreshCw from "~icons/lucide/refresh-cw";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -26,10 +18,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { t } from "@/i18n";
 import { FileIcon, FolderIcon } from "./fileIcon";
 import { useIde } from "./useIde";
 import { VV_PATH_MIME, entriesFromDataTransfer } from "@/vv/controller";
 import { isIgnoredPath } from "@/vv/workspace-index";
+import {
+  flattenTreeRows,
+  treeFocusIntent,
+  treeItemAttributes,
+  type TreeRow,
+} from "./explorer-tree-model";
+import { ROW_H, revealRow, stickyStyle } from "./explorer-tree-layout";
+import { ExplorerNameInput } from "./explorer-name-input";
+import { ExplorerRowMenu } from "./explorer-row-menu";
 
 interface Entry {
   name: string;
@@ -42,67 +44,6 @@ const modKey = (e: React.KeyboardEvent) => e.metaKey || e.ctrlKey;
 
 // VCS internals only; git-ignored entries stay listed but dimmed (D-054).
 const HIDDEN_IN_TREE = new Set([".git"]);
-
-// Row height in px, and the single source of truth for the sticky stack: an
-// ancestor row parks at `depth * ROW_H`, under the rows already parked above it,
-// so the sum is only right while every row in the stack is exactly this tall. It
-// is SET on those rows because the font metrics differ between root and folder rows.
-const ROW_H = 24;
-// Parked rows overlap, so z-index decreases with depth (and never reaches 0).
-const STICKY_Z = 20;
-const stickyStyle = (depth: number) => ({
-  top: depth * ROW_H,
-  zIndex: Math.max(1, STICKY_Z - depth),
-});
-
-// Vertical clearance required before a row counts as "already in view". Zero would
-// re-create the bug this is meant to fix: a row one pixel inside the bottom edge is
-// technically visible, so it would be left parked there. One row means a sibling is
-// always visible on the row's nearest side, which is what makes its position readable.
-const REVEAL_CLEARANCE = ROW_H;
-
-// Scroll a row into view PAST the parked stack, and — for `align: "center"` — near the
-// middle rather than wherever is closest.
-//
-// Two separate things are going on here. First, `scrollIntoView` and `focus()` both
-// align their target with the scrollport's top edge, which is exactly where the sticky
-// ancestors sit, so left alone they "reveal" a row that is completely behind them.
-// `scroll-padding-top` is how you tell the scroll machinery that a band at the top of
-// the scrollport is not usable; the stack above a row at `depth` is its own ancestor
-// chain, i.e. `depth` rows. Set per-call because the height depends on the target.
-// The selector is a real dependency on `ui/scroll-area.tsx`, which says so at that end too.
-//
-// Second, the alignment. `block: "nearest"` is *minimum* scrolling by definition, so
-// revealing a row from below parks it flush against the bottom edge every time — which
-// is what "it keeps ending up right at the bottom" was. `"center"` puts it mid-viewport
-// (mid-*usable*-band, since scroll-padding shrinks the optimal viewing region), and the
-// browser clamps the resulting scroll offset, so a target near either end of the list
-// lands as close to the middle as the scroll range permits with no arithmetic here.
-//
-// Centring unconditionally would lurch the tree on every tab switch, including when the
-// row was already sitting in plain sight, so a row with `REVEAL_CLEARANCE` on both sides
-// is left exactly where it is.
-const revealRow = (
-  el: HTMLElement | null,
-  depth: number,
-  align: "center" | "nearest" = "center",
-) => {
-  if (!el) return;
-  const viewport = el.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-  const padTop = depth * ROW_H;
-  if (viewport) viewport.style.scrollPaddingTop = `${padTop}px`;
-  if (align === "center" && viewport) {
-    const vp = viewport.getBoundingClientRect();
-    const row = el.getBoundingClientRect();
-    if (
-      row.top >= vp.top + padTop + REVEAL_CLEARANCE &&
-      row.bottom <= vp.bottom - REVEAL_CLEARANCE
-    ) {
-      return;
-    }
-  }
-  el.scrollIntoView({ block: align });
-};
 
 // A pending inline "new file" / "new folder" input.
 interface Creating {
@@ -119,6 +60,13 @@ export function Explorer() {
   // (last plain/Cmd-clicked row) that Shift-click extends from.
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
+  // The row the keyboard last moved to. It is the tree's single tab stop; derived
+  // against the visible rows below so a row that disappears (collapse, rename,
+  // delete) can never leave the tree unfocusable.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  // Which row's context menu is open, and whether it was opened from the keyboard
+  // (in which case it must be anchored on the row, not on a pointer at 0/0).
+  const [rowMenu, setRowMenu] = useState<{ id: string; atRow: boolean } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [creating, setCreating] = useState<Creating | null>(null);
@@ -126,10 +74,8 @@ export function Explorer() {
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const loading = useRef<Set<string>>(new Set());
-  // The focusable tree container. Clicking a row focuses it so Explorer
-  // shortcuts (Cmd/Ctrl+A to select all, Esc to clear) work even when the
-  // editor had focus — matching VSCode (a single click doesn't focus the editor).
-  const treeRef = useRef<HTMLDivElement>(null);
+  // The mounted row elements, so a key can move focus without a DOM query.
+  const rowEls = useRef(new Map<string, HTMLElement>());
   // The row of the currently-active editor file, so we can scroll it into view
   // when the active tab changes; `scrolledFor` dedupes so we only scroll once
   // per tab (not on every unrelated tree re-render).
@@ -299,21 +245,26 @@ export function Explorer() {
     setCreating(null);
   };
 
-  // The visible rows in render order (respecting expansion), used for Shift-range
-  // selection and Select All.
-  const flatVisible = useMemo(() => {
-    const rows: { abs: string; isDir: boolean }[] = [];
-    const walk = (dir: string) => {
-      for (const e of children[dir] ?? []) {
-        const abs = dir + "/" + e.name;
-        rows.push({ abs, isDir: e.dir });
-        if (e.dir && expanded.has(abs)) walk(abs);
-      }
-    };
-    for (const f of snap.workspaceFolders) if (expanded.has(f.rootPath)) walk(f.rootPath);
-    return rows;
-  }, [children, expanded, snap.workspaceFolders]);
+  // The rows currently visible (roots included), in render order: the data the
+  // roving focus and the arrow keys walk.
+  const treeRows = useMemo(
+    () => flattenTreeRows(snap.workspaceFolders, children, expanded),
+    [children, expanded, snap.workspaceFolders],
+  );
+  // Selection, Shift-ranges and Select All address ENTRIES only: a workspace root is
+  // focusable, but putting it in the selection would aim Delete/Backspace at the folder.
+  const flatVisible = useMemo(
+    () => treeRows.filter((row) => !row.root).map((row) => ({ abs: row.id, isDir: row.isDir })),
+    [treeRows],
+  );
   const isDirOf = (abs: string) => flatVisible.find((r) => r.abs === abs)?.isDir ?? false;
+  // The row holding the tab stop: the last one the keyboard moved to, else the active
+  // editor file, else the first row.
+  const focusedRow =
+    treeRows.find((row) => row.id === focusedId) ??
+    treeRows.find((row) => row.id === snap.activeTab) ??
+    treeRows[0] ??
+    null;
 
   // Once the active file's row is mounted (after any ancestor folders finish
   // loading and `flatVisible` updates), scroll it into view — once per tab.
@@ -356,13 +307,26 @@ export function Explorer() {
 
   // A row was clicked: update selection, and (only for a plain click) open a
   // file or toggle a folder. Modifier-clicks just change the selection.
-  const handleRowClick = (e: React.MouseEvent, abs: string, isDir: boolean, folderId: string) => {
-    treeRef.current?.focus({ preventScroll: true });
+  const handleRowClick = (
+    e: React.MouseEvent<HTMLDivElement>,
+    abs: string,
+    isDir: boolean,
+    folderId: string,
+  ) => {
+    // Focus the ROW, never the tree container: the tree has one roving tab stop, and
+    // focusing the container painted a ring around a box that belonged to no row.
+    e.currentTarget.focus({ preventScroll: true });
+    setFocusedId(abs);
     c.setActiveFolder(folderId);
     applySelect(e, abs);
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
     if (isDir) toggle(abs);
     else void c.openEntry(abs, { preview: true, focus: false }); // keep focus in the tree
+  };
+
+  const setRowEl = (id: string, el: HTMLDivElement | null) => {
+    if (el) rowEls.current.set(id, el);
+    else rowEls.current.delete(id);
   };
 
   // When a context menu opens on an unselected row, make it the sole selection
@@ -399,10 +363,7 @@ export function Explorer() {
     }
     const sel = [...selection];
     if (!sel.length) return;
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (sel.length === 1) startRename(sel[0]);
-    } else if (e.key === "Delete" || e.key === "Backspace") {
+    if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       setConfirmDelete(sel);
     } else if (modKey(e) && k === "c") {
@@ -417,15 +378,65 @@ export function Explorer() {
     }
   };
 
-  const nameInput = (
-    value: string,
-    onChange: (v: string) => void,
-    commit: () => void,
-    cancel: () => void,
-    depth: number,
-  ) => (
-    <NameInput value={value} onChange={onChange} commit={commit} cancel={cancel} depth={depth} />
-  );
+  // Move the roving focus (and, for an entry, the selection) to a row — what an arrow
+  // key does. A root only becomes the active folder: it is never a deletable selection.
+  const moveFocus = (row: TreeRow) => {
+    setFocusedId(row.id);
+    c.setActiveFolder(row.rootId);
+    // A root is not a file selection: it takes the focus and the active folder, and
+    // the file selection is cleared so `aria-selected` names exactly one row.
+    setSelection(row.root ? new Set() : new Set([row.id]));
+    setAnchor(row.root ? null : row.id);
+    const el = rowEls.current.get(row.id);
+    el?.focus({ preventScroll: true });
+    revealRow(el ?? null, row.level - 1, "nearest");
+  };
+
+  const openRowMenu = (row: TreeRow) => {
+    c.setActiveFolder(row.rootId);
+    if (!row.root) selectForContext(row.id);
+    setRowMenu({ id: row.id, atRow: true });
+  };
+
+  // Tree keyboard: arrows/Home/End move the roving focus, Left/Right fold, Enter opens,
+  // F2 renames, Shift+F10 (or the menu key) opens the row menu. Scoped to the tree so
+  // the header buttons keep their own key handling; Delete/Backspace stay on the
+  // sidebar handler with the selection semantics they always had.
+  const onTreeKeyDown = (e: React.KeyboardEvent) => {
+    if (!focusedRow || renaming || creating) return;
+    const intent = treeFocusIntent(treeRows, focusedRow.id, e.key);
+    if (intent) {
+      e.preventDefault();
+      if (intent.expand) toggle(intent.expand);
+      if (intent.collapse) toggle(intent.collapse);
+      moveFocus(treeRows.find((row) => row.id === intent.focus) ?? focusedRow);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (focusedRow.isDir) toggle(focusedRow.id);
+      else void c.openEntry(focusedRow.id, { preview: false, focus: false });
+      return;
+    }
+    if (e.key === "F2") {
+      e.preventDefault();
+      if (!focusedRow.root) startRename(focusedRow.id);
+      return;
+    }
+    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      e.preventDefault();
+      openRowMenu(focusedRow);
+    }
+  };
+
+  // The controlled open state of a row's context menu. A stale close from another
+  // row's menu must not clear the menu that just opened.
+  const rowMenuProps = (id: string) => ({
+    open: rowMenu?.id === id,
+    anchorAtRow: rowMenu?.id === id && rowMenu.atRow,
+    onOpenChange: (open: boolean) =>
+      setRowMenu((prev) => (open ? { id, atRow: false } : prev?.id === id ? null : prev)),
+  });
 
   // Render the children of `dir` (must be expanded). `folderId` = owning root.
   const renderChildren = (dir: string, depth: number, folderId: string): React.ReactNode => {
@@ -434,6 +445,10 @@ export function Explorer() {
       <>
         {creating?.dir === dir && (
           <div
+            role="treeitem"
+            aria-level={depth + 1}
+            aria-selected={false}
+            tabIndex={-1}
             className="flex items-center gap-1.5 py-0.5"
             style={{ paddingLeft: 8 + depth * 12 + 4 }}
           >
@@ -442,11 +457,21 @@ export function Explorer() {
             ) : (
               <FileIcon name={createValue || "x"} className="size-4 shrink-0" />
             )}
-            {nameInput(createValue, setCreateValue, commitCreate, () => setCreating(null), depth)}
+            <ExplorerNameInput
+              value={createValue}
+              onChange={setCreateValue}
+              commit={commitCreate}
+              cancel={() => setCreating(null)}
+              depth={depth}
+            />
           </div>
         )}
         {entries === undefined ? (
+          // Presentational: a loading ellipsis is not a tree item, and hiding it keeps
+          // the group's required children to treeitems only.
           <div
+            role="none"
+            aria-hidden="true"
             className="py-0.5 text-xs text-muted-foreground"
             style={{ paddingLeft: 8 + depth * 12 + 16 }}
           >
@@ -473,15 +498,14 @@ export function Explorer() {
     const open = expanded.has(abs);
     const isRenaming = renaming === abs;
     return (
-      <div key={abs}>
-        <RowMenu
+      <div key={abs} role="none">
+        <ExplorerRowMenu
           abs={abs}
           isDir
           destDir={abs}
-          folderId={folderId}
           c={c}
           canPaste={snap.clipboard != null}
-          stickyDepth={depth}
+          {...rowMenuProps(abs)}
           onContextMenuOpen={() => {
             c.setActiveFolder(folderId);
             selectForContext(abs);
@@ -493,40 +517,55 @@ export function Explorer() {
           onDelete={() => setConfirmDelete(effective(abs))}
           onNewFile={() => startCreate(abs, "file")}
           onNewFolder={() => startCreate(abs, "folder")}
-        >
-          <div
-            // Rows truncate with an ellipsis and the tree does not scroll sideways, so
-            // without this a long name — or any name at depth, where the indent eats
-            // the width — cannot be read at all.
-            title={name}
-            data-git-ignored={ignored(abs) || undefined}
-            {...dragProps(abs)}
-            {...dropProps(abs, abs)}
-            className={cn(
-              "flex w-full cursor-pointer items-center gap-1 text-left text-sm",
-              dragOver === abs
-                ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
-                : selection.has(abs)
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-            )}
-            style={{ height: ROW_H, paddingLeft: 8 + depth * 12 }}
-            onClick={(e) => handleRowClick(e, abs, true, folderId)}
-          >
-            {open ? (
-              <ChevronDown className="size-3.5 shrink-0" />
-            ) : (
-              <ChevronRight className="size-3.5 shrink-0" />
-            )}
-            <FolderIcon name={name} open={open} className="size-4 shrink-0" />
-            {isRenaming ? (
-              nameInput(renameValue, setRenameValue, commitRename, () => setRenaming(null), depth)
-            ) : (
-              <span className="truncate">{name}</span>
-            )}
-          </div>
-        </RowMenu>
-        {open && renderChildren(abs, depth + 1, folderId)}
+          trigger={
+            <div
+              ref={(el) => setRowEl(abs, el)}
+              // Rows truncate with an ellipsis and the tree does not scroll sideways, so
+              // without the title a long name — or any name at depth, where the indent
+              // eats the width — cannot be read at all.
+              title={name}
+              data-git-ignored={ignored(abs) || undefined}
+              {...dragProps(abs)}
+              {...dropProps(abs, abs)}
+              {...treeItemAttributes({
+                focused: focusedRow?.id === abs,
+                selected: selection.has(abs),
+                level: depth + 1,
+                expanded: open,
+              })}
+              className={cn(
+                "sticky flex w-full cursor-pointer items-center gap-1 bg-sidebar text-left text-sm outline-none",
+                "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                dragOver === abs
+                  ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
+                  : selection.has(abs)
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              )}
+              style={{ height: ROW_H, paddingLeft: 8 + depth * 12, ...stickyStyle(depth) }}
+              onClick={(e) => handleRowClick(e, abs, true, folderId)}
+            >
+              {open ? (
+                <ChevronDown className="size-3.5 shrink-0" />
+              ) : (
+                <ChevronRight className="size-3.5 shrink-0" />
+              )}
+              <FolderIcon name={name} open={open} className="size-4 shrink-0" />
+              {isRenaming ? (
+                <ExplorerNameInput
+                  value={renameValue}
+                  onChange={setRenameValue}
+                  commit={commitRename}
+                  cancel={() => setRenaming(null)}
+                  depth={depth}
+                />
+              ) : (
+                <span className="truncate">{name}</span>
+              )}
+            </div>
+          }
+        />
+        {open && <div role="group">{renderChildren(abs, depth + 1, folderId)}</div>}
       </div>
     );
   };
@@ -539,59 +578,72 @@ export function Explorer() {
   ): React.ReactNode => {
     const isRenaming = renaming === abs;
     return (
-      <RowMenu
-        key={abs}
-        abs={abs}
-        isDir={false}
-        destDir={parentDir(abs)}
-        folderId={folderId}
-        c={c}
-        canPaste={snap.clipboard != null}
-        onContextMenuOpen={() => {
-          c.setActiveFolder(folderId);
-          selectForContext(abs);
-        }}
-        onCopy={() => c.copyEntries(effective(abs))}
-        onCut={() => c.cutEntries(effective(abs))}
-        onOpen={() => c.openEntry(abs, { preview: false })}
-        onRename={() => startRename(abs)}
-        onDelete={() => setConfirmDelete(effective(abs))}
-        onNewFile={() => startCreate(parentDir(abs), "file")}
-        onNewFolder={() => startCreate(parentDir(abs), "folder")}
-      >
-        <div
-          ref={
-            snap.activeTab === abs
-              ? (el) => {
+      <div key={abs} role="none">
+        <ExplorerRowMenu
+          abs={abs}
+          isDir={false}
+          destDir={parentDir(abs)}
+          c={c}
+          canPaste={snap.clipboard != null}
+          {...rowMenuProps(abs)}
+          onContextMenuOpen={() => {
+            c.setActiveFolder(folderId);
+            selectForContext(abs);
+          }}
+          onCopy={() => c.copyEntries(effective(abs))}
+          onCut={() => c.cutEntries(effective(abs))}
+          onOpen={() => c.openEntry(abs, { preview: false })}
+          onRename={() => startRename(abs)}
+          onDelete={() => setConfirmDelete(effective(abs))}
+          onNewFile={() => startCreate(parentDir(abs), "file")}
+          onNewFolder={() => startCreate(parentDir(abs), "folder")}
+          trigger={
+            <div
+              ref={(el) => {
+                setRowEl(abs, el);
+                if (snap.activeTab === abs) {
                   activeRowRef.current = el;
                   activeRowDepth.current = depth;
                 }
-              : undefined
+              }}
+              title={name}
+              data-git-ignored={ignored(abs) || undefined}
+              {...dragProps(abs)}
+              {...dropProps(parentDir(abs), abs)}
+              {...treeItemAttributes({
+                focused: focusedRow?.id === abs,
+                selected: selection.has(abs) || snap.activeTab === abs,
+                level: depth + 1,
+              })}
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-sm outline-none",
+                "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                dragOver === abs
+                  ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
+                  : selection.has(abs) || snap.activeTab === abs
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50",
+              )}
+              style={{ paddingLeft: 8 + depth * 12 + 16 }}
+              onClick={(e) => handleRowClick(e, abs, false, folderId)}
+              onDoubleClick={() => void c.openEntry(abs, { preview: false })}
+            >
+              <FileIcon name={name} className="size-4 shrink-0" />
+              {isRenaming ? (
+                <ExplorerNameInput
+                  value={renameValue}
+                  onChange={setRenameValue}
+                  commit={commitRename}
+                  cancel={() => setRenaming(null)}
+                  depth={depth}
+                />
+              ) : (
+                <span className="truncate">{name}</span>
+              )}
+            </div>
           }
-          title={name}
-          data-git-ignored={ignored(abs) || undefined}
-          {...dragProps(abs)}
-          {...dropProps(parentDir(abs), abs)}
-          className={cn(
-            "flex w-full cursor-pointer items-center gap-1.5 py-0.5 text-left text-sm",
-            dragOver === abs
-              ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
-              : selection.has(abs) || snap.activeTab === abs
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent/50",
-          )}
-          style={{ paddingLeft: 8 + depth * 12 + 16 }}
-          onClick={(e) => handleRowClick(e, abs, false, folderId)}
-          onDoubleClick={() => void c.openEntry(abs, { preview: false })}
-        >
-          <FileIcon name={name} className="size-4 shrink-0" />
-          {isRenaming ? (
-            nameInput(renameValue, setRenameValue, commitRename, () => setRenaming(null), depth)
-          ) : (
-            <span className="truncate">{name}</span>
-          )}
-        </div>
-      </RowMenu>
+        />
+      </div>
     );
   };
 
@@ -600,26 +652,26 @@ export function Explorer() {
   return (
     <div className="flex h-full flex-col bg-sidebar" onKeyDown={onKeyDown}>
       <div className="flex h-8 shrink-0 items-center gap-1 pl-3 pr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <span className="flex-1 truncate">Workspace</span>
+        <span className="flex-1 truncate">{t("explorer.title")}</span>
         <HeaderBtn
-          label="New File"
+          label={t("explorer.newFile")}
           onClick={() => active && startCreate(active.rootPath, "file")}
           disabled={!active}
         >
           <FilePlus className="size-3.5" />
         </HeaderBtn>
         <HeaderBtn
-          label="New Folder"
+          label={t("explorer.newFolder")}
           onClick={() => active && startCreate(active.rootPath, "folder")}
           disabled={!active}
         >
           <FolderPlus className="size-3.5" />
         </HeaderBtn>
-        <HeaderBtn label="Refresh" onClick={() => setChildren({})}>
+        <HeaderBtn label={t("explorer.refresh")} onClick={() => setChildren({})}>
           <RefreshCw className="size-3.5" />
         </HeaderBtn>
         <HeaderBtn
-          label="Collapse Folders in Workspace"
+          label={t("explorer.collapseAll")}
           onClick={() => setExpanded(new Set())}
           disabled={snap.workspaceFolders.length === 0}
         >
@@ -631,41 +683,47 @@ export function Explorer() {
           instead of scrolling inside it — the rows below the fold become unreachable
           and nothing ever sticks (the viewport is only a scrollport once it's capped). */}
       <ScrollArea className="min-h-0 flex-1">
-        <div
-          ref={treeRef}
-          className="relative min-h-full pb-4 outline-none"
-          tabIndex={0}
-          {...dropProps(active?.rootPath ?? null, "__area__")}
-        >
-          {/* The area drag-over tint is an OVERLAY, not this container's background:
-              the rows above it are opaquely `bg-sidebar` (parked ones have to be), so a
-              background tint only showed through in the gaps and read as stripes. Above
-              the sticky ramp, below the scrollbar, and never a pointer target. */}
-          {dragOver === "__area__" && (
-            <div className="pointer-events-none absolute inset-0 z-[25] bg-accent/30" />
-          )}
-          {snap.workspaceFolders.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              No folder open. Go{" "}
-              <button className="text-foreground underline" onClick={() => c.goHome()}>
-                Home
-              </button>{" "}
-              to create or open a project.
-            </div>
-          ) : (
-            snap.workspaceFolders.map((f) => {
+        {snap.workspaceFolders.length === 0 ? (
+          <div className="px-3 py-2 text-xs text-muted-foreground">
+            {t("explorer.empty")}{" "}
+            <button className="text-foreground underline" onClick={() => c.goHome()}>
+              {t("explorer.home")}
+            </button>{" "}
+            {t("explorer.emptyTail")}
+          </div>
+        ) : (
+          <div
+            // One tab stop for the whole tree: `focusedRow` is the only row rendered
+            // with tabIndex 0, so Tab enters on it and leaves from it.
+            role="tree"
+            aria-label={t("explorer.tree.label")}
+            aria-multiselectable
+            className="relative min-h-full pb-4 outline-none"
+            onKeyDown={onTreeKeyDown}
+            {...dropProps(active?.rootPath ?? null, "__area__")}
+          >
+            {/* The area drag-over tint is an OVERLAY, not this container's background:
+                the rows above it are opaquely `bg-sidebar` (parked ones have to be), so a
+                background tint only showed through in the gaps and read as stripes. Above
+                the sticky ramp, below the scrollbar, and never a pointer target. */}
+            {dragOver === "__area__" && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-[25] bg-accent/30"
+              />
+            )}
+            {snap.workspaceFolders.map((f) => {
               const open = expanded.has(f.rootPath);
               return (
-                <div key={f.id}>
-                  <RowMenu
+                <div key={f.id} role="none">
+                  <ExplorerRowMenu
                     abs={f.rootPath}
                     isDir
                     destDir={f.rootPath}
-                    folderId={f.id}
                     c={c}
                     canPaste={snap.clipboard != null}
                     isRoot
-                    stickyDepth={0}
+                    {...rowMenuProps(f.rootPath)}
                     onContextMenuOpen={() => c.setActiveFolder(f.id)}
                     onCopy={() => c.copyEntry(f.rootPath)}
                     onCut={() => c.cutEntry(f.rootPath)}
@@ -676,39 +734,51 @@ export function Explorer() {
                     onDelete={() => c.closeFolder(f.id)}
                     onNewFile={() => startCreate(f.rootPath, "file")}
                     onNewFolder={() => startCreate(f.rootPath, "folder")}
-                  >
-                    <div
-                      title={f.name}
-                      {...dropProps(f.rootPath, f.id)}
-                      className={cn(
-                        "flex w-full cursor-pointer items-center gap-1 pl-2 text-left text-[11px] font-semibold uppercase tracking-wide",
-                        dragOver === f.id
-                          ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
-                          : snap.activeFolderId === f.id
-                            ? "text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                      )}
-                      style={{ height: ROW_H }}
-                      onClick={() => {
-                        treeRef.current?.focus({ preventScroll: true });
-                        c.setActiveFolder(f.id);
-                        toggle(f.rootPath);
-                      }}
-                    >
-                      {open ? (
-                        <ChevronDown className="size-3.5 shrink-0" />
-                      ) : (
-                        <ChevronRight className="size-3.5 shrink-0" />
-                      )}
-                      <span className="truncate">{f.name}</span>
-                    </div>
-                  </RowMenu>
-                  {open && renderChildren(f.rootPath, 1, f.id)}
+                    trigger={
+                      <div
+                        ref={(el) => setRowEl(f.rootPath, el)}
+                        title={f.name}
+                        {...dropProps(f.rootPath, f.id)}
+                        {...treeItemAttributes({
+                          focused: focusedRow?.id === f.rootPath,
+                          // A root row's "selection" is the active workspace folder: it
+                          // never joins the file selection.
+                          selected: snap.activeFolderId === f.id,
+                          level: 1,
+                          expanded: open,
+                        })}
+                        className={cn(
+                          "sticky flex w-full cursor-pointer items-center gap-1 bg-sidebar pl-2 text-left text-[11px] font-semibold uppercase tracking-wide outline-none",
+                          "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                          dragOver === f.id
+                            ? "bg-accent/80 text-foreground ring-1 ring-inset ring-primary"
+                            : snap.activeFolderId === f.id
+                              ? "text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                        )}
+                        style={{ height: ROW_H, ...stickyStyle(0) }}
+                        onClick={(e) => {
+                          e.currentTarget.focus({ preventScroll: true });
+                          setFocusedId(f.rootPath);
+                          c.setActiveFolder(f.id);
+                          toggle(f.rootPath);
+                        }}
+                      >
+                        {open ? (
+                          <ChevronDown className="size-3.5 shrink-0" />
+                        ) : (
+                          <ChevronRight className="size-3.5 shrink-0" />
+                        )}
+                        <span className="truncate">{f.name}</span>
+                      </div>
+                    }
+                  />
+                  {open && <div role="group">{renderChildren(f.rootPath, 1, f.id)}</div>}
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </ScrollArea>
 
       <AlertDialog
@@ -719,25 +789,25 @@ export function Explorer() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete permanently?</AlertDialogTitle>
+            <AlertDialogTitle>{t("explorer.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDelete && confirmDelete.length === 1 ? (
                 <>
-                  <span className="font-mono text-foreground">{confirmDelete[0]}</span> will be
-                  permanently removed. This cannot be undone.
+                  <span className="font-mono text-foreground">{confirmDelete[0]}</span>{" "}
+                  {t("explorer.delete.tail")}
                 </>
               ) : (
                 <>
                   <span className="font-mono text-foreground">
-                    {confirmDelete?.length ?? 0} items
+                    {t("explorer.delete.items", { count: confirmDelete?.length ?? 0 })}
                   </span>{" "}
-                  will be permanently removed. This cannot be undone.
+                  {t("explorer.delete.tail")}
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -746,66 +816,12 @@ export function Explorer() {
                 setConfirmDelete(null);
               }}
             >
-              Delete
+              {t("explorer.delete.action")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-// Inline rename / create field. The initial selection must happen exactly once
-// (on mount) — doing it in an inline `ref` re-selects the whole value on every
-// keystroke's re-render, which makes typed characters replace the selection so
-// only the last character survives.
-function NameInput({
-  value,
-  onChange,
-  commit,
-  cancel,
-  depth,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  commit: () => void;
-  cancel: () => void;
-  depth: number;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // `preventScroll`, then reveal by hand: the browser's own focus scroll would put
-    // this input flush against the top of the scrollport, i.e. behind the parked
-    // ancestor rows, which is where a new file's name field used to disappear to.
-    //
-    // Deliberately `nearest`, unlike the active-file reveal: this input has just been
-    // spawned next to a row the user clicked, so it is already where they are looking.
-    // The job is only to get it out from behind the sticky stack, and moving the list
-    // the minimum amount to do that is less disorienting than yanking it to the middle
-    // under a pointer that has not moved yet.
-    el.focus({ preventScroll: true });
-    revealRow(el, depth, "nearest");
-    const dot = el.value.indexOf(".");
-    el.setSelectionRange(0, dot > 0 ? dot : el.value.length);
-    // Run once on mount only — never re-select on subsequent renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <input
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") commit();
-        else if (e.key === "Escape") cancel();
-      }}
-      onBlur={commit}
-      className="min-w-0 flex-1 rounded-sm bg-background px-1 text-sm text-foreground outline outline-1 outline-primary"
-    />
   );
 }
 
@@ -832,111 +848,5 @@ function HeaderBtn({
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
-  );
-}
-
-function RowMenu({
-  abs,
-  isDir,
-  destDir,
-  c,
-  canPaste,
-  isRoot,
-  stickyDepth,
-  children,
-  onContextMenuOpen,
-  onCopy,
-  onCut,
-  onOpen,
-  onRename,
-  onDelete,
-  onNewFile,
-  onNewFolder,
-}: {
-  abs: string;
-  isDir: boolean;
-  destDir: string;
-  folderId: string;
-  c: ReturnType<typeof useIde>["c"];
-  canPaste: boolean;
-  isRoot?: boolean;
-  stickyDepth?: number;
-  children: React.ReactNode;
-  onContextMenuOpen: () => void;
-  onCopy: () => void;
-  onCut: () => void;
-  onOpen: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  onNewFile: () => void;
-  onNewFolder: () => void;
-}) {
-  const termDir = isDir ? abs : destDir;
-  // `stickyDepth` parks this row at the top of the scroll viewport while its own
-  // subtree scrolls underneath. It belongs on the TRIGGER, not on the row inside
-  // it: a sticky box can only travel within its containing block, and only the
-  // trigger's containing block (the wrapper `<div>` that also holds the subtree)
-  // is taller than one row. The opaque `bg-sidebar` is what makes the parked row
-  // readable over the rows sliding beneath it.
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        className={cn("block w-full", stickyDepth !== undefined && "sticky bg-sidebar")}
-        style={stickyDepth === undefined ? undefined : stickyStyle(stickyDepth)}
-        onContextMenu={onContextMenuOpen}
-      >
-        {children}
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
-        <ContextMenuItem onClick={onOpen}>Open</ContextMenuItem>
-        {isDir && (
-          <>
-            <ContextMenuItem onClick={onNewFile}>New File…</ContextMenuItem>
-            <ContextMenuItem onClick={onNewFolder}>New Folder…</ContextMenuItem>
-          </>
-        )}
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => c.openTerminalIn(termDir)}>
-          Open in Integrated Terminal
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => c.copyPath(abs)}>Copy Path</ContextMenuItem>
-        {isRoot && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => void c.exportProjectZip(abs)}>
-              Export as Zip…
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => void c.shareProject(abs)}>
-              Share (copy link)
-            </ContextMenuItem>
-          </>
-        )}
-        <ContextMenuSeparator />
-        {!isRoot && (
-          <ContextMenuItem onClick={onRename}>
-            Rename<ContextMenuShortcut>↵</ContextMenuShortcut>
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem onClick={onCopy}>
-          Copy<ContextMenuShortcut>⌘C</ContextMenuShortcut>
-        </ContextMenuItem>
-        {!isRoot && (
-          <ContextMenuItem onClick={onCut}>
-            Cut<ContextMenuShortcut>⌘X</ContextMenuShortcut>
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem disabled={!canPaste} onClick={() => void c.pasteInto(destDir)}>
-          Paste<ContextMenuShortcut>⌘V</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {isRoot ? (
-          <ContextMenuItem onClick={onDelete}>Close Folder</ContextMenuItem>
-        ) : (
-          <ContextMenuItem variant="destructive" onClick={onDelete}>
-            Delete permanently
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
   );
 }

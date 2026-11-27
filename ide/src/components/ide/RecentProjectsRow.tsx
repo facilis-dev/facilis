@@ -42,7 +42,10 @@ export function RecentProjectsRowView({
 }) {
   const name = projectName(project.rootPath);
   return (
-    <li className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/50 hover:bg-accent/30">
+    <li
+      data-recent-project=""
+      className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/50 hover:bg-accent/30"
+    >
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
         onClick={onOpen}
@@ -63,7 +66,7 @@ export function RecentProjectsRowView({
       <button
         title={t("recent.openInNewTab")}
         aria-label={t("recent.openInNewTabAria", { name })}
-        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
+        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
         onClick={onOpenInNewTab}
         disabled={opening}
       >
@@ -72,7 +75,7 @@ export function RecentProjectsRowView({
       <button
         title={t("delete.action")}
         aria-label={t("delete.actionAria", { name })}
-        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
+        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/15 hover:text-destructive group-focus-within:opacity-100 group-hover:opacity-100"
         onClick={onDelete}
         disabled={opening}
       >

@@ -21,6 +21,8 @@ import {
   subscribeFrameworkGate,
 } from "@/facilis/framework-gate";
 import { t } from "@/i18n";
+import { BusyStatus } from "./BusyStatus";
+import { FormError } from "./FormError";
 
 export function FrameworkGateDialog() {
   const gate = useSyncExternalStore(subscribeFrameworkGate, getFrameworkGate);
@@ -55,9 +57,11 @@ export function FrameworkGateDialog() {
           ))}
         </ul>
         {gate.phase === "error" && gate.error !== null && (
-          <p className="text-sm text-destructive">{gate.error}</p>
+          <FormError live className="text-sm">
+            {gate.error}
+          </FormError>
         )}
-        {busy && <p className="text-sm text-muted-foreground">{t("updates.framework.applying")}</p>}
+        {busy && <BusyStatus className="text-sm">{t("updates.framework.applying")}</BusyStatus>}
         <DialogFooter>
           {gate.phase === "error" ? (
             <>

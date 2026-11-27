@@ -34,5 +34,5 @@ export const tourIt: Partial<Record<MessageKey, string>> = {
     "Branch git, diagnostica e posizione del cursore, sempre visibili. Clicca una voce per agire.",
   "tour.step.finale.title": "Tour finito",
   "tour.step.finale.body":
-    "Rivedilo quando vuoi dal pulsante ? in alto a destra o dalla command palette (⌘K). Il resto si impara usandolo.",
+    "Rivedilo quando vuoi dal pulsante ? in alto a destra o dal comando del tour nella command palette. Il resto si impara usandolo.",
 };

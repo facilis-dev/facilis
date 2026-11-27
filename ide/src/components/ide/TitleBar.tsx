@@ -9,13 +9,14 @@ import PanelRight from "~icons/lucide/panel-right";
 import PanelRightOff from "~icons/lucide/panel-right-dashed";
 import Play from "~icons/lucide/play";
 import Square from "~icons/lucide/square";
-import { tourStore } from "@/components/tour/tour-store-instance";
+import { startTour } from "@/components/tour/tour-focus";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { openStudioInNewTab } from "@/vv/project-tabs";
 import { useIde } from "./useIde";
+import { formatShortcut } from "./shortcuts";
 
 /** One layout toggle, in the cluster at the far right. lucide ships a solid-divider
  * and a dashed-divider glyph per edge (the dashed one is aliased -inactive in the
@@ -82,7 +83,11 @@ export function TitleBar() {
         className="hidden shrink-0 items-center lg:flex"
         onClick={() => c.goHome()}
         title={t("title.home")}
-        aria-label={t("app.name")}
+        aria-label={t("title.home")}
+        // Home's stable return target when the opener is gone (issue #212). This is the
+        // desktop shell's brand button; below lg it is hidden and Home falls back to the
+        // narrow shell's Files tab.
+        data-home-return-focus=""
       >
         <span aria-hidden className="brand-lockup h-6 w-[120px]" />
       </button>
@@ -135,8 +140,9 @@ export function TitleBar() {
         <div aria-hidden className="mx-1 h-5 w-px bg-border" />
         <Tooltip>
           <TooltipTrigger
-            onClick={() => tourStore.start()}
+            onClick={(event) => startTour(event.currentTarget)}
             aria-label={t("tour.helpAria")}
+            data-tour-opener=""
             className="hidden size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
           >
             <CircleHelp className="size-4" />
@@ -148,7 +154,7 @@ export function TitleBar() {
         <div className="hidden items-center gap-1 lg:flex">
           <LayoutToggle
             label={t("title.toggleSidebar")}
-            keys="⌘B"
+            keys={formatShortcut("sidebar-toggle")}
             shown={!snap.sidebarCollapsed}
             onClick={() => c.toggleSidebar()}
             On={PanelLeft}
@@ -156,7 +162,7 @@ export function TitleBar() {
           />
           <LayoutToggle
             label={t("title.togglePreview")}
-            keys="⌥⌘B"
+            keys={formatShortcut("preview-toggle")}
             shown={!snap.previewCollapsed}
             onClick={() => c.togglePreview()}
             On={PanelRight}

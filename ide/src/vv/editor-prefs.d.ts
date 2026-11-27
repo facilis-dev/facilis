@@ -12,3 +12,14 @@ export declare function isWordWrapChord(e: {
   code?: string;
   key?: string;
 }): boolean;
+/** Where the F6 escape chord sends focus, or null when the event is not that chord. */
+export declare function terminalFocusTarget(
+  e: {
+    key?: string;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    altKey?: boolean;
+    shiftKey?: boolean;
+  },
+  terminalFocused: boolean,
+): "panel" | "terminal" | null;

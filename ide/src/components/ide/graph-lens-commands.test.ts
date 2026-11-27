@@ -1,6 +1,6 @@
-// The palette/picker catalogue and its guards (issue #204): one entry per registry lens in
-// registry order, an injected definition proves no lens is hardcoded, the runtime lens carries
-// its translated unavailability, and the chord never fires from a caret.
+// The palette/picker catalogue (issue #204): one entry per registry lens in registry order, an
+// injected definition proves no lens is hardcoded, and the runtime lens carries its translated
+// unavailability. The chord itself moved to the shortcut registry (shortcuts.test.ts, #223).
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n, setLocale } from "@/i18n";
@@ -12,8 +12,6 @@ import {
 } from "@/facilis/graph-surface/lens-request.ts";
 import {
   graphLensCommands,
-  isLensChordBlocked,
-  isLensPickerChord,
   LENS_PICKER_CHORD,
   type GraphLensCommandController,
 } from "./graph-lens-commands";
@@ -87,31 +85,5 @@ describe("lens request store", () => {
     const second: GraphLensId[] = [];
     subscribeGraphLensRequests((lens) => second.push(lens))();
     expect(second).toEqual([]);
-  });
-});
-
-describe("lens shortcuts", () => {
-  const chord = { metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, key: "l" };
-
-  it("accepts Ctrl/Cmd+Shift+L only, never the palette keys", () => {
-    expect(isLensPickerChord({ ...chord, metaKey: true, shiftKey: true })).toBe(true);
-    expect(isLensPickerChord({ ...chord, ctrlKey: true, shiftKey: true })).toBe(true);
-    expect(isLensPickerChord({ ...chord, metaKey: true })).toBe(false);
-    expect(isLensPickerChord({ ...chord, metaKey: true, shiftKey: true, altKey: true })).toBe(
-      false,
-    );
-    expect(isLensPickerChord({ ...chord, metaKey: true, shiftKey: true, key: "p" })).toBe(false);
-    expect(isLensPickerChord({ ...chord, metaKey: true, shiftKey: true, key: "k" })).toBe(false);
-  });
-
-  it("is blocked while an input, Monaco or the terminal owns the caret", () => {
-    expect(isLensChordBlocked({ tagName: "INPUT" })).toBe(true);
-    expect(isLensChordBlocked({ tagName: "TEXTAREA" })).toBe(true);
-    expect(isLensChordBlocked({ tagName: "SELECT" })).toBe(true);
-    expect(isLensChordBlocked({ isContentEditable: true })).toBe(true);
-    expect(isLensChordBlocked({ closest: () => ({}) })).toBe(true);
-    expect(isLensChordBlocked({ closest: () => null })).toBe(false);
-    expect(isLensChordBlocked({ tagName: "BUTTON", closest: () => null })).toBe(false);
-    expect(isLensChordBlocked(null)).toBe(false);
   });
 });

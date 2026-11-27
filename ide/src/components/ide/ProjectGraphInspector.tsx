@@ -7,7 +7,7 @@ import X from "~icons/lucide/x";
 import { useMemo } from "react";
 import type { GraphDiagnostic, GraphEdge, PrerenderEligibilityFact } from "@facilis.dev/analyze";
 import { Button } from "@/components/ui/button";
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import type { ProjectGraphEdge, ProjectGraphNode, ProjectGraphView } from "@/facilis/graph-model";
 import type { NodeDetails } from "@/facilis/graph-details";
 import { prerenderFactForPage, prerenderedPagesForRoute } from "@/facilis/graph-prerender";
@@ -90,6 +90,14 @@ export function ProjectGraphInspector({
       data-testid="project-graph-inspector"
       className="flex h-full w-full min-h-0 flex-col bg-sidebar text-xs"
     >
+      {/* The drawer's dialog focus lands here on open, so the status line announces which node
+          the inspector is now showing to every screen reader (issue #216). */}
+      <p role="status" className="sr-only">
+        {t("projectGraph.surface.a11y.node", {
+          label: node.label,
+          kind: t(("projectGraph.node." + node.kind) as MessageKey),
+        })}
+      </p>
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <span className="flex-1 truncate text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
           {t("projectGraph.details")}

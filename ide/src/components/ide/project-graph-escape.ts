@@ -1,7 +1,9 @@
 // The progressive Escape ladder for the project graph (D-219, issues #187/#188/#194), as a pure
 // decision so the ordering is testable without a DOM. One key press does one thing: note edit ->
 // fullscreen -> AI focus -> rich card -> drawer -> selection -> lens -> overview. Typing targets
-// keep Escape for themselves; closing the note editor is the one layer that always wins.
+// keep Escape for themselves; closing the note editor is the one layer that always wins. This
+// ladder is the sole Escape owner for the drawer and the rich card too: their modal focus trap
+// (issue #216) installs no key handler, so one press still closes exactly one layer.
 
 export type EscapeAction =
   | "cancel-note-edit"

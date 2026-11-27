@@ -7,6 +7,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { t } from "@/i18n";
 import { useNarrowViewport } from "./use-narrow-viewport";
+import { useProjectGraphDialogFocus } from "./use-project-graph-dialog-focus";
 
 const SIDE_CLASS =
   "absolute right-2 top-12 bottom-2 z-20 flex w-80 max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg border bg-sidebar shadow-xl";
@@ -22,6 +23,9 @@ export function ProjectGraphDrawer({
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const sheet = useNarrowViewport();
+  // Focus moves in on open, Tab stays inside and closes back onto the opener (issue #216);
+  // Escape stays with the graph's one ladder, so it is not handled here.
+  const { onKeyDown } = useProjectGraphDialogFocus(ref);
   // Capture pointer-down so a click on the canvas closes the drawer before the canvas reacts;
   // selecting another node opens it again through the panel's selection handler.
   useEffect(() => {
@@ -36,10 +40,13 @@ export function ProjectGraphDrawer({
     <div
       ref={ref}
       role="dialog"
+      aria-modal="true"
       aria-label={t("projectGraph.drawer")}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
       data-testid="project-graph-drawer"
       data-layout={sheet ? "sheet" : "side"}
-      className={sheet ? SHEET_CLASS : SIDE_CLASS}
+      className={(sheet ? SHEET_CLASS : SIDE_CLASS) + " outline-none"}
     >
       {children}
     </div>

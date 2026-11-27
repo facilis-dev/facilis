@@ -41,6 +41,17 @@ describe("RecentProjectsRowView", () => {
     expect(html).toContain("/w/demo");
   });
 
+  it("reveals the row actions on focus as well as hover", () => {
+    const html = markup(false);
+    // Both value buttons stay in the tab order, so they must appear on focus too.
+    expect(html.match(/group-focus-within:opacity-100/g)).toHaveLength(2);
+    expect(html.match(/group-hover:opacity-100/g)).toHaveLength(2);
+    expect(html).toContain("transition-opacity");
+    expect(html).not.toContain("group-hover:flex");
+    expect(html).toContain(`aria-label="${t("recent.openInNewTabAria", { name: "demo" })}"`);
+    expect(html).toContain(`aria-label="${t("delete.actionAria", { name: "demo" })}"`);
+  });
+
   it("is busy and non-interactive while an open is pending", () => {
     const html = markup(true);
     expect(html).toContain('aria-busy="true"');

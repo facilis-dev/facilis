@@ -19,6 +19,7 @@ import { normalizeGitToken, providerForInput } from "@/vv/git-provider";
 import { ProjectPublish, type PushPlan } from "@/vv/project-publish";
 import { publishSession } from "@/vv/publish-session";
 import { githubSessionToken } from "@/vv/github-oauth";
+import { FormError } from "./FormError";
 import { GitHubSignIn } from "./GitHubSignIn";
 import { PushRemoteFields } from "./PushRemoteFields";
 import { PushRemotePlan, PushRemoteProgress } from "./PushRemotePlan";
@@ -126,6 +127,8 @@ export function PushRemoteDialog() {
       : t("push.progress", { phase: progress.label, done: progress.done, total: progress.total });
   const checkLabel = status === "planning" ? t("push.checking") : t("push.check");
   const publishLabel = status === "publishing" ? t("push.publishing") : t("push.publish");
+  // What the live status says before the transfer reports its first phase.
+  const busyText = status === "planning" ? t("push.checking") : t("push.publishing");
 
   const requestClose = () => {
     if (!busy) publishSession.close();
@@ -231,7 +234,11 @@ export function PushRemoteDialog() {
         {folderName !== null && (
           <div className="truncate text-xs text-muted-foreground">{folderName}</div>
         )}
-        {blocked !== null && <div className="text-xs text-muted-foreground">{blocked}</div>}
+        {blocked !== null && (
+          <div role="status" className="text-xs text-muted-foreground">
+            {blocked}
+          </div>
+        )}
 
         <PushRemoteFields
           signIn={
@@ -260,11 +267,13 @@ export function PushRemoteDialog() {
           onAuthorEmail={editText(setAuthorEmail)}
         />
 
-        {error !== "" && <div className="text-xs text-destructive">{error}</div>}
+        {error !== "" && <FormError live>{error}</FormError>}
 
         {plan !== null && <PushRemotePlan changes={changes} summary={summary} target={target} />}
 
-        {progress !== null && <PushRemoteProgress text={progressText} busy={busy} />}
+        {(busy || progress !== null) && (
+          <PushRemoteProgress text={progressText !== "" ? progressText : busyText} busy={busy} />
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={requestClose} disabled={busy}>

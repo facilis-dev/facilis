@@ -22,7 +22,7 @@ export const sourceControlEn = {
   "scm.notRepo":
     "This project is not a git repository. Initialize one to track changes, commit, and branch — all locally in your browser.",
   "scm.initRepo": "Initialize Repository",
-  "scm.messagePlaceholder": "Message (⌘Enter to commit on \"{branch}\")",
+  "scm.messagePlaceholder": 'Message ({chord} to commit on "{branch}")',
   "scm.commit": "Commit",
   "scm.generate": "Generate",
   "scm.generating": "Generating…",
@@ -49,8 +49,7 @@ export const sourceControlEn = {
   "scm.letter.deleted": "Deleted",
   "scm.letter.untracked": "Untracked",
   "scm.identityTitle": "Set your git identity",
-  "scm.identityDescription":
-    "Used as the author of your commits. Stored locally in this browser.",
+  "scm.identityDescription": "Used as the author of your commits. Stored locally in this browser.",
   "scm.identityName": "Your name",
   "scm.identitySave": "Save & commit",
   "scm.discardOneTitle": "Discard changes to {name}?",

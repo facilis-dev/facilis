@@ -1,10 +1,7 @@
 // The project-graph tab (AST graph contract §7, D-126): the one project graph, read from
 // `loadProjectAnalysis(controller)` and drawn fullscreen-capable in the editor area.
-//
-// The panel is the view half: analysis, search jumps, the floating drawer and the empty/error
-// states live here; the saved layout and its actions live in useProjectGraphLayout (which owns
-// the debounced writes to `.facilis/graph`). Nothing here touches the analyzer worker, and
-// nothing here writes outside the project's `.facilis` directory.
+// The panel is the view half; the saved layout and its writes live in useProjectGraphLayout,
+// and nothing here touches the analyzer worker or writes outside `.facilis`.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "@/i18n";
 import { isProjectIndexReady } from "@/facilis/project-graph-readiness";
@@ -34,13 +31,14 @@ import { useProjectGraphSearchJump } from "./useProjectGraphSearchJump";
 import { useProjectGraphLens } from "./use-project-graph-lens";
 import { useProjectGraphSources } from "./use-project-graph-sources";
 import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
+import { portalWhenFullscreen, useProjectGraphFullscreen } from "./use-project-graph-fullscreen";
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
   // The index lands asynchronously after openFolder(): a cold-boot graph must wait for it.
   const indexReady = isProjectIndexReady(snap.files, root);
   const { result, loading, refresh } = useProjectGraphAnalysis(c, root, indexReady);
-  const [fullscreen, setFullscreen] = useState(false);
+  const { fullscreen, layerProps, toggleFullscreen, exitFullscreen } = useProjectGraphFullscreen();
   const [fitNonce, setFitNonce] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // The drawer is independent from selection: X/Esc close it, the next Esc clears the selection.
@@ -157,7 +155,7 @@ export function ProjectGraphPanel() {
     noteEditing: noteState.noteEditing,
     onCancelNoteEdit: noteState.cancelNoteEdit,
     fullscreen,
-    onExitFullscreen: () => setFullscreen(false),
+    onExitFullscreen: exitFullscreen,
     focusActive: focus !== null,
     onClearFocus: clearGraphFocus,
     richCardOpen: richCard.card !== null,
@@ -206,8 +204,9 @@ export function ProjectGraphPanel() {
       />
     );
   }
-  return (
+  const section = (
     <section
+      {...layerProps}
       data-testid="project-graph-panel"
       aria-label={t("projectGraph.title")}
       className={
@@ -224,7 +223,7 @@ export function ProjectGraphPanel() {
         onJumpToNode={jumpToNode}
         onSubmitSearch={submitSearch}
         fullscreen={fullscreen}
-        onToggleFullscreen={() => setFullscreen((value) => !value)}
+        onToggleFullscreen={toggleFullscreen}
         onFit={() => setFitNonce((value) => value + 1)}
         onResetLayout={resetLayout}
         onAddNote={state === null ? noteState.requestAddNote : noteState.createNoteHere}
@@ -297,4 +296,5 @@ export function ProjectGraphPanel() {
       />
     </section>
   );
+  return portalWhenFullscreen(fullscreen, section);
 }

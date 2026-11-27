@@ -34,6 +34,7 @@ import { downloadSnapshot } from "@/vv/perf-report";
 import { terminalTail } from "@/vv/perf-samples";
 import { StatusBarPickers, type StatusPicker } from "./StatusBarPickers";
 import { StatusBarPanels, StatusBarRun } from "./StatusBarRuntime";
+import { TabFocusModeStatus } from "./TabFocusModeStatus";
 import { FrameworkGateDialog } from "./FrameworkGateDialog";
 import { ProjectUpdateBadge } from "./ProjectUpdateBadge";
 import { useIde } from "./useIde";
@@ -169,6 +170,9 @@ export function StatusBar() {
             progress outranks it — its chip is in StatusBarRun — and a stale status
             line must not sit next to it. */}
         {!snap.runPhase && message && <span className="min-w-0 truncate px-2">{message}</span>}
+        {/* Monaco's Tab-moves-focus mode has no chrome of its own (issue #210): the chip and
+            the live region that announces it both live in one component. */}
+        <TabFocusModeStatus />
 
         <span className="flex-1" />
 

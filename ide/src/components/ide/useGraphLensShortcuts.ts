@@ -1,27 +1,17 @@
-// The global Ctrl/Cmd+Shift+L binding (issue #204). The handler ignores the chord while the
-// caret is in an input, Monaco or the terminal, never touches Ctrl/Cmd+P or Ctrl/Cmd+K, and
-// opens the picker without changing the active lens. Closing is the picker's own Escape.
-
-import { useCallback, useEffect, useState } from "react";
-import { isLensChordBlocked, isLensPickerChord, type LensFocusTarget } from "./graph-lens-commands";
+// The graph-lens picker's open state (issues #204/#223). The chord is a registry entry
+// (shortcuts.ts, id "graph-lens") and AppShell dispatches it; that entry's deferTo keeps
+// Ctrl/Cmd+Shift+L with the editor and the terminal, where the binding is their own.
+import { useCallback, useState } from "react";
 
 export interface GraphLensShortcuts {
   readonly pickerOpen: boolean;
+  readonly openPicker: () => void;
   readonly closePicker: () => void;
 }
 
 export function useGraphLensShortcuts(): GraphLensShortcuts {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const openPicker = useCallback(() => setPickerOpen(true), []);
   const closePicker = useCallback(() => setPickerOpen(false), []);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (pickerOpen || event.defaultPrevented || !isLensPickerChord(event)) return;
-      if (isLensChordBlocked(event.target as LensFocusTarget | null)) return;
-      event.preventDefault();
-      setPickerOpen(true);
-    };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, [pickerOpen]);
-  return { pickerOpen, closePicker };
+  return { pickerOpen, openPicker, closePicker };
 }

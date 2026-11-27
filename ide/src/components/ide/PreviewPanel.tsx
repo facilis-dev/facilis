@@ -7,8 +7,6 @@ import SquareTerminal from "~icons/lucide/square-terminal";
 import ExternalLink from "~icons/lucide/external-link";
 import Plus from "~icons/lucide/plus";
 import Globe from "~icons/lucide/globe";
-import Lock from "~icons/lucide/lock";
-import X from "~icons/lucide/x";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -26,6 +24,8 @@ import { hasSeparatePreviewOrigin, previewSandbox } from "@/vv/preview-sandbox";
 import type { PreviewTab } from "@/vv/controller";
 import { PreviewEmptyState, PreviewEmptyTab } from "./PreviewEmptyState";
 import { PreviewRenderBadge } from "./PreviewRenderBadge";
+import { PreviewTabClose } from "./PreviewTabClose";
+import { PreviewAddressBar } from "./PreviewAddressBar";
 
 function ToolButton({
   label,
@@ -144,18 +144,10 @@ export function PreviewPanel() {
                   >
                     <Globe className="size-3.5 shrink-0 opacity-70" />
                     <span className="max-w-32 truncate">{tabTitle(t)}</span>
-                    <button
-                      title={translate("preview.close")}
-                      className="flex size-4 items-center justify-center rounded hover:bg-accent"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        c.preview.closePreviewTab(t.id);
-                      }}
-                    >
-                      <X
-                        className={cn("size-3", isActive ? "block" : "hidden group-hover:block")}
-                      />
-                    </button>
+                    <PreviewTabClose
+                      active={isActive}
+                      onClose={() => c.preview.closePreviewTab(t.id)}
+                    />
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
@@ -216,23 +208,11 @@ export function PreviewPanel() {
           >
             <RotateCw className="size-4" />
           </ToolButton>
-          {/* Address bar — local-only: localhost / 127.0.0.1 / a bare path loads the
-              in-VM dev server; external URLs are rejected (see navigatePreview). */}
-          <div className="mx-1 flex flex-1 items-center gap-1.5 rounded bg-background px-2 py-1">
-            <Lock className="size-3 shrink-0 text-muted-foreground" />
-            <input
-              value={active.url}
-              onChange={(e) => c.preview.setPreviewUrl(active.id, e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter")
-                  c.preview.navigatePreview(active.id, (e.target as HTMLInputElement).value);
-              }}
-              placeholder="localhost:3000"
-              aria-label={translate("preview.address")}
-              spellCheck={false}
-              className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
+          <PreviewAddressBar
+            url={active.url}
+            onUrlChange={(url) => c.preview.setPreviewUrl(active.id, url)}
+            onNavigate={(url) => c.preview.navigatePreview(active.id, url)}
+          />
           <ToolButton
             label={
               snap.devtoolsOpen

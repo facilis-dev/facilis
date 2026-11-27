@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { t, type MessageKey } from "@/i18n";
+import { FormError } from "./FormError";
 
 interface Props {
   chat: ChatSession;
@@ -173,7 +174,11 @@ export function ChatSettingsDialog({ chat, open, onOpenChange, current }: Props)
               {t("chat.settings.mockNote")}
             </p>
           )}
-          {error && <p className="text-[11px] text-destructive">{t(error)}</p>}
+          {error && (
+            <FormError live className="text-[11px]">
+              {t(error)}
+            </FormError>
+          )}
         </div>
 
         <DialogFooter className="sm:justify-end">

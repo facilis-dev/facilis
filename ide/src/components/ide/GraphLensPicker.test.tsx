@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@/i18n";
 import { GRAPH_LENSES } from "@/facilis/graph-surface/lenses-registry.ts";
 import { GraphLensPicker } from "./GraphLensPicker";
-import type { GraphLensCommandController } from "./graph-lens-commands";
+import { LENS_PICKER_CHORD, type GraphLensCommandController } from "./graph-lens-commands";
 
 const CONTROLLER = {
   bridge: {},
@@ -30,7 +30,8 @@ describe("GraphLensPicker", () => {
     expect(html).toContain("Q5 · Security");
     expect(html).toContain("Q21 · Prerender");
     expect(html).toContain('data-testid="graph-lens-picker-security"');
-    expect(html).toContain("⌘⇧L 1");
+    // The chord is the registry's platform spelling, not a hard-coded macOS string (#223).
+    expect(html).toContain(LENS_PICKER_CHORD + " 1");
   });
 
   it("disables an unavailable lens and shows its translated reason", () => {

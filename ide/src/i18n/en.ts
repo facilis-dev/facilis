@@ -1,13 +1,7 @@
 // The IDE's English catalogue.
 //
-// Flat keys (O-001, the same convention as the framework's locales/en.json):
-// every user-facing string in the IDE goes through t() and lives here — never in
-// JSX. `{placeholder}` values interpolate; `it.ts` mirrors this file and may be
-// partial (a missing translation falls back to English key by key).
-//
-// Not yet migrated: the upstream-inherited editor chrome (Explorer, Search, Debug,
-// SCM, Notebook, EditorGroup, TitleBar, StatusBar, Preview and Terminal panels).
-// Those move here file by file as they are touched — see ide/I18N.md.
+// Flat keys (O-001): every user-facing string goes through t(), never JSX; `it.ts`
+// mirrors this file partially. Migrated chrome is tracked in ide/I18N.md.
 import { updatesEn } from "./en-updates";
 import { dataExplorerEn } from "./en-data-explorer";
 import { dataQueryEn } from "./en-data-query";
@@ -18,22 +12,34 @@ import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { projectGraphAnswersEn } from "./en-project-graph-answers";
 import { projectGraphQuestionsEn } from "./en-project-graph-questions";
+import { projectGraphRailEn } from "./en-project-graph-rail";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
 import { runEn } from "./en-run";
 import { previewEn } from "./en-preview";
+import { paletteEn } from "./en-palette";
+import { statusEn } from "./en-status";
 import { scaffoldEn } from "./en-scaffold";
 import { prerenderEn } from "./en-prerender";
 import { telemetryLinkoutEn } from "./en-telemetry-linkout";
 import { stateLensesEn } from "./en-state-lenses";
+import { explorerEn } from "./en-explorer";
+import { editorTabsEn } from "./en-editor-tabs";
+import { shortcutsEn } from "./en-shortcuts";
+import { terminalEn } from "./en-terminal";
+import { homeEn } from "./en-home";
+import { overlaysEn } from "./en-overlays";
+import { a11yEn } from "./en-a11y";
+import { notebookEn } from "./en-notebook";
+import { panelActionsEn } from "./en-panel-actions";
+import { dialogsEn } from "./en-dialogs";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
   // title is the logo), and the upstream name survives only in attribution, package
   // ids and the `__vv*` internals (D-069).
   "app.name": "facilis.dev",
-
   // ── shared ───────────────────────────────────────────────────────────────
   "common.cancel": "Cancel",
   "common.close": "Close",
@@ -206,6 +212,7 @@ export const en = {
   ...projectGraphEn,
   ...projectGraphAnswersEn,
   ...projectGraphQuestionsEn,
+  ...projectGraphRailEn,
   ...dataExplorerEn,
   ...dataQueryEn,
   ...releasePreviewEn,
@@ -223,65 +230,14 @@ export const en = {
   "title.tagline": "a real dev server, in your browser",
 
   // ── status bar ───────────────────────────────────────────────────────────
-  "status.branch": "Current branch",
-  "status.frameworkPackages":
-    "Minimum @facilis.dev/* versions this build requires (core {version}) — new projects pin each package exactly: {packages}",
-  "status.goToLine": "Go to Line/Column",
-  "status.indent": "Select indentation",
-  "status.language": "Select language mode",
-  "status.python": "Python language service (jedi, black)",
-  "status.position": "Ln {line}, Col {column}",
-  "status.error": "error",
-  "status.errors": "errors",
-  "status.warning": "warning",
-  "status.warnings": "warnings",
-  "status.selections": "({count} selections)",
-  "status.selected": "({count} selected)",
-  // Device health (device-health.ts): one readout per issue the signals warrant.
-  "status.device.memoryPressure": "Memory pressure",
-  "status.device.lowMemory": "Low RAM",
-  "status.device.slowBoot": "Slow start",
-  "status.device.lowStorage": "Storage nearly full",
-  "status.device.hint":
-    "This tab runs the whole VM. Closing other tabs and apps frees the memory it needs.",
+  ...statusEn,
 
-  // Performance snapshot (perf-capture.ts): the artifact a slow boot needs to become a bug.
-  "status.perf.capture": "Snapshot",
-  "status.perf.capturing": "Capturing…",
-  "status.perf.hint":
-    "Capture this tab's performance report — FS answer latency, VFS counts, guest processes and the terminal tail — for a bug report",
-  "status.perf.saved": "Performance snapshot saved: {file}",
-  "status.perf.failed": "The performance snapshot could not be captured.",
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
 
   // ── command palette ──────────────────────────────────────────────────────
-  "palette.commandPlaceholder": "Type a command…",
-  "palette.filePlaceholder": "Search files by name (append :line to jump)…",
-  "palette.commands": "Commands",
-  "palette.noResults": "No results.",
-  "palette.currentFile": "Current File",
-  "palette.files": "Files",
-  "palette.filesLine": "Files · line {line}",
-  "palette.goToLine": "Go to line {line}",
-  "palette.home": "Go Home / New Project",
-  "palette.newTerminal": "New Terminal",
-  "palette.runProject": "Run Project",
-  "palette.importFolder": "Import Folder as Project",
-  "palette.importRemote": "Import a repository",
-  "palette.pushRemote": "Publish to a git host",
-  "palette.openChat": "Open AI Chat",
-  "palette.tour": "Show the IDE Tour",
-  "palette.exportZip": "Export Project as Zip",
-  "palette.shareProject": "Share Project (copy link)",
-  "palette.toggleTerminal": "Toggle panel",
-  "palette.toggleSidebar": "Toggle Sidebar",
-  "palette.togglePreview": "Toggle Preview Panel",
-  "palette.toggleWordWrap": "Toggle Word Wrap",
-  "palette.clearTerminal": "Clear Active Terminal",
-  "palette.reloadPreview": "Reload Preview",
-  "palette.measureMemory": "Measure Memory",
-  "palette.resetEverything": "Reset Everything (wipe files + caches)",
+  ...paletteEn,
+
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,
 
@@ -297,4 +253,26 @@ export const en = {
 
   // ── observability link-out (D-203 §6, #140) ─────────────────────────────
   ...telemetryLinkoutEn,
+
+  // ── explorer file tree (#209), editor tabs (#214), shortcuts (#223) ────
+  ...explorerEn,
+  ...editorTabsEn,
+  ...shortcutsEn,
+
+  // ── terminal panel keyboard escape (#211) ──────────────────────────────
+  ...terminalEn,
+
+  // ── Home heading and view announcement (issue #212) ─────────────────────
+  ...homeEn,
+
+  // ── boot and share covers (issue #217) ──────────────────────────────────
+  ...overlaysEn,
+
+  // ── Tab moves focus and notebook cell labels (issue #210) ───────────────
+  ...a11yEn,
+  ...notebookEn,
+  ...panelActionsEn,
+
+  // ── dialog errors, blocked reasons and device code (issue #219) ────────
+  ...dialogsEn,
 } as const;

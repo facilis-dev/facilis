@@ -16,6 +16,14 @@ import { FileIcon, FolderIcon } from "./fileIcon";
 
 const baseName = (rel: string) => rel.split("/").pop() ?? rel;
 
+/** The visible title of a tab: a synthetic tab has no basename of its own to render. */
+export function tabTitle(rel: string): string {
+  if (isProjectGraphTabId(rel)) return t("projectGraph.tabTitle");
+  if (isDataQueryTabId(rel)) return t("dataQuery.tabTitle");
+  if (isCommitGraphTabId(rel)) return baseName(commitGraphRootOf(rel));
+  return baseName(rel);
+}
+
 export function EditorTabLabel({
   rel,
   kind,
@@ -30,13 +38,7 @@ export function EditorTabLabel({
   const isCommitGraph = isCommitGraphTabId(rel);
   const isProjectGraph = isProjectGraphTabId(rel);
   const isDataQuery = isDataQueryTabId(rel);
-  const label = isProjectGraph
-    ? t("projectGraph.tabTitle")
-    : isDataQuery
-      ? t("dataQuery.tabTitle")
-      : isCommitGraph
-        ? baseName(commitGraphRootOf(rel))
-        : baseName(rel);
+  const label = tabTitle(rel);
   return (
     <>
       {kind === "directory" ? (

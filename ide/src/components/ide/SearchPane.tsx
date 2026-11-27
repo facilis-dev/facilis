@@ -1,81 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ChevronRight from "~icons/lucide/chevron-right";
-import ChevronDown from "~icons/lucide/chevron-down";
-import CaseSensitive from "~icons/lucide/case-sensitive";
-import WholeWord from "~icons/lucide/whole-word";
-import Regex from "~icons/lucide/regex";
-import CaseUpper from "~icons/lucide/case-upper";
-import Replace from "~icons/lucide/replace";
-import ReplaceAll from "~icons/lucide/replace-all";
-import Ellipsis from "~icons/lucide/ellipsis";
-import X from "~icons/lucide/x";
 import Loader from "~icons/lucide/loader-circle";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { FileIcon } from "./fileIcon";
 import { useIde } from "./useIde";
+import { SearchForm } from "./SearchForm";
+import { SearchResults } from "./SearchResults";
 import type { SearchDone, SearchFileResult } from "@/vv/controller";
-
-const baseName = (rel: string) => rel.split("/").pop() ?? rel;
-const dirName = (rel: string) => {
-  const i = rel.lastIndexOf("/");
-  return i <= 0 ? "" : rel.slice(0, i);
-};
-
-// A small VS Code-style toggle (Aa / whole-word / .* / preserve-case).
-function Toggle({
-  active,
-  onClick,
-  title,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-        active && "bg-primary/25 text-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-// Render one result line: leading indentation trimmed, the match span highlighted.
-function MatchLine({
-  preview,
-  column,
-  length,
-}: {
-  preview: string;
-  column: number;
-  length: number;
-}) {
-  const leading = preview.length - preview.trimStart().length;
-  const text = preview.trimStart();
-  const col = column - 1 - leading; // 0-based within the trimmed text
-  if (col < 0 || col + length > text.length || length === 0) {
-    return <span className="truncate">{text.slice(0, 240)}</span>;
-  }
-  return (
-    <span className="truncate">
-      {text.slice(0, col)}
-      <span className="rounded-[2px] bg-warning/30 text-foreground">
-        {text.slice(col, col + length)}
-      </span>
-      {text.slice(col + length)}
-    </span>
-  );
-}
 
 export function SearchPane() {
   const { c, snap } = useIde();
@@ -203,116 +132,31 @@ export function SearchPane() {
         Search
       </div>
 
-      {/* query + replace + include/exclude */}
-      <div className="flex items-start gap-1 px-2 pb-2">
-        <button
-          type="button"
-          title={showReplace ? "Hide Replace" : "Toggle Replace"}
-          onClick={() => setShowReplace((v) => !v)}
-          className="mt-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-        >
-          {showReplace ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        </button>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {/* search input row */}
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded border bg-background px-1.5 py-1",
-              regexError && "border-destructive",
-            )}
-          >
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-            />
-            <Toggle active={matchCase} onClick={() => setMatchCase((v) => !v)} title="Match Case">
-              <CaseSensitive className="size-3.5" />
-            </Toggle>
-            <Toggle
-              active={wholeWord}
-              onClick={() => setWholeWord((v) => !v)}
-              title="Match Whole Word"
-            >
-              <WholeWord className="size-3.5" />
-            </Toggle>
-            <Toggle
-              active={regex}
-              onClick={() => setRegex((v) => !v)}
-              title="Use Regular Expression"
-            >
-              <Regex className="size-3.5" />
-            </Toggle>
-          </div>
-
-          {regexError && <div className="px-0.5 text-[11px] text-destructive">{regexError}</div>}
-
-          {/* replace input row */}
-          {showReplace && (
-            <div className="flex items-center gap-1">
-              <div className="flex min-w-0 flex-1 items-center gap-1 rounded border bg-background px-1.5 py-1">
-                <input
-                  value={replaceText}
-                  onChange={(e) => setReplaceText(e.target.value)}
-                  placeholder="Replace"
-                  className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                />
-                <Toggle
-                  active={preserveCase}
-                  onClick={() => setPreserveCase((v) => !v)}
-                  title="Preserve Case"
-                >
-                  <CaseUpper className="size-3.5" />
-                </Toggle>
-              </div>
-              <button
-                type="button"
-                title="Replace All"
-                disabled={totalMatches === 0}
-                onClick={doReplaceAll}
-                className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-              >
-                <ReplaceAll className="size-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          title="Toggle Search Details"
-          aria-pressed={showDetails}
-          onClick={() => setShowDetails((v) => !v)}
-          className={cn(
-            "mt-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-            showDetails && "bg-primary/25 text-foreground",
-          )}
-        >
-          <Ellipsis className="size-4" />
-        </button>
-      </div>
-
-      {showDetails && (
-        <div className="flex flex-col gap-1 px-2 pb-2">
-          <label className="px-0.5 text-[11px] text-muted-foreground">files to include</label>
-          <input
-            value={includeGlob}
-            onChange={(e) => setIncludeGlob(e.target.value)}
-            placeholder="e.g. src/**, *.ts"
-            className="rounded border bg-background px-2 py-1 text-xs outline-none placeholder:text-muted-foreground"
-          />
-          <label className="px-0.5 text-[11px] text-muted-foreground">files to exclude</label>
-          <input
-            value={excludeGlob}
-            onChange={(e) => setExcludeGlob(e.target.value)}
-            placeholder="e.g. **/*.test.ts"
-            className="rounded border bg-background px-2 py-1 text-xs outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-      )}
+      <SearchForm
+        query={query}
+        onQueryChange={setQuery}
+        matchCase={matchCase}
+        wholeWord={wholeWord}
+        regex={regex}
+        regexError={regexError}
+        onToggleMatchCase={() => setMatchCase((v) => !v)}
+        onToggleWholeWord={() => setWholeWord((v) => !v)}
+        onToggleRegex={() => setRegex((v) => !v)}
+        showReplace={showReplace}
+        onToggleReplace={() => setShowReplace((v) => !v)}
+        replaceText={replaceText}
+        onReplaceTextChange={setReplaceText}
+        preserveCase={preserveCase}
+        onTogglePreserveCase={() => setPreserveCase((v) => !v)}
+        onReplaceAll={doReplaceAll}
+        canReplaceAll={totalMatches > 0}
+        showDetails={showDetails}
+        onToggleDetails={() => setShowDetails((v) => !v)}
+        includeGlob={includeGlob}
+        onIncludeGlobChange={setIncludeGlob}
+        excludeGlob={excludeGlob}
+        onExcludeGlobChange={setExcludeGlob}
+      />
 
       {/* summary */}
       {query && !regexError && hasRoots && (
@@ -339,85 +183,16 @@ export function SearchPane() {
               Search across all files in the workspace.
             </div>
           ) : (
-            results.map((f) => {
-              const isCollapsed = collapsed.has(f.file);
-              const rel =
-                f.root && f.file.startsWith(f.root + "/")
-                  ? f.file.slice(f.root.length + 1)
-                  : f.file;
-              return (
-                <div key={f.file}>
-                  <div className="group flex items-center gap-1 pr-2 pl-1 hover:bg-accent/40">
-                    <button
-                      type="button"
-                      onClick={() => toggleCollapsed(f.file)}
-                      className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="size-3.5 shrink-0" />
-                      ) : (
-                        <ChevronDown className="size-3.5 shrink-0" />
-                      )}
-                      <FileIcon name={baseName(rel)} className="size-3.5 shrink-0" />
-                      <span className="truncate text-xs text-foreground">{baseName(rel)}</span>
-                      <span className="truncate text-[10px] text-muted-foreground/70">
-                        {dirName(rel)}
-                      </span>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      {showReplace && (
-                        <button
-                          type="button"
-                          title="Replace All in File"
-                          onClick={() => doReplaceFile(f.file)}
-                          className="hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-                        >
-                          <Replace className="size-3" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        title="Dismiss"
-                        onClick={() => dismissFile(f.file)}
-                        className="hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-                      >
-                        <X className="size-3" />
-                      </button>
-                      <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] text-muted-foreground group-hover:hidden">
-                        {f.matches.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  {!isCollapsed &&
-                    f.matches.map((m, i) => (
-                      <div
-                        key={`${m.line}:${m.column}:${i}`}
-                        className="group/m flex items-center gap-1 py-px pr-2 pl-6 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => c.openFileAt(f.file, m.line, m.column, m.length)}
-                          className="flex min-w-0 flex-1 items-center text-left"
-                          title={`${rel}:${m.line}:${m.column}`}
-                        >
-                          <MatchLine preview={m.preview} column={m.column} length={m.length} />
-                        </button>
-                        {showReplace && (
-                          <button
-                            type="button"
-                            title="Replace"
-                            onClick={() => doReplaceMatch(f.file, m)}
-                            className="hidden size-4 shrink-0 items-center justify-center rounded hover:bg-accent group-hover/m:flex"
-                          >
-                            <Replace className="size-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              );
-            })
+            <SearchResults
+              results={results}
+              collapsed={collapsed}
+              showReplace={showReplace}
+              onToggle={toggleCollapsed}
+              onOpenMatch={(file, m) => c.openFileAt(file, m.line, m.column, m.length)}
+              onReplaceFile={(file) => void doReplaceFile(file)}
+              onReplaceMatch={(file, m) => void doReplaceMatch(file, m)}
+              onDismiss={dismissFile}
+            />
           )}
         </div>
       </ScrollArea>

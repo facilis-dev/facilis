@@ -53,13 +53,14 @@ import type { GitImportOptions } from "./git-import";
 import { GitRemoteSession } from "./git-remote-session";
 import { createWorkdirReload } from "./workdir-reload";
 import { NotebookDoc } from "./notebook/doc.js";
-import { CellEditors, type CellEditorSlot } from "./notebook/cell-editors.js";
+import type { CellEditors, CellEditorSlot } from "./notebook/cell-editors.js";
+import { mountCellEditor } from "./notebook/cell-mount";
 import { NotebookSession } from "./notebook/session.js";
 import { NotebookKernel, isNotebookTerminal } from "./notebook/studio-kernel";
 import { languageFor } from "./editor-languages";
 import { EditorLanguage, type EditorLanguageHost } from "./editor-language";
 import { EditorPython, type EditorPythonHost } from "./editor-python";
-import { EditorSession, overflowWidgetsNode, type EditorSessionHost } from "./editor-session";
+import { EditorSession, type EditorSessionHost } from "./editor-session";
 import { type PreviewHost, type PreviewTab, PreviewSession } from "./preview-session";
 import { type TerminalHost, type TerminalMeta, TerminalSession } from "./terminal-session";
 import { KernelPorts } from "./kernel-ports";
@@ -129,8 +130,9 @@ export interface NotebookHandle {
   runAll(): void;
   interrupt(): void;
   restart(): void;
-  /** Move to the cell below after a Shift-Enter, appending one if there is none. */
-  focusAfter(cellId: string): void;
+  /** Move to the cell below after a Shift-Enter, appending one if there is none.
+   *  Returns the id of the cell the view should move the keyboard into. */
+  focusAfter(cellId: string): string;
   /**
    * Build the editor for one cell. Resolves null — never rejects — when there is
    * no editor to show: either the cell was deleted while Monaco loaded, or the
@@ -667,7 +669,7 @@ export class IdeController {
     // Opened via a shared link: show a full-screen blocking overlay immediately so
     // the (blank) workspace doesn't look idle while the kernel boots + unpacks.
     if (hasSharePayload()) {
-      this.set({ shareLoading: true, shareMessage: "Booting the runtime…" });
+      this.set({ shareLoading: true, shareMessage: t("overlays.share.booting") });
       this.status("opening shared project…");
     }
     // Service Worker registration is NOT here — it happens on `kernel-online`
@@ -1304,11 +1306,22 @@ export class IdeController {
       },
       focusAfter: (id) => {
         const next = doc.cells[doc.indexOf(id) + 1];
-        if (next) doc.select(next.id);
-        else doc.insert("code");
+        if (!next) return doc.insert("code");
+        doc.select(next.id);
+        return next.id;
       },
       createCellEditor: (el, id, language) =>
-        this.createCellEditor(handle, el, id, language).catch((err: unknown) => {
+        mountCellEditor(
+          {
+            editorSession: this.editorSession,
+            editorPython: this.editorPython,
+            uiTheme: () => this.uiTheme,
+          },
+          handle,
+          el,
+          id,
+          language,
+        ).catch((err: unknown) => {
           // There is no error state for a cell. A cell whose editor did not get
           // built renders as an empty bordered box and nothing else happens —
           // which is indistinguishable, on screen, from a notebook that is simply
@@ -1323,42 +1336,6 @@ export class IdeController {
         }),
     };
     return handle;
-  }
-
-  /**
-   * A Monaco editor for one cell.
-   *
-   * All of the async is HERE and none of it is in the lifetime rules: Monaco is
-   * imported on demand, and once it has arrived `CellEditors.mount` is a
-   * synchronous step whose ordering guarantees hold whichever of two overlapping
-   * mounts lands first. That split is the fix for the dead-editor bug — see
-   * notebook/cell-editors.js, which is where the rules and the evidence live.
-   */
-  private async createCellEditor(
-    handle: NotebookHandle,
-    el: HTMLElement,
-    id: string,
-    language: "python" | "markdown",
-  ): Promise<CellEditorSlot | null> {
-    const monaco = await this.editorSession.ensureMonaco();
-    // The one benign null: the cell was deleted while Monaco was loading, so
-    // there is nothing to build. Everything else throws and is reported by the
-    // wrapper in makeNotebook.
-    const cell = handle.doc.cell(id);
-    if (!cell) return null;
-    const editors = (handle.editors ??= new CellEditors(monaco, handle.abs));
-    if (language === "python") this.editorPython.ensure(editors.uriFor(id, language).path);
-    return editors.mount(el, id, language, cell.source, {
-      theme: monacoThemeFor(this.uiTheme),
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      // A notebook renders in the same pane as the text editor, so its cells have
-      // the same preview iframe beside them. `cellEditorOptions` already sets
-      // `fixedOverflowWidgets` for its own reasons; supplying the host here is
-      // what carries the widget out of the pane. Passed in rather than imported
-      // by cell-editors.js, which takes Monaco as a parameter precisely so it
-      // stays drivable without a DOM.
-      overflowWidgetsDomNode: overflowWidgetsNode(),
-    });
   }
 
   /** ⌘S on a notebook tab: serialise the document rather than a Monaco buffer. */
@@ -2105,7 +2082,7 @@ export class IdeController {
     }
     history.replaceState(null, "", location.pathname + location.search);
     try {
-      this.set({ shareLoading: true, shareMessage: "Unpacking files…" });
+      this.set({ shareLoading: true, shareMessage: t("overlays.share.unpacking") });
       const { ok, dir, files } = await this.projectImport.importShared(payload);
       if (ok) {
         const projName = projectName(dir);

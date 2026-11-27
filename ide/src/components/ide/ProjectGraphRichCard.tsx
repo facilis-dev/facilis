@@ -15,6 +15,7 @@ import { ProjectGraphRichCardRoute } from "./ProjectGraphRichCardRoute";
 import { ProjectGraphRichCardTable } from "./ProjectGraphRichCardTable";
 import { ProjectGraphRichCardView } from "./ProjectGraphRichCardView";
 import { ProjectGraphRichCardWorkflow } from "./ProjectGraphRichCardWorkflow";
+import { useProjectGraphDialogFocus } from "./use-project-graph-dialog-focus";
 
 export type RichCardLayout = "anchored" | "sheet";
 
@@ -43,6 +44,9 @@ export function ProjectGraphRichCard({
   layout,
   cardRef,
 }: ProjectGraphRichCardProps) {
+  // Focus moves in on open and Tab stays inside the card (issue #216); Escape stays with the
+  // graph's one ladder, which closes this card before the drawer.
+  const { onKeyDown } = useProjectGraphDialogFocus(cardRef);
   // Outside pointer-down closes the top layer; the effect only listens while the card is mounted,
   // so the drawer's own outside handler is unaffected when the card is closed.
   useEffect(() => {
@@ -58,11 +62,14 @@ export function ProjectGraphRichCard({
     <aside
       ref={cardRef}
       role="dialog"
+      aria-modal="true"
       aria-label={t("projectGraph.surface.card.label")}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
       data-testid="project-graph-rich-card"
       data-layout={layout}
       className={cn(
-        "pointer-events-auto absolute z-30 flex flex-col overflow-hidden rounded-lg border bg-card text-xs shadow-xl",
+        "pointer-events-auto absolute z-30 flex flex-col overflow-hidden rounded-lg border bg-card text-xs shadow-xl outline-none",
         layout === "sheet" ? "inset-x-2 bottom-2 max-h-[70%]" : "max-h-[calc(100%-1rem)]",
       )}
     >

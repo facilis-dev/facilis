@@ -14,9 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
 import { confirmsProjectName, projectName } from "@/vv/project-name";
+import { BusyStatus } from "./BusyStatus";
+import { ConfirmNameField } from "./ConfirmNameField";
 import { useIde } from "./useIde";
 
 export function DeleteProjectDialog({
@@ -33,6 +34,8 @@ export function DeleteProjectDialog({
   const [busy, setBusy] = useState(false);
   const name = projectName(rootPath);
   const confirmed = confirmsProjectName(rootPath, typed);
+  // The message is why the confirm button is still disabled; it is tied to the input.
+  const mismatch = typed.length > 0 && !confirmed ? t("delete.confirmMismatch", { name }) : null;
 
   useEffect(() => {
     if (open) {
@@ -66,21 +69,15 @@ export function DeleteProjectDialog({
           <div className="break-all rounded-md border bg-muted/40 px-2 py-1.5 font-mono text-xs text-muted-foreground">
             {rootPath}
           </div>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("delete.confirmLabel")}
-            </span>
-            <Input
-              autoFocus
-              value={typed}
-              placeholder={name}
-              aria-invalid={typed.length > 0 && !confirmed}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void remove();
-              }}
-            />
-          </label>
+          <ConfirmNameField
+            label={t("delete.confirmLabel")}
+            value={typed}
+            placeholder={name}
+            error={mismatch}
+            onChange={setTyped}
+            onSubmit={() => void remove()}
+          />
+          {busy && <BusyStatus>{t("delete.deleting")}</BusyStatus>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
