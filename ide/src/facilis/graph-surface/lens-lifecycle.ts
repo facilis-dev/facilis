@@ -4,12 +4,14 @@
 // lenses stay a pure filter over facts the panel already holds.
 
 import type { MessageKey } from "@/i18n";
+import type { ProjectGraphView } from "@/facilis/graph-model";
 import {
   GRAPH_LENSES,
   type GraphLensDefinition,
   type GraphLensId,
   type GraphLensSource,
 } from "./lenses.ts";
+import type { GraphLensState } from "./state-facts.ts";
 
 /** Whether a source can serve a lens right now; unavailable always carries a reason code. */
 export interface GraphLensAvailability {
@@ -19,22 +21,34 @@ export interface GraphLensAvailability {
 
 export const LENS_AVAILABLE: GraphLensAvailability = { available: true, reasonKey: null };
 
+/** What a source needs from the surface at activation: the drawn graph. */
+export interface GraphLensContext {
+  readonly view: ProjectGraphView | null;
+}
+
 export interface GraphLensSourceAdapter {
   readonly source: GraphLensSource;
-  readonly activate: (lens: GraphLensId) => void;
+  readonly activate: (lens: GraphLensId, context: GraphLensContext) => void;
   readonly deactivate: (lens: GraphLensId) => void;
   /** Omitted means "always available"; a live source returns its own code when it cannot run. */
   readonly availability?: (lens: GraphLensId) => GraphLensAvailability;
+  /** The lens's facts right now; null for a static source (analyzer diagnostics instead). */
+  readonly state?: (lens: GraphLensId, context: GraphLensContext) => GraphLensState | null;
+  /** The source changed (a batch arrived): repaint. Omitted means never. */
+  readonly subscribe?: (listener: () => void) => () => void;
 }
 
 export interface GraphLensLifecycle {
   /** The lens whose source is on; null when no lens is open. */
   readonly active: GraphLensId | null;
   /** Idempotent: applying the lens already active runs no hook. */
-  readonly apply: (lens: GraphLensId | null) => void;
+  readonly apply: (lens: GraphLensId | null, context?: GraphLensContext) => void;
   /** Close whatever is open (surface unmount, project change). */
   readonly dispose: () => void;
   readonly availabilityOf: (lens: GraphLensId) => GraphLensAvailability;
+  readonly stateOf: (lens: GraphLensId, context: GraphLensContext) => GraphLensState | null;
+  /** Returns the unsubscribe function; a source with no subscription is a no-op. */
+  readonly subscribe: (lens: GraphLensId, listener: () => void) => () => void;
 }
 
 /**
@@ -55,11 +69,11 @@ export function createGraphLensLifecycle(
   const adapterFor = (lens: GraphLensId): GraphLensSourceAdapter | null =>
     bySource.get(sourceOf(lens)) ?? null;
   let active: GraphLensId | null = null;
-  const apply = (next: GraphLensId | null): void => {
+  const apply = (next: GraphLensId | null, context: GraphLensContext = { view: null }): void => {
     if (next === active) return;
     if (active !== null) adapterFor(active)?.deactivate(active);
     active = next;
-    if (next !== null) adapterFor(next)?.activate(next);
+    if (next !== null) adapterFor(next)?.activate(next, context);
   };
   return {
     get active() {
@@ -68,5 +82,7 @@ export function createGraphLensLifecycle(
     apply,
     dispose: () => apply(null),
     availabilityOf: (lens) => adapterFor(lens)?.availability?.(lens) ?? LENS_AVAILABLE,
+    stateOf: (lens, context) => adapterFor(lens)?.state?.(lens, context) ?? null,
+    subscribe: (lens, listener) => adapterFor(lens)?.subscribe?.(listener) ?? (() => {}),
   };
 }

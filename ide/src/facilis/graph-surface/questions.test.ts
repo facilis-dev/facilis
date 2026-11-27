@@ -25,6 +25,7 @@ describe("graph question codes", () => {
       elevated: "Q4",
       shared: "Q9",
       unknown: "Q17",
+      runtime: "Q18",
     });
   });
 });

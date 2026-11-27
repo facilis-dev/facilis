@@ -1,24 +1,30 @@
-// The project graph's lens state (D-220, #189; registry and lifecycle #198), split from the
-// panel to keep both under the 300-line source limit. Lenses are draw state only: this hook never
-// touches the layout, the saved positions or the camera, and every derived value is memoized on
-// the analyzer facts. Opening a lens activates its source through the lifecycle, so a live source
-// runs only while somebody is watching (D-224 §4).
+// The project graph's lens state (D-220, #189; registry and lifecycle #198; runtime lens
+// #199), split from the panel to keep both under the 300-line source limit. Lenses are draw
+// state only: opening one activates its source through the lifecycle, so a live source runs
+// only while somebody is watching (D-224 §4). Static lenses never leave this hook's memoized
+// filter.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { GraphDiagnostic } from "@facilis.dev/analyze";
+import type { GraphDiagnostic, GraphDiagnosticCode } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import {
   createGraphLensLifecycle,
   type GraphLensAvailability,
+  type GraphLensSourceAdapter,
 } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import {
+  createRuntimeLensSource,
+  type RuntimeLensController,
+} from "@/facilis/graph-surface/runtime-lens-source.ts";
+import {
   diagnosticsByNode,
+  lensDefinition,
   lensHighlight,
   summarizeLens,
   type GraphLensHighlight,
   type GraphLensId,
-  type GraphLensSummary,
 } from "@/facilis/graph-surface/lenses.ts";
+import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 
 const NO_DIAGNOSTICS: readonly GraphDiagnostic[] = [];
 
@@ -30,7 +36,7 @@ interface LensSelection {
 
 export interface ProjectGraphLensState {
   readonly lens: GraphLensId | null;
-  readonly summary: GraphLensSummary | null;
+  readonly view: GraphLensView | null;
   readonly highlight: GraphLensHighlight | null;
   readonly byNode: ReadonlyMap<string, readonly GraphDiagnostic[]>;
   readonly availabilityOf: (lens: GraphLensId) => GraphLensAvailability;
@@ -42,8 +48,13 @@ export function useProjectGraphLens(
   diagnostics: readonly GraphDiagnostic[] | undefined,
   view: ProjectGraphView | null,
   projectKey: string | null = null,
+  controller: RuntimeLensController | null = null,
 ): ProjectGraphLensState {
-  const lifecycle = useMemo(() => createGraphLensLifecycle(), []);
+  const adapters = useMemo<readonly GraphLensSourceAdapter[]>(
+    () => (controller === null ? [] : [createRuntimeLensSource(controller)]),
+    [controller],
+  );
+  const lifecycle = useMemo(() => createGraphLensLifecycle(adapters), [adapters]);
   const [selection, setSelection] = useState<LensSelection | null>(null);
   // Derived, not reset in an effect: changing project closes the lens in the same render, so no
   // frame ever shows the previous project's source or summary.
@@ -54,9 +65,21 @@ export function useProjectGraphLens(
     setSelection(null);
   }, [projectKey]);
   useEffect(() => {
-    lifecycle.apply(lens);
-  }, [lifecycle, lens]);
+    lifecycle.apply(lens, { view });
+  }, [lifecycle, lens, view]);
   useEffect(() => () => lifecycle.dispose(), [lifecycle]);
+  // A live source notifies when a batch lands: pull its window into state, so a repaint sees
+  // fresh numbers and a static lens never re-renders for a source it does not have.
+  const [state, setState] = useState<GraphLensState | null>(null);
+  useEffect(() => {
+    if (lens === null) {
+      setState(null);
+      return undefined;
+    }
+    const refresh = (): void => setState(lifecycle.stateOf(lens, { view }));
+    refresh();
+    return lifecycle.subscribe(lens, refresh);
+  }, [lifecycle, lens, view]);
   // A lens answer must be navigable: keep only nodes the current view actually draws.
   const facts = useMemo(() => {
     if (diagnostics === undefined || view === null) return NO_DIAGNOSTICS;
@@ -64,8 +87,25 @@ export function useProjectGraphLens(
     return diagnostics.filter((entry) => visible.has(entry.nodeId));
   }, [diagnostics, view]);
   const byNode = useMemo(() => diagnosticsByNode(facts), [facts]);
-  const summary = useMemo(() => (lens === null ? null : summarizeLens(lens, facts)), [lens, facts]);
-  const highlight = useMemo(() => (summary === null ? null : lensHighlight(summary)), [summary]);
+  const definition = lens === null ? null : lensDefinition(lens);
+  const summary = useMemo(
+    () => (lens === null || definition?.source !== "static" ? null : summarizeLens(lens, facts)),
+    [lens, definition, facts],
+  );
+  const lensView = useMemo<GraphLensView | null>(() => {
+    if (lens === null) return null;
+    if (summary !== null) return { kind: "diagnostics", summary };
+    return state === null ? null : { kind: "state", state };
+  }, [lens, summary, state]);
+  const highlight = useMemo<GraphLensHighlight | null>(() => {
+    if (lensView === null) return null;
+    if (lensView.kind === "diagnostics") return lensHighlight(lensView.summary);
+    return {
+      flagged: new Set(lensView.state.badges.keys()),
+      codeOf: new Map<string, GraphDiagnosticCode>(),
+      badges: lensView.state.badges,
+    };
+  }, [lensView]);
   const selectLens = useCallback(
     (next: GraphLensId) => {
       setSelection((current) =>
@@ -79,7 +119,7 @@ export function useProjectGraphLens(
   const closeLens = useCallback(() => setSelection(null), []);
   return {
     lens,
-    summary,
+    view: lensView,
     highlight,
     byNode,
     availabilityOf: lifecycle.availabilityOf,

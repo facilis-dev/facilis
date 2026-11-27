@@ -62,8 +62,7 @@ export function ProjectGraphPanel() {
     layout,
   );
   const stats = view === null ? null : { ...view.stats, matches: search.matched.size };
-  // A curve is keyed by edge id: drop the ones whose edge disappeared from the analysis. Prune
-  // against every analyzed edge, not the filtered view, so hiding an edge kind keeps its curves.
+  // A curve is keyed by edge id: prune against every analyzed edge, not the filtered view.
   const pruneCurves = graph.pruneCurves;
   const layoutLoaded = graph.layoutLoaded;
   useEffect(() => {
@@ -79,8 +78,7 @@ export function ProjectGraphPanel() {
   };
   // Incident edges: the page inspector lists page links, the view inspector its routes.
   const { node: selectedNode, edges: selectedEdges } = selectGraphSelection(view, selectedNodeId);
-  // The inspector's detail facts (security flags, db columns, policies, foreign keys, page
-  // calls, source lines) live on the Analysis the panel already holds, not on the drawn graph.
+  // The inspector's detail facts (flags, columns, policies, FKs, pages) live on the Analysis.
   const details = useMemo<ReadonlyMap<string, NodeDetails>>(
     () => (analysis === null ? new Map() : buildGraphDetails(analysis)),
     [analysis],
@@ -93,21 +91,20 @@ export function ProjectGraphPanel() {
   // Analyzer diagnostics are codes + params; the lens summary is pure draw state (#189).
   const {
     lens,
-    summary: lensSummary,
+    view: lensView,
     highlight: lensHighlightValue,
     byNode: diagnosticsByNodeMap,
     availabilityOf,
     selectLens,
     closeLens,
-  } = useProjectGraphLens(analysis?.graphDiagnostics, view, root);
+  } = useProjectGraphLens(analysis?.graphDiagnostics, view, root, c);
   const selectedDiagnostics =
     selectedNodeId === null ? [] : (diagnosticsByNodeMap.get(selectedNodeId) ?? []);
   const openFileAt = (file: string, line: number) => {
     const path = sourcePathFor(root, file);
     if (path !== null) void c.openFileAt(path, line);
   };
-  // A detail list may name a relation the graph did not draw (hidden table visibility, unresolved
-  // names): selecting an id that has no node would close the inspector for no reason.
+  // A detail row may name a relation the graph did not draw: selecting it must not close the drawer.
   const selectNode = (id: string) => {
     if (!nodeLabels.has(id)) return;
     setSelectedNodeId(id);
@@ -174,11 +171,9 @@ export function ProjectGraphPanel() {
     mode,
     onOverview: backToOverview,
   });
-
   let state: ProjectGraphState | null = null;
   if (root === null) state = { kind: "no-project" };
-  // While the index is still landing there is no result for this project yet: loading outranks
-  // a stale error/empty from the previous project or the empty-snapshot analysis.
+  // While the index lands there is no result yet: loading outranks a stale error or empty result.
   else if (!indexReady) state = { kind: "loading" };
   else if (result !== null && !result.ok) state = { kind: "error", error: result.error };
   else if (view === null || !layoutLoaded) state = { kind: "loading" };
@@ -252,7 +247,7 @@ export function ProjectGraphPanel() {
           {state === null && view !== null && (
             <ProjectGraphLensBar
               lens={lens}
-              summary={lensSummary}
+              view={lensView}
               nodeLabel={nodeLabel}
               onSelectLens={selectLens}
               onClose={closeLens}
@@ -264,7 +259,12 @@ export function ProjectGraphPanel() {
         </div>
         {state === null && selectedNode !== null && drawerOpen && view !== null && (
           <ProjectGraphDrawer onClose={closeDrawer}>
-            <ProjectGraphDiagnosisCallout diagnostics={selectedDiagnostics} />
+            <ProjectGraphDiagnosisCallout
+              diagnostics={selectedDiagnostics}
+              lens={lens}
+              view={lensView}
+              selectedNodeId={selectedNodeId}
+            />
             <ProjectGraphInspector
               node={selectedNode}
               edges={selectedEdges}

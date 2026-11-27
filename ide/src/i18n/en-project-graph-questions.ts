@@ -23,6 +23,7 @@ export const projectGraphQuestionsEn = {
   "projectGraph.surface.question.q10":
     "Q10 — What breaks across the project if this node is dropped?",
   "projectGraph.surface.question.q16": "Q16 — Where is this node's source file?",
-  "projectGraph.surface.question.q17":
-    "Q17 — Which facts could the analyzer not read statically?",
+  "projectGraph.surface.question.q17": "Q17 — Which facts could the analyzer not read statically?",
+  "projectGraph.surface.question.q18":
+    "Q18 — What is this route doing right now: traffic, 5xx errors and p50/p95 latency?",
 };

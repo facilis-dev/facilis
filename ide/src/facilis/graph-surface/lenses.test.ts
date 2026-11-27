@@ -85,12 +85,13 @@ describe("lens contract", () => {
     }
   });
 
-  it("exposes the four lens definitions with their codes and legend", () => {
+  it("exposes every lens definition with its codes and legend", () => {
     expect(GRAPH_LENSES.map((entry) => entry.id)).toEqual([
       "security",
       "elevated",
       "shared",
       "unknown",
+      "runtime",
     ]);
     expect(GRAPH_LENSES[0].codes).toEqual(["publicWrite", "publicAdmin", "tableNoRls"]);
     expect(GRAPH_LENSES[0].legend).toHaveLength(3);
@@ -194,6 +195,7 @@ describe("lens registry (D-224, #198)", () => {
       ["elevated", "static"],
       ["shared", "static"],
       ["unknown", "static"],
+      ["runtime", "live"],
     ]);
     for (const lens of GRAPH_LENSES) {
       expect(GRAPH_LENS_SOURCES).toContain(lens.source);
@@ -227,13 +229,14 @@ describe("lens registry (D-224, #198)", () => {
   });
 
   it("keeps the four static lens labels byte-identical", () => {
-    expect(GRAPH_LENSES.map((lens) => t(lens.titleKey))).toEqual([
+    const staticLenses = GRAPH_LENSES.filter((lens) => lens.source === "static");
+    expect(staticLenses.map((lens) => t(lens.titleKey))).toEqual([
       "Q5 · Security",
       "Q4 · Elevated (sudo / system)",
       "Q9 · Shared across groups",
       "Q17 · Unknown",
     ]);
-    expect(GRAPH_LENSES.map((lens) => t(lens.shortKey))).toEqual(["Q5", "Q4", "Q9", "Q17"]);
+    expect(staticLenses.map((lens) => t(lens.shortKey))).toEqual(["Q5", "Q4", "Q9", "Q17"]);
   });
 
   it("keeps the state vocabulary disjoint from the analyzer's", () => {
@@ -241,6 +244,6 @@ describe("lens registry (D-224, #198)", () => {
       expect(isStateCode(code)).toBe(false);
     }
     expect(isStateCode("state.noTraffic")).toBe(true);
-    expect(lensForCode("state.noTraffic")).toBeNull();
+    expect(lensForCode("state.notARegisteredCode")).toBeNull();
   });
 });

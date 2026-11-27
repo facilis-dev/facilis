@@ -11,10 +11,7 @@
 // strips it from preview URLs before the app loads (D-132), so the IDE hands it to the
 // client in the enable message and every batch must echo it back.
 
-import {
-  RouteRingBuffer,
-  type RouteWindowStats,
-} from "./runtime-metrics-buffer";
+import { RouteRingBuffer, type RouteWindowStats } from "./runtime-metrics-buffer";
 
 export const RUNTIME_METRICS_SOURCE = "vv-metrics";
 /**
@@ -41,6 +38,15 @@ export interface RuntimeMetricSample {
 
 export interface RouteRuntimeMetrics extends RouteWindowStats {
   route: string;
+  method: string;
+}
+
+/**
+ * A graph route node is method-specific (`route:GET /api/todos/{id}`), so the buffer key
+ * carries the method: a GET and a POST on one template are different routes to the graph.
+ */
+export function routeKeyOf(method: string, route: string): string {
+  return method + " " + route;
 }
 
 export type MetricsRejection =
@@ -54,11 +60,18 @@ export type MetricsRejection =
   | "bad-sample";
 
 export type ParseResult =
-  | { ok: true; samples: RuntimeMetricSample[] }
-  | { ok: false; reason: MetricsRejection };
+  { ok: true; samples: RuntimeMetricSample[] } | { ok: false; reason: MetricsRejection };
 
 const METHODS: ReadonlySet<string> = new Set([
-  "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT",
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+  "TRACE",
+  "CONNECT",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -68,13 +81,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function validSample(value: unknown): value is RuntimeMetricSample {
   if (!isRecord(value)) return false;
   const { route, method, status, duration } = value;
-  if (typeof route !== "string" || route.length === 0 || route.length > METRICS_MAX_ROUTE_LENGTH) return false;
+  if (typeof route !== "string" || route.length === 0 || route.length > METRICS_MAX_ROUTE_LENGTH)
+    return false;
   // Defense in depth: the client already strips queries; a concrete path with one is
   // a contract violation (and a potential ID/PII leak), so the batch is rejected.
   if (!route.startsWith("/") || route.includes("?") || route.includes("#")) return false;
   if (typeof method !== "string" || !METHODS.has(method)) return false;
-  if (typeof status !== "number" || !Number.isInteger(status) || status < 0 || status > 599) return false;
-  if (typeof duration !== "number" || !Number.isFinite(duration) || duration < 0 || duration > METRICS_MAX_DURATION_MS) return false;
+  if (typeof status !== "number" || !Number.isInteger(status) || status < 0 || status > 599)
+    return false;
+  if (
+    typeof duration !== "number" ||
+    !Number.isFinite(duration) ||
+    duration < 0 ||
+    duration > METRICS_MAX_DURATION_MS
+  )
+    return false;
   return true;
 }
 
@@ -101,7 +122,11 @@ export function parseRuntimeMetricsBatch(data: unknown, expectedToken: string): 
     return { ok: false, reason: "too-large" };
   }
   const samples = data["samples"];
-  if (!Array.isArray(samples) || samples.length === 0 || samples.length > METRICS_MAX_BATCH_SAMPLES) {
+  if (
+    !Array.isArray(samples) ||
+    samples.length === 0 ||
+    samples.length > METRICS_MAX_BATCH_SAMPLES
+  ) {
     return { ok: false, reason: "bad-batch" };
   }
   for (const sample of samples) {
@@ -143,25 +168,34 @@ export class RuntimeMetricsCollector {
     if (!parsed.ok) return parsed;
     for (const sample of parsed.samples) {
       if (!this.routes.has(sample.route)) continue;
-      let buffer = this.buffers.get(sample.route);
+      const key = routeKeyOf(sample.method, sample.route);
+      let buffer = this.buffers.get(key);
       if (buffer === undefined) {
         if (this.buffers.size >= METRICS_MAX_ROUTES) continue;
         buffer = new RouteRingBuffer();
-        this.buffers.set(sample.route, buffer);
+        this.buffers.set(key, buffer);
       }
       buffer.add(now, sample.status, sample.duration);
     }
     return parsed;
   }
 
-  /** Windowed facts per route, sorted by template; empty while dormant. */
+  /** Windowed facts per method+template, sorted by template; empty while dormant. */
   snapshot(now: number = Date.now()): RouteRuntimeMetrics[] {
     const rows: RouteRuntimeMetrics[] = [];
-    for (const [route, buffer] of this.buffers) {
+    for (const [key, buffer] of this.buffers) {
       const stats = buffer.snapshot(now);
-      if (stats !== null) rows.push({ route, ...stats });
+      if (stats === null) continue;
+      const separator = key.indexOf(" ");
+      rows.push({
+        method: key.slice(0, separator),
+        route: key.slice(separator + 1),
+        ...stats,
+      });
     }
-    rows.sort((a, b) => (a.route < b.route ? -1 : a.route > b.route ? 1 : 0));
+    rows.sort((a, b) =>
+      a.route === b.route ? (a.method < b.method ? -1 : 1) : a.route < b.route ? -1 : 1,
+    );
     return rows;
   }
 }

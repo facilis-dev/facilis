@@ -7,7 +7,7 @@ import type { GraphDiagnostic, GraphDiagnosticCode } from "@facilis.dev/analyze"
 import type { I18nParams } from "@facilis.dev/core/i18n";
 import type { MessageKey } from "@/i18n";
 
-export const GRAPH_LENS_IDS = ["security", "elevated", "shared", "unknown"] as const;
+export const GRAPH_LENS_IDS = ["security", "elevated", "shared", "unknown", "runtime"] as const;
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
 
 /**
@@ -86,11 +86,12 @@ export interface GraphLensDefinition {
   readonly legend: readonly GraphLensLegendEntry[];
 }
 
-const CODES_BY_LENS: Readonly<Record<GraphLensId, readonly GraphDiagnosticCode[]>> = {
+const CODES_BY_LENS: Readonly<Record<GraphLensId, readonly GraphLensCode[]>> = {
   security: ["publicWrite", "publicAdmin", "tableNoRls"],
   elevated: ["elevated"],
   shared: ["shared"],
   unknown: ["unknown"],
+  runtime: ["state.notRunning", "state.noTraffic", "state.routeErrors", "state.slowRoute"],
 };
 
 const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -98,6 +99,7 @@ const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   elevated: "projectGraph.surface.lens.elevated",
   shared: "projectGraph.surface.lens.shared",
   unknown: "projectGraph.surface.lens.unknown",
+  runtime: "projectGraph.surface.lens.runtime",
 };
 
 const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -105,6 +107,7 @@ const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   elevated: "projectGraph.surface.lens.elevated.description",
   shared: "projectGraph.surface.lens.shared.description",
   unknown: "projectGraph.surface.lens.unknown.description",
+  runtime: "projectGraph.surface.lens.runtime.description",
 };
 
 const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
@@ -112,6 +115,7 @@ const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
   elevated: "static",
   shared: "static",
   unknown: "static",
+  runtime: "live",
 };
 
 const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -119,6 +123,7 @@ const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   elevated: "projectGraph.surface.lens.elevated.short",
   shared: "projectGraph.surface.lens.shared.short",
   unknown: "projectGraph.surface.lens.unknown.short",
+  runtime: "projectGraph.surface.lens.runtime.short",
 };
 
 const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
@@ -126,7 +131,49 @@ const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
   elevated: "--warning",
   shared: "--info",
   unknown: "--muted-foreground",
+  runtime: "--success",
 };
+
+/** Per-code legend text and colour for the IDE's own `state.*` vocabulary (D-224 §2). */
+const STATE_LEGEND: Readonly<
+  Record<string, { messageKey: MessageKey; labelKey: MessageKey; colorToken: string }>
+> = {
+  "state.notRunning": {
+    messageKey: "projectGraph.surface.state.notRunning",
+    labelKey: "projectGraph.surface.state.notRunning.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.noTraffic": {
+    messageKey: "projectGraph.surface.state.noTraffic",
+    labelKey: "projectGraph.surface.state.noTraffic.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.routeErrors": {
+    messageKey: "projectGraph.surface.state.routeErrors",
+    labelKey: "projectGraph.surface.state.routeErrors.label",
+    colorToken: "--destructive",
+  },
+  "state.slowRoute": {
+    messageKey: "projectGraph.surface.state.slowRoute",
+    labelKey: "projectGraph.surface.state.slowRoute.label",
+    colorToken: "--warning",
+  },
+};
+
+function legendEntry(code: GraphLensCode): GraphLensLegendEntry {
+  if (isStateCode(code)) {
+    const entry = STATE_LEGEND[code];
+    // A state code is registered here by the lens that declares it; a missing entry is a bug.
+    if (entry === undefined) throw new Error("No legend entry for state code " + code);
+    return { code, ...entry };
+  }
+  return {
+    code,
+    messageKey: DIAGNOSTIC_MESSAGE_KEYS[code],
+    labelKey: DIAGNOSTIC_LABEL_KEYS[code],
+    colorToken: DIAGNOSTIC_COLOR_TOKENS[code],
+  };
+}
 
 export const GRAPH_LENSES: readonly GraphLensDefinition[] = GRAPH_LENS_IDS.map((id) => ({
   id,
@@ -136,12 +183,7 @@ export const GRAPH_LENSES: readonly GraphLensDefinition[] = GRAPH_LENS_IDS.map((
   descriptionKey: DESCRIPTION_KEYS[id],
   colorToken: LENS_COLOR_TOKENS[id],
   codes: CODES_BY_LENS[id],
-  legend: CODES_BY_LENS[id].map((code) => ({
-    code,
-    messageKey: DIAGNOSTIC_MESSAGE_KEYS[code],
-    labelKey: DIAGNOSTIC_LABEL_KEYS[code],
-    colorToken: DIAGNOSTIC_COLOR_TOKENS[code],
-  })),
+  legend: CODES_BY_LENS[id].map(legendEntry),
 }));
 
 export function lensDefinition(id: GraphLensId): GraphLensDefinition {
@@ -201,10 +243,18 @@ export function summarizeLens(
   };
 }
 
-/** What the canvas needs for a lens: the flagged ids and the colour code of each one. */
+/** Draw-only per-node badge: a short text and the semantic token it is inked with. */
+export interface GraphLensBadge {
+  readonly text: string;
+  readonly colorToken: string;
+}
+
+/** What the canvas needs for a lens: flagged ids, their colour code, and optional badges. */
 export interface GraphLensHighlight {
   readonly flagged: ReadonlySet<string>;
   readonly codeOf: ReadonlyMap<string, GraphDiagnosticCode>;
+  /** State lenses paint numbers here; static lenses have none. */
+  readonly badges: ReadonlyMap<string, GraphLensBadge>;
 }
 
 export function lensHighlight(summary: GraphLensSummary): GraphLensHighlight {
@@ -213,7 +263,7 @@ export function lensHighlight(summary: GraphLensSummary): GraphLensHighlight {
     const first = entries[0];
     if (first !== undefined) codeOf.set(nodeId, first.code);
   }
-  return { flagged: summary.flagged, codeOf };
+  return { flagged: summary.flagged, codeOf, badges: new Map() };
 }
 
 /** Group diagnostics by node across every lens (the selected node's diagnosis callout). */

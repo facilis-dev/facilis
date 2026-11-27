@@ -99,6 +99,7 @@ const PALETTE: SurfacePalette = {
   accent: "#0ff",
   elevated: "#f80",
   kinds: { page: "#0f0", route: "#00f", table: "#ff0", view: "#f0f", workflow: "#0ff" },
+  colorToken: (token) => "resolved:" + token,
   edges: {
     fk: "#0ff",
     relation: "#00f",
@@ -293,6 +294,7 @@ describe("lens is draw state only", () => {
         lens: {
           flagged: new Set(["t1"]),
           codeOf: new Map<string, GraphDiagnosticCode>([["t1", "publicWrite"]]),
+          badges: new Map(),
         },
       }),
     );
@@ -302,5 +304,32 @@ describe("lens is draw state only", () => {
     // The ring and the dimmed rest are ink only, never a layout change.
     expect(sets.some((entry) => entry.prop === "lineWidth" && entry.value === 2.5)).toBe(true);
     expect(sets.some((entry) => entry.prop === "globalAlpha" && entry.value === 0.12)).toBe(true);
+  });
+
+  it("draws a live badge inside the card without resizing it", () => {
+    const scene = culledScene();
+    const positionsBefore = [...scene.layout.positions.entries()];
+    const { ctx, sets, calls } = fakeCtx();
+    drawSurface(
+      ctx,
+      scene,
+      { tx: 0, ty: 0, scale: 1 },
+      VIEW,
+      PALETTE,
+      interaction({
+        lens: {
+          flagged: new Set(["r1"]),
+          codeOf: new Map(),
+          badges: new Map([["r1", { text: "5 req · 2 err", colorToken: "--destructive" }]]),
+        },
+      }),
+    );
+    expect([...scene.layout.positions.entries()]).toEqual(positionsBefore);
+    expect(drawnTexts(calls)).toContain("5 req · 2 err");
+    expect(
+      sets.some(
+        (entry) => entry.prop === "strokeStyle" && entry.value === "resolved:--destructive",
+      ),
+    ).toBe(true);
   });
 });

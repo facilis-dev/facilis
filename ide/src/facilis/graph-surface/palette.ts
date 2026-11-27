@@ -35,6 +35,8 @@ export interface SurfacePalette {
   readonly edges: Readonly<Record<GraphEdgeKind, string>>;
   /** Lens highlight colours, keyed by diagnostic code (D-220). */
   readonly diagnostics: Readonly<Record<GraphDiagnosticCode, string>>;
+  /** Resolve any semantic token once per frame; state badges use registry tokens. */
+  readonly colorToken: (token: string) => string;
 }
 
 /** Read the active theme's role tokens once per frame batch; never hardcode palette colours. */
@@ -56,6 +58,14 @@ export function resolveSurfacePalette(element: HTMLElement): SurfacePalette {
   for (const code of Object.keys(DIAGNOSTIC_COLOR_TOKENS) as GraphDiagnosticCode[]) {
     diagnostics[code] = read(DIAGNOSTIC_COLOR_TOKENS[code], "CanvasText");
   }
+  const tokenCache = new Map<string, string>();
+  const colorToken = (token: string): string => {
+    const cached = tokenCache.get(token);
+    if (cached !== undefined) return cached;
+    const value = read(token, "CanvasText");
+    tokenCache.set(token, value);
+    return value;
+  };
   return {
     background: read("--editor", "Canvas"),
     card: read("--card", "Canvas"),
@@ -68,5 +78,6 @@ export function resolveSurfacePalette(element: HTMLElement): SurfacePalette {
     kinds,
     edges,
     diagnostics,
+    colorToken,
   };
 }

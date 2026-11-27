@@ -9,6 +9,7 @@ import { initI18n, setLocale } from "@/i18n";
 import type { GraphLensAvailability } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { LENS_AVAILABLE } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { summarizeLens, type GraphLensId } from "@/facilis/graph-surface/lenses.ts";
+import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
 
@@ -44,11 +45,18 @@ function renderBar(
   lens: GraphLensId | null,
   diagnostics: readonly GraphDiagnostic[],
   availabilityOf: (lens: GraphLensId) => GraphLensAvailability = () => LENS_AVAILABLE,
+  view?: GraphLensView,
 ): string {
+  const resolved =
+    view !== undefined
+      ? view
+      : lens === null
+        ? null
+        : { kind: "diagnostics" as const, summary: summarizeLens(lens, diagnostics) };
   return renderToStaticMarkup(
     <ProjectGraphLensBar
       lens={lens}
-      summary={lens === null ? null : summarizeLens(lens, diagnostics)}
+      view={resolved}
       nodeLabel={(id) => LABELS[id] ?? null}
       onSelectLens={vi.fn()}
       onClose={vi.fn()}
@@ -59,6 +67,21 @@ function renderBar(
   );
 }
 
+const RUNTIME_STATE: GraphLensState = {
+  facts: [
+    {
+      nodeId: "route:GET /api/todos/{id}",
+      code: "state.routeErrors",
+      params: { errors: 2, total: 5, rate: 40 },
+    },
+  ],
+  totals: { key: "projectGraph.surface.state.totals", count: 5, params: { errors: 2 } },
+  params: { minutes: 5 },
+  contextKey: "projectGraph.surface.state.window",
+  emptyKey: null,
+  badges: new Map(),
+};
+
 beforeEach(() => {
   initI18n();
   setLocale("en");
@@ -66,7 +89,7 @@ beforeEach(() => {
 afterEach(() => setLocale("en"));
 
 describe("ProjectGraphLensBar", () => {
-  it("always offers the four lens answers and no banner until one is active", () => {
+  it("always offers the lens answers and no banner until one is active", () => {
     const html = renderBar(null, [WRITE]);
     expect(html).toContain("Q5 · Security");
     expect(html).toContain("Q4 · Elevated (sudo / system)");
@@ -97,6 +120,32 @@ describe("ProjectGraphLensBar", () => {
     expect(disabled).toContain("project-graph-lens-unknown");
     expect(disabled).toContain('data-unavailable="true"');
     expect(disabled).toContain("Project not running");
+  });
+
+  it("renders a state lens with its totals, window and translated facts", () => {
+    const html = renderBar("runtime", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: RUNTIME_STATE,
+    });
+    expect(html).toContain("5 requests · 2 errors");
+    expect(html).toContain("Last 5 minutes");
+    expect(html).toContain("2 of 5 requests failed with a 5xx (40%).");
+    expect(html).toContain("Server errors");
+    expect(html).toContain("project-graph-lens-answer-route:GET /api/todos/{id}");
+  });
+
+  it("explains an empty state lens instead of showing a blank panel", () => {
+    const html = renderBar("runtime", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        ...RUNTIME_STATE,
+        facts: [],
+        totals: { key: "projectGraph.surface.state.totals", count: 0, params: { errors: 0 } },
+        emptyKey: "projectGraph.surface.state.noTraffic",
+      },
+    });
+    expect(html).toContain("project-graph-lens-empty");
+    expect(html).toContain("No request reached any route in the last 5 minutes.");
   });
 
   it("shows an explicit empty state when a lens matches nothing", () => {
@@ -134,6 +183,21 @@ describe("ProjectGraphDiagnosisCallout", () => {
     const html = renderToStaticMarkup(<ProjectGraphDiagnosisCallout diagnostics={[SHARED]} />);
     expect(html).toContain("Nodo condiviso");
     expect(html).toContain("Referenziato da 2 altri domini (billing, todos)");
+  });
+
+  it("renders the selected node's live facts through t(code, params)", () => {
+    const html = renderToStaticMarkup(
+      <ProjectGraphDiagnosisCallout
+        diagnostics={[]}
+        lens="runtime"
+        view={{ kind: "state", state: RUNTIME_STATE }}
+        selectedNodeId="route:GET /api/todos/{id}"
+      />,
+    );
+    expect(html).toContain("project-graph-state-callout");
+    expect(html).toContain("Live signals");
+    expect(html).toContain("Server errors");
+    expect(html).toContain("2 of 5 requests failed with a 5xx (40%).");
   });
 
   it("renders nothing when the node has no diagnostic", () => {

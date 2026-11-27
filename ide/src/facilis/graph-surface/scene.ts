@@ -255,11 +255,16 @@ function drawDetailFrame(
     const node = scene.nodeById.get(id);
     if (node === undefined) continue;
     const code = lens?.codeOf.get(id);
+    const badge = lens?.badges.get(id);
     drawNodeCard(ctx, node, rect, palette, {
       active: ui.hoverId === id,
       selected: ui.selectedId === id,
       alpha: nodeAlpha(id),
       lensColor: code === undefined ? null : palette.diagnostics[code],
+      badge:
+        badge === undefined
+          ? null
+          : { text: badge.text, color: palette.colorToken(badge.colorToken) },
     });
   }
 }

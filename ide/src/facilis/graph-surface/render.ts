@@ -176,8 +176,11 @@ export function drawNodeCard(
     readonly selected: boolean;
     /** The active lens's colour for this node; null when the node is not flagged. */
     readonly lensColor: string | null;
+    /** A state lens's short number badge; drawn inside the card, never resizing it. */
+    readonly badge?: { readonly text: string; readonly color: string } | null;
   },
 ): void {
+  const badge = options.badge ?? null;
   const color = palette.kinds[node.kind];
   ctx.globalAlpha = options.alpha;
   roundRectPath(ctx, rect.x, rect.y, rect.w, rect.h, 9);
@@ -203,14 +206,31 @@ export function drawNodeCard(
   ctx.font = SURFACE_FONT_BOLD;
   ctx.fillStyle = palette.foreground;
   ctx.fillText(truncateText(ctx, node.label, rect.w - 44), rect.x + 14, rect.y + 22);
+  let sublabelWidth = rect.w - 24;
+  if (badge !== null) {
+    ctx.font = SURFACE_FONT;
+    const badgeWidth = ctx.measureText(badge.text).width + 12;
+    const badgeX = rect.x + rect.w - badgeWidth - 8;
+    const badgeY = rect.y + rect.h - 23;
+    roundRectPath(ctx, badgeX, badgeY, badgeWidth, 15, 5);
+    ctx.fillStyle = palette.card;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = badge.color;
+    ctx.stroke();
+    ctx.fillStyle = badge.color;
+    ctx.fillText(badge.text, badgeX + 6, badgeY + 11);
+    sublabelWidth = rect.w - badgeWidth - 24;
+  }
   ctx.font = SURFACE_FONT;
   ctx.fillStyle = palette.muted;
-  ctx.fillText(truncateText(ctx, nodeSublabel(node), rect.w - 24), rect.x + 14, rect.y + 42);
-  if (node.data.kind === "route" && node.data.elevations.length > 0) {
+  ctx.fillText(truncateText(ctx, nodeSublabel(node), sublabelWidth), rect.x + 14, rect.y + 42);
+  // A badge owns the bottom-right slot; the elevated mark would overlap it, so the lens wins.
+  if (badge === null && node.data.kind === "route" && node.data.elevations.length > 0) {
     ctx.fillStyle = palette.elevated;
     const label = t("projectGraph.elevated");
     ctx.fillText(label, rect.x + rect.w - ctx.measureText(label).width - 10, rect.y + 42);
-  } else if (node.data.kind !== "page" && node.data.unknown) {
+  } else if (badge === null && node.data.kind !== "page" && node.data.unknown) {
     ctx.fillStyle = palette.muted;
     const label = t("projectGraph.unknown");
     ctx.fillText(label, rect.x + rect.w - ctx.measureText(label).width - 10, rect.y + 22);
