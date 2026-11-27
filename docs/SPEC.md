@@ -1,11 +1,23 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.47 (a `runtime` section is the only deployment-tunable surface, D-224)
+**Version:** 1.48 (the declared security surface: no silent authority, D-226)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.48 — The declared security surface (D-226, epic #228). Every capability outside the standard
+  wrapper is declared in code with a non-empty reason: `defineRawRoute` for raw routes,
+  `defineServerExtension` for plugins/middleware/modules/tasks, `rawSql: { reason }` and
+  `ctx.rawDb({ reason })` for database escapes, and a `// dynamic-code: <reason>` marker for
+  `eval`/`new Function`/computed `import()`. `event.context.facilis.db` is removed: the root client
+  travels through core's private WeakMap and only the wrapper reads it. The Nitro module mounts only
+  declared project files (everything else answers 404) and the production build fails on
+  undeclared/unknown surfaces; the deploy artifact `security-surface.json` (version 1, deterministic)
+  is written next to the server and served to the IDE by `/__facilis/security-surface.json`. AI
+  patches declare and then ask: `ValidationResult.surfaceRequests` pauses the write for an editable
+  confirmation. The validator gains rule 24 `surface-declared` (24 rules). §5.1/§5.6/§7.4/§7.6/§8.2/§8.9/§9.3
+  follow.
 - v1.47 — Deployment values are `runtime` and `public` sections of `facilis.config.ts` (D-224).
   The file belongs to the app: every key is declared with a literal value or, for the server surface
   only, `{ secret: true }` (the source is the environment, never a value). `runtime` is read at boot
@@ -244,7 +256,7 @@ Pre-constructed elements are **code**: NPM packages that export components, rout
 | Area | Decision |
 |---|---|
 | **AI role** | Constrained scaffolding: generates code that obeys framework contracts. Never reinvents primitives. |
-| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 23 rules before it touches the VFS |
+| **AI mode** | PTC tool runtime: the model writes one JavaScript program per step against a tool registry that is read-only except for the validated write tools (D-101/D-103, D-181); every source write passes the 24 rules before it touches the VFS |
 | **Persistence** | Git (remote) = source of truth; OPFS = write-behind mirror via Vivari |
 | **Git auth** | GitHub: OAuth device flow (D-082); GitLab/Gitea/Forgejo: PAT or account password (D-081); token per operation, nothing stored |
 | **Studio** | Static SPA, no backend, no accounts (git = identity) |
@@ -403,7 +415,7 @@ User chat ──→ AI (BYO key) ──→ AIResponse (JSON)
 │   │
 │   ├── ai/                   @facilis.dev/ai
 │   │   ├── src/
-│   │   │   ├── validator.ts          23-rule patch validator (D-101/D-103)
+│   │   │   ├── validator.ts          24-rule patch validator (D-101/D-103)
 │   │   │   ├── rules/                one module per rule
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -581,12 +593,35 @@ export type {
 } from "./storage"
 
 // Routes (the security contract)
-export { defineAuthorizedHandler } from "./route"
+export { defineAuthorizedHandler, createAuthorizedRoute } from "./route"
 export type {
   AuthorizedHandlerConfig,
   AuthorizedHandlerContext,
   AuthContext,
+  RouteRuntimeOptions,
 } from "./route"
+export type { RawDbAccessor, RawDbOptions, RawRouteContext } from "./route-context"
+
+// Declared surface (D-226, §8.9)
+export { defineRawRoute } from "./raw-route"
+export type { RawRouteAuth, RawRouteConfig, RawRouteHandler } from "./raw-route"
+export { defineServerExtension } from "./server-extension"
+export type { ServerExtensionConfig, ServerExtensionKind } from "./server-extension"
+export {
+  assertSurfaceReason,
+  isFacilisRouteHandler,
+  isFacilisServerExtension,
+  SURFACE_CLASSES,
+  surfaceDeclaration,
+} from "./surface"
+export type { SurfaceClass, SurfaceDeclaration, SurfaceKind } from "./surface"
+export {
+  parseSecuritySurface,
+  SECURITY_SURFACE_FORMAT_VERSION,
+  securitySurfaceSchema,
+  serializeSecuritySurface,
+} from "./security-surface"
+export type { SecuritySurfaceDocument, SecuritySurfaceRoute } from "./security-surface"
 
 // Manifest types
 export type {
@@ -860,10 +895,11 @@ Exports:
 - `parseResponse(raw)` — AIResponse parser
 - `buildProjectContext(input)` — projects an `Analysis` (+ optional pre-patch one) into the
   typed validator context; the caller supplies the facts (the IDE from the analyzer worker)
-- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy })` —
-  23-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
-  (`"open" | "managed"`, default `"managed"`, D-167); the main entry stays browser-safe and the
-  only parser is the injected syntax checker
+- `validatePatch(patches, { context, requiresConfirmation, allowedRootFiles, writePolicy, confirmedSurface })` —
+  24-rule validator over analyzer facts (D-092); `writePolicy` selects rule 11's write scope
+  (`"open" | "managed"`, default `"managed"`, D-167); a declared capability returns
+  `surfaceRequests` until the caller revalidates with `confirmedSurface: true` (D-226); the main
+  entry stays browser-safe and the only parser is the injected syntax checker
 - `applyPatch(controller, patch)` — writes through `kernel.writeFiles`
 
 ### 5.6 `@facilis.dev/nitro` — Vite plugin + Nitro module
@@ -907,6 +943,14 @@ The plugin also owns the route-metadata virtual module: it analyzes the project 
 `@facilis.dev/analyze` (parser injected from `rolldown/utils`), maps the route facts to the
 manifest/OpenAPI contract and invalidates on any project source edit. `facilis()` takes no
 options; the analyzer owns the DSL layout (`server/routes/**`, `server/api/**`).
+
+**Declared-surface gate and export (D-226).** At `buildStart` the plugin runs
+`securitySurfaceIssues()` over the same analysis: a production build fails on an
+`undeclared`/`unknown` route, an undeclared server extension, a forbidden `@facilis.dev/db`
+import or an undeclared `eval`/`new Function`/computed `import()`; dev reports the same issues as
+warnings and keeps the 404 fallback. The Nitro module writes `security-surface.json` to the
+server output on `compiled`, and the dev-only route `/__facilis/security-surface.json` serves the
+same bytes (same builder, same serializer) for the IDE download.
 
 **Prerender build pass and dev serving (D-202).** `facilis()` also owns the opt-in prerender
 step: a `closeBundle` pass renders the declared eligible routes in-process (the #80 spike's
@@ -955,7 +999,10 @@ export const facilisNitroModule: NitroModule = {
 > `facilis()` works. Virtual-module factories in `nitro.options.virtual` return module source
 > strings, evaluated on load.
 
-**Framework middleware, logging and SSO routes.** The module registers the `context` (db) and `session` (auth) middleware on `/**`, in that order. Its runtime also owns the logging pipeline (D-119): the `runtime/logging/` module resolves the sink from the environment, appends JSON Lines to `<project>/.facilis/logs/` or stdout, and is attached to every request by the context middleware, which also resolves/returns `x-request-id`. Access/error entries are produced by `defineAuthorizedHandler` in `@facilis.dev/core`; the sudo trail is bridged in from `@facilis.dev/db`. No route exposes the log files.
+**Framework middleware, logging and SSO routes.** The module registers the `context` (db) and `session` (auth) middleware on `/**`, in that order. Its runtime also owns the logging pipeline (D-119): the `runtime/logging/` module resolves the sink from the environment, appends JSON Lines to `<project>/.facilis/logs/` or stdout, and is attached to every request by the context middleware, which also resolves/returns `x-request-id`. Access/error entries are produced by `defineAuthorizedHandler` in `@facilis.dev/core`; the sudo trail is bridged in from `@facilis.dev/db`. No route exposes the log files. Before routing sync the
+module applies the declared-surface allowlist to project `handlers`, `scannedHandlers`, `plugins`,
+`modules` and `tasks`: an undeclared project file is removed, so it cannot be mounted or executed
+at boot (D-226); the same filter is reapplied when Nitro rescans in dev.
 
 When `auth.sso.providers` is non-empty, the module also registers one handler for `/api/auth/sso/**` (D-120) in dev and production alike. The handler is a normal `defineAuthorizedHandler` with `permission: []`: it lists the public providers, starts a login (302 to the IdP) and completes the callback (302 back to `redirectTo`). SAML's ACS POST body is parsed and Zod-validated inside the handler, and `@node-saml/node-saml` is imported lazily so projects without SAML never load it.
 
@@ -1651,7 +1698,7 @@ interface AuthorizedHandlerConfig<Body = void, Query = void, Params = void, Form
   params?: ZodSchema<Params>
   dbTables: string[]                          // REQUIRED: every table/view the handler may access (D-157)
   dbColumns?: string[]
-  rawSql?: boolean                            // allow db.execute (raw SQL) in this route; default false (D-157)
+  rawSql?: { reason: string }                 // allow db.execute (raw SQL) with a declaration; `true` is legacy undeclared surface (D-157/D-226)
   description?: string                     // one English sentence, ≤120 chars (about two lines); source documentation, never a t() key (D-129)
   crossSite?: boolean                      // true = exposed to other origins; with a permission it requires a Bearer token (D-142)
   originCheck?: "enforce" | "skip"         // "skip" only for framework protocol endpoints (SAML ACS); default enforce (D-142)
@@ -1666,7 +1713,8 @@ interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   form: Form                                  // validated multipart fields when declared
   query: Query
   params: Params
-  db: PolicyScopedDatabase                    // pre-scoped, never raw
+  db: PolicyScopedDatabase                    // pre-scoped, guarded, never raw
+  rawDb: (options: { reason: string }) => PolicyScopedDatabase // declared, audited escape from the guard (D-226)
   sudo: SudoHandler                           // audited elevation, §8.4.5; requires a session
   system: SystemHandler                       // audited elevation for public/bootstrap routes
   jobs: JobsApi                               // server-only job queue (D-107), no HTTP surface
@@ -1730,15 +1778,37 @@ function defineAuthorizedHandler<B, Q, P>(
   config: AuthorizedHandlerConfig<B, Q, P>,
   handler: (event: FacilisHandlerEvent, ctx: AuthorizedHandlerContext<B, Q, P>) => Promise<unknown> | unknown,
 ): EventHandler
+
+interface RawRouteConfig {
+  reason: string                              // non-empty: why the protocol cannot use the wrapper (D-226)
+  auth: "required" | "none"                   // "none" is the only way to skip the session
+  permission?: string | string[]              // forbidden with auth: "none"
+  dbTables?: string[]                         // default []
+  rateLimit?: { windowMs: number; maxRequests: number }
+  description?: string
+  confirmed?: { at: string; by: string }      // optional AI-confirmation provenance
+}
+
+function defineRawRoute(
+  config: RawRouteConfig,
+  handler: (event: FacilisHandlerEvent, ctx: RawRouteContext) => Promise<unknown> | unknown,
+): EventHandler
+
+function defineServerExtension<T extends object>(
+  config: { reason: string; kind?: "plugin" | "middleware" | "module" | "task";
+            confirmed?: { at: string; by: string } },
+  extension: T,
+): T
 ```
 
-**No raw client on the handler surface (D-099).** The wrapper receives the full event (with
-`context.facilis.db`), captures the root client, and calls the handler with a `FacilisHandlerEvent`
-whose `facilis` carries only `defaultTenantId`. The handler has exactly two DB surfaces: the
-policy-scoped `ctx.db` (session/tenant GUCs and RLS) and the audited `ctx.sudo`/`ctx.system`
-elevation; it cannot reach a policy-free client. Using the raw client (or importing `createDb`)
-is reported by the analyzer as `route-direct-db` — "not recommended" made visible in the
-manifest.
+**No ambient client on the handler surface (D-099/D-226).** The context middleware attaches the
+root client through core's module-private WeakMap, and the wrapper reads it there; the event
+carries no database. The handler has exactly three DB surfaces: the policy-scoped `ctx.db`
+(session/tenant GUCs and RLS, table-guarded), the declared `ctx.rawDb` (the same transaction,
+no relation guard, audited per call) and the audited `ctx.sudo`/`ctx.system` elevation. Using
+`event.context.facilis.db` (removed) or importing `createDb` is reported by the analyzer: the
+former as `route-direct-db`, the latter as a forbidden surface import (§9.3 rule 24). A route that
+neither uses the wrapper nor declares `defineRawRoute` is not mounted.
 
 **Request-origin gate and media type (D-141).** Before the permission check, an unsafe method
 (POST/PUT/PATCH/DELETE) must pass the origin gate: `Sec-Fetch-Site` is authoritative when present
@@ -1824,6 +1894,15 @@ interface ValidationResult {
   errors: ValidationError[]
   warnings: ValidationError[]
   destructive?: boolean                      // rule 15's predicate: the set drops a table or a column
+  surfaceRequests?: SurfaceRequest[]          // declarations the user must confirm before the write (D-226)
+}
+
+interface SurfaceRequest {
+  path: string
+  capability: "raw-route" | "server-extension" | "raw-sql" | "raw-db" | "dynamic-code"
+  reason: string                              // generated by the model, editable in the IDE
+  snippet: string                             // the exact declaration line
+  line: number
 }
 
 interface ValidationError {
@@ -2313,11 +2392,17 @@ codes: `workflow_unknown`, `workflow_invalid_input`, `workflow_invalid_output`,
 - `dbTables` required (compile-time enforcement)
 - OpenAPI generated with `x-permission` and `x-db-tables`
 
-The single exception to this pattern is the **public infrastructure ingestion** route class
-(§8.8, D-203): a browser holds no session, so the class replaces the permission gate with
+The single framework exception to this pattern is the **public infrastructure ingestion** route
+class (§8.8, D-203): a browser holds no session, so the class replaces the permission gate with
 origin, rate-limit and schema gates. It is emitted by the framework and is never authorable by a
-project or by an AI patch; every route a user or the AI can write still goes through
-`defineAuthorizedHandler`.
+project or by an AI patch.
+
+A project may declare its own exception with `defineRawRoute` (§8.9, D-226) when a protocol
+cannot be modelled by the wrapper (a signed webhook, a streaming body, a vendor callback). The
+route then skips Zod and may skip the session only with `auth: "none"` plus a non-empty reason;
+the origin/CSRF gate, the rate limit and request logging still run, and the route must be exported
+as `declared` surface. A route that is neither the wrapper nor a declared raw route is
+`undeclared`: it is not mounted and answers 404.
 
 **Prerendering consumes this contract, never weakens it (D-202).** A page is prerender-eligible
 only when every API it calls is `permission: []` (manifest `security: "public"`, D-116) and no
@@ -2748,7 +2833,7 @@ the email-verification link GET (D-156) and the framework read-only blueprint GE
   `@facilis.dev/nitro`'s route constants and drift-guarded by a test; `/api/files/**` and
   `/api/jobs/**` stay app routes because the framework registers no handler there. Routing
   remains the authority; this is an additive early warning.
-- AI patches are **validated** before write (23 rules, §9.3)
+- AI patches are **validated** before write (24 rules, §9.3)
 - AI never receives PATs or secrets
 - Superuser query results are **never** persisted or sent to LLM
 - Query console is read-only by construction
@@ -2870,6 +2955,60 @@ Invariant 6 is **unchanged**: this is a production surface, distinct from the de
 `/__facilis/*` endpoints, which keep answering `404` in production (§8.5, §11.4). D-200's
 dev-local metrics are extended, not weakened.
 
+### 8.9 Declared Security Surface (D-226)
+
+Every capability outside the standard model is a **declared surface**: visible in the code that
+uses it, resolved by `@facilis.dev/analyze`, shown in the IDE and exported for review. There is no
+silent authority; only the standard path is green.
+
+**Classes.** `standard` (wrapper + guarded `ctx.db` + Zod), `declared` (a capability with a
+non-empty reason), `undeclared` (the capability exists without a declaration) and `unknown` (the
+analyzer cannot read the declaration). Routes and database facts fail closed on `undeclared` and
+`unknown`; the build does not ship them.
+
+**Declarations.** A declaration is a call with a reason; a malformed or empty reason throws at
+definition time.
+
+| Capability | Declaration |
+|---|---|
+| Raw route | `defineRawRoute({ reason, auth: "required" \| "none", permission?, dbTables?, rateLimit? }, handler)` |
+| Server extension | `defineServerExtension({ reason, kind? }, plugin \| middleware \| module \| task)` |
+| Raw SQL | `rawSql: { reason }` in the wrapper config (the legacy `rawSql: true` is undeclared) |
+| Unguarded query | `ctx.rawDb({ reason })` — returns the policy-scoped transaction, audited per call |
+| Dynamic code | `// dynamic-code: <reason>` on the line above `eval`, `new Function` or a computed `import()` |
+
+**No ambient authority.** The root client is not on the event: the context middleware attaches it
+through core's private WeakMap, the wrapper reads it, and a raw route receives only `ctx.rawDb`.
+A project cannot forge a declaration by writing to `event.context`.
+
+**Mount and build.** The Nitro module filters project `handlers`, `scannedHandlers`, `plugins`,
+`modules` and `tasks` against the allowlist before routing sync, on every dev rescan. A production
+build fails on `undeclared`/`unknown` routes, extensions, forbidden imports and dynamic code; dev
+reports the same issues as warnings and serves the 404 fallback.
+
+**The db package is not a capability.** Project code may import declarative helpers and types from
+`@facilis.dev/db`; `createDb`, `runAs*` and `ensure*` are forbidden (named or namespace imports)
+and no declaration legalizes them.
+
+**Export.** Builds write `security-surface.json` (`version: 1`) next to the server output; the
+dev route `/__facilis/security-surface.json` returns the same bytes for the IDE download. The
+document is deterministic for a commit (no timestamp, sorted arrays) and validates against the
+schema in `@facilis.dev/core`. Fields: `project`, `revision`, `summary` (counts by class),
+`routes` (path, method, class, auth, permission, dbTables, declarations with reason/file/line,
+source, warnings, unknown), `extensions`, `imports`, `dynamicCode`, `unknown`. Additive fields
+keep version 1; a breaking change bumps it.
+
+**AI-authored declarations.** The model writes the declaration with a generated reason;
+`validatePatch` returns `surfaceRequests` instead of accepting silently. The IDE pauses before the
+write, shows the capability, the exact snippet and an editable reason, and only a confirmed write
+is validated with `confirmedSurface: true` and persisted. A declaration may carry optional
+`confirmed: { at, by }` provenance.
+
+**Runtime brand.** `defineAuthorizedHandler`, `defineRawRoute` and `defineServerExtension` mark
+their return value in module-private WeakSets (`isFacilisRouteHandler`,
+`isFacilisServerExtension`); the static fact proves the declaration, the brand proves the mounted
+value came out of the DSL.
+
 ---
 
 ## 9. AI Orchestration
@@ -2907,18 +3046,18 @@ Rules the AI must obey:
 16. **Design is a token contract** (D-185): colour, radius and shadow come from the role tokens in `src/styles.css` — never a raw hex, a palette class or an arbitrary value; every route renders inside `<Page>`; an async surface ships its loading, empty, error and ready states in the same change; motion is the template's CSS recipes, never a library. The full section ships in the prompt ([DESIGN.md](./DESIGN.md) §10), and the project carries its own `DESIGN.md`, injected as project data.
 17. **UI follows the interaction pattern catalog** in [UI-PATTERNS.md](./UI-PATTERNS.md) (D-186): a short create form is a page-header button → dialog → save (a long or multi-step form keeps its own page); an alternate view (calendar, board) is its own route with a view switcher and never replaces the list on mobile; list refinements live in a side drawer with removable chips and URL state; destructive actions are confirmed by name; one responsive breakpoint. The defaults are the contract; an explicit user choice overrides them, and a request whose information architecture is open gets one short question naming the default and the alternative before anything is written.
 
-### 9.3 Patch Validator (23 Rules)
+### 9.3 Patch Validator (24 Rules)
 
 | # | Rule | Severity | Checks |
 |---|---|---|---|
 | 1 | `ts-parse` | error | TypeScript parses (syntactic diagnostics; type errors belong to the editor's language service) |
-| 2 | `route-security` | error | Every route uses `defineAuthorizedHandler` |
+| 2 | `route-security` | error | Every route uses a declared wrapper: `defineAuthorizedHandler` or `defineRawRoute` (D-226) |
 | 3 | `db-tables-present` | error | `dbTables` field present (empty OK) |
 | 4 | `db-tables-valid` | error | All `dbTables` exist in schema (or this patch) |
 | 5 | `db-columns-valid` | warning | All `dbColumns` format and exist |
 | 6 | `permission-valid` | error | Every `permission` exists in `config.auth.permissions` |
 | 7 | `block-import-valid` | error | Every block import matches a `BlockManifest` |
-| 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required. Also gated over the shipped route trees (D-213) |
+| 8 | `route-input-validated` | error | Handler uses `body.x` → Zod schema required. A declared raw route is exempt: it deliberately owns its protocol. Also gated over the shipped route trees (D-213) |
 | 9 | `no-raw-db-access` | error | No raw Drizzle client imports outside `@facilis.dev/db`; oxlint `no-restricted-imports` enforces the module ban workspace-wide (D-213) |
 | 10 | `rls-on-scoped-table` | error | Every scoped table in the resulting `db/schema.ts` ships with `enableRLS` + a policy helper |
 | 11 | `file-path-allowed` | error | `managed` (default): `server/`, `src/`, `db/`, `lib/`, `components/`, `locales/` plus `facilis.config.ts`; AI patches never get the IDE writer's explicit `rootFiles`. `open`: any project-relative path except `node_modules`/`.git`/`.facilis`/`dist`/`.turbo`/`coverage` segments, `package.json`/lockfiles/`.npmrc` and `AGENTS.md` (D-167) |
@@ -2928,12 +3067,13 @@ Rules the AI must obey:
 | 15 | `destructive-confirmed` | error | Destructive schema → `requires_confirmation: true` |
 | 16 | `role-config-sync` | error | If patch modifies `facilis.config.ts` roles/permissions, the schema must stay renderable and consistent: the seed is generated at release, never authored |
 | 17 | `route-description` | warning | Every patched, valid route has a one-sentence English `description` (≤120 chars ≈ two lines), refreshed when its contract (permissions, inputs, `dbTables`/`dbColumns`) changed |
-| 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157) |
+| 18 | `route-table-declared` | error | Every relation used through `ctx.db`/`ctx.sudo`/`ctx.system` (following project-local helper calls) is declared in `dbTables` — tables and views; a dynamic/unresolvable relation and `db.execute` without `rawSql: true` are errors; a declared-but-unused relation is a warning (D-157); `db.execute` requires `rawSql: { reason }` (D-226) |
 | 19 | `job-table-declared` | error | Every relation used through a job's system-scoped `db` (following project-local helper calls) is declared in the definition's `dbTables` — tables and views; a dynamic/unresolvable relation, `db.execute` without `rawSql: true` and an unreadable declaration are errors; a declared-but-unused relation is a warning. Covers all effective jobs, not only patched ones (D-157/D-162) |
 | 20 | `table-class-declared` | error | Every project table in the resulting `db/schema.ts` declares its access class (invariant 4, D-136): `.enableRLS()` + a policy, or an explicit `// system-only` comment on the line above the declaration. RLS with zero policies and an unreadable marker are warnings; framework re-exports are exempt (D-211) |
 | 21 | `get-side-effect-free` | error | A GET (or method-less ALL) route is side-effect free (§8.6): no insert/update/delete/execute on `ctx.db`/`ctx.sudo`/`ctx.system` and no job-queue mutation, following project-local helper calls. A proven write is an error; an opaque/uninspectable handler body is a warning, never a guessed error; pinned exemptions: the SSO GET/ACS write pair (D-120), the email-verification link GET (D-156) and the framework read-only blueprint GETs. Covers all effective GET-like routes (D-212) |
 | 22 | `raw-sql-system-table-write` | error | Literal raw SQL passed to `db.execute` on `ctx.db`/`ctx.sudo`/`ctx.system` does not write a seed-only auth table: `role_permissions`, `roles`, `user_roles`, `sessions` are written only by the release seed and the framework auth paths (invariant 8, D-158/D-204). Conservative verb+table matching (insert/update/delete/DDL); dynamic/interpolated SQL is skipped and SELECT via `sudo` is legitimate; framework seed code is exempt. Covers all effective routes and jobs, not only patched ones (D-214) |
 | 23 | `reserved-route-prefix` | error | A project route does not shadow a framework-owned path (invariant 6, D-107/D-116/D-120): `/__facilis/**` (manifest, health, dev consoles, telemetry), `/_openapi.json`, `/_facilis/openapi.json`, `/api/auth/sso/**` and `/api/auth/token`. A route file under `server/{routes,api}/__facilis/**` fails on its location; the pinned list is derived from `@facilis.dev/nitro`'s route constants and drift-guarded, while `/api/files/**` and `/api/jobs/**` are the app's own trees (D-215) |
+| 24 | `surface-declared` | error | Every capability in a patched file is declared with a non-empty reason (D-226): a raw route with `defineRawRoute`, a server plugin/middleware/module/task with `defineServerExtension`, `rawSql: { reason }`/`ctx.rawDb({ reason })` for database escapes, and a `// dynamic-code: <reason>` marker for `eval`/`new Function`/computed `import()`. `createDb`/`runAs*`/`ensure*` imports are always errors. A declared site also produces a `SurfaceRequest` for the IDE's confirmation card, never a silent write |
 
 Two structural checks run on every patch, with or without a context and before the numbered
 rules: a create/update patch must carry content (`content-present`), and a `.json` file it
@@ -2942,9 +3082,9 @@ reads only `locales/en.json` and only warns, while every catalogue is imported b
 a broken `locales/it.json` otherwise surfaces later as Vite's native JSON parser failing on a
 module whose path its error does not name (D-190).
 
-**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rules 20-23 2026-11-25): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
+**Status (2026-11-04; write path 2026-11-13; rules 14/16 2026-11-18; rules 20-23 2026-11-25; rule 24 2026-11-27): implemented over AST facts** in `@facilis.dev/ai` (D-084, D-092/D-093).
 The main entry stays browser-safe: `validatePatch(patches, { context, requiresConfirmation,
-allowedRootFiles, writePolicy })` is synchronous and takes a typed `PatchContext` whose facts are
+allowedRootFiles, writePolicy, confirmedSurface })` is synchronous and takes a typed `PatchContext` whose facts are
 the effective (post-patch) `Analysis` from `@facilis.dev/analyze` plus the pre-patch one for
 inverse edits. The caller supplies them — the IDE analyzes the VFS snapshot and the patch overlay
 with its one warm browser worker, caching the pre-patch analysis; Node tooling uses the
@@ -3106,7 +3246,7 @@ depends on (D-018, D-030).
 
 **Status (2026-11-11):** the additions above are implemented and verified by the IDE suites plus
 `pnpm ide:smoke`. The chat and the §9.4 repair loop run on the PTC tool runtime (the only mode,
-D-101/D-103); the 23-rule validator is applied at the `validate` self-check and at every write
+D-101/D-103); the 24-rule validator is applied at the `validate` self-check and at every write
 (D-084/D-100); the project graph is built from `@facilis.dev/analyze` facts — pages, explicit page
 links, audited elevation, framework tables, declarative views with `route-view`/`view-base` edges
 (D-160) and, since D-161, workflow definitions with their job/approval steps — with a committable,
