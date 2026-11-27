@@ -35,6 +35,7 @@ export type {
   RuntimeConfigSources,
 } from "./resolve.ts";
 export { KNOWN_RUNTIME_KEYS, PUBLIC_CANONICAL, RUNTIME_CANONICAL } from "./defaults.ts";
+export { knownKeyForEnvName, runtimeDeclarationLine } from "./known-env.ts";
 export { ENV_EXAMPLE_HEADER, renderEnvExample } from "./env-example.ts";
 export type { KnownRuntimeKey } from "./defaults.ts";
 export { publicConfig } from "./public.ts";

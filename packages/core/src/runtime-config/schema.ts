@@ -9,12 +9,7 @@ import type { SecretString } from "./secret-string.ts";
  * fixed key set. A key the app reads is a key the app declares.
  */
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 /** What the file declares for a server key: a literal, or `{ secret: true }`. */
 export type FacilisRuntimeDeclaration = JsonValue;

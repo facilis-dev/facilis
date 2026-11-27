@@ -5,8 +5,7 @@
  * values: the framework never merges a default, it only tells the app what to write.
  */
 import {
-  isSecretMarker,
-  RUNTIME_CANONICAL,
+  runtimeDeclarationLine,
   runtimeRequirements,
   type RuntimeRequirement,
 } from "@facilis.dev/core";
@@ -58,17 +57,10 @@ function missingMessage(requirement: RuntimeRequirement): string {
     requirement.key +
     when +
     "; add: " +
-    declarationLine(requirement)
+    runtimeDeclarationLine(requirement.key)
   );
 }
 
-function declarationLine(requirement: RuntimeRequirement): string {
-  const canonical: Readonly<Record<string, unknown>> = RUNTIME_CANONICAL;
-  return requirement.key + ": " + formatValue(canonical[requirement.key]) + ",";
-}
-
 function formatValue(value: unknown): string {
-  if (value === undefined) return "null";
-  if (isSecretMarker(value)) return "{ secret: true }";
   return JSON.stringify(value) ?? "null";
 }

@@ -1,3 +1,5 @@
+import { ENV_PREFIX, envNameFor, PUBLIC_ENV_PREFIX } from "./env-names.ts";
+import { knownKeyForEnvName, runtimeDeclarationLine } from "./known-env.ts";
 import { SecretString } from "./secret-string.ts";
 import {
   isSecretMarker,
@@ -22,12 +24,12 @@ export type EnvLike = Readonly<Record<string, string | undefined>>;
 export type RuntimeConfigSource = "declared" | "env";
 export type RuntimeConfigSources = Readonly<Record<string, RuntimeConfigSource>>;
 
-export const ENV_PREFIX = "FACILIS_";
-export const PUBLIC_ENV_PREFIX = "FACILIS_PUBLIC_";
+export { ENV_PREFIX, envNameFor, PUBLIC_ENV_PREFIX } from "./env-names.ts";
 /** Build-only switches: a runtime boot ignores them instead of failing (D-224). */
 export const BUILD_ONLY_ENV = ["FACILIS_DEV_METRICS", "FACILIS_TELEMETRY_FE"] as const;
 
-export type RuntimeConfigProblemCode = "unknown-env" | "invalid-env" | "empty-secret";
+export type RuntimeConfigProblemCode =
+  "unknown-env" | "known-env-undeclared" | "invalid-env" | "empty-secret";
 
 export interface RuntimeConfigProblem {
   readonly code: RuntimeConfigProblemCode;
@@ -36,11 +38,6 @@ export interface RuntimeConfigProblem {
   /** The declared key, when the variable maps to one. */
   readonly key: string | null;
   readonly message: string;
-}
-
-/** `logMaxBytes` -> `FACILIS_LOG_MAX_BYTES`; one flat key is one variable. */
-export function envNameFor(key: string, prefix: string = ENV_PREFIX): string {
-  return prefix + key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase();
 }
 
 export function resolveRuntimeConfig(input: {
@@ -67,7 +64,9 @@ export function resolveRuntimeConfig(input: {
         runtime[key] = null;
         sources[key] = "declared";
       } else if (raw.trim() === "") {
-        problems.push(problem("empty-secret", envName, key, "exported empty; omit it or set a value"));
+        problems.push(
+          problem("empty-secret", envName, key, "exported empty; omit it or set a value"),
+        );
       } else {
         runtime[key] = new SecretString(raw);
         sources[key] = "env";
@@ -90,14 +89,32 @@ export function resolveRuntimeConfig(input: {
 
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined || !name.startsWith(ENV_PREFIX)) continue;
-    if (name.startsWith(PUBLIC_ENV_PREFIX) || isBuildOnly(name) || expectedNames.has(name)) continue;
+    if (name.startsWith(PUBLIC_ENV_PREFIX) || isBuildOnly(name) || expectedNames.has(name))
+      continue;
+    const knownKey = knownKeyForEnvName(name);
+    if (knownKey !== null) {
+      problems.push(
+        problem(
+          "known-env-undeclared",
+          name,
+          knownKey,
+          "maps to runtime." +
+            knownKey +
+            ", which the runtime section does not declare; add: " +
+            runtimeDeclarationLine(knownKey),
+        ),
+      );
+      continue;
+    }
     const suggestion = suggest(name, expectedNames);
     problems.push(
       problem(
         "unknown-env",
         name,
         null,
-        suggestion === null ? "no runtime key maps to it" : `unknown variable, did you mean ${suggestion}?`,
+        suggestion === null
+          ? "no runtime key maps to it"
+          : `unknown variable, did you mean ${suggestion}?`,
       ),
     );
   }
@@ -144,14 +161,17 @@ export function resolvePublicConfig(input: {
   }
 
   for (const [name, value] of Object.entries(env)) {
-    if (value === undefined || !name.startsWith(PUBLIC_ENV_PREFIX) || expectedNames.has(name)) continue;
+    if (value === undefined || !name.startsWith(PUBLIC_ENV_PREFIX) || expectedNames.has(name))
+      continue;
     const suggestion = suggest(name, expectedNames);
     problems.push(
       problem(
         "unknown-env",
         name,
         null,
-        suggestion === null ? "no public key maps to it" : `unknown variable, did you mean ${suggestion}?`,
+        suggestion === null
+          ? "no public key maps to it"
+          : `unknown variable, did you mean ${suggestion}?`,
       ),
     );
   }
@@ -164,7 +184,10 @@ export function resolvePublicConfig(input: {
 }
 
 export function formatRuntimeProblems(problems: readonly RuntimeConfigProblem[]): string {
-  return ["FATAL runtime env", ...problems.map((entry) => `  ${entry.envName}  ${entry.message}`)].join("\n");
+  return [
+    "FATAL runtime env",
+    ...problems.map((entry) => `  ${entry.envName}  ${entry.message}`),
+  ].join("\n");
 }
 
 /** Contract violations stop the boot; a subsystem refusal (D-053/D-068) does not come through here. */
@@ -195,7 +218,9 @@ export function peekRuntimeConfig(): FacilisRuntimeConfig {
   return installed ?? EMPTY_RUNTIME;
 }
 
-type Parsed = { readonly ok: true; readonly value: JsonValue } | { readonly ok: false; readonly expected: string };
+type Parsed =
+  | { readonly ok: true; readonly value: JsonValue }
+  | { readonly ok: false; readonly expected: string };
 
 function parseEnvValue(raw: string, declaration: FacilisRuntimeDeclaration): Parsed {
   if (typeof declaration === "boolean") {
@@ -206,7 +231,9 @@ function parseEnvValue(raw: string, declaration: FacilisRuntimeDeclaration): Par
   }
   if (typeof declaration === "number") {
     const parsed = Number(raw);
-    return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false, expected: "expected a finite number" };
+    return Number.isFinite(parsed)
+      ? { ok: true, value: parsed }
+      : { ok: false, expected: "expected a finite number" };
   }
   if (typeof declaration === "string" || declaration === null) return { ok: true, value: raw };
   return parseJson(raw, Array.isArray(declaration) ? "array" : "object");
@@ -261,7 +288,9 @@ function editDistance(left: string, right: string): number {
     previous[0] = row;
     for (let column = 1; column <= right.length; column += 1) {
       const above = previous[column] as number;
-      const substitution = (left[row - 1] === right[column - 1] ? diagonal : diagonal + 1) as number;
+      const substitution = (
+        left[row - 1] === right[column - 1] ? diagonal : diagonal + 1
+      ) as number;
       previous[column] = Math.min(above + 1, (previous[column - 1] as number) + 1, substitution);
       diagonal = above;
     }

@@ -1377,7 +1377,7 @@ errors as `browser.error` spans carrying `error.type` and `facilis.rum.source` �
 message, stack or reason value — plus document-load and fetch/XHR spans. It exports OTLP/JSON to
 this same ingestion route with the public tenant key, and propagates `traceparent` to the app's
 own origin only, never third parties. It is enabled only at build time by the deploy telemetry
-options (`FACILIS_TELEMETRY` + `FACILIS_TELEMETRY_FE` + the tenant key), is production-only, and
+options (`FACILIS_TELEMETRY_ENABLED` + `FACILIS_TELEMETRY_FE` + the tenant key), is production-only, and
 is completely silent in dev/WebContainer (D-200). URLs are scrubbed client-side as defense in
 depth; the §8.8 attribute allowlist remains the gate.
 
@@ -1453,7 +1453,7 @@ interface FacilisConfig {
     // build fails (runtime-key-unset / runtime-key-missing). No framework default is merged.
     // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a
     // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
-    // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
+    // database (D-068): a databaseUrl implies "postgres" and wins over databaseMode
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
     databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
     // operator logging (D-119): level is the project default, the sink/dir belong to the operator

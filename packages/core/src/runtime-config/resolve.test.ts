@@ -74,7 +74,10 @@ describe("resolveRuntimeConfig", () => {
   });
 
   it("leaves an absent secret as null instead of guessing", () => {
-    const { runtime } = resolveRuntimeConfig({ runtime: { databaseUrl: { secret: true } }, env: {} });
+    const { runtime } = resolveRuntimeConfig({
+      runtime: { databaseUrl: { secret: true } },
+      env: {},
+    });
     expect(runtime["databaseUrl"]).toBeNull();
   });
 
@@ -109,6 +112,26 @@ describe("resolveRuntimeConfig", () => {
     expect(runtime).not.toHaveProperty("logLevel");
   });
 
+  it("names the framework key a variable maps to when the file does not declare it", () => {
+    const { problems } = resolveRuntimeConfig({
+      runtime: { databaseMode: "pglite" },
+      env: { FACILIS_DATABASE_URL: "postgres://a.test/db" },
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.code).toBe("known-env-undeclared");
+    expect(problems[0]?.key).toBe("databaseUrl");
+    expect(problems[0]?.message).toContain("runtime.databaseUrl");
+    expect(problems[0]?.message).toContain("add: databaseUrl: { secret: true },");
+  });
+
+  it("keeps a genuine typo an unknown variable", () => {
+    const { problems } = resolveRuntimeConfig({
+      runtime: { databaseMode: "pglite" },
+      env: { FACILIS_DATABASE_URI: "postgres://a.test/db" },
+    });
+    expect(problems[0]?.code).toBe("unknown-env");
+  });
+
   it("reports provenance per key, declared or environment", () => {
     const { runtime, sources } = resolveRuntimeConfig({
       runtime: { logLevel: "info", logTrustProxy: false, databaseUrl: { secret: true } },
@@ -119,7 +142,10 @@ describe("resolveRuntimeConfig", () => {
   });
 
   it("reports declared provenance for an absent secret", () => {
-    const { sources } = resolveRuntimeConfig({ runtime: { databaseUrl: { secret: true } }, env: {} });
+    const { sources } = resolveRuntimeConfig({
+      runtime: { databaseUrl: { secret: true } },
+      env: {},
+    });
     expect(sources).toEqual({ databaseUrl: "declared" });
   });
 
@@ -135,7 +161,11 @@ describe("resolveRuntimeConfig", () => {
 
 describe("resolvePublicConfig", () => {
   it("overrides a baked value at build time only", () => {
-    const { public: values, sources: publicSources, problems } = resolvePublicConfig({
+    const {
+      public: values,
+      sources: publicSources,
+      problems,
+    } = resolvePublicConfig({
       public: { appName: "My app", features: { comments: true } },
       env: { FACILIS_PUBLIC_APP_NAME: "Deployed app" },
     });
@@ -160,7 +190,9 @@ describe("assertNoRuntimeProblems", () => {
       runtime: { logLevel: "info" },
       env: { FACILIS_LOG_LEVEL: "verbose", FACILIS_LOG_KEP: "3" },
     });
-    expect(() => assertNoRuntimeProblems(problems)).toThrow(/FATAL runtime env[\s\S]*FACILIS_LOG_KEP/);
+    expect(() => assertNoRuntimeProblems(problems)).toThrow(
+      /FATAL runtime env[\s\S]*FACILIS_LOG_KEP/,
+    );
   });
 });
 
@@ -185,7 +217,9 @@ describe("runtimeEnv", () => {
 
 describe("section schemas", () => {
   it("rejects a secret marker under public", () => {
-    expect(() => publicSectionSchema.parse({ appName: { secret: true } })).toThrow(/can never be a secret/);
+    expect(() => publicSectionSchema.parse({ appName: { secret: true } })).toThrow(
+      /can never be a secret/,
+    );
   });
 
   it("rejects a key that would produce an ambiguous variable name", () => {

@@ -42,20 +42,26 @@ describe("renderEnvExample (D-224)", () => {
     expect(text).toContain('# FACILIS_TELEMETRY_ORIGINS=["https://a.test","https://b.test"]');
   });
 
-  it("renders a secret as an empty variable with the required note", () => {
+  it("renders a secret as a commented, empty variable with the required note", () => {
     const text = renderEnvExample(CONFIG);
-    expect(text).toContain("\nFACILIS_DATABASE_URL=\n");
-    expect(text).toContain("# required:");
-    const secretLine = text.split("\n").find((line) => line.startsWith("FACILIS_DATABASE_URL="));
-    expect(secretLine).toBe("FACILIS_DATABASE_URL=");
+    expect(text).toContain("\n# FACILIS_DATABASE_URL=\n");
+    expect(text).toContain("#   required:");
+    const secretLine = text.split("\n").find((line) => line.includes("FACILIS_DATABASE_URL="));
+    expect(secretLine).toBe("# FACILIS_DATABASE_URL=");
   });
 
-  it("renders the public block with active values and the build-time note", () => {
+  it("renders the public block commented out, with the build-time note", () => {
     const text = renderEnvExample(CONFIG);
     const publicBlock = text.slice(text.indexOf("# Public"));
     expect(publicBlock).toContain("build time only");
-    expect(publicBlock).toContain("FACILIS_PUBLIC_APP_NAME=My app");
-    expect(publicBlock).toContain('FACILIS_PUBLIC_FEATURES={"comments":true}');
+    expect(publicBlock).toContain("# FACILIS_PUBLIC_APP_NAME=My app");
+    expect(publicBlock).toContain('# FACILIS_PUBLIC_FEATURES={"comments":true}');
+  });
+
+  it("stays inert when copied: no line is active", () => {
+    const text = renderEnvExample(CONFIG);
+    const active = text.split("\n").filter((line) => line.length > 0 && !line.startsWith("#"));
+    expect(active).toEqual([]);
   });
 
   it("never writes a secret value: every secret marker renders as an empty line", () => {
@@ -69,8 +75,8 @@ describe("renderEnvExample (D-224)", () => {
     const text = renderEnvExample(allSecrets);
     for (const key of secretKeys) {
       const name = envNameFor(key);
-      const line = text.split("\n").find((entry) => entry.startsWith(`${name}=`));
-      expect(line, key).toBe(`${name}=`);
+      const line = text.split("\n").find((entry) => entry.trimStart().startsWith(`# ${name}=`));
+      expect(line, key).toBe(`# ${name}=`);
     }
     // The generated file is stable: running the command twice writes the same bytes.
     const first = renderEnvExample(CONFIG);

@@ -12,6 +12,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { KNOWN_RUNTIME_KEYS } from "@facilis.dev/core";
+
 import { analyzeProject } from "./analyze.ts";
 import { loadProjectFiles } from "./fs.ts";
 import { createOxcParser } from "./node.ts";
@@ -43,10 +45,7 @@ function addVmNitro(config: string): string {
   expect(config).toContain('release: { ref: "origin/main" }');
   const withRef = config.replace('release: { ref: "origin/main" }', 'release: { ref: "main" }');
   expect(withRef).toMatch(/\n\}\);\s*$/);
-  return withRef.replace(
-    /\n\}\);\s*$/,
-    '\n  nitro: { devServer: { runner: "self" } },\n});\n',
-  );
+  return withRef.replace(/\n\}\);\s*$/, '\n  nitro: { devServer: { runner: "self" } },\n});\n');
 }
 
 describe("runtime requirements gate (D-224)", () => {
@@ -56,6 +55,19 @@ describe("runtime requirements gate (D-224)", () => {
       expect(diagnostics.map((entry) => entry.message)).toEqual([]);
     });
   }
+
+  it("declares the framework's whole surface, so every variable resolves", () => {
+    for (const name of ["starter-app", "todo-app"]) {
+      const analysis = analyzeProject({
+        files: loadProjectFiles(join(REPO_ROOT, "examples", name)),
+        parser: PARSER,
+      });
+      expect(analysis.config.runtimeConfig.runtimeUnknown, name).toBe(false);
+      expect(Object.keys(analysis.config.runtimeConfig.runtime).toSorted(), name).toEqual(
+        [...KNOWN_RUNTIME_KEYS].toSorted(),
+      );
+    }
+  });
 
   it("declares every required runtime key in the IDE starter template config", () => {
     const files = new Map(loadProjectFiles(join(REPO_ROOT, "examples", "starter-app")));

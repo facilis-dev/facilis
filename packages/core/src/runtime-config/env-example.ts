@@ -9,16 +9,16 @@ export const ENV_EXAMPLE_HEADER =
 const HEADER = [
   ENV_EXAMPLE_HEADER,
   "# Deployment values live in the `runtime` and `public` sections of facilis.config.ts (D-224).",
-  "# Copy to `.env`, fill the required secrets and uncomment any literal you need to override.",
-  "# No secret value is ever written here.",
+  "# Copy to `.env` and uncomment the lines you need: every entry is a comment, so a copied file",
+  "# changes nothing, and no secret value is ever written here.",
 ].join("\n");
 
 /**
  * The `.env.example` text for one project (D-224): the declarations, never the environment.
  *
- * A secret is a marker, not a value, so the generated line is always empty; the note says the
- * environment is the only source. Everything else is the declared literal, commented out so a
- * copied file never silently changes the deployment.
+ * Every entry is commented out — a copied file is inert — and a secret is a marker, not a value,
+ * so its line is always empty with a note that the environment is the only source. An active
+ * `NAME=` line for a secret would make `cp .env.example .env` a fatal boot (D-224).
  */
 export function renderEnvExample(config: FacilisConfig): string {
   const runtime = sortedEntries(config.runtime);
@@ -32,9 +32,9 @@ export function renderEnvExample(config: FacilisConfig): string {
   for (const [key, value] of runtime) {
     const name = envNameFor(key, ENV_PREFIX);
     if (isSecretMarker(value)) {
-      lines.push(`${name}=`);
+      lines.push(`# ${name}=`);
       lines.push(
-        "# required: a secret is read only from the environment; no value is written to git.",
+        "#   required: a secret is read only from the environment; no value is written to git.",
       );
     } else {
       lines.push(`# ${name}=${renderValue(value)}`);
@@ -46,7 +46,7 @@ export function renderEnvExample(config: FacilisConfig): string {
   );
   if (publicValues.length === 0) lines.push("# (none declared)");
   for (const [key, value] of publicValues) {
-    lines.push(`${envNameFor(key, PUBLIC_ENV_PREFIX)}=${renderValue(value)}`);
+    lines.push(`# ${envNameFor(key, PUBLIC_ENV_PREFIX)}=${renderValue(value)}`);
   }
   return `${lines.join("\n")}\n`;
 }

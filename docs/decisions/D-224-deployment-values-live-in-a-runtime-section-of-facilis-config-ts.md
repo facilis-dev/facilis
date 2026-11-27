@@ -68,10 +68,13 @@ from `facilis.config.ts` and the read sites from the project's code, then report
 `runtimeRequirements` list from `@facilis.dev/core` — key, surface, secret, and an optional condition
 expressed over static config values (`{ when: { storageDriver: "s3" } }`), never a function the
 analyzer cannot evaluate. One table is what the analyzer, the generator and the `runtime-key-missing`
-message read, so they cannot disagree. The generator writes it into new projects, and a gate over the
-shipped examples and the IDE template asserts every required key is declared. A package that starts reading a new key without the
-examples being updated fails the gate. This is the same declaration-plus-verification shape as
-`dbTables` (D-157).
+message read, so they cannot disagree. A new project starts from the canonical table
+(`RUNTIME_CANONICAL`), written out in full, so every framework key is declared, appears in
+`.env.example` and accepts its variable; a gate over the shipped examples and the IDE template
+asserts the declared set equals the framework's surface, so a package that starts reading a new key
+without the examples being updated fails it. A variable whose key the file does not declare is
+`known-env-undeclared`, a fatal boot error that prints the line to paste. This is the same
+declaration-plus-verification shape as `dbTables` (D-157).
 
 **Naming.** One flat key is one variable: `FACILIS_` + UPPER_SNAKE(key) for `runtime`,
 `FACILIS_PUBLIC_` + UPPER_SNAKE(key) for `public`. Keys are flat, so two paths can never collide and
@@ -95,8 +98,9 @@ hook answer `"[redacted]"`. A debug log, a serialized error or a manifest dump c
 secret has no default: absent means `null` and the subsystem that needs it decides —
 `storageDriver: "s3"` without keys is a refusal with a warning (D-053), not a boot failure. A var
 exported empty is fatal: a blank secret is always a configuration mistake. Secrets declared by name in
-another section (SSO `clientSecretEnv`, D-120) stay there; the runtime exposes
-`secrets.fromEnvironment(name)`, which accepts only the names that declaration lists.
+another section (SSO `clientSecretEnv`, D-120) stay there: that declaration owns the name, the
+value is read from the injected environment by `@facilis.dev/auth`, and the framework gate
+allowlists those reads instead of routing them through `runtime`.
 
 **Read surfaces.** `ctx.runtime` and `publicConfig()`; `runtimeEnv()` for boot, jobs, tasks,
 workflows, seed and SSO. Requests and consumers receive frozen objects built once per process; nothing

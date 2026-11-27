@@ -78,13 +78,54 @@ export default defineConfig({
     maxUploadBytes: 5 * 1024 * 1024,
     tokenTtlSeconds: 300,
   },
-  // Deployment surface (D-224): the database target, the operator logging level/proxy trust
-  // and the storage driver are declared here and can be overridden by FACILIS_* at boot.
+  // Deployment surface (D-224). Every key a system package reads is declared here: the file
+  // owns the values, a FACILIS_<KEY> in the environment overrides one at boot, and a variable
+  // whose key is not declared here stops the boot. Secrets are `{ secret: true }` — the source is
+  // the environment, never the repository. This list is the framework's whole surface: keep it in
+  // sync with `runtimeRequirements` when a package starts reading a new key.
   runtime: {
+    // database (D-068): production refuses PGlite, so set FACILIS_DATABASE_URL there
     databaseMode: "pglite",
+    databaseUrl: { secret: true },
+    // operator logging (D-119)
     logLevel: "info",
+    logSink: "auto",
+    logDir: null,
+    logMaxBytes: 10 * 1024 * 1024,
+    logKeep: 5,
     logTrustProxy: false,
+    // binary storage (D-053, D-117): local in development, S3-compatible in production
     storageDriver: "local",
+    storageSecret: { secret: true },
+    s3Bucket: null,
+    s3Region: null,
+    s3Endpoint: null,
+    s3ForcePathStyle: null,
+    s3AccessKeyId: { secret: true },
+    s3SecretAccessKey: { secret: true },
+    s3SessionToken: { secret: true },
+    storageEncryptionKey: { secret: true },
+    storageEncryptionKeyId: "primary",
+    storageEncryptionRetiredKeys: { secret: true },
+    // deployment identity
+    publicOrigin: null,
+    tenantId: "00000000-0000-0000-0000-000000000000",
+    deploymentId: null,
+    // auth bootstrap and email verification (D-150, D-156)
+    initialAdmin: null,
+    initialAdminToken: { secret: true },
+    emailWebhookUrl: null,
+    emailWebhookToken: { secret: true },
+    // telemetry (D-203, D-209): opt-in, production only
+    telemetryEnabled: false,
+    telemetryEndpoint: null,
+    telemetryOrigins: [],
+    telemetrySampling: 1,
+    telemetryService: "facilis-app",
+    telemetrySpansPerMin: 24,
+    telemetryTenantKey: { secret: true },
+    // development only
+    stateDir: null,
   },
   // Opt-in prerendering (D-202): only the public, unguarded /public-stats page is declared.
   // /todos stays an auth-gated SPA (the negative example). Replace origin with your own.

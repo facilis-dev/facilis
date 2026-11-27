@@ -28,12 +28,17 @@ pull them into the in-VM bundle for a branch that can never run there.
 ```ts
 // facilis.config.ts
 export default defineConfig({
-  runtime: { databaseMode: "pglite" }, // "pglite" | "postgres"; "json" is reserved and not implemented
+  runtime: {
+    databaseMode: "pglite", // "pglite" | "postgres"; "json" is reserved and not implemented
+    databaseUrl: { secret: true }, // the value is FACILIS_DATABASE_URL, never in the file
+  },
   ...
 });
 ```
 
-Secrets never live in the config. The runtime resolves the target at boot:
+The template ships both lines. A variable whose key the file does not declare is rejected at boot
+(`known-env-undeclared`), so `databaseUrl` has to be declared for `FACILIS_DATABASE_URL` to
+count. Secrets never live in the config. The runtime resolves the target at boot:
 
 | Source | Wins over | Meaning |
 |---|---|---|
