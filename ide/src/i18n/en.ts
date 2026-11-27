@@ -23,6 +23,7 @@ import { telemetryLinkoutEn } from "./en-telemetry-linkout";
 import { stateLensesEn } from "./en-state-lenses";
 import { explorerEn } from "./en-explorer";
 import { editorTabsEn } from "./en-editor-tabs";
+import { shortcutsEn } from "./en-shortcuts";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -250,7 +251,6 @@ export const en = {
   "status.perf.failed": "The performance snapshot could not be captured.",
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
-
   // ── command palette ──────────────────────────────────────────────────────
   "palette.commandPlaceholder": "Type a command…",
   "palette.filePlaceholder": "Search files by name (append :line to jump)…",
@@ -280,7 +280,6 @@ export const en = {
   "palette.resetEverything": "Reset Everything (wipe files + caches)",
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,
-
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsEn,
 
@@ -294,7 +293,8 @@ export const en = {
   // ── observability link-out (D-203 §6, #140) ─────────────────────────────
   ...telemetryLinkoutEn,
 
-  // ── explorer file tree (#209) + editor tab strip (#214) ────────────────
+  // ── explorer file tree (#209), editor tabs (#214), shortcuts (#223) ────
   ...explorerEn,
   ...editorTabsEn,
+  ...shortcutsEn,
 } as const;

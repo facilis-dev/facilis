@@ -16,6 +16,7 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { openStudioInNewTab } from "@/vv/project-tabs";
 import { useIde } from "./useIde";
+import { formatShortcut } from "./shortcuts";
 
 /** One layout toggle, in the cluster at the far right. lucide ships a solid-divider
  * and a dashed-divider glyph per edge (the dashed one is aliased -inactive in the
@@ -148,7 +149,7 @@ export function TitleBar() {
         <div className="hidden items-center gap-1 lg:flex">
           <LayoutToggle
             label={t("title.toggleSidebar")}
-            keys="⌘B"
+            keys={formatShortcut("sidebar-toggle")}
             shown={!snap.sidebarCollapsed}
             onClick={() => c.toggleSidebar()}
             On={PanelLeft}
@@ -156,7 +157,7 @@ export function TitleBar() {
           />
           <LayoutToggle
             label={t("title.togglePreview")}
-            keys="⌥⌘B"
+            keys={formatShortcut("preview-toggle")}
             shown={!snap.previewCollapsed}
             onClick={() => c.togglePreview()}
             On={PanelRight}

@@ -22,6 +22,7 @@ import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 import { stateLensesIt } from "./it-state-lenses";
 import { explorerIt } from "./it-explorer";
 import { editorTabsIt } from "./it-editor-tabs";
+import { shortcutsIt } from "./it-shortcuts";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -293,4 +294,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── editor tab strip (issue #214) ───────────────────────────────────────
   ...editorTabsIt,
+
+  // ── shortcut registry (issue #223) ──────────────────────────────────────
+  ...shortcutsIt,
 };

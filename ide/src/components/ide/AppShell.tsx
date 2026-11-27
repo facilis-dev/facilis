@@ -20,8 +20,9 @@ import { DesktopShell } from "./DesktopShell";
 import { NarrowShell } from "./NarrowShell";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
-import { isWordWrapChord } from "@/vv/editor-prefs";
-import { nextTabId, tabShortcutIntent } from "./editor-tabs";
+import { nextTabId } from "./editor-tabs";
+import { matchShortcut, shortcutContext, type ShortcutId } from "./shortcuts";
+import { readShortcutFocus } from "./shortcut-focus";
 import { useNarrowShell } from "@/vv/narrow-shell";
 
 // Once per page load: the compact defaults are applied on the first narrow render
@@ -54,102 +55,62 @@ export function AppShell() {
     c.applyUiTheme(appearance);
   }, [c, appearance]);
 
+  // The global chord dispatcher (issue #223). Every binding is an entry in shortcuts.ts and the
+  // active context decides whether it may fire: form fields keep their keys, dialogs and
+  // blocking overlays own theirs, and the entries that name a surface (the terminal for the
+  // Alt chords, the editor and the terminal for the lens picker) defer to it. Capture phase,
+  // because Monaco's keybinding service listens on its own DOM and would win a window bubble.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Alt+Z / ⌥Z, ABOVE the ⌘/Ctrl gate below, because it is the one binding here
-      // with no ⌘/Ctrl in it. Monaco embedded on its own has no such keybinding — Alt+Z
-      // is VS Code's, a layer this app does not have — so there is nothing to inherit
-      // and the shortcut has to be declared here.
-      //
-      // NOT with editor.addCommand: that would only fire while the editor has focus,
-      // and VS Code's is global. One window listener also covers the diff editor for
-      // free, and keeps the matching in one place rather than depending on how Monaco
-      // resolves an Option chord on a macOS layout.
-      //
-      // preventDefault matters on macOS even outside the editor: ⌥Z composes "Ω", and
-      // an editor with focus would otherwise type it into the file.
-      if (isWordWrapChord(e)) {
-        // …but not while a terminal has focus, because the key belongs to whatever the
-        // cursor is in and word wrap does nothing to a terminal. What it means there
-        // differs by platform: on Windows and Linux Alt+<key> is the meta prefix
-        // readline reads as ESC z, which is genuinely the shell's; on macOS it is NOT,
-        // since xterm defaults macOptionIsMeta to false and makeTerm does not change
-        // it, so the shell just receives the composed "Ω". That second case is how
-        // every Option chord has always behaved here and is not this shortcut's to
-        // fix — but neither is it a reason to take the key. The palette entry reaches
-        // word wrap from a terminal. Mirror of the terminal's own ⌘K, which is scoped
-        // to the focused xterm so it never clobbers the editor (see makeTerm).
-        if (document.activeElement?.closest(".vv-term-host")) return;
-        e.preventDefault();
-        c.toggleWordWrap();
-        return;
-      }
-      // Editor tab chords, also above the ⌘/Ctrl gate: the direct ones are Alt-only.
-      // Ctrl+Tab, Ctrl+Shift+Tab and Ctrl+PageUp/PageDown are reserved by Chrome, Safari
-      // and Edge and never reach the page — the same reason Ctrl+W is not repurposed
-      // below — so the delivered chords are Alt+1…9 (select by position) and
-      // Ctrl+Alt+Left/Right (previous/next). A desktop environment can still claim the
-      // latter for workspace switching; the direct chords and the palette are the
-      // fallback, and all of them are listed in the palette. This handler is the
-      // shortcut registry.
-      //
-      // The terminal owns Alt+<key> (readline's meta prefix on Windows/Linux, the Option
-      // composition on macOS), so the chords defer there the way word wrap does.
-      const tabShortcut = tabShortcutIntent(e);
-      if (tabShortcut && !document.activeElement?.closest(".vv-term-host")) {
-        e.preventDefault();
-        const next =
-          tabShortcut.kind === "select"
-            ? (snap.openTabs[tabShortcut.index] ?? null)
-            : nextTabId(snap.openTabs, snap.activeTab, tabShortcut.delta);
-        if (next !== null) c.openFile(next, { preview: next === snap.previewTab, focus: false });
-        return;
-      }
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      const k = e.key.toLowerCase();
-      if (e.shiftKey && k === "e") {
-        e.preventDefault();
-        c.setActiveView("explorer");
-      } else if (e.shiftKey && k === "f") {
-        e.preventDefault();
-        c.setActiveView("search");
-      } else if (e.shiftKey && k === "g") {
-        e.preventDefault();
-        c.setActiveView("scm");
-      } else if (e.shiftKey && k === "p") {
-        e.preventDefault();
-        c.openPalette("command");
-      } else if (k === "p") {
-        e.preventDefault();
-        c.openPalette("file");
-      } else if (k === "`") {
-        e.preventDefault();
-        c.togglePanel();
-      } else if (e.altKey && (k === "b" || e.code === "KeyB")) {
-        // VS Code's secondary side bar shortcut, mapped to the preview. Matched on
-        // `code` as well as `key` because holding Option on macOS can compose the
-        // character (⌥B → "∫"), which would otherwise miss and fall through to the
-        // plain ⌘B branch below and toggle the wrong panel.
-        e.preventDefault();
-        c.togglePreview();
-      } else if (k === "b") {
-        e.preventDefault();
-        c.toggleSidebar();
-      } else if (k === "j") {
-        e.preventDefault();
-        c.togglePanel();
-      } else if (k === "s") {
-        e.preventDefault();
-        c.saveActiveFile();
-      } else if (e.shiftKey && k === "c") {
-        e.preventDefault();
-        c.terminals.newShellTerminal();
-      }
+    const selectTab = (position: number): void => {
+      const next = snap.openTabs[position] ?? null;
+      if (next !== null) c.openFile(next, { preview: next === snap.previewTab, focus: false });
     };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, [c, snap.openTabs, snap.activeTab, snap.previewTab]);
+    const cycleTab = (delta: -1 | 1): void => {
+      const next = nextTabId(snap.openTabs, snap.activeTab, delta);
+      if (next !== null) c.openFile(next, { preview: next === snap.previewTab, focus: false });
+    };
+    const actions: Record<ShortcutId, () => void> = {
+      "word-wrap": () => c.toggleWordWrap(),
+      "tab-select-1": () => selectTab(0),
+      "tab-select-2": () => selectTab(1),
+      "tab-select-3": () => selectTab(2),
+      "tab-select-4": () => selectTab(3),
+      "tab-select-5": () => selectTab(4),
+      "tab-select-6": () => selectTab(5),
+      "tab-select-7": () => selectTab(6),
+      "tab-select-8": () => selectTab(7),
+      "tab-select-9": () => selectTab(8),
+      "tab-previous": () => cycleTab(-1),
+      "tab-next": () => cycleTab(1),
+      "view-explorer": () => c.setActiveView("explorer"),
+      "view-search": () => c.setActiveView("search"),
+      "view-source-control": () => c.setActiveView("scm"),
+      "palette-command": () => c.openPalette("command"),
+      "palette-file": () => c.openPalette("file"),
+      "panel-toggle": () => c.togglePanel(),
+      "panel-toggle-backtick": () => c.togglePanel(),
+      "preview-toggle": () => c.togglePreview(),
+      "sidebar-toggle": () => c.toggleSidebar(),
+      "file-save": () => c.saveActiveFile(),
+      "terminal-new": () => c.terminals.newShellTerminal(),
+      "graph-lens": () => lensShortcuts.openPicker(),
+      // The browser never delivers these to the page, so the registry only documents them.
+      "browser-close-tab": () => {},
+      "browser-cycle-tabs": () => {},
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      const focus = readShortcutFocus(event.target);
+      // A focused form field keeps every chord: the palette's input, a rename box and a
+      // dialog's search all type characters that must not become commands.
+      if (focus.editing) return;
+      const entry = matchShortcut(event, shortcutContext(focus));
+      if (entry === null) return;
+      event.preventDefault();
+      actions[entry.id]();
+    };
+    addEventListener("keydown", onKey, true);
+    return () => removeEventListener("keydown", onKey, true);
+  }, [c, lensShortcuts.openPicker, snap.activeTab, snap.openTabs, snap.previewTab]);
 
   // Guard the browser tab close (⌘W / ⌃W): browsers reserve that shortcut, so we
   // can't repurpose it to close an editor tab — instead warn before the whole

@@ -18,6 +18,9 @@ import ChevronLeft from "~icons/lucide/chevron-left";
 import X from "~icons/lucide/x";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import FileCode from "~icons/lucide/file-code";
+import FolderTree from "~icons/lucide/folder-tree";
+import Search from "~icons/lucide/search";
+import Save from "~icons/lucide/save";
 import Gauge from "~icons/lucide/gauge";
 import FolderInput from "~icons/lucide/folder-input";
 import FileArchive from "~icons/lucide/file-archive";
@@ -46,16 +49,8 @@ import { scaffoldUi } from "@/vv/scaffold-ui";
 import { graphLensCommands } from "./graph-lens-commands";
 import { nextTabId, tabCloseSet } from "./editor-tabs";
 import { closeEditorTabs } from "./editor-tab-close";
-
-const baseName = (abs: string) => abs.split("/").pop() ?? abs;
-
-// Parse a quick-open query into its path part and an optional `:line[:col]`
-// suffix (VS Code style — e.g. "app.tsx:42" or "app.tsx:42:5").
-function parseQuery(raw: string): { path: string; line: number | null; col: number } {
-  const m = raw.match(/^(.*?):(\d+)(?::(\d+))?$/);
-  if (m) return { path: m[1], line: parseInt(m[2], 10), col: m[3] ? parseInt(m[3], 10) : 1 };
-  return { path: raw, line: null, col: 1 };
-}
+import { PaletteFileList } from "./PaletteFileList";
+import { formatShortcut } from "./shortcuts";
 
 export function CommandPalette() {
   const { c, snap } = useIde();
@@ -67,8 +62,9 @@ export function CommandPalette() {
     if (snap.paletteOpen) setRaw("");
   }, [snap.paletteOpen, snap.paletteMode]);
 
-  // `keys` is the palette's only way to teach a shortcut, so it must stay honest:
-  // only commands with a binding in AppShell's global handler carry one.
+  // `keys` is the palette's only way to teach a shortcut, so it must stay honest: every
+  // string comes from the shortcut registry (shortcuts.ts), never from a hand-written copy,
+  // so the palette cannot drift from the dispatcher (issue #223).
   const commands = useMemo<
     {
       label: string;
@@ -81,10 +77,36 @@ export function CommandPalette() {
     () => [
       { label: t("palette.home"), icon: Home, run: () => c.goHome() },
       { label: t("palette.tour"), icon: CircleHelp, run: () => tourStore.start() },
+      // The views and Save had no chord hint at all; they are registry entries now (#223).
+      {
+        label: t("shortcuts.explorer"),
+        icon: FolderTree,
+        keys: formatShortcut("view-explorer"),
+        run: () => c.setActiveView("explorer"),
+      },
+      {
+        label: t("shortcuts.search"),
+        icon: Search,
+        keys: formatShortcut("view-search"),
+        run: () => c.setActiveView("search"),
+      },
+      {
+        label: t("shortcuts.sourceControl"),
+        icon: GitBranch,
+        keys: formatShortcut("view-source-control"),
+        run: () => c.setActiveView("scm"),
+      },
+      {
+        label: t("shortcuts.save"),
+        icon: Save,
+        keys: formatShortcut("file-save"),
+        disabled: snap.activeTab === null,
+        run: () => c.saveActiveFile(),
+      },
       {
         label: t("palette.newTerminal"),
         icon: Plus,
-        keys: "⇧⌘C",
+        keys: formatShortcut("terminal-new"),
         run: () => c.terminals.newShellTerminal(),
       },
       { label: t("palette.runProject"), icon: Play, run: () => c.runActiveFolder() },
@@ -120,19 +142,19 @@ export function CommandPalette() {
       {
         label: t("palette.toggleTerminal"),
         icon: TerminalIcon,
-        keys: "⌘J",
+        keys: formatShortcut("panel-toggle"),
         run: () => c.togglePanel(),
       },
       {
         label: t("palette.toggleSidebar"),
         icon: PanelLeft,
-        keys: "⌘B",
+        keys: formatShortcut("sidebar-toggle"),
         run: () => c.toggleSidebar(),
       },
       {
         label: t("palette.togglePreview"),
         icon: PanelRight,
-        keys: "⌥⌘B",
+        keys: formatShortcut("preview-toggle"),
         run: () => c.togglePreview(),
       },
       // Tab commands. Next/previous carry the chords AppShell binds (the same registry
@@ -141,7 +163,7 @@ export function CommandPalette() {
       {
         label: t("editorTabs.next"),
         icon: ChevronRight,
-        keys: "⌃⌥→",
+        keys: formatShortcut("tab-next"),
         disabled: snap.openTabs.length < 2,
         run: () => {
           const next = nextTabId(snap.openTabs, snap.activeTab, 1);
@@ -151,7 +173,7 @@ export function CommandPalette() {
       {
         label: t("editorTabs.previous"),
         icon: ChevronLeft,
-        keys: "⌃⌥←",
+        keys: formatShortcut("tab-previous"),
         disabled: snap.openTabs.length < 2,
         run: () => {
           const previous = nextTabId(snap.openTabs, snap.activeTab, -1);
@@ -176,13 +198,12 @@ export function CommandPalette() {
         disabled: snap.openTabs.length === 0,
         run: () => closeEditorTabs(tabCloseSet(snap.openTabs, snap.activeTab, "all")),
       },
-      // ⌥Z is the macOS spelling of the one binding; on Windows and Linux the same
-      // chord reads Alt+Z. Every other entry here writes the macOS form too, so this
-      // stays consistent rather than growing a platform switch for one row.
+      // Word wrap is the registry's one binding without Ctrl/Cmd; the formatter shows the
+      // platform's spelling (⌥Z on macOS, Alt+Z elsewhere).
       {
         label: t("palette.toggleWordWrap"),
         icon: WrapText,
-        keys: "⌥Z",
+        keys: formatShortcut("word-wrap"),
         run: () => c.toggleWordWrap(),
       },
       {
@@ -217,24 +238,13 @@ export function CommandPalette() {
   );
 
   const isFile = snap.paletteMode === "file";
-  const { path, line, col } = parseQuery(raw);
-
-  // File mode: filter ourselves (so the `:line` suffix doesn't break matching).
-  const files = useMemo(() => {
-    if (!isFile) return [];
-    const needle = path.trim().toLowerCase();
-    const list = needle
-      ? snap.files.filter((rel) => rel.toLowerCase().includes(needle))
-      : snap.files;
-    return list.slice(0, 200);
-  }, [isFile, path, snap.files]);
 
   const run = (fn: () => void) => {
     c.closePalette();
     fn();
   };
 
-  const openFileFromPalette = (rel: string) =>
+  const openFileFromPalette = (rel: string, line: number | null, col: number) =>
     run(() => (line != null ? c.openFileAt(rel, line, col) : c.openFile(rel)));
 
   return (
@@ -264,31 +274,12 @@ export function CommandPalette() {
               ))}
             </CommandGroup>
           ) : (
-            <>
-              {line != null && path.trim() === "" && snap.activeTab && (
-                <CommandGroup heading={t("palette.currentFile")}>
-                  <CommandItem
-                    value="__goto_line__"
-                    onSelect={() => run(() => c.openFileAt(snap.activeTab as string, line, col))}
-                  >
-                    <FileCode /> <span>{t("palette.goToLine", { line })}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {baseName(snap.activeTab)}
-                    </span>
-                  </CommandItem>
-                </CommandGroup>
-              )}
-              <CommandGroup
-                heading={line != null ? t("palette.filesLine", { line }) : t("palette.files")}
-              >
-                {files.map((rel) => (
-                  <CommandItem key={rel} value={rel} onSelect={() => openFileFromPalette(rel)}>
-                    <FileCode /> <span>{baseName(rel)}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{rel}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </>
+            <PaletteFileList
+              raw={raw}
+              files={snap.files}
+              activeTab={snap.activeTab}
+              onOpen={openFileFromPalette}
+            />
           )}
         </CommandList>
       </Command>

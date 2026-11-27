@@ -13,6 +13,7 @@ import { GRAPH_LENSES } from "@/facilis/graph-surface/lenses-registry.ts";
 import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
+import { LENS_PICKER_CHORD } from "./graph-lens-commands";
 
 const WRITE: GraphDiagnostic = {
   nodeId: "route:POST /api/todos",
@@ -102,7 +103,8 @@ describe("ProjectGraphLensBar", () => {
 
   it("teaches the picker chord in every lens chip's tooltip and aria-label", () => {
     const html = renderBar(null, []);
-    expect((html.match(/⌘⇧L/g) ?? []).length).toBe(GRAPH_LENSES.length * 2);
+    // The chord is the registry's platform spelling, never a hard-coded macOS string (#223).
+    expect(html.split(LENS_PICKER_CHORD).length - 1).toBe(GRAPH_LENSES.length * 2);
   });
 
   it("shows the banner, legend, total count and answer list for an active lens", () => {
