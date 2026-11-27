@@ -50,8 +50,8 @@
 // The directive is the React Compiler's own escape hatch for reading a mutable
 // source, and it goes on the three components that memoise on a store OBJECT:
 // Notebook (`cells`, `doc.stale`, `session.queue`), CellRow (`cell.outputs`) and
-// Toolbar (`session.log`). Everything else here — ExecutionMark, MarkdownCell,
-// OutputView, DataView, IconBtn, DeadKernelBanner — derives from primitives or
+// NotebookToolbar (`session.log`, in its own file). Everything else here —
+// ExecutionMark, OutputView, DataView, IconBtn, DeadKernelBanner — derives from primitives or
 // from output objects that ARE replaced on write, so it keeps its memoisation,
 // including the DOM-parsing sanitiser in DataView, which is the expensive one.
 //
@@ -63,20 +63,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Play from "~icons/lucide/play";
-import Square from "~icons/lucide/square";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import Plus from "~icons/lucide/plus";
 import Trash2 from "~icons/lucide/trash-2";
 import ChevronUp from "~icons/lucide/chevron-up";
 import ChevronDown from "~icons/lucide/chevron-down";
-import FastForward from "~icons/lucide/fast-forward";
-import Eraser from "~icons/lucide/eraser";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { NotebookHandle } from "@/vv/controller";
 import type { CellEditorSlot } from "@/vv/notebook/cell-editors.js";
 import type { Cell, DataOutput, ErrorOutput, Output, StreamOutput } from "@/vv/notebook/ipynb.js";
-import { chooseRender, renderMarkdown, stripAnsi } from "@/vv/notebook/render.js";
+import { chooseRender, stripAnsi } from "@/vv/notebook/render.js";
+import { MarkdownCell } from "./NotebookMarkdownCell";
+import { NotebookToolbar } from "./NotebookToolbar";
+import { NotebookFocus } from "./notebook-focus";
+import { useRunAnnouncement } from "./notebook-announce";
+import { notebookCommand } from "./notebook-shortcuts";
 import { useIde } from "./useIde";
 
 export function NotebookView({ abs }: { abs: string }) {
@@ -97,30 +99,33 @@ function Notebook({ handle }: { handle: NotebookHandle }) {
   useSyncExternalStore(doc.subscribe, doc.getSnapshot);
   const cells = doc.cells;
   const busy = session.status === "busy";
+  // One registry per open notebook: a cell edit starts by unmounting the rendered
+  // control and focus has to follow the editor that replaces it.
+  const focus = useMemo(() => new NotebookFocus(), []);
+  const announcement = useRunAnnouncement(handle);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // Cell-level shortcuts only fire outside an editor; Monaco owns its own keys
-    // and handles Shift-Enter itself (see CellEditor).
-    if ((e.target as HTMLElement).closest(".vv-cell-editor")) return;
-    if (e.key === "a" && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      doc.insert("code", doc.indexOf(doc.selected ?? ""));
-    } else if (e.key === "b" && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      doc.insert("code");
-    } else if (e.key === "m" && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      if (doc.selected) doc.setType(doc.selected, "markdown");
-    } else if (e.key === "y" && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      if (doc.selected) doc.setType(doc.selected, "code");
-    }
+    // Monaco owns its own keys and handles Shift-Enter itself (see CellEditor); the
+    // predicate owns every other guard, so the toolbar inside this handler cannot
+    // turn a keystroke into a new cell.
+    const command = notebookCommand(e);
+    if (!command) return;
+    e.preventDefault();
+    if (command === "insert-above") doc.insert("code", doc.indexOf(doc.selected ?? ""));
+    else if (command === "insert-below") doc.insert("code");
+    else if (command === "to-markdown" && doc.selected) doc.setType(doc.selected, "markdown");
+    else if (command === "to-code" && doc.selected) doc.setType(doc.selected, "code");
   };
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background" onKeyDown={onKeyDown}>
-      <Toolbar handle={handle} />
+      <NotebookToolbar handle={handle} />
       <DeadKernelBanner handle={handle} />
+      {/* A run's only other report is a status dot and a log toggle; this is what
+          tells a screen-reader user that it started, finished or failed. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="mx-auto flex max-w-4xl flex-col gap-2">
           {cells.map((cell, i) => (
@@ -130,6 +135,9 @@ function Notebook({ handle }: { handle: NotebookHandle }) {
               handle={handle}
               stale={doc.stale.has(cell.id)}
               selected={doc.selected === cell.id}
+              index={i}
+              total={cells.length}
+              focus={focus}
               first={i === 0}
               last={i === cells.length - 1}
             />
@@ -183,108 +191,6 @@ function DeadKernelBanner({ handle }: { handle: NotebookHandle }) {
   );
 }
 
-// ── toolbar ─────────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<string, string> = {
-  off: "no kernel",
-  starting: "starting…",
-  idle: "idle",
-  busy: "busy",
-  dead: "kernel exited",
-};
-
-function Toolbar({ handle }: { handle: NotebookHandle }) {
-  "use no memo"; // the kernel log is an array the session pushes into — see the header
-  const { doc, session } = handle;
-  const [logOpen, setLogOpen] = useState(false);
-  const status = session.status;
-  const busy = status === "busy";
-
-  return (
-    <div className="shrink-0 border-b">
-      <div className="flex h-9 items-center gap-1 px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handle.runSelected()}
-          title="Run cell (⇧↵)"
-        >
-          <Play className="size-3.5" /> Run
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handle.runAll()}
-          title="Run every cell, top to bottom"
-        >
-          <FastForward className="size-3.5" /> Run all
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={!busy}
-          onClick={() => handle.interrupt()}
-          // Disabled rather than hidden when idle, because "why is this greyed
-          // out" is a better question than the one an idle interrupt would raise:
-          // at an idle prompt the signal kills the interpreter instead of raising
-          // KeyboardInterrupt, so it must not be sent.
-          title={busy ? "Interrupt the running cell (SIGINT)" : "Nothing is running"}
-        >
-          <Square className="size-3.5" /> Interrupt
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handle.restart()}
-          title="Throw the interpreter away and start a new one"
-        >
-          <RotateCcw className="size-3.5" /> Restart
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => doc.clearAllOutputs()}
-          title="Clear every cell's output"
-        >
-          <Eraser className="size-3.5" /> Clear
-        </Button>
-
-        <div className="flex-1" />
-
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-          onClick={() => setLogOpen((v) => !v)}
-          title="What the kernel process printed outside the notebook protocol"
-        >
-          <span
-            className={cn(
-              "size-2 rounded-full",
-              status === "idle" && "bg-success",
-              status === "busy" && "bg-warning",
-              status === "starting" && "bg-warning/60",
-              status === "dead" && "bg-destructive",
-              status === "off" && "bg-muted-foreground/50",
-            )}
-          />
-          <span>
-            Python{session.info ? ` ${session.info.python}` : ""} — {STATUS_LABEL[status] ?? status}
-          </span>
-        </button>
-      </div>
-      {logOpen && (
-        <div className="max-h-40 overflow-y-auto border-t bg-muted/30 px-3 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
-          {session.log.length === 0 ? (
-            <span>Nothing yet. Pyodide's loader and any kernel-level error appear here.</span>
-          ) : (
-            session.log.map((line, i) => <div key={i}>{stripAnsi(line)}</div>)
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── one cell ────────────────────────────────────────────────────────────────
 
 function CellRow({
@@ -292,6 +198,9 @@ function CellRow({
   handle,
   stale,
   selected,
+  index,
+  total,
+  focus,
   first,
   last,
 }: {
@@ -299,6 +208,9 @@ function CellRow({
   handle: NotebookHandle;
   stale: boolean;
   selected: boolean;
+  index: number;
+  total: number;
+  focus: NotebookFocus;
   first: boolean;
   last: boolean;
 }) {
@@ -306,6 +218,12 @@ function CellRow({
   const { doc } = handle;
   const isCode = cell.type === "code";
   const [editing, setEditing] = useState(cell.type === "markdown" && cell.source === "");
+  // The rendered control is about to be replaced by an editor that does not exist
+  // yet: the request survives in the registry until that editor registers.
+  const startEditing = () => {
+    focus.focusNext(cell.id);
+    setEditing(true);
+  };
 
   return (
     <div
@@ -330,9 +248,20 @@ function CellRow({
 
         <div className="min-w-0 flex-1">
           {isCode || editing ? (
-            <CellEditor cell={cell} handle={handle} onBlurMarkdown={() => setEditing(false)} />
+            <CellEditor
+              cell={cell}
+              handle={handle}
+              focus={focus}
+              onBlurMarkdown={() => setEditing(false)}
+            />
           ) : (
-            <MarkdownCell cell={cell} onEdit={() => setEditing(true)} />
+            <MarkdownCell
+              cell={cell}
+              index={index}
+              total={total}
+              focus={focus}
+              onEdit={startEditing}
+            />
           )}
           {isCode && cell.outputs.length > 0 && (
             <div className={cn("mt-1.5 border-l-2 border-border/60 pl-3", stale && "opacity-60")}>
@@ -409,10 +338,12 @@ function IconBtn({
 function CellEditor({
   cell,
   handle,
+  focus,
   onBlurMarkdown,
 }: {
   cell: Cell;
   handle: NotebookHandle;
+  focus: NotebookFocus;
   onBlurMarkdown: () => void;
 }) {
   const { doc } = handle;
@@ -468,6 +399,11 @@ function CellEditor({
         };
         editor.onDidContentSizeChange(resize);
         resize();
+        // AFTER the resize: registering takes the keyboard for a cell whose edit
+        // was requested while this editor did not exist yet (a markdown cell, a
+        // cell inserted by Shift-Enter), and doing it earlier would focus an
+        // editor laid out at the wrong height.
+        focus.register(cell.id, editor);
 
         // The EDITOR's change event, not the model's: the model outlives this
         // mount, so a listener registered on it would outlive it too and keep
@@ -481,8 +417,8 @@ function CellEditor({
           // eslint-disable-next-line no-bitwise -- Monaco's KeyMod|KeyCode is a bitfield
           made.monaco.KeyMod.Shift | made.monaco.KeyCode.Enter,
           () => {
-            handle.run(cellRef.current.id);
-            handle.focusAfter(cellRef.current.id);
+            const target = handle.focusAfter(cellRef.current.id);
+            focus.request(target);
             onBlurMarkdown();
           },
         );
@@ -494,6 +430,14 @@ function CellEditor({
             onBlurMarkdown();
           },
         );
+        if (cellRef.current.type === "markdown") {
+          // Escape leaves the editor for the rendered cell, which takes the
+          // keyboard from the registry once it has replaced this editor.
+          editor.addCommand(made.monaco.KeyCode.Escape, () => {
+            focus.focusNext(cellRef.current.id);
+            onBlurMarkdown();
+          });
+        }
         editor.onDidFocusEditorText(() => doc.select(cellRef.current.id));
         if (cellRef.current.type === "markdown") editor.onDidBlurEditorText(() => onBlurMarkdown());
       })
@@ -507,6 +451,10 @@ function CellEditor({
 
     return () => {
       released = true;
+      // Only if this mount registered it: a StrictMode cleanup landing before the
+      // promise resolves has no editor, and one landing after a newer mount must
+      // not unregister that mount's editor.
+      if (slot) focus.unregister(cell.id, slot.editor);
       // The EDITOR only. The model belongs to the notebook, so a cleanup that
       // lands after a later mount can no longer take the model out from under
       // the editor the user is looking at — which is precisely what left every
@@ -521,29 +469,6 @@ function CellEditor({
   }, [cell.id, cell.type]);
 
   return <div ref={mount} className="vv-cell-editor overflow-hidden rounded border bg-card" />;
-}
-
-function MarkdownCell({ cell, onEdit }: { cell: Cell; onEdit: () => void }) {
-  const html = useMemo(() => renderMarkdown(cell.source), [cell.source]);
-  return (
-    <div
-      className="vv-md prose-sm max-w-none cursor-text overflow-x-auto rounded px-1 py-0.5 text-sm hover:bg-muted/30"
-      onDoubleClick={onEdit}
-      title="Double-click to edit"
-      // Contained on the same terms as an output, and for the same reason: a
-      // markdown CELL is a stranger's document rendered when the file is opened,
-      // which is the earlier half of the same threat. Nothing it can carry needs
-      // this today — renderMarkdown escapes its input before any rule runs, so this
-      // string contains only markup this studio generated (render.js) — and the
-      // containment is here so that stops being the load-bearing fact.
-      style={{ contain: "layout paint" }}
-      dangerouslySetInnerHTML={{
-        __html:
-          html ||
-          '<span class="text-muted-foreground">Empty markdown cell — double-click to edit</span>',
-      }}
-    />
-  );
 }
 
 // ── outputs ─────────────────────────────────────────────────────────────────

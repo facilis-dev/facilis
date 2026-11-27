@@ -130,8 +130,9 @@ export interface NotebookHandle {
   runAll(): void;
   interrupt(): void;
   restart(): void;
-  /** Move to the cell below after a Shift-Enter, appending one if there is none. */
-  focusAfter(cellId: string): void;
+  /** Move to the cell below after a Shift-Enter, appending one if there is none.
+   *  Returns the id of the cell the view should move the keyboard into. */
+  focusAfter(cellId: string): string;
   /**
    * Build the editor for one cell. Resolves null — never rejects — when there is
    * no editor to show: either the cell was deleted while Monaco loaded, or the
@@ -1305,8 +1306,9 @@ export class IdeController {
       },
       focusAfter: (id) => {
         const next = doc.cells[doc.indexOf(id) + 1];
-        if (next) doc.select(next.id);
-        else doc.insert("code");
+        if (!next) return doc.insert("code");
+        doc.select(next.id);
+        return next.id;
       },
       createCellEditor: (el, id, language) =>
         mountCellEditor(
