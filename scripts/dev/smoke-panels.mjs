@@ -513,6 +513,12 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     await sleep(300);
     if (await page.evaluate("window.__ide.getSnapshot().previewCollapsed")) break;
   }
+  // The narrow shell remembers its surface and may still be on Preview; the graph checks
+  // below read the Code surface, so select it explicitly instead of depending on last state.
+  await page.evaluate(
+    "document.querySelectorAll('[data-slot=\"mobile-shell-nav\"] button')[1].click()",
+  );
+  await sleep(300);
   await page.evaluate("window.__ide.openProjectGraph()");
   await waitFor(
     page,
