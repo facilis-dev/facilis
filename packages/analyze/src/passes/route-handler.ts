@@ -129,12 +129,17 @@ export function handlerRawDbCalls(
   let bindingParam: AstNode | undefined;
   let contextName: string | undefined;
   let bindingName: string | undefined;
+  let opaque = false;
   if (contextParam?.type === "Identifier") contextName = identifierName(contextParam);
   for (const param of params) {
     const pattern = asNode(unwrapExpression(param));
     if (pattern?.type !== "ObjectPattern") continue;
     for (const entry of objectEntries(pattern)) {
-      if (entry.type !== "Property" || propertyName(entry) !== "rawDb") continue;
+      if (entry.type !== "Property") continue;
+      const key = propertyName(entry);
+      // A computed destructuring key can select `rawDb` at runtime; the body is not static.
+      if (key === undefined) opaque = true;
+      if (key !== "rawDb") continue;
       bindingName = identifierName(entry.value) ?? "rawDb";
       bindingParam = pattern;
     }
@@ -171,7 +176,17 @@ export function handlerRawDbCalls(
 
   // A member access that is not the callee of a direct call is an alias/pass-through escape.
   walk(handler, (node) => {
-    if (node.type !== "MemberExpression" || memberName(node) !== "rawDb") return;
+    if (node.type !== "MemberExpression") return;
+    if (
+      contextName !== undefined &&
+      node.computed === true &&
+      literalString(node.property) === undefined
+    ) {
+      const object = asNode(unwrapExpression(node.object));
+      // `ctx[name]` can resolve to rawDb at runtime; the body is not statically analysable.
+      if (object?.type === "Identifier" && identifierName(object) === contextName) opaque = true;
+    }
+    if (memberName(node) !== "rawDb") return;
     if (typeof node.start === "number" && calledMembers.has(node.start)) return;
     sites.push({ reason: null, source: nodeRef(file, node, fallback) });
   });
@@ -192,7 +207,6 @@ export function handlerRawDbCalls(
     if (occurrences > directCalls) sites.push({ reason: null, source: fallback });
   }
 
-  let opaque = false;
   if (contextName !== undefined) {
     walk(handler, (node) => {
       if (node.type !== "CallExpression") return;

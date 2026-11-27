@@ -155,6 +155,14 @@ describe("declared security surface (D-226)", () => {
       "server/lib/handler.ts": "export const handler = async () => ({});\n",
     });
     expect(imported.routes[0]?.surface.class).toBe("unknown");
+
+    const computed = analyze({
+      "server/api/x.get.ts": authorizedRoute(
+        "permission: [], dbTables: []",
+        'async (_event, ctx) => { const name = "rawDb"; return ctx[name]({ reason: "x" }); }',
+      ),
+    });
+    expect(computed.routes[0]?.surface.class).toBe("unknown");
   });
 
   it("declares server extensions and rejects a bare plugin", () => {
