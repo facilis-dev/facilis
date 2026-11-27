@@ -307,16 +307,27 @@ async function pickRichestNode(page) {
 }
 
 async function drawerState(page) {
-  return JSON.parse(
-    await page.evaluate(
-      "(() => { const d = document.querySelector('[data-testid=\"project-graph-drawer\"]');" +
-        " const r = d ? d.getBoundingClientRect() : null;" +
-        " return JSON.stringify({ layout: d ? d.getAttribute('data-layout') : null," +
-        " rect: r ? { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) } : null," +
-        " overflowX: document.documentElement.scrollWidth - window.innerWidth," +
-        " viewport: { width: window.innerWidth, height: window.innerHeight } }); })()",
-    ),
-  );
+  const read = async () =>
+    JSON.parse(
+      await page.evaluate(
+        "(() => { const d = document.querySelector('[data-testid=\"project-graph-drawer\"]');" +
+          " const r = d ? d.getBoundingClientRect() : null;" +
+          " return JSON.stringify({ layout: d ? d.getAttribute('data-layout') : null," +
+          " rect: r ? { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) } : null," +
+          " overflowX: document.documentElement.scrollWidth - window.innerWidth," +
+          " viewport: { width: window.innerWidth, height: window.innerHeight } }); })()",
+      ),
+    );
+  // The sheet mounts after the selection state commits: a single read can catch it before
+  // layout (rect 0x0). Poll briefly for a painted box; the assertion still fails if it never
+  // opens, so this removes a race without weakening the check.
+  const until = Date.now() + 2000;
+  let state = await read();
+  while (Date.now() < until && (state.rect === null || state.rect.width === 0)) {
+    await sleep(100);
+    state = await read();
+  }
+  return state;
 }
 
 // Poll until the surface paints something, logging every state transition: the failure mode
