@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The versioned security-surface document (D-226, SPEC §8.10).
+ * The versioned security-surface document (D-226, SPEC §8.9).
  *
  * This is the release artifact a security review reads: every non-standard capability with
  * its reason, file and line, plus an explicit `unknown` bucket. It is deterministic for a

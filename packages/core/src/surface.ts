@@ -1,5 +1,5 @@
 /**
- * The declared security surface (D-226, SPEC §8.10).
+ * The declared security surface (D-226, SPEC §8.9).
  *
  * Facilis's standard model is the only green path: an authorized route, a policy-scoped
  * client, Zod input. Everything else a project can do is a capability, and a capability is
