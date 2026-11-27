@@ -1455,7 +1455,7 @@ interface FacilisConfig {
     // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
     // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
-    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
+    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL (the host's DATABASE_URL also parses)
     // operator logging (D-119): level is the project default, the sink/dir belong to the operator
     logLevel: "debug" | "info" | "warn" | "error"  // FACILIS_LOG_LEVEL
     logSink: "auto" | "stdout" | "file" | "both"   // FACILIS_LOG_SINK
@@ -1511,7 +1511,8 @@ declared keys from the file and the read sites from the project's code, and repo
 `runtime-key-undeclared` (a key read but not declared), `runtime-key-unset` (declared without a
 literal and without a secret marker), `runtime-key-missing` (a system package requires it and the file
 does not declare it), `runtime-key-server-only` (a `runtime` key read from client-reachable code, or a
-`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning. The
+`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning; a direct
+`process.env` read in project code is the warning `no-direct-env`. The
 framework exports one `runtimeRequirements` table from `@facilis.dev/core` (key, surface, secret,
 optional condition over static config values) and a gate holds the shipped examples and the IDE
 template to it. `ctx.runtime` is

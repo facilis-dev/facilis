@@ -34,6 +34,7 @@ import {
   securityConfigSchema,
   type FacilisSecurityConfig,
 } from "./security-config.ts";
+import { legacyConfigProblems } from "./config-legacy.ts";
 import { crossCheckConfig } from "./config-validation.ts";
 import { publicSectionSchema, runtimeSectionSchema } from "./runtime-config/schema.ts";
 import type { FacilisPublicConfig, FacilisRuntimeDeclarations } from "./runtime-config/schema.ts";
@@ -284,6 +285,11 @@ export const facilisConfigSchema = baseConfigSchema.superRefine(crossCheckConfig
  * unknown role permissions must fail at boot (SPEC §8.4.1), not on the first request.
  */
 export function defineConfig(config: FacilisConfigInput): FacilisConfig {
+  // The removed keys get the replacement in the message: the move is breaking on purpose (D-224).
+  const legacy = legacyConfigProblems(config);
+  if (legacy.length > 0) {
+    throw new Error("Invalid facilis config:\n" + legacy.join("\n"));
+  }
   const result = facilisConfigSchema.safeParse(config);
   if (!result.success) {
     throw new Error(`Invalid facilis config:\n${z.prettifyError(result.error)}`);

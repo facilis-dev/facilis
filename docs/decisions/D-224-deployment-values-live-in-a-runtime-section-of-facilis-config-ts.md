@@ -83,6 +83,10 @@ defining difference between the two surfaces. A browser has no environment, and 
 mechanism reads one. An app that needs per-deployment values at runtime fetches them from an
 authorized route; none of them come from `public`.
 
+**Host conventions are the two documented exceptions.** `NODE_ENV` keeps deciding development versus
+production (D-146), and `db-target` still accepts `DATABASE_URL` next to `FACILIS_DATABASE_URL`
+because Postgres tooling sets it; the `FACILIS_` name wins. No other alias exists.
+
 **Secrets.** `{ secret: true }` is allowed only under `runtime`; under `public` it is a type error,
 because everything in the bundle is public. The resolved server value is a `SecretString` box, never a
 bare string: `reveal()` is the only way to obtain it, while `toJSON`, `toString` and the Node inspect
@@ -95,8 +99,10 @@ another section (SSO `clientSecretEnv`, D-120) stay there; the runtime exposes
 
 **Read surfaces.** `ctx.runtime` and `publicConfig()`; `runtimeEnv()` for boot, jobs, tasks,
 workflows, seed and SSO. Requests and consumers receive frozen objects built once per process; nothing
-reads `process.env` outside the resolver, and an analyzer pass (`no-direct-env`) reports a direct read
-in the framework packages as an error and in project `server/**` as a warning. `publicConfig()` is the
+reads `process.env` outside the resolver: an analyzer pass (`no-direct-env`) warns on a direct read in
+project `src/**`/`server/**`, and a framework gate keeps every remaining read on a documented
+allowlist (the build plugins, `NODE_ENV`, the injectable SSO defaults and the one resolver call
+site), so a new module cannot reintroduce one silently. `publicConfig()` is the
 only client accessor, backed by the `__FACILIS_PUBLIC_CONFIG__` define — the RUM mechanism (D-209)
 generalized, no inline script and no CSP risk. The Studio and the manifest expose the schema (names,
 types, values for `public`, `secret` flags for `runtime`) and never server secret values;

@@ -12,6 +12,7 @@ import { dynamicTranslationKeyDiagnostics } from "./passes/i18n-keys.ts";
 import { buildJobFacts } from "./passes/jobs.ts";
 import { buildJobRelationFacts } from "./passes/job-relations.ts";
 import { buildRouteFacts } from "./passes/routes.ts";
+import { noDirectEnvDiagnostics } from "./passes/no-direct-env.ts";
 import { runtimeConfigDiagnostics } from "./passes/runtime-access.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
 import { importCycleDiagnostics } from "./passes/import-cycle.ts";
@@ -100,6 +101,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...config.diagnostics,
       // D-224: the runtime/public declarations and their read sites agree (six codes).
       ...runtimeConfigDiagnostics(graph, config.facts),
+      // D-224: a direct process.env read bypasses the declared surface (warn-only).
+      ...noDirectEnvDiagnostics(graph),
       ...routes.diagnostics,
       ...schema.diagnostics,
       ...views.diagnostics,
