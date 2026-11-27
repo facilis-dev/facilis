@@ -1,5 +1,5 @@
 import type { AuthContext } from "@facilis.dev/auth";
-import type { FacilisDb, QueryTrace } from "@facilis.dev/db";
+import type { QueryTrace } from "@facilis.dev/db";
 
 import type { JobsApi } from "./jobs.ts";
 import type { TasksApi } from "./tasks.ts";
@@ -28,9 +28,12 @@ export interface FacilisRequest {
 export interface FacilisEventContext {
   /** Set by session middleware; `null`/absent means anonymous (contracts §4.1). */
   auth?: AuthContext | null;
-  /** Set by the facilis-context middleware before any route runs. */
+  /**
+   * Set by the facilis-context middleware before any route runs. The request database is
+   * deliberately NOT here: it travels through the private channel in request-database.ts,
+   * so a raw handler cannot reach a client by reading the event (D-226 decision 3).
+   */
   facilis?: {
-    db: FacilisDb;
     /** Single-tenant fallback scope for unauthenticated requests (registration/login). */
     defaultTenantId?: string;
     /** Server-only background-job API, started by the same middleware (D-107). */
@@ -96,10 +99,11 @@ export interface FacilisRequestEvent {
 /**
  * The handler-visible context: the middleware state minus the raw database client.
  *
- * The root Drizzle client lives only in `FacilisEventContext.facilis.db`, which
- * `defineAuthorizedHandler` captures before the project handler runs. A handler sees just
- * `ctx.db` (policy-scoped) and the audited sudo/system wrappers, so a raw, policy-free
- * client is not reachable from the handler surface at all (D-099, structural not convention).
+ * The root Drizzle client is attached to the request through request-database.ts, which
+ * `defineAuthorizedHandler` reads before the project handler runs. A handler sees just
+ * `ctx.db` (policy-scoped), `ctx.rawDb` (declared and audited), and the sudo/system
+ * wrappers, so a raw, policy-free client is not reachable from the handler surface at all
+ * (D-099/D-226, structural not convention).
  */
 export interface FacilisHandlerContext {
   auth?: AuthContext | null;

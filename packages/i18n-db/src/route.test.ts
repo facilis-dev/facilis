@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { defineAuthorizedHandler, type FacilisRequestEvent } from "@facilis.dev/core";
+import {
+  attachRequestDatabase,
+  defineAuthorizedHandler,
+  type FacilisRequestEvent,
+} from "@facilis.dev/core";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import { catalogQuery, loadCatalogs, parseCatalogLocales } from "./catalog.ts";
@@ -38,10 +42,12 @@ describe("explicit i18n route", () => {
 
   // A public GET event: no auth and no body reader, exactly what Nitro hands the route.
   function makeEvent(url: string): FacilisRequestEvent {
-    return {
-      context: { auth: null, facilis: { db, defaultTenantId: TENANT } },
+    const event: FacilisRequestEvent = {
+      context: { auth: null, facilis: { defaultTenantId: TENANT } },
       req: { headers: new Headers(), url, method: "GET" },
     };
+    attachRequestDatabase(event, db);
+    return event;
   }
 
   it("returns the requested locales, scoped to the deployment tenant", async () => {

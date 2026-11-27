@@ -3,6 +3,7 @@ import type { AuthContext } from "@facilis.dev/auth";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
 const dbMock = vi.hoisted(() => {
@@ -59,13 +60,15 @@ function fakeSystemDb(relation: string): object {
 }
 
 function makeEvent(): FacilisRequestEvent {
-  return {
+  const event: FacilisRequestEvent = {
     context: {
       auth: AUTH,
-      facilis: { db: FAKE_DB, defaultTenantId: "tenant-1" },
+      facilis: { defaultTenantId: "tenant-1" },
     },
     req: { headers: new Headers(), url: "http://localhost/api/orders", method: "POST" },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

@@ -11,6 +11,11 @@ import { fail } from "./errors.ts";
 import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import { startRequestLogging } from "./route-logging.ts";
 import type { AuthorizedHandlerContext } from "./route-context.ts";
+import {
+  normalizePermissions,
+  toHandlerEvent,
+  type AuthorizedHandlerAuth,
+} from "./route-internals.ts";
 import { unavailableJobs } from "./jobs.ts";
 import { unavailableTasks } from "./tasks.ts";
 import { unavailableWorkflows } from "./workflows.ts";
@@ -21,6 +26,8 @@ import { resolveScope } from "./route-scope.ts";
 import { peekRuntimeConfig } from "./runtime-config/resolve.ts";
 import { unavailableStorage } from "./storage.ts";
 import { createElevationContext } from "./sudo.ts";
+import { brandRouteHandler, assertSurfaceReason } from "./surface.ts";
+import { requestDatabase } from "./request-database.ts";
 
 /**
  * The route security contract (SPEC §7.4, §8.2; contracts §7).
@@ -66,54 +73,17 @@ export interface AuthorizedHandlerConfig<B = void, Q = void, P = void, F = void>
    */
   rateLimit?: RateLimitWindow;
   /**
-   * Explicit exception for `ctx.db.execute(sql)` (D-157): the SQL is not inspectable, so the
-   * declaration stays authoritative; without this flag raw execution is refused. Default false.
+   * Explicit exception for `ctx.db.execute(sql)` (D-157/D-226): the SQL is not inspectable,
+   * so the declaration stays authoritative; without it raw execution is refused. A bare
+   * `true` is the legacy shape and is undeclared surface (the analyzer rejects it); the
+   * declared form is `{ reason }`, which the wrapper validates like every capability.
    */
-  rawSql?: boolean;
+  rawSql?: boolean | { readonly reason: string };
   description?: string;
 }
 
 /** The outer handler the framework returns; it receives the full request context. */
 export type AuthorizedHandler = (event: FacilisRequestEvent) => Promise<unknown>;
-
-/**
- * Public routes (`permission: []`) may run anonymously, so their `ctx.auth` is nullable;
- * every privileged form gets the guaranteed non-null `AuthContext` (contracts §4.4).
- */
-export type AuthorizedHandlerAuth<Permission extends string | readonly string[]> =
-  Permission extends readonly []
-    ? AuthContext | null
-    : Permission extends readonly [string, ...string[]]
-      ? AuthContext
-      : Permission extends string
-        ? AuthContext
-        : AuthContext | null;
-
-function normalizePermissions(permission: string | readonly string[]): readonly string[] {
-  return typeof permission === "string" ? [permission] : permission;
-}
-
-/**
- * The event a project handler receives: the same req/res objects and a context copy that
- * keeps auth/params plus ONLY the safe facilis fields. The root Drizzle client
- * (`facilis.db`) is captured by the wrapper and never reaches the handler surface (D-099).
- */
-function toHandlerEvent(
-  event: FacilisRequestEvent,
-  facilis: NonNullable<FacilisRequestEvent["context"]["facilis"]>,
-): FacilisHandlerEvent {
-  const { auth, params } = event.context;
-  const defaultTenantId = facilis.defaultTenantId;
-  return {
-    context: {
-      ...(auth === undefined ? {} : { auth }),
-      ...(params === undefined ? {} : { params }),
-      ...(defaultTenantId === undefined ? {} : { facilis: { defaultTenantId } }),
-    },
-    req: event.req,
-    ...(event.res === undefined ? {} : { res: event.res }),
-  };
-}
 
 export function defineAuthorizedHandler<
   B = void,
@@ -128,13 +98,47 @@ export function defineAuthorizedHandler<
     ctx: AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
   ) => Promise<unknown> | unknown,
 ): AuthorizedHandler {
+  return createAuthorizedRoute(config, handler, {
+    requireAuth: normalizePermissions(config.permission).length > 0,
+  });
+}
+
+/** The shared pipeline; the raw-route DSL reuses it with `requireAuth` stated explicitly. */
+export interface RouteRuntimeOptions {
+  /**
+   * True when a session is required even though `permission` is empty. A declared raw route
+   * uses it for `auth: "required"`; an authorized route derives it from its permission.
+   */
+  readonly requireAuth?: boolean;
+}
+
+export function createAuthorizedRoute<
+  B = void,
+  Q = void,
+  P = void,
+  const Permission extends string | readonly string[] = string,
+  F = void,
+>(
+  config: AuthorizedHandlerConfig<B, Q, P, F> & { permission: Permission },
+  handler: (
+    event: FacilisHandlerEvent,
+    ctx: AuthorizedHandlerContext<B, Q, P, AuthorizedHandlerAuth<Permission>, F>,
+  ) => Promise<unknown> | unknown,
+  options: RouteRuntimeOptions = {},
+): AuthorizedHandler {
   // One request body has exactly one representation: JSON or multipart, never both.
   if (config.body !== undefined && config.form !== undefined) {
     throw new Error("defineAuthorizedHandler: body and form are mutually exclusive");
   }
   const requiredPermissions = normalizePermissions(config.permission);
+  // A raw `rawSql: true` is accepted for a compatible boot but is not a declaration; the
+  // analyzer rejects it, so the build never ships a route without a reason (D-226).
+  const rawSqlDeclaration =
+    typeof config.rawSql === "object"
+      ? assertSurfaceReason(config.rawSql.reason, "raw-sql")
+      : undefined;
 
-  return async (event: FacilisRequestEvent): Promise<unknown> => {
+  const wrapped = async (event: FacilisRequestEvent): Promise<unknown> => {
     const auth = event.context.auth ?? null;
     const facilis = event.context.facilis;
     const scope = resolveScope(auth, facilis);
@@ -176,6 +180,9 @@ export function defineAuthorizedHandler<
         }
       }
 
+      // A declared raw route states its session requirement directly; an authorized route
+      // derives it from its permission list (D-226 decision 2).
+      if (options.requireAuth === true && auth === null) return respond(fail("unauthorized"));
       if (requiredPermissions.length > 0) {
         if (auth === null) return respond(fail("unauthorized"));
         if (!hasPermission(auth, requiredPermissions)) return respond(fail("forbidden"));
@@ -185,7 +192,9 @@ export function defineAuthorizedHandler<
       if (!input.ok) return respond(input.response);
 
       // A route that touches the DB without a booted db cannot be served: fail loudly, not 200.
-      if (facilis === undefined) return respond(fail("db_unavailable"));
+      // The client is read from the private channel, never from the event (D-226 decision 3).
+      const rootDb = requestDatabase(event);
+      if (facilis === undefined || rootDb === undefined) return respond(fail("db_unavailable"));
       // The context middleware attaches the queue once the db booted. A missing runtime (an
       // unexpected boot failure) must not take the whole route down: the fallback fails only
       // the runtime calls, with a code the route can handle.
@@ -197,7 +206,7 @@ export function defineAuthorizedHandler<
       // The raw root client stays here in the wrapper: the handler event exposes only the safe
       // context fields, so the audited elevation wrappers are the sole escalation path.
       const handlerEvent = toHandlerEvent(event, facilis);
-      const result = await runWithPolicyScope(facilis.db, scope, async (db) => {
+      const result = await runWithPolicyScope(rootDb, scope, async (db) => {
         // Queue calls made by the handler must run in this transaction: opening a second one
         // on the single PGlite connection would deadlock the request (D-107, JOBS §8).
         const requestJobs = jobs.bindScope?.(db) ?? jobs;
@@ -207,7 +216,7 @@ export function defineAuthorizedHandler<
         // Workflow calls join the request transaction for the same single-connection reason;
         // the runner (not the request) performs the state transitions.
         const requestWorkflows = workflows.bindScope?.(db) ?? workflows;
-        const rawSql = config.rawSql === true;
+        const rawSql = config.rawSql === true || rawSqlDeclaration !== undefined;
         const elevations = createElevationContext({
           event,
           db,
@@ -225,6 +234,13 @@ export function defineAuthorizedHandler<
           query: input.query,
           params: input.params,
           db: guardDatabase(db, { declared: config.dbTables, allowRawSql: rawSql }),
+          rawDb: (rawOptions) => {
+            // The declaration is the authorization: without a reason the call is a bug, not
+            // a silent widening, and it fails the request (D-226 decision 2).
+            const reason = assertSurfaceReason(rawOptions?.reason, "raw-db");
+            requestLog.log.audit({ operation: "route:raw_db", outcome: "succeeded", reason });
+            return db;
+          },
           sudo: elevations.sudo,
           system: elevations.system,
           jobs: requestJobs,
@@ -272,4 +288,6 @@ export function defineAuthorizedHandler<
       requestLog.finish(status);
     }
   };
+
+  return brandRouteHandler(wrapped);
 }
