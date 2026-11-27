@@ -86,6 +86,24 @@ describe("matchShortcut", () => {
     expect(matchShortcut(sidebar, "overlay")).toBeNull();
   });
 
+  it("drops every global chord while a covering layer (Home) is up", () => {
+    // #212: Home marks itself data-blocking-overlay, readShortcutFocus reports overlay, and
+    // no global entry may reach the covered shell — not just the two toggles sampled above.
+    for (const entry of SHORTCUTS) {
+      if (entry.context !== "global" || entry.reservedByBrowser) continue;
+      const chord = entry.chord;
+      const pressed = event({
+        key: chord.key,
+        code: chord.code,
+        metaKey: chord.mod === true,
+        ctrlKey: chord.ctrl === true,
+        altKey: chord.alt === true,
+        shiftKey: chord.shift === true,
+      });
+      expect(matchShortcut(pressed, "overlay"), entry.id).toBeNull();
+    }
+  });
+
   it("still saves and toggles with the editor focused, because Monaco is not a form field", () => {
     expect(matchShortcut(event({ key: "s", ctrlKey: true }), "editor")?.id).toBe("file-save");
     expect(matchShortcut(event({ key: "b", metaKey: true }), "editor")?.id).toBe("sidebar-toggle");

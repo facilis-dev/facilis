@@ -19,6 +19,8 @@ export function useController(): IdeController {
 /** Subscribe to the controller's immutable UI snapshot. */
 export function useIde(): { c: IdeController; snap: IdeSnapshot } {
   const c = useController();
-  const snap = useSyncExternalStore(c.subscribe, c.getSnapshot);
+  // The third argument is the server snapshot: a static render of a surface (Home's markup
+  // test) reads the current snapshot instead of throwing. The app itself is client-only.
+  const snap = useSyncExternalStore(c.subscribe, c.getSnapshot, c.getSnapshot);
   return { c, snap };
 }

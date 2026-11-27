@@ -18,6 +18,8 @@ import { ScaffoldTemplateDialog } from "./ScaffoldTemplateDialog";
 import { RunOnDeviceDialog } from "./RunOnDeviceDialog";
 import { DesktopShell } from "./DesktopShell";
 import { NarrowShell } from "./NarrowShell";
+import { WorkspaceFrame } from "./workspace-frame";
+import { trackWorkspaceFocus } from "./home-focus";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
 import { nextTabId } from "./editor-tabs";
@@ -50,6 +52,11 @@ export function AppShell() {
     if (!snap.sidebarCollapsed) c.toggleSidebar(false);
     if (!snap.previewCollapsed) c.togglePreview(false);
   }, [c, narrow, snap.previewCollapsed, snap.sidebarCollapsed]);
+
+  // Home hands focus back to the workspace when it closes (issue #212). The tracker has to
+  // be listening before Home makes the shell inert, because the inert blur is what loses
+  // the opener.
+  useEffect(() => trackWorkspaceFocus(), []);
 
   // Mirror next-themes' resolved theme onto the editor + terminals, which manage
   // their own (non-CSS) theming.
@@ -133,13 +140,17 @@ export function AppShell() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden text-foreground">
-      <TitleBar />
-      {narrow ? (
-        <NarrowShell chatEnabled={chatEnabled} />
-      ) : (
-        <DesktopShell chatEnabled={chatEnabled} />
-      )}
-      <StatusBar />
+      {/* Only the workspace goes inert: Home, the tour and the boot/share overlays are
+          siblings of this frame and must keep working while they cover it. */}
+      <WorkspaceFrame view={snap.view}>
+        <TitleBar />
+        {narrow ? (
+          <NarrowShell chatEnabled={chatEnabled} />
+        ) : (
+          <DesktopShell chatEnabled={chatEnabled} />
+        )}
+        <StatusBar />
+      </WorkspaceFrame>
       <TourHost />
       <CommandPalette />
       <GraphLensPicker

@@ -24,6 +24,7 @@ import { stateLensesIt } from "./it-state-lenses";
 import { explorerIt } from "./it-explorer";
 import { editorTabsIt } from "./it-editor-tabs";
 import { shortcutsIt } from "./it-shortcuts";
+import { homeIt } from "./it-home";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -273,4 +274,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── shortcut registry (issue #223) ──────────────────────────────────────
   ...shortcutsIt,
+
+  // ── Home heading and view announcement (issue #212) ─────────────────────
+  ...homeIt,
 };

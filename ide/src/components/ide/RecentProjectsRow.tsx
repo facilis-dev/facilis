@@ -42,7 +42,10 @@ export function RecentProjectsRowView({
 }) {
   const name = projectName(project.rootPath);
   return (
-    <li className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/50 hover:bg-accent/30">
+    <li
+      data-recent-project=""
+      className="group flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/50 hover:bg-accent/30"
+    >
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-wait"
         onClick={onOpen}

@@ -25,6 +25,7 @@ import { stateLensesEn } from "./en-state-lenses";
 import { explorerEn } from "./en-explorer";
 import { editorTabsEn } from "./en-editor-tabs";
 import { shortcutsEn } from "./en-shortcuts";
+import { homeEn } from "./en-home";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -276,4 +277,7 @@ export const en = {
   ...explorerEn,
   ...editorTabsEn,
   ...shortcutsEn,
+
+  // ── Home heading and view announcement (issue #212) ─────────────────────
+  ...homeEn,
 } as const;
