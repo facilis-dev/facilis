@@ -26,7 +26,7 @@ export default defineConfig({
     includeUserAgent: false,
   },
   // Deployment surface (D-224). Dev default: in-memory PGlite. Production refuses it: set
-  // FACILIS_DATABASE_URL (or DATABASE_URL) and the runtime opens Postgres instead (D-068).
+  // FACILIS_DATABASE_URL and the runtime opens Postgres instead (D-068).
   runtime: {
     databaseMode: "pglite",
     logLevel: "info",

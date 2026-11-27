@@ -83,9 +83,10 @@ defining difference between the two surfaces. A browser has no environment, and 
 mechanism reads one. An app that needs per-deployment values at runtime fetches them from an
 authorized route; none of them come from `public`.
 
-**Host conventions are the two documented exceptions.** `NODE_ENV` keeps deciding development versus
-production (D-146), and `db-target` still accepts `DATABASE_URL` next to `FACILIS_DATABASE_URL`
-because Postgres tooling sets it; the `FACILIS_` name wins. No other alias exists.
+**`NODE_ENV` is the only reader outside the namespace.** It keeps deciding development versus
+production (D-146) and is not a deployment value. D-068's `DATABASE_URL` fallback is withdrawn:
+a platform that injects the host convention maps it to `FACILIS_DATABASE_URL` once, because a
+second name is an alias, and an alias is a value outside the declaration.
 
 **Secrets.** `{ secret: true }` is allowed only under `runtime`; under `public` it is a type error,
 because everything in the bundle is public. The resolved server value is a `SecretString` box, never a

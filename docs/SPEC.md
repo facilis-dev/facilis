@@ -1455,7 +1455,7 @@ interface FacilisConfig {
     // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
     // database (D-068): a databaseUrl implies "postgres"; a contradicting databaseMode is a fatal boot error
     databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
-    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL (the host's DATABASE_URL also parses)
+    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
     // operator logging (D-119): level is the project default, the sink/dir belong to the operator
     logLevel: "debug" | "info" | "warn" | "error"  // FACILIS_LOG_LEVEL
     logSink: "auto" | "stdout" | "file" | "both"   // FACILIS_LOG_SINK

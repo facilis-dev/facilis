@@ -22,7 +22,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "auth/src/sso/login.ts": "per-provider secret names are declared in config; this is the injectable default",
   "auth/src/sso/providers.ts": "same seam: the caller passes the environment",
   "nitro/src/prerender-data.ts": "the build swaps NODE_ENV while rendering the prerender pass",
-  "nitro/src/runtime/bootstrap.ts": "the boot passes NODE_ENV/DATABASE_URL into the resolvers",
+  "nitro/src/runtime/bootstrap.ts": "the boot passes NODE_ENV into the resolvers",
   "nitro/src/runtime/env.ts": "NODE_ENV is the fail-closed production test (D-146)",
   "nitro/src/runtime/http-guard.ts": "injectable default for the production test",
   "nitro/src/runtime/runtime-config-boot.ts": "the one legitimate read of the deployment surface",

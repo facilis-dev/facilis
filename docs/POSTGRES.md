@@ -11,7 +11,7 @@ release artifacts and the same RLS policies — the driver is the only differenc
 ## 1. Two drivers, one API
 
     createDb({ driver: "pglite" })                       // dev: in-memory, snapshotted (D-052)
-    createDb({ driver: "postgres", url: DATABASE_URL })  // production: pg.Pool
+    createDb({ driver: "postgres", url })                // production: pg.Pool
 
 `FacilisDb.db` is a Drizzle pg-core client in both cases, so routes, `runWithPolicyScope`,
 `schemaSnapshot` are driver-agnostic. What is **not** shared is the cluster
@@ -28,7 +28,7 @@ pull them into the in-VM bundle for a branch that can never run there.
 ```ts
 // facilis.config.ts
 export default defineConfig({
-  db: { mode: "pglite" }, // "pglite" | "postgres"; "json" is reserved and not implemented
+  runtime: { databaseMode: "pglite" }, // "pglite" | "postgres"; "json" is reserved and not implemented
   ...
 });
 ```
@@ -37,15 +37,17 @@ Secrets never live in the config. The runtime resolves the target at boot:
 
 | Source | Wins over | Meaning |
 |---|---|---|
-| `FACILIS_DATABASE_URL` | `DATABASE_URL`, `db.mode` | connect to this Postgres |
-| `DATABASE_URL` | `db.mode` | the host's conventional name (Railway/Render/Neon/Heroku inject it) |
-| `db.mode` | — | `pglite` (default) or `postgres` |
+| `FACILIS_DATABASE_URL` | `runtime.databaseMode` | connect to this Postgres |
+| `runtime.databaseMode` | — | `pglite` or `postgres` |
+
+The host's conventional `DATABASE_URL` is **not** read (D-224): a platform that injects it maps
+it to `FACILIS_DATABASE_URL` once. One key, one variable.
 
 A URL in the environment always means "this deployment has a real database". A blank value
 counts as unset: a hosting panel that defines the variable and leaves it empty must not become
 a broken connection string. Two situations are refused instead of degraded:
 
-- **`db.mode: "pglite"` with `NODE_ENV=production` and no URL** → warning
+- **`databaseMode: "pglite"` with `NODE_ENV=production` and no URL** → warning
   `db_pglite_in_production`, no database. Writing a production app to an in-memory cluster
   would look healthy and lose every row on restart.
 - **postgres mode without a URL** → warning `db_url_missing`, no database.
@@ -101,7 +103,7 @@ ALTER ROLE facilis_app LOGIN PASSWORD '<secret>';
 ```
 
 ```bash
-DATABASE_URL='postgres://facilis_app:<secret>@host:5432/db?sslmode=require' NODE_ENV=production node .output/server/index.mjs
+FACILIS_DATABASE_URL='postgres://facilis_app:<secret>@host:5432/db?sslmode=require' NODE_ENV=production node .output/server/index.mjs
 ```
 
 TLS comes from the connection string (`sslmode=require`); there is no separate TLS switch to
@@ -123,7 +125,7 @@ Inside the IDE the app always uses PGlite (there is no TCP in the VM). To exerci
 postgres driver in Node:
 
 ```bash
-DATABASE_URL='postgres://facilis_app:...@127.0.0.1:5432/facilis' pnpm dev
+FACILIS_DATABASE_URL='postgres://facilis_app:...@127.0.0.1:5432/facilis' pnpm dev
 ```
 
 The URL wins over `db.mode: "pglite"`, so the same committed config runs in both places. There
@@ -142,7 +144,7 @@ belong to the hosting provider; the wire behaviour and the SQL semantics are rea
 
 The whole path is scripted: `pnpm pg:e2e` builds `@facilis.dev/db` and the example for
 production, provisions that endpoint through the owner connection, runs
-`node .output/server/index.mjs` with `NODE_ENV=production` and `DATABASE_URL`, and asserts
+`node .output/server/index.mjs` with `NODE_ENV=production` and `FACILIS_DATABASE_URL`, and asserts
 register/login/session/todo over HTTP plus the row landing in the cluster — with no database
 server installed.
 

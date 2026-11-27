@@ -31,9 +31,9 @@ export function resolveDbTarget(
 ): ResolvedDbTarget {
   // A hosting panel that defines the variable but leaves it blank is "not configured": an
   // empty URL would otherwise reach the driver and surface as a confusing connection error.
-  // DATABASE_URL stays the host convention; FACILIS_DATABASE_URL is the runtime key.
-  const url =
-    readUrl(runtimeSecret(runtime, "databaseUrl") ?? undefined) ?? readUrl(env["DATABASE_URL"]);
+  // One key, one variable (D-224): a platform's DATABASE_URL is mapped to FACILIS_DATABASE_URL
+  // (or declared as runtime.databaseUrl), never read behind the declaration.
+  const url = readUrl(runtimeSecret(runtime, "databaseUrl") ?? undefined);
   if (url !== undefined) {
     return { target: { driver: "postgres", url }, warnings: [] };
   }
@@ -58,7 +58,7 @@ export function resolveDbTarget(
         warnings: [
           warning(
             "db_pglite_in_production",
-            "Production refuses the in-memory PGlite driver: set FACILIS_DATABASE_URL (or DATABASE_URL) to a Postgres connection string.",
+            "Production refuses the in-memory PGlite driver: set FACILIS_DATABASE_URL to a Postgres connection string.",
           ),
         ],
       };
@@ -72,7 +72,7 @@ export function resolveDbTarget(
       warnings: [
         warning(
           "db_url_missing",
-          'runtime.databaseMode is "postgres" but neither FACILIS_DATABASE_URL nor DATABASE_URL is set.',
+          'runtime.databaseMode is "postgres" but FACILIS_DATABASE_URL is not set.',
         ),
       ],
     };

@@ -5,8 +5,11 @@ import { resolveDbTarget } from "./db-target.ts";
 
 const PRODUCTION: NodeJS.ProcessEnv = { NODE_ENV: "production" };
 
-function runtimeWith(databaseMode?: string): FacilisRuntimeConfig {
-  return databaseMode === undefined ? {} : { databaseMode };
+function runtimeWith(databaseMode?: string, databaseUrl?: string): FacilisRuntimeConfig {
+  return {
+    ...(databaseMode === undefined ? {} : { databaseMode }),
+    ...(databaseUrl === undefined ? {} : { databaseUrl }),
+  };
 }
 
 describe("resolveDbTarget", () => {
@@ -25,34 +28,35 @@ describe("resolveDbTarget", () => {
     expect(resolved.warnings[0]?.message).toContain("FACILIS_DATABASE_MODE");
   });
 
-  it("lets a connection string mean postgres, whatever the config says", () => {
+  it("lets a declared connection string mean postgres, whatever the mode says", () => {
     expect(
-      resolveDbTarget(runtimeWith("pglite"), { DATABASE_URL: "postgres://db/app" }),
+      resolveDbTarget(runtimeWith("pglite", "postgres://db/app"), { NODE_ENV: "development" }),
     ).toEqual({
       target: { driver: "postgres", url: "postgres://db/app" },
       warnings: [],
     });
   });
 
-  it("prefers FACILIS_DATABASE_URL over DATABASE_URL", () => {
-    const resolved = resolveDbTarget(
-      { databaseUrl: "postgres://db/facilis" },
-      { DATABASE_URL: "postgres://db/other" },
-    );
-    expect(resolved.target).toEqual({ driver: "postgres", url: "postgres://db/facilis" });
+  it("ignores a host DATABASE_URL: one key, one variable (D-224)", () => {
+    const resolved = resolveDbTarget(runtimeWith("postgres"), {
+      DATABASE_URL: "postgres://db/app",
+    });
+    expect(resolved.target).toBeNull();
+    expect(resolved.warnings.map((entry) => entry.code)).toEqual(["db_url_missing"]);
+    expect(resolved.warnings[0]?.message).toContain("FACILIS_DATABASE_URL");
   });
 
   it("treats a blank connection string as not configured", () => {
     // A platform panel can define the variable with an empty value; that must behave like
     // "unset" instead of failing later with an opaque connection error.
     expect(
-      resolveDbTarget(runtimeWith("pglite"), { NODE_ENV: "development", DATABASE_URL: "   " }),
+      resolveDbTarget(runtimeWith("pglite", "   "), { NODE_ENV: "development" }),
     ).toEqual({
       target: { driver: "pglite" },
       warnings: [],
     });
     expect(
-      resolveDbTarget(runtimeWith("postgres"), { DATABASE_URL: "" }).warnings.map((e) => e.code),
+      resolveDbTarget(runtimeWith("postgres", ""), {}).warnings.map((e) => e.code),
     ).toEqual(["db_url_missing"]);
   });
 
@@ -82,11 +86,8 @@ describe("resolveDbTarget", () => {
     expect(resolved.warnings.map((entry) => entry.code)).toEqual(["db_mode_unsupported"]);
   });
 
-  it("resolves postgres from a url in production", () => {
-    const resolved = resolveDbTarget(runtimeWith("pglite"), {
-      ...PRODUCTION,
-      DATABASE_URL: "postgres://db/app",
-    });
+  it("resolves postgres from a declared url in production", () => {
+    const resolved = resolveDbTarget(runtimeWith("pglite", "postgres://db/app"), PRODUCTION);
     expect(resolved.target).toEqual({ driver: "postgres", url: "postgres://db/app" });
   });
 
