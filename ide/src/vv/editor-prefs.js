@@ -1,4 +1,4 @@
-// Editor preferences that outlive a reload, and the keystroke that toggles them.
+// Editor preferences that outlive a reload, and the keystrokes that toggle them.
 //
 // One preference so far — word wrap — kept here rather than threaded through the
 // controller so the chord and the storage key sit next to the reasoning about them.
@@ -51,4 +51,20 @@ export function isWordWrapChord(e) {
   if (e.metaKey || e.ctrlKey || e.shiftKey) return false;
   if (e.code === "KeyZ") return true;
   return typeof e.key === "string" && e.key.toLowerCase() === "z";
+}
+
+/**
+ * F6 / Shift+F6 (issue #211), the integrated terminal's only keyboard way out.
+ *
+ * The binding itself lives in the shortcut registry (components/ide/shortcuts.ts); this is
+ * the destination decision the action needs, kept pure so it is unit-tested without a DOM.
+ * F6 leaves a focused terminal for the panel; Shift+F6 — or F6 from anywhere else — returns
+ * to the visible terminal. Ctrl/Cmd/Alt+F6 are not the chord: those belong to the shell and
+ * the browser. Returns null for any other key so a stale caller cannot move focus.
+ */
+export function terminalFocusTarget(e, terminalFocused) {
+  if (!e || typeof e.key !== "string" || e.key !== "F6") return null;
+  if (e.metaKey || e.ctrlKey || e.altKey) return null;
+  if (e.shiftKey) return "terminal";
+  return terminalFocused ? "panel" : "terminal";
 }

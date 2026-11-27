@@ -8,6 +8,7 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useIde } from "./useIde";
+import { formatShortcut } from "./shortcuts";
 
 export function TerminalPanel() {
   const { c, snap } = useIde();
@@ -44,11 +45,30 @@ export function TerminalPanel() {
         : t("panel.ports");
 
   return (
-    <div className="flex h-full flex-col bg-panel">
+    <div
+      data-terminal-panel=""
+      tabIndex={-1}
+      role="region"
+      aria-label={title}
+      className="flex h-full flex-col bg-panel outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+    >
       <div className="flex h-8 shrink-0 items-center gap-1 border-b px-2 pr-1">
         <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {title}
         </span>
+        {snap.panelTab !== "ports" && (
+          // The escape chord is taught where the terminal is, from the registry (issue #211).
+          <span
+            role="note"
+            aria-label={t("terminal.focusHint")}
+            title={t("terminal.focusHint")}
+            className="ml-1 hidden text-[10px] text-muted-foreground sm:inline"
+          >
+            <kbd className="rounded border border-border px-1 font-mono">
+              {formatShortcut("terminal-focus")}
+            </kbd>
+          </span>
+        )}
         <span className="flex-1" />
         {snap.panelTab === "terminal" && (
           <button
@@ -116,11 +136,13 @@ export function TerminalPanel() {
                 {shells.map((term) => {
                   const active = term.id === snap.activeTermId;
                   return (
-                    <li key={term.id}>
-                      <div
+                    <li key={term.id} className="group relative">
+                      <button
+                        type="button"
+                        aria-current={active ? "true" : undefined}
                         onClick={() => c.terminals.switchTerminal(term.id)}
                         className={cn(
-                          "group flex cursor-pointer items-center gap-1.5 px-2 py-1",
+                          "flex w-full cursor-pointer items-center gap-1.5 py-1 pr-7 pl-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                           active
                             ? "bg-accent text-foreground"
                             : "text-muted-foreground hover:text-foreground",
@@ -129,18 +151,18 @@ export function TerminalPanel() {
                       >
                         <SquareTerminal className="size-3.5 shrink-0 opacity-70" />
                         <span className="truncate">{term.label}</span>
-                        <button
-                          title={t("panel.killTerminal")}
-                          aria-label={t("panel.killTerminal")}
-                          className="ml-auto hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground group-hover:flex"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            c.terminals.closeTerminal(term.id);
-                          }}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </div>
+                      </button>
+                      {/* opacity, never hidden: a display:none child cannot take focus, and
+                          this one is revealed when the row itself is focused (issue #211). */}
+                      <button
+                        type="button"
+                        title={t("panel.killTerminal")}
+                        aria-label={t("panel.killTerminal")}
+                        className="pointer-events-none absolute top-1/2 right-1 flex size-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 hover:bg-background hover:text-foreground"
+                        onClick={() => c.terminals.closeTerminal(term.id)}
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
                     </li>
                   );
                 })}

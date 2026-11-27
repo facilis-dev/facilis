@@ -150,6 +150,12 @@ export const SHORTCUTS = [
   // Files and terminals.
   shortcut("file-save", { key: "s", mod: true }, "shortcuts.save"),
   shortcut("terminal-new", { key: "c", mod: true, shift: true }, "shortcuts.newTerminal"),
+  // F6 is the terminal's way out (issue #211): it types nothing, so the shell loses no
+  // character, and it is global because Shift+F6 — or F6 from elsewhere — must come back.
+  // createXterm is shared with the Console, so the one action covers both surfaces.
+  shortcut("terminal-focus", { key: "F6", shift: "any" }, "shortcuts.focusTerminal", {
+    noteKey: "shortcuts.note.terminalFocus",
+  }),
 
   // The graph lens picker (issue #204) lives here now; Ctrl+Shift+L belongs to the editor and
   // the terminal when they have focus, which is what deferTo keeps.

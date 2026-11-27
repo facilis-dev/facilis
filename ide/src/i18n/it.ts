@@ -24,6 +24,7 @@ import { stateLensesIt } from "./it-state-lenses";
 import { explorerIt } from "./it-explorer";
 import { editorTabsIt } from "./it-editor-tabs";
 import { shortcutsIt } from "./it-shortcuts";
+import { terminalIt } from "./it-terminal";
 import { homeIt } from "./it-home";
 import { overlaysIt } from "./it-overlays";
 
@@ -275,6 +276,9 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── shortcut registry (issue #223) ──────────────────────────────────────
   ...shortcutsIt,
+
+  // ── terminal panel keyboard escape (issue #211) ─────────────────────────
+  ...terminalIt,
 
   // ── Home heading and view announcement (issue #212) ─────────────────────
   ...homeIt,

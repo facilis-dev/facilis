@@ -52,6 +52,7 @@ import { nextTabId, tabCloseSet } from "./editor-tabs";
 import { closeEditorTabs } from "./editor-tab-close";
 import { PaletteFileList } from "./PaletteFileList";
 import { formatShortcut } from "./shortcuts";
+import { terminalFocusCommands } from "./terminal-focus";
 
 export function CommandPalette() {
   const { c, snap } = useIde();
@@ -116,6 +117,8 @@ export function CommandPalette() {
         keys: formatShortcut("terminal-new"),
         run: () => c.terminals.newShellTerminal(),
       },
+      // Same registry entry and action as the dispatcher (issue #211): the palette teaches F6.
+      ...terminalFocusCommands(c),
       { label: t("palette.runProject"), icon: Play, run: () => c.runActiveFolder() },
       {
         label: t("palette.importFolder"),

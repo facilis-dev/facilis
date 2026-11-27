@@ -16,6 +16,9 @@ export const shortcutsEn = {
   "shortcuts.sidebarToggle": "Toggle Sidebar",
   "shortcuts.save": "Save File",
   "shortcuts.newTerminal": "New Terminal",
+  "shortcuts.focusTerminal": "Focus Terminal",
+  "shortcuts.note.terminalFocus":
+    "F6 leaves a focused terminal; Shift+F6 returns to it, in the terminal and the Console.",
   "shortcuts.graphLens": "Graph lens picker",
   "shortcuts.help": "Keyboard Shortcuts",
   "shortcuts.closeTab": "Close editor tab",

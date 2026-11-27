@@ -37,6 +37,17 @@ describe("ShortcutHelpDialog", () => {
     expect(html).toContain(t("shortcuts.note.browserKeeps"));
   });
 
+  it("lists the terminal escape chord under the global bindings", () => {
+    const html = render();
+    const global = html.slice(
+      html.indexOf('id="shortcut-help-global"'),
+      html.indexOf('id="shortcut-help-editor"'),
+    );
+    expect(global).toContain(t("shortcuts.focusTerminal"));
+    expect(global).toContain(formatShortcut("terminal-focus"));
+    expect(global).toContain(t("shortcuts.note.terminalFocus"));
+  });
+
   it("says the tour keeps Escape and the arrows while it is open", () => {
     const html = render();
     expect(html).toContain(t("shortcuts.tourDismiss"));

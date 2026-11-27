@@ -26,6 +26,7 @@ import { aiAvailable, deployment } from "@/deploy/current";
 import { nextTabId } from "./editor-tabs";
 import { matchShortcut, shortcutContext, type ShortcutId } from "./shortcuts";
 import { readShortcutFocus } from "./shortcut-focus";
+import { toggleTerminalFocus } from "./terminal-focus";
 import { ShortcutHelpDialog } from "./ShortcutHelpDialog";
 import { shortcutHelpUi } from "@/vv/shortcut-help-ui";
 import { useNarrowShell } from "@/vv/narrow-shell";
@@ -83,7 +84,7 @@ export function AppShell() {
       const next = nextTabId(snap.openTabs, snap.activeTab, delta);
       if (next !== null) c.openFile(next, { preview: next === snap.previewTab, focus: false });
     };
-    const actions: Record<ShortcutId, () => void> = {
+    const actions: Record<ShortcutId, (event: KeyboardEvent) => void> = {
       "word-wrap": () => c.toggleWordWrap(),
       "tab-select-1": () => selectTab(0),
       "tab-select-2": () => selectTab(1),
@@ -107,6 +108,12 @@ export function AppShell() {
       "sidebar-toggle": () => c.toggleSidebar(),
       "file-save": () => c.saveActiveFile(),
       "terminal-new": () => c.terminals.newShellTerminal(),
+      "terminal-focus": (event) => {
+        // xterm's keydown listener runs on its own textarea and ignores defaultPrevented,
+        // so the F6 sequence would still reach the shell after focus left it without this.
+        event.stopPropagation();
+        toggleTerminalFocus(c, event);
+      },
       "graph-lens": () => lensShortcuts.openPicker(),
       "shortcuts-help": () => shortcutHelpUi.open(),
       // The browser never delivers these to the page, so the registry only documents them.
@@ -125,7 +132,7 @@ export function AppShell() {
       const entry = matchShortcut(event, shortcutContext(focus));
       if (entry === null) return;
       event.preventDefault();
-      actions[entry.id]();
+      actions[entry.id](event);
     };
     addEventListener("keydown", onKey, true);
     return () => removeEventListener("keydown", onKey, true);

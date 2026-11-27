@@ -25,6 +25,7 @@ import { stateLensesEn } from "./en-state-lenses";
 import { explorerEn } from "./en-explorer";
 import { editorTabsEn } from "./en-editor-tabs";
 import { shortcutsEn } from "./en-shortcuts";
+import { terminalEn } from "./en-terminal";
 import { homeEn } from "./en-home";
 import { overlaysEn } from "./en-overlays";
 export const en = {
@@ -278,6 +279,9 @@ export const en = {
   ...explorerEn,
   ...editorTabsEn,
   ...shortcutsEn,
+
+  // ── terminal panel keyboard escape (#211) ──────────────────────────────
+  ...terminalEn,
 
   // ── Home heading and view announcement (issue #212) ─────────────────────
   ...homeEn,

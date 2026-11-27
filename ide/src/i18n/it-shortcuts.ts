@@ -16,6 +16,9 @@ export const shortcutsIt: Partial<Record<MessageKey, string>> = {
   "shortcuts.sidebarToggle": "Attiva/disattiva barra laterale",
   "shortcuts.save": "Salva file",
   "shortcuts.newTerminal": "Nuovo terminale",
+  "shortcuts.focusTerminal": "Porta il focus al terminale",
+  "shortcuts.note.terminalFocus":
+    "F6 esce dal terminale attivo; Shift+F6 vi riporta il focus, sia nel terminale sia nella Console.",
   "shortcuts.graphLens": "Selettore lente del grafo",
   "shortcuts.help": "Scorciatoie da tastiera",
   "shortcuts.closeTab": "Chiudi scheda dell'editor",

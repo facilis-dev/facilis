@@ -135,6 +135,20 @@ describe("matchShortcut", () => {
     );
   });
 
+  it("binds F6 and Shift+F6 to the terminal escape wherever a surface has focus", () => {
+    for (const context of ["global", "editor", "terminal"] as const) {
+      expect(matchShortcut(event({ key: "F6" }), context)?.id).toBe("terminal-focus");
+      expect(matchShortcut(event({ key: "F6", shiftKey: true }), context)?.id).toBe(
+        "terminal-focus",
+      );
+    }
+    // A dialog or the tour owns its keys; Ctrl/Cmd+F6 were never the chord.
+    expect(matchShortcut(event({ key: "F6" }), "dialog")).toBeNull();
+    expect(matchShortcut(event({ key: "F6" }), "overlay")).toBeNull();
+    expect(matchShortcut(event({ key: "F6", ctrlKey: true }), "global")).toBeNull();
+    expect(matchShortcut(event({ key: "F6", metaKey: true }), "global")).toBeNull();
+  });
+
   it("defers the lens picker to the editor and the terminal", () => {
     const lens = event({ key: "L", metaKey: true, shiftKey: true });
     expect(matchShortcut(lens, "global")?.id).toBe("graph-lens");
