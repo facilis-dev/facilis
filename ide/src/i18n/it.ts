@@ -25,6 +25,7 @@ import { explorerIt } from "./it-explorer";
 import { editorTabsIt } from "./it-editor-tabs";
 import { shortcutsIt } from "./it-shortcuts";
 import { homeIt } from "./it-home";
+import { overlaysIt } from "./it-overlays";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -277,4 +278,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── Home heading and view announcement (issue #212) ─────────────────────
   ...homeIt,
+
+  // ── boot and share covers (issue #217) ──────────────────────────────────
+  ...overlaysIt,
 };

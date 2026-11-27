@@ -20,6 +20,7 @@ import { DesktopShell } from "./DesktopShell";
 import { NarrowShell } from "./NarrowShell";
 import { WorkspaceFrame } from "./workspace-frame";
 import { trackWorkspaceFocus } from "./home-focus";
+import { useBlockingLayersOpen } from "./use-blocking-layer";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
 import { nextTabId } from "./editor-tabs";
@@ -37,6 +38,9 @@ export function AppShell() {
   const { c, snap } = useIde();
   const lensShortcuts = useGraphLensShortcuts();
   const helpOpen = useSyncExternalStore(shortcutHelpUi.subscribe, shortcutHelpUi.getSnapshot);
+  // One read of the covering-layer stack for the whole shell (#217): the frame inerts behind
+  // Home, the tour, the boot/share overlays and the fullscreen graph from the same fact.
+  const blockingLayerOpen = useBlockingLayersOpen();
   const { theme, resolvedTheme, systemTheme } = useTheme();
   // A managed build with ai.mode "off" must not mount the chat at all (D-063).
   // The view can still be "chat" from the activity bar, so it falls back to the
@@ -142,7 +146,7 @@ export function AppShell() {
     <div className="flex h-full w-full flex-col overflow-hidden text-foreground">
       {/* Only the workspace goes inert: Home, the tour and the boot/share overlays are
           siblings of this frame and must keep working while they cover it. */}
-      <WorkspaceFrame view={snap.view}>
+      <WorkspaceFrame view={snap.view} blockingLayerOpen={blockingLayerOpen}>
         <TitleBar />
         {narrow ? (
           <NarrowShell chatEnabled={chatEnabled} />

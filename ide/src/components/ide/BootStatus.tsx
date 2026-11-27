@@ -50,8 +50,10 @@ export function BootStatus() {
   }
   const determinate = snap.bootPhase === "restore" && snap.bootTotal > 0;
   const pct = determinate ? Math.min(100, Math.round((snap.bootDone / snap.bootTotal) * 100)) : 0;
+  // A live region, so a screen reader hears the phase and the progress as they change: the
+  // card is the whole status, and Home and the project-boot cover share it (#217).
   return (
-    <div className="mb-6 rounded-xl border bg-card p-4">
+    <div role="status" className="mb-6 rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
         <Loader className="mt-0.5 size-5 shrink-0 animate-spin text-primary" />
         <div className="min-w-0 flex-1">

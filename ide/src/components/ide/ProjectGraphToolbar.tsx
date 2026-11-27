@@ -186,6 +186,7 @@ export function ProjectGraphToolbar({
             }
             title={fullscreen ? t("projectGraph.exitFullscreen") : t("projectGraph.fullscreen")}
             aria-pressed={fullscreen}
+            data-graph-fullscreen-toggle=""
             onClick={onToggleFullscreen}
           >
             {fullscreen ? <Minimize2 /> : <Maximize2 />}

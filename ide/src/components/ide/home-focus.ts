@@ -36,15 +36,25 @@ export function lastWorkspaceFocus(): HTMLElement | null {
 
 /** Put focus back on the opener, or on a control that still exists. */
 export function restoreWorkspaceFocus(opener: HTMLElement | null): void {
-  if (opener !== null && opener.isConnected && opener.closest("[inert]") === null) {
-    opener.focus();
+  const target = resolveReturnFocus(opener);
+  if (target === null) return;
+  if (target.closest("[inert]") === null) {
+    target.focus();
     return;
   }
+  // A layer unregisters in its cleanup, but the frame only loses `inert` on the render the
+  // store notification schedules (#217). Focusing now would be a no-op, so retry once after
+  // that commit; if a newer layer is up, its own focus handling wins and this does nothing.
+  requestAnimationFrame(() => {
+    if (target.isConnected && target.closest("[inert]") === null) target.focus();
+  });
+}
+
+function resolveReturnFocus(opener: HTMLElement | null): HTMLElement | null {
+  if (opener !== null && opener.isConnected) return opener;
   for (const selector of RETURN_FOCUS_FALLBACKS) {
     const target = document.querySelector<HTMLElement>(selector);
-    if (target !== null && target.getClientRects().length > 0) {
-      target.focus();
-      return;
-    }
+    if (target !== null && target.getClientRects().length > 0) return target;
   }
+  return null;
 }

@@ -667,7 +667,7 @@ export class IdeController {
     // Opened via a shared link: show a full-screen blocking overlay immediately so
     // the (blank) workspace doesn't look idle while the kernel boots + unpacks.
     if (hasSharePayload()) {
-      this.set({ shareLoading: true, shareMessage: "Booting the runtime…" });
+      this.set({ shareLoading: true, shareMessage: t("overlays.share.booting") });
       this.status("opening shared project…");
     }
     // Service Worker registration is NOT here — it happens on `kernel-online`
@@ -2105,7 +2105,7 @@ export class IdeController {
     }
     history.replaceState(null, "", location.pathname + location.search);
     try {
-      this.set({ shareLoading: true, shareMessage: "Unpacking files…" });
+      this.set({ shareLoading: true, shareMessage: t("overlays.share.unpacking") });
       const { ok, dir, files } = await this.projectImport.importShared(payload);
       if (ok) {
         const projName = projectName(dir);

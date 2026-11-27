@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WorkspaceFrame } from "./workspace-frame";
 
-function markup(view: "home" | "workspace"): string {
+function markup(view: "home" | "workspace", blockingLayerOpen = false): string {
   return renderToStaticMarkup(
-    <WorkspaceFrame view={view}>
+    <WorkspaceFrame view={view} blockingLayerOpen={blockingLayerOpen}>
       <button type="button">workspace</button>
     </WorkspaceFrame>,
   );
@@ -21,6 +21,12 @@ describe("WorkspaceFrame", () => {
     // marker is also what scopes Home's focus tracker to workspace controls (#212).
     expect(html).toContain("data-workspace-frame");
     expect(html).toContain("workspace");
+  });
+
+  it("makes the covered workspace inert behind a registered layer", () => {
+    const html = markup("workspace", true);
+    expect(html).toContain("inert");
+    expect(html).toContain("data-workspace-frame");
   });
 
   it("leaves the workspace interactive while a project is open", () => {

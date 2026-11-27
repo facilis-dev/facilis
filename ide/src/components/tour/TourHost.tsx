@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useIde } from "@/components/ide/useIde";
+import { useBlockingLayer } from "@/components/ide/use-blocking-layer";
 import { isAutomationContext, shouldAutoStartTour } from "@/tour/tour-store";
 import type { TourAction } from "@/tour/tour-types";
 import type { IdeController } from "@/vv/controller";
@@ -34,6 +35,9 @@ function runStepAction(controller: IdeController, action: TourAction): void {
 export function TourHost() {
   const { c, snap } = useIde();
   const { snapshot, steps, skip } = useTour();
+  // The tour is a sibling of the workspace frame and covers it like Home does (#217): the
+  // shell behind it must not be tabbable or shortcut-active while a step is up.
+  useBlockingLayer("tour", snapshot.active);
   const autoStarted = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

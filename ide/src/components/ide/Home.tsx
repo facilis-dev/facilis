@@ -46,8 +46,9 @@ export function HomeView() {
     (firstRecent ?? headingRef.current)?.focus();
   }, []);
 
-  // Passive cleanup, so it runs after the frame lost `inert`: focusing a descendant of an
-  // inert element is a no-op.
+  // Passive cleanup, so it runs after the frame started losing `inert`: focusing a
+  // descendant of an inert element is a no-op, and a layer's registration can keep the frame
+  // inert for one more render, which restoreWorkspaceFocus waits out.
   useEffect(() => () => restoreWorkspaceFocus(openerRef.current), []);
 
   const onDrop = (e: React.DragEvent) => {
