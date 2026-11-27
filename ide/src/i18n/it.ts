@@ -20,6 +20,7 @@ import { previewIt } from "./it-preview";
 import { scaffoldIt } from "./it-scaffold";
 import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 import { stateLensesIt } from "./it-state-lenses";
+import { explorerIt } from "./it-explorer";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -285,4 +286,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── observability link-out (D-203 §6, #140) ─────────────────────────────
   ...telemetryLinkoutIt,
+
+  // ── explorer file tree (issue #209) ─────────────────────────────────────
+  ...explorerIt,
 };
