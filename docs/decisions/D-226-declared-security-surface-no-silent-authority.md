@@ -44,7 +44,11 @@ in the IDE, and exported for the security review.** No silent authority.
    attached by the Nitro context middleware through core's module-private WeakMap
    (`attachRequestDatabase`) and read only by the wrapper and the transaction it opens. A handler
    sees `ctx.db` (guarded, policy-scoped), `ctx.rawDb` (declared, audited), `ctx.sudo` and
-   `ctx.system` (audited elevations). A raw route has no `ctx.db` at all.
+   `ctx.system` (audited elevations). A raw route has no `ctx.db` at all. `rawDb` returns the
+   request transaction with the app role; it does not add a new privilege boundary, and because
+   `facilis_app` is a member of `facilis_system` (so the audited elevations can `SET ROLE`), a
+   rawDb caller could also set the system role inside that transaction. The declaration and its
+   audit entry are the control, exactly as for a declared extension.
 4. **One fact set.** `Analysis.surface` and each `RouteFact.surface` feed the IDE graph, the mount
    allowlist, the build gate and the release export. Nothing re-classifies a site.
 5. **Mount only what is declared.** The Nitro module filters `handlers`, `scannedHandlers`,
