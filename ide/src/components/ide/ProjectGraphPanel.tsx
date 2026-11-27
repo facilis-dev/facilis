@@ -37,8 +37,7 @@ import { useProjectGraphViewModel } from "./useProjectGraphViewModel";
 export function ProjectGraphPanel() {
   const { c, snap } = useIde();
   const root = c.activeFolder?.rootPath ?? null;
-  // openFolder() publishes the file index asynchronously, so at cold boot this is false while
-  // the graph tab is already open; the analysis must wait, not read the empty snapshot.
+  // The index lands asynchronously after openFolder(): a cold-boot graph must wait for it.
   const indexReady = isProjectIndexReady(snap.files, root);
   const { result, loading, refresh } = useProjectGraphAnalysis(c, root, indexReady);
   const [fullscreen, setFullscreen] = useState(false);
@@ -97,9 +96,10 @@ export function ProjectGraphPanel() {
     summary: lensSummary,
     highlight: lensHighlightValue,
     byNode: diagnosticsByNodeMap,
+    availabilityOf,
     selectLens,
     closeLens,
-  } = useProjectGraphLens(analysis?.graphDiagnostics, view);
+  } = useProjectGraphLens(analysis?.graphDiagnostics, view, root);
   const selectedDiagnostics =
     selectedNodeId === null ? [] : (diagnosticsByNodeMap.get(selectedNodeId) ?? []);
   const openFileAt = (file: string, line: number) => {
@@ -258,6 +258,7 @@ export function ProjectGraphPanel() {
               onClose={closeLens}
               onActivate={jumpToNode}
               drawerOpen={drawerOpen}
+              availabilityOf={availabilityOf}
             />
           )}
         </div>

@@ -3,8 +3,12 @@
 // zero-match state. It overlays the canvas, so toggling a lens never resizes the surface or
 // re-runs layout. Every string is a t() key; every colour is a semantic theme token.
 
-import { t, type MessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import { useNarrowViewport } from "./use-narrow-viewport";
+import {
+  LENS_AVAILABLE,
+  type GraphLensAvailability,
+} from "@/facilis/graph-surface/lens-lifecycle.ts";
 import {
   DIAGNOSTIC_MESSAGE_KEYS,
   GRAPH_LENSES,
@@ -15,20 +19,24 @@ import {
 } from "@/facilis/graph-surface/lenses.ts";
 import { lensQuestionKey } from "@/facilis/graph-surface/questions.ts";
 
-/** The visible code on a narrow bar: the four answers still fit in one row. */
-const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
-  security: "projectGraph.surface.lens.security.short",
-  elevated: "projectGraph.surface.lens.elevated.short",
-  shared: "projectGraph.surface.lens.shared.short",
-  unknown: "projectGraph.surface.lens.unknown.short",
-};
+const alwaysAvailable = (): GraphLensAvailability => LENS_AVAILABLE;
+
+function lensButtonClass(active: boolean, unavailable: boolean): string {
+  if (unavailable) return "shrink-0 rounded px-2 py-1 text-[11px] text-muted-foreground/60";
+  const state = active
+    ? "bg-accent text-accent-foreground"
+    : "text-muted-foreground hover:bg-accent/10 hover:text-foreground";
+  return "shrink-0 rounded px-2 py-1 text-[11px] " + state;
+}
 
 function LensSwitcher({
   lens,
   onSelectLens,
+  availabilityOf,
 }: {
   lens: GraphLensId | null;
   onSelectLens: (lens: GraphLensId) => void;
+  availabilityOf: (lens: GraphLensId) => GraphLensAvailability;
 }) {
   return (
     <div
@@ -46,25 +54,27 @@ function LensSwitcher({
         const active = definition.id === lens;
         // A Q-code alone means nothing: the hover text is the review question the lens answers.
         const title = t(definition.titleKey);
-        const question = t(lensQuestionKey(definition.id));
+        const availability = availabilityOf(definition.id);
+        const reasonKey = availability.available ? null : availability.reasonKey;
+        // An unavailable lens says why, in the same translated words the banner would use.
+        const reason = reasonKey === null ? null : t(reasonKey);
+        const unavailable = reason !== null;
+        const hint = reason ?? t(lensQuestionKey(definition.id));
         return (
           <button
             key={definition.id}
             type="button"
             aria-pressed={active}
-            aria-label={title + " — " + question}
-            title={question}
+            aria-label={title + " — " + hint}
+            title={hint}
+            disabled={unavailable}
             data-testid={"project-graph-lens-" + definition.id}
+            data-unavailable={unavailable ? "true" : undefined}
             onClick={() => onSelectLens(definition.id)}
-            className={
-              "shrink-0 rounded px-2 py-1 text-[11px] " +
-              (active
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/10 hover:text-foreground")
-            }
+            className={lensButtonClass(active, unavailable)}
           >
             <span className="hidden @sm:inline">{t(definition.titleKey)}</span>
-            <span className="@sm:hidden">{t(SHORT_KEYS[definition.id])}</span>
+            <span className="@sm:hidden">{t(definition.shortKey)}</span>
           </button>
         );
       })}
@@ -120,6 +130,7 @@ export function ProjectGraphLensBar({
   onClose,
   onActivate,
   drawerOpen,
+  availabilityOf = alwaysAvailable,
 }: {
   lens: GraphLensId | null;
   summary: GraphLensSummary | null;
@@ -129,6 +140,7 @@ export function ProjectGraphLensBar({
   onActivate: (nodeId: string) => void;
   /** The mobile bottom sheet reserves the lower 60%: keep the lens HUD above it (#191). */
   drawerOpen: boolean;
+  availabilityOf?: (lens: GraphLensId) => GraphLensAvailability;
 }) {
   const sheetOpen = useNarrowViewport() && drawerOpen;
   const definition = lens === null ? null : lensDefinition(lens);
@@ -140,11 +152,12 @@ export function ProjectGraphLensBar({
         (sheetOpen ? "max-h-[calc(40%-4rem)] overflow-y-auto" : "max-h-[calc(100%-4rem)]")
       }
     >
-      <LensSwitcher lens={lens} onSelectLens={onSelectLens} />
+      <LensSwitcher lens={lens} onSelectLens={onSelectLens} availabilityOf={availabilityOf} />
       {definition !== null && summary !== null && (
         <section
           data-testid="project-graph-lens-banner"
           aria-label={t(definition.titleKey)}
+          style={{ borderTopColor: "var(" + definition.colorToken + ")", borderTopWidth: 2 }}
           className="pointer-events-auto w-full overflow-hidden rounded-lg border bg-panel/95 text-xs shadow-xl"
         >
           <header className="flex items-start gap-2 border-b px-2 py-1.5">

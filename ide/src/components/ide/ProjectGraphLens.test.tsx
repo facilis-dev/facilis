@@ -6,6 +6,8 @@ import type { GraphDiagnostic } from "@facilis.dev/analyze";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@/i18n";
+import type { GraphLensAvailability } from "@/facilis/graph-surface/lens-lifecycle.ts";
+import { LENS_AVAILABLE } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { summarizeLens, type GraphLensId } from "@/facilis/graph-surface/lenses.ts";
 import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
@@ -38,7 +40,11 @@ const LABELS: Readonly<Record<string, string>> = {
   "table:todos": "todos",
 };
 
-function renderBar(lens: GraphLensId | null, diagnostics: readonly GraphDiagnostic[]): string {
+function renderBar(
+  lens: GraphLensId | null,
+  diagnostics: readonly GraphDiagnostic[],
+  availabilityOf: (lens: GraphLensId) => GraphLensAvailability = () => LENS_AVAILABLE,
+): string {
   return renderToStaticMarkup(
     <ProjectGraphLensBar
       lens={lens}
@@ -48,6 +54,7 @@ function renderBar(lens: GraphLensId | null, diagnostics: readonly GraphDiagnost
       onClose={vi.fn()}
       onActivate={vi.fn()}
       drawerOpen={false}
+      availabilityOf={availabilityOf}
     />,
   );
 }
@@ -78,6 +85,18 @@ describe("ProjectGraphLensBar", () => {
     expect(html).toContain("POST /api/todos");
     expect(html).toContain("anyone can call it");
     expect(html).toContain("project-graph-lens-answer-table:todos");
+  });
+
+  it("disables an unavailable lens and shows its reason instead of hiding it", () => {
+    const html = renderBar(null, [WRITE], (lens) =>
+      lens === "unknown"
+        ? { available: false, reasonKey: "projectGraph.surface.state.notRunning" }
+        : LENS_AVAILABLE,
+    );
+    const disabled = html.match(/<button[^>]*disabled[^>]*>/)?.[0] ?? "";
+    expect(disabled).toContain("project-graph-lens-unknown");
+    expect(disabled).toContain('data-unavailable="true"');
+    expect(disabled).toContain("Project not running");
   });
 
   it("shows an explicit empty state when a lens matches nothing", () => {
