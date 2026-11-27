@@ -387,7 +387,13 @@ async function main() {
   // goes is the one claim a DOM-free unit test cannot witness, so it is asserted here.
   let keyboardReport = null;
   try {
-    keyboardReport = await runKeyboardChecks({ page, check, ARTIFACTS });
+    keyboardReport = await runKeyboardChecks({
+      page,
+      client: chrome.client,
+      devUrl: dev.url,
+      check,
+      ARTIFACTS,
+    });
     for (const result of keyboardReport.checks) {
       if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
     }

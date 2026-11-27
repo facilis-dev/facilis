@@ -5,6 +5,8 @@
 // already booted (a project is open, an editor tab and a terminal exist) and asserts on
 // document.activeElement, which is the only honest witness of where the keyboard went.
 
+import { openPage } from "./cdp.mjs";
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitFor(page, expression, limitMs) {
@@ -27,7 +29,7 @@ async function pressKey(page, key, code, keyCode, modifiers = 0) {
 const FOCUSED =
   "(() => { const el = document.activeElement; return el === null ? 'NONE' : (el.getAttribute('role') || el.tagName) + '|' + (el.id || '') + '|' + ((el.textContent || '').trim().slice(0, 40)); })()";
 
-export async function runKeyboardChecks({ page, check, ARTIFACTS }) {
+export async function runKeyboardChecks({ page, client, devUrl, check, ARTIFACTS }) {
   const checks = [];
   const record = (ok, label, detail = "") => {
     check(ok, label, detail);
@@ -123,7 +125,8 @@ export async function runKeyboardChecks({ page, check, ARTIFACTS }) {
 
   // The Explorer tree: one tab stop, arrows move between rows.
   await page.evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') || '') === 'Explorer');
+    // The activity bar names the tree's view through t("activity.workspace").
+    const button = [...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') || '') === 'Workspace');
     if (button) button.click();
   })()`);
   const treeReady = await waitFor(
@@ -174,28 +177,26 @@ export async function runKeyboardChecks({ page, check, ARTIFACTS }) {
   }
 
   // Home covers the workspace: one inert frame, and Tab stays inside Home (issue #212/#217).
-  await page.evaluate("window.__ide.goHome()");
+  // It runs in its OWN tab: leaving Home on the main page disposes Monaco and aborts its
+  // pending worker fetch, which the run-wide failed-request probe would rightly report.
+  const homePage = await openPage(client, devUrl);
   const homeInert = await waitFor(
-    page,
+    homePage,
     "Boolean(document.querySelector('[data-workspace-frame][inert]'))",
-    8000,
+    180000,
   );
   record(homeInert, "keyboard: Home inerts the workspace frame");
   if (homeInert) {
-    await page.evaluate("document.activeElement && document.activeElement.blur()");
-    await pressKey(page, "Tab", "Tab", 9);
-    const insideHome = await page.evaluate(
+    await homePage.evaluate("document.activeElement && document.activeElement.blur()");
+    await pressKey(homePage, "Tab", "Tab", 9);
+    const insideHome = await homePage.evaluate(
       "(() => { const el = document.activeElement; return el !== null && el.closest('[data-workspace-frame]') === null; })()",
     );
     record(
       insideHome,
       "keyboard: Tab from Home never lands in the covered shell",
-      await page.evaluate(FOCUSED),
+      await homePage.evaluate(FOCUSED),
     );
-    await page
-      .evaluate("window.__ide.openProject(window.__ide.getSnapshot().workspaceFolders[0].rootPath)")
-      .catch(() => undefined);
-    await sleep(500);
   }
   return { checks };
 }
