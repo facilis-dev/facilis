@@ -6,6 +6,7 @@ import type { GraphDiagnostic } from "./graph-diagnostics.ts";
 import type { WorkflowFact, WorkflowTablesFact } from "./types-workflows.ts";
 import type { ConfigPrerenderFacts, PrerenderEligibilityFact } from "./types-prerender.ts";
 import type { ConfigRuntimeFacts } from "./types-runtime.ts";
+import type { RouteSurfaceFact, SecuritySurfaceFacts } from "./types-surface.ts";
 
 /**
  * Fact model of the AST analyzer (docs/findings/ast-dsl-contract.md).
@@ -116,6 +117,12 @@ export interface RouteFact {
   /** null = unknown; [] = explicitly public. */
   readonly permission: readonly string[] | null;
   /**
+   * Whether the route requires a session: "none" for a public/authorized route with no
+   * permission, "required" otherwise. A raw route states it explicitly (D-226); null when
+   * the config could not be read.
+   */
+  readonly auth: "required" | "none" | null;
+  /**
    * True when the wrapper declares the route callable from another origin; false when absent;
    * null when the declaration cannot be read statically (a cross-origin route is never assumed).
    */
@@ -136,6 +143,8 @@ export interface RouteFact {
   readonly handlerFormRead: boolean;
   /** Audited elevation calls in the handler, in source order. */
   readonly elevations: readonly ElevationFact[];
+  /** D-226: standard, declared, undeclared or unknown; only standard is green. */
+  readonly surface: RouteSurfaceFact;
   readonly unknown: readonly UnknownFact[];
 }
 
@@ -277,4 +286,6 @@ export interface Analysis {
   readonly graph: ProjectGraph;
   /** The graph lens facts (D-220, #189): stable codes plus params, never prose. */
   readonly graphDiagnostics: readonly GraphDiagnostic[];
+  /** D-226: the declared security surface, the single source of the release export. */
+  readonly surface: SecuritySurfaceFacts;
 }

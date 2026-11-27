@@ -7,6 +7,22 @@
  * stays browser-safe.
  */
 export { analyzeProject, DEFAULT_TRANSPORT } from "./analyze.ts";
+export { SURFACE_CLASSES } from "./types-surface.ts";
+export type {
+  DynamicCodeFact,
+  DynamicCodeForm,
+  ForbiddenImportFact,
+  RawDbCallFact,
+  RouteSurfaceFact,
+  SecuritySurfaceFacts,
+  ServerExtensionFact,
+  ServerExtensionKind,
+  SurfaceClass,
+  SurfaceDeclarationFact,
+  SurfaceFact,
+  SurfaceKind,
+  SurfaceSummary,
+} from "./types-surface.ts";
 export type { AnalyzeInput } from "./analyze.ts";
 export { buildProjectGraph } from "./graph.ts";
 export type { GraphInput } from "./graph.ts";

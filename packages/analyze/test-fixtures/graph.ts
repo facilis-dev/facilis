@@ -51,6 +51,7 @@ export function route(
     source: ref("server/routes/api/todos/index.get.ts"),
     wrapper: "valid",
     permission: ["todos:read"],
+    auth: "required",
     crossSite: false,
     dbTables: ["todos"],
     dbColumns: null,
@@ -61,6 +62,14 @@ export function route(
     handlerBodyRead: false,
     handlerFormRead: false,
     elevations: [],
+    surface: {
+      class: "standard",
+      declarations: [],
+      source: ref("server/routes/api/todos/index.get.ts"),
+      unknown: [],
+      rawSqlReason: null,
+      rawDb: [],
+    },
     unknown: [],
     ...overrides,
   };

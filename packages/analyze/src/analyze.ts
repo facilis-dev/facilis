@@ -15,6 +15,7 @@ import { buildRouteFacts } from "./passes/routes.ts";
 import { noDirectEnvDiagnostics } from "./passes/no-direct-env.ts";
 import { runtimeConfigDiagnostics } from "./passes/runtime-access.ts";
 import { buildRouteRelationFacts } from "./passes/route-relations.ts";
+import { buildSecuritySurfaceFacts } from "./passes/surface.ts";
 import { importCycleDiagnostics } from "./passes/import-cycle.ts";
 import { reservedRoutePrefixDiagnostics } from "./passes/route-reserved-prefix.ts";
 import { routeGetEffectDiagnostics } from "./passes/route-get-effects.ts";
@@ -89,6 +90,8 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
     pages.pages,
   );
   const fileFacts = buildFileFacts(graph);
+  // D-226: one surface computation feeds the build gate, the IDE and the release export.
+  const surface = buildSecuritySurfaceFacts(graph, fileFacts, routes.routes);
 
   const diagnostics: Diagnostic[] = [];
   for (const file of graph.files.values()) {
@@ -129,6 +132,7 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       ...routeSystemTableDiagnostics(routes.routes, schema.tables),
       ...workflows.diagnostics,
       ...workflowTables.diagnostics,
+      ...surface.diagnostics,
     ].filter(
       // Framework sources are shipped code: their facts stay, but their lint-style
       // diagnostics are not the project's. Project files start outside node_modules/.
@@ -172,5 +176,6 @@ export function analyzeProject(input: AnalyzeInput): Analysis {
       routes: routes.routes,
       tables: schema.tables,
     }),
+    surface: surface.surface,
   };
 }

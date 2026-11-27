@@ -13,6 +13,8 @@
 import {
   asNode,
   callArguments,
+  identifierName,
+  literalString,
   memberName,
   objectEntries,
   propertyName,
@@ -24,6 +26,7 @@ import { warning } from "../diagnostics.ts";
 import type { ProjectFile } from "../module-graph.ts";
 import { sourceRef } from "../source.ts";
 import type { Diagnostic, SourceRef } from "../types.ts";
+import type { RawDbCallFact } from "../types-surface.ts";
 
 const RAW_DB_SPECIFIER = "@facilis.dev/db";
 const RAW_DB_FACTORY = "createDb";
@@ -82,6 +85,38 @@ export function handlerReadsBody(call: AstNode): boolean {
 /** True when the handler reads `.form` or destructures a `{ form }` pattern (D-053). */
 export function handlerReadsForm(call: AstNode): boolean {
   return handlerReads(call, "form");
+}
+
+/** Every `ctx.rawDb({ reason })` call in the handler, with the reason it declares (D-226). */
+export function handlerRawDbCalls(
+  call: AstNode,
+  file: ProjectFile,
+  fallback: SourceRef,
+): RawDbCallFact[] {
+  const handler = callArguments(call)[1];
+  if (handler === undefined) return [];
+  const calls: RawDbCallFact[] = [];
+  walk(handler, (node) => {
+    if (node.type !== "CallExpression") return;
+    const callee = asNode(unwrapExpression(node.callee));
+    // A raw route destructures the context (`{ rawDb }`), an authorized handler uses
+    // `ctx.rawDb`; both are the same declared accessor (D-226).
+    const isRawDb =
+      (callee?.type === "MemberExpression" && memberName(callee) === "rawDb") ||
+      (callee?.type === "Identifier" && identifierName(callee) === "rawDb");
+    if (!isRawDb) return;
+    const argument = asNode(unwrapExpression(callArguments(node)[0]));
+    let reason: string | null = null;
+    if (argument?.type === "ObjectExpression") {
+      const entry = objectEntries(argument).find(
+        (item) => item.type === "Property" && propertyName(item) === "reason",
+      );
+      const value = literalString(entry?.value);
+      if (value !== undefined && value.trim().length > 0) reason = value.trim();
+    }
+    calls.push({ reason, source: nodeRef(file, node, fallback) });
+  });
+  return calls;
 }
 
 /**
