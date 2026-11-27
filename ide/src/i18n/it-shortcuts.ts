@@ -21,6 +21,9 @@ export const shortcutsIt: Partial<Record<MessageKey, string>> = {
     "F6 esce dal terminale attivo; Shift+F6 vi riporta il focus, sia nel terminale sia nella Console.",
   "shortcuts.graphLens": "Selettore lente del grafo",
   "shortcuts.help": "Scorciatoie da tastiera",
+  "shortcuts.tabFocus": "Attiva/disattiva Tab per spostare il focus",
+  "shortcuts.note.tabFocus":
+    "Monaco mantiene questa scorciatoia; su macOS è Ctrl+Shift+M. Il comando della palette cambia la stessa modalità.",
   "shortcuts.closeTab": "Chiudi scheda dell'editor",
   "shortcuts.cycleTabs": "Passa tra le schede dell'editor",
   "shortcuts.note.browserKeeps": "Scorciatoia riservata al browser: l'IDE non può assegnarla.",

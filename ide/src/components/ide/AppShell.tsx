@@ -116,6 +116,8 @@ export function AppShell() {
       },
       "graph-lens": () => lensShortcuts.openPicker(),
       "shortcuts-help": () => shortcutHelpUi.open(),
+      // Monaco binds Ctrl+M itself; the registry documents it and the palette runs the action.
+      "tab-focus": () => {},
       // The browser never delivers these to the page, so the registry only documents them.
       "browser-close-tab": () => {},
       "browser-cycle-tabs": () => {},

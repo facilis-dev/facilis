@@ -27,6 +27,8 @@ import { shortcutsIt } from "./it-shortcuts";
 import { terminalIt } from "./it-terminal";
 import { homeIt } from "./it-home";
 import { overlaysIt } from "./it-overlays";
+import { a11yIt } from "./it-a11y";
+import { notebookIt } from "./it-notebook";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -285,4 +287,8 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── boot and share covers (issue #217) ──────────────────────────────────
   ...overlaysIt,
+
+  // ── Tab moves focus and notebook cell labels (issue #210) ───────────────
+  ...a11yIt,
+  ...notebookIt,
 };

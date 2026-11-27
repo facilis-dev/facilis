@@ -21,6 +21,9 @@ export const shortcutsEn = {
     "F6 leaves a focused terminal; Shift+F6 returns to it, in the terminal and the Console.",
   "shortcuts.graphLens": "Graph lens picker",
   "shortcuts.help": "Keyboard Shortcuts",
+  "shortcuts.tabFocus": "Toggle Tab Key Moves Focus",
+  "shortcuts.note.tabFocus":
+    "Monaco keeps this chord; on macOS it is Ctrl+Shift+M. The palette command toggles the same mode.",
   "shortcuts.closeTab": "Close editor tab",
   "shortcuts.cycleTabs": "Cycle editor tabs",
   "shortcuts.note.browserKeeps": "The browser keeps this shortcut; the IDE cannot bind it.",

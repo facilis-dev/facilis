@@ -169,6 +169,18 @@ describe("matchShortcut", () => {
     expect(matchShortcut(event({ key: "Tab", ctrlKey: true }), "global")).toBeNull();
   });
 
+  it("documents Monaco's tab-moves-focus chord without ever dispatching it", () => {
+    const tabFocus = shortcutById("tab-focus");
+    expect(tabFocus.keptBy).toBe("monaco");
+    expect(tabFocus.context).toBe("editor");
+    // Ctrl+M is the chord on every platform; macOS spells the same modifiers ⌃.
+    expect(formatShortcut("tab-focus", "other")).toBe("Ctrl+M");
+    expect(formatShortcut("tab-focus", "mac")).toBe("⌃M");
+    for (const context of ["global", "editor", "terminal", "dialog", "overlay"] as const) {
+      expect(matchShortcut(event({ key: "m", ctrlKey: true }), context), context).toBeNull();
+    }
+  });
+
   it("documents the tour's Escape and arrows without binding them", () => {
     const tour = SHORTCUTS.filter((entry) => entry.keptBy === "tour");
     expect(tour.map((entry) => entry.chord.key)).toEqual(["Escape", "ArrowRight", "ArrowLeft"]);

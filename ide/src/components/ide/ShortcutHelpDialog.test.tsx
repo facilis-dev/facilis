@@ -48,6 +48,17 @@ describe("ShortcutHelpDialog", () => {
     expect(global).toContain(t("shortcuts.note.terminalFocus"));
   });
 
+  it("lists Tab-moves-focus under the editor, with Monaco's macOS chord in the note", () => {
+    const html = render();
+    const editor = html.slice(
+      html.indexOf('id="shortcut-help-editor"'),
+      html.indexOf('id="shortcut-help-terminal"'),
+    );
+    expect(editor).toContain(t("shortcuts.tabFocus"));
+    expect(editor).toContain(formatShortcut("tab-focus"));
+    expect(editor).toContain(t("shortcuts.note.tabFocus"));
+  });
+
   it("says the tour keeps Escape and the arrows while it is open", () => {
     const html = render();
     expect(html).toContain(t("shortcuts.tourDismiss"));

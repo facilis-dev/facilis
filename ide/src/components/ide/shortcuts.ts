@@ -50,10 +50,11 @@ export interface ShortcutEntry {
   readonly context: ShortcutContext;
   /**
    * A surface outside the dispatcher keeps the chord: the browser never delivers ⌘W or
-   * Ctrl+Tab to the page, and the open tour keeps Escape and the arrows. The entry
-   * documents a binding the IDE cannot dispatch; match() never returns it.
+   * Ctrl+Tab to the page, the open tour keeps Escape and the arrows, and Monaco binds
+   * Ctrl+M for Tab-moves-focus itself. The entry documents a binding the IDE cannot
+   * dispatch; match() never returns it.
    */
-  readonly keptBy?: "browser" | "tour";
+  readonly keptBy?: "browser" | "tour" | "monaco";
   /** Surfaces that own the chord and keep it: the terminal reads Alt+<key> as its meta prefix. */
   readonly deferTo?: readonly ShortcutContext[];
   /** A translated caveat the help surface shows under the label. */
@@ -167,6 +168,14 @@ export const SHORTCUTS = [
   // the terminal keep the key for themselves — there it is a character, not a command.
   shortcut("shortcuts-help", { key: "?", shift: "any" }, "shortcuts.help", {
     deferTo: CODE_SURFACES,
+  }),
+
+  // Monaco binds Ctrl+M (Ctrl+Shift+M on macOS) for Tab-moves-focus (issue #210). Discovery
+  // only: a dispatch would toggle the flag a second time, so match() never returns it.
+  shortcut("tab-focus", { key: "m", ctrl: true }, "shortcuts.tabFocus", {
+    context: "editor",
+    keptBy: "monaco",
+    noteKey: "shortcuts.note.tabFocus",
   }),
 
   // The browser keeps these: ⌘W/⌃W closes the tab and Ctrl+Tab switches it. Registering them
