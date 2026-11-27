@@ -24,22 +24,28 @@ export interface RuntimeLensController {
   readonly preview: RuntimeMetricsPreview;
 }
 
+/** The same availability the lifecycle asks for, shared with the palette and the picker. */
+export function runtimeLensAvailability(
+  controller: RuntimeLensController,
+  dev: boolean = import.meta.env.DEV,
+): GraphLensAvailability {
+  if (!dev) {
+    return { available: false, reasonKey: "projectGraph.surface.state.devOnly" };
+  }
+  if (controller.preview.activePreviewTab() === null) {
+    return { available: false, reasonKey: "projectGraph.surface.state.notRunning" };
+  }
+  if (runtimeMetricsSession(controller.bridge, controller.preview) === null) {
+    return { available: false, reasonKey: "projectGraph.surface.state.notRunning" };
+  }
+  return LENS_AVAILABLE;
+}
+
 export function createRuntimeLensSource(
   controller: RuntimeLensController,
   dev: boolean = import.meta.env.DEV,
 ): GraphLensSourceAdapter {
-  const availability = (): GraphLensAvailability => {
-    if (!dev) {
-      return { available: false, reasonKey: "projectGraph.surface.state.devOnly" };
-    }
-    if (controller.preview.activePreviewTab() === null) {
-      return { available: false, reasonKey: "projectGraph.surface.state.notRunning" };
-    }
-    if (runtimeMetricsSession(controller.bridge, controller.preview) === null) {
-      return { available: false, reasonKey: "projectGraph.surface.state.notRunning" };
-    }
-    return LENS_AVAILABLE;
-  };
+  const availability = (): GraphLensAvailability => runtimeLensAvailability(controller, dev);
   return {
     source: "live",
     availability,

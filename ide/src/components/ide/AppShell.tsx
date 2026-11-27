@@ -4,6 +4,8 @@ import { appearanceOf } from "@/ui-themes";
 import { TitleBar } from "./TitleBar";
 import { StatusBar } from "./StatusBar";
 import { CommandPalette } from "./CommandPalette";
+import { GraphLensPicker } from "./GraphLensPicker";
+import { useGraphLensShortcuts } from "./useGraphLensShortcuts";
 import { TourHost } from "@/components/tour/TourHost";
 import { HomeView } from "./Home";
 import { ShareLoadingOverlay } from "./ShareLoadingOverlay";
@@ -27,6 +29,7 @@ let compactSettled = false;
 
 export function AppShell() {
   const { c, snap } = useIde();
+  const lensShortcuts = useGraphLensShortcuts();
   const { theme, resolvedTheme, systemTheme } = useTheme();
   // A managed build with ai.mode "off" must not mount the chat at all (D-063).
   // The view can still be "chat" from the activity bar, so it falls back to the
@@ -152,6 +155,11 @@ export function AppShell() {
       <StatusBar />
       <TourHost />
       <CommandPalette />
+      <GraphLensPicker
+        open={lensShortcuts.pickerOpen}
+        onClose={lensShortcuts.closePicker}
+        controller={c}
+      />
       <ImportRemoteDialog />
       <ResetEverythingDialog />
       <PushRemoteDialog />

@@ -9,6 +9,7 @@ import { initI18n, setLocale } from "@/i18n";
 import type { GraphLensAvailability } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { LENS_AVAILABLE } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { summarizeLens, type GraphLensId } from "@/facilis/graph-surface/lenses.ts";
+import { GRAPH_LENSES } from "@/facilis/graph-surface/lenses-registry.ts";
 import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
@@ -97,6 +98,11 @@ describe("ProjectGraphLensBar", () => {
     expect(html).toContain("Q9 · Shared across groups");
     expect(html).toContain("Q17 · Unknown");
     expect(html).not.toContain("project-graph-lens-banner");
+  });
+
+  it("teaches the picker chord in every lens chip's tooltip and aria-label", () => {
+    const html = renderBar(null, []);
+    expect((html.match(/⌘⇧L/g) ?? []).length).toBe(GRAPH_LENSES.length * 2);
   });
 
   it("shows the banner, legend, total count and answer list for an active lens", () => {

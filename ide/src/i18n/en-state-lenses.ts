@@ -132,4 +132,10 @@ export const stateLensesEn = {
     "pages: {count} · prerendered: {prerendered} · eligible: {eligible} · ineligible: {ineligible} · unknown: {unknown}",
   "projectGraph.surface.state.prerender.emptyHint":
     "Add a route to a page, or open the inspector to see the analyzer's prerender facts.",
+
+  // ── lens palette and picker (#204) ──────────────────────────────────────────
+  "palette.lens": "Lens: {lens}",
+  "projectGraph.surface.lens.picker.title": "Lens picker",
+  "projectGraph.surface.lens.picker.hint":
+    "1–{count} picks a lens · Enter confirms · Esc closes without changing the active lens.",
 };

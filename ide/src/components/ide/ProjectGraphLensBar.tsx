@@ -14,6 +14,7 @@ import {
 import { GRAPH_LENSES, lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
 import type { GraphLensId } from "@/facilis/graph-surface/lenses.ts";
 import { lensQuestionKey } from "@/facilis/graph-surface/questions.ts";
+import { LENS_PICKER_CHORD } from "./graph-lens-commands";
 import type { GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 
 const alwaysAvailable = (): GraphLensAvailability => LENS_AVAILABLE;
@@ -56,7 +57,7 @@ function LensSwitcher({
         // An unavailable lens says why, in the same translated words the banner would use.
         const reason = reasonKey === null ? null : t(reasonKey);
         const unavailable = reason !== null;
-        const hint = reason ?? t(lensQuestionKey(definition.id));
+        const hint = (reason ?? t(lensQuestionKey(definition.id))) + " (" + LENS_PICKER_CHORD + ")";
         return (
           <button
             key={definition.id}

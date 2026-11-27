@@ -135,4 +135,10 @@ export const stateLensesIt: Partial<Record<MessageKey, string>> = {
     "pagine: {count} · pre-renderizzate: {prerendered} · idonee: {eligible} · non idonee: {ineligible} · sconosciute: {unknown}",
   "projectGraph.surface.state.prerender.emptyHint":
     "Aggiungi una route a una pagina, oppure apri l'inspector per vedere i fatti di prerender dell'analizzatore.",
+
+  // ── lens palette and picker (#204) ──────────────────────────────────────────
+  "palette.lens": "Lente: {lens}",
+  "projectGraph.surface.lens.picker.title": "Selettore lenti",
+  "projectGraph.surface.lens.picker.hint":
+    "1–{count} sceglie una lente · Invio conferma · Esc chiude senza cambiare la lente attiva.",
 };

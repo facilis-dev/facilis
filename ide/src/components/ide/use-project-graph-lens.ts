@@ -21,6 +21,7 @@ import {
   type RuntimeLensController,
 } from "@/facilis/graph-surface/runtime-lens-source.ts";
 import { lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
+import { subscribeGraphLensRequests } from "@/facilis/graph-surface/lens-request.ts";
 import { buildPrerenderLensState } from "@/facilis/graph-surface/prerender-lens.ts";
 import { buildReachLensState, defaultReachRole } from "@/facilis/graph-surface/reach-lens.ts";
 import {
@@ -153,6 +154,9 @@ export function useProjectGraphLens(
     [projectKey],
   );
   const closeLens = useCallback(() => setSelection(null), []);
+  // Palette and picker requests use the chip's own toggle, so lifecycle and availability stay
+  // in one place; a request made while the panel was closed is replayed on mount.
+  useEffect(() => subscribeGraphLensRequests(selectLens), [selectLens]);
   return {
     lens,
     view: lensView,
