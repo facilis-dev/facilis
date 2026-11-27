@@ -23,6 +23,8 @@ import {
 import { proxyBase } from "@/vv/git-remote";
 import { gitAvailable } from "@/vv/project-clone";
 import { githubSessionToken } from "@/vv/github-oauth";
+import { BusyStatus } from "./BusyStatus";
+import { FormError } from "./FormError";
 import { GitAuthPanel, GitProviderLine } from "./GitAuthPanel";
 
 /** The hosted service's host for a provider; a pasted URL overrides it. */
@@ -56,11 +58,13 @@ export function ImportRemoteDialog() {
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
+  const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setBusy(false);
       setProgress("");
+      setFailure(null);
       // A GitHub device-flow sign-in survives the dialog, so reopening reuses it.
       setToken(githubSessionToken() ?? "");
     } else {
@@ -75,6 +79,8 @@ export function ImportRemoteDialog() {
   // so the CORS sentence is only true for the fallback (D-073/D-079).
   const realGit = proxyBase() !== null;
   const canSubmit = !!repo.trim() && !busy && snap.kernelReady;
+  // Why the submit button stays disabled while the runtime boots (the push precedent).
+  const blocked = snap.kernelReady ? null : t("import.kernelStarting");
   // Auth follows the URL: GitHub takes the device flow, every other host a token.
   const authTarget = gitAuthTarget(repo);
 
@@ -90,6 +96,7 @@ export function ImportRemoteDialog() {
     if (!canSubmit) return;
     setBusy(true);
     setProgress(t("import.starting"));
+    setFailure(null);
     try {
       const typed = token.trim();
       const user = username.trim();
@@ -98,7 +105,8 @@ export function ImportRemoteDialog() {
       // value is a token and must be token-shaped.
       const secret = normalizeGitSecret(typed, user !== "");
       if (typed !== "" && secret === null) {
-        setProgress(t(user !== "" ? "import.secretInvalid" : "import.tokenInvalid"));
+        setProgress("");
+        setFailure(t(user !== "" ? "import.secretInvalid" : "import.tokenInvalid"));
         return;
       }
       // Real git when this deployment serves the proxy (full history, keeps .git); the
@@ -131,7 +139,8 @@ export function ImportRemoteDialog() {
       }
       if (ok) c.closeImportRemote();
     } catch (err) {
-      setProgress(err instanceof Error ? err.message : String(err));
+      setProgress("");
+      setFailure(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -187,10 +196,18 @@ export function ImportRemoteDialog() {
           />
         </div>
 
-        {progress && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {busy && <Loader className="size-3.5 animate-spin" />}
+        {busy && progress !== "" && (
+          <BusyStatus className="flex items-center gap-2">
+            <Loader className="size-3.5 animate-spin" />
             <span className="truncate">{progress}</span>
+          </BusyStatus>
+        )}
+
+        {failure !== null && <FormError live>{failure}</FormError>}
+
+        {blocked !== null && (
+          <div role="status" className="text-xs text-muted-foreground">
+            {blocked}
           </div>
         )}
 

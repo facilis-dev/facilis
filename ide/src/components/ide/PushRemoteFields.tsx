@@ -1,17 +1,21 @@
 import type { ChangeEvent, ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
+import { useFormError } from "./FormError";
 import { TokenHelp } from "./TokenHelp";
 
-function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) {
+function Field(props: { label: string; hint?: ReactNode; error?: ReactNode; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
-      {props.children}
-      {props.hint !== undefined && (
-        <span className="text-xs text-muted-foreground">{props.hint}</span>
-      )}
-    </label>
+    <div className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">{props.label}</span>
+        {props.children}
+        {props.hint !== undefined && (
+          <span className="text-xs text-muted-foreground">{props.hint}</span>
+        )}
+      </label>
+      {props.error}
+    </div>
   );
 }
 
@@ -42,6 +46,7 @@ export interface PushRemoteFieldsProps {
  */
 export function PushRemoteFields(props: PushRemoteFieldsProps) {
   const busy = props.busy;
+  const tokenError = useFormError(props.tokenInvalid ? t("push.tokenInvalid") : null);
   return (
     <div className="flex flex-col gap-3">
       <Field label={t("push.repository")} hint={t("push.repositoryHint")}>
@@ -54,7 +59,7 @@ export function PushRemoteFields(props: PushRemoteFieldsProps) {
         />
       </Field>
 
-      <Field label={t("push.token")} hint={t("push.tokenHint")}>
+      <Field label={t("push.token")} hint={t("push.tokenHint")} error={tokenError.node}>
         <Input
           type="password"
           autoComplete="off"
@@ -63,12 +68,10 @@ export function PushRemoteFields(props: PushRemoteFieldsProps) {
           onChange={props.onToken}
           placeholder={t("push.tokenPlaceholder")}
           disabled={busy}
+          {...tokenError.controlProps}
         />
         <TokenHelp write />
       </Field>
-      {props.tokenInvalid && (
-        <div className="text-xs text-destructive">{t("push.tokenInvalid")}</div>
-      )}
 
       {props.signIn}
 

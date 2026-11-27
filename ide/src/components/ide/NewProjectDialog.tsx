@@ -13,6 +13,8 @@ import {
 import { t } from "@/i18n";
 import { DEFAULT_TEMPLATE_KEY, type TemplateKey } from "@/facilis/templates";
 import { runRisk } from "@/vv/run-consent";
+import { BusyStatus } from "./BusyStatus";
+import { useFormError } from "./FormError";
 import { useIde } from "./useIde";
 
 import { TemplatePicker } from "./TemplatePicker";
@@ -196,6 +198,7 @@ export function NewProjectDialog({
 
   const liveError = useDirValidation(effectiveDir, open && !!name.trim() && snap.kernelReady);
   const dirError = lateError ?? liveError;
+  const dirFeedback = useFormError(dirError);
   const canCreate = !!name.trim() && !!effectiveDir && !dirError && !busy;
 
   const submit = async () => {
@@ -236,13 +239,13 @@ export function NewProjectDialog({
                 setDir(e.target.value);
               }}
               placeholder={t("create.directoryPlaceholder")}
-              aria-invalid={!!dirError}
+              {...dirFeedback.controlProps}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
               }}
             />
-            {dirError && <span className="text-xs text-destructive">{dirError}</span>}
           </label>
+          {dirFeedback.node}
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -258,6 +261,7 @@ export function NewProjectDialog({
             </span>
           </label>
         </div>
+        {busy && <BusyStatus>{label}</BusyStatus>}
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)} disabled={inFlight}>
             {t("common.cancel")}

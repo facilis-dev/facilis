@@ -33,6 +33,7 @@ import { overlaysEn } from "./en-overlays";
 import { a11yEn } from "./en-a11y";
 import { notebookEn } from "./en-notebook";
 import { panelActionsEn } from "./en-panel-actions";
+import { dialogsEn } from "./en-dialogs";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -271,4 +272,7 @@ export const en = {
   ...a11yEn,
   ...notebookEn,
   ...panelActionsEn,
+
+  // ── dialog errors, blocked reasons and device code (issue #219) ────────
+  ...dialogsEn,
 } as const;

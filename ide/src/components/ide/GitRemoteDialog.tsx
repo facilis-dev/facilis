@@ -17,6 +17,8 @@ import type { Credentials } from "@/vv/git-remote";
 import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { githubSessionToken } from "@/vv/github-oauth";
 import { gitAuthTarget, hostOfGitInput } from "@/vv/git-provider";
+import { BusyStatus } from "./BusyStatus";
+import { FormError } from "./FormError";
 import { GitAuthPanel, GitProviderLine } from "./GitAuthPanel";
 
 // The session reports a machine phase; the dialog owns what the user reads. Both the
@@ -145,14 +147,18 @@ export function GitRemoteDialog() {
         </DialogHeader>
 
         {blocking !== null ? (
-          <div className="text-xs text-muted-foreground">{blocking}</div>
+          <div role="status" className="text-xs text-muted-foreground">
+            {blocking}
+          </div>
         ) : pending ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader className="size-3.5 animate-spin" />
             <span>{t("gitRemote.detecting")}</span>
           </div>
         ) : unavailable ? (
-          <div className="text-xs text-muted-foreground">{t("gitRemote.unavailable")}</div>
+          <div role="status" className="text-xs text-muted-foreground">
+            {t("gitRemote.unavailable")}
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {!hasRemote && (
@@ -241,15 +247,15 @@ export function GitRemoteDialog() {
                 </div>
 
                 {busy && phaseKey !== null && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <BusyStatus className="flex items-center gap-2">
                     <Loader className="size-3.5 animate-spin" />
                     <span className="truncate">{t(phaseKey)}</span>
-                  </div>
+                  </BusyStatus>
                 )}
               </>
             )}
 
-            {state.error !== null && <div className="text-xs text-destructive">{state.error}</div>}
+            {state.error !== null && <FormError live>{state.error}</FormError>}
           </div>
         )}
 

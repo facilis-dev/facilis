@@ -32,6 +32,7 @@ import { overlaysIt } from "./it-overlays";
 import { a11yIt } from "./it-a11y";
 import { notebookIt } from "./it-notebook";
 import { panelActionsIt } from "./it-panel-actions";
+import { dialogsIt } from "./it-dialogs";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -271,4 +272,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...a11yIt,
   ...notebookIt,
   ...panelActionsIt,
+
+  // ── dialog errors and device-flow code (issue #219) ────────────────────
+  ...dialogsIt,
 };

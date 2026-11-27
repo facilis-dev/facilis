@@ -23,6 +23,8 @@ import {
   viewSlug,
 } from "@/facilis/view-codegen";
 import { errText } from "@/vv/errors";
+import { BusyStatus } from "./BusyStatus";
+import { useFormError } from "./FormError";
 import { useIde } from "./useIde";
 
 interface CreateFailure {
@@ -80,6 +82,9 @@ export function DataQueryCreateViewDialog({
   }, [open]);
 
   const nameValid = isValidViewName(name);
+  const nameFeedback = useFormError(
+    name.length > 0 && !nameValid ? t("dataQuery.create.nameInvalid") : null,
+  );
   const columnsError = validateViewColumns(columns);
   const permissionValid = permission === "" || permissions.includes(permission);
   const canSubmit =
@@ -154,7 +159,7 @@ export function DataQueryCreateViewDialog({
               data-testid="data-query-create-name"
               value={name}
               placeholder={t("dataQuery.create.namePlaceholder")}
-              aria-invalid={name.length > 0 && !nameValid}
+              {...nameFeedback.controlProps}
               onChange={(event) => setName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") void submit();
@@ -163,17 +168,13 @@ export function DataQueryCreateViewDialog({
             <span className="text-[10px] text-muted-foreground">
               {t("dataQuery.create.nameHint")}
             </span>
-            {name.length > 0 && !nameValid && (
-              <span className="text-[10px] text-destructive">
-                {t("dataQuery.create.nameInvalid")}
-              </span>
-            )}
-            {columnsError !== null && (
-              <span className="text-[10px] text-destructive">
-                {t("dataQuery.create.columnsInvalid")}
-              </span>
-            )}
           </label>
+          {nameFeedback.node}
+          {columnsError !== null && (
+            <span role="status" className="text-[10px] text-destructive">
+              {t("dataQuery.create.columnsInvalid")}
+            </span>
+          )}
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">
               {t("dataQuery.create.permissionLabel")}
@@ -207,6 +208,7 @@ export function DataQueryCreateViewDialog({
           {failure !== null && (
             <div
               data-testid="data-query-view-error"
+              role="alert"
               className="space-y-0.5 text-xs text-destructive"
             >
               <p>{failureMessage(failure)}</p>
@@ -217,6 +219,7 @@ export function DataQueryCreateViewDialog({
             </div>
           )}
         </div>
+        {creating && <BusyStatus>{t("dataQuery.create.creating")}</BusyStatus>}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={creating}>
             {t("common.cancel")}

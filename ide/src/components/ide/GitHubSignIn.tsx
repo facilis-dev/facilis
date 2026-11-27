@@ -11,6 +11,8 @@ import {
   signInWithGitHub,
   type GitHubDeviceCode,
 } from "@/vv/github-oauth";
+import { FormError } from "./FormError";
+import { GitHubDeviceCodePanel } from "./GitHubDeviceCodePanel";
 
 const ERROR_KEYS: Record<string, MessageKey> = {
   denied: "github.denied",
@@ -38,6 +40,7 @@ export function GitHubSignIn(props: {
   const [deviceCode, setDeviceCode] = useState<GitHubDeviceCode | null>(null);
   const [errorKey, setErrorKey] = useState<MessageKey>("github.invalid");
   const [signedIn, setSignedIn] = useState(() => githubSessionToken() !== null);
+  const [copied, setCopied] = useState(false);
   const controller = useRef<AbortController | null>(null);
 
   // Closing the dialog unmounts the component: an in-flight poll must stop.
@@ -48,6 +51,7 @@ export function GitHubSignIn(props: {
   const start = async () => {
     setPhase("starting");
     setDeviceCode(null);
+    setCopied(false);
     setErrorKey("github.invalid");
     const abort = new AbortController();
     controller.current = abort;
@@ -58,6 +62,7 @@ export function GitHubSignIn(props: {
         signal: abort.signal,
         onCode: (code) => {
           setDeviceCode(code);
+          setCopied(false);
           setPhase("waiting");
         },
       });
@@ -87,6 +92,18 @@ export function GitHubSignIn(props: {
     controller.current?.abort();
     setPhase("idle");
     setDeviceCode(null);
+    setCopied(false);
+  };
+
+  const copyCode = async () => {
+    if (deviceCode === null) return;
+    try {
+      await navigator.clipboard.writeText(deviceCode.userCode);
+      setCopied(true);
+    } catch {
+      // Clipboard blocked (insecure context or denied permission): the code stays as text.
+      setCopied(false);
+    }
   };
 
   const signOut = () => {
@@ -109,7 +126,7 @@ export function GitHubSignIn(props: {
   if (phase === "error") {
     return (
       <div className="flex flex-col gap-2 rounded-md border border-border p-2">
-        <span className="text-xs text-destructive">{t(errorKey)}</span>
+        <FormError live>{t(errorKey)}</FormError>
         <Button variant="outline" size="sm" onClick={() => void start()}>
           {t("github.retry")}
         </Button>
@@ -121,24 +138,18 @@ export function GitHubSignIn(props: {
     return (
       <div className="flex flex-col gap-2 rounded-md border border-border p-2">
         {deviceCode === null ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader className="size-3.5 animate-spin" />
             {t("github.contacting")}
           </div>
         ) : (
           <>
-            <span className="text-xs text-muted-foreground">{t("github.codeHint")}</span>
-            <code className="self-start rounded bg-muted px-2 py-1 font-mono text-base tracking-widest text-foreground">
-              {deviceCode.userCode}
-            </code>
-            <a
-              className="text-xs underline"
-              href={deviceCode.verificationUri}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("github.open")}
-            </a>
+            <GitHubDeviceCodePanel
+              code={deviceCode.userCode}
+              verificationUri={deviceCode.verificationUri}
+              copied={copied}
+              onCopy={() => void copyCode()}
+            />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader className="size-3.5 animate-spin" />
               {t("github.waiting")}
