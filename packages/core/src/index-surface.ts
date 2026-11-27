@@ -19,11 +19,9 @@ export type {
   SurfaceKind,
 } from "./surface.ts";
 export type { RawDbAccessor, RawDbOptions, RawRouteContext } from "./route-context.ts";
-export {
-  attachRequestDatabase,
-  detachRequestDatabase,
-  requestDatabase,
-} from "./request-database.ts";
+// Only the writer is public: the Nitro context middleware must attach the client. The
+// reader stays internal to core, so project code cannot import it and read the root client.
+export { attachRequestDatabase, detachRequestDatabase } from "./request-database.ts";
 export {
   parseSecuritySurface,
   SECURITY_SURFACE_FORMAT_VERSION,

@@ -5,7 +5,6 @@ import {
   NOOP_LOGGING_API,
   createAccessEntry,
   defineConfig,
-  requestDatabase,
   type FacilisEventContext,
 } from "@facilis.dev/core";
 
@@ -80,9 +79,9 @@ describe("facilis-context middleware", () => {
     expect(requestId).toMatch(REQUEST_ID_PATTERN);
     expect(harness.response.headers.get("x-request-id")).toBe(requestId);
     expect(harness.context.facilis?.logging).toBe(NOOP_LOGGING_API);
-    // D-226: the client travels privately, never on the event surface.
+    // D-226: the client travels privately, never on the event surface; the reader is
+    // intentionally not exported from @facilis.dev/core.
     expect(harness.context.facilis).not.toHaveProperty("db");
-    expect(requestDatabase(harness.event)).toBe(DB);
     expect(harness.context.facilis?.defaultTenantId).toEqual(expect.any(String));
     expect(harness.context.facilis?.client).toBeUndefined();
     // The CSRF gate needs an allow-list on every request, config default included.
