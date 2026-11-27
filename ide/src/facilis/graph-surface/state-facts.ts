@@ -35,6 +35,8 @@ export interface GraphLensState {
   readonly contextKey: MessageKey | null;
   /** Why the lens has no facts, when it has none: never a blank panel. */
   readonly emptyKey: MessageKey | null;
+  /** What to do about it; the lens owns the words, the banner only renders them. */
+  readonly emptyHintKey: MessageKey | null;
   /** Draw-only per-node badges; the canvas never resizes a card for them. */
   readonly badges: ReadonlyMap<string, GraphLensBadge>;
 }

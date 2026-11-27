@@ -27,4 +27,6 @@ export const projectGraphQuestionsIt = {
     "Q17 — Quali fatti l'analizzatore non è riuscito a leggere staticamente?",
   "projectGraph.surface.question.q18":
     "Q18 — Cosa sta facendo adesso questa route: traffico, errori 5xx e latenza p50/p95?",
+  "projectGraph.surface.question.q19":
+    "Q19 — Cosa è cambiato dal checkpoint dell'agente e quali nodi possiedono quei file?",
 };

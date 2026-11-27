@@ -116,13 +116,15 @@ export function EmptyState({
   onClose,
 }: {
   title: string;
-  hint: string;
+  hint: string | null;
   onClose: () => void;
 }) {
   return (
     <div data-testid="project-graph-lens-empty" className="border-t px-2 py-2" role="status">
       <p className="text-[11px] font-medium text-foreground">{title}</p>
-      <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+      {hint !== null && (
+        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+      )}
       <button
         type="button"
         onClick={onClose}

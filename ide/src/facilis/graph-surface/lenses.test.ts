@@ -11,18 +11,17 @@ import {
   DIAGNOSTIC_COLOR_TOKENS,
   DIAGNOSTIC_LABEL_KEYS,
   DIAGNOSTIC_MESSAGE_KEYS,
-  GRAPH_LENSES,
   GRAPH_LENS_SOURCES,
   LENS_BY_CODE,
   diagnosticParams,
   diagnosticsByNode,
   domainFlagCounts,
   isStateCode,
-  lensForCode,
   lensHighlight,
   summarizeLens,
   type GraphLensCode,
 } from "./lenses.ts";
+import { GRAPH_LENSES, lensForCode } from "./lenses-registry.ts";
 
 const WRITE: GraphDiagnostic = {
   nodeId: "route:POST /api/todos",
@@ -92,6 +91,7 @@ describe("lens contract", () => {
       "shared",
       "unknown",
       "runtime",
+      "changes",
     ]);
     expect(GRAPH_LENSES[0].codes).toEqual(["publicWrite", "publicAdmin", "tableNoRls"]);
     expect(GRAPH_LENSES[0].legend).toHaveLength(3);
@@ -196,6 +196,7 @@ describe("lens registry (D-224, #198)", () => {
       ["shared", "static"],
       ["unknown", "static"],
       ["runtime", "live"],
+      ["changes", "workspace"],
     ]);
     for (const lens of GRAPH_LENSES) {
       expect(GRAPH_LENS_SOURCES).toContain(lens.source);

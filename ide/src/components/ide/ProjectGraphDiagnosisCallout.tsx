@@ -10,9 +10,9 @@ import {
   DIAGNOSTIC_LABEL_KEYS,
   DIAGNOSTIC_MESSAGE_KEYS,
   diagnosticParams,
-  lensDefinition,
   type GraphLensId,
 } from "@/facilis/graph-surface/lenses.ts";
+import { lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
 import { legendEntryOf, type GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 
 export function ProjectGraphDiagnosisCallout({

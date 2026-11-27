@@ -8,7 +8,8 @@ import {
   createGraphLensLifecycle,
   type GraphLensSourceAdapter,
 } from "./lens-lifecycle.ts";
-import { GRAPH_LENSES, type GraphLensDefinition } from "./lenses.ts";
+import type { GraphLensDefinition } from "./lenses.ts";
+import { GRAPH_LENSES } from "./lenses-registry.ts";
 
 /** The real registry with security and elevated backed by a live source. */
 function liveRegistry(): readonly GraphLensDefinition[] {

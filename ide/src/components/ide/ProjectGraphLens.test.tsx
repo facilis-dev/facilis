@@ -79,6 +79,7 @@ const RUNTIME_STATE: GraphLensState = {
   params: { minutes: 5 },
   contextKey: "projectGraph.surface.state.window",
   emptyKey: null,
+  emptyHintKey: null,
   badges: new Map(),
 };
 
@@ -146,6 +147,27 @@ describe("ProjectGraphLensBar", () => {
     });
     expect(html).toContain("project-graph-lens-empty");
     expect(html).toContain("No request reached any route in the last 5 minutes.");
+  });
+
+  it("explains a clean tree with the changes lens's own hint", () => {
+    const html = renderBar("changes", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        ...RUNTIME_STATE,
+        facts: [],
+        totals: {
+          key: "projectGraph.surface.state.changes.totals",
+          count: 0,
+          params: { modified: 0, added: 0, deleted: 0 },
+        },
+        params: { ref: "0123456" },
+        contextKey: null,
+        emptyKey: "projectGraph.surface.state.noChanges",
+        emptyHintKey: "projectGraph.surface.state.changes.emptyHint",
+      },
+    });
+    expect(html).toContain("The working tree matches the checkpoint.");
+    expect(html).toContain("Edit a source file");
   });
 
   it("shows an explicit empty state when a lens matches nothing", () => {

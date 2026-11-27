@@ -19,7 +19,7 @@ import { runIt } from "./it-run";
 import { previewIt } from "./it-preview";
 import { scaffoldIt } from "./it-scaffold";
 import { telemetryLinkoutIt } from "./it-telemetry-linkout";
-import { runtimeLensIt } from "./it-runtime-lens";
+import { stateLensesIt } from "./it-state-lenses";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...projectGraphIt,
   ...projectGraphAnswersIt,
   ...projectGraphQuestionsIt,
-  ...runtimeLensIt,
+  ...stateLensesIt,
   ...dataExplorerIt,
   ...dataQueryIt,
   ...releasePreviewIt,

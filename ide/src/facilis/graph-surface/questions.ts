@@ -8,7 +8,20 @@ import type { GraphAnswerId } from "./answers-types.ts";
 import type { GraphLensId } from "./lenses.ts";
 
 export type GraphQuestionCode =
-  "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9" | "Q10" | "Q16" | "Q17" | "Q18";
+  | "Q1"
+  | "Q2"
+  | "Q3"
+  | "Q4"
+  | "Q5"
+  | "Q6"
+  | "Q7"
+  | "Q8"
+  | "Q9"
+  | "Q10"
+  | "Q16"
+  | "Q17"
+  | "Q18"
+  | "Q19";
 
 export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>> = {
   Q1: "projectGraph.surface.question.q1",
@@ -24,6 +37,7 @@ export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>
   Q16: "projectGraph.surface.question.q16",
   Q17: "projectGraph.surface.question.q17",
   Q18: "projectGraph.surface.question.q18",
+  Q19: "projectGraph.surface.question.q19",
 };
 
 /** Inspector section id ("q3") -> the question it answers ("Q3"). */
@@ -49,6 +63,7 @@ export const LENS_QUESTION_CODES: Readonly<Record<GraphLensId, GraphQuestionCode
   shared: "Q9",
   unknown: "Q17",
   runtime: "Q18",
+  changes: "Q19",
 };
 
 export function answerQuestionKey(id: GraphAnswerId): MessageKey {

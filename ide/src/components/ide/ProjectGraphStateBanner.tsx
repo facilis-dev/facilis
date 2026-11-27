@@ -57,7 +57,7 @@ export function ProjectGraphStateBanner({
       {rows.length === 0 ? (
         <EmptyState
           title={t(state.emptyKey ?? "projectGraph.surface.state.emptyTitle", state.params)}
-          hint={t("projectGraph.surface.state.emptyHint")}
+          hint={state.emptyHintKey === null ? null : t(state.emptyHintKey)}
           onClose={onClose}
         />
       ) : (

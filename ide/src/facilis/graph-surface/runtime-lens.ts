@@ -91,6 +91,7 @@ export function buildRuntimeLensState(
     params: { minutes: RUNTIME_WINDOW_MINUTES },
     contextKey: "projectGraph.surface.state.window",
     emptyKey: requests === 0 ? "projectGraph.surface.state.noTraffic" : null,
+    emptyHintKey: requests === 0 ? "projectGraph.surface.state.emptyHint" : null,
     badges,
   };
 }

@@ -13,12 +13,16 @@ import {
   type GraphLensSourceAdapter,
 } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import {
+  createChangesLensSource,
+  type ChangesLensController,
+} from "@/facilis/graph-surface/changes-lens-source.ts";
+import {
   createRuntimeLensSource,
   type RuntimeLensController,
 } from "@/facilis/graph-surface/runtime-lens-source.ts";
+import { lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
 import {
   diagnosticsByNode,
-  lensDefinition,
   lensHighlight,
   summarizeLens,
   type GraphLensHighlight,
@@ -27,6 +31,9 @@ import {
 import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 
 const NO_DIAGNOSTICS: readonly GraphDiagnostic[] = [];
+
+/** The controller surface both live/workspace sources read. */
+export interface GraphLensController extends RuntimeLensController, ChangesLensController {}
 
 interface LensSelection {
   readonly lens: GraphLensId;
@@ -48,10 +55,13 @@ export function useProjectGraphLens(
   diagnostics: readonly GraphDiagnostic[] | undefined,
   view: ProjectGraphView | null,
   projectKey: string | null = null,
-  controller: RuntimeLensController | null = null,
+  controller: GraphLensController | null = null,
 ): ProjectGraphLensState {
   const adapters = useMemo<readonly GraphLensSourceAdapter[]>(
-    () => (controller === null ? [] : [createRuntimeLensSource(controller)]),
+    () =>
+      controller === null
+        ? []
+        : [createRuntimeLensSource(controller), createChangesLensSource(controller)],
     [controller],
   );
   const lifecycle = useMemo(() => createGraphLensLifecycle(adapters), [adapters]);

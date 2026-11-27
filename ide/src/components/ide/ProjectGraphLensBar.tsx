@@ -11,7 +11,8 @@ import {
   LENS_AVAILABLE,
   type GraphLensAvailability,
 } from "@/facilis/graph-surface/lens-lifecycle.ts";
-import { GRAPH_LENSES, lensDefinition, type GraphLensId } from "@/facilis/graph-surface/lenses.ts";
+import { GRAPH_LENSES, lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
+import type { GraphLensId } from "@/facilis/graph-surface/lenses.ts";
 import { lensQuestionKey } from "@/facilis/graph-surface/questions.ts";
 import type { GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 

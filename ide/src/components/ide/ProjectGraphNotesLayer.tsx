@@ -33,10 +33,7 @@ export function ProjectGraphNotesLayer({
 }) {
   if (notes.length === 0) return null;
   return (
-    <div
-      className="pointer-events-none absolute inset-0"
-      data-testid="project-graph-notes-layer"
-    >
+    <div className="pointer-events-none absolute inset-0" data-testid="project-graph-notes-layer">
       {notes.map((note) => (
         <ProjectGraphNoteCard
           key={note.id}

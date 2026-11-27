@@ -5,12 +5,8 @@
 
 import type { MessageKey } from "@/i18n";
 import type { ProjectGraphView } from "@/facilis/graph-model";
-import {
-  GRAPH_LENSES,
-  type GraphLensDefinition,
-  type GraphLensId,
-  type GraphLensSource,
-} from "./lenses.ts";
+import type { GraphLensDefinition, GraphLensId, GraphLensSource } from "./lenses.ts";
+import { GRAPH_LENSES } from "./lenses-registry.ts";
 import type { GraphLensState } from "./state-facts.ts";
 
 /** Whether a source can serve a lens right now; unavailable always carries a reason code. */
