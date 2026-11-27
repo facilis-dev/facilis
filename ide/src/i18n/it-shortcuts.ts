@@ -21,6 +21,10 @@ export const shortcutsIt: Partial<Record<MessageKey, string>> = {
   "shortcuts.closeTab": "Chiudi scheda dell'editor",
   "shortcuts.cycleTabs": "Passa tra le schede dell'editor",
   "shortcuts.note.browserKeeps": "Scorciatoia riservata al browser: l'IDE non può assegnarla.",
+  "shortcuts.tourDismiss": "Termina il tour guidato",
+  "shortcuts.tourNext": "Passo successivo del tour",
+  "shortcuts.tourPrevious": "Passo precedente del tour",
+  "shortcuts.note.tourKeeps": "Il tour mantiene questo tasto finché è aperto.",
 
   // La finestra di aiuto.
   "shortcuts.dialogTitle": "Scorciatoie da tastiera",
@@ -35,7 +39,7 @@ export const shortcutsIt: Partial<Record<MessageKey, string>> = {
   "shortcuts.close": "Chiudi",
   "shortcuts.notInRegistry.title": "Non in questo elenco",
   "shortcuts.notInRegistry.escape":
-    "Escape chiude la superficie aperta — una finestra di dialogo, il drawer e la scheda del grafo di progetto, il drawer stretto o il tour — e quella sequenza appartiene alla superficie, non a questo registro.",
+    "Escape chiude la superficie aperta — una finestra di dialogo, il drawer e la scheda del grafo di progetto o il drawer stretto — e quella sequenza appartiene alla superficie; i tasti del tour sono elencati sotto Sovrapposizioni.",
   "shortcuts.notInRegistry.editors":
     "L'editor di codice e il terminale mantengono i propri tasti: i comandi di Monaco e i tasti per pulire ed eseguire del terminale agiscono sulla superficie che ha il focus, quindi non sono elencati qui.",
 };

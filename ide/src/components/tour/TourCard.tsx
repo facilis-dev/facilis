@@ -72,7 +72,8 @@ export function TourCard({
       data-placement={side}
       style={{ top, left }}
       className={cn(
-        "absolute w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg outline-none",
+        "absolute w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg",
+        "focus-visible:ring-3 focus-visible:ring-ring/50",
         "animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none",
         "data-[placement=top]:slide-in-from-bottom-1 data-[placement=bottom]:slide-in-from-top-1",
         "data-[placement=left]:slide-in-from-right-1 data-[placement=right]:slide-in-from-left-1",
@@ -87,10 +88,7 @@ export function TourCard({
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <span
-          aria-live="polite"
-          className="text-[11px] font-medium tracking-wide text-muted-foreground"
-        >
+        <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
           {t("tour.stepOf", { current: index + 1, total })}
         </span>
         <Button variant="ghost" size="xs" onClick={onSkip}>

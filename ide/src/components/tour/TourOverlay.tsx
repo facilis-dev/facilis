@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isTypingTarget } from "@/components/ide/useProjectGraphEscape";
 import { t } from "@/i18n";
 import { centerCard, placeCard, spotlightRect, type Size } from "@/tour/tour-geometry";
+import { tourKeyAction } from "@/tour/tour-keys";
+import { TourAnnouncer } from "./TourAnnouncer";
 import { TourCard } from "./TourCard";
+import { restoreTourFocus } from "./tour-focus";
+import { tourStore } from "./tour-store-instance";
 import { useTour } from "./use-tour";
 import { useTourTarget } from "./use-tour-target";
 
@@ -44,16 +49,18 @@ export function TourOverlay() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        skip();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        next();
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        prev();
-      }
+      // A field inside a step keeps its arrows and Escape, and a key another handler already
+      // consumed is not the tour's to take (#218).
+      const action = tourKeyAction({
+        key: event.key,
+        defaultPrevented: event.defaultPrevented,
+        typing: isTypingTarget(event.target),
+      });
+      if (action === null) return;
+      event.preventDefault();
+      if (action === "dismiss") skip();
+      else if (action === "next") next();
+      else prev();
     };
     addEventListener("keydown", onKeyDown);
     return () => removeEventListener("keydown", onKeyDown);
@@ -62,6 +69,16 @@ export function TourOverlay() {
   useEffect(() => {
     cardRef.current?.focus();
   }, [step?.id]);
+
+  // Ending the tour unmounts the overlay, so this is where focus goes back to its opener
+  // (#218). StrictMode's throwaway mount runs the same cleanup while the tour is still
+  // active; only an actual end may move focus out of the card.
+  useEffect(
+    () => () => {
+      if (!tourStore.getSnapshot().active) restoreTourFocus();
+    },
+    [],
+  );
 
   if (!snapshot.active || step === null) return null;
 
@@ -81,6 +98,7 @@ export function TourOverlay() {
       data-tour-overlay=""
       className="fixed inset-0 z-50"
     >
+      <TourAnnouncer step={step} index={snapshot.index} total={steps.length} />
       {spotlight === null ? (
         <div aria-hidden className="absolute inset-0 bg-overlay/70" />
       ) : (

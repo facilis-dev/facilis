@@ -49,11 +49,11 @@ export interface ShortcutEntry {
   readonly labelParams?: Readonly<Record<string, string | number>>;
   readonly context: ShortcutContext;
   /**
-   * The browser keeps the chord and never delivers it to the page (⌘W closes the tab,
-   * Ctrl+Tab switches tabs). The entry documents a binding the IDE cannot have; match()
-   * never returns it.
+   * A surface outside the dispatcher keeps the chord: the browser never delivers ⌘W or
+   * Ctrl+Tab to the page, and the open tour keeps Escape and the arrows. The entry
+   * documents a binding the IDE cannot dispatch; match() never returns it.
    */
-  readonly reservedByBrowser: boolean;
+  readonly keptBy?: "browser" | "tour";
   /** Surfaces that own the chord and keep it: the terminal reads Alt+<key> as its meta prefix. */
   readonly deferTo?: readonly ShortcutContext[];
   /** A translated caveat the help surface shows under the label. */
@@ -95,9 +95,9 @@ function shortcut<Id extends string>(
   id: Id,
   chord: ShortcutChord,
   labelKey: MessageKey,
-  init?: Omit<Partial<ShortcutEntry>, "id" | "chord" | "labelKey" | "context">,
+  init?: Omit<Partial<ShortcutEntry>, "id" | "chord" | "labelKey">,
 ): ShortcutEntry & { readonly id: Id } {
-  return { id, chord, labelKey, context: "global", reservedByBrowser: false, ...init };
+  return { id, chord, labelKey, context: "global", ...init };
 }
 
 const TAB_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -166,12 +166,31 @@ export const SHORTCUTS = [
   // The browser keeps these: ⌘W/⌃W closes the tab and Ctrl+Tab switches it. Registering them
   // lets the help surface say so instead of pretending the IDE has them.
   shortcut("browser-close-tab", { key: "w", mod: true }, "shortcuts.closeTab", {
-    reservedByBrowser: true,
+    keptBy: "browser",
     noteKey: "shortcuts.note.browserKeeps",
   }),
   shortcut("browser-cycle-tabs", { key: "Tab", ctrl: true }, "shortcuts.cycleTabs", {
-    reservedByBrowser: true,
+    keptBy: "browser",
     noteKey: "shortcuts.note.browserKeeps",
+  }),
+
+  // The tour keeps Escape and the arrows while it is open (issue #218). Recorded, not bound:
+  // the overlay's own handler acts on them, and the help surface can say so instead of
+  // implying the keys are free. The overlay context is the surface that owns them.
+  shortcut("tour-dismiss", { key: "Escape" }, "shortcuts.tourDismiss", {
+    context: "overlay",
+    keptBy: "tour",
+    noteKey: "shortcuts.note.tourKeeps",
+  }),
+  shortcut("tour-next", { key: "ArrowRight" }, "shortcuts.tourNext", {
+    context: "overlay",
+    keptBy: "tour",
+    noteKey: "shortcuts.note.tourKeeps",
+  }),
+  shortcut("tour-previous", { key: "ArrowLeft" }, "shortcuts.tourPrevious", {
+    context: "overlay",
+    keptBy: "tour",
+    noteKey: "shortcuts.note.tourKeeps",
   }),
 ] as const;
 
@@ -215,7 +234,7 @@ export function matchShortcut(
   context: ShortcutContext,
 ): RegisteredShortcut | null {
   for (const entry of SHORTCUTS) {
-    if (entry.reservedByBrowser) continue;
+    if (entry.keptBy !== undefined) continue;
     if (shortcutApplies(entry, context) && chordMatches(entry.chord, event)) return entry;
   }
   return null;

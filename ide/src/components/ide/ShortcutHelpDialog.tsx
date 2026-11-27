@@ -1,7 +1,8 @@
 // The keyboard-shortcuts help (issue #223): one list rendered from the registry, grouped by
 // context and spelled for this platform, opened from the palette or with "?". It is honest
-// about its edges: the browser-reserved chords are listed (with the reason), and the footer
-// names the bindings that are NOT here — Escape's ladders and Monaco's/xterm's own keys.
+// about its edges: the browser-reserved chords and the tour's own keys are listed with the
+// surface that keeps them, and the footer names the bindings that are NOT here — the other
+// Escape ladders and Monaco's/xterm's own keys.
 import { useEffect, useRef } from "react";
 import X from "~icons/lucide/x";
 import { t, type MessageKey } from "@/i18n";
@@ -65,7 +66,7 @@ export function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: 
 
   if (!open) return null;
 
-  const reserved = SHORTCUTS.filter((entry) => entry.reservedByBrowser);
+  const browserKept = SHORTCUTS.filter((entry) => entry.keptBy === "browser");
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-overlay/60 p-4 pt-[10vh] backdrop-blur-sm">
       <div
@@ -98,7 +99,7 @@ export function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="grid gap-4 px-4 py-3 sm:grid-cols-2">
           {CONTEXTS.map((context) => {
             const entries = SHORTCUTS.filter(
-              (entry) => entry.context === context && !entry.reservedByBrowser,
+              (entry) => entry.context === context && entry.keptBy !== "browser",
             );
             if (entries.length === 0) return null;
             return (
@@ -117,7 +118,7 @@ export function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: 
               </section>
             );
           })}
-          {reserved.length > 0 && (
+          {browserKept.length > 0 && (
             <section aria-labelledby="shortcut-help-browser">
               <h3
                 id="shortcut-help-browser"
@@ -126,7 +127,7 @@ export function ShortcutHelpDialog({ open, onClose }: { open: boolean; onClose: 
                 {t("shortcuts.group.browser")}
               </h3>
               <ul>
-                {reserved.map((entry) => (
+                {browserKept.map((entry) => (
                   <ShortcutRow key={entry.id} entry={entry} />
                 ))}
               </ul>

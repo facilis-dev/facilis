@@ -112,6 +112,10 @@ export function AppShell() {
       // The browser never delivers these to the page, so the registry only documents them.
       "browser-close-tab": () => {},
       "browser-cycle-tabs": () => {},
+      // The tour keeps its own keys; its overlay handler acts on them, not this dispatcher.
+      "tour-dismiss": () => {},
+      "tour-next": () => {},
+      "tour-previous": () => {},
     };
     const onKey = (event: KeyboardEvent): void => {
       const focus = readShortcutFocus(event.target);

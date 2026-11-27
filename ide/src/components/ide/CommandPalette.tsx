@@ -37,7 +37,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { tourStore } from "@/components/tour/tour-store-instance";
+import { startTour } from "@/components/tour/tour-focus";
 import { useIde } from "./useIde";
 import { t } from "@/i18n";
 import { deployment, pushAllowed } from "@/deploy/current";
@@ -77,7 +77,7 @@ export function CommandPalette() {
   >(
     () => [
       { label: t("palette.home"), icon: Home, run: () => c.goHome() },
-      { label: t("palette.tour"), icon: CircleHelp, run: () => tourStore.start() },
+      { label: t("palette.tour"), icon: CircleHelp, run: () => startTour(null) },
       {
         label: t("shortcuts.help"),
         icon: CircleHelp,

@@ -90,7 +90,7 @@ describe("matchShortcut", () => {
     // #212: Home marks itself data-blocking-overlay, readShortcutFocus reports overlay, and
     // no global entry may reach the covered shell — not just the two toggles sampled above.
     for (const entry of SHORTCUTS) {
-      if (entry.context !== "global" || entry.reservedByBrowser) continue;
+      if (entry.context !== "global" || entry.keptBy !== undefined) continue;
       const chord = entry.chord;
       const pressed = event({
         key: chord.key,
@@ -154,6 +154,17 @@ describe("matchShortcut", () => {
     expect(matchShortcut(event({ key: "w", metaKey: true }), "global")).toBeNull();
     expect(matchShortcut(event({ key: "Tab", ctrlKey: true }), "global")).toBeNull();
   });
+
+  it("documents the tour's Escape and arrows without binding them", () => {
+    const tour = SHORTCUTS.filter((entry) => entry.keptBy === "tour");
+    expect(tour.map((entry) => entry.chord.key)).toEqual(["Escape", "ArrowRight", "ArrowLeft"]);
+    for (const entry of tour) {
+      expect(entry.context).toBe("overlay");
+      for (const context of ["global", "editor", "terminal", "dialog", "overlay"] as const) {
+        expect(matchShortcut(event({ key: entry.chord.key }), context), entry.id).toBeNull();
+      }
+    }
+  });
 });
 
 describe("shortcutContext", () => {
@@ -182,7 +193,6 @@ describe("shortcutContext", () => {
       chord: { key: "t" },
       labelKey: "shortcuts.save",
       context: "terminal",
-      reservedByBrowser: false,
     };
     expect(shortcutApplies(terminalOnly, "terminal")).toBe(true);
     expect(shortcutApplies(terminalOnly, "global")).toBe(false);

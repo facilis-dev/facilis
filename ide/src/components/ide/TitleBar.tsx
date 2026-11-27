@@ -9,7 +9,7 @@ import PanelRight from "~icons/lucide/panel-right";
 import PanelRightOff from "~icons/lucide/panel-right-dashed";
 import Play from "~icons/lucide/play";
 import Square from "~icons/lucide/square";
-import { tourStore } from "@/components/tour/tour-store-instance";
+import { startTour } from "@/components/tour/tour-focus";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { t } from "@/i18n";
@@ -140,8 +140,9 @@ export function TitleBar() {
         <div aria-hidden className="mx-1 h-5 w-px bg-border" />
         <Tooltip>
           <TooltipTrigger
-            onClick={() => tourStore.start()}
+            onClick={(event) => startTour(event.currentTarget)}
             aria-label={t("tour.helpAria")}
+            data-tour-opener=""
             className="hidden size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
           >
             <CircleHelp className="size-4" />

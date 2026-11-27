@@ -4,6 +4,7 @@ import { useBlockingLayer } from "@/components/ide/use-blocking-layer";
 import { isAutomationContext, shouldAutoStartTour } from "@/tour/tour-store";
 import type { TourAction } from "@/tour/tour-types";
 import type { IdeController } from "@/vv/controller";
+import { startTour } from "./tour-focus";
 import { TourOverlay } from "./TourOverlay";
 import { tourStore } from "./tour-store-instance";
 import { useTour } from "./use-tour";
@@ -66,7 +67,7 @@ export function TourHost() {
       autoTimer.current = null;
       autoStarted.current = true;
       // A manual replay can win the race; never yank it back to step one.
-      if (!tourStore.getSnapshot().active) tourStore.start();
+      if (!tourStore.getSnapshot().active) startTour(null);
     }, AUTO_START_DELAY_MS);
     return () => {
       if (autoTimer.current !== null) {

@@ -37,6 +37,14 @@ describe("ShortcutHelpDialog", () => {
     expect(html).toContain(t("shortcuts.note.browserKeeps"));
   });
 
+  it("says the tour keeps Escape and the arrows while it is open", () => {
+    const html = render();
+    expect(html).toContain(t("shortcuts.tourDismiss"));
+    expect(html).toContain(t("shortcuts.tourNext"));
+    expect(html).toContain(t("shortcuts.tourPrevious"));
+    expect(html).toContain(t("shortcuts.note.tourKeeps"));
+  });
+
   it("says what it does not cover: Escape ladders, Monaco and xterm", () => {
     const html = render();
     expect(html).toContain(t("shortcuts.notInRegistry.title"));

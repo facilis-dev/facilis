@@ -21,6 +21,10 @@ export const shortcutsEn = {
   "shortcuts.closeTab": "Close editor tab",
   "shortcuts.cycleTabs": "Cycle editor tabs",
   "shortcuts.note.browserKeeps": "The browser keeps this shortcut; the IDE cannot bind it.",
+  "shortcuts.tourDismiss": "End the guided tour",
+  "shortcuts.tourNext": "Next tour step",
+  "shortcuts.tourPrevious": "Previous tour step",
+  "shortcuts.note.tourKeeps": "The tour keeps this key while it is open.",
 
   // The help surface itself.
   "shortcuts.dialogTitle": "Keyboard Shortcuts",
@@ -35,7 +39,7 @@ export const shortcutsEn = {
   "shortcuts.close": "Close",
   "shortcuts.notInRegistry.title": "Not in this list",
   "shortcuts.notInRegistry.escape":
-    "Escape closes the surface that is open — a dialog, the project-graph drawer and card, the narrow drawer or the tour — and that ladder belongs to the surface, not to this registry.",
+    "Escape closes the surface that is open — a dialog, the project-graph drawer and card, or the narrow drawer — and that ladder belongs to the surface; the tour's own keys are listed under Overlays.",
   "shortcuts.notInRegistry.editors":
     "The code editor and the terminal keep their own keys: Monaco's editor commands and the terminal's clear and run keys act on the focused surface, so they are not listed here.",
 } as const;
