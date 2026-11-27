@@ -4,7 +4,6 @@
   "ide/src/components/ide/NotebookView.tsx": 659,
   "ide/src/vv/debug-session.ts": 567,
   "ide/src/vv/scm-session.ts": 531,
-  "ide/src/components/ide/SearchPane.tsx": 426,
   "ide/src/components/ide/DebugPanel.tsx": 375,
   "ide/vite.config.ts": 315
 }

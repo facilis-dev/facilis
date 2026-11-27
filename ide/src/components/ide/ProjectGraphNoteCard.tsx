@@ -199,7 +199,7 @@ export function ProjectGraphNoteCard({
           rows={4}
           placeholder={t("projectGraph.noteEmpty")}
           aria-label={t("projectGraph.noteHint")}
-          className="block w-full resize-none bg-transparent px-2 py-1.5 font-mono text-[11px] leading-snug text-foreground outline-none placeholder:text-muted-foreground"
+          className="block w-full resize-none bg-transparent px-2 py-1.5 font-mono text-[11px] leading-snug text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={onKeyDown}

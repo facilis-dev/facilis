@@ -1,46 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ChevronRight from "~icons/lucide/chevron-right";
-import ChevronDown from "~icons/lucide/chevron-down";
-import CaseSensitive from "~icons/lucide/case-sensitive";
-import WholeWord from "~icons/lucide/whole-word";
-import Regex from "~icons/lucide/regex";
-import CaseUpper from "~icons/lucide/case-upper";
-import ReplaceAll from "~icons/lucide/replace-all";
-import Ellipsis from "~icons/lucide/ellipsis";
 import Loader from "~icons/lucide/loader-circle";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 import { useIde } from "./useIde";
+import { SearchForm } from "./SearchForm";
 import { SearchResults } from "./SearchResults";
 import type { SearchDone, SearchFileResult } from "@/vv/controller";
-
-// A small VS Code-style toggle (Aa / whole-word / .* / preserve-case).
-function Toggle({
-  active,
-  onClick,
-  title,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-        active && "bg-primary/25 text-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function SearchPane() {
   const { c, snap } = useIde();
@@ -168,116 +132,31 @@ export function SearchPane() {
         Search
       </div>
 
-      {/* query + replace + include/exclude */}
-      <div className="flex items-start gap-1 px-2 pb-2">
-        <button
-          type="button"
-          title={showReplace ? "Hide Replace" : "Toggle Replace"}
-          onClick={() => setShowReplace((v) => !v)}
-          className="mt-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-        >
-          {showReplace ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        </button>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {/* search input row */}
-          <div
-            className={cn(
-              "flex items-center gap-1 rounded border bg-background px-1.5 py-1",
-              regexError && "border-destructive",
-            )}
-          >
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-            />
-            <Toggle active={matchCase} onClick={() => setMatchCase((v) => !v)} title="Match Case">
-              <CaseSensitive className="size-3.5" />
-            </Toggle>
-            <Toggle
-              active={wholeWord}
-              onClick={() => setWholeWord((v) => !v)}
-              title="Match Whole Word"
-            >
-              <WholeWord className="size-3.5" />
-            </Toggle>
-            <Toggle
-              active={regex}
-              onClick={() => setRegex((v) => !v)}
-              title="Use Regular Expression"
-            >
-              <Regex className="size-3.5" />
-            </Toggle>
-          </div>
-
-          {regexError && <div className="px-0.5 text-[11px] text-destructive">{regexError}</div>}
-
-          {/* replace input row */}
-          {showReplace && (
-            <div className="flex items-center gap-1">
-              <div className="flex min-w-0 flex-1 items-center gap-1 rounded border bg-background px-1.5 py-1">
-                <input
-                  value={replaceText}
-                  onChange={(e) => setReplaceText(e.target.value)}
-                  placeholder="Replace"
-                  className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                />
-                <Toggle
-                  active={preserveCase}
-                  onClick={() => setPreserveCase((v) => !v)}
-                  title="Preserve Case"
-                >
-                  <CaseUpper className="size-3.5" />
-                </Toggle>
-              </div>
-              <button
-                type="button"
-                title="Replace All"
-                disabled={totalMatches === 0}
-                onClick={doReplaceAll}
-                className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-              >
-                <ReplaceAll className="size-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          title="Toggle Search Details"
-          aria-pressed={showDetails}
-          onClick={() => setShowDetails((v) => !v)}
-          className={cn(
-            "mt-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-            showDetails && "bg-primary/25 text-foreground",
-          )}
-        >
-          <Ellipsis className="size-4" />
-        </button>
-      </div>
-
-      {showDetails && (
-        <div className="flex flex-col gap-1 px-2 pb-2">
-          <label className="px-0.5 text-[11px] text-muted-foreground">files to include</label>
-          <input
-            value={includeGlob}
-            onChange={(e) => setIncludeGlob(e.target.value)}
-            placeholder="e.g. src/**, *.ts"
-            className="rounded border bg-background px-2 py-1 text-xs outline-none placeholder:text-muted-foreground"
-          />
-          <label className="px-0.5 text-[11px] text-muted-foreground">files to exclude</label>
-          <input
-            value={excludeGlob}
-            onChange={(e) => setExcludeGlob(e.target.value)}
-            placeholder="e.g. **/*.test.ts"
-            className="rounded border bg-background px-2 py-1 text-xs outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-      )}
+      <SearchForm
+        query={query}
+        onQueryChange={setQuery}
+        matchCase={matchCase}
+        wholeWord={wholeWord}
+        regex={regex}
+        regexError={regexError}
+        onToggleMatchCase={() => setMatchCase((v) => !v)}
+        onToggleWholeWord={() => setWholeWord((v) => !v)}
+        onToggleRegex={() => setRegex((v) => !v)}
+        showReplace={showReplace}
+        onToggleReplace={() => setShowReplace((v) => !v)}
+        replaceText={replaceText}
+        onReplaceTextChange={setReplaceText}
+        preserveCase={preserveCase}
+        onTogglePreserveCase={() => setPreserveCase((v) => !v)}
+        onReplaceAll={doReplaceAll}
+        canReplaceAll={totalMatches > 0}
+        showDetails={showDetails}
+        onToggleDetails={() => setShowDetails((v) => !v)}
+        includeGlob={includeGlob}
+        onIncludeGlobChange={setIncludeGlob}
+        excludeGlob={excludeGlob}
+        onExcludeGlobChange={setExcludeGlob}
+      />
 
       {/* summary */}
       {query && !regexError && hasRoots && (
