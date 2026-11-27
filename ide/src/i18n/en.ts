@@ -30,6 +30,7 @@ import { homeEn } from "./en-home";
 import { overlaysEn } from "./en-overlays";
 import { a11yEn } from "./en-a11y";
 import { notebookEn } from "./en-notebook";
+import { panelActionsEn } from "./en-panel-actions";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -294,4 +295,5 @@ export const en = {
   // ── Tab moves focus and notebook cell labels (issue #210) ───────────────
   ...a11yEn,
   ...notebookEn,
+  ...panelActionsEn,
 } as const;

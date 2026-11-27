@@ -29,6 +29,7 @@ import { homeIt } from "./it-home";
 import { overlaysIt } from "./it-overlays";
 import { a11yIt } from "./it-a11y";
 import { notebookIt } from "./it-notebook";
+import { panelActionsIt } from "./it-panel-actions";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -291,4 +292,5 @@ export const it: Partial<Record<MessageKey, string>> = {
   // ── Tab moves focus and notebook cell labels (issue #210) ───────────────
   ...a11yIt,
   ...notebookIt,
+  ...panelActionsIt,
 };

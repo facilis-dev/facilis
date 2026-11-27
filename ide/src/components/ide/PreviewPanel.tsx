@@ -8,7 +8,6 @@ import ExternalLink from "~icons/lucide/external-link";
 import Plus from "~icons/lucide/plus";
 import Globe from "~icons/lucide/globe";
 import Lock from "~icons/lucide/lock";
-import X from "~icons/lucide/x";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -26,6 +25,7 @@ import { hasSeparatePreviewOrigin, previewSandbox } from "@/vv/preview-sandbox";
 import type { PreviewTab } from "@/vv/controller";
 import { PreviewEmptyState, PreviewEmptyTab } from "./PreviewEmptyState";
 import { PreviewRenderBadge } from "./PreviewRenderBadge";
+import { PreviewTabClose } from "./PreviewTabClose";
 
 function ToolButton({
   label,
@@ -144,18 +144,10 @@ export function PreviewPanel() {
                   >
                     <Globe className="size-3.5 shrink-0 opacity-70" />
                     <span className="max-w-32 truncate">{tabTitle(t)}</span>
-                    <button
-                      title={translate("preview.close")}
-                      className="flex size-4 items-center justify-center rounded hover:bg-accent"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        c.preview.closePreviewTab(t.id);
-                      }}
-                    >
-                      <X
-                        className={cn("size-3", isActive ? "block" : "hidden group-hover:block")}
-                      />
-                    </button>
+                    <PreviewTabClose
+                      active={isActive}
+                      onClose={() => c.preview.closePreviewTab(t.id)}
+                    />
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">

@@ -6,12 +6,11 @@ import ArrowDown from "~icons/lucide/arrow-down";
 import ArrowUp from "~icons/lucide/arrow-up";
 import ChevronRight from "~icons/lucide/chevron-right";
 import ChevronDown from "~icons/lucide/chevron-down";
-import Circle from "~icons/lucide/circle";
 import Bug from "~icons/lucide/bug";
-import X from "~icons/lucide/x";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIde } from "./useIde";
+import { DebugBreakpointRow } from "./DebugBreakpointRow";
 import type { DebugScopeVar } from "@/vv/debug-session";
 
 const baseName = (p: string) => p.split("/").pop() || p;
@@ -348,26 +347,13 @@ function Breakpoints() {
         </div>
       ) : (
         entries.map(({ path, line }) => (
-          <div
+          <DebugBreakpointRow
             key={path + ":" + line}
-            className="group flex items-center gap-2 px-3 py-0.5 text-xs hover:bg-accent"
-          >
-            <Circle className="size-2.5 shrink-0 fill-destructive text-destructive" />
-            <button
-              className="min-w-0 flex-1 truncate text-left hover:underline"
-              onClick={() => void c.openFileAt(path, line)}
-              title={`${path}:${line}`}
-            >
-              {baseName(path)}:{line}
-            </button>
-            <button
-              className="opacity-0 group-hover:opacity-100"
-              onClick={() => dbg.toggleBreakpoint(path, line)}
-              title="Remove breakpoint"
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
+            path={path}
+            line={line}
+            onOpen={() => void c.openFileAt(path, line)}
+            onRemove={() => dbg.toggleBreakpoint(path, line)}
+          />
         ))
       )}
     </Section>

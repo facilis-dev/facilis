@@ -5,22 +5,14 @@ import CaseSensitive from "~icons/lucide/case-sensitive";
 import WholeWord from "~icons/lucide/whole-word";
 import Regex from "~icons/lucide/regex";
 import CaseUpper from "~icons/lucide/case-upper";
-import Replace from "~icons/lucide/replace";
 import ReplaceAll from "~icons/lucide/replace-all";
 import Ellipsis from "~icons/lucide/ellipsis";
-import X from "~icons/lucide/x";
 import Loader from "~icons/lucide/loader-circle";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { FileIcon } from "./fileIcon";
 import { useIde } from "./useIde";
+import { SearchResults } from "./SearchResults";
 import type { SearchDone, SearchFileResult } from "@/vv/controller";
-
-const baseName = (rel: string) => rel.split("/").pop() ?? rel;
-const dirName = (rel: string) => {
-  const i = rel.lastIndexOf("/");
-  return i <= 0 ? "" : rel.slice(0, i);
-};
 
 // A small VS Code-style toggle (Aa / whole-word / .* / preserve-case).
 function Toggle({
@@ -47,33 +39,6 @@ function Toggle({
     >
       {children}
     </button>
-  );
-}
-
-// Render one result line: leading indentation trimmed, the match span highlighted.
-function MatchLine({
-  preview,
-  column,
-  length,
-}: {
-  preview: string;
-  column: number;
-  length: number;
-}) {
-  const leading = preview.length - preview.trimStart().length;
-  const text = preview.trimStart();
-  const col = column - 1 - leading; // 0-based within the trimmed text
-  if (col < 0 || col + length > text.length || length === 0) {
-    return <span className="truncate">{text.slice(0, 240)}</span>;
-  }
-  return (
-    <span className="truncate">
-      {text.slice(0, col)}
-      <span className="rounded-[2px] bg-warning/30 text-foreground">
-        {text.slice(col, col + length)}
-      </span>
-      {text.slice(col + length)}
-    </span>
   );
 }
 
@@ -339,85 +304,16 @@ export function SearchPane() {
               Search across all files in the workspace.
             </div>
           ) : (
-            results.map((f) => {
-              const isCollapsed = collapsed.has(f.file);
-              const rel =
-                f.root && f.file.startsWith(f.root + "/")
-                  ? f.file.slice(f.root.length + 1)
-                  : f.file;
-              return (
-                <div key={f.file}>
-                  <div className="group flex items-center gap-1 pr-2 pl-1 hover:bg-accent/40">
-                    <button
-                      type="button"
-                      onClick={() => toggleCollapsed(f.file)}
-                      className="flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left"
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="size-3.5 shrink-0" />
-                      ) : (
-                        <ChevronDown className="size-3.5 shrink-0" />
-                      )}
-                      <FileIcon name={baseName(rel)} className="size-3.5 shrink-0" />
-                      <span className="truncate text-xs text-foreground">{baseName(rel)}</span>
-                      <span className="truncate text-[10px] text-muted-foreground/70">
-                        {dirName(rel)}
-                      </span>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      {showReplace && (
-                        <button
-                          type="button"
-                          title="Replace All in File"
-                          onClick={() => doReplaceFile(f.file)}
-                          className="hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-                        >
-                          <Replace className="size-3" />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        title="Dismiss"
-                        onClick={() => dismissFile(f.file)}
-                        className="hidden size-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground group-hover:flex"
-                      >
-                        <X className="size-3" />
-                      </button>
-                      <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] text-muted-foreground group-hover:hidden">
-                        {f.matches.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  {!isCollapsed &&
-                    f.matches.map((m, i) => (
-                      <div
-                        key={`${m.line}:${m.column}:${i}`}
-                        className="group/m flex items-center gap-1 py-px pr-2 pl-6 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => c.openFileAt(f.file, m.line, m.column, m.length)}
-                          className="flex min-w-0 flex-1 items-center text-left"
-                          title={`${rel}:${m.line}:${m.column}`}
-                        >
-                          <MatchLine preview={m.preview} column={m.column} length={m.length} />
-                        </button>
-                        {showReplace && (
-                          <button
-                            type="button"
-                            title="Replace"
-                            onClick={() => doReplaceMatch(f.file, m)}
-                            className="hidden size-4 shrink-0 items-center justify-center rounded hover:bg-accent group-hover/m:flex"
-                          >
-                            <Replace className="size-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                </div>
-              );
-            })
+            <SearchResults
+              results={results}
+              collapsed={collapsed}
+              showReplace={showReplace}
+              onToggle={toggleCollapsed}
+              onOpenMatch={(file, m) => c.openFileAt(file, m.line, m.column, m.length)}
+              onReplaceFile={(file) => void doReplaceFile(file)}
+              onReplaceMatch={(file, m) => void doReplaceMatch(file, m)}
+              onDismiss={dismissFile}
+            />
           )}
         </div>
       </ScrollArea>
