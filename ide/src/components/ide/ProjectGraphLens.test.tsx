@@ -170,6 +170,42 @@ describe("ProjectGraphLensBar", () => {
     expect(html).toContain("Edit a source file");
   });
 
+  it("renders the reach lens's role picker and its totals", () => {
+    const html = renderBar("reach", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        facts: [
+          {
+            nodeId: "route:GET /api/todos",
+            code: "state.reachableRoute",
+            params: { method: "GET", path: "/api/todos", permission: "todos:read" },
+          },
+        ],
+        totals: {
+          key: "projectGraph.surface.state.reach.totals",
+          count: 2,
+          params: { pages: 1, tables: 1 },
+        },
+        params: { role: "member" },
+        contextKey: "projectGraph.surface.state.reach.context",
+        emptyKey: null,
+        emptyHintKey: null,
+        badges: new Map(),
+        picker: {
+          labelKey: "projectGraph.surface.state.reach.role",
+          value: "member",
+          options: ["admin", "member"],
+          onSelect: vi.fn(),
+        },
+      },
+    });
+    expect(html).toContain("project-graph-lens-picker");
+    expect(html).toContain("Role member");
+    expect(html).toContain("2 routes · pages: 1 · tables: 1");
+    expect(html).toContain("Reachable with todos:read.");
+    expect(html).toContain(">admin</option>");
+  });
+
   it("shows an explicit empty state when a lens matches nothing", () => {
     const html = renderBar("shared", [WRITE]);
     expect(html).toContain("project-graph-lens-empty");

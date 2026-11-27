@@ -14,6 +14,7 @@ export const GRAPH_LENS_IDS = [
   "unknown",
   "runtime",
   "changes",
+  "reach",
 ] as const;
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
 

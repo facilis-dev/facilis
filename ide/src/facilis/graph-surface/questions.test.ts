@@ -38,6 +38,7 @@ describe("graph question codes", () => {
       unknown: "Q17",
       runtime: "Q18",
       changes: "Q19",
+      reach: "Q20",
     });
   });
 });

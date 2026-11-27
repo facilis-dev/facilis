@@ -29,4 +29,6 @@ export const projectGraphQuestionsIt = {
     "Q18 — Cosa sta facendo adesso questa route: traffico, errori 5xx e latenza p50/p95?",
   "projectGraph.surface.question.q19":
     "Q19 — Cosa è cambiato dal checkpoint dell'agente e quali nodi possiedono quei file?",
+  "projectGraph.surface.question.q20":
+    "Q20 — Cosa può raggiungere un ruolo: quali route, pagine e tabelle sbloccano i suoi permessi?",
 };

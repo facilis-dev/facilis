@@ -54,6 +54,23 @@ export function ProjectGraphStateBanner({
         total={totalLabel(state)}
         context={state.contextKey === null ? null : t(state.contextKey, state.params)}
       />
+      {state.picker !== undefined && (
+        <label className="flex items-center gap-1 px-2 pb-1 text-[10px] text-muted-foreground">
+          {t(state.picker.labelKey)}
+          <select
+            data-testid="project-graph-lens-picker"
+            value={state.picker.value}
+            onChange={(event) => state.picker?.onSelect(event.target.value)}
+            className="rounded border bg-panel px-1 py-0.5 text-[10px] text-foreground"
+          >
+            {state.picker.options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {rows.length === 0 ? (
         <EmptyState
           title={t(state.emptyKey ?? "projectGraph.surface.state.emptyTitle", state.params)}

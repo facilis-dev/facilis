@@ -97,7 +97,7 @@ export function ProjectGraphPanel() {
     availabilityOf,
     selectLens,
     closeLens,
-  } = useProjectGraphLens(analysis?.graphDiagnostics, view, root, c);
+  } = useProjectGraphLens(analysis, view, root, c);
   const selectedDiagnostics =
     selectedNodeId === null ? [] : (diagnosticsByNodeMap.get(selectedNodeId) ?? []);
   const openFileAt = (file: string, line: number) => {

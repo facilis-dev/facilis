@@ -21,7 +21,8 @@ export type GraphQuestionCode =
   | "Q16"
   | "Q17"
   | "Q18"
-  | "Q19";
+  | "Q19"
+  | "Q20";
 
 export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>> = {
   Q1: "projectGraph.surface.question.q1",
@@ -38,6 +39,7 @@ export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>
   Q17: "projectGraph.surface.question.q17",
   Q18: "projectGraph.surface.question.q18",
   Q19: "projectGraph.surface.question.q19",
+  Q20: "projectGraph.surface.question.q20",
 };
 
 /** Inspector section id ("q3") -> the question it answers ("Q3"). */
@@ -64,6 +66,7 @@ export const LENS_QUESTION_CODES: Readonly<Record<GraphLensId, GraphQuestionCode
   unknown: "Q17",
   runtime: "Q18",
   changes: "Q19",
+  reach: "Q20",
 };
 
 export function answerQuestionKey(id: GraphAnswerId): MessageKey {

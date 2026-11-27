@@ -5,7 +5,7 @@
 // filter.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { GraphDiagnostic, GraphDiagnosticCode } from "@facilis.dev/analyze";
+import type { Analysis, GraphDiagnostic, GraphDiagnosticCode } from "@facilis.dev/analyze";
 import type { ProjectGraphView } from "@/facilis/graph-model";
 import {
   createGraphLensLifecycle,
@@ -21,6 +21,7 @@ import {
   type RuntimeLensController,
 } from "@/facilis/graph-surface/runtime-lens-source.ts";
 import { lensDefinition } from "@/facilis/graph-surface/lenses-registry.ts";
+import { buildReachLensState, defaultReachRole } from "@/facilis/graph-surface/reach-lens.ts";
 import {
   diagnosticsByNode,
   lensHighlight,
@@ -52,11 +53,13 @@ export interface ProjectGraphLensState {
 }
 
 export function useProjectGraphLens(
-  diagnostics: readonly GraphDiagnostic[] | undefined,
+  analysis: Analysis | null,
   view: ProjectGraphView | null,
   projectKey: string | null = null,
   controller: GraphLensController | null = null,
 ): ProjectGraphLensState {
+  const diagnostics = analysis?.graphDiagnostics;
+  const config = analysis?.config ?? null;
   const adapters = useMemo<readonly GraphLensSourceAdapter[]>(
     () =>
       controller === null
@@ -66,6 +69,8 @@ export function useProjectGraphLens(
   );
   const lifecycle = useMemo(() => createGraphLensLifecycle(adapters), [adapters]);
   const [selection, setSelection] = useState<LensSelection | null>(null);
+  // The reach lens's role choice: null means "the config's default", re-resolved each render.
+  const [role, setRole] = useState<string | null>(null);
   // Derived, not reset in an effect: changing project closes the lens in the same render, so no
   // frame ever shows the previous project's source or summary.
   const lens = selection !== null && selection.projectKey === projectKey ? selection.lens : null;
@@ -73,6 +78,7 @@ export function useProjectGraphLens(
   // a lens whose buffer was already dropped on deactivation.
   useEffect(() => {
     setSelection(null);
+    setRole(null);
   }, [projectKey]);
   useEffect(() => {
     lifecycle.apply(lens, { view });
@@ -102,16 +108,30 @@ export function useProjectGraphLens(
     () => (lens === null || definition?.source !== "static" ? null : summarizeLens(lens, facts)),
     [lens, definition, facts],
   );
+  // A declared lens (reach) reads config facts the panel already holds: no adapter to enable.
+  const selectedRole = useMemo(() => {
+    if (config === null) return null;
+    return role !== null && config.roles[role] !== undefined ? role : defaultReachRole(config);
+  }, [config, role]);
+  const reach = useMemo(
+    () => (lens === "reach" ? buildReachLensState(config, view, selectedRole, setRole) : null),
+    [lens, config, view, selectedRole],
+  );
   const lensView = useMemo<GraphLensView | null>(() => {
     if (lens === null) return null;
     if (summary !== null) return { kind: "diagnostics", summary };
+    if (reach !== null) return { kind: "state", state: reach };
     return state === null ? null : { kind: "state", state };
-  }, [lens, summary, state]);
+  }, [lens, summary, reach, state]);
   const highlight = useMemo<GraphLensHighlight | null>(() => {
     if (lensView === null) return null;
     if (lensView.kind === "diagnostics") return lensHighlight(lensView.summary);
+    const flagged =
+      lensView.state.highlight === undefined
+        ? new Set(lensView.state.badges.keys())
+        : new Set(lensView.state.highlight);
     return {
-      flagged: new Set(lensView.state.badges.keys()),
+      flagged,
       codeOf: new Map<string, GraphDiagnosticCode>(),
       badges: lensView.state.badges,
     };

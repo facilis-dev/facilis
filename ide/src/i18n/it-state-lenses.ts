@@ -56,4 +56,37 @@ export const stateLensesIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.state.changes.error": "Impossibile leggere il working tree.",
   "projectGraph.surface.state.noHead":
     "Questo repository non ha ancora un commit, quindi non c'è un checkpoint da confrontare.",
+
+  // ── reach lens (#201) ───────────────────────────────────────────────────────
+  "projectGraph.surface.lens.reach": "Q20 · Raggiungibilità",
+  "projectGraph.surface.lens.reach.short": "Q20",
+  "projectGraph.surface.lens.reach.description":
+    "Cosa può chiamare un ruolo dichiarato: le route sbloccate dai suoi permessi, le pagine che le raggiungono e le tabelle che dichiarano. Sola lettura.",
+  "projectGraph.surface.state.noRoles":
+    "facilis.config.ts non dichiara ruoli, quindi non c'è nulla da raggiungere.",
+  "projectGraph.surface.state.noRoles.label": "Nessun ruolo",
+  "projectGraph.surface.state.publicRoute":
+    "Route pubblica: non richiede permessi, quindi ogni ruolo la raggiunge.",
+  "projectGraph.surface.state.publicRoute.label": "Route pubblica",
+  "projectGraph.surface.state.publicRoute.short": "PUB",
+  "projectGraph.surface.state.reachableRoute": "Raggiungibile con {permission}.",
+  "projectGraph.surface.state.reachableRoute.label": "Route raggiungibile",
+  "projectGraph.surface.state.undeclaredPermission":
+    "Richiede {permission}, che nessun ruolo dichiarato possiede.",
+  "projectGraph.surface.state.undeclaredPermission.label": "Permesso non dichiarato",
+  "projectGraph.surface.state.undeclaredPermission.short": "?",
+  "projectGraph.surface.state.wildcardRole":
+    "Il ruolo {role} ha il wildcard, quindi si espande a ogni permesso dichiarato.",
+  "projectGraph.surface.state.wildcardRole.label": "Ruolo wildcard",
+  "projectGraph.surface.state.elevatedRoute":
+    "Raggiunge i dati anche tramite elevazione sudo/system auditata.",
+  "projectGraph.surface.state.elevatedRoute.label": "Accesso elevato",
+  "projectGraph.surface.state.elevatedRoute.short": "SUDO",
+  "projectGraph.surface.state.noReach": "Nessuna route è raggiungibile con i permessi di {role}.",
+  "projectGraph.surface.state.noReach.label": "Nessuna route raggiungibile",
+  "projectGraph.surface.state.reach.totals": "route: {count} · pagine: {pages} · tabelle: {tables}",
+  "projectGraph.surface.state.reach.context": "Ruolo {role}",
+  "projectGraph.surface.state.reach.role": "Ruolo",
+  "projectGraph.surface.state.reach.emptyHint":
+    "Scegli un altro ruolo o dichiara il permesso mancante in facilis.config.ts.",
 };

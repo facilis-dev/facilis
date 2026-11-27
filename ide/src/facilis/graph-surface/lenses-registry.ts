@@ -24,6 +24,15 @@ const CODES_BY_LENS: Readonly<Record<GraphLensId, readonly GraphLensCode[]>> = {
   unknown: ["unknown"],
   runtime: ["state.notRunning", "state.noTraffic", "state.routeErrors", "state.slowRoute"],
   changes: ["state.noChanges", "state.fileModified", "state.fileAdded", "state.fileDeleted"],
+  reach: [
+    "state.noRoles",
+    "state.publicRoute",
+    "state.reachableRoute",
+    "state.undeclaredPermission",
+    "state.wildcardRole",
+    "state.elevatedRoute",
+    "state.noReach",
+  ],
 };
 
 const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -33,6 +42,7 @@ const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   unknown: "projectGraph.surface.lens.unknown",
   runtime: "projectGraph.surface.lens.runtime",
   changes: "projectGraph.surface.lens.changes",
+  reach: "projectGraph.surface.lens.reach",
 };
 
 const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -42,6 +52,7 @@ const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   unknown: "projectGraph.surface.lens.unknown.description",
   runtime: "projectGraph.surface.lens.runtime.description",
   changes: "projectGraph.surface.lens.changes.description",
+  reach: "projectGraph.surface.lens.reach.description",
 };
 
 const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
@@ -51,6 +62,7 @@ const SOURCES: Readonly<Record<GraphLensId, GraphLensSource>> = {
   unknown: "static",
   runtime: "live",
   changes: "workspace",
+  reach: "declared",
 };
 
 const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
@@ -60,6 +72,7 @@ const SHORT_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
   unknown: "projectGraph.surface.lens.unknown.short",
   runtime: "projectGraph.surface.lens.runtime.short",
   changes: "projectGraph.surface.lens.changes.short",
+  reach: "projectGraph.surface.lens.reach.short",
 };
 
 const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
@@ -69,6 +82,7 @@ const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
   unknown: "--muted-foreground",
   runtime: "--success",
   changes: "--warning",
+  reach: "--info",
 };
 
 /** Per-code legend text and colour for the IDE's own `state.*` vocabulary (D-224 §2). */
@@ -114,6 +128,41 @@ const STATE_LEGEND: Readonly<
     messageKey: "projectGraph.surface.state.fileDeleted",
     labelKey: "projectGraph.surface.state.fileDeleted.label",
     colorToken: "--destructive",
+  },
+  "state.noRoles": {
+    messageKey: "projectGraph.surface.state.noRoles",
+    labelKey: "projectGraph.surface.state.noRoles.label",
+    colorToken: "--muted-foreground",
+  },
+  "state.publicRoute": {
+    messageKey: "projectGraph.surface.state.publicRoute",
+    labelKey: "projectGraph.surface.state.publicRoute.label",
+    colorToken: "--info",
+  },
+  "state.reachableRoute": {
+    messageKey: "projectGraph.surface.state.reachableRoute",
+    labelKey: "projectGraph.surface.state.reachableRoute.label",
+    colorToken: "--success",
+  },
+  "state.undeclaredPermission": {
+    messageKey: "projectGraph.surface.state.undeclaredPermission",
+    labelKey: "projectGraph.surface.state.undeclaredPermission.label",
+    colorToken: "--warning",
+  },
+  "state.wildcardRole": {
+    messageKey: "projectGraph.surface.state.wildcardRole",
+    labelKey: "projectGraph.surface.state.wildcardRole.label",
+    colorToken: "--info",
+  },
+  "state.elevatedRoute": {
+    messageKey: "projectGraph.surface.state.elevatedRoute",
+    labelKey: "projectGraph.surface.state.elevatedRoute.label",
+    colorToken: "--warning",
+  },
+  "state.noReach": {
+    messageKey: "projectGraph.surface.state.noReach",
+    labelKey: "projectGraph.surface.state.noReach.label",
+    colorToken: "--muted-foreground",
   },
 };
 

@@ -26,6 +26,17 @@ export interface GraphLensTotals {
   readonly params?: I18nParams;
 }
 
+/**
+ * The declared-lens chooser (reach: the role): data plus the one callback the banner calls.
+ * Keeping it on the state means the picker needs no extra prop through the bar or the panel.
+ */
+export interface GraphLensPicker {
+  readonly labelKey: MessageKey;
+  readonly value: string;
+  readonly options: readonly string[];
+  readonly onSelect: (value: string) => void;
+}
+
 export interface GraphLensState {
   readonly facts: readonly GraphStateFact[];
   readonly totals: GraphLensTotals | null;
@@ -39,6 +50,13 @@ export interface GraphLensState {
   readonly emptyHintKey: MessageKey | null;
   /** Draw-only per-node badges; the canvas never resizes a card for them. */
   readonly badges: ReadonlyMap<string, GraphLensBadge>;
+  /**
+   * Nodes the lens flags even without a badge (reach highlights every reachable page and table).
+   * Omitted means "every badge key", the runtime/changes behaviour.
+   */
+  readonly highlight?: readonly string[];
+  /** A declared lens's chooser, rendered by the banner; omitted when the lens has none. */
+  readonly picker?: GraphLensPicker;
 }
 
 /** What the lens bar renders: analyzer diagnostics or a state lens's normalised facts. */
