@@ -2,6 +2,7 @@ import type { H3Event } from "nitro";
 import { getRequestHeader, getRequestIP, setResponseHeader } from "nitro/h3";
 import {
   acceptRequestId,
+  attachRequestDatabase,
   newLogRequestId,
   type FacilisEventContext,
   type FacilisLoggingConfig,
@@ -41,6 +42,9 @@ const handler = async (event: H3Event): Promise<void> => {
   context.security = { trustedOrigins: state.config?.security?.trustedOrigins ?? [] };
 
   if (state.db === null) return;
+  // D-226: the root client never rides on the event. The wrapper reads it from core's
+  // private WeakMap; raw handlers cannot see it at all.
+  attachRequestDatabase(event, state.db);
 
   // The wrapper's rate-limit key is resolved for every request, independently of the logging
   // opt-ins (D-152): proxy trust decides whether the address identifies the caller, and leaving
@@ -49,7 +53,6 @@ const handler = async (event: H3Event): Promise<void> => {
   const client = resolveClient(event, state.loggingConfig, trustProxy);
   const clientAddress = getRequestIP(event, { xForwardedFor: trustProxy });
   context.facilis = {
-    db: state.db,
     defaultTenantId: readDefaultTenantId(state.runtime),
     ...(clientAddress === undefined ? {} : { clientAddress }),
     // ctx.log and the access/error streams are structural for every authorized handler
@@ -85,7 +88,9 @@ function resolveClient(
   const userAgent = config.includeUserAgent
     ? readNonEmptyHeader(event, USER_AGENT_HEADER)
     : undefined;
-  const ip = trustProxy ? firstForwardedFor(readNonEmptyHeader(event, FORWARDED_FOR_HEADER)) : undefined;
+  const ip = trustProxy
+    ? firstForwardedFor(readNonEmptyHeader(event, FORWARDED_FOR_HEADER))
+    : undefined;
   if (userAgent === undefined && ip === undefined) return undefined;
   return {
     ...(ip === undefined ? {} : { ip }),

@@ -1,0 +1,127 @@
+/**
+ * The mount-time half of D-226 (decision 4): only declared project files reach Nitro.
+ *
+ * The analyzer decides what is declared; this module removes everything else from the lists
+ * Nitro will turn into routes, middleware and plugins. An undeclared route is therefore not
+ * merely reported: it cannot be mounted, so the request falls through to Nitro's 404. The
+ * filter is applied again on every scan (dev add/unlink), so a file created after boot is
+ * still refused without a restart.
+ */
+import { relative, sep } from "node:path";
+import type { Nitro, NitroEventHandler } from "nitro/types";
+import type { Analysis } from "@facilis.dev/analyze";
+
+export interface SurfaceAllowlist {
+  readonly routes: ReadonlySet<string>;
+  readonly extensions: ReadonlySet<string>;
+}
+
+/** Project-relative path with forward slashes; null for a framework file. */
+function projectRelative(rootDir: string, handler: string): string | null {
+  if (!handler.startsWith(rootDir)) return null;
+  const rel = relative(rootDir, handler).split(sep).join("/");
+  if (rel.length === 0 || rel.startsWith("..") || rel.startsWith("node_modules/")) return null;
+  return rel;
+}
+
+function allowedProjectFile(rel: string, allowlist: SurfaceAllowlist): boolean {
+  if (rel.startsWith("server/routes/") || rel.startsWith("server/api/")) {
+    return allowlist.routes.has(rel);
+  }
+  if (
+    rel.startsWith("server/middleware/") ||
+    rel.startsWith("server/plugins/") ||
+    rel.startsWith("server/modules/") ||
+    rel.startsWith("server/tasks/")
+  ) {
+    return allowlist.extensions.has(rel);
+  }
+  return true;
+}
+
+function handlerAllowed(
+  handler: NitroEventHandler,
+  rootDir: string,
+  allowlist: SurfaceAllowlist,
+): boolean {
+  const rel = projectRelative(rootDir, handler.handler);
+  return rel === null || allowedProjectFile(rel, allowlist);
+}
+
+function filterHandlers(
+  handlers: readonly NitroEventHandler[] | undefined,
+  rootDir: string,
+  allowlist: SurfaceAllowlist,
+): NitroEventHandler[] {
+  return (handlers ?? []).filter((handler) => handlerAllowed(handler, rootDir, allowlist));
+}
+
+function filterStrings(
+  values: readonly string[] | undefined,
+  rootDir: string,
+  allowlist: SurfaceAllowlist,
+): string[] | undefined {
+  if (values === undefined) return undefined;
+  return values.filter((value) => {
+    const rel = projectRelative(rootDir, value);
+    return rel === null || allowedProjectFile(rel, allowlist);
+  });
+}
+
+/**
+ * Apply the allowlist to the Nitro instance the module sees. `scannedHandlers` is assigned
+ * by Nitro after each scan, so it is intercepted rather than filtered once: that is the only
+ * seam between scanning and routing.sync() in Nitro v3 (pinned version).
+ */
+export function enforceDeclaredSurface(
+  nitro: Nitro,
+  rootDir: string,
+  analysis: Analysis,
+): SurfaceAllowlist {
+  const routes = new Set(
+    analysis.routes
+      .filter((route) => route.surface.class === "standard" || route.surface.class === "declared")
+      .map((route) => route.sourceFile),
+  );
+  const extensions = new Set(
+    analysis.surface.extensions
+      .filter((extension) => extension.surface.class === "declared")
+      .map((extension) => extension.file),
+  );
+  const allowlist: SurfaceAllowlist = { routes, extensions };
+
+  nitro.options.handlers = filterHandlers(nitro.options.handlers ?? [], rootDir, allowlist);
+
+  const filteredPlugins = filterStrings(nitro.options.plugins, rootDir, allowlist);
+  if (filteredPlugins !== undefined) nitro.options.plugins = filteredPlugins;
+
+  // A module can be a path or an inline object; only path modules can be checked, so an
+  // inline module is left to the config author (it is not a scanned project file).
+  if (nitro.options.modules !== undefined) {
+    nitro.options.modules = nitro.options.modules.filter((value) => {
+      if (typeof value !== "string") return true;
+      const rel = projectRelative(rootDir, value);
+      return rel === null || allowedProjectFile(rel, allowlist);
+    });
+  }
+
+  if (nitro.options.tasks !== undefined) {
+    for (const [name, task] of Object.entries(nitro.options.tasks)) {
+      const handler = task.handler;
+      if (typeof handler !== "string") continue;
+      const rel = projectRelative(rootDir, handler);
+      if (rel !== null && !allowedProjectFile(rel, allowlist)) delete nitro.options.tasks[name];
+    }
+  }
+
+  let current = filterHandlers(nitro.scannedHandlers, rootDir, allowlist);
+  Object.defineProperty(nitro, "scannedHandlers", {
+    configurable: true,
+    enumerable: true,
+    get: () => current,
+    set: (value: NitroEventHandler[]) => {
+      current = filterHandlers(value, rootDir, allowlist);
+    },
+  });
+  return allowlist;
+}

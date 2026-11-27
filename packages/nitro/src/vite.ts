@@ -11,6 +11,7 @@ import { facilisPrerenderServing } from "./prerender-dev.ts";
 import { facilisPrerenderEngine } from "./prerender-engine.ts";
 import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
+import { securitySurfaceIssues } from "./security-surface.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
 import { publicConfigDefine } from "./vite-public.ts";
 import { facilisRum } from "./vite-rum.ts";
@@ -58,6 +59,9 @@ export function facilis(): FacilisPlugins {
   // One analysis per revision of the project: the mapping is cheap, the analyzer is not.
   let analysis: Analysis | undefined;
   let metadata: RouteMetadataMap | undefined;
+  // Production fails on an undeclared surface; dev reports it and the mount gate answers
+  // 404, so the author sees the problem without losing the server (D-226 decision 1).
+  let command: "build" | "serve" = "build";
 
   const loadMetadata = (warn?: WarningSink): RouteMetadataMap => {
     if (metadata !== undefined) return metadata;
@@ -113,12 +117,28 @@ export function facilis(): FacilisPlugins {
 
     configResolved(config) {
       root = config.root;
+      command = config.command;
     },
 
     // Warm the analysis before the first request so a broken route file surfaces as a
     // warning during startup, not as a surprising slow first spec fetch.
     async buildStart() {
       loadMetadata((message) => this.warn(message));
+      analysis ??= analyzeProjectRoutes(root);
+      if (analysis === undefined) return;
+      const issues = securitySurfaceIssues(analysis);
+      if (issues.length === 0) return;
+      const messages = issues.map((issue) =>
+        issue.file === null
+          ? "facilis: " + issue.message
+          : "facilis: " +
+            issue.file +
+            (issue.line === null ? "" : ":" + issue.line) +
+            ": " +
+            issue.message,
+      );
+      if (command === "build") this.error(messages.join("\n"));
+      for (const message of messages) this.warn(message);
     },
 
     configureServer(server) {

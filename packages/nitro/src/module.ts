@@ -9,6 +9,7 @@ import {
   DEV_SCHEMA_ROUTE,
   DEV_VIEW_ROUTE,
   HEALTH_ROUTE,
+  SECURITY_SURFACE_ROUTE,
   MANIFEST_REVISION_ROUTE,
   MANIFEST_ROUTE,
   NATIVE_OPENAPI_ROUTE,
@@ -24,15 +25,15 @@ import {
   VIRTUAL_JOBS_ID,
   VIRTUAL_WORKFLOWS_ID,
 } from "./virtual-ids.ts";
+import { registerSecuritySurface } from "./security-surface.ts";
 
 const ROUTES_DIR = new URL("./routes/", import.meta.url);
 const MIDDLEWARE_DIR = new URL("./middleware/", import.meta.url);
 const PLUGINS_DIR = new URL("./plugins/", import.meta.url);
-// The package ships twice: src/*.ts from the workspace (bundlers strip the types) and
-// dist/*.js in a packed tarball, which a published or URL-installed project loads with a
-// plain ESM loader. Nitro needs real file paths for its handlers, so derive the extension
-// from THIS module rather than hardcoding ".ts" — otherwise a dist build registers handler
-// files that do not exist (dist/routes/manifest.get.ts).
+// The package ships twice: src/*.ts from the workspace and dist/*.js in a packed tarball,
+// which a published or URL-installed project loads with a plain ESM loader. Nitro needs real
+// file paths, so derive the extension from THIS module rather than hardcoding ".ts" —
+// otherwise a dist build registers files that do not exist (dist/routes/manifest.get.ts).
 const RUNTIME_EXT = import.meta.url.endsWith(".ts") ? ".ts" : ".js";
 const APPLICATION_ENTRY = "facilis.config.ts";
 const DB_SCHEMA_ENTRY = join("db", "schema.ts");
@@ -47,6 +48,8 @@ export function createFacilisNitroModule(): NitroModule {
     name: "facilis",
     setup(nitro: Nitro): void {
       const rootDir = nitro.options.rootDir;
+      // D-226: mount only declared project files and emit the release document on compile.
+      registerSecuritySurface(nitro, rootDir);
       registerProjectAlias(nitro, rootDir);
       registerVirtualModules(nitro, rootDir);
       relocateNativeOpenApi(nitro);
@@ -247,6 +250,7 @@ function registerRuntimeHandlers(nitro: Nitro): void {
     add(DEV_SCHEMA_ROUTE, routeFile("dev-schema.get.ts"), DEV_ENV);
     add(DEV_QUERY_ROUTE, routeFile("dev-query.post.ts"), DEV_ENV);
     add(DEV_VIEW_ROUTE, routeFile("dev-view.post.ts"), DEV_ENV);
+    add(SECURITY_SURFACE_ROUTE, routeFile("security-surface.get.ts"), DEV_ENV);
   }
   // The facade is dev-only unless the project explicitly enables OpenAPI in production.
   if (dev) add(OPENAPI_FACADE_ROUTE, routeFile("openapi.get.ts"), DEV_ENV);
