@@ -32,6 +32,7 @@ function routeFact(overrides: Partial<RouteFact> = {}): RouteFact {
     source: ref("server/routes/todos.get.ts", 3),
     wrapper: "valid",
     permission: ["todos:read"],
+    auth: "required",
     crossSite: false,
     dbTables: ["todos"],
     dbColumns: [],
@@ -42,6 +43,15 @@ function routeFact(overrides: Partial<RouteFact> = {}): RouteFact {
     handlerBodyRead: false,
     handlerFormRead: false,
     elevations: [],
+    // D-226: the fact model classifies every route; a standard route needs no declaration.
+    surface: {
+      class: "standard",
+      declarations: [],
+      source: ref("server/routes/todos.get.ts", 3),
+      unknown: [],
+      rawSqlReason: null,
+      rawDb: [],
+    },
     unknown: [],
     ...overrides,
   };

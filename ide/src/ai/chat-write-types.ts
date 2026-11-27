@@ -1,11 +1,17 @@
-// The incremental write engine's shared shapes (D-181/D-193): what the engine needs from the
-// chat host, the four outcomes a write can produce, and the finding constructors that the
-// modules validating, applying and confirming a write all use.
+// The incremental write engine's shared shapes (D-181/D-193/D-226): what the engine needs
+// from the chat host, the five outcomes a write can produce, and the finding constructors that
+// the modules validating, applying and confirming a write all use.
 //
 // Split out of chat-writes.ts so that module, chat-write-persist.ts and chat-write-confirm.ts
 // can share the types without importing each other's logic.
 
-import type { Analysis, FilePatch, SyntaxChecker, ValidationError } from "@facilis.dev/ai";
+import type {
+  Analysis,
+  FilePatch,
+  SurfaceRequest,
+  SyntaxChecker,
+  ValidationError,
+} from "@facilis.dev/ai";
 
 import type { PatchBridge } from "@/facilis/apply-patch";
 
@@ -65,7 +71,23 @@ export interface WriteSchemaConfirmation {
   confirmation: { changes: readonly string[] };
 }
 
-export type WriteOutcome = WriteSuccess | WriteFindings | WriteGitRefusal | WriteSchemaConfirmation;
+/**
+ * The write adds one or more declared non-standard capabilities: the user must confirm every
+ * declaration (D-226) before anything reaches the disk.
+ */
+export interface WriteSurfaceConfirmation {
+  ok: false;
+  path: string;
+  /** The declaration sites, with the exact snippet and generated reason the card shows. */
+  surface: { requests: readonly SurfaceRequest[] };
+}
+
+export type WriteOutcome =
+  | WriteSuccess
+  | WriteFindings
+  | WriteGitRefusal
+  | WriteSchemaConfirmation
+  | WriteSurfaceConfirmation;
 
 export function finding(
   rule: string,

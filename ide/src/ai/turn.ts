@@ -10,6 +10,8 @@
 // the user cancels; a refused clean-tree gate or a validator outage ends it through the
 // write step instead.
 
+import type { SurfaceRequest } from "@facilis.dev/ai";
+
 import type { CallModelInput, CallModelResult } from "./client";
 import type { PatchValidationHost } from "./patch-validation";
 import {
@@ -23,7 +25,7 @@ import { parseAiResponse, type AiParseFailure, type AiParseResult } from "./resp
 import { capReasoning } from "./chat-trace";
 import { appendTurn } from "./chat-session-types";
 import type { ChatWrites } from "./chat-writes";
-import { settleWriteStep } from "./turn-writes";
+import { settleWriteStep, type SurfaceDecision } from "./turn-writes";
 import type {
   AiChatTurn,
   AiSettings,
@@ -55,6 +57,8 @@ export interface TurnInput {
   pauseGitGate?: (failure: ChatGitGateFailure) => Promise<"continue" | "stop">;
   /** A write drops a table or a column: pause the turn for the user's confirmation (D-193). */
   pauseSchemaConfirm?: (changes: readonly string[]) => Promise<"apply" | "cancel">;
+  /** A write declares a non-standard capability: pause for the user's confirmation (D-226). */
+  pauseSurfaceConfirm?: (requests: readonly SurfaceRequest[]) => Promise<SurfaceDecision>;
   /** Streams the provider's visible reasoning for the current call (D-110). */
   onReasoning?: (chunk: string) => void;
   /** A model call starts: the chat clears the live reasoning. */

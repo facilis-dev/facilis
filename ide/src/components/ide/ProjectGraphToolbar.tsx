@@ -21,6 +21,7 @@ import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphStats } from "@/facilis/graph-model";
 import { ProjectGraphFiltersMenu } from "./ProjectGraphFiltersMenu";
 import { ProjectGraphSearchResults } from "./ProjectGraphSearchResults";
+import { SecuritySurfaceBadge } from "./SecuritySurfaceBadge";
 import { isGraphSearchOpen, resolveGraphSearchKey } from "./project-graph-search-keys";
 
 export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
@@ -238,6 +239,7 @@ export function ProjectGraphToolbar({
           >
             {fullscreen ? <Minimize2 /> : <Maximize2 />}
           </Button>
+          <SecuritySurfaceBadge />
           <Button
             variant="ghost"
             size="icon-sm"

@@ -5,19 +5,29 @@
 //   turn continues with a "clean now" notice) or stops it;
 // - a destructive schema write: the turn pauses for the user's confirmation, and only an
 //   approved one is applied (the write itself was held back, nothing landed);
+// - a declared non-standard capability (D-226): the same pause, but a decline drops the write
+//   and the turn CONTINUES, because the model can retry with a standard handler;
 // - a validator outage: an infrastructure finding ends the turn instead of spending model
 //   calls on a broken analyzer (D-105); nothing was written.
 //
 // Kept out of turn.ts, which is at the 300-line limit and owns the model/answer protocol.
 
+import type { SurfaceRequest } from "@facilis.dev/ai";
+
 import { appendTurn } from "./chat-session-types";
 import type { ChatWrites } from "./chat-writes";
 import type { AiChatTurn, ChatFailure, ChatGitGateFailure } from "./types";
+
+/** The user's answer to the declaration card: confirm with (maybe edited) reasons, or decline. */
+export type SurfaceDecision =
+  { kind: "confirm"; reasons: Readonly<Record<string, string>> } | { kind: "cancel" };
 
 export interface GitGateStepInput {
   writes?: ChatWrites;
   pauseGitGate?: (failure: ChatGitGateFailure) => Promise<"continue" | "stop">;
   pauseSchemaConfirm?: (changes: readonly string[]) => Promise<"apply" | "cancel">;
+  /** A write declares a non-standard capability: pause for the user's confirmation (D-226). */
+  pauseSurfaceConfirm?: (requests: readonly SurfaceRequest[]) => Promise<SurfaceDecision>;
   signal: AbortSignal;
 }
 
@@ -28,6 +38,14 @@ const CLEAN_NOTICE =
 /** The confirmed schema write is already applied: the turn continues from there. */
 const SCHEMA_CONFIRMED_NOTICE =
   "The user confirmed the destructive schema change and it is applied. Continue with the rest of the work.";
+
+/** The confirmed declaration is applied (maybe with a reworded reason). */
+const SURFACE_CONFIRMED_NOTICE =
+  "The user confirmed the declared capability and the write is applied. Do not repeat the declaration; continue with the rest of the work.";
+
+/** The user declined: nothing was written, and the model must find a standard way. */
+const SURFACE_DECLINED_NOTICE =
+  "The user declined the declared capability, so nothing was written. Do not retry the same declaration and do not hide or bypass it: use the standard API instead, or explain what the user must approve.";
 
 function aborted(message: string): { ok: false; failure: ChatFailure } {
   return { ok: false, failure: { kind: "aborted", message } };
@@ -61,6 +79,26 @@ export async function settleWriteStep(
       return aborted("The destructive schema change could not be applied; nothing was written.");
     }
     appendTurn(turns, { role: "user", content: SCHEMA_CONFIRMED_NOTICE });
+  }
+  const surface = input.writes?.takeSurfaceConfirmation() ?? null;
+  if (surface !== null) {
+    const decision =
+      input.pauseSurfaceConfirm === undefined
+        ? { kind: "cancel" as const }
+        : await input.pauseSurfaceConfirm(surface.requests);
+    if (input.signal.aborted) return aborted("Cancelled by the user.");
+    if (decision.kind === "cancel") {
+      // Nothing was written: dropping the pending patch is enough, and the turn goes on.
+      input.writes?.discardPendingSurface();
+      appendTurn(turns, { role: "user", content: SURFACE_DECLINED_NOTICE });
+    } else {
+      const applied = await input.writes?.applyPendingSurface(decision.reasons);
+      if (input.signal.aborted) return aborted("Cancelled by the user.");
+      if (applied === undefined || !applied.ok) {
+        return aborted("The declared capability could not be written; nothing was written.");
+      }
+      appendTurn(turns, { role: "user", content: SURFACE_CONFIRMED_NOTICE });
+    }
   }
   if (input.writes?.outage() === true) {
     return {

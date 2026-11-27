@@ -22,6 +22,7 @@ import { ChatQueueView } from "./ChatQueueView";
 import { ChatTranscriptView } from "./ChatTranscriptView";
 import { ChatGitGateView } from "./ChatGitGateView";
 import { ChatSchemaConfirmView } from "./ChatSchemaConfirmView";
+import { ChatSurfaceConfirmView } from "./ChatSurfaceConfirmView";
 import { ChatGitChangesView } from "./ChatGitChangesView";
 import { ChatSettingsDialog } from "./ChatSettingsDialog";
 import { useChatScroll } from "./use-chat-scroll";
@@ -217,6 +218,9 @@ export function ChatPanel() {
               <ChatTranscriptView state={state} />
               {state.gitGate !== null && <ChatGitGateView chat={chat} state={state} />}
               {state.schemaConfirm !== null && <ChatSchemaConfirmView chat={chat} state={state} />}
+              {state.surfaceConfirm !== null && (
+                <ChatSurfaceConfirmView chat={chat} state={state} />
+              )}
               {state.error && (
                 <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
                   <p className="font-medium text-destructive">{errorText(state.error)}</p>

@@ -9,14 +9,16 @@
 //
 // A write that drops a table or a column pauses the turn for the user's confirmation (D-193):
 // the tool answers "confirmation required" and writes nothing, the session asks, and only a
-// confirmed write is applied and recorded for the dev boot. The engine owns that pending state
-// because a second write must not land while the card is open.
+// confirmed write is applied and recorded for the dev boot. A write that DECLARES a non-standard
+// capability pauses the same way (D-226): the user sees the capability, the snippet and the
+// generated reason, may reword the reason, and only a confirmed patch is written. The engine
+// owns both pending states because a second write must not land while a card is open.
 
-import type { FilePatch } from "@facilis.dev/ai";
+import type { FilePatch, SurfaceRequest } from "@facilis.dev/ai";
 
 import { applyPatch } from "@/facilis/apply-patch";
 
-import { applyConfirmedWrite } from "./chat-write-confirm";
+import { applyConfirmedWrite, type ApplyConfirmedDeps } from "./chat-write-confirm";
 import { persistWrite, type PersistDeps } from "./chat-write-persist";
 import {
   finding,
@@ -26,6 +28,7 @@ import {
 } from "./chat-write-types";
 import { validatePatchesWithHost } from "./patch-validation";
 import { isSafeProjectPath } from "./ptc/policy";
+import { applySurfaceReasons } from "./surface-reason";
 import type { ChatGitGateFailure, ChatTurnWrite } from "./types";
 
 export type {
@@ -35,6 +38,7 @@ export type {
   WriteOutcome,
   WriteSchemaConfirmation,
   WriteSuccess,
+  WriteSurfaceConfirmation,
 } from "./chat-write-types";
 
 /** One tool call cannot stream an unbounded file into the validator. */
@@ -52,6 +56,12 @@ export interface ChatWrites {
   takeSchemaConfirmation(): { changes: readonly string[] } | null;
   /** The user confirmed: validate and apply the write the turn paused on. */
   applyPending(): Promise<WriteOutcome>;
+  /** The declaration write waiting for the user's confirmation, or null. */
+  takeSurfaceConfirmation(): { requests: readonly SurfaceRequest[] } | null;
+  /** The user confirmed: revalidate with confirmedSurface and write the (reason-edited) patch. */
+  applyPendingSurface(editedReasons?: Readonly<Record<string, string>>): Promise<WriteOutcome>;
+  /** The user declined: forget the pending declaration write; nothing reaches the disk. */
+  discardPendingSurface(): void;
   /** The validator could not run: the turn must end as an outage, not a repair round. */
   outage(): boolean;
   undoTurn(): Promise<{ ok: boolean; errors: string[] }>;
@@ -73,6 +83,8 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
   let validatorOutage = false;
   /** The destructive write the turn paused on; cleared when it is applied or the turn ends. */
   let pendingConfirm: { patch: FilePatch; changes: readonly string[] } | null = null;
+  /** The declaration write the turn paused on; same lifecycle as pendingConfirm (D-226). */
+  let pendingSurface: { patch: FilePatch; requests: readonly SurfaceRequest[] } | null = null;
 
   const persistDeps: PersistDeps = {
     bridge: host.bridge,
@@ -85,6 +97,16 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
     },
   };
 
+  // Both confirmations revalidate against the project as it is now and journal the same way.
+  const confirmDeps: ApplyConfirmedDeps = {
+    host,
+    overlay: () => overlay,
+    persist: persistDeps,
+    markOutage: () => {
+      validatorOutage = true;
+    },
+  };
+
   function beginTurn(): void {
     journal = [];
     overlay = [];
@@ -92,6 +114,7 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
     gateFailure = null;
     validatorOutage = false;
     pendingConfirm = null;
+    pendingSurface = null;
   }
 
   /** True when the path exists in the project or was already written this turn. */
@@ -122,6 +145,9 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
     // While a confirmation is pending the turn is paused: no other write may land first.
     if (pendingConfirm !== null) {
       return { ok: false, path, confirmation: { changes: pendingConfirm.changes } };
+    }
+    if (pendingSurface !== null) {
+      return { ok: false, path, surface: { requests: pendingSurface.requests } };
     }
     // The first write needs HEAD plus a clean tree: that checkpoint is the turn's consent.
     if (!gated) {
@@ -183,6 +209,13 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
       pendingConfirm = { patch, changes };
       return { ok: false, path, confirmation: { changes } };
     }
+    // A declaration the user has not seen is never written (D-226). The post-confirmation
+    // revalidation (applyPendingSurface) passes confirmedSurface, so it never lands here again.
+    const requests = validation.surfaceRequests ?? [];
+    if (requests.length > 0) {
+      pendingSurface = { patch, requests };
+      return { ok: false, path, surface: { requests } };
+    }
     return persistWrite(persistDeps, patch, validation, checked.context, root, signal);
   }
 
@@ -216,17 +249,32 @@ export function createChatWrites(host: ChatWritesHost, deps: ChatWritesDeps = {}
         ]);
       }
       pendingConfirm = null;
-      return applyConfirmedWrite(
-        {
-          host,
-          overlay: () => overlay,
-          persist: persistDeps,
-          markOutage: () => {
-            validatorOutage = true;
-          },
-        },
-        pending,
-      );
+      return applyConfirmedWrite(confirmDeps, pending);
+    },
+    takeSurfaceConfirmation() {
+      // A peek, not a take: the pause decision (apply or discard) still needs the patch.
+      return pendingSurface === null ? null : { requests: pendingSurface.requests };
+    },
+    async applyPendingSurface(editedReasons = {}) {
+      const pending = pendingSurface;
+      if (pending === null) {
+        return findingsOutcome("", [
+          finding(
+            "surface-confirmation",
+            "",
+            "No surface declaration is waiting for confirmation.",
+            "Retry the write.",
+          ),
+        ]);
+      }
+      pendingSurface = null;
+      return applyConfirmedWrite(confirmDeps, {
+        patch: applySurfaceReasons(pending.patch, pending.requests, editedReasons),
+        confirmedSurface: true,
+      });
+    },
+    discardPendingSurface() {
+      pendingSurface = null;
     },
     outage: () => validatorOutage,
     async undoTurn() {

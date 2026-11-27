@@ -10,6 +10,7 @@ import { gitRemoteEn } from "./en-git-remote";
 import { sourceControlEn } from "./en-source-control";
 import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
+import { securitySurfaceEn } from "./en-security-surface";
 import { projectGraphAnswersEn } from "./en-project-graph-answers";
 import { projectGraphQuestionsEn } from "./en-project-graph-questions";
 import { projectGraphRailEn } from "./en-project-graph-rail";
@@ -210,6 +211,7 @@ export const en = {
   ...sourceControlEn,
   ...commitGraphEn,
   ...projectGraphEn,
+  ...securitySurfaceEn,
   ...projectGraphAnswersEn,
   ...projectGraphQuestionsEn,
   ...projectGraphRailEn,
