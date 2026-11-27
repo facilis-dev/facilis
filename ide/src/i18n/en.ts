@@ -1,9 +1,7 @@
 // The IDE's English catalogue.
 //
-// Flat keys (O-001, the framework's convention): every user-facing string goes
-// through t(), never JSX; `{placeholder}` values interpolate and `it.ts` mirrors
-// this file partially. The upstream-inherited chrome still being migrated is
-// tracked, file by file, in ide/I18N.md.
+// Flat keys (O-001): every user-facing string goes through t(), never JSX; `it.ts`
+// mirrors this file partially. Migrated chrome is tracked in ide/I18N.md.
 import { updatesEn } from "./en-updates";
 import { dataExplorerEn } from "./en-data-explorer";
 import { dataQueryEn } from "./en-data-query";
@@ -24,6 +22,7 @@ import { prerenderEn } from "./en-prerender";
 import { telemetryLinkoutEn } from "./en-telemetry-linkout";
 import { stateLensesEn } from "./en-state-lenses";
 import { explorerEn } from "./en-explorer";
+import { editorTabsEn } from "./en-editor-tabs";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -295,6 +294,7 @@ export const en = {
   // ── observability link-out (D-203 §6, #140) ─────────────────────────────
   ...telemetryLinkoutEn,
 
-  // ── explorer file tree (issue #209) ─────────────────────────────────────
+  // ── explorer file tree (#209) + editor tab strip (#214) ────────────────
   ...explorerEn,
+  ...editorTabsEn,
 } as const;

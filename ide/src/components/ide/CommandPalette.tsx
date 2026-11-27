@@ -13,6 +13,9 @@ import PanelRight from "~icons/lucide/panel-right";
 import WrapText from "~icons/lucide/wrap-text";
 import Eraser from "~icons/lucide/eraser";
 import RefreshCw from "~icons/lucide/refresh-cw";
+import ChevronRight from "~icons/lucide/chevron-right";
+import ChevronLeft from "~icons/lucide/chevron-left";
+import X from "~icons/lucide/x";
 import RotateCcw from "~icons/lucide/rotate-ccw";
 import FileCode from "~icons/lucide/file-code";
 import Gauge from "~icons/lucide/gauge";
@@ -41,6 +44,8 @@ import { publishSession } from "@/vv/publish-session";
 import { resetUi } from "@/vv/reset-ui";
 import { scaffoldUi } from "@/vv/scaffold-ui";
 import { graphLensCommands } from "./graph-lens-commands";
+import { nextTabId, tabCloseSet } from "./editor-tabs";
+import { closeEditorTabs } from "./editor-tab-close";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
 
@@ -129,6 +134,47 @@ export function CommandPalette() {
         icon: PanelRight,
         keys: "⌥⌘B",
         run: () => c.togglePreview(),
+      },
+      // Tab commands. Next/previous carry the chords AppShell binds (the same registry
+      // the strip defers to); the close commands exist only here and in the tab context
+      // menu, and route through the editor's dirty-aware queue — never the controller.
+      {
+        label: t("editorTabs.next"),
+        icon: ChevronRight,
+        keys: "⌃⌥→",
+        disabled: snap.openTabs.length < 2,
+        run: () => {
+          const next = nextTabId(snap.openTabs, snap.activeTab, 1);
+          if (next !== null) c.openFile(next, { preview: next === snap.previewTab });
+        },
+      },
+      {
+        label: t("editorTabs.previous"),
+        icon: ChevronLeft,
+        keys: "⌃⌥←",
+        disabled: snap.openTabs.length < 2,
+        run: () => {
+          const previous = nextTabId(snap.openTabs, snap.activeTab, -1);
+          if (previous !== null) c.openFile(previous, { preview: previous === snap.previewTab });
+        },
+      },
+      {
+        label: t("editorTabs.closeOthers"),
+        icon: X,
+        disabled: tabCloseSet(snap.openTabs, snap.activeTab, "others").length === 0,
+        run: () => closeEditorTabs(tabCloseSet(snap.openTabs, snap.activeTab, "others")),
+      },
+      {
+        label: t("editorTabs.closeRight"),
+        icon: X,
+        disabled: tabCloseSet(snap.openTabs, snap.activeTab, "right").length === 0,
+        run: () => closeEditorTabs(tabCloseSet(snap.openTabs, snap.activeTab, "right")),
+      },
+      {
+        label: t("editorTabs.closeAll"),
+        icon: X,
+        disabled: snap.openTabs.length === 0,
+        run: () => closeEditorTabs(tabCloseSet(snap.openTabs, snap.activeTab, "all")),
       },
       // ⌥Z is the macOS spelling of the one binding; on Windows and Linux the same
       // chord reads Alt+Z. Every other entry here writes the macOS form too, so this

@@ -21,6 +21,7 @@ import { NarrowShell } from "./NarrowShell";
 import { useIde } from "./useIde";
 import { aiAvailable, deployment } from "@/deploy/current";
 import { isWordWrapChord } from "@/vv/editor-prefs";
+import { nextTabId, tabShortcutIntent } from "./editor-tabs";
 import { useNarrowShell } from "@/vv/narrow-shell";
 
 // Once per page load: the compact defaults are applied on the first narrow render
@@ -83,6 +84,27 @@ export function AppShell() {
         c.toggleWordWrap();
         return;
       }
+      // Editor tab chords, also above the ⌘/Ctrl gate: the direct ones are Alt-only.
+      // Ctrl+Tab, Ctrl+Shift+Tab and Ctrl+PageUp/PageDown are reserved by Chrome, Safari
+      // and Edge and never reach the page — the same reason Ctrl+W is not repurposed
+      // below — so the delivered chords are Alt+1…9 (select by position) and
+      // Ctrl+Alt+Left/Right (previous/next). A desktop environment can still claim the
+      // latter for workspace switching; the direct chords and the palette are the
+      // fallback, and all of them are listed in the palette. This handler is the
+      // shortcut registry.
+      //
+      // The terminal owns Alt+<key> (readline's meta prefix on Windows/Linux, the Option
+      // composition on macOS), so the chords defer there the way word wrap does.
+      const tabShortcut = tabShortcutIntent(e);
+      if (tabShortcut && !document.activeElement?.closest(".vv-term-host")) {
+        e.preventDefault();
+        const next =
+          tabShortcut.kind === "select"
+            ? (snap.openTabs[tabShortcut.index] ?? null)
+            : nextTabId(snap.openTabs, snap.activeTab, tabShortcut.delta);
+        if (next !== null) c.openFile(next, { preview: next === snap.previewTab, focus: false });
+        return;
+      }
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
@@ -127,7 +149,7 @@ export function AppShell() {
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [c]);
+  }, [c, snap.openTabs, snap.activeTab, snap.previewTab]);
 
   // Guard the browser tab close (⌘W / ⌃W): browsers reserve that shortcut, so we
   // can't repurpose it to close an editor tab — instead warn before the whole

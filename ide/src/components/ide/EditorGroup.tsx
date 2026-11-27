@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import X from "~icons/lucide/x";
 import ChevronRight from "~icons/lucide/chevron-right";
 import { cn } from "@/lib/utils";
 import { VV_PATH_MIME, entriesFromDataTransfer, type WorkspaceFolder } from "@/vv/controller";
@@ -11,13 +10,6 @@ import {
   isDiffTabId,
   isProjectGraphTabId,
 } from "@/vv/synthetic-tabs";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,15 +27,12 @@ import { CommitGraphPanel } from "./CommitGraphPanel";
 import { DataQueryPanel } from "./DataQueryPanel";
 import { ProjectGraphPanel } from "./ProjectGraphPanel";
 import { DiffView, DirectoryView, ImageView } from "./EditorPanes";
-import { EditorTabLabel } from "./EditorTabLabel";
-import { t } from "@/i18n";
+import { EditorTabStrip, type TabFocusRequest } from "./EditorTabStrip";
+import { focusAfterClose } from "./editor-tabs";
+import { setEditorTabCloseHandler } from "./editor-tab-close";
 import { useIde } from "./useIde";
 
 const baseName = (rel: string) => rel.split("/").pop() ?? rel;
-
-// Drag payload for reordering tabs within the strip (kept distinct from the
-// Explorer's VV_PATH_MIME so the editor-body drop zone ignores tab drags).
-const VV_TAB_MIME = "application/x-vv-tab";
 
 export function EditorGroup() {
   const { c, snap } = useIde();
@@ -52,9 +41,11 @@ export function EditorGroup() {
   // straight away and each dirty one pops a Save/Don't save/Cancel dialog.
   const [queue, setQueue] = useState<string[]>([]);
   const [promptRel, setPromptRel] = useState<string | null>(null);
-  // Tab reordering: the tab being dragged + the current drop target/side.
-  const [dragTab, setDragTab] = useState<string | null>(null);
-  const [overTab, setOverTab] = useState<{ rel: string; after: boolean } | null>(null);
+  // The tab that should take focus after a close, handed to the strip (which owns the
+  // tab DOM): closing a tab unmounts the focused element, and focus must never fall to
+  // <body>.
+  const [focusRequest, setFocusRequest] = useState<TabFocusRequest | null>(null);
+  const focusSeq = useRef(0);
 
   // Monaco is ~960 KB and this component is mounted the whole time, including
   // under the Home overlay (see the comment at AppShell.tsx's `snap.view` check)
@@ -75,15 +66,6 @@ export function EditorGroup() {
   const mountRef = useCallback((el: HTMLDivElement | null) => {
     hostRef.current = el;
   }, []);
-
-  // Keep the active tab on screen. Past ~7 open files the strip overflows, and
-  // activating a tab from anywhere but the strip itself (Explorer click, ⌘P, a
-  // diff opening) leaves the selected tab scrolled out of sight — the editor
-  // changes under you while no visible tab looks active.
-  const activeTabRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    activeTabRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [snap.activeTab, snap.openTabs.length]);
 
   // Drop zone over the whole editor area. We use capture-phase native listeners
   // (not React props) so we intercept the drop before Monaco's own DOM handlers,
@@ -128,10 +110,10 @@ export function EditorGroup() {
 
   const activeKind = snap.activeTab ? (snap.tabKinds[snap.activeTab] ?? "text") : "text";
 
-  const processQueue = (rels: string[]) => {
+  const processQueue = (rels: readonly string[]) => {
     let rest = rels;
     while (rest.length) {
-      const rel = rest[0];
+      const rel = rest[0] as string;
       if (snap.dirty.includes(rel)) {
         setQueue(rest.slice(1));
         setPromptRel(rel);
@@ -144,6 +126,23 @@ export function EditorGroup() {
     setPromptRel(null);
   };
 
+  // Every close starts by naming the tab that should hold focus once the closed ones
+  // unmount: the strip focuses it, and an emptied strip focuses its tablist.
+  const closeTabs = (ids: readonly string[]) => {
+    if (ids.length === 0) return;
+    focusSeq.current += 1;
+    setFocusRequest({ id: focusAfterClose(snap.openTabs, ids), seq: focusSeq.current });
+    processQueue(ids);
+  };
+
+  // The palette's tab commands and the window chords cannot call the controller's
+  // closeTab (it would discard unsaved edits), so they re-enter the queue above.
+  const closeTabsRef = useRef(closeTabs);
+  useEffect(() => {
+    closeTabsRef.current = closeTabs;
+  });
+  useEffect(() => setEditorTabCloseHandler((ids) => closeTabsRef.current(ids)), []);
+
   const cancelClose = () => {
     setPromptRel(null);
     setQueue([]);
@@ -151,141 +150,18 @@ export function EditorGroup() {
 
   return (
     <div data-testid="editor-group" className="flex h-full flex-col bg-editor">
-      {/* tab strip */}
-      <div className="vv-tabs-scroll flex h-9 shrink-0 items-stretch overflow-x-auto border-b bg-chrome">
-        {snap.openTabs.map((rel, i) => {
-          const active = rel === snap.activeTab;
-          const isDirty = snap.dirty.includes(rel);
-          const isPreview = rel === snap.previewTab;
-          const dropSide =
-            overTab?.rel === rel && dragTab && dragTab !== rel
-              ? overTab.after
-                ? "shadow-[inset_-2px_0_0_0_var(--primary)]"
-                : "shadow-[inset_2px_0_0_0_var(--primary)]"
-              : "";
-          const isDiff = isDiffTabId(rel);
-          const isCommitGraph = isCommitGraphTabId(rel);
-          const isProjectGraph = isProjectGraphTabId(rel);
-          const isDataQuery = isDataQueryTabId(rel);
-          return (
-            <ContextMenu key={rel}>
-              <ContextMenuTrigger className="contents">
-                <div
-                  ref={active ? activeTabRef : undefined}
-                  title={
-                    isDiff
-                      ? diffTargetOf(rel)
-                      : isCommitGraph
-                        ? commitGraphRootOf(rel)
-                        : isProjectGraph
-                          ? t("projectGraph.tabTitle")
-                          : isDataQuery
-                            ? t("dataQuery.tabTitle")
-                            : rel
-                  }
-                  draggable
-                  onClick={() => c.openFile(rel, { preview: isPreview })}
-                  onDoubleClick={() => c.pinTab(rel)}
-                  // Middle-click closes the tab, as it does in VS Code. Goes through
-                  // the same queue as the ✕ so a dirty file still gets its prompt.
-                  onAuxClick={(e) => {
-                    if (e.button !== 1) return;
-                    e.preventDefault();
-                    processQueue([rel]);
-                  }}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(VV_TAB_MIME, rel);
-                    e.dataTransfer.effectAllowed = "move";
-                    setDragTab(rel);
-                  }}
-                  onDragOver={(e) => {
-                    if (!e.dataTransfer.types.includes(VV_TAB_MIME)) return;
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setOverTab({ rel, after: e.clientX - rect.left > rect.width / 2 });
-                  }}
-                  onDrop={(e) => {
-                    if (!e.dataTransfer.types.includes(VV_TAB_MIME)) return;
-                    e.preventDefault();
-                    const from = e.dataTransfer.getData(VV_TAB_MIME);
-                    if (from)
-                      c.reorderTab(
-                        from,
-                        rel,
-                        e.clientX - e.currentTarget.getBoundingClientRect().left >
-                          e.currentTarget.getBoundingClientRect().width / 2,
-                      );
-                    setDragTab(null);
-                    setOverTab(null);
-                  }}
-                  onDragEnd={() => {
-                    setDragTab(null);
-                    setOverTab(null);
-                  }}
-                  className={cn(
-                    "group flex cursor-pointer items-center gap-1.5 border-r px-3 text-xs",
-                    active
-                      ? "bg-editor text-foreground shadow-[inset_0_2px_0_0_var(--brand)]"
-                      : "bg-chrome text-muted-foreground hover:text-foreground",
-                    dragTab === rel && "opacity-50",
-                    dropSide,
-                  )}
-                >
-                  <EditorTabLabel
-                    rel={rel}
-                    kind={snap.tabKinds[rel]}
-                    isDiff={isDiff}
-                    italic={isPreview}
-                  />
-                  <button
-                    className="flex size-4 items-center justify-center rounded hover:bg-accent"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      processQueue([rel]);
-                    }}
-                    title="Close"
-                  >
-                    {isDirty ? (
-                      <>
-                        <span className="size-2 rounded-full bg-foreground group-hover:hidden" />
-                        <X className="hidden size-3 group-hover:block" />
-                      </>
-                    ) : (
-                      <X className={cn("size-3", active ? "block" : "hidden group-hover:block")} />
-                    )}
-                  </button>
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="w-48">
-                <ContextMenuItem onClick={() => processQueue([rel])}>Close</ContextMenuItem>
-                <ContextMenuItem
-                  disabled={snap.openTabs.length <= 1}
-                  onClick={() => processQueue(snap.openTabs.filter((t) => t !== rel))}
-                >
-                  Close Others
-                </ContextMenuItem>
-                <ContextMenuItem
-                  disabled={i >= snap.openTabs.length - 1}
-                  onClick={() => processQueue(snap.openTabs.slice(i + 1))}
-                >
-                  Close to the Right
-                </ContextMenuItem>
-                <ContextMenuItem
-                  disabled={snap.openTabs.every((t) => snap.dirty.includes(t))}
-                  onClick={() => processQueue(snap.openTabs.filter((t) => !snap.dirty.includes(t)))}
-                >
-                  Close Saved
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem onClick={() => processQueue([...snap.openTabs])}>
-                  Close All
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          );
-        })}
-      </div>
+      <EditorTabStrip
+        openTabs={snap.openTabs}
+        activeTab={snap.activeTab}
+        previewTab={snap.previewTab}
+        dirty={snap.dirty}
+        tabKinds={snap.tabKinds}
+        focusRequest={focusRequest}
+        onActivate={(id) => c.openFile(id, { preview: id === snap.previewTab })}
+        onPin={(id) => c.pinTab(id)}
+        onClose={closeTabs}
+        onReorder={(from, to, after) => c.reorderTab(from, to, after)}
+      />
 
       {/* breadcrumb: Workspace-relative path of the active file (or diff target); a
           synthetic tab has no file, so it has no breadcrumb. */}

@@ -21,6 +21,7 @@ import { scaffoldIt } from "./it-scaffold";
 import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 import { stateLensesIt } from "./it-state-lenses";
 import { explorerIt } from "./it-explorer";
+import { editorTabsIt } from "./it-editor-tabs";
 
 export const it: Partial<Record<MessageKey, string>> = {
   // ── product ──────────────────────────────────────────────────────────────
@@ -289,4 +290,7 @@ export const it: Partial<Record<MessageKey, string>> = {
 
   // ── explorer file tree (issue #209) ─────────────────────────────────────
   ...explorerIt,
+
+  // ── editor tab strip (issue #214) ───────────────────────────────────────
+  ...editorTabsIt,
 };
