@@ -70,7 +70,8 @@ describe("generated starter contract", () => {
     // D-053/D-116: the framework ships the runtime (config section + helpers); the template
     // proves it end to end with a metadata table, its link table and the three routes below.
     expect(config).toMatch(/storage:\s*\{/);
-    expect(config).toMatch(/runtime:\s*\{[^}]*storageDriver: "local"/);
+    // The runtime block contains `{ secret: true }` objects, so the match has to cross a brace.
+    expect(config).toMatch(/runtime:\s*\{[\s\S]*?storageDriver: "local"/);
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>;
     };
