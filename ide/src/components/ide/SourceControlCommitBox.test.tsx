@@ -7,6 +7,7 @@ import { initI18n, setLocale, t } from "@/i18n";
 import type { RepoState } from "@/vv/scm-session";
 import type { CommitBoxSnapshot } from "./commit-box-state";
 import { CommitBoxView } from "./SourceControlCommitBox";
+import { formatChord } from "./shortcuts";
 
 function repo(overrides: Partial<RepoState> = {}): RepoState {
   return {
@@ -58,7 +59,11 @@ describe("CommitBoxView", () => {
     expect(html).toContain(t("scm.generate"));
     expect(html).toContain(t("scm.commit"));
     expect(html).toContain(`aria-label="${t("scm.generate")}"`);
-    expect(html).toContain("Message (⌘Enter to commit on");
+    // The hint is the platform's chord, not a literal (issue #222): Node has no
+    // navigator, so the formatter takes its non-macOS spelling here.
+    expect(html).toContain(
+      "Message (" + formatChord({ key: "Enter", mod: true }) + " to commit on",
+    );
     // Only Commit is disabled: the box is empty but the model is configured.
     expect(html.match(/\sdisabled=""/g)).toHaveLength(1);
   });
