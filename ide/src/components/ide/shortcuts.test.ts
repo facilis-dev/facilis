@@ -104,9 +104,17 @@ describe("matchShortcut", () => {
     expect(matchShortcut(event({ key: "0", altKey: true }), "global")).toBeNull();
   });
 
-  it("matches ⌥B on its physical code when macOS composes the character", () => {
+  it("matches every Alt chord on its physical code when macOS composes the character", () => {
     const composed = event({ key: "∫", code: "KeyB", metaKey: true, altKey: true });
     expect(matchShortcut(composed, "global")?.id).toBe("preview-toggle");
+    // ⌥Z composes "Ω" and ⌥1 composes "¡" on a US layout: reading `key` alone would
+    // leave both chords dead on macOS, which is where they are most used.
+    expect(matchShortcut(event({ key: "Ω", code: "KeyZ", altKey: true }), "global")?.id).toBe(
+      "word-wrap",
+    );
+    expect(matchShortcut(event({ key: "¡", code: "Digit1", altKey: true }), "global")?.id).toBe(
+      "tab-select-1",
+    );
   });
 
   it("defers the lens picker to the editor and the terminal", () => {

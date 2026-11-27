@@ -105,16 +105,22 @@ const TAB_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const SHORTCUTS = [
   // Word wrap is the one binding without Ctrl/Cmd. The terminal keeps Alt+<key> for the
   // shell (readline's meta prefix on Windows/Linux, the composed character on macOS).
-  shortcut("word-wrap", { key: "z", alt: true }, "shortcuts.wordWrap", { deferTo: TERMINAL }),
+  shortcut("word-wrap", { key: "z", code: "KeyZ", alt: true }, "shortcuts.wordWrap", {
+    deferTo: TERMINAL,
+  }),
 
   // Alt+1…9 select a tab by position; the digit is both the key and the label's placeholder.
   // Ctrl/Cmd+Tab, Ctrl/Cmd+Shift+Tab and Ctrl/Cmd+PageUp/PageDown are reserved by the browser
   // and never reach the page, so the cycle chords are Ctrl+Alt+←/→.
   ...TAB_DIGITS.map((digit) =>
-    shortcut(`tab-select-${digit}`, { key: `${digit}`, alt: true }, "shortcuts.tabSelect", {
-      labelParams: { index: digit },
-      deferTo: TERMINAL,
-    }),
+    // Option composes the digit on macOS (⌥1 types "¡"), so the physical code is matched
+    // too: the registry cannot rely on the character the layout produced.
+    shortcut(
+      `tab-select-${digit}`,
+      { key: `${digit}`, code: `Digit${digit}`, alt: true },
+      "shortcuts.tabSelect",
+      { labelParams: { index: digit }, deferTo: TERMINAL },
+    ),
   ),
   shortcut("tab-previous", { key: "ArrowLeft", ctrl: true, alt: true }, "shortcuts.tabPrevious", {
     deferTo: TERMINAL,
