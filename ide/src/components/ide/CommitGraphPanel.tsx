@@ -17,6 +17,7 @@ import type { CommitGraphNode } from "@/facilis/commit-graph-model";
 import { CommitGraphSession, type CommitGraphRead } from "@/vv/commit-graph-session";
 import { CommitGraphCanvas } from "./CommitGraphCanvas";
 import { CommitGraphDetails } from "./CommitGraphDetails";
+import { CommitGraphList } from "./CommitGraphList";
 import { useIde } from "./useIde";
 
 const NOT_A_REPO = "not a git repository";
@@ -29,6 +30,11 @@ export function CommitGraphPanel({ root }: { root: string }) {
   const [read, setRead] = useState<CommitGraphRead | null>(null);
   const [nonce, setNonce] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A keyboard selection can be far outside the canvas viewport (fitView is clamped by
+  // minZoom on a long history), so the list asks the canvas to centre it. A click already
+  // has the node under the pointer.
+  const [revealId, setRevealId] = useState<string | null>(null);
+  const [revealTick, setRevealTick] = useState(0);
 
   // A commit or a branch switch in the SCM panel must show up here without a refresh, but
   // a status walk must not: the signature only changes when HEAD or its tip commit does.
@@ -56,6 +62,13 @@ export function CommitGraphPanel({ root }: { root: string }) {
     if (selectedId === null || graph === null) return;
     if (!graph.nodes.some((node) => node.id === selectedId)) setSelectedId(null);
   }, [graph, selectedId]);
+
+  const selectFromList = (id: string | null) => {
+    setSelectedId(id);
+    if (id === null) return;
+    setRevealId(id);
+    setRevealTick((tick) => tick + 1);
+  };
 
   // A graph needs width: one click hides the sidebar and the preview (and restores them
   // when both are already hidden), as the project graph does.
@@ -142,8 +155,15 @@ export function CommitGraphPanel({ root }: { root: string }) {
         )}
         {graph !== null && graph.stats.commits > 0 && (
           <>
+            <CommitGraphList graph={graph} selectedId={selectedId} onSelect={selectFromList} />
             <div className="min-w-0 flex-1">
-              <CommitGraphCanvas graph={graph} selectedId={selectedId} onSelect={setSelectedId} />
+              <CommitGraphCanvas
+                graph={graph}
+                selectedId={selectedId}
+                revealId={revealId}
+                revealTick={revealTick}
+                onSelect={setSelectedId}
+              />
             </div>
             {selected !== null && (
               <CommitGraphDetails root={root} node={selected} onClose={() => setSelectedId(null)} />

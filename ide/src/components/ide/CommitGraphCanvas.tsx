@@ -6,12 +6,14 @@
 // the role palette below — no raw palette values (D-043).
 
 import "@xyflow/react/dist/style.css";
+import { useEffect } from "react";
 import {
   Background,
   Controls,
   Handle,
   Position,
   ReactFlow,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeMouseHandler,
@@ -21,7 +23,11 @@ import {
 import GitBranch from "~icons/lucide/git-branch";
 import GitCommitHorizontal from "~icons/lucide/git-commit-horizontal";
 import { t } from "@/i18n";
-import type { CommitGraph, CommitGraphNodeData } from "@/facilis/commit-graph-model";
+import {
+  GRAPH_LAYOUT,
+  type CommitGraph,
+  type CommitGraphNodeData,
+} from "@/facilis/commit-graph-model";
 import { XYFLOW_THEME_TOKENS } from "./xyflow-theme";
 
 export type CommitFlowData = CommitGraphNodeData & Record<string, unknown>;
@@ -44,10 +50,16 @@ export function laneColor(lane: number): string {
 export function CommitGraphCanvas({
   graph,
   selectedId,
+  revealId,
+  revealTick,
   onSelect,
 }: {
   graph: CommitGraph;
   selectedId: string | null;
+  /** The commit a keyboard selection made, which the canvas must bring into view. */
+  revealId: string | null;
+  /** Bumped by each keyboard selection so re-selecting the same commit recentres it. */
+  revealTick: number;
   onSelect: (id: string | null) => void;
 }) {
   const nodes: CommitFlowNode[] = graph.nodes.map((node) => ({
@@ -76,6 +88,10 @@ export function CommitGraphCanvas({
         onPaneClick={() => onSelect(null)}
         fitView
         fitViewOptions={{ padding: 0.16, maxZoom: 1 }}
+        // The visible list beside the canvas is the keyboard path (issue #226): focusable
+        // wrappers would add one tab stop per commit and their Enter/Space is dropped by
+        // the controlled graph, so the canvas must not take focus at all.
+        nodesFocusable={false}
         nodesDraggable={false}
         nodesConnectable={false}
         minZoom={0.04}
@@ -84,9 +100,35 @@ export function CommitGraphCanvas({
       >
         <Background color="var(--border)" gap={20} />
         <Controls showInteractive={false} />
+        <RevealCommit graph={graph} id={revealId} tick={revealTick} />
       </ReactFlow>
     </div>
   );
+}
+
+// A long history is clamped by minZoom in fitView, so a commit picked from the list can sit
+// outside the viewport: centre it with the flow camera instead of scrolling DOM (issue #226).
+function RevealCommit({
+  graph,
+  id,
+  tick,
+}: {
+  graph: CommitGraph;
+  id: string | null;
+  tick: number;
+}) {
+  const flow = useReactFlow();
+  useEffect(() => {
+    if (id === null) return;
+    const node = graph.nodes.find((candidate) => candidate.id === id);
+    if (node === undefined) return;
+    void flow.setCenter(
+      node.position.x + GRAPH_LAYOUT.nodeWidth / 2,
+      node.position.y + GRAPH_LAYOUT.nodeHeight / 2,
+      { zoom: 1, duration: 250 },
+    );
+  }, [flow, graph, id, tick]);
+  return null;
 }
 
 function CommitNodeView({ data, selected }: NodeProps<CommitFlowNode>) {

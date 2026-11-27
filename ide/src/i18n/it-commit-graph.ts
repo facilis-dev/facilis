@@ -30,4 +30,8 @@ export const commitGraphIt: Partial<Record<MessageKey, string>> = {
   "commitGraph.detailsBranches": "Branch",
   "commitGraph.detailsNone": "Nessun branch punta a questo commit.",
   "commitGraph.openBranch": "Passa a {branch}",
+  "commitGraph.list.label": "Commit",
+  "commitGraph.list.hint": "Su/Giù per muoverti, Invio apre, Esc chiude.",
+  "commitGraph.list.option": "{message} ({short})",
+  "commitGraph.list.selected": "Selezionato {short}: {message}",
 };
