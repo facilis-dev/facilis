@@ -99,7 +99,7 @@ describe("enforceDeclaredSurface (D-226)", () => {
   it("drops an undeclared plugin and middleware but keeps a declared one", () => {
     const nitro = fakeNitro(
       [],
-      ["/project/server/plugins/ids.ts", "/project/server/plugins/evil.ts", "framework-plugin"],
+      ["/project/server/plugins/ids.ts", "/project/server/plugins/evil.ts", "/framework/plugin.mjs"],
       ["/project/server/middleware/auth.ts", "/project/server/middleware/evil.ts"],
     );
     const analysis = analysisWith(
@@ -111,10 +111,20 @@ describe("enforceDeclaredSurface (D-226)", () => {
       ],
     );
     enforceDeclaredSurface(nitro, ROOT, analysis);
-    expect(nitro.options.plugins).toEqual(["/project/server/plugins/ids.ts", "framework-plugin"]);
+    expect(nitro.options.plugins).toEqual([
+      "/project/server/plugins/ids.ts",
+      "/framework/plugin.mjs",
+    ]);
     expect(nitro.scannedHandlers.map((handler) => handler.handler)).toEqual([
       "/project/server/middleware/auth.ts",
     ]);
+  });
+
+  it("filters a relative config path too, not only an absolute one", () => {
+    const nitro = fakeNitro([], ["./server/plugins/evil.ts", "./server/plugins/ids.ts"]);
+    const analysis = analysisWith([], [{ file: "server/plugins/ids.ts", surface: "declared" }]);
+    enforceDeclaredSurface(nitro, ROOT, analysis);
+    expect(nitro.options.plugins).toEqual(["/project/server/plugins/ids.ts"]);
   });
 
   it("re-filters every later scan through the intercepted property", () => {

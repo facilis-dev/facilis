@@ -7,7 +7,7 @@
  * filter is applied again on every scan (dev add/unlink), so a file created after boot is
  * still refused without a restart.
  */
-import { relative, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Nitro, NitroEventHandler } from "nitro/types";
 import type { Analysis } from "@facilis.dev/analyze";
 
@@ -18,8 +18,11 @@ export interface SurfaceAllowlist {
 
 /** Project-relative path with forward slashes; null for a framework file. */
 function projectRelative(rootDir: string, handler: string): string | null {
-  if (!handler.startsWith(rootDir)) return null;
-  const rel = relative(rootDir, handler).split(sep).join("/");
+  // A config-provided path may be relative; resolving it stops a "\\./server/plugins/x.ts"
+  // entry from looking like a framework path and skipping the allowlist.
+  const absolute = isAbsolute(handler) ? handler : resolve(rootDir, handler);
+  if (!absolute.startsWith(rootDir)) return null;
+  const rel = relative(rootDir, absolute).split(sep).join("/");
   if (rel.length === 0 || rel.startsWith("..") || rel.startsWith("node_modules/")) return null;
   return rel;
 }
@@ -36,7 +39,9 @@ function allowedProjectFile(rel: string, allowlist: SurfaceAllowlist): boolean {
   ) {
     return allowlist.extensions.has(rel);
   }
-  return true;
+  // Any other project file is not a mountable surface: a handler/plugin configured from
+  // outside the four declared directories is exactly the silent authority D-226 removes.
+  return false;
 }
 
 function handlerAllowed(
@@ -62,10 +67,19 @@ function filterStrings(
   allowlist: SurfaceAllowlist,
 ): string[] | undefined {
   if (values === undefined) return undefined;
-  return values.filter((value) => {
+  const kept: string[] = [];
+  for (const value of values) {
     const rel = projectRelative(rootDir, value);
-    return rel === null || allowedProjectFile(rel, allowlist);
-  });
+    if (rel === null) {
+      kept.push(value);
+      continue;
+    }
+    if (allowedProjectFile(rel, allowlist)) {
+      // Normalize an allowed relative config path so Nitro resolves it like a scanned one.
+      kept.push(isAbsolute(value) ? value : resolve(rootDir, value));
+    }
+  }
+  return kept;
 }
 
 /**
