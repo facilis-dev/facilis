@@ -13,7 +13,7 @@ import Scan from "~icons/lucide/scan";
 import ScanEye from "~icons/lucide/scan-eye";
 import StickyNote from "~icons/lucide/sticky-note";
 import TriangleAlert from "~icons/lucide/triangle-alert";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { GraphEdgeKind } from "@facilis.dev/analyze";
@@ -21,6 +21,7 @@ import type { GraphTableVisibility } from "@/facilis/graph-layout";
 import type { ProjectGraphNode, ProjectGraphStats } from "@/facilis/graph-model";
 import { ProjectGraphFiltersMenu } from "./ProjectGraphFiltersMenu";
 import { ProjectGraphSearchResults } from "./ProjectGraphSearchResults";
+import { isGraphSearchOpen, resolveGraphSearchKey } from "./project-graph-search-keys";
 
 export type ProjectGraphSaveState = "idle" | "saving" | "saved" | "error";
 
@@ -79,6 +80,10 @@ export function ProjectGraphToolbar({
   onTableVisibilityChange: (visibility: GraphTableVisibility) => void;
 }) {
   const [searchFocused, setSearchFocused] = useState(false);
+  const [activeResult, setActiveResult] = useState(-1);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchListId = useId();
+  const searchOpen = isGraphSearchOpen(query, searchFocused);
   // Only the non-default state earns chrome: a quiet panel is a usable canvas (#182).
   const showStatus =
     errors > 0 ||
@@ -92,31 +97,72 @@ export function ProjectGraphToolbar({
           <Network className="size-3.5 shrink-0 text-brand" />
           <span className="hidden truncate @sm:inline">{t("projectGraph.title")}</span>
         </div>
-        <div className="relative min-w-24 flex-1">
+        <div
+          className="relative min-w-24 flex-1"
+          // Focus is tracked on the control, not the input: moving into the results with Tab
+          // must not unmount them, while leaving the control closes the list.
+          onFocusCapture={() => setSearchFocused(true)}
+          onBlurCapture={(event) => {
+            const next = event.relatedTarget;
+            if (next instanceof Node && event.currentTarget.contains(next)) return;
+            setSearchFocused(false);
+            setActiveResult(-1);
+          }}
+          onKeyDown={(event) => {
+            const action = resolveGraphSearchKey({
+              key: event.key,
+              fromInput: event.target === searchInput.current,
+              query,
+              activeIndex: activeResult,
+              resultCount: results.length,
+            });
+            if (action.kind === "none") return;
+            event.preventDefault();
+            if (action.kind === "move") {
+              setActiveResult(action.index);
+              const options = event.currentTarget.querySelectorAll<HTMLElement>('[role="option"]');
+              options[action.index]?.focus();
+            } else if (action.kind === "jump") {
+              const node = results[action.index];
+              if (node !== undefined) onJumpToNode(node.id);
+            } else if (action.kind === "submit") {
+              onSubmitSearch();
+            } else if (action.kind === "clear") {
+              event.stopPropagation();
+              setActiveResult(-1);
+              searchInput.current?.focus();
+              onQueryChange("");
+            } else {
+              // Escape with nothing left to clear stays in the control: the global ladder must
+              // not exit fullscreen behind the search.
+              event.stopPropagation();
+              setActiveResult(-1);
+            }
+          }}
+        >
           <input
+            ref={searchInput}
             type="search"
             data-project-graph-search=""
             value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                onSubmitSearch();
-              } else if (event.key === "Escape" && query.length > 0) {
-                // The search owns Escape while it has text: clearing it is the first step.
-                event.preventDefault();
-                event.stopPropagation();
-                onQueryChange("");
-              }
+            onChange={(event) => {
+              setActiveResult(-1);
+              onQueryChange(event.target.value);
             }}
             placeholder={t("projectGraph.search")}
             aria-label={t("projectGraph.search")}
+            aria-controls={searchOpen ? searchListId : undefined}
             className="h-6 w-full rounded border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
           />
-          {searchFocused && (
-            <ProjectGraphSearchResults query={query} results={results} onJump={onJumpToNode} />
+          {searchOpen && (
+            <ProjectGraphSearchResults
+              id={searchListId}
+              query={query}
+              results={results}
+              activeIndex={activeResult}
+              onJump={onJumpToNode}
+              onActiveChange={setActiveResult}
+            />
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
