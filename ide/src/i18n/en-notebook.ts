@@ -9,6 +9,7 @@ export const notebookEn = {
   "notebook.markdownEdit": "Edit markdown cell {index} of {total}",
   "notebook.markdownEditHint": "Double-click to edit",
   "notebook.emptyMarkdown": "Empty markdown cell — double-click to edit",
+  "notebook.runCellHint": "Run cell ({chord})",
   "notebook.a11y.running": "Running {cell}.",
   "notebook.a11y.finished": "{cell} finished.",
   "notebook.a11y.failed": "{cell} finished with an error.",

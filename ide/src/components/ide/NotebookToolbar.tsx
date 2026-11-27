@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { NotebookHandle } from "@/vv/controller";
 import { stripAnsi } from "@/vv/notebook/render.js";
+import { t } from "@/i18n";
+import { formatChord } from "./shortcuts";
 
 const STATUS_LABEL: Record<string, string> = {
   off: "no kernel",
@@ -34,7 +36,7 @@ export function NotebookToolbar({ handle }: { handle: NotebookHandle }) {
           variant="ghost"
           size="sm"
           onClick={() => handle.runSelected()}
-          title="Run cell (⇧↵)"
+          title={t("notebook.runCellHint", { chord: formatChord({ key: "Enter", shift: true }) })}
         >
           <Play className="size-3.5" /> Run
         </Button>

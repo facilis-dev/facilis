@@ -21,7 +21,7 @@ export const sourceControlIt: Partial<Record<MessageKey, string>> = {
   "scm.notRepo":
     "Questo progetto non è un repository git. Inizializzane uno per tracciare modifiche, commit e branch — tutto localmente nel browser.",
   "scm.initRepo": "Inizializza repository",
-  "scm.messagePlaceholder": "Messaggio (⌘Invio per il commit su \"{branch}\")",
+  "scm.messagePlaceholder": 'Messaggio ({chord} per il commit su "{branch}")',
   "scm.commit": "Esegui commit",
   "scm.generate": "Genera",
   "scm.generating": "Generazione…",

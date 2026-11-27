@@ -8,6 +8,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { t } from "@/i18n";
+import { formatChord } from "./shortcuts";
 import type { IdeController } from "@/vv/controller";
 
 /** The controller calls the menu makes; keeping it narrow makes the menu testable. */
@@ -106,17 +107,17 @@ export function ExplorerRowMenu({
         )}
         <ContextMenuItem onClick={onCopy}>
           {t("explorer.menu.copy")}
-          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+          <ContextMenuShortcut>{formatChord({ key: "c", mod: true })}</ContextMenuShortcut>
         </ContextMenuItem>
         {!isRoot && (
           <ContextMenuItem onClick={onCut}>
             {t("explorer.menu.cut")}
-            <ContextMenuShortcut>⌘X</ContextMenuShortcut>
+            <ContextMenuShortcut>{formatChord({ key: "x", mod: true })}</ContextMenuShortcut>
           </ContextMenuItem>
         )}
         <ContextMenuItem disabled={!canPaste} onClick={() => void c.pasteInto(destDir)}>
           {t("explorer.menu.paste")}
-          <ContextMenuShortcut>⌘V</ContextMenuShortcut>
+          <ContextMenuShortcut>{formatChord({ key: "v", mod: true })}</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSeparator />
         {isRoot ? (
