@@ -13,7 +13,10 @@ export function ProjectBootOverlay() {
   const { snap } = useIde();
   if (!snap.bootProject) return null;
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm">
+    <div
+      data-blocking-overlay=""
+      className="absolute inset-0 z-50 flex items-center justify-center bg-background/85 p-6 backdrop-blur-sm"
+    >
       <div className="w-full max-w-md">
         <div className="mb-3">
           <div className="text-base font-medium">

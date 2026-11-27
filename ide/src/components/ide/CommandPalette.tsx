@@ -46,6 +46,7 @@ import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { publishSession } from "@/vv/publish-session";
 import { resetUi } from "@/vv/reset-ui";
 import { scaffoldUi } from "@/vv/scaffold-ui";
+import { shortcutHelpUi } from "@/vv/shortcut-help-ui";
 import { graphLensCommands } from "./graph-lens-commands";
 import { nextTabId, tabCloseSet } from "./editor-tabs";
 import { closeEditorTabs } from "./editor-tab-close";
@@ -77,6 +78,12 @@ export function CommandPalette() {
     () => [
       { label: t("palette.home"), icon: Home, run: () => c.goHome() },
       { label: t("palette.tour"), icon: CircleHelp, run: () => tourStore.start() },
+      {
+        label: t("shortcuts.help"),
+        icon: CircleHelp,
+        keys: formatShortcut("shortcuts-help"),
+        run: () => shortcutHelpUi.open(),
+      },
       // The views and Save had no chord hint at all; they are registry entries now (#223).
       {
         label: t("shortcuts.explorer"),

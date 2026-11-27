@@ -12,22 +12,15 @@ const MODAL_SELECTOR =
   '[data-slot="dialog-content"], [data-slot="alert-dialog-content"], [aria-modal="true"]';
 const BLOCKING_OVERLAY_SELECTOR = "[data-blocking-overlay]";
 
-/**
- * Monaco and xterm focus a hidden textarea, which isTypingTarget() would read as a form field.
- * They are NOT typing targets here: Ctrl+S and Ctrl+B must still save and toggle while the
- * editor has focus, and the terminal keeps its own chords through each entry's deferTo.
- */
-function inCodeSurface(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.closest(".monaco-editor") != null || target.closest(".vv-term-host") != null;
-}
-
 export function readShortcutFocus(target: EventTarget | null): ShortcutFocusState {
   const element = target instanceof HTMLElement ? target : null;
+  // Monaco and xterm focus a hidden textarea, which isTypingTarget() would read as a form
+  // field. They are NOT typing targets: Ctrl+S and Ctrl+B must still work with the editor
+  // focused, and each Alt/tab entry defers to the terminal through its own deferTo.
   const editor = element?.closest(".monaco-editor") != null;
   const terminal = element?.closest(".vv-term-host") != null;
   return {
-    editing: !inCodeSurface(target) && isTypingTarget(target),
+    editing: !editor && !terminal && isTypingTarget(target),
     editor,
     terminal,
     dialog: document.querySelector(MODAL_SELECTOR) !== null,

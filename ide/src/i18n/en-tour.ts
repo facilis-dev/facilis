@@ -32,5 +32,5 @@ export const tourEn = {
     "Git branch, diagnostics and the cursor position, always visible. Click an item to act on it.",
   "tour.step.finale.title": "That is the tour",
   "tour.step.finale.body":
-    "Replay it any time from the ? button in the top bar or from the command palette (⌘K). Everything else is learned by using it.",
+    "Replay it any time from the ? button in the top bar or from the tour command in the command palette. Everything else is learned by using it.",
 } as const;

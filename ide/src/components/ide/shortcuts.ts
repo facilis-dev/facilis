@@ -151,6 +151,12 @@ export const SHORTCUTS = [
     deferTo: CODE_SURFACES,
   }),
 
+  // Help. "?" is the one chord whose Shift state depends on the layout, and the editor and
+  // the terminal keep the key for themselves — there it is a character, not a command.
+  shortcut("shortcuts-help", { key: "?", shift: "any" }, "shortcuts.help", {
+    deferTo: CODE_SURFACES,
+  }),
+
   // The browser keeps these: ⌘W/⌃W closes the tab and Ctrl+Tab switches it. Registering them
   // lets the help surface say so instead of pretending the IDE has them.
   shortcut("browser-close-tab", { key: "w", mod: true }, "shortcuts.closeTab", {

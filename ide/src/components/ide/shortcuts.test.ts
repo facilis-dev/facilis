@@ -116,6 +116,14 @@ describe("matchShortcut", () => {
     expect(matchShortcut(lens, "terminal")).toBeNull();
   });
 
+  it("binds ? to the help unless the editor or the terminal is typing", () => {
+    expect(matchShortcut(event({ key: "?", shiftKey: true }), "global")?.id).toBe("shortcuts-help");
+    expect(matchShortcut(event({ key: "?" }), "global")?.id).toBe("shortcuts-help");
+    expect(matchShortcut(event({ key: "?", shiftKey: true }), "editor")).toBeNull();
+    expect(matchShortcut(event({ key: "?" }), "terminal")).toBeNull();
+    expect(matchShortcut(event({ key: "?", shiftKey: true }), "dialog")).toBeNull();
+  });
+
   it("never returns a chord the browser keeps for itself", () => {
     expect(matchShortcut(event({ key: "w", metaKey: true }), "global")).toBeNull();
     expect(matchShortcut(event({ key: "Tab", ctrlKey: true }), "global")).toBeNull();

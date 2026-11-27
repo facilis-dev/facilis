@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { appearanceOf } from "@/ui-themes";
 import { TitleBar } from "./TitleBar";
@@ -23,6 +23,8 @@ import { aiAvailable, deployment } from "@/deploy/current";
 import { nextTabId } from "./editor-tabs";
 import { matchShortcut, shortcutContext, type ShortcutId } from "./shortcuts";
 import { readShortcutFocus } from "./shortcut-focus";
+import { ShortcutHelpDialog } from "./ShortcutHelpDialog";
+import { shortcutHelpUi } from "@/vv/shortcut-help-ui";
 import { useNarrowShell } from "@/vv/narrow-shell";
 
 // Once per page load: the compact defaults are applied on the first narrow render
@@ -32,6 +34,7 @@ let compactSettled = false;
 export function AppShell() {
   const { c, snap } = useIde();
   const lensShortcuts = useGraphLensShortcuts();
+  const helpOpen = useSyncExternalStore(shortcutHelpUi.subscribe, shortcutHelpUi.getSnapshot);
   const { theme, resolvedTheme, systemTheme } = useTheme();
   // A managed build with ai.mode "off" must not mount the chat at all (D-063).
   // The view can still be "chat" from the activity bar, so it falls back to the
@@ -94,6 +97,7 @@ export function AppShell() {
       "file-save": () => c.saveActiveFile(),
       "terminal-new": () => c.terminals.newShellTerminal(),
       "graph-lens": () => lensShortcuts.openPicker(),
+      "shortcuts-help": () => shortcutHelpUi.open(),
       // The browser never delivers these to the page, so the registry only documents them.
       "browser-close-tab": () => {},
       "browser-cycle-tabs": () => {},
@@ -143,6 +147,7 @@ export function AppShell() {
         onClose={lensShortcuts.closePicker}
         controller={c}
       />
+      <ShortcutHelpDialog open={helpOpen} onClose={shortcutHelpUi.close} />
       <ImportRemoteDialog />
       <ResetEverythingDialog />
       <PushRemoteDialog />
