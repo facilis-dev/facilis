@@ -8,7 +8,7 @@ import {
   runtimeDeclarationLine,
   runtimeRequirements,
   type RuntimeRequirement,
-} from "@facilis.dev/core";
+} from "@facilis.dev/core/runtime-config";
 
 import { error } from "../diagnostics.ts";
 import type { ConfigFacts, Diagnostic } from "../types.ts";

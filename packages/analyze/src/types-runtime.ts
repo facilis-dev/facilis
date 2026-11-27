@@ -1,4 +1,4 @@
-import type { JsonValue } from "@facilis.dev/core";
+import type { JsonValue } from "@facilis.dev/core/runtime-config";
 
 import type { SourceRef } from "./types.ts";
 

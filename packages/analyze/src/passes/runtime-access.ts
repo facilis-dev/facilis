@@ -7,7 +7,7 @@
  * because a key the analyzer cannot name is unknown, never a guess.
  */
 
-import { KNOWN_RUNTIME_KEYS } from "@facilis.dev/core";
+import { KNOWN_RUNTIME_KEYS } from "@facilis.dev/core/runtime-config";
 
 import {
   identifierName,

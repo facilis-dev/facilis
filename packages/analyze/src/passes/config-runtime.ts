@@ -5,7 +5,7 @@
  * declaration rules live in one place. A value outside the static subset is an explicit unknown,
  * never an error: only the app knows how it computes the value, and the boot validates it.
  */
-import { isSecretMarker, type JsonValue } from "@facilis.dev/core";
+import { isSecretMarker, type JsonValue } from "@facilis.dev/core/runtime-config";
 
 import type { AstNode } from "../ast/node.ts";
 import type { StaticContext } from "../static-eval.ts";
