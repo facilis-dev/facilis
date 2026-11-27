@@ -7,6 +7,7 @@
 // text worth searching.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { t } from "@/i18n";
 import { LANGUAGE_MODES } from "@/vv/editor-languages";
 import {
   Command,
@@ -64,13 +65,13 @@ function GoToLinePicker({ open, onClose }: { open: boolean; onClose: () => void 
 
   const parsed = parseLineCol(raw);
   const valid = parsed != null && parsed.line >= 1 && parsed.line <= lineCount;
-  const hint = `Type a line number between 1 and ${lineCount} to navigate to.`;
+  const hint = t("status.goToLineHint", { count: lineCount });
 
   return (
     <CommandDialog
       open={open}
       onOpenChange={(o) => (o ? undefined : onClose())}
-      title="Go to Line"
+      title={t("status.goToLineDialog")}
       finalFocus={false}
     >
       <Command shouldFilter={false}>
@@ -144,7 +145,7 @@ function IndentationPicker({ open, onClose }: { open: boolean; onClose: () => vo
     <CommandDialog
       open={open}
       onOpenChange={(o) => (o ? undefined : onClose())}
-      title="Indentation"
+      title={t("status.indentationDialog")}
       finalFocus={false}
     >
       <Command>
@@ -256,16 +257,16 @@ function LanguageModePicker({ open, onClose }: { open: boolean; onClose: () => v
     <CommandDialog
       open={open}
       onOpenChange={(o) => (o ? undefined : onClose())}
-      title="Select Language Mode"
+      title={t("status.languageModeDialog")}
       finalFocus={false}
     >
       <Command>
-        <CommandInput placeholder="Select Language Mode" />
+        <CommandInput placeholder={t("status.languageModeDialog")} />
         <CommandList>
-          <CommandEmpty>No matching language mode.</CommandEmpty>
+          <CommandEmpty>{t("status.languageModeEmpty")}</CommandEmpty>
           <CommandGroup>
-            <CommandItem value="Auto Detect" onSelect={() => select(null)}>
-              Auto Detect
+            <CommandItem value={t("status.languageAuto")} onSelect={() => select(null)}>
+              {t("status.languageAuto")}
             </CommandItem>
             {LANGUAGE_MODES.map((m) => (
               // The value carries both label and id so typing either one matches.

@@ -6,6 +6,7 @@
 export const editorTabsEn = {
   "editorTabs.label": "Open editors",
   "editorTabs.tabDirty": "{name} (unsaved changes)",
+  "editorTabs.closeNamed": "Close {name}",
   "editorTabs.menu.closeOthers": "Close Others",
   "editorTabs.menu.closeRight": "Close to the Right",
   "editorTabs.menu.closeSaved": "Close Saved",

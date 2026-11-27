@@ -19,6 +19,7 @@ import { tourIt } from "./it-tour";
 import { runIt } from "./it-run";
 import { previewIt } from "./it-preview";
 import { paletteIt } from "./it-palette";
+import { statusIt } from "./it-status";
 import { scaffoldIt } from "./it-scaffold";
 import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 import { stateLensesIt } from "./it-state-lenses";
@@ -228,32 +229,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   "title.tagline": "un vero dev server, nel tuo browser",
 
   // ── barra di stato ───────────────────────────────────────────────────────
-  "status.branch": "Branch corrente",
-  "status.frameworkPackages":
-    "Versioni minime di @facilis.dev/* richieste da questa build (core {version}) — i nuovi progetti fissano ogni pacchetto esattamente: {packages}",
-  "status.goToLine": "Vai a riga/colonna",
-  "status.indent": "Scegli indentazione",
-  "status.language": "Scegli linguaggio",
-  "status.python": "Servizio linguaggio Python (jedi, black)",
-  "status.position": "Riga {line}, Col {column}",
-  "status.error": "errore",
-  "status.errors": "errori",
-  "status.warning": "avviso",
-  "status.warnings": "avvisi",
-  "status.selections": "({count} selezioni)",
-  "status.selected": "({count} selezionati)",
-  "status.device.memoryPressure": "Memoria sotto pressione",
-  "status.device.lowMemory": "Poca RAM",
-  "status.device.slowBoot": "Avvio lento",
-  "status.device.lowStorage": "Spazio quasi esaurito",
-  "status.device.hint":
-    "Questa scheda esegue l'intera VM. Chiudere altre schede e app libera la memoria che le serve.",
-  "status.perf.capture": "Snapshot",
-  "status.perf.capturing": "Cattura…",
-  "status.perf.hint":
-    "Cattura il report di prestazioni di questa scheda — latenza di risposta del filesystem, conteggi VFS, processi guest e coda del terminale — per una segnalazione",
-  "status.perf.saved": "Snapshot delle prestazioni salvato: {file}",
-  "status.perf.failed": "Non è stato possibile catturare lo snapshot delle prestazioni.",
+  ...statusIt,
 
   // ── pannello anteprima ───────────────────────────────────────────────────
   ...previewIt,

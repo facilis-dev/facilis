@@ -51,11 +51,13 @@ describe("EditorTabStrip", () => {
     expect(html.lastIndexOf('aria-selected="false"')).toBeLessThan(html.indexOf('tabindex="0"'));
   });
 
-  it("announces a dirty tab and keeps the shared close label", () => {
+  it("announces a dirty tab and names each close control after its file", () => {
     const html = markup({ dirty: ["/w/b.ts"] });
     expect(html).toContain('aria-label="b.ts (unsaved changes)"');
-    expect(html).toContain('aria-label="Close"');
-    expect(html).toContain('title="Close"');
+    // Issue #225: a bare "Close" per tab reads as "Close, Close, Close" to a screen
+    // reader, with no way to tell which file is about to be closed.
+    expect(html).toContain('aria-label="Close b.ts"');
+    expect(html).toContain('title="Close a.ts"');
   });
 
   it("renders synthetic tabs with their own label and no basename", () => {

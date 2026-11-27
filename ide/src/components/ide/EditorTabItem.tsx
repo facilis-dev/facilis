@@ -148,16 +148,16 @@ export function EditorTabItem({
         >
           <EditorTabLabel rel={rel} kind={tabKind} isDiff={isDiff} italic={preview} />
           {/* Deliberately focusable and labelled: hiding it from AT while it can still
-              take focus is axe's aria-hidden-focus, and the label is the shared
-              common.close, never a tab-specific string. */}
+              take focus is axe's aria-hidden-focus. The name names its tab, so a
+              screen reader hears "Close app.tsx", not five identical "Close"s. */}
           <button
             className="flex size-4 items-center justify-center rounded hover:bg-accent"
             onClick={(e) => {
               e.stopPropagation();
               onClose([rel]);
             }}
-            aria-label={t("common.close")}
-            title={t("common.close")}
+            aria-label={t("editorTabs.closeNamed", { name: label })}
+            title={t("editorTabs.closeNamed", { name: label })}
           >
             {isDirty ? (
               <>

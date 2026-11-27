@@ -83,7 +83,7 @@ export function TitleBar() {
         className="hidden shrink-0 items-center lg:flex"
         onClick={() => c.goHome()}
         title={t("title.home")}
-        aria-label={t("app.name")}
+        aria-label={t("title.home")}
         // Home's stable return target when the opener is gone (issue #212). This is the
         // desktop shell's brand button; below lg it is hidden and Home falls back to the
         // narrow shell's Files tab.
