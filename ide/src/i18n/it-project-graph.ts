@@ -263,6 +263,7 @@ export const projectGraphIt: Partial<Record<MessageKey, string>> = {
   "projectGraph.surface.lens.emptyHint":
     "Questo progetto non ha riscontri per la lente {lens}. Chiudi la lente per tornare alla mappa completa: nulla è stato nascosto o spostato.",
   "projectGraph.surface.lens.emptyLeave": "Chiudi la lente",
+  "projectGraph.surface.state.notRunning": "Progetto non in esecuzione",
   "projectGraph.surface.diag.title": "Diagnosi",
   "projectGraph.surface.diag.publicWrite":
     "Il permesso è 'public' ma la rotta scrive ({method}): chiunque può chiamarla. Richiedi un permesso di session/role o restringi il wrapper.",

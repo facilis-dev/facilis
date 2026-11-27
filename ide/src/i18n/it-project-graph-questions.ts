@@ -11,8 +11,7 @@ export const projectGraphQuestionsIt = {
     "Q3 — Quali tabelle e viste raggiunge questa pagina attraverso le sue route (due hop)?",
   "projectGraph.surface.question.q4":
     "Q4 — Quali route toccano i dati con elevazione sudo/system auditata?",
-  "projectGraph.surface.question.q5":
-    "Q5 — Quale classe RLS, grant e policy ha questa tabella?",
+  "projectGraph.surface.question.q5": "Q5 — Quale classe RLS, grant e policy ha questa tabella?",
   "projectGraph.surface.question.q6":
     "Q6 — Quale wrapper e permesso proteggono questa route, e quali schemi di input accetta?",
   "projectGraph.surface.question.q7":
@@ -26,4 +25,12 @@ export const projectGraphQuestionsIt = {
   "projectGraph.surface.question.q16": "Q16 — Dove si trova il file sorgente di questo nodo?",
   "projectGraph.surface.question.q17":
     "Q17 — Quali fatti l'analizzatore non è riuscito a leggere staticamente?",
+  "projectGraph.surface.question.q18":
+    "Q18 — Cosa sta facendo adesso questa route: traffico, errori 5xx e latenza p50/p95?",
+  "projectGraph.surface.question.q19":
+    "Q19 — Cosa è cambiato dal checkpoint dell'agente e quali nodi possiedono quei file?",
+  "projectGraph.surface.question.q20":
+    "Q20 — Cosa può raggiungere un ruolo: quali route, pagine e tabelle sbloccano i suoi permessi?",
+  "projectGraph.surface.question.q21":
+    "Q21 — Quali pagine vengono prerenderizzate alla build, quali sono idonee ma non dichiarate e cosa blocca le altre?",
 };

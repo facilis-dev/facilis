@@ -26,6 +26,7 @@ import { previewEn } from "./en-preview";
 import { scaffoldEn } from "./en-scaffold";
 import { prerenderEn } from "./en-prerender";
 import { telemetryLinkoutEn } from "./en-telemetry-linkout";
+import { stateLensesEn } from "./en-state-lenses";
 export const en = {
   // ── product ──────────────────────────────────────────────────────────────
   // The brand is a message like any other: the fork shows facilis.dev (the visible
@@ -251,7 +252,6 @@ export const en = {
     "Capture this tab's performance report — FS answer latency, VFS counts, guest processes and the terminal tail — for a bug report",
   "status.perf.saved": "Performance snapshot saved: {file}",
   "status.perf.failed": "The performance snapshot could not be captured.",
-
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
 
@@ -282,7 +282,6 @@ export const en = {
   "palette.reloadPreview": "Reload Preview",
   "palette.measureMemory": "Measure Memory",
   "palette.resetEverything": "Reset Everything (wipe files + caches)",
-
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,
 
@@ -294,6 +293,7 @@ export const en = {
 
   // ── prerender run + preview badge (D-202, issue #85) ─────────────────────
   ...prerenderEn,
+  ...stateLensesEn,
 
   // ── observability link-out (D-203 §6, #140) ─────────────────────────────
   ...telemetryLinkoutEn,

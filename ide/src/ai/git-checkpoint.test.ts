@@ -8,7 +8,6 @@ import {
   type GitCheckpointGit,
   type StatusRow,
 } from "./git-checkpoint";
-import type { GitSafety } from "./types";
 
 const ROOT = "/project";
 
@@ -38,7 +37,10 @@ interface FakeState {
   inits: string[];
 }
 
-function harness(options: HarnessOptions = {}): { safety: GitSafety; state: FakeState } {
+function harness(options: HarnessOptions = {}): {
+  safety: ReturnType<typeof createGitCheckpoint>;
+  state: FakeState;
+} {
   const state: FakeState = {
     statPaths: [],
     matrixWalks: 0,
@@ -216,6 +218,29 @@ describe("gate", () => {
     expect(state.checkouts).toEqual([]);
     expect(state.commits).toEqual([]);
     expect(state.inits).toEqual([]);
+  });
+
+  it("reads the worktree for the changes lens without writing anything", async () => {
+    const { safety, state } = harness({ head: "abc123", rows: DIRTY_ROWS });
+    expect(await safety.readWorktree()).toEqual({
+      base: "abc123",
+      changes: [
+        { path: "src/gone.ts", letter: "D" },
+        { path: "src/new.ts", letter: "A" },
+        { path: "src/staged.ts", letter: "M" },
+        { path: "src/z.ts", letter: "M" },
+      ],
+      failure: null,
+    });
+    expect(state.unlinked).toEqual([]);
+    expect(state.checkouts).toEqual([]);
+    expect(state.commits).toEqual([]);
+    expect(state.inits).toEqual([]);
+  });
+
+  it("reports a missing repository to the changes lens as a code", async () => {
+    const { safety } = harness({ gitDir: "missing" });
+    expect(await safety.readWorktree()).toEqual({ base: null, changes: [], failure: "no-repo" });
   });
 });
 

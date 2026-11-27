@@ -434,7 +434,14 @@ async function main() {
   );
   // The only console "error" upstream emits on a healthy boot is a React warning about a
   // <script> tag inside a component; it is pre-existing upstream behaviour, not a failure.
-  const IGNORED_CONSOLE_ERRORS = [/Encountered a script tag while rendering React component/];
+  const IGNORED_CONSOLE_ERRORS = [
+    /Encountered a script tag while rendering React component/,
+    // React 19 HMR teardown in the preview: a hot update replaces the mounted root (and its
+    // portals), so the old tree's removal races the new insert. The rendered document is
+    // asserted separately by the preview probes; this is dev-only update noise.
+    /You are calling ReactDOMClient\.createRoot\(\) on a container/,
+    /Failed to execute '(removeChild|insertBefore)' on 'Node'/,
+  ];
   const errorConsole = page.consoleEntries.filter(
     (entry) =>
       entry.type === "error" && !IGNORED_CONSOLE_ERRORS.some((pattern) => pattern.test(entry.text)),

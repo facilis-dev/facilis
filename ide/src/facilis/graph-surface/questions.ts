@@ -7,7 +7,23 @@ import type { MessageKey } from "@/i18n";
 import type { GraphAnswerId } from "./answers-types.ts";
 import type { GraphLensId } from "./lenses.ts";
 
-export type GraphQuestionCode = "Q1" | "Q2" | "Q3" | "Q4" | "Q5" | "Q6" | "Q7" | "Q8" | "Q9" | "Q10" | "Q16" | "Q17";
+export type GraphQuestionCode =
+  | "Q1"
+  | "Q2"
+  | "Q3"
+  | "Q4"
+  | "Q5"
+  | "Q6"
+  | "Q7"
+  | "Q8"
+  | "Q9"
+  | "Q10"
+  | "Q16"
+  | "Q17"
+  | "Q18"
+  | "Q19"
+  | "Q20"
+  | "Q21";
 
 export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>> = {
   Q1: "projectGraph.surface.question.q1",
@@ -22,6 +38,10 @@ export const GRAPH_QUESTION_KEYS: Readonly<Record<GraphQuestionCode, MessageKey>
   Q10: "projectGraph.surface.question.q10",
   Q16: "projectGraph.surface.question.q16",
   Q17: "projectGraph.surface.question.q17",
+  Q18: "projectGraph.surface.question.q18",
+  Q19: "projectGraph.surface.question.q19",
+  Q20: "projectGraph.surface.question.q20",
+  Q21: "projectGraph.surface.question.q21",
 };
 
 /** Inspector section id ("q3") -> the question it answers ("Q3"). */
@@ -46,6 +66,10 @@ export const LENS_QUESTION_CODES: Readonly<Record<GraphLensId, GraphQuestionCode
   elevated: "Q4",
   shared: "Q9",
   unknown: "Q17",
+  runtime: "Q18",
+  changes: "Q19",
+  reach: "Q20",
+  prerender: "Q21",
 };
 
 export function answerQuestionKey(id: GraphAnswerId): MessageKey {

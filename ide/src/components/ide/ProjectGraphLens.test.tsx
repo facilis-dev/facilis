@@ -6,7 +6,11 @@ import type { GraphDiagnostic } from "@facilis.dev/analyze";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@/i18n";
+import type { GraphLensAvailability } from "@/facilis/graph-surface/lens-lifecycle.ts";
+import { LENS_AVAILABLE } from "@/facilis/graph-surface/lens-lifecycle.ts";
 import { summarizeLens, type GraphLensId } from "@/facilis/graph-surface/lenses.ts";
+import { GRAPH_LENSES } from "@/facilis/graph-surface/lenses-registry.ts";
+import type { GraphLensState, GraphLensView } from "@/facilis/graph-surface/state-facts.ts";
 import { ProjectGraphDiagnosisCallout } from "./ProjectGraphDiagnosisCallout";
 import { ProjectGraphLensBar } from "./ProjectGraphLensBar";
 
@@ -38,19 +42,47 @@ const LABELS: Readonly<Record<string, string>> = {
   "table:todos": "todos",
 };
 
-function renderBar(lens: GraphLensId | null, diagnostics: readonly GraphDiagnostic[]): string {
+function renderBar(
+  lens: GraphLensId | null,
+  diagnostics: readonly GraphDiagnostic[],
+  availabilityOf: (lens: GraphLensId) => GraphLensAvailability = () => LENS_AVAILABLE,
+  view?: GraphLensView,
+): string {
+  const resolved =
+    view !== undefined
+      ? view
+      : lens === null
+        ? null
+        : { kind: "diagnostics" as const, summary: summarizeLens(lens, diagnostics) };
   return renderToStaticMarkup(
     <ProjectGraphLensBar
       lens={lens}
-      summary={lens === null ? null : summarizeLens(lens, diagnostics)}
+      view={resolved}
       nodeLabel={(id) => LABELS[id] ?? null}
       onSelectLens={vi.fn()}
       onClose={vi.fn()}
       onActivate={vi.fn()}
       drawerOpen={false}
+      availabilityOf={availabilityOf}
     />,
   );
 }
+
+const RUNTIME_STATE: GraphLensState = {
+  facts: [
+    {
+      nodeId: "route:GET /api/todos/{id}",
+      code: "state.routeErrors",
+      params: { errors: 2, total: 5, rate: 40 },
+    },
+  ],
+  totals: { key: "projectGraph.surface.state.totals", count: 5, params: { errors: 2 } },
+  params: { minutes: 5 },
+  contextKey: "projectGraph.surface.state.window",
+  emptyKey: null,
+  emptyHintKey: null,
+  badges: new Map(),
+};
 
 beforeEach(() => {
   initI18n();
@@ -59,13 +91,18 @@ beforeEach(() => {
 afterEach(() => setLocale("en"));
 
 describe("ProjectGraphLensBar", () => {
-  it("always offers the four lens answers and no banner until one is active", () => {
+  it("always offers the lens answers and no banner until one is active", () => {
     const html = renderBar(null, [WRITE]);
     expect(html).toContain("Q5 · Security");
     expect(html).toContain("Q4 · Elevated (sudo / system)");
     expect(html).toContain("Q9 · Shared across groups");
     expect(html).toContain("Q17 · Unknown");
     expect(html).not.toContain("project-graph-lens-banner");
+  });
+
+  it("teaches the picker chord in every lens chip's tooltip and aria-label", () => {
+    const html = renderBar(null, []);
+    expect((html.match(/⌘⇧L/g) ?? []).length).toBe(GRAPH_LENSES.length * 2);
   });
 
   it("shows the banner, legend, total count and answer list for an active lens", () => {
@@ -78,6 +115,130 @@ describe("ProjectGraphLensBar", () => {
     expect(html).toContain("POST /api/todos");
     expect(html).toContain("anyone can call it");
     expect(html).toContain("project-graph-lens-answer-table:todos");
+  });
+
+  it("disables an unavailable lens and shows its reason instead of hiding it", () => {
+    const html = renderBar(null, [WRITE], (lens) =>
+      lens === "unknown"
+        ? { available: false, reasonKey: "projectGraph.surface.state.notRunning" }
+        : LENS_AVAILABLE,
+    );
+    const disabled = html.match(/<button[^>]*disabled[^>]*>/)?.[0] ?? "";
+    expect(disabled).toContain("project-graph-lens-unknown");
+    expect(disabled).toContain('data-unavailable="true"');
+    expect(disabled).toContain("Project not running");
+  });
+
+  it("renders a state lens with its totals, window and translated facts", () => {
+    const html = renderBar("runtime", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: RUNTIME_STATE,
+    });
+    expect(html).toContain("5 requests · 2 errors");
+    expect(html).toContain("Last 5 minutes");
+    expect(html).toContain("2 of 5 requests failed with a 5xx (40%).");
+    expect(html).toContain("Server errors");
+    expect(html).toContain("project-graph-lens-answer-route:GET /api/todos/{id}");
+  });
+
+  it("explains an empty state lens instead of showing a blank panel", () => {
+    const html = renderBar("runtime", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        ...RUNTIME_STATE,
+        facts: [],
+        totals: { key: "projectGraph.surface.state.totals", count: 0, params: { errors: 0 } },
+        emptyKey: "projectGraph.surface.state.noTraffic",
+      },
+    });
+    expect(html).toContain("project-graph-lens-empty");
+    expect(html).toContain("No request reached any route in the last 5 minutes.");
+  });
+
+  it("explains a clean tree with the changes lens's own hint", () => {
+    const html = renderBar("changes", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        ...RUNTIME_STATE,
+        facts: [],
+        totals: {
+          key: "projectGraph.surface.state.changes.totals",
+          count: 0,
+          params: { modified: 0, added: 0, deleted: 0 },
+        },
+        params: { ref: "0123456" },
+        contextKey: null,
+        emptyKey: "projectGraph.surface.state.noChanges",
+        emptyHintKey: "projectGraph.surface.state.changes.emptyHint",
+      },
+    });
+    expect(html).toContain("The working tree matches the checkpoint.");
+    expect(html).toContain("Edit a source file");
+  });
+
+  it("renders the reach lens's role picker and its totals", () => {
+    const html = renderBar("reach", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        facts: [
+          {
+            nodeId: "route:GET /api/todos",
+            code: "state.reachableRoute",
+            params: { method: "GET", path: "/api/todos", permission: "todos:read" },
+          },
+        ],
+        totals: {
+          key: "projectGraph.surface.state.reach.totals",
+          count: 2,
+          params: { pages: 1, tables: 1 },
+        },
+        params: { role: "member" },
+        contextKey: "projectGraph.surface.state.reach.context",
+        emptyKey: null,
+        emptyHintKey: null,
+        badges: new Map(),
+        picker: {
+          labelKey: "projectGraph.surface.state.reach.role",
+          value: "member",
+          options: ["admin", "member"],
+          onSelect: vi.fn(),
+        },
+      },
+    });
+    expect(html).toContain("project-graph-lens-picker");
+    expect(html).toContain("Role member");
+    expect(html).toContain("2 routes · pages: 1 · tables: 1");
+    expect(html).toContain("Reachable with todos:read.");
+    expect(html).toContain(">admin</option>");
+  });
+
+  it("renders an ineligible prerender page with the blocking route", () => {
+    const html = renderBar("prerender", [], () => LENS_AVAILABLE, {
+      kind: "state",
+      state: {
+        facts: [
+          {
+            nodeId: "page:/todos",
+            code: "state.privateApi",
+            params: { path: "/todos", route: "GET /api/todos" },
+          },
+        ],
+        totals: {
+          key: "projectGraph.surface.state.prerender.totals",
+          count: 1,
+          params: { prerendered: 0, eligible: 0, ineligible: 1, unknown: 0 },
+        },
+        params: {},
+        contextKey: null,
+        emptyKey: null,
+        emptyHintKey: null,
+        badges: new Map([["page:/todos", { text: "API", colorToken: "--warning" }]]),
+        highlight: ["page:/todos"],
+      },
+    });
+    expect(html).toContain("Q21 · Prerender");
+    expect(html).toContain("pages: 1 · prerendered: 0 · eligible: 0 · ineligible: 1 · unknown: 0");
+    expect(html).toContain("Calls GET /api/todos, which requires a permission");
   });
 
   it("shows an explicit empty state when a lens matches nothing", () => {
@@ -115,6 +276,21 @@ describe("ProjectGraphDiagnosisCallout", () => {
     const html = renderToStaticMarkup(<ProjectGraphDiagnosisCallout diagnostics={[SHARED]} />);
     expect(html).toContain("Nodo condiviso");
     expect(html).toContain("Referenziato da 2 altri domini (billing, todos)");
+  });
+
+  it("renders the selected node's live facts through t(code, params)", () => {
+    const html = renderToStaticMarkup(
+      <ProjectGraphDiagnosisCallout
+        diagnostics={[]}
+        lens="runtime"
+        view={{ kind: "state", state: RUNTIME_STATE }}
+        selectedNodeId="route:GET /api/todos/{id}"
+      />,
+    );
+    expect(html).toContain("project-graph-state-callout");
+    expect(html).toContain("Q18 · Runtime");
+    expect(html).toContain("Server errors");
+    expect(html).toContain("2 of 5 requests failed with a 5xx (40%).");
   });
 
   it("renders nothing when the node has no diagnostic", () => {

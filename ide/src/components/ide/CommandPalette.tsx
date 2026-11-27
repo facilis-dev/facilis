@@ -21,6 +21,7 @@ import FileArchive from "~icons/lucide/file-archive";
 import Share2 from "~icons/lucide/share-2";
 import GitBranch from "~icons/lucide/git-branch";
 import MessageSquare from "~icons/lucide/message-square";
+import Network from "~icons/lucide/network";
 import {
   Command,
   CommandDialog,
@@ -39,6 +40,7 @@ import { gitRemoteUi } from "@/vv/git-remote-ui";
 import { publishSession } from "@/vv/publish-session";
 import { resetUi } from "@/vv/reset-ui";
 import { scaffoldUi } from "@/vv/scaffold-ui";
+import { graphLensCommands } from "./graph-lens-commands";
 
 const baseName = (abs: string) => abs.split("/").pop() ?? abs;
 
@@ -63,7 +65,13 @@ export function CommandPalette() {
   // `keys` is the palette's only way to teach a shortcut, so it must stay honest:
   // only commands with a binding in AppShell's global handler carry one.
   const commands = useMemo<
-    { label: string; icon: React.ComponentType; keys?: string; run: () => void }[]
+    {
+      label: string;
+      icon: React.ComponentType;
+      keys?: string;
+      run: () => void;
+      disabled?: boolean;
+    }[]
   >(
     () => [
       { label: t("palette.home"), icon: Home, run: () => c.goHome() },
@@ -141,6 +149,16 @@ export function CommandPalette() {
       { label: t("theme.light"), icon: Sun, run: () => setTheme("light") },
       { label: t("theme.dark"), icon: Moon, run: () => setTheme("dark") },
       { label: t("theme.system"), icon: Monitor, run: () => setTheme("system") },
+      // The lens registry is the source of truth (issue #204): no lens is named here.
+      ...(snap.activeFolderId === null
+        ? []
+        : graphLensCommands(c).map((command) => ({
+            label: command.reason === null ? command.label : command.label + " — " + command.reason,
+            icon: Network,
+            keys: command.keys,
+            run: command.run,
+            disabled: command.disabled,
+          }))),
       {
         label: t("palette.resetEverything"),
         icon: RotateCcw,
@@ -186,7 +204,12 @@ export function CommandPalette() {
           {!isFile ? (
             <CommandGroup heading={t("palette.commands")}>
               {commands.map((cmd) => (
-                <CommandItem key={cmd.label} value={cmd.label} onSelect={() => run(cmd.run)}>
+                <CommandItem
+                  key={cmd.label}
+                  value={cmd.label}
+                  disabled={cmd.disabled}
+                  onSelect={() => run(cmd.run)}
+                >
                   <cmd.icon /> {cmd.label}
                   {cmd.keys && (
                     <span className="ml-auto text-xs text-muted-foreground">{cmd.keys}</span>

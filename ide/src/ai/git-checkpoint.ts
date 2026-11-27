@@ -31,6 +31,14 @@ export interface GitCheckpointDeps {
 /** One `statusMatrix` row: [filepath, head, workdir, stage]; cell meanings in scm-session.ts. */
 export type StatusRow = readonly unknown[];
 
+/** HEAD plus the file-level working-tree diff; `failure` is why there is no base. */
+export interface WorktreeSnapshot {
+  readonly base: string | null;
+  readonly changes: readonly ChatGitChange[];
+  /** "error" is a failed walk (a bridge or git failure), never a guess about the tree. */
+  readonly failure: "no-repo" | "no-head" | "error" | null;
+}
+
 /** The isomorphic-git calls used here; the package's API is untyped in this fork. */
 export interface GitCheckpointGit {
   resolveRef(args: { fs: GitFs; dir: string; ref: string }): Promise<string>;
@@ -110,7 +118,7 @@ async function loadGitApi(): Promise<GitCheckpointGit> {
 export function createGitCheckpoint(
   deps: GitCheckpointDeps,
   tools: GitCheckpointTools = {},
-): GitSafety {
+): GitSafety & { readWorktree(): Promise<WorktreeSnapshot> } {
   let gitPromise: Promise<GitCheckpointGit> | null = null;
   let fsCache: GitFs | null = null;
 
@@ -133,18 +141,23 @@ export function createGitCheckpoint(
     }
   }
 
-  async function gate(): Promise<GitGate> {
+  /**
+   * The read-only fact behind the gate (and the graph's changes lens, #200): HEAD plus the
+   * file-level diff, with the same ignore rules and no write of any kind. A failure is a code,
+   * never an exception.
+   */
+  async function readWorktree(): Promise<WorktreeSnapshot> {
     const root = rootOf();
     if (root === null || !(await isRepo(root))) {
-      return { ok: false, failure: { code: "no-repo" } };
+      return { base: null, changes: [], failure: "no-repo" };
     }
     const api = await git();
     let head: string;
     try {
       head = await api.resolveRef({ fs: fs(), dir: root, ref: "HEAD" });
     } catch {
-      // Initialized but nothing committed: there is no HEAD for Undo to restore.
-      return { ok: false, failure: { code: "no-head" } };
+      // Initialized but nothing committed: there is no HEAD to diff against.
+      return { base: null, changes: [], failure: "no-head" };
     }
     const matrix = await api.statusMatrix({ fs: fs(), dir: root, filter: trackable });
     const changes: ChatGitChange[] = [];
@@ -152,10 +165,19 @@ export function createGitCheckpoint(
       const change = classifyStatusRow(row);
       if (change !== null) changes.push(change);
     }
-    if (changes.length === 0) return { ok: true, head };
     // Stable order regardless of the walk: the gate card lists paths, not walk internals.
     changes.sort((a, b) => a.path.localeCompare(b.path));
-    return { ok: false, failure: { code: "dirty-tree", changes } };
+    return { base: head, changes, failure: null };
+  }
+
+  async function gate(): Promise<GitGate> {
+    const snapshot = await readWorktree();
+    if (snapshot.failure === "no-repo") return { ok: false, failure: { code: "no-repo" } };
+    if (snapshot.failure === "no-head") return { ok: false, failure: { code: "no-head" } };
+    if (snapshot.base !== null && snapshot.changes.length === 0) {
+      return { ok: true, head: snapshot.base };
+    }
+    return { ok: false, failure: { code: "dirty-tree", changes: snapshot.changes } };
   }
 
   /** Repair one requested path; returns its error text, or null when it is clean again. */
@@ -225,5 +247,5 @@ export function createGitCheckpoint(
     return delegated(() => deps.init(root));
   }
 
-  return { gate, commitAll, init, restore };
+  return { gate, readWorktree, commitAll, init, restore };
 }

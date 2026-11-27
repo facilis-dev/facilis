@@ -239,7 +239,14 @@ async function emulatePhone(page, mobile) {
     await page.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     return;
   }
-  await page.send("Emulation.clearDeviceMetricsOverride");
+  // Restore the desktop viewport smoke-ide pinned at boot: clearing the override would drop
+  // headless Chrome back to 800x600, which is the narrow shell (< 1024px, #195).
+  await page.send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await page.send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
 
@@ -488,6 +495,20 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
   // must never reflow the swimlanes into one column. ──
   await emulatePhone(page, true);
   await sleep(1000);
+  // The narrow shell can land on Preview when the viewport shrinks, and a late preview status
+  // can re-open it: collapse it until the Code surface sticks, then re-open the graph tab.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await page.evaluate("window.__ide.togglePreview(false)");
+    await sleep(300);
+    if (await page.evaluate("window.__ide.getSnapshot().previewCollapsed")) break;
+  }
+  await page.evaluate("window.__ide.openProjectGraph()");
+  await waitFor(
+    page,
+    "Boolean(document.querySelector('[data-testid=\"project-graph-canvas\"] canvas'))",
+    15000,
+  );
+  await sleep(500);
   await page.evaluate(OVERVIEW_CLICK);
   const mobileOverview = await waitForGraphState(
     page,
@@ -597,6 +618,32 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     JSON.stringify({ overflowX: drawer.overflowX, viewport: drawer.viewport }),
   );
   await page.screenshot(ARTIFACTS + "/05e-mobile-detail.png");
+  // Leave the narrow shell on Preview before restoring the desktop viewport: the Data Explorer
+  // probes below read the preview frame, which the Code surface unmounts.
+  await page.evaluate(
+    "document.querySelectorAll('[data-slot=\"mobile-shell-nav\"] button')[2].click()",
+  );
+  await sleep(300);
+  // The palette and the lens chips are the two mobile entry points into the lenses (issue
+  // #204): neither may disappear when the drawer is a bottom sheet.
+  await page.evaluate("window.__ide.openPalette('command')");
+  record(
+    await waitFor(page, COUNT('[data-slot="command-item"]') + " > 0", 5000),
+    "mobile: the palette stays reachable",
+  );
+  await page.evaluate("window.__ide.closePalette()");
+  record(
+    await waitFor(page, "!document.querySelector('[data-slot=\"command-item\"]')", 5000),
+    "mobile: the palette closes again",
+  );
+  record(
+    await waitFor(
+      page,
+      "Boolean(document.querySelector('[data-testid=\"project-graph-lens-security\"]'))",
+      5000,
+    ),
+    "mobile: lens chips stay reachable",
+  );
   await emulatePhone(page, false);
   await sleep(500);
   const backToDesktop = await page.evaluate("window.innerWidth");
@@ -605,6 +652,72 @@ export async function runPanelChecks({ page, check, ARTIFACTS }) {
     "mobile: emulation reset for the remaining checks",
     "innerWidth=" + backToDesktop,
   );
+
+  // ── Lens palette (epic #196, #204): the registry-backed commands reach the same selectLens
+  // the chips use, and a chip's tooltip teaches the picker chord. ──
+  await page.evaluate("window.__ide.openPalette('command')");
+  record(
+    await waitFor(page, COUNT('[data-slot="command-item"]') + " > 0", 5000),
+    "lens palette: commands listed",
+  );
+  const lensItem = await page.evaluate(
+    "(() => { const items = [...document.querySelectorAll('[data-slot=\"command-item\"]')];" +
+      " const item = items.find((el) => (el.innerText || '').startsWith('Lens:'));" +
+      " return item ? item.innerText.replace(/\\s+/g, ' ').trim() : 'NO LENS ITEM'; })()",
+  );
+  record(lensItem.startsWith("Lens: Q5"), "lens palette: registry lens listed", lensItem);
+  const lensClicked = await page.evaluate(
+    "(() => { const items = [...document.querySelectorAll('[data-slot=\"command-item\"]')];" +
+      " const item = items.find((el) => (el.innerText || '').startsWith('Lens:'));" +
+      " if (!item) return 'NO LENS ITEM'; item.click(); return 'OK'; })()",
+  );
+  record(lensClicked === "OK", "lens palette: command clicked", lensClicked);
+  record(
+    await waitFor(
+      page,
+      "(() => { const c = document.querySelector('[data-testid=\"project-graph-lens-security\"]');" +
+        " return c !== null && c.getAttribute('aria-pressed') === 'true'; })()",
+      15000,
+    ),
+    "lens palette: command activates the lens",
+  );
+  const chipHint = await page.evaluate(
+    "(() => { const c = document.querySelector('[data-testid=\"project-graph-lens-security\"]');" +
+      " return c === null ? '' : (c.getAttribute('title') || '') + '|' + (c.getAttribute('aria-label') || ''); })()",
+  );
+  record(chipHint.includes("⌘⇧L"), "lens bar: chip teaches the picker chord", chipHint);
+  await page.screenshot(ARTIFACTS + "/05f-lens-palette.png");
+  // The palette closes before the next command: wait out its exit animation so the following
+  // open is not queued behind a closing dialog.
+  record(
+    await waitFor(page, COUNT('[data-slot="command-item"]') + " === 0", 5000),
+    "lens palette: closes after the command",
+  );
+  await sleep(300);
+
+  // Running the active lens's command again turns it off: the command is the chip's toggle.
+  await page.evaluate("window.__ide.openPalette('command')");
+  await waitFor(page, COUNT('[data-slot="command-item"]') + " > 0", 5000);
+  const toggledOff = await page.evaluate(
+    "(() => { const items = [...document.querySelectorAll('[data-slot=\"command-item\"]')];" +
+      " const item = items.find((el) => (el.innerText || '').startsWith('Lens:'));" +
+      " if (!item) return 'NO LENS ITEM'; item.click(); return 'OK'; })()",
+  );
+  record(
+    toggledOff === "OK" &&
+      (await waitFor(
+        page,
+        "(() => { const c = document.querySelector('[data-testid=\"project-graph-lens-security\"]');" +
+          " return c !== null && c.getAttribute('aria-pressed') === 'false'; })()",
+        15000,
+      )),
+    "lens palette: running the active command turns the lens off",
+  );
+  record(
+    await waitFor(page, COUNT('[data-slot="command-item"]') + " === 0", 5000),
+    "lens palette: closes after the toggle",
+  );
+  await sleep(300);
 
   // ── Data Explorer sidebar and its SQL console (D-083/D-097): the sidebar reads the
   // schema and the console posts through the preview proxy. Clicking the active activity

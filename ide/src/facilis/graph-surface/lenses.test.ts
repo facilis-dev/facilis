@@ -11,14 +11,17 @@ import {
   DIAGNOSTIC_COLOR_TOKENS,
   DIAGNOSTIC_LABEL_KEYS,
   DIAGNOSTIC_MESSAGE_KEYS,
-  GRAPH_LENSES,
+  GRAPH_LENS_SOURCES,
   LENS_BY_CODE,
   diagnosticParams,
   diagnosticsByNode,
   domainFlagCounts,
+  isStateCode,
   lensHighlight,
   summarizeLens,
+  type GraphLensCode,
 } from "./lenses.ts";
+import { GRAPH_LENSES, lensForCode } from "./lenses-registry.ts";
 
 const WRITE: GraphDiagnostic = {
   nodeId: "route:POST /api/todos",
@@ -81,12 +84,16 @@ describe("lens contract", () => {
     }
   });
 
-  it("exposes the four lens definitions with their codes and legend", () => {
+  it("exposes every lens definition with its codes and legend", () => {
     expect(GRAPH_LENSES.map((entry) => entry.id)).toEqual([
       "security",
       "elevated",
       "shared",
       "unknown",
+      "runtime",
+      "changes",
+      "reach",
+      "prerender",
     ]);
     expect(GRAPH_LENSES[0].codes).toEqual(["publicWrite", "publicAdmin", "tableNoRls"]);
     expect(GRAPH_LENSES[0].legend).toHaveLength(3);
@@ -180,5 +187,68 @@ describe("draw-only lens state", () => {
     expect(counts.get("todos")).toBe(1);
     expect(surfaceLayoutKey(view)).toBe(key);
     expect(view.nodes[0].position).toEqual({ x: 10, y: 20 });
+  });
+});
+
+describe("lens registry (D-225, #198)", () => {
+  it("declares a source for every lens and keeps the analyzer lenses static", () => {
+    expect(GRAPH_LENSES.map((lens) => [lens.id, lens.source])).toEqual([
+      ["security", "static"],
+      ["elevated", "static"],
+      ["shared", "static"],
+      ["unknown", "static"],
+      ["runtime", "live"],
+      ["changes", "workspace"],
+      ["reach", "declared"],
+      ["prerender", "declared"],
+    ]);
+    for (const lens of GRAPH_LENSES) {
+      expect(GRAPH_LENS_SOURCES).toContain(lens.source);
+    }
+  });
+
+  it("maps every code to exactly one lens", () => {
+    const owner = new Map<GraphLensCode, string>();
+    for (const lens of GRAPH_LENSES) {
+      for (const code of lens.codes) {
+        expect(owner.has(code)).toBe(false);
+        owner.set(code, lens.id);
+        expect(lensForCode(code)).toBe(lens.id);
+      }
+    }
+    for (const code of Object.keys(DIAGNOSTIC_MESSAGE_KEYS) as GraphLensCode[]) {
+      expect(owner.get(code)).toBe(LENS_BY_CODE[code as keyof typeof LENS_BY_CODE]);
+    }
+  });
+
+  it("gives every code a message key, a label key and a colour token", () => {
+    for (const lens of GRAPH_LENSES) {
+      expect(lens.legend.map((entry) => entry.code)).toEqual([...lens.codes]);
+      expect(lens.colorToken).toMatch(/^--[a-z-]+$/);
+      for (const entry of lens.legend) {
+        expect(t(entry.messageKey)).not.toContain("projectGraph.surface");
+        expect(t(entry.labelKey)).not.toContain("projectGraph.surface");
+        expect(entry.colorToken).toMatch(/^--[a-z-]+$/);
+      }
+    }
+  });
+
+  it("keeps the four static lens labels byte-identical", () => {
+    const staticLenses = GRAPH_LENSES.filter((lens) => lens.source === "static");
+    expect(staticLenses.map((lens) => t(lens.titleKey))).toEqual([
+      "Q5 · Security",
+      "Q4 · Elevated (sudo / system)",
+      "Q9 · Shared across groups",
+      "Q17 · Unknown",
+    ]);
+    expect(staticLenses.map((lens) => t(lens.shortKey))).toEqual(["Q5", "Q4", "Q9", "Q17"]);
+  });
+
+  it("keeps the state vocabulary disjoint from the analyzer's", () => {
+    for (const code of Object.keys(DIAGNOSTIC_MESSAGE_KEYS) as GraphLensCode[]) {
+      expect(isStateCode(code)).toBe(false);
+    }
+    expect(isStateCode("state.noTraffic")).toBe(true);
+    expect(lensForCode("state.notARegisteredCode")).toBeNull();
   });
 });

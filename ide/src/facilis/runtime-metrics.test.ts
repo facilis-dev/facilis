@@ -142,8 +142,26 @@ describe("RuntimeMetricsCollector", () => {
     ).toBe(true);
     const rows = collector.snapshot(1001);
     expect(rows.map((r) => r.route)).toEqual(["/api/todos", "/api/todos/{id}"]);
-    expect(rows[1]).toMatchObject({ count: 2, errors: 1, clientErrors: 0 });
+    expect(rows[1]).toMatchObject({ count: 2, errors: 1, clientErrors: 0, method: "GET" });
     expect(rows[0]).toMatchObject({ count: 1, errors: 0, clientErrors: 1 });
+  });
+
+  it("keeps GET and POST on one template apart", () => {
+    const collector = new RuntimeMetricsCollector();
+    collector.enable(["/api/todos"]);
+    collector.ingest(
+      batch([
+        sample({ route: "/api/todos", method: "GET", status: 200 }),
+        sample({ route: "/api/todos", method: "POST", status: 500 }),
+      ]),
+      TOKEN,
+      1000,
+    );
+    const rows = collector.snapshot(1001);
+    expect(rows.map((r) => [r.method, r.count, r.errors])).toEqual([
+      ["GET", 1, 0],
+      ["POST", 1, 1],
+    ]);
   });
 
   it("drops samples for routes outside the enable list", () => {

@@ -14,9 +14,20 @@ describe("graph question codes", () => {
   });
 
   it("covers every inspector answer id", () => {
-    expect(Object.keys(ANSWER_QUESTION_CODES).toSorted()).toEqual(
-      ["q1", "q10", "q16", "q17", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9"],
-    );
+    expect(Object.keys(ANSWER_QUESTION_CODES).toSorted()).toEqual([
+      "q1",
+      "q10",
+      "q16",
+      "q17",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+      "q6",
+      "q7",
+      "q8",
+      "q9",
+    ]);
   });
 
   it("maps each lens to the question it answers", () => {
@@ -25,6 +36,10 @@ describe("graph question codes", () => {
       elevated: "Q4",
       shared: "Q9",
       unknown: "Q17",
+      runtime: "Q18",
+      changes: "Q19",
+      reach: "Q20",
+      prerender: "Q21",
     });
   });
 });

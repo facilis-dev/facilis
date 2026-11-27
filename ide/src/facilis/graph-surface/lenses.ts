@@ -1,13 +1,38 @@
-// The graph lenses and their diagnostic-code contract (D-220, #189). Analyzer facts carry a
-// stable code plus params; this module is the ONE place that maps code -> i18n key and code ->
-// semantic colour token, so no component ever hardcodes prose or a palette value (D-043/D-044).
+// The graph lens code contract (D-220, D-225, #189/#198). Analyzer facts and IDE state facts
+// both carry a stable code plus params; this module is the ONE place that maps a diagnostic code
+// to its lens, i18n keys and semantic colour token, so no component ever hardcodes prose or a
+// palette value (D-043/D-044). The descriptor registry itself lives in lenses-registry.ts.
 
 import type { GraphDiagnostic, GraphDiagnosticCode } from "@facilis.dev/analyze";
 import type { I18nParams } from "@facilis.dev/core/i18n";
 import type { MessageKey } from "@/i18n";
 
-export const GRAPH_LENS_IDS = ["security", "elevated", "shared", "unknown"] as const;
+export const GRAPH_LENS_IDS = [
+  "security",
+  "elevated",
+  "shared",
+  "unknown",
+  "runtime",
+  "changes",
+  "reach",
+  "prerender",
+] as const;
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
+
+/**
+ * Where a lens's facts come from (D-225 §1). The taxonomy is closed: adding a source is a
+ * contract change, not another adapter.
+ */
+export const GRAPH_LENS_SOURCES = ["static", "live", "workspace", "declared"] as const;
+export type GraphLensSource = (typeof GRAPH_LENS_SOURCES)[number];
+
+/** The IDE's own state vocabulary (D-225 §2): live/workspace/declared facts, never analyzer. */
+export type GraphStateCode = `state.${string}`;
+export type GraphLensCode = GraphDiagnosticCode | GraphStateCode;
+
+export function isStateCode(code: GraphLensCode): code is GraphStateCode {
+  return code.startsWith("state.");
+}
 
 /** Which lens surfaces a diagnostic code (a code belongs to exactly one lens). */
 export const LENS_BY_CODE: Readonly<Record<GraphDiagnosticCode, GraphLensId>> = {
@@ -50,56 +75,24 @@ export const DIAGNOSTIC_COLOR_TOKENS: Readonly<Record<GraphDiagnosticCode, strin
 };
 
 export interface GraphLensLegendEntry {
-  readonly code: GraphDiagnosticCode;
+  readonly code: GraphLensCode;
+  /** The full explanation, resolved with t(messageKey, params). */
+  readonly messageKey: MessageKey;
   readonly labelKey: MessageKey;
   readonly colorToken: string;
 }
 
 export interface GraphLensDefinition {
   readonly id: GraphLensId;
+  readonly source: GraphLensSource;
   readonly titleKey: MessageKey;
+  /** The label a narrow bar can still fit. */
+  readonly shortKey: MessageKey;
   readonly descriptionKey: MessageKey;
-  readonly codes: readonly GraphDiagnosticCode[];
+  /** The lens accent; per-code colours live in `legend`. */
+  readonly colorToken: string;
+  readonly codes: readonly GraphLensCode[];
   readonly legend: readonly GraphLensLegendEntry[];
-}
-
-const CODES_BY_LENS: Readonly<Record<GraphLensId, readonly GraphDiagnosticCode[]>> = {
-  security: ["publicWrite", "publicAdmin", "tableNoRls"],
-  elevated: ["elevated"],
-  shared: ["shared"],
-  unknown: ["unknown"],
-};
-
-const TITLE_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
-  security: "projectGraph.surface.lens.security",
-  elevated: "projectGraph.surface.lens.elevated",
-  shared: "projectGraph.surface.lens.shared",
-  unknown: "projectGraph.surface.lens.unknown",
-};
-
-const DESCRIPTION_KEYS: Readonly<Record<GraphLensId, MessageKey>> = {
-  security: "projectGraph.surface.lens.security.description",
-  elevated: "projectGraph.surface.lens.elevated.description",
-  shared: "projectGraph.surface.lens.shared.description",
-  unknown: "projectGraph.surface.lens.unknown.description",
-};
-
-export const GRAPH_LENSES: readonly GraphLensDefinition[] = GRAPH_LENS_IDS.map((id) => ({
-  id,
-  titleKey: TITLE_KEYS[id],
-  descriptionKey: DESCRIPTION_KEYS[id],
-  codes: CODES_BY_LENS[id],
-  legend: CODES_BY_LENS[id].map((code) => ({
-    code,
-    labelKey: DIAGNOSTIC_LABEL_KEYS[code],
-    colorToken: DIAGNOSTIC_COLOR_TOKENS[code],
-  })),
-}));
-
-export function lensDefinition(id: GraphLensId): GraphLensDefinition {
-  const definition = GRAPH_LENSES.find((entry) => entry.id === id);
-  // The ids are the literal union above, so the find can never miss.
-  return definition ?? GRAPH_LENSES[0];
 }
 
 /** Translate a diagnostic's structured params into interpolation values. */
@@ -148,10 +141,18 @@ export function summarizeLens(
   };
 }
 
-/** What the canvas needs for a lens: the flagged ids and the colour code of each one. */
+/** Draw-only per-node badge: a short text and the semantic token it is inked with. */
+export interface GraphLensBadge {
+  readonly text: string;
+  readonly colorToken: string;
+}
+
+/** What the canvas needs for a lens: flagged ids, their colour code, and optional badges. */
 export interface GraphLensHighlight {
   readonly flagged: ReadonlySet<string>;
   readonly codeOf: ReadonlyMap<string, GraphDiagnosticCode>;
+  /** State lenses paint numbers here; static lenses have none. */
+  readonly badges: ReadonlyMap<string, GraphLensBadge>;
 }
 
 export function lensHighlight(summary: GraphLensSummary): GraphLensHighlight {
@@ -160,7 +161,7 @@ export function lensHighlight(summary: GraphLensSummary): GraphLensHighlight {
     const first = entries[0];
     if (first !== undefined) codeOf.set(nodeId, first.code);
   }
-  return { flagged: summary.flagged, codeOf };
+  return { flagged: summary.flagged, codeOf, badges: new Map() };
 }
 
 /** Group diagnostics by node across every lens (the selected node's diagnosis callout). */

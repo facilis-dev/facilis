@@ -1,9 +1,9 @@
 {
-  "outDir": "/home/deepseek/workspace/facilis/facilis-repo/.agents/worktrees/feat/epic-182-graph-map-lens/examples/showcase-app/dist",
+  "outDir": "/home/deepseek/workspace/facilis/facilis-repo/.agents/worktrees/feat/epic-196-graph-state-lenses/examples/showcase-app/dist",
   "routes": [
     "/",
     "/contact"
   ],
   "origin": "https://showcase.example.com",
-  "builtAt": 1795669816132
+  "builtAt": 1795765631855
 }
