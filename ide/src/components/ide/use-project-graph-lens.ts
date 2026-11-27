@@ -1,7 +1,7 @@
 // The project graph's lens state (D-220, #189; registry and lifecycle #198; runtime lens
 // #199), split from the panel to keep both under the 300-line source limit. Lenses are draw
 // state only: opening one activates its source through the lifecycle, so a live source runs
-// only while somebody is watching (D-224 §4). Static lenses never leave this hook's memoized
+// only while somebody is watching (D-225 §4). Static lenses never leave this hook's memoized
 // filter.
 
 import { useCallback, useEffect, useMemo, useState } from "react";

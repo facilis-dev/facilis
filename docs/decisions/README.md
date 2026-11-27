@@ -2,7 +2,7 @@
 
 # Decision index
 
-222 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+223 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -230,3 +230,4 @@ the file whose name starts with that ID.
 | [D-222](./D-222-graph-notes-are-rendered-as-culled-dom-cards-on-the-canvas-surface.md) | Graph notes are rendered as culled DOM cards on the canvas surface | accepted | 2026-11-26 |
 | [D-223](./D-223-graph-group-overrides-are-per-node-team-state-in-groups-key-json.md) | Graph group overrides are per-node team state in `groups/<key>.json` | accepted | 2026-11-26 |
 | [D-224](./D-224-deployment-values-live-in-a-runtime-section-of-facilis-config-ts.md) | Deployment values live in a `runtime` section of `facilis.config.ts` | accepted | 2026-11-26 |
+| [D-225](./D-225-graph-state-lenses-read-live-and-workspace-facts-never-analyzer.md) | Graph state lenses read live and workspace facts, never analyzer diagnostics | accepted | 2026-11-26 |

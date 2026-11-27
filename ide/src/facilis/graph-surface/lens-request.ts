@@ -1,7 +1,7 @@
 // A palette or picker request for one graph lens (issue #204). The active lens is the panel's
 // draw state, so the request is a one-shot intent, not a second store: the panel's hook applies
 // it through the same selectLens the chips call, which toggles the active lens off and switches
-// to another — D-224's lifecycle stays in one place. A request made before the panel mounts is
+// to another — D-225's lifecycle stays in one place. A request made before the panel mounts is
 // kept and replayed once to the first subscriber; a request delivered to an open panel is not.
 
 import type { GraphLensId } from "./lenses.ts";

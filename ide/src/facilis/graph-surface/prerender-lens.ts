@@ -1,4 +1,4 @@
-// The prerender lens's facts (D-224, Q21): every routed page is prerendered, eligible but
+// The prerender lens's facts (D-225, Q21): every routed page is prerendered, eligible but
 // undeclared, ineligible with one code per blocker, or unknown when no fact exists. Pure and
 // read-only: the facts and the page join are the analyzer's (D-202), the lens only classifies.
 

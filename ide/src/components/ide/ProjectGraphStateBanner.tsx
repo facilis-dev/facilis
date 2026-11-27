@@ -1,4 +1,4 @@
-// The state lenses' banner (D-224, #199): normalised facts rendered with the shared chrome, so
+// The state lenses' banner (D-225, #199): normalised facts rendered with the shared chrome, so
 // a live lens looks like an analyzer lens without inventing a second panel.
 
 import { t } from "@/i18n";

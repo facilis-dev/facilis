@@ -1,4 +1,4 @@
-// The reach lens's facts (D-224, Q20): the declared permission rule, the wildcard expansion,
+// The reach lens's facts (D-225, Q20): the declared permission rule, the wildcard expansion,
 // the public callout and the unknown-permission case. Pure inputs, so the matching semantics are
 // pinned here independently of the framework's roles.ts.
 

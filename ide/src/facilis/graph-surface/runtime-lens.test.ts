@@ -1,4 +1,4 @@
-// The runtime lens's fact mapping (D-224, Q18): samples become normalised state facts and
+// The runtime lens's fact mapping (D-225, Q18): samples become normalised state facts and
 // draw-only badges, never layout input. Pure inputs, so the node mapping, the thresholds and
 // the empty state are all unit-testable without a preview.
 

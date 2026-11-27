@@ -1,4 +1,4 @@
-// The prerender lens's classification (D-224, Q21): declared-eligible, eligible-undeclared,
+// The prerender lens's classification (D-225, Q21): declared-eligible, eligible-undeclared,
 // ineligible with one code per blocker, and unknown when the analyzer produced no fact. Pure
 // inputs, so the three counts, the reason codes and the layout invariance are unit-testable.
 

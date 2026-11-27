@@ -1,4 +1,4 @@
-// The reach lens's facts (D-224, Q20): what one declared role can call. Pure and read-only:
+// The reach lens's facts (D-225, Q20): what one declared role can call. Pure and read-only:
 // the matching rule is the framework's (hasPermission requires at least one of the route's
 // permissions; a "*" role grants every declared permission), and the page/table surface is the
 // route's one-hop neighbourhood, so the lens reuses the focus traversal instead of a new walk.

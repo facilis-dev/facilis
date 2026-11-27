@@ -1,4 +1,4 @@
-// The selected node's callout (D-220, #189; state lenses D-224, #199): analyzer diagnostics and
+// The selected node's callout (D-220, #189; state lenses D-225, #199): analyzer diagnostics and
 // state facts for that node, resolved through t(code, params) so an en/it switch re-translates in
 // place without a reload. It sits inside the existing drawer, so selecting a flagged answer
 // reuses the #187 path.

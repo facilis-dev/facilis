@@ -1,4 +1,4 @@
-// The runtime lens's facts (D-224, Q18): per-route samples from the dev-only collector,
+// The runtime lens's facts (D-225, Q18): per-route samples from the dev-only collector,
 // normalised to state facts and draw-only badges. Pure: it reads a snapshot and a view and
 // never touches the layout, so a badge cannot move or resize a card.
 

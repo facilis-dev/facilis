@@ -1,4 +1,4 @@
-# D-224 — Graph state lenses read live and workspace facts, never analyzer diagnostics
+# D-225 — Graph state lenses read live and workspace facts, never analyzer diagnostics
 **Status:** accepted (2026-11-26)
 
 **Context.** Phase 1 (D-219, D-220) gave the graph lenses backed by analyzer diagnostics: a code

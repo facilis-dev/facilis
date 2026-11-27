@@ -1,4 +1,4 @@
-// The changes lens's facts (D-224, Q19): the working tree against the D-181 checkpoint,
+// The changes lens's facts (D-225, Q19): the working tree against the D-181 checkpoint,
 // mapped from file paths to the graph nodes that own them. Pure and read-only: a change is
 // never placed, never re-analyzed, and a deleted file's node is only marked where the layout
 // already put it.

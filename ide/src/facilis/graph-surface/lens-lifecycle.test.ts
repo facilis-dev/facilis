@@ -1,4 +1,4 @@
-// The lens source lifecycle (D-224 §4, #198): activation belongs to the lens, is idempotent, and
+// The lens source lifecycle (D-225 §4, #198): activation belongs to the lens, is idempotent, and
 // a static source never runs a hook. Synthetic descriptors let the live branch be exercised before
 // the first live lens ships.
 

@@ -1,4 +1,4 @@
-// The changes lens's source adapter (D-224 §4, Q19). It reads the D-181 checkpoint through
+// The changes lens's source adapter (D-225 §4, Q19). It reads the D-181 checkpoint through
 // the same read-only `readWorktree` the AI gate uses, refreshes on the controller's snapshot
 // notifications while the lens is open, and never writes to git or to `.facilis`.
 

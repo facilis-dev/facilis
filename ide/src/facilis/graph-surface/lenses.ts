@@ -1,4 +1,4 @@
-// The graph lens code contract (D-220, D-224, #189/#198). Analyzer facts and IDE state facts
+// The graph lens code contract (D-220, D-225, #189/#198). Analyzer facts and IDE state facts
 // both carry a stable code plus params; this module is the ONE place that maps a diagnostic code
 // to its lens, i18n keys and semantic colour token, so no component ever hardcodes prose or a
 // palette value (D-043/D-044). The descriptor registry itself lives in lenses-registry.ts.
@@ -20,13 +20,13 @@ export const GRAPH_LENS_IDS = [
 export type GraphLensId = (typeof GRAPH_LENS_IDS)[number];
 
 /**
- * Where a lens's facts come from (D-224 §1). The taxonomy is closed: adding a source is a
+ * Where a lens's facts come from (D-225 §1). The taxonomy is closed: adding a source is a
  * contract change, not another adapter.
  */
 export const GRAPH_LENS_SOURCES = ["static", "live", "workspace", "declared"] as const;
 export type GraphLensSource = (typeof GRAPH_LENS_SOURCES)[number];
 
-/** The IDE's own state vocabulary (D-224 §2): live/workspace/declared facts, never analyzer. */
+/** The IDE's own state vocabulary (D-225 §2): live/workspace/declared facts, never analyzer. */
 export type GraphStateCode = `state.${string}`;
 export type GraphLensCode = GraphDiagnosticCode | GraphStateCode;
 

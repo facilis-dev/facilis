@@ -1,4 +1,4 @@
-// Normalised state facts (D-224 §2): every live, workspace and declared lens speaks this
+// Normalised state facts (D-225 §2): every live, workspace and declared lens speaks this
 // shape, so the bar, the answer list and the callout render any of them through t(code, params)
 // without inventing prose. Analyzer diagnostics deliberately keep their own type.
 

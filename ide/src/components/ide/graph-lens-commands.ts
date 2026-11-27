@@ -1,7 +1,7 @@
 // The command-palette and lens-picker catalogue (issue #204), derived from the ONE lens
 // registry (#198): adding a lens makes it appear here with no palette change. Both surfaces
 // run the same intent — open the graph tab, then ask the panel to toggle the lens — so the
-// bar's lifecycle stays the only implementation (D-224).
+// bar's lifecycle stays the only implementation (D-225).
 
 import { t } from "@/i18n";
 import {

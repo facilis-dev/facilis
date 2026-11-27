@@ -1,4 +1,4 @@
-// The source lifecycle of a graph lens (D-224 §4, #198). A lens is draw state; its source is
+// The source lifecycle of a graph lens (D-225 §4, #198). A lens is draw state; its source is
 // not: a live, workspace or declared lens must be enabled when its lens opens and dropped when
 // it closes, switches, unmounts or the project changes. `static` has no adapter, so the analyzer
 // lenses stay a pure filter over facts the panel already holds.

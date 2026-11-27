@@ -190,7 +190,7 @@ describe("draw-only lens state", () => {
   });
 });
 
-describe("lens registry (D-224, #198)", () => {
+describe("lens registry (D-225, #198)", () => {
   it("declares a source for every lens and keeps the analyzer lenses static", () => {
     expect(GRAPH_LENSES.map((lens) => [lens.id, lens.source])).toEqual([
       ["security", "static"],

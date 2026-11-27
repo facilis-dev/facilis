@@ -259,7 +259,7 @@ export const projectGraphEn = {
     "This project has no findings for the {lens} lens. Close the lens to return to the full map — nothing was hidden or moved.",
   "projectGraph.surface.lens.emptyLeave": "Close lens",
 
-  // ── state lenses: live/workspace/declared facts (D-224, epic #196) ───────────
+  // ── state lenses: live/workspace/declared facts (D-225, epic #196) ───────────
   "projectGraph.surface.state.notRunning": "Project not running",
   "projectGraph.surface.diag.title": "Diagnosis",
   "projectGraph.surface.diag.publicWrite":

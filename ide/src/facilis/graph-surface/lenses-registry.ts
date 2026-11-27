@@ -1,4 +1,4 @@
-// The graph lens registry (D-220, D-224): one descriptor per lens with its fact source, keys,
+// The graph lens registry (D-220, D-225): one descriptor per lens with its fact source, keys,
 // codes and legend. Split from `lenses.ts` so the code -> key/token contract and the registry
 // each stay under the 300-line source limit; this module imports the code tables, never the
 // reverse.
@@ -102,7 +102,7 @@ const LENS_COLOR_TOKENS: Readonly<Record<GraphLensId, string>> = {
   prerender: "--success",
 };
 
-/** Per-code legend text and colour for the IDE's own `state.*` vocabulary (D-224 §2). */
+/** Per-code legend text and colour for the IDE's own `state.*` vocabulary (D-225 §2). */
 const STATE_LEGEND: Readonly<
   Record<string, { messageKey: MessageKey; labelKey: MessageKey; colorToken: string }>
 > = {

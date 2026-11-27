@@ -1,4 +1,4 @@
-// The live source adapter of the runtime lens (D-224 §4, Q18). It is the one place that
+// The live source adapter of the runtime lens (D-225 §4, Q18). It is the one place that
 // turns a lens opening into the D-200 enable/disable calls, so the dev handle and the lens
 // use the same seam and cannot drift. Unavailable is a code: a stopped preview never posts
 // an enable message.

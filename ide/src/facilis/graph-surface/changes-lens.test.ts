@@ -1,4 +1,4 @@
-// The changes lens's fact mapping (D-224, Q19): paths become node marks, never placed nodes
+// The changes lens's fact mapping (D-225, Q19): paths become node marks, never placed nodes
 // and never a write. Pure inputs, so the modified/added/deleted mapping, the ribbons and the
 // clean/no-repo states are unit-testable without a repository.
 

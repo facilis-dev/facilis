@@ -1,4 +1,4 @@
-// English strings for the state lenses (D-224, epic #196): runtime (#199) and changes
+// English strings for the state lenses (D-225, epic #196): runtime (#199) and changes
 // (#200). Split from the project-graph catalogue, which is at the 300-line source limit; keys
 // stay flat.
 export const stateLensesEn = {

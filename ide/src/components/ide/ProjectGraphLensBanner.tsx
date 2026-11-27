@@ -1,5 +1,5 @@
 // The analyzer lenses' banner plus the chrome every lens banner shares (D-220, #189; state
-// lenses D-224, #199), so a new lens never forks the bar, the legend or the answer list. Every
+// lenses D-225, #199), so a new lens never forks the bar, the legend or the answer list. Every
 // string is a t() key and every colour is a semantic token declared by the lens registry.
 
 import type { ReactNode } from "react";

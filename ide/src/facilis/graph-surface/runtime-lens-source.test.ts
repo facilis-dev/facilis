@@ -1,4 +1,4 @@
-// The runtime lens's live adapter (D-224 §4, #199): unavailable is a code, and a stopped
+// The runtime lens's live adapter (D-225 §4, #199): unavailable is a code, and a stopped
 // preview or a production build never yields an available source.
 
 import { describe, expect, it } from "vitest";
