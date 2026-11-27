@@ -14,11 +14,12 @@ import {
   devDbSnapshotPath,
   installDevDbSnapshotter,
   readDevDbSnapshot,
+  stateDirOf,
   type DevDbSnapshotter,
 } from "./dev-db-persistence.ts";
 import { bootRuntimes } from "./boot-runtimes.ts";
 import { isProductionEnvironment } from "./env.ts";
-import { readProjectConfig } from "./project-config.ts";
+import { bootProjectConfig } from "./runtime-config-boot.ts";
 import { registerRuntimeCloseHook } from "./shutdown.ts";
 import type { BootstrapState } from "./bootstrap-state.ts";
 import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
@@ -49,20 +50,23 @@ export function getSessionHandler(
   state.sessionHandler ??= sessionMiddleware({
     db: state.db,
     config: toAuthConfig(state.config.auth),
-    tenantId: readDefaultTenantId(),
+    tenantId: readDefaultTenantId(state.runtime),
   });
   return state.sessionHandler;
 }
 
 async function bootstrap(): Promise<BootstrapState> {
-  const warnings: ManifestWarning[] = [];
+  const booted = bootProjectConfig();
+  const projectConfig = booted.config;
+  const runtime = booted.runtime;
+  const warnings: ManifestWarning[] = [...booted.warnings];
   const startedAt = new Date().toISOString();
-  const projectConfig = readProjectConfig(warnings);
 
   // Operator logging is built BEFORE the database (D-119): a database boot failure must not
   // take the access/error streams down with it, and logging never prevents a boot.
   const loggingState = createBootstrapLogging({
     loggingConfig: projectConfig?.logging ?? null,
+    runtime,
     env: process.env,
     projectRoot,
   });
@@ -79,6 +83,7 @@ async function bootstrap(): Promise<BootstrapState> {
     return {
       db: null,
       config: null,
+      runtime,
       warnings,
       startedAt,
       jobs: null,
@@ -91,19 +96,20 @@ async function bootstrap(): Promise<BootstrapState> {
 
   // Binary storage is independent of the database: a refused storage configuration is a
   // warning and a null API, so the rest of the app keeps working (D-053).
-  const resolvedStorage = resolveStorage(projectConfig, process.env, projectRoot);
+  const resolvedStorage = resolveStorage(projectConfig, runtime, process.env, projectRoot);
   warnings.push(...resolvedStorage.warnings);
   const storage = resolvedStorage.storage;
 
   // The environment, not the config alone, decides where data lives (D-068): a deployment
   // sets a Postgres URL and the same build runs there. Every refusal is a warning, so a
   // misconfigured production boot degrades to "no database" instead of crashing.
-  const resolved = resolveDbTarget(projectConfig, process.env);
+  const resolved = resolveDbTarget(runtime, process.env);
   warnings.push(...resolved.warnings);
   if (resolved.target === null) {
     return {
       db: null,
       config: projectConfig,
+      runtime,
       warnings,
       startedAt,
       jobs: null,
@@ -119,7 +125,8 @@ async function bootstrap(): Promise<BootstrapState> {
   // Dev-only persistence (D-052): an in-memory PGlite cluster is restored from one snapshot
   // file in the project. A postgres target has no snapshot to read, and must not restore one.
   const devPersistenceEnabled = usesPglite && !isProductionEnvironment();
-  const snapshotPath = devDbSnapshotPath(projectRoot);
+  const stateDir = stateDirOf(runtime);
+  const snapshotPath = devDbSnapshotPath(projectRoot, stateDir);
   let snapshot: Uint8Array | null = null;
   if (devPersistenceEnabled) {
     try {
@@ -148,6 +155,7 @@ async function bootstrap(): Promise<BootstrapState> {
       return {
         db: null,
         config: projectConfig,
+        runtime,
         warnings,
         startedAt,
         jobs: null,
@@ -180,6 +188,7 @@ async function bootstrap(): Promise<BootstrapState> {
       return {
         db: null,
         config: projectConfig,
+        runtime,
         warnings,
         startedAt,
         jobs: null,
@@ -220,6 +229,7 @@ async function bootstrap(): Promise<BootstrapState> {
     snapshotter = installDevDbSnapshotter({
       db,
       projectRoot,
+      stateDir,
       snapshotPath,
       onError: (error) => {
         // One warning per process is enough: a full disk would otherwise flood the manifest.
@@ -239,7 +249,7 @@ async function bootstrap(): Promise<BootstrapState> {
   // (D-107, D-135); a failure in any of them is a warning and a null service, not a 500.
   const { jobs, tasks, workflows } = await bootRuntimes({
     db,
-    tenantId: readDefaultTenantId(),
+    tenantId: readDefaultTenantId(runtime),
     projectConfig,
     jobModules,
     workflowModules,
@@ -254,6 +264,7 @@ async function bootstrap(): Promise<BootstrapState> {
   return {
     db,
     config: projectConfig,
+    runtime,
     warnings,
     startedAt,
     jobs,

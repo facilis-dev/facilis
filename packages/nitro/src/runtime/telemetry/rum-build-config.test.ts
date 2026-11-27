@@ -4,7 +4,7 @@ import { TELEMETRY_TRACES_ROUTE } from "../../constants.ts";
 import { readRumBuildConfig } from "./rum-build-config.ts";
 
 const ON = {
-  FACILIS_TELEMETRY: "on",
+  FACILIS_TELEMETRY_ENABLED: "on",
   FACILIS_TELEMETRY_FE: "on",
   FACILIS_TELEMETRY_TENANT_KEY: "pub_write_only_1",
 };
@@ -16,7 +16,7 @@ describe("readRumBuildConfig — off by default", () => {
 
   it("is null with the master switch on but FE unset (FE is an explicit opt-in)", () => {
     expect(
-      readRumBuildConfig({ FACILIS_TELEMETRY: "on", FACILIS_TELEMETRY_TENANT_KEY: "k" }),
+      readRumBuildConfig({ FACILIS_TELEMETRY_ENABLED: "on", FACILIS_TELEMETRY_TENANT_KEY: "k" }),
     ).toBeNull();
   });
 
@@ -27,17 +27,17 @@ describe("readRumBuildConfig — off by default", () => {
   });
 
   it("is null unless both switches are exactly on (trimmed)", () => {
-    expect(readRumBuildConfig({ ...ON, FACILIS_TELEMETRY: "true" })).toBeNull();
+    expect(readRumBuildConfig({ ...ON, FACILIS_TELEMETRY_ENABLED: "true" })).toBeNull();
     expect(readRumBuildConfig({ ...ON, FACILIS_TELEMETRY_FE: "1" })).toBeNull();
     expect(
-      readRumBuildConfig({ ...ON, FACILIS_TELEMETRY: " on ", FACILIS_TELEMETRY_FE: " on " }),
+      readRumBuildConfig({ ...ON, FACILIS_TELEMETRY_ENABLED: " on ", FACILIS_TELEMETRY_FE: " on " }),
     ).not.toBeNull();
   });
 });
 
 describe("readRumBuildConfig — tenant key gate", () => {
   it("is null without a key (the route would reject every POST)", () => {
-    expect(readRumBuildConfig({ FACILIS_TELEMETRY: "on", FACILIS_TELEMETRY_FE: "on" })).toBeNull();
+    expect(readRumBuildConfig({ FACILIS_TELEMETRY_ENABLED: "on", FACILIS_TELEMETRY_FE: "on" })).toBeNull();
   });
 
   it("is null for an empty or whitespace-bearing key", () => {

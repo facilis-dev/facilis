@@ -1,13 +1,30 @@
 import { resolve } from "node:path";
 
+import type { FacilisRuntimeConfig, FacilisRuntimeValue } from "@facilis.dev/core";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOG_KEEP, DEFAULT_LOG_MAX_BYTES, resolveLogSettings } from "./log-settings.ts";
 
 const ROOT = "/tmp/facilis-project";
 
+/** Mirrors what the resolver hands the boot from the same environment. */
+function runtimeFrom(env: Record<string, string>): FacilisRuntimeConfig {
+  const runtime: Record<string, FacilisRuntimeValue> = {};
+  if (env["FACILIS_LOG_SINK"] !== undefined) runtime["logSink"] = env["FACILIS_LOG_SINK"];
+  if (env["FACILIS_LOG_DIR"] !== undefined) runtime["logDir"] = env["FACILIS_LOG_DIR"];
+  if (env["FACILIS_LOG_MAX_BYTES"] !== undefined) {
+    runtime["logMaxBytes"] = Number(env["FACILIS_LOG_MAX_BYTES"]);
+  }
+  if (env["FACILIS_LOG_KEEP"] !== undefined) runtime["logKeep"] = Number(env["FACILIS_LOG_KEEP"]);
+  // The resolver always applies a declared level; the helper defaults it so each test states
+  // only the key it exercises.
+  runtime["logLevel"] = env["FACILIS_LOG_LEVEL"] ?? "info";
+  return runtime;
+}
+
 function resolveWith(env: Record<string, string> = {}, production?: boolean) {
   return resolveLogSettings({
+    runtime: runtimeFrom(env),
     env: { NODE_ENV: "development", ...env },
     projectRoot: ROOT,
     ...(production === undefined ? {} : { production }),
@@ -23,7 +40,7 @@ describe("resolveLogSettings", () => {
     expect(settings.dir).toBe(resolve(ROOT, ".facilis", "logs"));
     expect(settings.maxBytes).toBe(DEFAULT_LOG_MAX_BYTES);
     expect(settings.keep).toBe(DEFAULT_LOG_KEEP);
-    expect(settings.level).toBeNull();
+    expect(settings.level).toBe("info");
     expect(warnings).toEqual([]);
   });
 
@@ -93,18 +110,31 @@ describe("resolveLogSettings", () => {
     ]);
   });
 
-  it("takes a valid FACILIS_LOG_LEVEL override", () => {
+  it("takes a valid runtime.logLevel", () => {
     const { settings, warnings } = resolveWith({ FACILIS_LOG_LEVEL: "debug" });
 
     expect(settings.level).toBe("debug");
     expect(warnings).toEqual([]);
   });
 
-  it("ignores an invalid FACILIS_LOG_LEVEL with a warning", () => {
+  it("suppresses app entries and warns on an invalid runtime.logLevel", () => {
     const { settings, warnings } = resolveWith({ FACILIS_LOG_LEVEL: "verbose" });
 
     expect(settings.level).toBeNull();
     expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("FACILIS_LOG_LEVEL");
+  });
+
+  it("suppresses app entries and warns when runtime.logLevel is not declared", () => {
+    const { settings, warnings } = resolveLogSettings({
+      runtime: {},
+      env: { NODE_ENV: "development" },
+      projectRoot: ROOT,
+    });
+
+    expect(settings.level).toBeNull();
+    expect(warnings.map((warning) => warning.code)).toEqual(["logging_level_missing"]);
+    expect(warnings[0]?.message).toContain("runtime.logLevel");
     expect(warnings[0]?.message).toContain("FACILIS_LOG_LEVEL");
   });
 });

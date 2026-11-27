@@ -20,6 +20,7 @@ function state(db: FacilisDb | null, warnings: BootstrapState["warnings"] = []):
   return {
     db,
     config: null,
+    runtime: {},
     warnings,
     startedAt: "2026-11-02T00:00:00.000Z",
     jobs: null,

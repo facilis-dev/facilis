@@ -43,7 +43,7 @@ export default defineAuthorizedHandler(
     rateLimit: { maxRequests: 5, windowMs: 60_000 },
     description: "Register a user with the default role.",
   },
-  async (_event, { body, db, system, log }) => {
+  async (_event, { body, db, system, log, runtime }) => {
     // The duplicate check is a read on the anonymous, policy-scoped client so RLS still decides
     // what this caller may see.
     const [existing] = await db
@@ -83,7 +83,12 @@ export default defineAuthorizedHandler(
           .onConflictDoNothing();
 
         // The promotion needs the operator's bootstrap token, not the email alone (D-150).
-        const promoted = await registerInitialAdmin(systemDb, user.id, body.bootstrapToken);
+        const promoted = await registerInitialAdmin(
+          systemDb,
+          user.id,
+          body.bootstrapToken,
+          runtime,
+        );
         return { kind: "created", userId: user.id, promoted };
       },
     );

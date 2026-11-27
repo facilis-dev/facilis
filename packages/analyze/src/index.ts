@@ -76,3 +76,4 @@ export type { TransportSpec } from "./passes/clients.ts";
 // Job facts live in types-jobs.ts (the 300-line split of types.ts), so export them here.
 export type { JobFact, JobRelationsFact } from "./types-jobs.ts";
 export type * from "./types.ts";
+export type { ConfigRuntimeFacts, RuntimeKeyFact, RuntimeKeyState } from "./types-runtime.ts";

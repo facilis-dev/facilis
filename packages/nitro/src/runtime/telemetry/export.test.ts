@@ -1,13 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
+import type { FacilisRuntimeConfig } from "@facilis.dev/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import {
-  DEPLOYMENT_ID_ENV,
-  TELEMETRY_ENDPOINT_ENV,
-  TELEMETRY_ENV,
-  TELEMETRY_SERVICE_ENV,
-} from "./config.ts";
 import { createTelemetryPipeline, type TelemetryExportConfig } from "./export.ts";
 import { activeTelemetry, bootstrapTelemetry, installTelemetryRuntime } from "./runtime.ts";
 
@@ -73,16 +67,17 @@ function configFor(endpoint: string): TelemetryExportConfig {
   return { endpoint, sampling: 1, serviceName: "acme-shop", deploymentId: "dep-42" };
 }
 
-/** The env a managed deploy boots with, reduced to what telemetry reads. */
-function deployEnv(endpoint: string): NodeJS.ProcessEnv {
+/** The runtime section a managed deploy boots with, reduced to what telemetry reads. */
+function deployRuntime(endpoint: string): FacilisRuntimeConfig {
   return {
-    NODE_ENV: "production",
-    [TELEMETRY_ENV]: "on",
-    [TELEMETRY_ENDPOINT_ENV]: endpoint,
-    [TELEMETRY_SERVICE_ENV]: "acme-shop",
-    [DEPLOYMENT_ID_ENV]: "dep-42",
+    telemetryEnabled: true,
+    telemetryEndpoint: endpoint,
+    telemetryService: "acme-shop",
+    deploymentId: "dep-42",
   };
 }
+
+const PRODUCTION = { NODE_ENV: "production" };
 
 /** The payload is protobuf; its attribute keys and names are still readable as raw bytes. */
 function textOf(request: CollectorRequest | undefined): string {
@@ -192,9 +187,11 @@ describe("createTelemetryPipeline", () => {
 describe("bootstrapTelemetry", () => {
   it("installs the pipeline a deploy enabled and exports through it", async () => {
     const collector = await startCollector();
-    const installation = bootstrapTelemetry(deployEnv(collector.endpoint), {
-      scheduledDelayMillis: 60_000,
-    });
+    const installation = bootstrapTelemetry(
+      deployRuntime(collector.endpoint),
+      PRODUCTION,
+      { scheduledDelayMillis: 60_000 },
+    );
     expect(installation).not.toBeNull();
     expect(activeTelemetry()).not.toBeNull();
 
@@ -209,12 +206,15 @@ describe("bootstrapTelemetry", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const endpoint = "http://127.0.0.1:9";
 
-    for (const env of [
-      { NODE_ENV: "production" },
-      { NODE_ENV: "development", [TELEMETRY_ENV]: "on", [TELEMETRY_ENDPOINT_ENV]: endpoint },
-      { NODE_ENV: "test", [TELEMETRY_ENV]: "on", [TELEMETRY_ENDPOINT_ENV]: endpoint },
-    ]) {
-      expect(bootstrapTelemetry(env)).toBeNull();
+    for (const [runtime, env] of [
+      [{}, { NODE_ENV: "production" }],
+      [
+        { telemetryEnabled: true, telemetryEndpoint: endpoint },
+        { NODE_ENV: "development" },
+      ],
+      [{ telemetryEnabled: true, telemetryEndpoint: endpoint }, { NODE_ENV: "test" }],
+    ] as const) {
+      expect(bootstrapTelemetry(runtime, env)).toBeNull();
       expect(activeTelemetry()).toBeNull();
     }
     // A disabled boot says nothing: silence is part of the contract.
@@ -225,7 +225,9 @@ describe("bootstrapTelemetry", () => {
   it("drops a switched-on pipeline with no collector and says so once", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    expect(bootstrapTelemetry({ NODE_ENV: "production", [TELEMETRY_ENV]: "on" })).toBeNull();
+    expect(
+      bootstrapTelemetry({ telemetryEnabled: true, telemetryEndpoint: null }, PRODUCTION),
+    ).toBeNull();
     expect(activeTelemetry()).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toContain("FACILIS_TELEMETRY_ENDPOINT");

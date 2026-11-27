@@ -1,3 +1,4 @@
+import { SecretString } from "@facilis.dev/core";
 import { describe, expect, it } from "vitest";
 
 import { resolveEncryptionKeys } from "./storage-keys.ts";
@@ -7,7 +8,7 @@ const HEX = "07".repeat(32);
 
 describe("resolveEncryptionKeys", () => {
   it("reads a base64 active key and defaults the key id to primary", () => {
-    const resolved = resolveEncryptionKeys({ FACILIS_STORAGE_ENCRYPTION_KEY: KEY });
+    const resolved = resolveEncryptionKeys({ storageEncryptionKey: new SecretString(KEY) });
     expect(resolved.keys).not.toBeNull();
     if (resolved.keys === null) return;
     expect(resolved.keys.activeKeyId).toBe("primary");
@@ -16,8 +17,8 @@ describe("resolveEncryptionKeys", () => {
 
   it("accepts hex and a custom key id", () => {
     const resolved = resolveEncryptionKeys({
-      FACILIS_STORAGE_ENCRYPTION_KEY: HEX,
-      FACILIS_STORAGE_ENCRYPTION_KEY_ID: "release-2026.01",
+      storageEncryptionKey: HEX,
+      storageEncryptionKeyId: "release-2026.01",
     });
     if (resolved.keys === null) throw new Error("expected keys");
     expect(resolved.keys.activeKeyId).toBe("release-2026.01");
@@ -26,10 +27,10 @@ describe("resolveEncryptionKeys", () => {
 
   it("reads retired keys so old blobs keep decrypting", () => {
     const resolved = resolveEncryptionKeys({
-      FACILIS_STORAGE_ENCRYPTION_KEY: KEY,
-      FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS: JSON.stringify({
-        old: Buffer.alloc(32, 9).toString("base64"),
-      }),
+      storageEncryptionKey: KEY,
+      storageEncryptionRetiredKeys: new SecretString(
+        JSON.stringify({ old: Buffer.alloc(32, 9).toString("base64") }),
+      ),
     });
     if (resolved.keys === null) throw new Error("expected keys");
     expect(Object.keys(resolved.keys.keys).toSorted()).toEqual(["old", "primary"]);
@@ -48,7 +49,7 @@ describe("resolveEncryptionKeys", () => {
     ["AAAA", "FACILIS_STORAGE_ENCRYPTION_KEY must be"],
     ["!!!!", "FACILIS_STORAGE_ENCRYPTION_KEY must be"],
   ])("rejects a malformed active key %s", (value, expected) => {
-    const resolved = resolveEncryptionKeys({ FACILIS_STORAGE_ENCRYPTION_KEY: value });
+    const resolved = resolveEncryptionKeys({ storageEncryptionKey: value });
     expect(resolved.keys).toBeNull();
     if (resolved.keys !== null) return;
     expect(resolved.problem).toBe("invalid");
@@ -57,8 +58,8 @@ describe("resolveEncryptionKeys", () => {
 
   it("rejects an invalid key id", () => {
     const resolved = resolveEncryptionKeys({
-      FACILIS_STORAGE_ENCRYPTION_KEY: KEY,
-      FACILIS_STORAGE_ENCRYPTION_KEY_ID: "bad id",
+      storageEncryptionKey: KEY,
+      storageEncryptionKeyId: "bad id",
     });
     expect(resolved.keys).toBeNull();
     if (resolved.keys !== null) return;
@@ -72,8 +73,8 @@ describe("resolveEncryptionKeys", () => {
     [JSON.stringify({ old: KEY, primary: KEY }), "both active and retired"],
   ])("rejects invalid retired keys %s", (retired, expected) => {
     const resolved = resolveEncryptionKeys({
-      FACILIS_STORAGE_ENCRYPTION_KEY: KEY,
-      FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS: retired,
+      storageEncryptionKey: KEY,
+      storageEncryptionRetiredKeys: new SecretString(retired),
     });
     expect(resolved.keys).toBeNull();
     if (resolved.keys !== null) return;

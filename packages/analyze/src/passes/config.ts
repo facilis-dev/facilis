@@ -15,6 +15,7 @@ import { sourceRef } from "../source.ts";
 import type { StaticContext } from "../static-eval.ts";
 import type { ConfigFacts, Diagnostic, SourceRef, UnknownFact } from "../types.ts";
 import { readPrerenderFields } from "./config-prerender.ts";
+import { readConfigRuntime } from "./config-runtime.ts";
 import {
   defaultExportExpression,
   isLocallyDeclared,
@@ -52,6 +53,7 @@ function configDefaults(): ConfigFacts {
     tenantColumns: [...DEFAULT_TENANT_COLUMNS],
     ownerColumns: [...DEFAULT_OWNER_COLUMNS],
     prerender: { routes: [], origin: null, unknown: [] },
+    runtimeConfig: { runtime: {}, public: {}, runtimeUnknown: false, publicUnknown: false },
     unknown: [],
   };
 }
@@ -268,6 +270,7 @@ export function buildConfigFacts(graph: ModuleGraph): ConfigResult {
       refOf(context, root.fields.get("prerender")?.node),
       unknown,
     ),
+    runtimeConfig: readConfigRuntime(root, context),
     unknown,
   };
   const issues = validationIssues(facts, auth === null);

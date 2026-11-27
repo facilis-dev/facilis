@@ -16,8 +16,9 @@ type Listener = (event: string, file: string) => void;
 const CONFIG_SOURCE = `import { defineConfig } from "@facilis.dev/core";
 
 export default defineConfig({
-  db: { mode: "pglite", tenantColumns: ["tenantId"], ownerColumns: ["ownerId"] },
+  db: { tenantColumns: ["tenantId"], ownerColumns: ["ownerId"] },
   i18n: { defaultLocale: "en", locales: ["en"] },
+  runtime: { databaseMode: "pglite" },
   auth: {
     permissions: ["todos:read"],
     roles: { user: ["todos:read"] },
@@ -130,6 +131,8 @@ describe("facilis Vite plugin", () => {
         experimental: { openAPI: true },
         devServer: { runner: "self" },
       },
+      // D-224: the public section travels as a define, empty when the project declares none.
+      define: { __FACILIS_PUBLIC_CONFIG__: "{}" },
     });
   });
 
@@ -138,7 +141,10 @@ describe("facilis Vite plugin", () => {
 
     const result = await config.call({}, { root: absentRoot }, { command: "serve" });
 
-    expect(result).toEqual({ nitro: { serverDir: "./server", experimental: { openAPI: true } } });
+    expect(result).toEqual({
+      nitro: { serverDir: "./server", experimental: { openAPI: true } },
+      define: { __FACILIS_PUBLIC_CONFIG__: "{}" },
+    });
   });
 
   it("resolves the metadata virtual module to a null-prefixed id", () => {

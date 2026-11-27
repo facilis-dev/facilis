@@ -13,6 +13,7 @@ import {
 
 const config = defineConfig({
   i18n: { defaultLocale: "en", locales: ["en", "fr"] },
+  runtime: { databaseMode: "pglite" },
   auth: {
     permissions: ["todos:read", "todos:write", "users:read"],
     roles: {

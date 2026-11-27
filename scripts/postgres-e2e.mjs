@@ -158,7 +158,7 @@ async function main() {
         env: {
           ...process.env,
           NODE_ENV: "production",
-          DATABASE_URL: url,
+          FACILIS_DATABASE_URL: url,
           PORT: String(httpPort),
           HOST: "127.0.0.1",
         },

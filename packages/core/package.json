@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
+    "./runtime-config": "./src/runtime-config/index.ts",
     "./i18n": "./src/i18n.ts",
     "./release": "./src/release-preview.ts",
     "./dev-approvals": "./src/dev-approvals.ts",

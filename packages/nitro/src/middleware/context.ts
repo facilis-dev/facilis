@@ -8,6 +8,7 @@ import {
 } from "@facilis.dev/core";
 
 import { getBootstrap } from "../runtime/bootstrap.ts";
+import { runtimeBoolean } from "../runtime/runtime-values.ts";
 import { readDefaultTenantId } from "../runtime/tenant.ts";
 
 /**
@@ -41,16 +42,15 @@ const handler = async (event: H3Event): Promise<void> => {
 
   if (state.db === null) return;
 
-  const client = resolveClient(event, state.loggingConfig);
   // The wrapper's rate-limit key is resolved for every request, independently of the logging
   // opt-ins (D-152): proxy trust decides whether the address identifies the caller, and leaving
   // it unresolved means "no per-client throttle", never one shared window for every user.
-  const clientAddress = getRequestIP(event, {
-    xForwardedFor: state.loggingConfig.trustProxy,
-  });
+  const trustProxy = runtimeBoolean(state.runtime, "logTrustProxy") === true;
+  const client = resolveClient(event, state.loggingConfig, trustProxy);
+  const clientAddress = getRequestIP(event, { xForwardedFor: trustProxy });
   context.facilis = {
     db: state.db,
-    defaultTenantId: readDefaultTenantId(),
+    defaultTenantId: readDefaultTenantId(state.runtime),
     ...(clientAddress === undefined ? {} : { clientAddress }),
     // ctx.log and the access/error streams are structural for every authorized handler
     // (D-119): attach the runtime and the one id all entries of this request share.
@@ -77,13 +77,15 @@ interface ClientMetadata {
 }
 
 /** Client metadata is opt-in: proxy trust and User-Agent collection are deployment decisions. */
-function resolveClient(event: H3Event, config: FacilisLoggingConfig): ClientMetadata | undefined {
+function resolveClient(
+  event: H3Event,
+  config: FacilisLoggingConfig,
+  trustProxy: boolean,
+): ClientMetadata | undefined {
   const userAgent = config.includeUserAgent
     ? readNonEmptyHeader(event, USER_AGENT_HEADER)
     : undefined;
-  const ip = config.trustProxy
-    ? firstForwardedFor(readNonEmptyHeader(event, FORWARDED_FOR_HEADER))
-    : undefined;
+  const ip = trustProxy ? firstForwardedFor(readNonEmptyHeader(event, FORWARDED_FOR_HEADER)) : undefined;
   if (userAgent === undefined && ip === undefined) return undefined;
   return {
     ...(ip === undefined ? {} : { ip }),

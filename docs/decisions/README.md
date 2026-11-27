@@ -2,7 +2,7 @@
 
 # Decision index
 
-221 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
+222 decisions, one file each (`D-0NN-<slug>.md`). The reading guide and the
 open items are in [`../DECISIONS.md`](../DECISIONS.md); a `D-0NN` reference anywhere resolves to
 the file whose name starts with that ID.
 
@@ -229,3 +229,4 @@ the file whose name starts with that ID.
 | [D-221](./D-221-the-project-graph-has-one-canvas-surface-react-flow-is-retired.md) | The project graph has one canvas surface; React Flow is retired | accepted | 2026-11-25 |
 | [D-222](./D-222-graph-notes-are-rendered-as-culled-dom-cards-on-the-canvas-surface.md) | Graph notes are rendered as culled DOM cards on the canvas surface | accepted | 2026-11-26 |
 | [D-223](./D-223-graph-group-overrides-are-per-node-team-state-in-groups-key-json.md) | Graph group overrides are per-node team state in `groups/<key>.json` | accepted | 2026-11-26 |
+| [D-224](./D-224-deployment-values-live-in-a-runtime-section-of-facilis-config-ts.md) | Deployment values live in a `runtime` section of `facilis.config.ts` | accepted | 2026-11-26 |

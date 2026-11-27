@@ -5,7 +5,7 @@ import { TELEMETRY_TRACES_ROUTE } from "./constants.ts";
 import { facilisRum, RUM_CONFIG_DEFINE, RUM_PLUGIN_NAME } from "./vite-rum.ts";
 
 const ON = {
-  FACILIS_TELEMETRY: "on",
+  FACILIS_TELEMETRY_ENABLED: "on",
   FACILIS_TELEMETRY_FE: "on",
   FACILIS_TELEMETRY_TENANT_KEY: "pub_write_only_1",
 };
@@ -40,9 +40,9 @@ describe("facilisRum — build-only companion", () => {
   });
 
   it("defines null when FE is off or the key is missing", () => {
-    expect(runConfig({ FACILIS_TELEMETRY: "on" }).define?.[RUM_CONFIG_DEFINE]).toBe("null");
+    expect(runConfig({ FACILIS_TELEMETRY_ENABLED: "on" }).define?.[RUM_CONFIG_DEFINE]).toBe("null");
     expect(
-      runConfig({ FACILIS_TELEMETRY: "on", FACILIS_TELEMETRY_FE: "on" }).define?.[
+      runConfig({ FACILIS_TELEMETRY_ENABLED: "on", FACILIS_TELEMETRY_FE: "on" }).define?.[
         RUM_CONFIG_DEFINE
       ],
     ).toBe("null");

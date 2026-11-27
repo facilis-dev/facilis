@@ -1,5 +1,5 @@
 # D-209 — Frontend RUM is a browser-only package enabled by a build-time define
-**Status:** accepted (2026-11-24)
+**Status:** accepted (2026-11-24); the build-time switch is renamed `FACILIS_TELEMETRY_ENABLED` by D-224
 
 **Context.** D-203 §2 specified framework-owned frontend RUM (issue #138): web vitals, errors,
 document-load and fetch spans, value-free attributes, own-origin `traceparent` propagation,

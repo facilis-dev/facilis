@@ -1,6 +1,7 @@
-import type { FacilisConfig, ManifestWarning } from "@facilis.dev/core";
+import type { FacilisRuntimeConfig, ManifestWarning } from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "./env.ts";
+import { runtimeSecret, runtimeString } from "./runtime-values.ts";
 
 /** Driver a booting project can open; mirrors @facilis.dev/db's `DbDriver`. */
 export type DbTargetDriver = "pglite" | "postgres";
@@ -25,17 +26,30 @@ export interface ResolvedDbTarget {
  * or, worse, silently writing a production app to the in-memory PGlite cluster.
  */
 export function resolveDbTarget(
-  config: FacilisConfig | null,
+  runtime: FacilisRuntimeConfig,
   env: NodeJS.ProcessEnv,
 ): ResolvedDbTarget {
   // A hosting panel that defines the variable but leaves it blank is "not configured": an
   // empty URL would otherwise reach the driver and surface as a confusing connection error.
-  const url = readUrl(env["FACILIS_DATABASE_URL"]) ?? readUrl(env["DATABASE_URL"]);
+  // One key, one variable (D-224): a platform's DATABASE_URL is mapped to FACILIS_DATABASE_URL
+  // (or declared as runtime.databaseUrl), never read behind the declaration.
+  const url = readUrl(runtimeSecret(runtime, "databaseUrl") ?? undefined);
   if (url !== undefined) {
     return { target: { driver: "postgres", url }, warnings: [] };
   }
 
-  const mode = config?.db.mode ?? "pglite";
+  const mode = runtimeString(runtime, "databaseMode")?.trim();
+  if (mode === undefined || mode.length === 0) {
+    return {
+      target: null,
+      warnings: [
+        warning(
+          "db_database_mode_missing",
+          'runtime.databaseMode is not declared; set FACILIS_DATABASE_MODE to "pglite" or "postgres".',
+        ),
+      ],
+    };
+  }
 
   if (mode === "pglite") {
     if (isProductionEnvironment(env)) {
@@ -44,7 +58,7 @@ export function resolveDbTarget(
         warnings: [
           warning(
             "db_pglite_in_production",
-            "Production refuses the in-memory PGlite driver: set FACILIS_DATABASE_URL (or DATABASE_URL) to a Postgres connection string.",
+            "Production refuses the in-memory PGlite driver: set FACILIS_DATABASE_URL to a Postgres connection string.",
           ),
         ],
       };
@@ -58,7 +72,7 @@ export function resolveDbTarget(
       warnings: [
         warning(
           "db_url_missing",
-          'db.mode is "postgres" but neither FACILIS_DATABASE_URL nor DATABASE_URL is set.',
+          'runtime.databaseMode is "postgres" but FACILIS_DATABASE_URL is not set.',
         ),
       ],
     };
@@ -70,7 +84,7 @@ export function resolveDbTarget(
     warnings: [
       warning(
         "db_mode_unsupported",
-        `db.mode "${mode}" has no runtime driver; use "pglite" or "postgres".`,
+        `runtime.databaseMode "${mode}" has no runtime driver; use "pglite" or "postgres".`,
       ),
     ],
   };

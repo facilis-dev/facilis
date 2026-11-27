@@ -1,4 +1,4 @@
-import type { FacilisStorageConfig } from "./config.ts";
+import type { StorageDriverKind } from "./config.ts";
 
 /**
  * The server-side storage surface a route context carries (D-053, SPEC §5.10).
@@ -41,7 +41,7 @@ export interface StoragePresignOptions {
 
 export interface StorageApi {
   /** "local" in dev, "s3" in production; "none" is the unavailable fallback. */
-  readonly kind: FacilisStorageConfig["driver"] | "none";
+  readonly kind: StorageDriverKind | "none";
   /** False when the boot could not configure a driver; routes must degrade, not crash. */
   readonly available: boolean;
   /** Upload limit from facilis.config.ts (storage.maxUploadBytes). */

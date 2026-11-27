@@ -1,11 +1,29 @@
 # 📘 Facilis — Full Specification
 
-**Version:** 1.46 (i18n parity and dynamic `t()` keys, D-218; issue #176)
+**Version:** 1.47 (a `runtime` section is the only deployment-tunable surface, D-224)
 **Status:** Phases 0–4 are complete and verified (headless suites + the browser harness, `pnpm ide:smoke`); Phase 5 is retired (D-131) and Phase 6 (polish + demo) is in progress; Phase 7+ is the post-MVP backlog. The current state is in [`STATUS.md`](./STATUS.md); the phase table is §12.
 **Purpose:** Single source of truth for development
 
 **Changelog:**
 
+- v1.47 — Deployment values are `runtime` and `public` sections of `facilis.config.ts` (D-224).
+  The file belongs to the app: every key is declared with a literal value or, for the server surface
+  only, `{ secret: true }` (the source is the environment, never a value). `runtime` is read at boot
+  and overridden by `FACILIS_<KEY>`; `public` is baked into the client bundle at build and overridden
+  by `FACILIS_PUBLIC_<KEY>` only then. Each flat key maps to exactly one variable, so no name is
+  computed from a nested path. The framework merges no defaults: it exports canonical values for the
+  generator and the missing-key message only. A key read but not declared, declared without a value, or
+  required by a system package and absent from the file is an analyzer error
+  (`runtime-key-undeclared` / `-unset` / `-missing`, plus `-server-only` and `-unused`); every package
+  exports its `runtimeRequirements` and a gate holds the examples and the IDE template to them. Secrets
+  resolve to a `SecretString` box. Other sections stay build-time: a `FACILIS_*` name that maps to no
+  `runtime` key is a fatal boot error, except the build-only allowlist (`FACILIS_DEV_METRICS`,
+  `FACILIS_TELEMETRY_FE`). `db.mode`, `logging.level`, `logging.trustProxy` and
+  `storage.driver|bucket|region|endpoint|forcePathStyle` move into `runtime`;
+  `FACILIS_TELEMETRY` is renamed `FACILIS_TELEMETRY_ENABLED`; no alias is kept. The resolved objects are
+  `ctx.runtime` in a request, `runtimeEnv()` elsewhere and `publicConfig()` in the client.
+  `VITE_*` stays Vite's passthrough for third-party libraries and a read in project code warns
+  (`vite-env-direct`). §7.1/§7.4/§8.4.6 follow.
 - v1.46 — Dynamic `t()` keys and locale parity are warnings (D-218, issue #176). The
   analyzer now keeps a `dynamicTranslationCalls` fact for a `t()` argument that is an
   identifier, a call, a concatenation or a template literal with expressions, and reports
@@ -1359,7 +1377,7 @@ errors as `browser.error` spans carrying `error.type` and `facilis.rum.source` �
 message, stack or reason value — plus document-load and fetch/XHR spans. It exports OTLP/JSON to
 this same ingestion route with the public tenant key, and propagates `traceparent` to the app's
 own origin only, never third parties. It is enabled only at build time by the deploy telemetry
-options (`FACILIS_TELEMETRY` + `FACILIS_TELEMETRY_FE` + the tenant key), is production-only, and
+options (`FACILIS_TELEMETRY_ENABLED` + `FACILIS_TELEMETRY_FE` + the tenant key), is production-only, and
 is completely silent in dev/WebContainer (D-200). URLs are scrubbed client-side as defense in
 depth; the §8.8 attribute allowlist remains the gate.
 
@@ -1373,7 +1391,6 @@ depth; the §8.8 attribute allowlist remains the gate.
 interface FacilisConfig {
   release: { ref: string }
   db: {
-    mode: "pglite" | "postgres" | "json"   // D-068: an env URL wins over this; "json" not implemented
     tenantColumns: string[]
     ownerColumns: string[]
   }
@@ -1417,27 +1434,92 @@ interface FacilisConfig {
     persist: boolean           // keep the queue in facilis_jobs (default true)
   }
   storage: {                   // D-116/D-117; every key has a default, secrets stay in env (§5.10)
-    driver: "local" | "s3"     // default "local"; "s3" is required in production
-    bucket: string | null      // required with driver "s3"
-    region: string | null      // required with driver "s3"
-    endpoint: string | null    // S3-compatible endpoint (R2, MinIO); null = AWS S3
-    forcePathStyle: boolean | null  // null = driver default
+    // The target (driver, bucket, region, endpoint, path style) is runtime config (D-224).
     maxUploadBytes: number     // default 10 MiB; hard cap 100 MiB
     tokenTtlSeconds: number    // download-token lifetime, default 300 s; max 24 h
     encryption: { enabled: boolean }  // at-rest encryption, default false; keys stay in env (D-117)
   }
-  logging: {                   // D-119; every key has a default, the sink stays in env
-    level: "debug" | "info" | "warn" | "error"   // default "info"; FACILIS_LOG_LEVEL overrides
+  logging: {                   // D-119; every key has a default, level and sink stay in runtime/env
     access: boolean            // one access entry per authorized request, default true
     errors: boolean            // server-side error entries, default true
     includeUserAgent: boolean  // default false
-    trustProxy: boolean        // trust x-forwarded-for, default false
   }
   security: {                  // D-141; request-origin policy for unsafe methods
     trustedOrigins: string[]   // absolute http(s) origins allowed as same-site callers; default []
   }
+  runtime: {                   // D-224: the server surface a deployment can override
+    // Each key maps to FACILIS_<UPPER_SNAKE(key)>. Precedence: this value < process env at boot.
+    // Every key the framework reads must be declared here with a literal or a secret marker, or the
+    // build fails (runtime-key-unset / runtime-key-missing). No framework default is merged.
+    // Input form: Secret<T> is the marker { secret: true }, never a value; the resolved config holds a
+    // SecretString box (reveal() only; toJSON/toString/inspect answer "[redacted]").
+    // database (D-068): a databaseUrl implies "postgres" and wins over databaseMode
+    databaseMode: "pglite" | "postgres" | "json"   // FACILIS_DATABASE_MODE
+    databaseUrl: Secret<string>                    // FACILIS_DATABASE_URL
+    // operator logging (D-119): level is the project default, the sink/dir belong to the operator
+    logLevel: "debug" | "info" | "warn" | "error"  // FACILIS_LOG_LEVEL
+    logSink: "auto" | "stdout" | "file" | "both"   // FACILIS_LOG_SINK
+    logDir: string | null                          // FACILIS_LOG_DIR
+    logMaxBytes: number                            // FACILIS_LOG_MAX_BYTES
+    logKeep: number                                // FACILIS_LOG_KEEP
+    logTrustProxy: boolean                         // FACILIS_LOG_TRUST_PROXY
+    // binary storage (D-116/D-117): the keys are secrets, never in the file
+    storageDriver: "local" | "s3"                  // FACILIS_STORAGE_DRIVER
+    storageSecret: Secret<string>                  // FACILIS_STORAGE_SECRET
+    s3Bucket: string | null                        // FACILIS_S3_BUCKET
+    s3Region: string | null                        // FACILIS_S3_REGION
+    s3Endpoint: string | null                      // FACILIS_S3_ENDPOINT
+    s3ForcePathStyle: boolean | null               // FACILIS_S3_FORCE_PATH_STYLE
+    s3AccessKeyId: Secret<string>                  // FACILIS_S3_ACCESS_KEY_ID
+    s3SecretAccessKey: Secret<string>              // FACILIS_S3_SECRET_ACCESS_KEY
+    s3SessionToken: Secret<string>                 // FACILIS_S3_SESSION_TOKEN
+    storageEncryptionKey: Secret<string>           // FACILIS_STORAGE_ENCRYPTION_KEY
+    storageEncryptionKeyId: string                 // FACILIS_STORAGE_ENCRYPTION_KEY_ID; default "primary"
+    storageEncryptionRetiredKeys: Secret<Record<string, string>> // FACILIS_STORAGE_ENCRYPTION_RETIRED_KEYS (JSON keyId -> key)
+    // deployment identity
+    publicOrigin: string | null                    // FACILIS_PUBLIC_ORIGIN
+    tenantId: string | null                        // FACILIS_TENANT_ID
+    deploymentId: string | null                    // FACILIS_DEPLOYMENT_ID
+    // auth bootstrap and email verification (D-150, D-156)
+    initialAdmin: string | null                    // FACILIS_INITIAL_ADMIN
+    initialAdminToken: Secret<string>              // FACILIS_INITIAL_ADMIN_TOKEN
+    emailWebhookUrl: string | null                 // FACILIS_EMAIL_WEBHOOK_URL
+    emailWebhookToken: Secret<string>              // FACILIS_EMAIL_WEBHOOK_TOKEN
+    // telemetry (D-203, D-209)
+    telemetryEnabled: boolean                      // FACILIS_TELEMETRY_ENABLED
+    telemetryEndpoint: string | null               // FACILIS_TELEMETRY_ENDPOINT
+    telemetryOrigins: string[]                     // FACILIS_TELEMETRY_ORIGINS (JSON)
+    telemetrySampling: number                      // FACILIS_TELEMETRY_SAMPLING
+    telemetryService: string | null                // FACILIS_TELEMETRY_SERVICE
+    telemetrySpansPerMin: number                   // FACILIS_TELEMETRY_SPANS_PER_MIN
+    telemetryTenantKey: Secret<string>             // FACILIS_TELEMETRY_TENANT_KEY
+    // development only
+    stateDir: string | null                        // FACILIS_STATE_DIR
+  }
+  public: {                    // D-224: baked into the client bundle at build time; never a secret
+    // Each key maps to FACILIS_PUBLIC_<UPPER_SNAKE(key)>, read by the build only. A browser has no
+    // environment and nothing can change these after the bundle exists. Secrets are a type error here.
+    appName: string
+    apiBaseUrl: string
+    features: Record<string, boolean>
+  }
 }
 ```
+
+**`runtime` and `public` are declared and statically verified (D-224).** The analyzer reads the
+declared keys from the file and the read sites from the project's code, and reports
+`runtime-key-undeclared` (a key read but not declared), `runtime-key-unset` (declared without a
+literal and without a secret marker), `runtime-key-missing` (a system package requires it and the file
+does not declare it), `runtime-key-server-only` (a `runtime` key read from client-reachable code, or a
+`public` key read through `ctx.runtime`) as errors, and `runtime-key-unused` as a warning; a direct
+`process.env` read in project code is the warning `no-direct-env`. The
+framework exports one `runtimeRequirements` table from `@facilis.dev/core` (key, surface, secret,
+optional condition over static config values) and a gate holds the shipped examples and the IDE
+template to it. `ctx.runtime` is
+server-only; `publicConfig()` is the only client accessor. `import.meta.env.VITE_*` stays Vite's
+passthrough for third-party libraries (`envPrefix` unchanged — `public` values arrive through the
+define), and a read in the project's own `src/**` or `server/**` is the warning `vite-env-direct`,
+pointing at `public`.
 
 ### 7.2 `BlockManifest`
 
@@ -1590,6 +1672,7 @@ interface AuthorizedHandlerContext<Body, Query, Params, Form = void> {
   jobs: JobsApi                               // server-only job queue (D-107), no HTTP surface
   storage: StorageApi                         // binary storage, §5.10; degrades when unavailable
   log: FacilisLogger                          // request logger (D-119)
+  runtime: FacilisRuntimeConfig               // resolved once at boot, frozen; the only env surface (D-224)
   requestId: string                           // correlation id, set by the logging middleware
 }
 

@@ -83,17 +83,18 @@ export function createLoggingRuntime(options: LoggingRuntimeOptions): LoggingRun
     }
   };
 
+  const level = options.settings.level;
   const accepts = (entry: LogEntry): boolean => {
     switch (entry.kind) {
       case "audit":
         // Never filtered: an audit trail with holes is not an audit trail.
         return true;
       case "access":
-        return options.config.access && logLevelEnabled(options.config.level, entry.level);
+        return options.config.access && level !== null && logLevelEnabled(level, entry.level);
       case "error":
         return options.config.errors;
       case "app":
-        return logLevelEnabled(options.config.level, entry.level);
+        return level !== null && logLevelEnabled(level, entry.level);
     }
   };
 

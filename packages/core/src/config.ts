@@ -34,7 +34,10 @@ import {
   securityConfigSchema,
   type FacilisSecurityConfig,
 } from "./security-config.ts";
+import { legacyConfigProblems } from "./config-legacy.ts";
 import { crossCheckConfig } from "./config-validation.ts";
+import { publicSectionSchema, runtimeSectionSchema } from "./runtime-config/schema.ts";
+import type { FacilisPublicConfig, FacilisRuntimeDeclarations } from "./runtime-config/schema.ts";
 import {
   facilisStorageConfigSchema,
   type FacilisStorageConfig,
@@ -99,7 +102,6 @@ export interface FacilisReleaseConfig {
 }
 
 export interface FacilisDbConfig {
-  readonly mode: DbMode;
   readonly tenantColumns: readonly string[];
   readonly ownerColumns: readonly string[];
 }
@@ -142,15 +144,19 @@ export interface FacilisConfig {
   readonly jobs: FacilisJobsConfig;
   /** Workflow runner settings (D-135, docs/WORKFLOWS.md §10). */
   readonly workflows: FacilisWorkflowsConfig;
-  /** Binary uploads (D-053): driver, bucket and the framework limits. */
+  /** Binary uploads (D-053): the framework limits; the target is runtime config (D-224). */
   readonly storage: FacilisStorageConfig;
   /** Request-origin policy; always present so the wrapper never guesses (SPEC §8). */
   readonly security: FacilisSecurityConfig;
-  /** Operator logging defaults (D-119): level and what is collected; sinks are env-owned. */
+  /** Operator logging defaults (D-119): what is collected; level and sinks are runtime-owned. */
   readonly logging: FacilisLoggingConfig;
   readonly nitro: FacilisNitroOptions;
   /** Route-level prerendering allowlist (D-202); `{ routes: [] }` means off. */
   readonly prerender: FacilisPrerenderConfig;
+  /** Server surface overridable at boot (D-224): every key the app reads is declared here. */
+  readonly runtime: FacilisRuntimeDeclarations;
+  /** Values baked into the client bundle at build time (D-224); never a secret. */
+  readonly public: FacilisPublicConfig;
 }
 
 /**
@@ -160,7 +166,6 @@ export interface FacilisConfig {
 export interface FacilisConfigInput {
   readonly release?: { readonly ref?: string };
   readonly db?: {
-    readonly mode?: DbMode;
     readonly tenantColumns?: readonly string[];
     readonly ownerColumns?: readonly string[];
   };
@@ -183,9 +188,9 @@ export interface FacilisConfigInput {
   readonly jobs?: FacilisJobsConfigInput;
   /** Workflow runner settings (D-135); every key has a default. */
   readonly workflows?: FacilisWorkflowsConfigInput;
-  /** Binary uploads (D-053, D-117); every key has a default. */
+  /** Binary upload limits (D-053, D-117); every key has a default. */
   readonly storage?: FacilisStorageConfigInput;
-  /** Logging defaults (D-119); every key has a default and the environment overrides them. */
+  /** Logging defaults (D-119); the level lives in `runtime` (D-224). */
   readonly logging?: FacilisLoggingConfigInput;
   /** Request-origin allow-list; defaults to same-origin only. */
   readonly security?: {
@@ -193,6 +198,10 @@ export interface FacilisConfigInput {
   };
   /** Route-level prerendering (D-202); every key has a default. */
   readonly prerender?: FacilisPrerenderConfigInput;
+  /** Server surface overridable at boot (D-224); keys the app reads are keys it declares. */
+  readonly runtime?: FacilisRuntimeDeclarations;
+  /** Client surface baked at build time (D-224); no secret marker is accepted here. */
+  readonly public?: FacilisPublicConfig;
 }
 
 const DEFAULT_RELEASE_REF = "main";
@@ -202,7 +211,6 @@ const DEFAULT_LOCALE = "en";
 const DEFAULT_SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
 
 const DEFAULT_DB_CONFIG = {
-  mode: "pglite" as const,
   tenantColumns: [DEFAULT_TENANT_COLUMN],
   ownerColumns: [DEFAULT_OWNER_COLUMN],
 };
@@ -218,7 +226,6 @@ const releaseSchema = z
 
 const dbSchema = z
   .strictObject({
-    mode: z.enum(DB_MODES).default("pglite"),
     tenantColumns: z.array(z.string().min(1)).default([DEFAULT_TENANT_COLUMN]),
     ownerColumns: z.array(z.string().min(1)).default([DEFAULT_OWNER_COLUMN]),
   })
@@ -259,6 +266,8 @@ const baseConfigSchema = z.strictObject({
   logging: facilisLoggingConfigSchema,
   nitro: nitroSchema,
   prerender: facilisPrerenderConfigSchema,
+  runtime: runtimeSectionSchema,
+  public: publicSectionSchema,
 });
 
 /**
@@ -276,6 +285,11 @@ export const facilisConfigSchema = baseConfigSchema.superRefine(crossCheckConfig
  * unknown role permissions must fail at boot (SPEC §8.4.1), not on the first request.
  */
 export function defineConfig(config: FacilisConfigInput): FacilisConfig {
+  // The removed keys get the replacement in the message: the move is breaking on purpose (D-224).
+  const legacy = legacyConfigProblems(config);
+  if (legacy.length > 0) {
+    throw new Error("Invalid facilis config:\n" + legacy.join("\n"));
+  }
   const result = facilisConfigSchema.safeParse(config);
   if (!result.success) {
     throw new Error(`Invalid facilis config:\n${z.prettifyError(result.error)}`);

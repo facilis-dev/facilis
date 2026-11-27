@@ -31,6 +31,7 @@ describe("starter template", () => {
         "vite.config.ts",
         "facilis.config.ts",
         ".gitignore",
+        ".env.example",
         "src/app.tsx",
         "src/main.tsx",
         "src/styles.css",
@@ -48,6 +49,12 @@ describe("starter template", () => {
     );
     expect(files["src/app.tsx"]).toContain("<Routes>");
     expect(paths.some((path) => path.includes(".test."))).toBe(false);
+  });
+
+  it("ships the generated .env.example for the declared deployment surface", () => {
+    // The file is generated from facilis.config.ts (D-224); the template must not lose it.
+    expect(files[".env.example"]).toContain("generated from facilis.config.ts");
+    expect(files[".env.example"]).toContain("FACILIS_LOG_LEVEL");
   });
 
   it("ships no todo demo, jobs or file-upload surface", () => {

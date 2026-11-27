@@ -32,6 +32,8 @@ export interface StaticField {
 export interface StaticObject {
   readonly fields: ReadonlyMap<string, StaticField>;
   readonly unknown: readonly UnknownFact[];
+  /** A spread or computed key may hide a field: "absent from fields" is not "not declared". */
+  readonly structuralUnknown: boolean;
 }
 
 export interface StaticReadOptions {
@@ -85,8 +87,10 @@ export function readStaticObject(
 ): StaticObject {
   const fields = new Map<string, StaticField>();
   const unknown: UnknownFact[] = [];
-  if (node === undefined) return { fields, unknown };
+  let structuralUnknown = false;
+  if (node === undefined) return { fields, unknown, structuralUnknown };
   const record = (reason: string, at: AstNode | undefined, structural: boolean): void => {
+    if (structural) structuralUnknown = true;
     if (structural || options.report) {
       unknown.push({ code: options.code, reason, source: refOf(context, at) });
     }
@@ -113,7 +117,7 @@ export function readStaticObject(
         record(evaluated.reason, valueNode ?? entry, false);
       }
     }
-    return { fields, unknown };
+    return { fields, unknown, structuralUnknown };
   }
 
   const evaluated = evaluateStatic(node, context);
@@ -121,10 +125,10 @@ export function readStaticObject(
     for (const [key, value] of Object.entries(evaluated.value)) {
       fields.set(key, { value, ok: true, node: undefined, reason: null });
     }
-    return { fields, unknown };
+    return { fields, unknown, structuralUnknown };
   }
   record(evaluated.ok ? "value is not an object" : evaluated.reason, node, true);
-  return { fields, unknown };
+  return { fields, unknown, structuralUnknown };
 }
 
 /**

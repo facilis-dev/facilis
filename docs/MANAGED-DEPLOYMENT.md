@@ -185,6 +185,39 @@ Rules:
 - AI and skills default to off/none in a managed build; enabling them is a policy decision
   with its own contract ([AI-SKILLS.md](./AI-SKILLS.md)).
 
+### Runtime and public values
+
+Two sections of the project's `facilis.config.ts` are the deployment surface (D-224). Every
+other section stays build-time.
+
+- `runtime` is the server surface. One flat key maps to one variable: `FACILIS_` +
+  UPPER_SNAKE(key), so `logLevel` is `FACILIS_LOG_LEVEL`. Precedence is the file's declared
+  value, then the process environment at boot.
+- `public` is the client surface. One key maps to `FACILIS_PUBLIC_` + UPPER_SNAKE(key).
+  Precedence is the file's value, then the environment at **build** time; after the bundle
+  exists nothing can change it. A value that must change per deployment is fetched from an
+  authorized route, never put under `public`.
+
+A secret is declared as `{ secret: true }`, never as a value: the resolved server value is a
+`SecretString` box whose string, JSON and inspect forms are `[redacted]`, and no secret value
+is written to the repository, `.env.example` included. An absent secret resolves to `null`
+and the subsystem that needs it refuses rather than inventing a default; a secret exported
+empty is fatal. Absence is a refusal for declarations too: a key read without being declared
+is `runtime-key-undeclared`, and a key a package requires that the file does not declare is
+`runtime-key-missing`.
+
+Two commands keep the surface operable:
+
+```bash
+pnpm facilis:env --dir examples/todo-app            # KEY | SOURCE | VALUE; secrets [redacted]
+pnpm facilis:env --dir examples/todo-app --example  # writes .env.example next to the config
+```
+
+The table prints `declared` or `env` per key, so the operator sees where each value came
+from. `--example` renders `.env.example` from the config (it is generated, never
+hand-written), refuses to overwrite a file whose header is not the generated one, and prints
+the path.
+
 ### AI external reads (web tools)
 
 The PTC runtime's host-side `web_fetch`/`web_image`/`web_download` family (D-175) reads URLs the
@@ -263,13 +296,13 @@ The attribute vocabulary is closed and declaration-derived: `http.request.method
 `facilis.workflow.*` namespaced attributes. Values, query strings, bodies, header values and
 bind parameters are never exported, and a failed operation contributes an error status without
 its message (a driver or job error can repeat an input). The runtime switch is
-`FACILIS_TELEMETRY=on` in a **production** boot: any other value, and every dev/test boot
+`FACILIS_TELEMETRY_ENABLED=on` in a **production** boot: any other value, and every dev/test boot
 (D-200), starts no pipeline at all. The collector target is the `exporterEndpoint` above, which
 the host passes to the server at boot:
 
 | Variable | Meaning |
 |---|---|
-| `FACILIS_TELEMETRY` | `on` starts the pipeline; anything else leaves it absent. |
+| `FACILIS_TELEMETRY_ENABLED` | `on` starts the pipeline; anything else leaves it absent. |
 | `FACILIS_TELEMETRY_FE` | build-time: `on` enables the frontend RUM client (`@facilis.dev/rum`); requires the tenant key. Off by default. |
 | `FACILIS_TELEMETRY_ENDPOINT` | collector base URL (for example `https://otel.acme.example:4318`); the framework appends `/v1/traces` and `/v1/metrics`. Required when the switch is on. |
 | `FACILIS_TELEMETRY_SAMPLING` | root-span ratio `0`–`1`; the deploy `sampling` value. Unset or invalid keeps everything. |

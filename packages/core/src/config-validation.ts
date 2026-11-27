@@ -8,9 +8,9 @@ import { checkSsoConfig } from "./sso-config.ts";
  * Cross-section validation for `facilis.config.ts` (SPEC §7.1, §8.4.1).
  *
  * The per-section Zod schemas only see their own object; these checks need the whole config
- * (a role names a declared permission, SSO names an existing role, S3 names its bucket). They
- * live here so `config.ts` stays under the 300-line limit and so the auth/storage/SSO rules
- * have one reviewable home.
+ * (a role names a declared permission, SSO names an existing role). They live here so
+ * `config.ts` stays under the 300-line limit and so the auth/SSO rules have one reviewable
+ * home.
  */
 
 /**
@@ -80,23 +80,6 @@ export function crossCheckConfig(config: FacilisConfig, ctx: z.RefinementCtx): v
       ["auth", "defaultRole"],
       `defaultRole "${config.auth.defaultRole}" is not a key of auth.roles`,
     );
-  }
-
-  if (config.storage.driver === "s3") {
-    if (config.storage.bucket === null) {
-      addIssue(
-        ctx,
-        ["storage", "bucket"],
-        'storage.bucket is required when storage.driver is "s3"',
-      );
-    }
-    if (config.storage.region === null) {
-      addIssue(
-        ctx,
-        ["storage", "region"],
-        'storage.region is required when storage.driver is "s3"',
-      );
-    }
   }
 
   if (!config.i18n.locales.includes(config.i18n.defaultLocale)) {

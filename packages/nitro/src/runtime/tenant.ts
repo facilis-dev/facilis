@@ -1,4 +1,6 @@
-import { DEFAULT_TENANT_ID } from "@facilis.dev/core";
+import { DEFAULT_TENANT_ID, type FacilisRuntimeConfig } from "@facilis.dev/core";
+
+import { runtimeString } from "./runtime-values.ts";
 
 /**
  * Single-tenant fallback tenant id (DECISIONS O-003).
@@ -9,7 +11,7 @@ import { DEFAULT_TENANT_ID } from "@facilis.dev/core";
  */
 export { DEFAULT_TENANT_ID };
 
-export function readDefaultTenantId(environment: NodeJS.ProcessEnv = process.env): string {
-  const configured = environment["FACILIS_TENANT_ID"]?.trim();
+export function readDefaultTenantId(runtime: FacilisRuntimeConfig): string {
+  const configured = runtimeString(runtime, "tenantId")?.trim();
   return configured !== undefined && configured.length > 0 ? configured : DEFAULT_TENANT_ID;
 }

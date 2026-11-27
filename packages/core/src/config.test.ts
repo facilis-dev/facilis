@@ -6,6 +6,7 @@ import {
   defineConfig,
   facilisConfigSchema,
   type FacilisConfig,
+  type FacilisConfigInput,
 } from "./config.ts";
 
 const SPEC_AUTH = {
@@ -34,7 +35,6 @@ const SPEC_AUTH = {
 const FULL_CONFIG: FacilisConfig = {
   release: { ref: "main" },
   db: {
-    mode: "pglite",
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
   },
@@ -57,11 +57,6 @@ const FULL_CONFIG: FacilisConfig = {
   },
   workflows: { tickIntervalMs: 750, persist: false, defaultTaskTtlMs: 60_000 },
   storage: {
-    driver: "s3",
-    bucket: "facilis-files",
-    region: "auto",
-    endpoint: "https://example.r2.cloudflarestorage.com",
-    forcePathStyle: true,
     maxUploadBytes: 5 * 1024 * 1024,
     tokenTtlSeconds: 120,
     encryption: { enabled: true },
@@ -70,7 +65,36 @@ const FULL_CONFIG: FacilisConfig = {
   security: { trustedOrigins: ["https://app.example.com"] },
   nitro: { serverDir: "./backend" },
   prerender: { routes: ["/", "/about"], origin: "https://example.com" },
+  runtime: {
+    databaseMode: "pglite",
+    storageDriver: "s3",
+    logLevel: "debug",
+    logTrustProxy: true,
+    databaseUrl: { secret: true },
+  },
+  public: { appName: "Facilis" },
 };
+
+describe("removed config keys (D-224)", () => {
+  it("names the runtime replacement and the variable instead of Zod's unrecognized key", () => {
+    const legacy = { auth: SPEC_AUTH, logging: { level: "debug" } } as unknown as FacilisConfigInput;
+    expect(() => defineConfig(legacy)).toThrow(
+      /logging\.level has moved to runtime\.logLevel[\s\S]*FACILIS_LOG_LEVEL/,
+    );
+  });
+
+  it("covers the whole moved set in one report", () => {
+    const legacy = {
+      auth: SPEC_AUTH,
+      db: { mode: "postgres" },
+      storage: { bucket: "files", forcePathStyle: true },
+      logging: { trustProxy: true },
+    } as unknown as FacilisConfigInput;
+    expect(() => defineConfig(legacy)).toThrow(
+      /db\.mode[\s\S]*logging\.trustProxy[\s\S]*storage\.bucket[\s\S]*storage\.forcePathStyle/,
+    );
+  });
+});
 
 describe("defineConfig", () => {
   it("accepts the SPEC §8.4.1 auth declaration on its own", () => {
@@ -85,7 +109,6 @@ describe("defineConfig", () => {
 
     expect(config.release).toEqual({ ref: "main" });
     expect(config.db).toEqual({
-      mode: "pglite",
       tenantColumns: ["tenantId"],
       ownerColumns: ["ownerId"],
     });
@@ -252,10 +275,10 @@ describe("defineConfig", () => {
     ).toThrow(/Unrecognized key/);
   });
 
-  it("rejects an invalid database mode", () => {
+  it("rejects the removed db.mode key with its runtime replacement", () => {
     expect(() =>
-      defineConfig({ ...FULL_CONFIG, db: { ...FULL_CONFIG.db, mode: "sqlite" } as never }),
-    ).toThrow(/mode/);
+      defineConfig({ ...FULL_CONFIG, db: { ...FULL_CONFIG.db, mode: "pglite" } as never }),
+    ).toThrow(/db\.mode has moved to runtime\.databaseMode/);
   });
 
   it("rejects a non-positive session duration", () => {

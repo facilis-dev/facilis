@@ -1,4 +1,9 @@
 import type { H3Event } from "nitro";
+import {
+  installRuntimeConfig,
+  SecretString,
+  type FacilisRuntimeConfig,
+} from "@facilis.dev/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Only the collector round trip is mocked: every gate in the handler is the subject.
@@ -29,13 +34,15 @@ function uniqueSpanId(): string {
   return seq.toString(16).padStart(16, "0");
 }
 
-function enable(origin: string, extra: Record<string, string> = {}): void {
+function enable(origin: string, extra: FacilisRuntimeConfig = {}): void {
   process.env["NODE_ENV"] = "production";
-  process.env["FACILIS_TELEMETRY"] = "on";
-  process.env["FACILIS_TELEMETRY_ENDPOINT"] = ENDPOINT;
-  process.env["FACILIS_TELEMETRY_ORIGINS"] = origin;
-  process.env["FACILIS_TELEMETRY_TENANT_KEY"] = KEY;
-  for (const [name, value] of Object.entries(extra)) process.env[name] = value;
+  installRuntimeConfig({
+    telemetryEnabled: true,
+    telemetryEndpoint: ENDPOINT,
+    telemetryOrigins: [origin],
+    telemetryTenantKey: new SecretString(KEY),
+    ...extra,
+  });
 }
 
 function batch(spanCount = 1): OtlpExportRequest {
@@ -85,6 +92,7 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 }
 
 beforeEach(() => {
+  installRuntimeConfig({});
   vi.mocked(forwardToCollector).mockReset();
   vi.mocked(forwardToCollector).mockResolvedValue({ ok: true, status: 200 });
 });
@@ -96,7 +104,7 @@ afterEach(() => {
 describe("telemetry ingestion route — disabled means absent", () => {
   it("answers 404 on POST and GET when the switch is off", async () => {
     process.env["NODE_ENV"] = "production";
-    delete process.env["FACILIS_TELEMETRY"];
+    delete process.env["FACILIS_TELEMETRY_ENABLED"];
     for (const method of ["POST", "GET"]) {
       const response = await handler(
         event("https://app.acme.example", { method, body: method === "POST" ? "{}" : undefined }),
@@ -120,8 +128,7 @@ describe("telemetry ingestion route — disabled means absent", () => {
 
   it("answers 404 with the switch on but no usable collector endpoint", async () => {
     const origin = uniqueOrigin();
-    enable(origin);
-    process.env["FACILIS_TELEMETRY_ENDPOINT"] = "not a url";
+    enable(origin, { telemetryEndpoint: "not a url" });
     const response = await handler(event(origin, { body: JSON.stringify(batch()) }));
     expect(response.status).toBe(404);
   });
@@ -171,7 +178,7 @@ describe("telemetry ingestion route — gates", () => {
 
   it("rate-limits per origin with 429 + retry-after before parsing the body", async () => {
     const origin = uniqueOrigin();
-    enable(origin, { FACILIS_TELEMETRY_SPANS_PER_MIN: "1" });
+    enable(origin, { telemetrySpansPerMin: 1 });
     const first = await handler(event(origin, { body: JSON.stringify(batch()) }));
     expect(first.status).toBe(200);
     const second = await handler(event(origin, { body: "{not even json" }));
@@ -180,7 +187,7 @@ describe("telemetry ingestion route — gates", () => {
     expect(await json(second)).toEqual({ code: "rate_limited" });
     // A different origin has its own bucket.
     const other = uniqueOrigin();
-    enable(other, { FACILIS_TELEMETRY_SPANS_PER_MIN: "1" });
+    enable(other, { telemetrySpansPerMin: 1 });
     expect((await handler(event(other, { body: JSON.stringify(batch()) }))).status).toBe(200);
   });
 
@@ -274,8 +281,7 @@ describe("telemetry ingestion route — scrub, dedup, forward", () => {
   it("with an empty allowlist admits only the app's own origin", async () => {
     seq += 1;
     const own = "https://own-" + seq + ".acme.example";
-    enable(own);
-    process.env["FACILIS_TELEMETRY_ORIGINS"] = "";
+    enable(own, { telemetryOrigins: [] });
     expect((await handler(event(own, { body: JSON.stringify(batch()) }))).status).toBe(200);
     const foreign = await handler(
       event(own, { body: JSON.stringify(batch()), headers: { origin: "https://evil.example" } }),

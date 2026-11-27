@@ -177,6 +177,7 @@ export default defineAuthorizedHandler(
     const context: SsoRequestContext = {
       event,
       config,
+      runtime: ctx.runtime,
       system: ctx.system,
       log: ctx.log,
     };

@@ -22,6 +22,7 @@ function fixtureConfig(): ConfigFacts {
     tenantColumns: ["tenantId"],
     ownerColumns: ["ownerId"],
     prerender: { routes: [], origin: null, unknown: [] },
+    runtimeConfig: { runtime: {}, public: {}, runtimeUnknown: false, publicUnknown: false },
     unknown: [],
   };
 }

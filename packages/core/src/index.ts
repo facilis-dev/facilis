@@ -236,6 +236,7 @@ export type {
 } from "./manifest.ts";
 
 export { computeRevision } from "./revision.ts";
+export * from "./runtime-config/index.ts";
 export { DEFAULT_TENANT_ID } from "./tenancy.ts";
 export type {
   BlockManifestRevisionSource,

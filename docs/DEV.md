@@ -216,6 +216,9 @@ script call to keep it loopback-only; `pnpm ide:smoke` does exactly that for its
   only through a published version, so bump the manifest, publish and rebuild the IDE, then
   create the project anew. A dev build instead vendors the workspace packages locally (D-196,
   §2); with `FACILIS_IDE_LOCAL_PACKAGES=0` it pins the committed versions like a release build.
+- Deployment values: `pnpm facilis:env --dir examples/todo-app` prints where each runtime and
+  public value comes from (secrets redacted), and `--example` regenerates the project's
+  `.env.example` from `facilis.config.ts` (D-224).
 
 ## 5. Headless acceptance — `scripts/dev/smoke-ide.mjs`
 

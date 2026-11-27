@@ -1,4 +1,9 @@
-import type { FacilisConfig, FacilisHandlerEvent, FacilisLogger } from "@facilis.dev/core";
+import type {
+  FacilisConfig,
+  FacilisHandlerEvent,
+  FacilisLogger,
+  FacilisRuntimeConfig,
+} from "@facilis.dev/core";
 import {
   completeLogin,
   failureRedirectPath,
@@ -15,6 +20,8 @@ import {
   type SsoFlowDeps,
   type SystemRunner,
 } from "@facilis.dev/auth";
+
+import { runtimeString } from "./runtime-values.ts";
 
 /**
  * SSO runtime glue between the framework route and @facilis.dev/auth (D-120).
@@ -41,6 +48,7 @@ const HOST_PATTERN = /^[A-Za-z0-9.-]+(?::\d{1,5})?$/;
 export interface SsoRequestContext {
   readonly event: FacilisHandlerEvent;
   readonly config: FacilisConfig;
+  readonly runtime: FacilisRuntimeConfig;
   readonly system: SystemRunner;
   readonly log: FacilisLogger;
   readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -60,9 +68,9 @@ export interface SsoRequestContext {
  */
 export function resolvePublicOrigin(
   event: FacilisHandlerEvent,
-  environment: Readonly<Record<string, string | undefined>> = process.env,
+  runtime: FacilisRuntimeConfig,
 ): string {
-  const configured = environment["FACILIS_PUBLIC_ORIGIN"]?.trim();
+  const configured = runtimeString(runtime, "publicOrigin")?.trim();
   if (configured !== undefined && configured.length > 0) {
     let origin: URL;
     try {
@@ -122,7 +130,7 @@ function flowDeps(context: SsoRequestContext): SsoFlowDeps {
     sso: context.config.auth.sso,
     defaultRole: context.config.auth.defaultRole,
     verificationEnabled: context.config.auth.verification.enabled,
-    publicOrigin: resolvePublicOrigin(context.event, context.environment ?? process.env),
+    publicOrigin: resolvePublicOrigin(context.event, context.runtime),
     system: context.system,
     audit: (input) => context.log.audit(input),
     warn: (message, data) => context.log.warn(message, data),

@@ -30,6 +30,7 @@ const rawSources = import.meta.glob<string>(
     "../../../examples/starter-app/locales/*.json",
     "../../../examples/starter-app/index.html",
     "../../../examples/starter-app/.gitignore",
+    "../../../examples/starter-app/.env.example",
     "../../../examples/starter-app/vite.config.ts",
     "../../../examples/starter-app/facilis.config.ts",
     "../../../examples/starter-app/DESIGN.md",

@@ -6,7 +6,7 @@ import { z } from "zod";
  * Opt-in: a project that omits `auth.verification` keeps the pre-D-156 behavior (registration
  * creates the account; login does not look at `users.email_verified_at`). Delivering the email is
  * a DEPLOYMENT concern, exactly like the log sink and the storage credentials: the webhook URL and
- * token live in the environment (FACILIS_EMAIL_WEBHOOK_URL / FACILIS_EMAIL_WEBHOOK_TOKEN), never in
+ * token are declared in `runtime` (`emailWebhookUrl` / `emailWebhookToken`, D-224), never in
  * a committed config. The blueprint ships a dev fallback (log the link) and a webhook sender.
  */
 const DEFAULT_TOKEN_TTL_MS = 1000 * 60 * 60 * 24;

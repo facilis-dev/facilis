@@ -15,7 +15,7 @@ pnpm dev
 ```
 
 One process: Vite serves the client and mounts Nitro on the same origin (spec §10.6). Without
-`FACILIS_DATABASE_URL`/`DATABASE_URL` the runtime uses in-memory PGlite and materializes the
+`FACILIS_DATABASE_URL` the runtime uses in-memory PGlite and materializes the
 schema declared in `db/schema.ts` at boot (D-193).
 
 ## What it ships

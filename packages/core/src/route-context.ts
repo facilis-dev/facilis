@@ -2,6 +2,7 @@ import type { AuthContext } from "@facilis.dev/auth";
 import type { PolicyScopedDatabase } from "@facilis.dev/db";
 
 import type { JobsApi } from "./jobs.ts";
+import type { FacilisRuntimeConfig } from "./runtime-config/schema.ts";
 import type { FacilisLogger } from "./logging.ts";
 import type { StorageApi } from "./storage.ts";
 import type { SudoHandler, SystemHandler } from "./sudo.ts";
@@ -65,6 +66,8 @@ export interface AuthorizedHandlerContext<
   storage: StorageApi;
   /** Request logger (D-119): debug/info/warn/error lines plus app audit events. */
   log: FacilisLogger;
+  /** Resolved once at boot (D-224), frozen; the only environment surface a route has. */
+  runtime: FacilisRuntimeConfig;
   /** Correlation id of this request, the same one its access/error entries carry. */
   requestId: string;
 }

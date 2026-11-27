@@ -7,6 +7,7 @@ import type {
   FacilisConfig,
   FacilisLoggingApi,
   FacilisLoggingConfig,
+  FacilisRuntimeConfig,
   ManifestWarning,
   StorageApi,
 } from "@facilis.dev/core";
@@ -18,6 +19,8 @@ import type { WorkflowsRuntime } from "./workflows/runner.ts";
 export interface BootstrapState {
   readonly db: FacilisDb | null;
   readonly config: FacilisConfig | null;
+  /** The one resolved runtime section for this process (D-224), frozen. */
+  readonly runtime: FacilisRuntimeConfig;
   readonly warnings: readonly ManifestWarning[];
   readonly startedAt: string;
   /**

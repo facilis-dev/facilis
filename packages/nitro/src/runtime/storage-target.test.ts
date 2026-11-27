@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { defineConfig } from "@facilis.dev/core";
+import { defineConfig, type FacilisRuntimeConfig } from "@facilis.dev/core";
 import { contentHash } from "@facilis.dev/storage";
 
 import { resolveStorage } from "./storage-target.ts";
 
 const CONFIG = defineConfig({
   auth: { roles: { user: [] }, defaultRole: "user" },
-  storage: { driver: "local", maxUploadBytes: 1024, tokenTtlSeconds: 60 },
+  storage: { maxUploadBytes: 1024, tokenTtlSeconds: 60 },
 });
 
 function configWith(storage: Parameters<typeof defineConfig>[0]["storage"]) {
@@ -20,13 +20,23 @@ function configWith(storage: Parameters<typeof defineConfig>[0]["storage"]) {
   });
 }
 
-const S3_ENV = {
-  FACILIS_S3_ACCESS_KEY_ID: "key",
-  FACILIS_S3_SECRET_ACCESS_KEY: "secret",
+const LOCAL_RUNTIME: FacilisRuntimeConfig = { storageDriver: "local" };
+const S3_TARGET: FacilisRuntimeConfig = {
+  storageDriver: "s3",
+  s3Bucket: "bucket",
+  s3Region: "auto",
+};
+const S3_RUNTIME: FacilisRuntimeConfig = {
+  ...S3_TARGET,
+  s3AccessKeyId: "key",
+  s3SecretAccessKey: "secret",
 };
 
 const ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
-const ENCRYPTION_ENV = { FACILIS_STORAGE_ENCRYPTION_KEY: ENCRYPTION_KEY };
+const ENCRYPTION_RUNTIME: FacilisRuntimeConfig = {
+  ...LOCAL_RUNTIME,
+  storageEncryptionKey: ENCRYPTION_KEY,
+};
 
 const dirs: string[] = [];
 
@@ -57,7 +67,7 @@ function sourceOf(bytes: Uint8Array): AsyncIterable<Uint8Array> {
 
 describe("resolveStorage", () => {
   it("boots the local driver in development and signs round-tripping URLs", () => {
-    const resolved = resolveStorage(CONFIG, { NODE_ENV: "development" }, "/project", {
+    const resolved = resolveStorage(CONFIG, LOCAL_RUNTIME, { NODE_ENV: "development" }, "/project", {
       secret: "dev-secret",
     });
 
@@ -80,7 +90,7 @@ describe("resolveStorage", () => {
   });
 
   it("refuses the local driver in production", () => {
-    const resolved = resolveStorage(CONFIG, { NODE_ENV: "production" }, "/project", {
+    const resolved = resolveStorage(CONFIG, LOCAL_RUNTIME, { NODE_ENV: "production" }, "/project", {
       secret: "prod-secret",
     });
 
@@ -88,26 +98,45 @@ describe("resolveStorage", () => {
     expect(resolved.warnings.map((entry) => entry.code)).toEqual(["storage_local_in_production"]);
   });
 
+  it("degrades when runtime.storageDriver is not declared", () => {
+    const resolved = resolveStorage(CONFIG, {}, { NODE_ENV: "development" }, "/project", {
+      secret: "dev-secret",
+    });
+
+    expect(resolved.storage).toBeNull();
+    expect(resolved.warnings.map((entry) => entry.code)).toEqual(["storage_driver_missing"]);
+    expect(resolved.warnings[0]?.message).toContain("runtime.storageDriver");
+    expect(resolved.warnings[0]?.message).toContain("FACILIS_STORAGE_DRIVER");
+  });
+
   it("boots an S3 driver with credentials from the environment", () => {
-    const resolved = resolveStorage(
-      configWith({ driver: "s3", bucket: "bucket", region: "auto" }),
-      S3_ENV,
-      "/project",
-      { secret: "dev-secret" },
-    );
+    const resolved = resolveStorage(CONFIG, S3_RUNTIME, {}, "/project", {
+      secret: "dev-secret",
+    });
 
     expect(resolved.warnings).toEqual([]);
     expect(resolved.storage?.kind).toBe("s3");
     expect(typeof resolved.storage?.presignedGetUrl).toBe("function");
   });
 
-  it("reports missing S3 credentials as a dedicated warning", () => {
+  it("refuses S3 without a bucket", () => {
     const resolved = resolveStorage(
-      configWith({ driver: "s3", bucket: "bucket", region: "auto" }),
-      { NODE_ENV: "development" },
+      CONFIG,
+      { storageDriver: "s3", s3Region: "auto" },
+      {},
       "/project",
       { secret: "dev-secret" },
     );
+
+    expect(resolved.storage).toBeNull();
+    expect(resolved.warnings.map((entry) => entry.code)).toEqual(["storage_s3_bucket_missing"]);
+    expect(resolved.warnings[0]?.message).toContain("FACILIS_S3_BUCKET");
+  });
+
+  it("reports missing S3 credentials as a dedicated warning", () => {
+    const resolved = resolveStorage(CONFIG, S3_TARGET, { NODE_ENV: "development" }, "/project", {
+      secret: "dev-secret",
+    });
 
     expect(resolved.storage).toBeNull();
     expect(resolved.warnings.map((entry) => entry.code)).toEqual([
@@ -116,11 +145,7 @@ describe("resolveStorage", () => {
   });
 
   it("requires a stable secret in production even with S3 configured", () => {
-    const resolved = resolveStorage(
-      configWith({ driver: "s3", bucket: "bucket", region: "auto" }),
-      { NODE_ENV: "production", ...S3_ENV },
-      "/project",
-    );
+    const resolved = resolveStorage(CONFIG, S3_RUNTIME, { NODE_ENV: "production" }, "/project");
 
     expect(resolved.storage).toBeNull();
     expect(resolved.warnings.map((entry) => entry.code)).toEqual(["storage_secret_missing"]);
@@ -128,8 +153,9 @@ describe("resolveStorage", () => {
 
   it("boots production S3 when the secret is set", () => {
     const resolved = resolveStorage(
-      configWith({ driver: "s3", bucket: "bucket", region: "auto" }),
-      { NODE_ENV: "production", FACILIS_STORAGE_SECRET: "stable", ...S3_ENV },
+      CONFIG,
+      { ...S3_RUNTIME, storageSecret: "stable" },
+      { NODE_ENV: "production" },
       "/project",
     );
 
@@ -138,7 +164,7 @@ describe("resolveStorage", () => {
   });
 
   it("degrades to a warning when the driver cannot be constructed", () => {
-    const resolved = resolveStorage(CONFIG, { NODE_ENV: "development" }, "/project", {
+    const resolved = resolveStorage(CONFIG, LOCAL_RUNTIME, { NODE_ENV: "development" }, "/project", {
       secret: "dev-secret",
       createDriver: () => {
         throw new Error("boom");
@@ -153,7 +179,8 @@ describe("resolveStorage", () => {
 describe("resolveStorage encryption", () => {
   it("reports a missing encryption key as a dedicated warning", () => {
     const resolved = resolveStorage(
-      configWith({ driver: "local", encryption: { enabled: true } }),
+      configWith({ encryption: { enabled: true } }),
+      LOCAL_RUNTIME,
       { NODE_ENV: "development" },
       "/project",
       { secret: "dev-secret" },
@@ -167,8 +194,9 @@ describe("resolveStorage encryption", () => {
 
   it("reports a malformed encryption key as a dedicated warning", () => {
     const resolved = resolveStorage(
-      configWith({ driver: "local", encryption: { enabled: true } }),
-      { NODE_ENV: "development", FACILIS_STORAGE_ENCRYPTION_KEY: "not-a-key" },
+      configWith({ encryption: { enabled: true } }),
+      { ...LOCAL_RUNTIME, storageEncryptionKey: "not-a-key" },
+      { NODE_ENV: "development" },
       "/project",
       { secret: "dev-secret" },
     );
@@ -182,8 +210,9 @@ describe("resolveStorage encryption", () => {
   it("round-trips encrypted bytes through the local driver and exposes no presign", async () => {
     const project = tempProject();
     const resolved = resolveStorage(
-      configWith({ driver: "local", encryption: { enabled: true } }),
-      { NODE_ENV: "development", ...ENCRYPTION_ENV },
+      configWith({ encryption: { enabled: true } }),
+      ENCRYPTION_RUNTIME,
+      { NODE_ENV: "development" },
       project,
       { secret: "dev-secret" },
     );
@@ -202,8 +231,9 @@ describe("resolveStorage encryption", () => {
 
   it("does not expose S3 presigned URLs when encryption is enabled", () => {
     const resolved = resolveStorage(
-      configWith({ driver: "s3", bucket: "bucket", region: "auto", encryption: { enabled: true } }),
-      { ...S3_ENV, ...ENCRYPTION_ENV },
+      configWith({ encryption: { enabled: true } }),
+      { ...S3_RUNTIME, storageEncryptionKey: ENCRYPTION_KEY },
+      {},
       "/project",
       { secret: "dev-secret" },
     );

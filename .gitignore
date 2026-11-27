@@ -156,6 +156,7 @@ coverage/
 .turbo/
 *.tsbuildinfo
 .env*
+!.env.example
 !ide/.env.example
 spikes/*/node_modules/
 

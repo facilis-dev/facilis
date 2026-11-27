@@ -1,15 +1,20 @@
 import { resolve as resolvePath } from "node:path";
 
-import { isLogLevel, type LogLevel } from "@facilis.dev/core";
+import {
+  envNameFor,
+  isLogLevel,
+  type FacilisRuntimeConfig,
+  type LogLevel,
+} from "@facilis.dev/core";
 
 import { isProductionEnvironment } from "../env.ts";
 
 /**
  * Log destination resolution (D-119, SPEC §8.7).
  *
- * Where entries go is a deployment concern, so it comes from the environment and never from
- * `facilis.config.ts`: a generated project must not be able to redirect an operator's audit
- * trail. Every invalid value falls back to its documented default and yields a warning, so a
+ * Where entries go is a deployment concern: the resolved `runtime` section (D-224), so a
+ * generated project cannot redirect an operator's audit trail through the build-time logging
+ * defaults. Every invalid value falls back to its documented default and yields a warning, so a
  * typo degrades the sink instead of breaking the boot.
  */
 
@@ -20,7 +25,6 @@ export const LOG_SINK_ENV = "FACILIS_LOG_SINK";
 export const LOG_DIR_ENV = "FACILIS_LOG_DIR";
 export const LOG_MAX_BYTES_ENV = "FACILIS_LOG_MAX_BYTES";
 export const LOG_KEEP_ENV = "FACILIS_LOG_KEEP";
-export const LOG_LEVEL_ENV = "FACILIS_LOG_LEVEL";
 
 /** 10 MiB keeps a dev log bounded while the IDE editor can still read it comfortably. */
 export const DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024;
@@ -42,7 +46,7 @@ export interface ResolvedLogSettings {
   readonly dir: string;
   readonly maxBytes: number;
   readonly keep: number;
-  /** Environment override for `logging.level`; null keeps the project config. */
+  /** The declared `runtime.logLevel`; null means app/access entries are suppressed. */
   readonly level: LogLevel | null;
 }
 
@@ -58,7 +62,10 @@ export interface ResolvedLogSettingsResult {
 }
 
 export interface ResolveLogSettingsInput {
-  readonly env: NodeJS.ProcessEnv;
+  /** The resolved `runtime` section (D-224); never `process.env` directly. */
+  readonly runtime: FacilisRuntimeConfig;
+  /** Test seam: only `NODE_ENV` is read here, never a deployment value. */
+  readonly env?: NodeJS.ProcessEnv;
   readonly projectRoot: string;
   /** Test seam: override the NODE_ENV-derived production detection. */
   readonly production?: boolean;
@@ -67,29 +74,29 @@ export interface ResolveLogSettingsInput {
 export function resolveLogSettings(input: ResolveLogSettingsInput): ResolvedLogSettingsResult {
   const warnings: LogSettingsWarning[] = [];
   const production = input.production ?? isProductionEnvironment(input.env);
-  const mode = parseSinkMode(readEnv(input.env, LOG_SINK_ENV), warnings);
-  const dirValue = readEnv(input.env, LOG_DIR_ENV);
+  const mode = parseSinkMode(stringValue(input.runtime["logSink"]), warnings);
+  const dirValue = stringValue(input.runtime["logDir"]);
   const dir =
     dirValue === undefined
       ? resolvePath(input.projectRoot, ...DEFAULT_LOG_DIR_SEGMENTS)
       : resolvePath(input.projectRoot, dirValue);
   const maxBytes = parseBoundedInteger(
-    input.env,
-    LOG_MAX_BYTES_ENV,
+    input.runtime["logMaxBytes"],
+    "logMaxBytes",
     DEFAULT_LOG_MAX_BYTES,
     1,
     MAX_LOG_MAX_BYTES,
     warnings,
   );
   const keep = parseBoundedInteger(
-    input.env,
-    LOG_KEEP_ENV,
+    input.runtime["logKeep"],
+    "logKeep",
     DEFAULT_LOG_KEEP,
     0,
     MAX_LOG_KEEP,
     warnings,
   );
-  const level = parseLevel(input.env, warnings);
+  const level = parseLevel(input.runtime["logLevel"], warnings);
   return {
     settings: { mode, sinks: sinkSelection(mode, production), dir, maxBytes, keep, level },
     warnings,
@@ -127,40 +134,54 @@ function parseSinkMode(raw: string | undefined, warnings: LogSettingsWarning[]):
 }
 
 function parseBoundedInteger(
-  env: NodeJS.ProcessEnv,
-  name: string,
+  raw: unknown,
+  key: string,
   fallback: number,
   min: number,
   max: number,
   warnings: LogSettingsWarning[],
 ): number {
-  const raw = readEnv(env, name);
-  if (raw === undefined) return fallback;
-  const value = Number(raw);
+  if (raw === undefined || raw === null) return fallback;
+  const value = typeof raw === "number" ? raw : Number.NaN;
   if (!Number.isSafeInteger(value) || value < min || value > max) {
     warnings.push(
-      warning(`${name}="${raw}" is not an integer in [${min}, ${max}]; using ${fallback}.`),
+      warning(
+        `${envNameFor(key)}="${String(raw)}" is not an integer in [${min}, ${max}]; using ${fallback}.`,
+      ),
     );
     return fallback;
   }
   return value;
 }
 
-function parseLevel(env: NodeJS.ProcessEnv, warnings: LogSettingsWarning[]): LogLevel | null {
-  const raw = readEnv(env, LOG_LEVEL_ENV);
-  if (raw === undefined) return null;
-  if (!isLogLevel(raw)) {
-    warnings.push(warning(`${LOG_LEVEL_ENV}="${raw}" is not a log level; keeping logging.level.`));
+function parseLevel(raw: unknown, warnings: LogSettingsWarning[]): LogLevel | null {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (value === "") {
+    warnings.push(
+      warning(
+        "runtime.logLevel is not declared; app and access entries are suppressed (set FACILIS_LOG_LEVEL).",
+        "logging_level_missing",
+      ),
+    );
     return null;
   }
-  return raw;
+  if (!isLogLevel(value)) {
+    warnings.push(
+      warning(
+        `FACILIS_LOG_LEVEL="${value}" is not a log level; app and access entries are suppressed.`,
+      ),
+    );
+    return null;
+  }
+  return value;
 }
 
-function readEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const value = env[name]?.trim();
-  return value === undefined || value.length === 0 ? undefined : value;
+function stringValue(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const value = raw.trim();
+  return value.length === 0 ? undefined : value;
 }
 
-function warning(message: string): LogSettingsWarning {
-  return { code: "logging_env_invalid", message };
+function warning(message: string, code = "logging_env_invalid"): LogSettingsWarning {
+  return { code, message };
 }
