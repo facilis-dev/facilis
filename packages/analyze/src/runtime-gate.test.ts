@@ -33,11 +33,22 @@ function repositoryRoot(): string {
 
 const REPO_ROOT = repositoryRoot();
 
-/** Any runtime-key diagnostic, warning included: an example is the reference, not a lesson in noise. */
-function runtimeDiagnostics(files: ReadonlyMap<string, string>) {
-  return analyzeProject({ files, parser: PARSER }).diagnostics.filter((entry) =>
-    entry.code.startsWith("runtime-key-"),
-  );
+/**
+ * One analysis per example: the analyzer is the expensive part of this gate and the suite runs it
+ * beside the other example-wide gates, so repeating it here pushed those past their timeout.
+ */
+const ANALYSES = new Map<string, ReturnType<typeof analyzeProject>>();
+
+function analysisFor(name: string) {
+  let analysis = ANALYSES.get(name);
+  if (analysis === undefined) {
+    analysis = analyzeProject({
+      files: loadProjectFiles(join(REPO_ROOT, "examples", name)),
+      parser: PARSER,
+    });
+    ANALYSES.set(name, analysis);
+  }
+  return analysis;
 }
 
 /** Mirror of ide/src/facilis/template-overrides.ts addVmNitro: anchored, throws on drift. */
@@ -51,30 +62,37 @@ function addVmNitro(config: string): string {
 describe("runtime requirements gate (D-224)", () => {
   for (const name of ["starter-app", "todo-app"]) {
     it("declares every required runtime key in examples/" + name, () => {
-      const diagnostics = runtimeDiagnostics(loadProjectFiles(join(REPO_ROOT, "examples", name)));
+      const diagnostics = analysisFor(name).diagnostics.filter((entry) =>
+        entry.code.startsWith("runtime-key-"),
+      );
       expect(diagnostics.map((entry) => entry.message)).toEqual([]);
+    });
+
+    it("declares the framework's whole surface in examples/" + name, () => {
+      const facts = analysisFor(name).config.runtimeConfig;
+      expect(facts.runtimeUnknown).toBe(false);
+      expect(Object.keys(facts.runtime).toSorted()).toEqual([...KNOWN_RUNTIME_KEYS].toSorted());
     });
   }
 
-  it("declares the framework's whole surface, so every variable resolves", () => {
-    for (const name of ["starter-app", "todo-app"]) {
-      const analysis = analyzeProject({
-        files: loadProjectFiles(join(REPO_ROOT, "examples", name)),
-        parser: PARSER,
-      });
-      expect(analysis.config.runtimeConfig.runtimeUnknown, name).toBe(false);
-      expect(Object.keys(analysis.config.runtimeConfig.runtime).toSorted(), name).toEqual(
-        [...KNOWN_RUNTIME_KEYS].toSorted(),
-      );
-    }
-  });
-
   it("declares every required runtime key in the IDE starter template config", () => {
-    const files = new Map(loadProjectFiles(join(REPO_ROOT, "examples", "starter-app")));
-    const config = files.get("facilis.config.ts");
-    if (config === undefined) throw new Error("examples/starter-app has no facilis.config.ts");
-    files.set("facilis.config.ts", addVmNitro(config));
-    expect(runtimeDiagnostics(files).map((entry) => entry.message)).toEqual([]);
+    // The template is the same app with a rewritten config, so only the config facts matter here:
+    // analyzing the whole example again would duplicate the work the two tests above already did.
+    const config = readFileSync(
+      join(REPO_ROOT, "examples", "starter-app", "facilis.config.ts"),
+      "utf8",
+    );
+    const template = analyzeProject({
+      files: new Map([["facilis.config.ts", addVmNitro(config)]]),
+      parser: PARSER,
+    });
+    const keys = Object.keys(template.config.runtimeConfig.runtime).toSorted();
+    expect(keys).toEqual([...KNOWN_RUNTIME_KEYS].toSorted());
+    expect(
+      template.diagnostics
+        .filter((entry) => entry.code.startsWith("runtime-key-"))
+        .map((entry) => entry.message),
+    ).toEqual([]);
   });
 
   it("keeps the IDE template config derived from examples/starter-app", () => {
