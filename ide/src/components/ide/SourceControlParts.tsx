@@ -87,6 +87,9 @@ export function Row({
         type="button"
         onClick={onOpen}
         title={ch.path}
+        // Stable hook for the browser gate: the row's classes are presentation, and the
+        // a11y work moved the click target from the row to this button (issue #215).
+        data-scm-change={ch.path}
         aria-label={`${t("scm.openDiff")}: ${ch.path}`}
         className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >

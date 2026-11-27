@@ -55,8 +55,7 @@ export async function runScmChecks({ page, check, ARTIFACTS }) {
 
   record(
     (await page.evaluate(
-      "(() => { const rows = [...document.querySelectorAll('.group.flex.h-6.cursor-pointer')];" +
-        " const row = rows.find((entry) => (entry.title || '') === 'src/app.tsx');" +
+      "(() => { const row = document.querySelector('[data-scm-change=\"src/app.tsx\"]');" +
         " if (!row) return 'NOTFOUND'; row.click(); return 'OK'; })()",
     )) === "OK",
     "scm: clicking a change opens the diff tab",
