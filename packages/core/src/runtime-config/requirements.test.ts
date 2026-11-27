@@ -30,6 +30,22 @@ describe("runtimeRequirements (D-224)", () => {
 
   it("requires the always-on deployment core", () => {
     const always = runtimeRequirements.filter((entry) => entry.when === undefined);
-    expect(always.map((entry) => entry.key)).toEqual(["databaseMode", "logLevel"]);
+    // storageDriver is always-on: the boot resolves the storage target even for a project that
+    // never uploads, and an absent key degrades the subsystem (D-224).
+    expect(always.map((entry) => entry.key)).toEqual(["databaseMode", "logLevel", "storageDriver"]);
+  });
+
+  it("requires the S3 credentials only with the s3 driver", () => {
+    const s3 = runtimeRequirements.filter((entry) => entry.when?.equals === "s3");
+    expect(s3.map((entry) => entry.key)).toEqual([
+      "s3Bucket",
+      "s3Region",
+      "s3AccessKeyId",
+      "s3SecretAccessKey",
+    ]);
+    expect(s3.filter((entry) => entry.secret === true).map((entry) => entry.key)).toEqual([
+      "s3AccessKeyId",
+      "s3SecretAccessKey",
+    ]);
   });
 });

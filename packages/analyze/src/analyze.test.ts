@@ -44,7 +44,9 @@ describe("analyzeProject (fixture)", () => {
       "route-table-unused",
       "route-wrapper",
       // D-224: the fixture config declares no runtime section, so the always-on requirements
-      // (databaseMode, logLevel) are reported as missing. The fixture is not a deployment.
+      // (databaseMode, logLevel, storageDriver) are reported as missing. The fixture is not a
+      // deployment.
+      "runtime-key-missing",
       "runtime-key-missing",
       "runtime-key-missing",
     ]);

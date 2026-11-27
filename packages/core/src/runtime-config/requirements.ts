@@ -5,10 +5,14 @@
  * key fails statically instead of decoding a hidden default. Conditions are data over the
  * project's static config values, never a function the analyzer cannot evaluate.
  *
- * Deliberately absent: `storageDriver`. It is required only when the project uses storage, and
- * the analyzer has no cheap "this project uses storage" fact today (the storage section is not
- * part of ConfigFacts), so requiring it would fail every project that ships no uploads. Add it
- * with `when` once that fact exists.
+ * `storageDriver` is unconditional: the boot resolves the storage target on every start
+ * (`resolveStorage` in the Nitro bootstrap), and an absent key degrades the subsystem with a
+ * manifest warning. The S3 details are conditional on that driver, and the credentials are secrets
+ * because a bucket without them still refuses storage.
+ *
+ * Deliberately absent: `storageSecret`. It is required only in production (development falls back
+ * to a per-boot secret), and a requirement cannot read `NODE_ENV` without becoming a deployment
+ * check. The boot keeps refusing with `storage_secret_missing`.
  */
 import type { JsonValue } from "./schema.ts";
 
@@ -31,9 +35,23 @@ export interface RuntimeRequirement {
 export const runtimeRequirements: readonly RuntimeRequirement[] = Object.freeze([
   { key: "databaseMode", surface: "server" },
   { key: "logLevel", surface: "server" },
-  // A storage driver of "s3" cannot work without a bucket and a region.
+  // The boot always resolves the storage target, even for a project that never uploads.
+  { key: "storageDriver", surface: "server" },
+  // An "s3" driver cannot work without a bucket, a region and the credentials.
   { key: "s3Bucket", surface: "server", when: { key: "storageDriver", equals: "s3" } },
   { key: "s3Region", surface: "server", when: { key: "storageDriver", equals: "s3" } },
+  {
+    key: "s3AccessKeyId",
+    surface: "server",
+    secret: true,
+    when: { key: "storageDriver", equals: "s3" },
+  },
+  {
+    key: "s3SecretAccessKey",
+    surface: "server",
+    secret: true,
+    when: { key: "storageDriver", equals: "s3" },
+  },
   // Opt-in telemetry without a collector or an ingestion key exports nothing.
   {
     key: "telemetryEndpoint",

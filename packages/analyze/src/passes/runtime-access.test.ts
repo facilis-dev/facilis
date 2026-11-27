@@ -26,7 +26,7 @@ function scan(files: Record<string, string>) {
   return runtimeConfigDiagnostics(graph, buildConfigFacts(graph).facts);
 }
 
-const RUNTIME = '{ databaseMode: "pglite", logLevel: "info" }';
+const RUNTIME = '{ databaseMode: "pglite", logLevel: "info", storageDriver: "local" }';
 
 describe("runtime read sites (D-224)", () => {
   it("reads ctx.runtime, runtimeEnv() and simple destructuring", () => {
@@ -63,7 +63,7 @@ describe("runtime read sites (D-224)", () => {
   it("treats a dynamic declaration as declared, never as unset", () => {
     const diagnostics = scan({
       "facilis.config.ts": config(
-        '{ databaseMode: process.env.MODE, logLevel: "info" }',
+        '{ databaseMode: process.env.MODE, logLevel: "info", storageDriver: "local" }',
       ),
       "server/reads.ts": "export const mode = ctx.runtime.databaseMode;",
     });
@@ -74,7 +74,9 @@ describe("runtime read sites (D-224)", () => {
 describe("runtime-key-unset and runtime-key-unused", () => {
   it("flags a declaration with neither a literal nor a secret marker", () => {
     const diagnostics = scan({
-      "facilis.config.ts": config('{ databaseMode: undefined, logLevel: "info" }'),
+      "facilis.config.ts": config(
+        '{ databaseMode: undefined, logLevel: "info", storageDriver: "local" }',
+      ),
       "server/reads.ts": "export const mode = ctx.runtime.databaseMode;",
     });
     expect(diagnostics.map((entry) => entry.code)).toContain(RUNTIME_KEY_UNSET);
@@ -86,7 +88,7 @@ describe("runtime-key-unset and runtime-key-unused", () => {
   it("warns on an app-defined key nobody reads, never on a framework key", () => {
     const diagnostics = scan({
       "facilis.config.ts": config(
-        '{ databaseMode: "pglite", logLevel: "info", supportEmail: "help@a.test" }',
+        '{ databaseMode: "pglite", logLevel: "info", storageDriver: "local", supportEmail: "help@a.test" }',
       ),
       "server/reads.ts":
         "export const a = ctx.runtime.databaseMode; export const b = ctx.runtime.logLevel;",
@@ -99,11 +101,14 @@ describe("runtime-key-unset and runtime-key-unused", () => {
 });
 
 describe("runtime-key-missing (D-224)", () => {
-  it("prints the exact line to paste for an always-on requirement", () => {
+  it("prints the exact line to paste for every always-on requirement", () => {
     const diagnostics = scan({ "facilis.config.ts": config('{ logLevel: "info" }') });
     const missing = diagnostics.filter((entry) => entry.code === RUNTIME_KEY_MISSING);
-    expect(missing).toHaveLength(1);
-    expect(missing[0]?.message).toContain('add: databaseMode: "pglite",');
+    // databaseMode and storageDriver: both are read at every boot.
+    expect(missing).toHaveLength(2);
+    const text = missing.map((entry) => entry.message).join("\n");
+    expect(text).toContain('add: databaseMode: "pglite",');
+    expect(text).toContain('add: storageDriver: "local",');
   });
 
   it("only requires S3 keys when storageDriver is s3", () => {
@@ -112,9 +117,12 @@ describe("runtime-key-missing (D-224)", () => {
         '{ databaseMode: "pglite", logLevel: "info", storageDriver: "s3" }',
       ),
     }).filter((entry) => entry.code === RUNTIME_KEY_MISSING);
-    expect(s3).toHaveLength(2);
-    expect(s3.map((entry) => entry.message).join("\n")).toContain("add: s3Bucket: null,");
-    expect(s3.map((entry) => entry.message).join("\n")).toContain("add: s3Region: null,");
+    expect(s3).toHaveLength(4);
+    const s3Text = s3.map((entry) => entry.message).join("\n");
+    expect(s3Text).toContain("add: s3Bucket: null,");
+    expect(s3Text).toContain("add: s3Region: null,");
+    expect(s3Text).toContain("add: s3AccessKeyId: { secret: true },");
+    expect(s3Text).toContain("add: s3SecretAccessKey: { secret: true },");
 
     const local = scan({
       "facilis.config.ts": config(
@@ -127,7 +135,7 @@ describe("runtime-key-missing (D-224)", () => {
   it("requires the telemetry keys only when telemetry is enabled", () => {
     const missing = scan({
       "facilis.config.ts": config(
-        '{ databaseMode: "pglite", logLevel: "info", telemetryEnabled: true }',
+        '{ databaseMode: "pglite", logLevel: "info", storageDriver: "local", telemetryEnabled: true }',
       ),
     }).filter((entry) => entry.code === RUNTIME_KEY_MISSING);
     expect(missing).toHaveLength(2);
@@ -137,7 +145,7 @@ describe("runtime-key-missing (D-224)", () => {
 
     const off = scan({
       "facilis.config.ts": config(
-        '{ databaseMode: "pglite", logLevel: "info", telemetryEnabled: false }',
+        '{ databaseMode: "pglite", logLevel: "info", storageDriver: "local", telemetryEnabled: false }',
       ),
     }).filter((entry) => entry.code === RUNTIME_KEY_MISSING);
     expect(off).toEqual([]);
@@ -147,7 +155,9 @@ describe("runtime-key-missing (D-224)", () => {
     const missing = scan({
       "facilis.config.ts": config('{ ...base, databaseMode: "pglite", logLevel: "info" }'),
       "server/reads.ts": "export const tenant = ctx.runtime.tenantId;",
-    }).filter((entry) => entry.code === RUNTIME_KEY_MISSING || entry.code === RUNTIME_KEY_UNDECLARED);
+    }).filter(
+      (entry) => entry.code === RUNTIME_KEY_MISSING || entry.code === RUNTIME_KEY_UNDECLARED,
+    );
     expect(missing).toEqual([]);
   });
 });
