@@ -41,8 +41,10 @@ import {
   routeSecurityErrors,
 } from "./rules/routes-security.ts";
 import { structuralErrors } from "./rules/structural.ts";
+import { surfaceDeclarationErrors } from "./rules/surface.ts";
+import { surfaceRequests } from "./rules/surface-request.ts";
 import { tsParseErrors } from "./rules/ts-parse.ts";
-import type { FilePatch, ValidatePatchOptions, ValidationResult } from "./types.ts";
+import type { FilePatch, SurfaceRequest, ValidatePatchOptions, ValidationResult } from "./types.ts";
 
 export function validatePatch(
   patches: readonly FilePatch[],
@@ -56,6 +58,7 @@ export function validatePatch(
   const warnings: ValidationResult["warnings"] = [];
   let destructive = false;
   let drops: string[] = [];
+  let requests: SurfaceRequest[] = [];
   const context = options.context;
   if (context !== undefined) {
     const state = buildEffectiveState(context, patches);
@@ -97,6 +100,18 @@ export function validatePatch(
     errors.push(...reservedRoutePrefixErrors(state));
     // D-214 rule 22: literal raw SQL never writes a seed-only auth table (invariant 8).
     errors.push(...rawSqlSystemTableWriteErrors(state));
+    // D-226 rule 24: a capability must be declared in the code that uses it.
+    errors.push(...surfaceDeclarationErrors(state));
+    // D-226 decision 7: declarations are held for the user's confirmation, then revalidated
+    // with confirmedSurface so the second pass does not ask again.
+    requests = options.confirmedSurface === true ? [] : surfaceRequests(state, patches);
   }
-  return { ok: errors.length === 0, errors, warnings, destructive, destructiveChanges: drops };
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    destructive,
+    destructiveChanges: drops,
+    ...(requests.length === 0 ? {} : { surfaceRequests: requests }),
+  };
 }

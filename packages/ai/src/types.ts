@@ -73,10 +73,25 @@ export interface ValidationError {
   excerpt?: string;
 }
 
+/**
+ * A capability the patch declares; the IDE asks the user before writing it (D-226 decision 7).
+ * The model never writes a declaration the user has not seen: the request carries the exact
+ * snippet and the generated reason the confirmation card shows and edits.
+ */
+export interface SurfaceRequest {
+  readonly path: string;
+  readonly capability: "raw-route" | "server-extension" | "raw-sql" | "raw-db" | "dynamic-code";
+  readonly reason: string;
+  readonly snippet: string;
+  readonly line: number;
+}
+
 export interface ValidationResult {
   ok: boolean;
   errors: ValidationError[];
   warnings: ValidationError[];
+  /** Declarations the patch adds and the user must confirm before the write (D-226). */
+  surfaceRequests?: readonly SurfaceRequest[];
   /**
    * The patch set drops a table or a column (rule 15's predicate). The IDE's incremental
    * write path records it on the turn journal; confirmation stays rule 15's business, so
@@ -178,4 +193,6 @@ export interface ValidatePatchOptions {
   allowedRootFiles?: readonly string[];
   /** Rule 11's writable set (D-167). Defaults to `managed`, the strict roots. */
   writePolicy?: WritePolicy;
+  /** True for the post-confirmation revalidation: do not ask again (D-226). */
+  confirmedSurface?: boolean;
 }
