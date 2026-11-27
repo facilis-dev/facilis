@@ -27,6 +27,7 @@ import { runChatChecks } from "./smoke-chat.mjs";
 import { runPanelChecks } from "./smoke-panels.mjs";
 import { runLocalPackagesChecks } from "./smoke-local-packages.mjs";
 import { runMobileChecks } from "./smoke-mobile.mjs";
+import { runKeyboardChecks } from "./smoke-keyboard.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TOOLING = process.env.FACILIS_TOOLING_DIR || "/tmp/facilis-dev";
@@ -299,8 +300,6 @@ async function main() {
   check(!/Vivari Studio/.test(previewBody), "preview is the project, not the studio shell");
   check(previewBody.length > 0, "preview document has text", previewBody.slice(0, 80));
 
-
-
   // The IDE creates only Facilis projects now, so the framework probes always run.
   // The Facilis probe exposes its endpoint results as data-* attributes on its own
   // document; smoke-facilis.mjs owns the contract, polling and failure diagnostics.
@@ -382,6 +381,18 @@ async function main() {
     }
   } catch (error) {
     check(false, "panel checks ran", String(error));
+  }
+
+  // Keyboard acceptance for the accessibility fixes (#209..#223): where the focus actually
+  // goes is the one claim a DOM-free unit test cannot witness, so it is asserted here.
+  let keyboardReport = null;
+  try {
+    keyboardReport = await runKeyboardChecks({ page, check, ARTIFACTS });
+    for (const result of keyboardReport.checks) {
+      if (!result.ok && !failures.includes(result.label)) failures.push(result.label);
+    }
+  } catch (error) {
+    check(false, "keyboard checks ran", String(error));
   }
 
   // D-128: the guided tour is replayed over the real UI (auto-start is suppressed under
@@ -586,6 +597,7 @@ async function main() {
     ...(chatReport ? { chat: { checks: chatReport.checks } } : {}),
     ...(panelReport ? { panels: { checks: panelReport.checks } } : {}),
     ...(localPackagesReport ? { localPackages: { checks: localPackagesReport.checks } } : {}),
+    ...(keyboardReport ? { keyboard: { checks: keyboardReport.checks } } : {}),
     ...(mobileReport ? { mobile: { checks: mobileReport.checks } } : {}),
   };
   fs.writeFileSync(path.join(ARTIFACTS, "report.json"), JSON.stringify(report, null, 2));
