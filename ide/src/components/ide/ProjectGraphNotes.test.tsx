@@ -1,5 +1,5 @@
 // Static-render tests for graph notes (issue #194): the card renders markdown through the
-// notebook renderer, exposes its delete control, and the sr-only surface list mirrors it as a
+// notebook renderer, exposes its delete control, and the visible node rail lists it as a
 // button. ide/ ships no jsdom, so components render to strings like the other UI tests.
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,7 +8,7 @@ import { initI18n, setLocale, t } from "@/i18n";
 import type { SurfaceCamera } from "@/facilis/graph-surface/camera.ts";
 import type { GraphDomain } from "@/facilis/graph-surface/domains.ts";
 import type { GraphNote, ProjectGraphNode } from "@/facilis/graph-types";
-import { ProjectGraphNodeList } from "./ProjectGraphNodeList";
+import { ProjectGraphNodeRail } from "./ProjectGraphNodeRail";
 import { ProjectGraphNoteCard } from "./ProjectGraphNoteCard";
 
 const CAMERA: SurfaceCamera = { tx: 0, ty: 0, scale: 1 };
@@ -84,14 +84,15 @@ describe("ProjectGraphNoteCard", () => {
   });
 });
 
-describe("ProjectGraphNodeList notes group", () => {
-  it("mirrors each note as a button named after its first line", () => {
+describe("ProjectGraphNodeRail notes group", () => {
+  it("lists each note as a button named after its first line", () => {
     const html = renderToStaticMarkup(
-      <ProjectGraphNodeList
+      <ProjectGraphNodeRail
         nodes={[page]}
         domains={domains}
         detailDomain={null}
         notes={[NOTE]}
+        selectedNodeId={null}
         onSelectNode={vi.fn()}
         onSelectNote={vi.fn()}
         onOpenDomain={vi.fn()}
@@ -104,10 +105,11 @@ describe("ProjectGraphNodeList notes group", () => {
 
   it("omits the notes group when there are no notes", () => {
     const html = renderToStaticMarkup(
-      <ProjectGraphNodeList
+      <ProjectGraphNodeRail
         nodes={[page]}
         domains={domains}
         detailDomain={null}
+        selectedNodeId={null}
         onSelectNode={vi.fn()}
         onOpenDomain={vi.fn()}
       />,

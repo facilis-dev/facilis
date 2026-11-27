@@ -12,6 +12,7 @@ import { commitGraphEn } from "./en-commit-graph";
 import { projectGraphEn } from "./en-project-graph";
 import { projectGraphAnswersEn } from "./en-project-graph-answers";
 import { projectGraphQuestionsEn } from "./en-project-graph-questions";
+import { projectGraphRailEn } from "./en-project-graph-rail";
 import { chatEn } from "./en-chat";
 import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
@@ -37,7 +38,6 @@ export const en = {
   // title is the logo), and the upstream name survives only in attribution, package
   // ids and the `__vv*` internals (D-069).
   "app.name": "facilis.dev",
-
   // ── shared ───────────────────────────────────────────────────────────────
   "common.cancel": "Cancel",
   "common.close": "Close",
@@ -210,6 +210,7 @@ export const en = {
   ...projectGraphEn,
   ...projectGraphAnswersEn,
   ...projectGraphQuestionsEn,
+  ...projectGraphRailEn,
   ...dataExplorerEn,
   ...dataQueryEn,
   ...releasePreviewEn,
