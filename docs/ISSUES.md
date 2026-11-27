@@ -61,8 +61,8 @@ assignee is an agent or a human.
 An issue labelled `epic` is a plan, not a work item. **One epic is developed on one branch
 (`feat/epic-<N>-<slug>`) with one pull request**: each child is a commit on that branch,
 announced with a comment on the epic PR, and its issue is closed when implemented. The epic
-PR carries `Closes #<epic>` and closes the epic when it merges; children never get their own
-pull requests.
+PR opens with `Refs #<epic>` and carries `Closes #<epic>` only once every child of the epic is
+closed: that merge closes the epic. Children never get their own pull requests.
 
 Children are ordinary issues (`bug`, `enhancement`, `task`) and **intentionally carry no
 `agent:ready` label**: tagging them would let an agent pick a child out of plan order. They
@@ -90,7 +90,8 @@ When an agent selects an `agent:ready` epic:
    epic PR: child implemented, commit, gate evidence. Then close the child issue
    (`gh issue close <child>`) referencing the epic PR — GitHub checks the epic's task-list
    box automatically. Open the epic PR with the first child if it does not exist yet
-   (`Closes #<epic>`); never open per-child PRs and never close the epic directly.
+   (`Refs #<epic>`); add `Closes #<epic>` when the last child is closed. Never open per-child
+   PRs and never close the epic directly.
 
 An epic whose children are all closed or in progress has nothing to do: skip it and select
 the next `agent:ready` candidate. A blocker on one child is reported on that child (comment,
