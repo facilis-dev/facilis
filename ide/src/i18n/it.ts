@@ -17,6 +17,7 @@ import { logsIt } from "./it-logs";
 import { tourIt } from "./it-tour";
 import { runIt } from "./it-run";
 import { previewIt } from "./it-preview";
+import { paletteIt } from "./it-palette";
 import { scaffoldIt } from "./it-scaffold";
 import { telemetryLinkoutIt } from "./it-telemetry-linkout";
 import { stateLensesIt } from "./it-state-lenses";
@@ -250,32 +251,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...previewIt,
 
   // ── command palette ──────────────────────────────────────────────────────
-  "palette.commandPlaceholder": "Digita un comando…",
-  "palette.filePlaceholder": "Cerca file per nome (aggiungi :riga per saltarci)…",
-  "palette.commands": "Comandi",
-  "palette.noResults": "Nessun risultato.",
-  "palette.currentFile": "File corrente",
-  "palette.files": "File",
-  "palette.filesLine": "File · riga {line}",
-  "palette.goToLine": "Vai alla riga {line}",
-  "palette.home": "Home / Nuovo progetto",
-  "palette.newTerminal": "Nuovo terminale",
-  "palette.runProject": "Esegui progetto",
-  "palette.importFolder": "Importa cartella come progetto",
-  "palette.importRemote": "Importa un repository",
-  "palette.pushRemote": "Pubblica su un host git",
-  "palette.openChat": "Apri chat AI",
-  "palette.tour": "Mostra il tour dell'IDE",
-  "palette.exportZip": "Esporta progetto come Zip",
-  "palette.shareProject": "Condividi progetto (copia link)",
-  "palette.toggleTerminal": "Mostra/nascondi pannello",
-  "palette.toggleSidebar": "Mostra/nascondi barra laterale",
-  "palette.togglePreview": "Mostra/nascondi pannello anteprima",
-  "palette.toggleWordWrap": "Attiva/disattiva a capo automatico",
-  "palette.clearTerminal": "Pulisci terminale attivo",
-  "palette.reloadPreview": "Ricarica anteprima",
-  "palette.measureMemory": "Misura memoria",
-  "palette.resetEverything": "Ripristina tutto (file + cache)",
+  ...paletteIt,
 
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatIt,

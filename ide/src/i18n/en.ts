@@ -17,6 +17,7 @@ import { logsEn } from "./en-logs";
 import { tourEn } from "./en-tour";
 import { runEn } from "./en-run";
 import { previewEn } from "./en-preview";
+import { paletteEn } from "./en-palette";
 import { scaffoldEn } from "./en-scaffold";
 import { prerenderEn } from "./en-prerender";
 import { telemetryLinkoutEn } from "./en-telemetry-linkout";
@@ -251,35 +252,13 @@ export const en = {
   "status.perf.failed": "The performance snapshot could not be captured.",
   // ── preview panel ────────────────────────────────────────────────────────
   ...previewEn,
+
   // ── command palette ──────────────────────────────────────────────────────
-  "palette.commandPlaceholder": "Type a command…",
-  "palette.filePlaceholder": "Search files by name (append :line to jump)…",
-  "palette.commands": "Commands",
-  "palette.noResults": "No results.",
-  "palette.currentFile": "Current File",
-  "palette.files": "Files",
-  "palette.filesLine": "Files · line {line}",
-  "palette.goToLine": "Go to line {line}",
-  "palette.home": "Go Home / New Project",
-  "palette.newTerminal": "New Terminal",
-  "palette.runProject": "Run Project",
-  "palette.importFolder": "Import Folder as Project",
-  "palette.importRemote": "Import a repository",
-  "palette.pushRemote": "Publish to a git host",
-  "palette.openChat": "Open AI Chat",
-  "palette.tour": "Show the IDE Tour",
-  "palette.exportZip": "Export Project as Zip",
-  "palette.shareProject": "Share Project (copy link)",
-  "palette.toggleTerminal": "Toggle panel",
-  "palette.toggleSidebar": "Toggle Sidebar",
-  "palette.togglePreview": "Toggle Preview Panel",
-  "palette.toggleWordWrap": "Toggle Word Wrap",
-  "palette.clearTerminal": "Clear Active Terminal",
-  "palette.reloadPreview": "Reload Preview",
-  "palette.measureMemory": "Measure Memory",
-  "palette.resetEverything": "Reset Everything (wipe files + caches)",
+  ...paletteEn,
+
   // ── AI chat (D-045) ──────────────────────────────────────────────────────
   ...chatEn,
+
   // ── operator logs (D-119) ────────────────────────────────────────────────
   ...logsEn,
 
