@@ -267,10 +267,12 @@ describe("ProjectGraphRichCard", () => {
     expect(html).toContain(t("projectGraph.surface.card.noDetails"));
   });
 
-  it("has an accessible dialog label and a close button", () => {
+  it("is a named modal dialog with a close button", () => {
     const html = renderCard(nodeOf("table", "todos", table));
     expect(html).toContain('role="dialog"');
-    expect(html).toContain(t("projectGraph.surface.card.label"));
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('aria-label="' + t("projectGraph.surface.card.label") + '"');
+    expect(html).toContain('tabindex="-1"');
     expect(html).toContain(t("projectGraph.surface.card.close"));
   });
 });

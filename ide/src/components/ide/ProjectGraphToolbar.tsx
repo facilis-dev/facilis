@@ -95,6 +95,7 @@ export function ProjectGraphToolbar({
         <div className="relative min-w-24 flex-1">
           <input
             type="search"
+            data-project-graph-search=""
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             onFocus={() => setSearchFocused(true)}
