@@ -77,6 +77,7 @@ function mapExtension(analysis: Analysis): SecuritySurfaceExtension[] {
         reason: entry.reason,
         file: entry.source.file,
         line: entry.source.line,
+        ...(entry.confirmed === undefined ? {} : { confirmed: entry.confirmed }),
       })),
       source: {
         file: extension.surface.source.file,

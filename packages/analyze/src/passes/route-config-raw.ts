@@ -10,7 +10,7 @@ import { error } from "../diagnostics.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
 import type { StaticContext } from "../static-eval.ts";
 import type { ConfigFacts, Diagnostic, RouteInputFact, SourceRef, UnknownFact } from "../types.ts";
-import { readStaticObject, refOf, type StaticField } from "./static-read.ts";
+import { readConfirmed, readStaticObject, refOf, type StaticField } from "./static-read.ts";
 
 export interface RawRouteConfigFacts {
   readonly permission: readonly string[] | null;
@@ -20,6 +20,7 @@ export interface RawRouteConfigFacts {
   readonly input: RouteInputFact;
   readonly reason: string | null;
   readonly auth: "required" | "none" | null;
+  readonly confirmed?: { readonly at: string; readonly by: string };
   /** True when the route may be mounted: reason and auth are both valid. */
   readonly declared: boolean;
   readonly unknown: readonly UnknownFact[];
@@ -140,6 +141,10 @@ export function rawRouteConfigFacts(
     }
   }
 
+  const confirmedField = field("confirmed");
+  const confirmed =
+    confirmedField?.ok === true ? readConfirmed(confirmedField.value) : undefined;
+
   const declared = reason !== null && auth !== null && permission !== null && dbTables !== null;
   if (!declared) {
     diagnostics.push(
@@ -156,6 +161,7 @@ export function rawRouteConfigFacts(
     input: { body: false, form: false, query: false, params: false },
     reason,
     auth,
+    ...(confirmed === undefined ? {} : { confirmed }),
     declared,
     unknown,
     diagnostics,

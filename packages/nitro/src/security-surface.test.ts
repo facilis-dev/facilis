@@ -40,7 +40,7 @@ const ANALYSIS = emptyAnalysis({
     ],
     dynamicCode: [],
     unknown: [],
-    summary: { standard: 0, declared: 1, undeclared: 0, unknown: 0 },
+    summary: { standard: 0, declared: 1, undeclared: 1, unknown: 0 },
   },
 });
 
@@ -50,7 +50,7 @@ describe("security-surface document (D-226)", () => {
     expect(parseSecuritySurface(document).ok).toBe(true);
     expect(document.routes[0]?.declarations[0]?.reason).toBe("signed webhook");
     expect(document.imports[0]?.symbol).toBe("createDb");
-    expect(document.summary).toMatchObject({ declared: 1, undeclared: 1 });
+    expect(document.summary).toEqual(ANALYSIS.surface.summary);
   });
 
   it("is deterministic for the same analysis", () => {

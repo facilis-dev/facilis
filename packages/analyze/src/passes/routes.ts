@@ -177,9 +177,11 @@ function scanRoute(
       raw: true,
       rawReason: facts.reason,
       rawDeclared: facts.declared,
+      ...(facts.confirmed === undefined ? {} : { rawConfirmed: facts.confirmed }),
       rawSql: false,
       rawSqlReason: null,
-      rawDb,
+      rawDb: rawDb.calls,
+      opaqueHandler: rawDb.opaque,
       source: ref,
       unknown: facts.unknown,
     });
@@ -220,7 +222,8 @@ function scanRoute(
     rawDeclared: true,
     rawSql: facts.rawSql,
     rawSqlReason: facts.rawSqlReason,
-    rawDb,
+    rawDb: rawDb.calls,
+    opaqueHandler: rawDb.opaque,
     source: ref,
     unknown: facts.unknown,
   });

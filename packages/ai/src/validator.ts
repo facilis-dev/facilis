@@ -1,5 +1,5 @@
 /**
- * The SPEC §9.3 patch validator: 23 rules, grouped by the part of the project they read.
+ * The SPEC §9.3 patch validator: 24 rules, grouped by the part of the project they read.
  *
  * Without a context only the three context-free structural checks run (paths, content
  * presence, JSON parse); with a context the full rule set runs. Rules 5, 13 and 17 only warn;

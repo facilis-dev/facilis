@@ -6,21 +6,11 @@
  * They are resolved here, once, so the build gate, the IDE and the release export read the
  * same facts instead of re-scanning the project.
  */
-import {
-  callArguments,
-  identifierName,
-  literalString,
-  unwrapExpression,
-  type AstNode,
-} from "../ast/node.ts";
-import { walk } from "../ast/walk.ts";
+import { callArguments, identifierName, unwrapExpression, type AstNode } from "../ast/node.ts";
 import { error } from "../diagnostics.ts";
 import type { ModuleGraph, ProjectFile } from "../module-graph.ts";
-import { sourceRef } from "../source.ts";
-import type { Diagnostic, FileFacts, RouteFact, SourceRef, UnknownFact } from "../types.ts";
+import type { Diagnostic, FileFacts, RouteFact, UnknownFact } from "../types.ts";
 import type {
-  DynamicCodeFact,
-  DynamicCodeForm,
   ForbiddenImportFact,
   SecuritySurfaceFacts,
   ServerExtensionFact,
@@ -29,7 +19,9 @@ import type {
   SurfaceDeclarationFact,
   SurfaceFact,
 } from "../types-surface.ts";
-import { defaultExportExpression, readStaticObject } from "./static-read.ts";
+import { defaultExportExpression, readConfirmed, readStaticObject } from "./static-read.ts";
+import { buildDynamicCodeFacts } from "./surface-dynamic.ts";
+import { isTestFile, refOf, sortedFiles, unknownFact } from "./surface-shared.ts";
 
 const CORE_SPECIFIER = "@facilis.dev/core";
 const DB_SPECIFIER = "@facilis.dev/db";
@@ -40,25 +32,12 @@ const EXTENSION_DIRS: ReadonlyArray<[string, ServerExtensionKind]> = [
   ["server/tasks/", "task"],
 ];
 const FORBIDDEN_DB_IMPORTS = /^(?:createDb|runAs[A-Za-z]*|ensure[A-Za-z]*)$/;
-const DYNAMIC_MARKER = /^dynamic-code(?::|\s)(.*)$/;
-
-function sortedFiles(graph: ModuleGraph): ProjectFile[] {
-  return [...graph.files.values()].toSorted((left, right) => left.path.localeCompare(right.path));
-}
 
 function extensionKind(path: string): ServerExtensionKind | null {
   for (const [dir, kind] of EXTENSION_DIRS) {
     if (path.startsWith(dir)) return kind;
   }
   return null;
-}
-
-function refOf(file: ProjectFile, node: AstNode | undefined): SourceRef {
-  return sourceRef(file.path, file.lines, typeof node?.start === "number" ? node.start : 0);
-}
-
-function unknownFact(code: string, reason: string, source: SourceRef): UnknownFact {
-  return { code, reason, source };
 }
 
 /** Read `{ reason, confirmed }` from the defineServerExtension first argument. */
@@ -90,7 +69,9 @@ function extensionDeclaration(
       ),
     );
   }
-  return { reason, unknown };
+  const confirmedField = object.fields.get("confirmed");
+  const confirmed = confirmedField?.ok === true ? readConfirmed(confirmedField.value) : undefined;
+  return { reason, ...(confirmed === undefined ? {} : { confirmed }), unknown };
 }
 
 function extensionFacts(graph: ModuleGraph): {
@@ -139,7 +120,16 @@ function extensionFacts(graph: ModuleGraph): {
         const declarations: SurfaceDeclarationFact[] =
           declaration.reason === null
             ? []
-            : [{ kind: "server-extension", reason: declaration.reason, source: ref }];
+            : [
+                {
+                  kind: "server-extension",
+                  reason: declaration.reason,
+                  source: ref,
+                  ...(declaration.confirmed === undefined
+                    ? {}
+                    : { confirmed: declaration.confirmed }),
+                },
+              ];
         const declared = declaration.reason !== null;
         surface = {
           class: declared ? "declared" : "undeclared",
@@ -155,11 +145,6 @@ function extensionFacts(graph: ModuleGraph): {
     extensions.push({ file: file.path, kind, surface });
   }
   return { extensions, diagnostics };
-}
-
-/** Test modules are not shipped surface: a test may import a factory to arrange a fixture. */
-function isTestFile(path: string): boolean {
-  return /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path);
 }
 
 function forbiddenImports(fileFacts: readonly FileFacts[]): ForbiddenImportFact[] {
@@ -187,70 +172,6 @@ function forbiddenImports(fileFacts: readonly FileFacts[]): ForbiddenImportFact[
   return facts;
 }
 
-/** True when the dynamic site carries a `// dynamic-code: reason` marker above it. */
-function dynamicMarker(file: ProjectFile, node: AstNode): string | null {
-  if (file.comments === null) return null;
-  const line = file.lines.lineAt(typeof node.start === "number" ? node.start : 0);
-  for (const comment of file.comments) {
-    if (file.lines.lineAt(comment.end) !== line - 1) continue;
-    const match = DYNAMIC_MARKER.exec(comment.value.trim());
-    if (match === null) continue;
-    const reason = (match[1] ?? "").trim();
-    if (reason.length > 0) return reason;
-  }
-  return null;
-}
-
-function dynamicForm(node: AstNode): DynamicCodeForm | null {
-  if (node.type === "CallExpression" && identifierName(node.callee) === "eval") return "eval";
-  if (node.type === "NewExpression" && identifierName(node.callee) === "Function") {
-    return "new-function";
-  }
-  if (node.type === "ImportExpression" && literalString(node.source) === undefined) {
-    return "computed-import";
-  }
-  return null;
-}
-
-function dynamicCodeFacts(graph: ModuleGraph): {
-  facts: DynamicCodeFact[];
-  diagnostics: Diagnostic[];
-} {
-  const facts: DynamicCodeFact[] = [];
-  const diagnostics: Diagnostic[] = [];
-  for (const file of sortedFiles(graph)) {
-    if (file.path.startsWith("node_modules/") || isTestFile(file.path)) continue;
-    walk(file.program, (node) => {
-      const form = dynamicForm(node);
-      if (form === null) return;
-      const ref = refOf(file, node);
-      const reason = dynamicMarker(file, node);
-      const declarations: SurfaceDeclarationFact[] =
-        reason === null ? [] : [{ kind: "dynamic-code", reason, source: ref }];
-      const surface: SurfaceFact = {
-        class: reason === null ? "undeclared" : "declared",
-        declarations,
-        source: ref,
-        unknown:
-          reason === null
-            ? [
-                unknownFact(
-                  "surface-undeclared",
-                  "dynamic code must be declared with a // dynamic-code: <reason> marker (D-226)",
-                  ref,
-                ),
-              ]
-            : [],
-      };
-      if (reason === null) {
-        diagnostics.push(error("surface-undeclared", surface.unknown[0]!.reason, ref));
-      }
-      facts.push({ file: file.path, form, surface });
-    });
-  }
-  return { facts, diagnostics };
-}
-
 /** Build the project-level surface facts plus the class summary used by the artifact. */
 export function buildSecuritySurfaceFacts(
   graph: ModuleGraph,
@@ -258,7 +179,7 @@ export function buildSecuritySurfaceFacts(
   routes: readonly RouteFact[],
 ): { surface: SecuritySurfaceFacts; diagnostics: Diagnostic[] } {
   const extensions = extensionFacts(graph);
-  const dynamic = dynamicCodeFacts(graph);
+  const dynamic = buildDynamicCodeFacts(graph);
   const imports = forbiddenImports(fileFacts);
   const counts: Record<SurfaceClass, number> = {
     standard: 0,
@@ -270,12 +191,24 @@ export function buildSecuritySurfaceFacts(
   for (const extension of extensions.extensions) counts[extension.surface.class] += 1;
   for (const code of dynamic.facts) counts[code.surface.class] += 1;
   counts.undeclared += imports.length;
+  // The top-level bucket carries the unreadable facts of the declared sites; it is not a
+  // synonym for "not standard", which the per-site class already says.
+  const unknown = [
+    ...routes.flatMap((route) => route.surface.unknown),
+    ...extensions.extensions.flatMap((extension) => extension.surface.unknown),
+    ...dynamic.facts.flatMap((entry) => entry.surface.unknown),
+  ].toSorted(
+    (left, right) =>
+      left.source.file.localeCompare(right.source.file) ||
+      left.source.line - right.source.line ||
+      left.code.localeCompare(right.code),
+  );
   return {
     surface: {
       extensions: extensions.extensions,
       forbiddenImports: imports,
       dynamicCode: dynamic.facts,
-      unknown: [],
+      unknown,
       summary: { ...counts },
     },
     diagnostics: [...extensions.diagnostics, ...dynamic.diagnostics],

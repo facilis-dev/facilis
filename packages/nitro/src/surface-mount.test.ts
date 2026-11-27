@@ -120,6 +120,27 @@ describe("enforceDeclaredSurface (D-226)", () => {
     ]);
   });
 
+  it("does not mount a route whose file has a forbidden db import", () => {
+    const nitro = fakeNitro(["/project/server/api/bad.get.ts"]);
+    const base = analysisWith([{ file: "server/api/bad.get.ts", surface: "standard" }]);
+    const analysis = {
+      ...base,
+      surface: {
+        ...base.surface,
+        forbiddenImports: [
+          {
+            file: "server/api/bad.get.ts",
+            specifier: "@facilis.dev/db",
+            imported: "createDb",
+            source: { file: "server/api/bad.get.ts", line: 2 },
+          },
+        ],
+      },
+    };
+    enforceDeclaredSurface(nitro, ROOT, analysis);
+    expect(nitro.options.handlers).toEqual([]);
+  });
+
   it("filters a relative config path too, not only an absolute one", () => {
     const nitro = fakeNitro([], ["./server/plugins/evil.ts", "./server/plugins/ids.ts"]);
     const analysis = analysisWith([], [{ file: "server/plugins/ids.ts", surface: "declared" }]);
@@ -127,16 +148,26 @@ describe("enforceDeclaredSurface (D-226)", () => {
     expect(nitro.options.plugins).toEqual(["/project/server/plugins/ids.ts"]);
   });
 
-  it("re-filters every later scan through the intercepted property", () => {
+  it("re-analyzes on every later scan: a new declared route mounts, an edited one is refused", () => {
     const nitro = fakeNitro([]);
-    const analysis = analysisWith([{ file: "server/api/ok.get.ts", surface: "standard" }]);
-    enforceDeclaredSurface(nitro, ROOT, analysis);
+    const boot = analysisWith([{ file: "server/api/ok.get.ts", surface: "standard" }]);
+    const afterAdd = analysisWith([
+      { file: "server/api/ok.get.ts", surface: "standard" },
+      { file: "server/api/new.get.ts", surface: "declared" },
+    ]);
+    enforceDeclaredSurface(nitro, ROOT, boot, () => afterAdd);
     nitro.scannedHandlers = [
       { route: "/x", handler: "/project/server/api/ok.get.ts" },
       { route: "/y", handler: "/project/server/api/new.get.ts" },
     ];
     expect(nitro.scannedHandlers.map((handler) => handler.handler)).toEqual([
       "/project/server/api/ok.get.ts",
+      "/project/server/api/new.get.ts",
     ]);
+
+    const afterEdit = analysisWith([{ file: "server/api/ok.get.ts", surface: "undeclared" }]);
+    enforceDeclaredSurface(nitro, ROOT, boot, () => afterEdit);
+    nitro.scannedHandlers = [{ route: "/x", handler: "/project/server/api/ok.get.ts" }];
+    expect(nitro.scannedHandlers).toEqual([]);
   });
 });

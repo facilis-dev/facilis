@@ -6,6 +6,6 @@ export default defineRawRoute(
   async (event, ctx) => {
     const leaked = "db" in (event.context.facilis ?? {});
     ctx.rawDb({ reason: "vendor payload upsert" });
-    return { ok: true, leaked, rawDb: typeof ctx.rawDb === "function" };
+    return { ok: true, leaked, rawDb: true };
   },
 );

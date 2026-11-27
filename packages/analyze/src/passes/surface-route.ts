@@ -14,9 +14,12 @@ export interface RouteSurfaceInput {
   readonly raw: boolean;
   readonly rawReason: string | null;
   readonly rawDeclared: boolean;
+  readonly rawConfirmed?: { readonly at: string; readonly by: string };
   readonly rawSql: boolean | null;
   readonly rawSqlReason: string | null;
   readonly rawDb: readonly RawDbCallFact[];
+  /** The handler body could not be inspected (imported handler, ctx passed to a helper). */
+  readonly opaqueHandler: boolean;
   readonly source: SourceRef;
   readonly unknown: readonly UnknownFact[];
 }
@@ -34,7 +37,12 @@ export function routeSurface(input: RouteSurfaceInput): RouteSurfaceResult {
 
   if (input.raw) {
     if (input.rawDeclared && input.rawReason !== null) {
-      declarations.push({ kind: "raw-route", reason: input.rawReason, source: input.source });
+      declarations.push({
+        kind: "raw-route",
+        reason: input.rawReason,
+        source: input.source,
+        ...(input.rawConfirmed === undefined ? {} : { confirmed: input.rawConfirmed }),
+      });
     } else {
       undeclared = true;
     }
@@ -72,6 +80,16 @@ export function routeSurface(input: RouteSurfaceInput): RouteSurfaceResult {
     declarations.push({ kind: "raw-db", reason: call.reason, source: call.source });
   }
 
+  if (input.opaqueHandler) {
+    unknown = true;
+    diagnostics.push(
+      error(
+        "surface-unknown",
+        "the handler body is not statically analysable; inline it or move the ctx escape into a declared raw route (D-226)",
+        input.source,
+      ),
+    );
+  }
   if (input.unknown.length > 0) unknown = true;
 
   const surface: RouteSurfaceFact = {

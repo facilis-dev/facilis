@@ -86,6 +86,14 @@ export function facilis(): FacilisPlugins {
     return true;
   };
 
+  // Dev re-reports the declared-surface issues after an add/edit, not only at startup, so
+  // the author sees a capability that lost its declaration without restarting the server.
+  const reportSurface = (warn: (message: string) => void): void => {
+    analysis ??= analyzeProjectRoutes(root);
+    if (analysis === undefined) return;
+    for (const message of securitySurfaceIssues(analysis).map(formatSurfaceIssue)) warn(message);
+  };
+
   const prerenderEngine = facilisPrerenderEngine({
     mode: "full-stack",
     getAnalysis: () => {
@@ -126,17 +134,8 @@ export function facilis(): FacilisPlugins {
       loadMetadata((message) => this.warn(message));
       analysis ??= analyzeProjectRoutes(root);
       if (analysis === undefined) return;
-      const issues = securitySurfaceIssues(analysis);
-      if (issues.length === 0) return;
-      const messages = issues.map((issue) =>
-        issue.file === null
-          ? "facilis: " + issue.message
-          : "facilis: " +
-            issue.file +
-            (issue.line === null ? "" : ":" + issue.line) +
-            ": " +
-            issue.message,
-      );
+      const messages = securitySurfaceIssues(analysis).map(formatSurfaceIssue);
+      if (messages.length === 0) return;
       if (command === "build") this.error(messages.join("\n"));
       for (const message of messages) this.warn(message);
     },
@@ -148,12 +147,14 @@ export function facilis(): FacilisPlugins {
         if (event !== "add" && event !== "unlink" && event !== "addDir") return;
         if (!onProjectSourceChanged(file)) return;
         invalidateOpenApiMetaModule(server);
+        reportSurface((message) => server.config.logger.warn(message));
       });
     },
 
     handleHotUpdate(context) {
       if (!onProjectSourceChanged(context.file)) return;
       invalidateOpenApiMetaModule(context.server);
+      reportSurface((message) => context.server.config.logger.warn(message));
       // Returning void leaves the rest of the update pipeline (Nitro's own server
       // reload for route handlers) untouched.
     },
@@ -187,6 +188,14 @@ export function facilis(): FacilisPlugins {
     facilisPrerenderServing(() => root),
     ...nitro(),
   ];
+}
+
+function formatSurfaceIssue(issue: ReturnType<typeof securitySurfaceIssues>[number]): string {
+  const location =
+    issue.file === null
+      ? ""
+      : issue.file + (issue.line === null ? "" : ":" + issue.line) + ": ";
+  return "facilis: " + location + issue.message;
 }
 
 /** True for a file the analyzer reads, excluding generated and dependency directories. */

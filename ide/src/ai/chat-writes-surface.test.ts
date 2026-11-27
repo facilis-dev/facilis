@@ -44,12 +44,14 @@ const ROUTE_PATH = "server/routes/hook.post.ts";
 const ROUTE = `import { defineRawRoute } from "@facilis.dev/core";
 
 // signed webhook endpoint
-export default defineRawRoute({
-  reason: "signed webhook endpoint",
-  auth: "none",
-  permission: [],
-  dbTables: [],
-});
+export default defineRawRoute(
+  {
+    reason: "signed webhook endpoint",
+    auth: "none",
+    dbTables: [],
+  },
+  async () => new Response("ok"),
+);
 `;
 
 const PACKAGE = JSON.stringify({ dependencies: { "@facilis.dev/core": "^2.0.0" } }, null, 2) + "\n";

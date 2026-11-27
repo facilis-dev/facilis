@@ -198,3 +198,13 @@ export function sortDiagnostics(diagnostics: readonly Diagnostic[]): Diagnostic[
     return codeOrder !== 0 ? codeOrder : left.message.localeCompare(right.message);
   });
 }
+
+/** Optional AI-confirmation provenance on a declaration (D-226). */
+export function readConfirmed(value: unknown): { at: string; by: string } | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const at = (value as { at?: unknown }).at;
+  const by = (value as { by?: unknown }).by;
+  if (typeof at !== "string" || at.trim().length === 0) return undefined;
+  if (typeof by !== "string" || by.trim().length === 0) return undefined;
+  return { at: at.trim(), by: by.trim() };
+}

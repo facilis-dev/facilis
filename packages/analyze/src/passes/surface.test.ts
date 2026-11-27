@@ -92,6 +92,71 @@ describe("declared security surface (D-226)", () => {
     expect(missing.routes[0]?.surface.class).toBe("undeclared");
   });
 
+  it("carries optional AI-confirmation provenance", () => {
+    const raw =
+      'import { defineRawRoute } from "@facilis.dev/core";\n' +
+      'export default defineRawRoute({ reason: "signed webhook", auth: "none", confirmed: { at: "2026-11-27T20:00:00Z", by: "user:1" } }, async () => ({}));\n';
+    const route = analyze({ "server/api/hooks.post.ts": raw }).routes[0];
+    expect(route?.surface.declarations[0]?.confirmed).toEqual({
+      at: "2026-11-27T20:00:00Z",
+      by: "user:1",
+    });
+
+    const extension = analyze({
+      "server/plugins/ids.ts":
+        'import { defineServerExtension } from "@facilis.dev/core";\n' +
+        'export default defineServerExtension({ reason: "request id", confirmed: { at: "2026-11-27T20:00:00Z", by: "user:1" } }, () => {});\n',
+    });
+    expect(extension.surface.extensions[0]?.surface.declarations[0]?.confirmed?.by).toBe("user:1");
+  });
+
+  it("does not let an aliased rawDb escape the declaration", () => {
+    const alias = analyze({
+      "server/api/x.get.ts": authorizedRoute(
+        "permission: [], dbTables: []",
+        "async (_event, ctx) => { const dba = ctx.rawDb; return dba({ reason: \"x\" }); }",
+      ),
+    });
+    expect(alias.routes[0]?.surface.class).not.toBe("standard");
+    expect(alias.routes[0]?.surface.class).not.toBe("declared");
+
+    const renamed = analyze({
+      "server/api/x.get.ts": authorizedRoute(
+        "permission: [], dbTables: []",
+        'async (_event, { rawDb: dba }) => dba({ reason: "dynamic report" })',
+      ),
+    });
+    expect(renamed.routes[0]?.surface.class).toBe("declared");
+
+    const destructured = analyze({
+      "server/api/x.get.ts": authorizedRoute(
+        "permission: [], dbTables: []",
+        'async (_event, ctx) => { const { rawDb } = ctx; return rawDb({ reason: "dynamic report" }); }',
+      ),
+    });
+    expect(destructured.routes[0]?.surface.class).toBe("declared");
+  });
+
+  it("fails closed when the handler body cannot be inspected", () => {
+    const helper = analyze({
+      "server/api/x.get.ts": authorizedRoute(
+        "permission: [], dbTables: []",
+        "async (_event, ctx) => run(ctx)",
+      ),
+      "server/lib/run.ts": "export function run(ctx: unknown) { return ctx; }\n",
+    });
+    expect(helper.routes[0]?.surface.class).toBe("unknown");
+
+    const imported = analyze({
+      "server/api/x.get.ts":
+        CORE +
+        'import { handler } from "../../lib/handler.ts";\n' +
+        "export default defineAuthorizedHandler({ permission: [], dbTables: [] }, handler);\n",
+      "server/lib/handler.ts": "export const handler = async () => ({});\n",
+    });
+    expect(imported.routes[0]?.surface.class).toBe("unknown");
+  });
+
   it("declares server extensions and rejects a bare plugin", () => {
     const declared = analyze({
       "server/plugins/ids.ts":

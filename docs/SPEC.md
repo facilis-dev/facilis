@@ -3006,8 +3006,9 @@ is validated with `confirmedSurface: true` and persisted. A declaration may carr
 
 **Runtime brand.** `defineAuthorizedHandler`, `defineRawRoute` and `defineServerExtension` mark
 their return value in module-private WeakSets (`isFacilisRouteHandler`,
-`isFacilisServerExtension`); the static fact proves the declaration, the brand proves the mounted
-value came out of the DSL.
+`isFacilisServerExtension`). The mount gate's proof is the analyzer's wrapper resolution (a
+default export that is not the imported DSL call is `undeclared` and is not mounted); the brand is
+the runtime predicate tooling and tests use to tell a DSL value from a lookalike.
 
 ---
 

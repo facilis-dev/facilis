@@ -64,6 +64,8 @@ in the IDE, and exported for the security review.** No silent authority.
 8. **Runtime brand.** `defineAuthorizedHandler`, `defineRawRoute` and `defineServerExtension`
    mark their return value in module-private WeakSets; `isFacilisRouteHandler` /
    `isFacilisServerExtension` expose the predicate. A lookalike default export is never branded.
+   The mount gate's proof stays the static wrapper resolution; the brand is a runtime predicate
+   for tooling and tests, not the filter itself (a forged-looking export is already `undeclared`).
 9. **The db package is not a capability.** Project code may import declarative helpers and types
    from `@facilis.dev/db`; `createDb`, `runAs*` and `ensure*` are forbidden (named or namespace
    imports). The analyzer reports them; no declaration can legalize them.

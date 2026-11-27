@@ -11,6 +11,8 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Nitro, NitroEventHandler } from "nitro/types";
 import type { Analysis } from "@facilis.dev/analyze";
 
+import { analyzeProjectRoutes } from "./route-metadata.ts";
+
 export interface SurfaceAllowlist {
   readonly routes: ReadonlySet<string>;
   readonly extensions: ReadonlySet<string>;
@@ -87,22 +89,32 @@ function filterStrings(
  * by Nitro after each scan, so it is intercepted rather than filtered once: that is the only
  * seam between scanning and routing.sync() in Nitro v3 (pinned version).
  */
-export function enforceDeclaredSurface(
-  nitro: Nitro,
-  rootDir: string,
-  analysis: Analysis,
-): SurfaceAllowlist {
+function allowlistFor(analysis: Analysis): SurfaceAllowlist {
   const routes = new Set(
     analysis.routes
       .filter((route) => route.surface.class === "standard" || route.surface.class === "declared")
       .map((route) => route.sourceFile),
   );
-  const extensions = new Set(
-    analysis.surface.extensions
-      .filter((extension) => extension.surface.class === "declared")
-      .map((extension) => extension.file),
-  );
-  const allowlist: SurfaceAllowlist = { routes, extensions };
+  // A route whose file imports a forbidden db factory is not mounted, even in dev: the
+  // build gate already refuses it, and the mount must not run code the gate condemns.
+  for (const entry of analysis.surface.forbiddenImports) routes.delete(entry.file);
+  return {
+    routes,
+    extensions: new Set(
+      analysis.surface.extensions
+        .filter((extension) => extension.surface.class === "declared")
+        .map((extension) => extension.file),
+    ),
+  };
+}
+
+export function enforceDeclaredSurface(
+  nitro: Nitro,
+  rootDir: string,
+  analysis: Analysis,
+  refresh: () => Analysis | undefined = () => analyzeProjectRoutes(rootDir),
+): SurfaceAllowlist {
+  const allowlist = allowlistFor(analysis);
 
   nitro.options.handlers = filterHandlers(nitro.options.handlers ?? [], rootDir, allowlist);
 
@@ -134,7 +146,11 @@ export function enforceDeclaredSurface(
     enumerable: true,
     get: () => current,
     set: (value: NitroEventHandler[]) => {
-      current = filterHandlers(value, rootDir, allowlist);
+      // Dev rescans replace this list without re-running module setup. Re-analyze so a file
+      // added or edited after boot is judged by the current source, not the boot snapshot:
+      // a newly declared route mounts, an edit that drops the wrapper is refused (D-226).
+      const fresh = refresh();
+      current = filterHandlers(value, rootDir, fresh === undefined ? allowlist : allowlistFor(fresh));
     },
   });
   return allowlist;
