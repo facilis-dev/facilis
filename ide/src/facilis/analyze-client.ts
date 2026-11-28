@@ -174,6 +174,28 @@ function activeRoot(controller: IdeController): string | null {
   );
 }
 
+/** In-flight VFS reads. One read is a kernel round-trip; sequential made a 160-file
+ * load take longer than the 30 s program budget in the browser VM. */
+const READ_CONCURRENCY = 8;
+
+/** Read the selected files in chunks, preserving selection order. */
+async function readSources(
+  paths: readonly string[],
+  read: (path: string) => Promise<string>,
+): Promise<string[]> {
+  const sources: string[] = [];
+  const readChunk = async (start: number): Promise<void> => {
+    const end = Math.min(start + READ_CONCURRENCY, paths.length);
+    const values = await Promise.all(paths.slice(start, end).map((path) => read(path)));
+    values.forEach((value, offset) => {
+      sources[start + offset] = value;
+    });
+    if (end < paths.length) await readChunk(end);
+  };
+  await readChunk(0);
+  return sources;
+}
+
 async function readSelectedSources(
   controller: IdeController,
   snapshotFiles: readonly string[],
@@ -181,10 +203,13 @@ async function readSelectedSources(
 ): Promise<ProjectSourceResult> {
   const selection = selectAnalysisFiles(snapshotFiles, root);
   if (!selection.ok) return selection;
+  const sources = await readSources(selection.paths, (path) =>
+    controller.readFileText(absolutePath(root, path)),
+  );
   const files = new Map<string, string>();
   let totalChars = 0;
-  for (const path of selection.paths) {
-    const source = await controller.readFileText(absolutePath(root, path));
+  for (const [index, path] of selection.paths.entries()) {
+    const source = sources[index] ?? "";
     totalChars += source.length;
     const sizeError = analysisSizeError(totalChars);
     if (sizeError !== null) return { ok: false, error: sizeError };
