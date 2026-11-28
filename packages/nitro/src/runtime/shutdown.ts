@@ -24,11 +24,37 @@ export interface CloseHookTarget {
   hook(name: "close", fn: () => Promise<void>): void;
 }
 
+/**
+ * The runtime this process booted. It lives on `globalThis` because a Vite full reload
+ * re-evaluates the module graph: a module-scoped handle is lost, and the previous boot's
+ * PGlite cluster and dev snapshotter keep running beside the new one (their timers write the
+ * same snapshot file). The symbol survives the re-evaluation.
+ */
+const RUNTIME_KEY: unique symbol = Symbol.for("facilis.processRuntime");
+type RuntimeDisposer = () => Promise<void>;
+const runtimeRegistry = globalThis as unknown as Record<symbol, RuntimeDisposer | undefined>;
+
+/** Tear down the runtime a previous module evaluation registered, if any. */
+export async function disposePreviousRuntime(): Promise<void> {
+  const dispose = runtimeRegistry[RUNTIME_KEY];
+  if (dispose === undefined) return;
+  runtimeRegistry[RUNTIME_KEY] = undefined;
+  await dispose();
+}
+
 export function registerRuntimeCloseHook(
   deps: RuntimeShutdownDeps,
   hooks: CloseHookTarget = useNitroHooks(),
 ): void {
-  hooks.hook("close", () => shutdownRuntimes(deps));
+  let closed = false;
+  const dispose = async (): Promise<void> => {
+    if (closed) return;
+    closed = true;
+    if (runtimeRegistry[RUNTIME_KEY] === dispose) runtimeRegistry[RUNTIME_KEY] = undefined;
+    await shutdownRuntimes(deps);
+  };
+  runtimeRegistry[RUNTIME_KEY] = dispose;
+  hooks.hook("close", dispose);
 }
 
 /**

@@ -133,6 +133,8 @@ describe("facilis Vite plugin", () => {
       },
       // D-224: the public section travels as a define, empty when the project declares none.
       define: { __FACILIS_PUBLIC_CONFIG__: "{}" },
+      // The framework's own dev state is never watched: its snapshot writes are not source.
+      server: { watch: { ignored: ["**/.facilis/**", "**/.vite-cache/**"] } },
     });
   });
 
@@ -144,6 +146,7 @@ describe("facilis Vite plugin", () => {
     expect(result).toEqual({
       nitro: { serverDir: "./server", experimental: { openAPI: true } },
       define: { __FACILIS_PUBLIC_CONFIG__: "{}" },
+      server: { watch: { ignored: ["**/.facilis/**", "**/.vite-cache/**"] } },
     });
   });
 

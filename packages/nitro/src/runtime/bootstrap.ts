@@ -20,7 +20,7 @@ import {
 import { bootRuntimes } from "./boot-runtimes.ts";
 import { isProductionEnvironment } from "./env.ts";
 import { bootProjectConfig } from "./runtime-config-boot.ts";
-import { registerRuntimeCloseHook } from "./shutdown.ts";
+import { disposePreviousRuntime, registerRuntimeCloseHook } from "./shutdown.ts";
 import type { BootstrapState } from "./bootstrap-state.ts";
 import { createBootstrapLogging } from "./logging/bootstrap-logging.ts";
 import { installSudoAuditBridge } from "./logging/sudo-bridge.ts";
@@ -56,6 +56,10 @@ export function getSessionHandler(
 }
 
 async function bootstrap(): Promise<BootstrapState> {
+  // A Vite full reload re-evaluates this module graph: release the runtime the previous
+  // evaluation left running before booting a new one. A failed teardown is not allowed to
+  // take the new boot down with it.
+  await disposePreviousRuntime().catch(() => undefined);
   const booted = bootProjectConfig();
   const projectConfig = booted.config;
   const runtime = booted.runtime;

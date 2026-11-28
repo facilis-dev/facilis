@@ -108,6 +108,9 @@ export function facilis(): FacilisPlugins {
         // The public section travels as a define, resolved once per build (D-224): no inline
         // script, no CSP surface, nothing readable after the bundle exists.
         define: publicConfigDefine(projectConfig),
+        // The framework's own state is not project source: watching .facilis made every dev
+        // database snapshot write re-run the HMR pipeline (and Nitro's reload) for nothing.
+        server: { watch: { ignored: ["**/.facilis/**", "**/.vite-cache/**"] } },
       };
     },
 
