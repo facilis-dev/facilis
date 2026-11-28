@@ -13,7 +13,7 @@ import {
   assertSafeGlob,
   globMatcher,
   isReadablePath,
-  redactSecrets,
+  redactReadText,
 } from "./policy";
 import {
   findingsJson,
@@ -117,11 +117,6 @@ function readableFiles(host: PatchValidationHost, glob: PathMatcher | null): str
     .toSorted((left, right) => left.localeCompare(right));
 }
 
-/** The project's i18n catalogs: browser-delivered UI copy, never a server secret. */
-function isLocaleCatalog(path: string): boolean {
-  return /^locales\/[^/]+\.json$/.test(path);
-}
-
 const HANDLERS: Readonly<Record<string, Handler>> = {
   async list_files(args, context) {
     const dir = optionalString(args, "dir", MAX_PATH_CHARS)?.replace(/\/+$/, "");
@@ -146,11 +141,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
     const end = Math.min(requestedEnd ?? totalLines, startLine + MAX_READ_LINES - 1, totalLines);
     const selected = lines.slice(startLine - 1, end);
     // Redact before the char cap: a secret cut in half at the boundary would slip through.
-    // A locale catalog is the exception: it ships to the browser, so it cannot hold a server
-    // secret, and its UI labels ("auth.password": "Password") must round-trip through a
-    // whole-file write instead of coming back as [redacted].
-    const text = selected.join("\n");
-    const redacted = isLocaleCatalog(path) ? text : redactSecrets(text);
+    const redacted = redactReadText(path, selected.join("\n"));
     return {
       path,
       content: redacted.slice(0, MAX_READ_CHARS),
