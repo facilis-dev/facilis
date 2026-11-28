@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/time",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "description": "Facilis date/time logic: zero-dependency, Intl-based formatting and calendar-day handling with explicit time zones.",
   "license": "MIT",
