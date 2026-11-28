@@ -11,6 +11,8 @@ export const DEV_SCHEMA_ROUTE = "/__facilis/dev/schema";
 export const DEV_QUERY_ROUTE = "/__facilis/dev/query";
 /** Create/replace a security_invoker view from the query console (D-097). */
 export const DEV_VIEW_ROUTE = "/__facilis/dev/view";
+/** The declared security surface, same bytes as the build artifact (D-226, #235). */
+export const SECURITY_SURFACE_ROUTE = "/__facilis/security-surface.json";
 /**
  * Framework-owned SSO namespace (D-120): providers, start and callback (GET/POST for the SAML
  * ACS) are one handler, registered in dev and production. Reserved to the framework; an app

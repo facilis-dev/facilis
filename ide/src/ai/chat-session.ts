@@ -6,6 +6,7 @@
 import { buildChatContext } from "./chat-context";
 import { GitGateActions } from "./chat-git-gate";
 import { SchemaConfirmActions } from "./chat-schema-confirm";
+import { SurfaceConfirmActions } from "./chat-surface-confirm";
 import { compactConversation, replayWithSummary } from "./chat-compaction";
 import { turnHooks } from "./chat-turn-hooks";
 import { generateCommitMessage } from "./commit-message";
@@ -38,6 +39,8 @@ export class ChatSession {
   readonly gitGate: GitGateActions;
   /** The paused destructive-schema confirmation (D-193). */
   readonly schemaConfirm: SchemaConfirmActions;
+  /** The paused declared-capability confirmation (D-226). */
+  readonly surfaceConfirm: SurfaceConfirmActions;
   private readonly stream: ChatStreamWriter;
   private readonly queue: ChatQueue;
   private listeners = new Set<() => void>();
@@ -69,6 +72,10 @@ export class ChatSession {
       generateMessage: () => this.commitMessage(),
     });
     this.schemaConfirm = new SchemaConfirmActions({
+      emit: (patch) => this.emit(patch),
+      state: () => this.state,
+    });
+    this.surfaceConfirm = new SurfaceConfirmActions({
       emit: (patch) => this.emit(patch),
       state: () => this.state,
     });
@@ -109,6 +116,7 @@ export class ChatSession {
   newChat(): void {
     this.gitGate.cancel();
     this.schemaConfirm.cancel();
+    this.surfaceConfirm.cancel();
     this.controller?.abort();
     this.controller = null;
     this.cancelled = false;
@@ -120,6 +128,7 @@ export class ChatSession {
   cancel(): void {
     this.gitGate.cancel();
     this.schemaConfirm.cancel();
+    this.surfaceConfirm.cancel();
     this.cancelled = true;
     this.controller?.abort();
   }
@@ -231,6 +240,7 @@ export class ChatSession {
         ...(this.writes === null ? {} : { writes: this.writes }),
         pauseGitGate: (failure) => this.gitGate.pause(failure),
         pauseSchemaConfirm: (changes) => this.schemaConfirm.pause(changes),
+        pauseSurfaceConfirm: (requests) => this.surfaceConfirm.pause(requests),
         // D-110: the status lines, the program rows and the model-call rows are wired in
         // chat-turn-hooks.ts, which reads this session's current state.
         ...turnHooks({

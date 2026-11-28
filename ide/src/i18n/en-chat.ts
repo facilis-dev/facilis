@@ -143,4 +143,17 @@ export const chatEn = {
   "chat.schemaConfirm.cancel": "Cancel",
   "chat.schemaConfirm.explanation":
     "Confirmed drops are applied to the dev database on the next boot; without your confirmation they never run.",
+  "chat.surfaceConfirm.title": "This write declares a non-standard capability",
+  "chat.surfaceConfirm.body":
+    "The assistant wants to add code that reaches outside the standard API. Nothing has been written yet; review each site and its reason before confirming.",
+  "chat.surfaceConfirm.reason": "Reason",
+  "chat.surfaceConfirm.confirm": "Confirm and write",
+  "chat.surfaceConfirm.cancel": "Cancel",
+  "chat.surfaceConfirm.explanation":
+    "The confirmed reasons are stored in the source and exported in the security surface at build time. Declining writes nothing and the assistant looks for a standard handler.",
+  "chat.surfaceConfirm.capability.rawRoute": "Raw route",
+  "chat.surfaceConfirm.capability.serverExtension": "Server extension",
+  "chat.surfaceConfirm.capability.rawSql": "Raw SQL",
+  "chat.surfaceConfirm.capability.rawDb": "Raw database",
+  "chat.surfaceConfirm.capability.dynamicCode": "Dynamic code",
 } as const;

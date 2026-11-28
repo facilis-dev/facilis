@@ -15,6 +15,30 @@ import type { WorkflowsApi } from "./workflows.ts";
  * route.ts stays the single place that assembles it.
  */
 
+/** Why a handler needs the unguarded client; recorded in the audit stream (D-226). */
+export interface RawDbOptions {
+  readonly reason: string;
+}
+
+/**
+ * The declared escape from the table guard. It returns the request transaction with the
+ * policy role applied, never the root client: a declared route can run dynamic SQL, but it
+ * still runs with the app role's privileges.
+ */
+export type RawDbAccessor = (options: RawDbOptions) => PolicyScopedDatabase;
+
+/** The context a declared raw route receives: no parsed input, no guarded db. */
+export interface RawRouteContext<A extends AuthContext | null = AuthContext | null> {
+  auth: A;
+  params: Record<string, string>;
+  /** The declared, audited unguarded client (D-226 decision 3). */
+  rawDb: RawDbAccessor;
+  sudo: SudoHandler;
+  system: SystemHandler;
+  log: FacilisLogger;
+  requestId: string;
+}
+
 export interface AuthorizedHandlerContext<
   B = void,
   Q = void,
@@ -30,6 +54,12 @@ export interface AuthorizedHandlerContext<
   params: P;
   /** Pre-scoped client: never the raw database (SPEC §7.4). */
   db: PolicyScopedDatabase;
+  /**
+   * Declared escape from the table guard (D-226): the same policy-scoped transaction, with
+   * no relation check. Every call carries a reason and is audited; a raw route has only
+   * this accessor, never `db`.
+   */
+  rawDb: RawDbAccessor;
   /**
    * Audited elevation for operations the route's permission/RLS cannot allow directly
    * (D-099). Runs the callback as facilis_system inside the request transaction, logging

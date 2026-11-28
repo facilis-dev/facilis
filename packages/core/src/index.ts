@@ -165,12 +165,13 @@ export type {
 
 export { createFixedWindowRateLimiter, MAX_WINDOWS } from "./rate-limit.ts";
 export type { FixedWindowRateLimiter, RateLimitDecision, RateLimitWindow } from "./rate-limit.ts";
-export { defineAuthorizedHandler } from "./route.ts";
+export { createAuthorizedRoute, defineAuthorizedHandler } from "./route.ts";
 export type {
   AuthContext,
   AuthorizedHandler,
   AuthorizedHandlerConfig,
   AuthorizedHandlerContext,
+  RouteRuntimeOptions,
 } from "./route.ts";
 export type {
   AuditedElevationContext,
@@ -179,6 +180,9 @@ export type {
   SystemHandler,
   SystemOptions,
 } from "./sudo.ts";
+
+// The declared-surface contract (D-226) lives in its own barrel to keep this file small.
+export * from "./index-surface.ts";
 
 export type {
   FacilisContext,
@@ -245,11 +249,7 @@ export type {
 } from "./revision.ts";
 
 export { buildReleasePreview } from "./release-preview.ts";
-export type {
-  ReleasePreviewInput,
-  ReleaseRouteFact,
-  ReleaseSnapshot,
-} from "./release-preview.ts";
+export type { ReleasePreviewInput, ReleaseRouteFact, ReleaseSnapshot } from "./release-preview.ts";
 export type {
   ApiDiff,
   ApiRouteChange,

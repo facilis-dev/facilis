@@ -4,6 +4,7 @@ import type { AuthContext } from "@facilis.dev/auth";
 import { currentQueryTrace, type FacilisDb, type QueryTrace } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import {
   defineAuthorizedHandler,
   type AuthorizedHandlerConfig,
@@ -64,10 +65,12 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   }
   const context: FacilisEventContext = { params: options.params ?? {} };
   if (options.auth !== undefined) context.auth = options.auth;
+  const event: FacilisRequestEvent = { context, req };
   if (options.db !== null) {
-    context.facilis = { db: options.db ?? FAKE_DB, defaultTenantId: options.defaultTenantId };
+    context.facilis = { defaultTenantId: options.defaultTenantId };
+    attachRequestDatabase(event, options.db ?? FAKE_DB);
   }
-  return { context, req };
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string; details?: unknown }> {

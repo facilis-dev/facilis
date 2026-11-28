@@ -4,6 +4,7 @@ import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
 import type { FacilisLoggingApi } from "./logging.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
 const dbMock = vi.hoisted(() => {
@@ -51,12 +52,14 @@ function captureAudit(): AuditCapture {
 function makeEvent(logging: FacilisLoggingApi): FacilisRequestEvent {
   const context: FacilisEventContext = {
     auth: AUTH,
-    facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", logging },
+    facilis: { defaultTenantId: "tenant-1", logging },
   };
-  return {
+  const event: FacilisRequestEvent = {
     context,
     req: { headers: new Headers(), url: "http://localhost/api/guard", method: "POST" },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

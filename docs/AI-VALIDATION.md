@@ -2,14 +2,14 @@
 
 Status: implemented (2026-11-20). This guide explains, in simple terms, the checks every
 AI-written file must pass before it touches a Facilis project. The formal contract is
-[SPEC.md §9.3](./SPEC.md) (23 rules); the code lives in `packages/ai/src/validator.ts` and
+[SPEC.md §9.3](./SPEC.md) (24 rules); the code lives in `packages/ai/src/validator.ts` and
 `packages/ai/src/rules/`. If this guide and the spec disagree, the spec wins.
 
 ## The idea in one paragraph
 
 The AI never writes to your project directly. Every file it wants to create or change is a
 **patch** (a path plus the full new content), and every patch goes through a **validator**
-first: 23 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
+first: 24 numbered rules plus 2 structural checks. If even one **error** is found, *nothing
 is written* — the findings go back to the model, which fixes them in the same turn.
 **Warnings** never block a write; they are reported so you (or the model) can clean them up.
 The goal is simple: the AI can move fast, but it cannot ship a route without authorization,
@@ -61,6 +61,7 @@ a table without row-level security, or a file outside the places it is allowed t
 | 21 | `get-side-effect-free` | state-changing GET routes (CSRF via top-level navigation) | error |
 | 22 | `raw-sql-system-table-write` | raw SQL writing a seed-only auth table | error |
 | 23 | `reserved-route-prefix` | app routes shadowing a framework-owned path | error |
+| 24 | `surface-declared` | non-standard capabilities with no declared reason | error |
 
 The examples below use the todo app (`examples/todo-app`): a `todos` table with a
 `tenantId` column, a `todos:write` permission, and a `purge-completed-todos` job.
@@ -264,6 +265,31 @@ examples own them (D-215).
   shadowed framework paths.
 - ⚠️ Not a finding: a lookalike segment (`server/routes/__facilisx.get.ts`).
 
+### Rule 24 `surface-declared` — a capability without a reason is not allowed
+
+The framework's standard path is an authorized route with a guarded client and Zod input.
+Anything else is a **capability**, and a capability is legitimate only when the code says why
+(D-226). The analyzer classifies every route, server extension, database escape and dynamic
+code site as `standard`, `declared`, `undeclared` or `unknown`; the validator rejects a patched
+file whose capability is not declared.
+
+- ✅ `defineRawRoute({ reason: "Stripe webhook signature; raw body needed", auth: "none" }, ...)`
+  — a raw route that states why it exists and that it is public.
+- ✅ `rawSql: { reason: "keyset pagination over a computed column" }` and
+  `ctx.rawDb({ reason: "dynamic report query" })` — declared database escapes.
+- ✅ `defineServerExtension({ reason: "request id header" }, plugin)` — a declared Nitro plugin.
+- ✅ `// dynamic-code: template sandbox` above `new Function(source)`.
+- ❌ a `server/api/*.ts` file exporting a bare `defineEventHandler` — undeclared route.
+- ❌ `rawSql: true`, `ctx.rawDb({ reason: "" })`, `defineRawRoute` without a reason or auth, a
+  `server/plugins/*.ts` file without `defineServerExtension`, `eval` without the marker.
+- ❌ any project import of `createDb`, `runAs*` or `ensure*` from `@facilis.dev/db`: no
+  declaration legalizes it.
+
+A declared site is not written silently: `validatePatch` returns `surfaceRequests` (the
+capability, the exact snippet and an editable reason) and the IDE pauses for the user's
+confirmation. Only a confirmed write is revalidated with `confirmedSurface: true` and persisted;
+cancelling leaves the project untouched.
+
 ### Rule 17 `route-description` (warning) — every route explains itself
 
 Each patched route needs a one-sentence English `description` (≤ 120 characters), and it
@@ -411,7 +437,7 @@ You don't need to memorize the rules: they encode the project's security invaria
 
 ## Where to read more
 
-- [SPEC.md §9.3](./SPEC.md) — the formal 23-rule contract (the source of truth).
+- [SPEC.md §9.3](./SPEC.md) — the formal 24-rule contract (the source of truth).
 - [SPEC.md §8](./SPEC.md) — the security invariants the rules enforce.
 - [DECISIONS.md](./DECISIONS.md) — the reasoning: D-084 (validator), D-092/D-093 (AST facts),
   D-157/D-162 (table declarations), D-158 (generated DDL), D-181 (clean-tree checkpoint),

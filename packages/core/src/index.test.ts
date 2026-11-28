@@ -13,6 +13,12 @@ describe("@facilis.dev/core public surface", () => {
     expect(core.registerCatalog).toBeTypeOf("function");
     expect(core.fail).toBeTypeOf("function");
     expect(core.facilisConfigSchema).toBeDefined();
+    expect(core.defineRawRoute).toBeTypeOf("function");
+    expect(core.defineServerExtension).toBeTypeOf("function");
+    expect(core.parseSecuritySurface).toBeTypeOf("function");
+    // D-226: the root client is attached by the middleware but its reader is internal, so
+    // project code cannot import it and read the request database.
+    expect("requestDatabase" in core).toBe(false);
     expect("default" in core).toBe(false);
   });
 

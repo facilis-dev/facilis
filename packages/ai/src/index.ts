@@ -30,6 +30,7 @@ export type {
   RouteFact,
   SchemaSummary,
   SourceRef,
+  SurfaceRequest,
   SyntaxCheck,
   SyntaxChecker,
   SyntaxFinding,

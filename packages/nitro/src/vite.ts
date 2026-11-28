@@ -11,6 +11,7 @@ import { facilisPrerenderServing } from "./prerender-dev.ts";
 import { facilisPrerenderEngine } from "./prerender-engine.ts";
 import { facilisPrerenderGate } from "./prerender-gate.ts";
 import { analyzeProjectRoutes, routeMetadataFromAnalysis } from "./route-metadata.ts";
+import { securitySurfaceIssues } from "./security-surface.ts";
 import { facilisDevMetrics } from "./vite-dev-metrics.ts";
 import { publicConfigDefine } from "./vite-public.ts";
 import { facilisRum } from "./vite-rum.ts";
@@ -58,6 +59,9 @@ export function facilis(): FacilisPlugins {
   // One analysis per revision of the project: the mapping is cheap, the analyzer is not.
   let analysis: Analysis | undefined;
   let metadata: RouteMetadataMap | undefined;
+  // Production fails on an undeclared surface; dev reports it and the mount gate answers
+  // 404, so the author sees the problem without losing the server (D-226 decision 1).
+  let command: "build" | "serve" = "build";
 
   const loadMetadata = (warn?: WarningSink): RouteMetadataMap => {
     if (metadata !== undefined) return metadata;
@@ -80,6 +84,14 @@ export function facilis(): FacilisPlugins {
     if (!isProjectSourceFile(file, root)) return false;
     invalidate();
     return true;
+  };
+
+  // Dev re-reports the declared-surface issues after an add/edit, not only at startup, so
+  // the author sees a capability that lost its declaration without restarting the server.
+  const reportSurface = (warn: (message: string) => void): void => {
+    analysis ??= analyzeProjectRoutes(root);
+    if (analysis === undefined) return;
+    for (const message of securitySurfaceIssues(analysis).map(formatSurfaceIssue)) warn(message);
   };
 
   const prerenderEngine = facilisPrerenderEngine({
@@ -113,12 +125,19 @@ export function facilis(): FacilisPlugins {
 
     configResolved(config) {
       root = config.root;
+      command = config.command;
     },
 
     // Warm the analysis before the first request so a broken route file surfaces as a
     // warning during startup, not as a surprising slow first spec fetch.
     async buildStart() {
       loadMetadata((message) => this.warn(message));
+      analysis ??= analyzeProjectRoutes(root);
+      if (analysis === undefined) return;
+      const messages = securitySurfaceIssues(analysis).map(formatSurfaceIssue);
+      if (messages.length === 0) return;
+      if (command === "build") this.error(messages.join("\n"));
+      for (const message of messages) this.warn(message);
     },
 
     configureServer(server) {
@@ -128,12 +147,14 @@ export function facilis(): FacilisPlugins {
         if (event !== "add" && event !== "unlink" && event !== "addDir") return;
         if (!onProjectSourceChanged(file)) return;
         invalidateOpenApiMetaModule(server);
+        reportSurface((message) => server.config.logger.warn(message));
       });
     },
 
     handleHotUpdate(context) {
       if (!onProjectSourceChanged(context.file)) return;
       invalidateOpenApiMetaModule(context.server);
+      reportSurface((message) => context.server.config.logger.warn(message));
       // Returning void leaves the rest of the update pipeline (Nitro's own server
       // reload for route handlers) untouched.
     },
@@ -167,6 +188,14 @@ export function facilis(): FacilisPlugins {
     facilisPrerenderServing(() => root),
     ...nitro(),
   ];
+}
+
+function formatSurfaceIssue(issue: ReturnType<typeof securitySurfaceIssues>[number]): string {
+  const location =
+    issue.file === null
+      ? ""
+      : issue.file + (issue.line === null ? "" : ":" + issue.line) + ": ";
+  return "facilis: " + location + issue.message;
 }
 
 /** True for a file the analyzer reads, excluding generated and dependency directories. */

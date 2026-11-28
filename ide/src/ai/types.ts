@@ -5,6 +5,8 @@
 // shapes, and the UI only reads them. The model's contract is SPEC §9.2: one
 // AIResponse JSON object per turn — a script turn or the final summary (D-192).
 
+import type { SurfaceRequest } from "@facilis.dev/ai";
+
 import type { MessageKey } from "@/i18n";
 import type { PtcFailureKind, PtcTraceEntry } from "./ptc/protocol";
 import type { ChatGitGateState, ChatTurnWrite } from "./write-types";
@@ -211,6 +213,11 @@ export interface ChatState {
    * rule 15's list of drops. Nothing is written while it is set.
    */
   schemaConfirm: readonly string[] | null;
+  /**
+   * Declared non-standard capabilities waiting for the user's confirmation (D-226). Nothing is
+   * written while it is set; the card edits the reasons and the write lands only on confirm.
+   */
+  surfaceConfirm: readonly SurfaceRequest[] | null;
   /** Source files the AI wrote in the live turn (or the last finished one). */
   writes: readonly ChatTurnWrite[];
   /** null until a provider was saved. */

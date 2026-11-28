@@ -120,7 +120,14 @@ export function appendTurn(turns: AiChatTurn[], turn: AiChatTurn): void {
 /** State a new turn clears: the transcript keeps its trace after a finished turn. */
 export const TURN_RESET: Pick<
   ChatState,
-  "repair" | "trace" | "exploring" | "reasoning" | "gitGate" | "schemaConfirm" | "writes"
+  | "repair"
+  | "trace"
+  | "exploring"
+  | "reasoning"
+  | "gitGate"
+  | "schemaConfirm"
+  | "surfaceConfirm"
+  | "writes"
 > = {
   repair: null,
   trace: [],
@@ -128,19 +135,21 @@ export const TURN_RESET: Pick<
   reasoning: null,
   gitGate: null,
   schemaConfirm: null,
+  surfaceConfirm: null,
   writes: [],
 };
 
 /** State a finished turn clears; its activity moves onto the turn's user message (turnEnded). */
 export const TURN_IDLE: Pick<
   ChatState,
-  "repair" | "exploring" | "reasoning" | "gitGate" | "schemaConfirm"
+  "repair" | "exploring" | "reasoning" | "gitGate" | "schemaConfirm" | "surfaceConfirm"
 > = {
   repair: null,
   exploring: null,
   reasoning: null,
   gitGate: null,
   schemaConfirm: null,
+  surfaceConfirm: null,
 };
 
 /**

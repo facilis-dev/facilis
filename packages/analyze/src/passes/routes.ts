@@ -14,8 +14,15 @@ import { sourceRef } from "../source.ts";
 import { EMPTY_ROUTE_RELATIONS } from "../types-relations.ts";
 import type { ConfigFacts, Diagnostic, RouteFact, WrapperState } from "../types.ts";
 import { routeConfigFacts } from "./route-config.ts";
+import { rawRouteConfigFacts } from "./route-config-raw.ts";
 import { scanElevations } from "./route-elevation.ts";
-import { directDbWarnings, handlerReadsBody, handlerReadsForm } from "./route-handler.ts";
+import {
+  directDbWarnings,
+  handlerRawDbCalls,
+  handlerReadsBody,
+  handlerReadsForm,
+} from "./route-handler.ts";
+import { routeSurface } from "./surface-route.ts";
 import { routeLocationFromFile } from "./route-location.ts";
 import {
   defaultExportExpression,
@@ -36,46 +43,68 @@ interface WrapperResolution {
   readonly state: WrapperState;
   readonly call: AstNode | null;
   readonly reason: string;
+  /** Which DSL call produced the wrapper; raw routes have their own config contract. */
+  readonly kind: "authorized" | "raw";
 }
 
-/** The default export must be a `defineAuthorizedHandler(...)` call of the core import. */
+/** The two declared wrappers, both imported from @facilis.dev/core (D-226). */
+const DECLARED_WRAPPERS: ReadonlyMap<string, "authorized" | "raw"> = new Map([
+  ["defineAuthorizedHandler", "authorized"],
+  ["defineRawRoute", "raw"],
+]);
+
+/** The default export must be a declared wrapper call of the core import (D-226). */
 function resolveWrapper(file: ProjectFile): WrapperResolution {
   const expression = defaultExportExpression(file);
   if (expression === undefined) {
-    return { state: "invalid", call: null, reason: "the route file has no default export" };
+    return {
+      state: "invalid",
+      call: null,
+      reason: "the route file has no default export",
+      kind: "authorized",
+    };
   }
   if (expression.type !== "CallExpression") {
     return {
       state: "invalid",
       call: null,
-      reason: "the default export is not a defineAuthorizedHandler() call",
+      reason: "the default export is not a defineAuthorizedHandler()/defineRawRoute() call",
+      kind: "authorized",
     };
   }
   const callee = unwrapExpression(expression.callee);
   const name = callee?.type === "Identifier" ? identifierName(callee) : undefined;
   if (name === undefined) {
-    return { state: "unknown", call: null, reason: "the handler callee cannot be resolved" };
+    return {
+      state: "unknown",
+      call: null,
+      reason: "the handler callee cannot be resolved",
+      kind: "authorized",
+    };
   }
   if (isLocallyDeclared(file, name)) {
     return {
       state: "invalid",
       call: null,
       reason: '"' + name + '" is shadowed by a local declaration',
+      kind: "authorized",
     };
   }
   const imported = file.module.imports.find((entry) => entry.local === name);
-  if (
-    imported === undefined ||
-    imported.specifier !== CORE_SPECIFIER ||
-    imported.imported !== "defineAuthorizedHandler"
-  ) {
+  const kind =
+    imported !== undefined && imported.specifier === CORE_SPECIFIER && imported.imported !== null
+      ? DECLARED_WRAPPERS.get(imported.imported)
+      : undefined;
+  if (kind === undefined) {
     return {
       state: "invalid",
       call: null,
-      reason: "the default export is not the defineAuthorizedHandler import from @facilis.dev/core",
+      reason:
+        "the default export is not a defineAuthorizedHandler/defineRawRoute import from @facilis.dev/core",
+      kind: "authorized",
     };
   }
-  return { state: "valid", call: expression, reason: "" };
+  return { state: "valid", call: expression, reason: "", kind };
 }
 
 function scanRoute(
@@ -112,6 +141,7 @@ function scanRoute(
         source: ref,
         wrapper: wrapper.state,
         permission: null,
+        auth: null,
         crossSite: null,
         dbTables: null,
         dbColumns: null,
@@ -122,13 +152,81 @@ function scanRoute(
         handlerBodyRead: false,
         handlerFormRead: false,
         elevations: [],
+        surface: {
+          class: "undeclared",
+          declarations: [],
+          source: ref,
+          unknown: [{ code: "route-wrapper", reason: wrapper.reason, source: ref }],
+          rawSqlReason: null,
+          rawDb: [],
+        },
         unknown: [{ code: "route-wrapper", reason: wrapper.reason, source: ref }],
       },
       diagnostics: [error("route-wrapper", wrapper.reason, ref)],
     };
   }
-  const facts = routeConfigFacts(graph, file, wrapper.call, config);
   const elevation = scanElevations(graph, file, wrapper.call);
+  const rawDb = handlerRawDbCalls(wrapper.call, file, ref);
+  const elevationWarnings = elevation.unknown.map((item) =>
+    // An unreadable elevation cannot be shown in the graph; warn without blocking the route.
+    warning(item.code, item.reason, item.source),
+  );
+  if (wrapper.kind === "raw") {
+    const facts = rawRouteConfigFacts(graph, file, wrapper.call, config);
+    const classified = routeSurface({
+      raw: true,
+      rawReason: facts.reason,
+      rawDeclared: facts.declared,
+      ...(facts.confirmed === undefined ? {} : { rawConfirmed: facts.confirmed }),
+      rawSql: false,
+      rawSqlReason: null,
+      rawDb: rawDb.calls,
+      opaqueHandler: rawDb.opaque,
+      source: ref,
+      unknown: facts.unknown,
+    });
+    return {
+      route: {
+        method: location.method,
+        path: location.path,
+        sourceFile: file.path,
+        source: ref,
+        wrapper: "valid",
+        permission: facts.permission,
+        auth: facts.auth,
+        crossSite: false,
+        dbTables: facts.dbTables,
+        dbColumns: facts.dbColumns,
+        rawSql: false,
+        relations: EMPTY_ROUTE_RELATIONS,
+        description: facts.description,
+        input: facts.input,
+        handlerBodyRead: handlerReadsBody(wrapper.call),
+        handlerFormRead: handlerReadsForm(wrapper.call),
+        elevations: elevation.facts,
+        surface: classified.surface,
+        unknown: [...facts.unknown, ...elevation.unknown],
+      },
+      diagnostics: [
+        ...facts.diagnostics,
+        ...classified.diagnostics,
+        ...elevationWarnings,
+        ...directDbWarnings(file, ref),
+      ],
+    };
+  }
+  const facts = routeConfigFacts(graph, file, wrapper.call, config);
+  const classified = routeSurface({
+    raw: false,
+    rawReason: null,
+    rawDeclared: true,
+    rawSql: facts.rawSql,
+    rawSqlReason: facts.rawSqlReason,
+    rawDb: rawDb.calls,
+    opaqueHandler: rawDb.opaque,
+    source: ref,
+    unknown: facts.unknown,
+  });
   return {
     route: {
       method: location.method,
@@ -137,6 +235,7 @@ function scanRoute(
       source: ref,
       wrapper: "valid",
       permission: facts.permission,
+      auth: facts.permission !== null && facts.permission.length > 0 ? "required" : "none",
       crossSite: facts.crossSite,
       dbTables: facts.dbTables,
       dbColumns: facts.dbColumns,
@@ -147,14 +246,13 @@ function scanRoute(
       handlerBodyRead: handlerReadsBody(wrapper.call),
       handlerFormRead: handlerReadsForm(wrapper.call),
       elevations: elevation.facts,
+      surface: classified.surface,
       unknown: [...facts.unknown, ...elevation.unknown],
     },
     diagnostics: [
       ...facts.diagnostics,
-      ...elevation.unknown.map((item) =>
-        // An unreadable elevation cannot be shown in the graph; warn without blocking the route.
-        warning(item.code, item.reason, item.source),
-      ),
+      ...classified.diagnostics,
+      ...elevationWarnings,
       ...directDbWarnings(file, ref),
     ],
   };

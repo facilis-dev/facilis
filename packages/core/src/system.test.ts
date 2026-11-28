@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "v
 import type { AuthContext } from "@facilis.dev/auth";
 import type { FacilisDb } from "@facilis.dev/db";
 
-import type { FacilisHandlerEvent } from "./event.ts";
+import type { FacilisHandlerEvent, FacilisRequestEvent } from "./event.ts";
 import type { JobsApi } from "./jobs.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { SudoHandler, SystemHandler, SystemOptions } from "./sudo.ts";
 
@@ -82,10 +83,12 @@ describe("ctx.system", () => {
         ),
     );
 
-    const result = (await route({
-      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
+    const event: FacilisRequestEvent = {
+      context: { auth: null, facilis: { defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/auth/register", method: "POST" },
-    })) as { systemDb: { systemFor: string }; ctxDb: unknown };
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    const result = (await route(event)) as { systemDb: { systemFor: string }; ctxDb: unknown };
 
     expect(audit.map((entry) => entry.event)).toEqual(["started", "succeeded"]);
     const [started, succeeded] = audit;
@@ -127,10 +130,12 @@ describe("ctx.system", () => {
         ),
     );
 
-    await route({
-      context: { auth: AUTH, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
+    const event: FacilisRequestEvent = {
+      context: { auth: AUTH, facilis: { defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/users/fix", method: "POST" },
-    });
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    await route(event);
 
     expect(audit[0]).toMatchObject({ actor: "system:maintenance", roles: [] });
     expect(audit[0]?.actorUserId).toBeUndefined();
@@ -152,10 +157,12 @@ describe("ctx.system", () => {
         ),
     );
 
-    const response = (await route({
-      context: { auth: null, facilis: { db: FAKE_DB, jobs: JOBS } },
+    const event: FacilisRequestEvent = {
+      context: { auth: null, facilis: { jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/auth/register" },
-    })) as Response;
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    const response = (await route(event)) as Response;
 
     expect(response.status).toBe(500);
     expect(dbMock.runWithSystemRole).not.toHaveBeenCalled();
@@ -177,14 +184,12 @@ describe("ctx.system", () => {
         ),
     );
 
-    expect(
-      (
-        (await route({
-          context: { auth: null, facilis: { db: FAKE_DB, jobs: JOBS } },
-          req: { headers: new Headers(), url: "http://localhost/api/auth/register" },
-        })) as Response
-      ).status,
-    ).toBe(500);
+    const event: FacilisRequestEvent = {
+      context: { auth: null, facilis: { jobs: JOBS } },
+      req: { headers: new Headers(), url: "http://localhost/api/auth/register" },
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    expect(((await route(event)) as Response).status).toBe(500);
     expect(dbMock.runWithSystemRole).not.toHaveBeenCalled();
     expect(audit).toEqual([]);
   });
@@ -201,14 +206,12 @@ describe("ctx.system", () => {
         ),
     );
 
-    expect(
-      (
-        (await route({
-          context: { auth: AUTH, facilis: { db: FAKE_DB, jobs: JOBS } },
-          req: { headers: new Headers(), url: "http://localhost/api/outer" },
-        })) as Response
-      ).status,
-    ).toBe(500);
+    const event: FacilisRequestEvent = {
+      context: { auth: AUTH, facilis: { jobs: JOBS } },
+      req: { headers: new Headers(), url: "http://localhost/api/outer" },
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    expect(((await route(event)) as Response).status).toBe(500);
     expect(dbMock.runWithSystemRole).toHaveBeenCalledTimes(1);
     expect(audit.map((entry) => entry.event)).toEqual(["started", "failed"]);
   });
@@ -224,24 +227,23 @@ describe("ctx.system", () => {
         ),
     );
 
-    expect(
-      (
-        (await route({
-          context: { auth: AUTH, facilis: { db: FAKE_DB, jobs: JOBS } },
-          req: { headers: new Headers(), url: "http://localhost/api/outer" },
-        })) as Response
-      ).status,
-    ).toBe(500);
+    const event: FacilisRequestEvent = {
+      context: { auth: AUTH, facilis: { jobs: JOBS } },
+      req: { headers: new Headers(), url: "http://localhost/api/outer" },
+    };
+    attachRequestDatabase(event, FAKE_DB);
+    expect(((await route(event)) as Response).status).toBe(500);
     expect(dbMock.runWithSystemRole).toHaveBeenCalledTimes(1);
     expect(audit.map((entry) => entry.event)).toEqual(["started", "failed"]);
   });
 
   it("never exposes the raw root client on the handler event", async () => {
-    const outer = {
-      context: { auth: null, facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS } },
+    const outer: FacilisRequestEvent = {
+      context: { auth: null, facilis: { defaultTenantId: "tenant-1", jobs: JOBS } },
       req: { headers: new Headers(), url: "http://localhost/api/test", method: "GET" },
       res: { headers: new Headers() },
     };
+    attachRequestDatabase(outer, FAKE_DB);
     const route = defineAuthorizedHandler({ permission: [], dbTables: [] }, async (event, ctx) => {
       expectTypeOf(event).toEqualTypeOf<FacilisHandlerEvent>();
       // The type has no db; this cast lets the test also prove it at runtime.

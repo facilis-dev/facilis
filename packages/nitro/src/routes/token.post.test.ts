@@ -5,7 +5,7 @@ import type {
   FacilisLoggingApi,
   FacilisRequestEvent,
 } from "@facilis.dev/core";
-import { DEFAULT_LOGGING_CONFIG, defineConfig } from "@facilis.dev/core";
+import { attachRequestDatabase, DEFAULT_LOGGING_CONFIG, defineConfig } from "@facilis.dev/core";
 import { createDb, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
@@ -87,13 +87,15 @@ function makeEvent(body: unknown): FacilisRequestEvent {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  return {
+  const event: FacilisRequestEvent = {
     context: {
-      facilis: { db, defaultTenantId: TENANT_ID, logging: loggingApi },
+      facilis: { defaultTenantId: TENANT_ID, logging: loggingApi },
       security: { trustedOrigins: [] },
     },
     req: request,
   };
+  attachRequestDatabase(event, db);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

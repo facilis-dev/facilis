@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { StorageApi } from "./storage.ts";
 
@@ -50,11 +51,10 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   }
   const context: FacilisEventContext = { params: {} };
   context.auth = null;
-  context.facilis = {
-    db: FAKE_DB,
-    ...(options.storage === undefined ? {} : { storage: options.storage }),
-  };
-  return { context, req };
+  context.facilis = options.storage === undefined ? {} : { storage: options.storage };
+  const event: FacilisRequestEvent = { context, req };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

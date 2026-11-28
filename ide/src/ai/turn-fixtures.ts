@@ -109,6 +109,9 @@ export function fakeWrites(): ChatWrites {
     takeGateFailure: () => null,
     takeSchemaConfirmation: () => null,
     applyPending: async () => ({ ok: false, path: "", errors: [], warnings: [] }),
+    takeSurfaceConfirmation: () => null,
+    applyPendingSurface: async () => ({ ok: false, path: "", errors: [], warnings: [] }),
+    discardPendingSurface() {},
     outage: () => false,
     undoTurn: async () => ({ ok: true, errors: [] }),
   };

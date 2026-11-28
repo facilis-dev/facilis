@@ -11,6 +11,7 @@ import {
   DEV_SCHEMA_ROUTE,
   DEV_VIEW_ROUTE,
   NATIVE_OPENAPI_ROUTE,
+  SECURITY_SURFACE_ROUTE,
   OPENAPI_FACADE_ROUTE,
   SSO_ROUTE,
   TELEMETRY_TRACES_ROUTE,
@@ -103,6 +104,7 @@ describe("createFacilisNitroModule", () => {
       DEV_SCHEMA_ROUTE,
       DEV_QUERY_ROUTE,
       DEV_VIEW_ROUTE,
+      SECURITY_SURFACE_ROUTE,
       OPENAPI_FACADE_ROUTE,
     ]);
     // The SSO namespace is framework auth in every environment (D-120), so it has no env gate.

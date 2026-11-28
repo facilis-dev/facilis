@@ -8,7 +8,7 @@ const RULE = "raw-sql-system-table-write";
 function route(body: string): string {
   return (
     CORE +
-    "export default defineAuthorizedHandler({ permission: [], dbTables: [], rawSql: true }, " +
+    'export default defineAuthorizedHandler({ permission: [], dbTables: [], rawSql: { reason: "raw SQL fixture" } }, ' +
     body +
     ");\n"
   );
@@ -23,7 +23,9 @@ describe("rule 22 raw-sql-system-table-write (SPEC §8.4, D-214)", () => {
     const { result } = validate([
       create(
         "server/routes/api/users.post.ts",
-        execute('"INSERT INTO role_permissions (role, permission) VALUES (\'user\', \'todos:read\')"'),
+        execute(
+          "\"INSERT INTO role_permissions (role, permission) VALUES ('user', 'todos:read')\"",
+        ),
       ),
     ]);
     expect(rulesOf(result.errors)).toContain(RULE);

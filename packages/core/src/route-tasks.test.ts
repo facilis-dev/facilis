@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { TaskError, type TasksApi } from "./tasks.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
@@ -24,13 +25,15 @@ function makeEvent(
   tasks: TasksApi | undefined,
   auth: FacilisRequestEvent["context"]["auth"] = null,
 ): FacilisRequestEvent {
-  return {
+  const event: FacilisRequestEvent = {
     context: {
       auth,
-      facilis: { db: FAKE_DB, ...(tasks === undefined ? {} : { tasks }) },
+      facilis: tasks === undefined ? {} : { tasks },
     },
     req: { headers: new Headers(), url: "http://localhost/api/test", method: "POST" },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 const USER = { userId: "user-1", roles: [], permissions: [] };

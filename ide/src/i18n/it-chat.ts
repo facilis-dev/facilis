@@ -144,4 +144,17 @@ export const chatIt: Partial<Record<MessageKey, string>> = {
   "chat.schemaConfirm.cancel": "Annulla",
   "chat.schemaConfirm.explanation":
     "Le eliminazioni confermate vengono applicate al database di sviluppo al prossimo avvio; senza la tua conferma non vengono mai eseguite.",
+  "chat.surfaceConfirm.title": "Questa scrittura dichiara una capacità non standard",
+  "chat.surfaceConfirm.body":
+    "L'assistente vuole aggiungere codice che esce dalle API standard. Non è ancora stato scritto nulla: controlla ogni punto e la sua motivazione prima di confermare.",
+  "chat.surfaceConfirm.reason": "Motivazione",
+  "chat.surfaceConfirm.confirm": "Conferma e scrivi",
+  "chat.surfaceConfirm.cancel": "Annulla",
+  "chat.surfaceConfirm.explanation":
+    "Le motivazioni confermate restano nel sorgente e finiscono nella superficie di sicurezza esportata alla build. Rifiutando non viene scritto nulla e l'assistente cerca un handler standard.",
+  "chat.surfaceConfirm.capability.rawRoute": "Route raw",
+  "chat.surfaceConfirm.capability.serverExtension": "Estensione server",
+  "chat.surfaceConfirm.capability.rawSql": "SQL raw",
+  "chat.surfaceConfirm.capability.rawDb": "Database raw",
+  "chat.surfaceConfirm.capability.dynamicCode": "Codice dinamico",
 };

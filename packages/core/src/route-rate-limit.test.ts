@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { FacilisDb } from "@facilis.dev/db";
 
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
 
@@ -33,12 +34,11 @@ function makeEvent(options: EventOptions): FacilisRequestEvent {
   const context: FacilisEventContext = {
     params: {},
     facilis: {
-      db: FAKE_DB,
       defaultTenantId: "tenant-1",
       ...(options.clientAddress === undefined ? {} : { clientAddress: options.clientAddress }),
     },
   };
-  return {
+  const event: FacilisRequestEvent = {
     context,
     req: {
       headers: new Headers(),
@@ -46,6 +46,8 @@ function makeEvent(options: EventOptions): FacilisRequestEvent {
       method: "POST",
     },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 function handler(limit: { maxRequests: number; windowMs: number }) {

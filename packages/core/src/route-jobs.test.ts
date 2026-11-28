@@ -3,6 +3,7 @@ import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
 import { JobError, type JobsApi } from "./jobs.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
 // The wrapper only needs a transaction runner; jobs identity is the subject of this file.
@@ -21,13 +22,15 @@ const FAKE_DB = { driver: "pglite", close: async () => {} } as unknown as Facili
 const JOBS = { enqueue: vi.fn() } as unknown as JobsApi;
 
 function makeEvent(jobs: JobsApi | undefined): FacilisRequestEvent {
-  return {
+  const event: FacilisRequestEvent = {
     context: {
       auth: null,
-      facilis: { db: FAKE_DB, ...(jobs === undefined ? {} : { jobs }) },
+      facilis: jobs === undefined ? {} : { jobs },
     },
     req: { headers: new Headers(), url: "http://localhost/api/test", method: "POST" },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 describe("ctx.jobs", () => {

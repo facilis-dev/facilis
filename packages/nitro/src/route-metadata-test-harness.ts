@@ -11,6 +11,7 @@ export function routeFact(
     source: { file: overrides.sourceFile, line: 1 },
     wrapper: "valid",
     permission: [],
+    auth: "none",
     crossSite: false,
     rawSql: false,
     dbTables: [],
@@ -31,6 +32,14 @@ export function routeFact(
     handlerBodyRead: false,
     handlerFormRead: false,
     elevations: [],
+    surface: {
+      class: "standard",
+      declarations: [],
+      source: { file: overrides.sourceFile, line: 1 },
+      unknown: [],
+      rawSqlReason: null,
+      rawDb: [],
+    },
     unknown: [],
   };
   return { ...base, ...overrides };
@@ -72,6 +81,13 @@ export function emptyAnalysis(overrides: Partial<Analysis> = {}): Analysis {
     graph: { nodes: [], edges: [] },
     // The graph lens facts are required on an Analysis (D-220); adapters ignore them.
     graphDiagnostics: [],
+    surface: {
+      extensions: [],
+      forbiddenImports: [],
+      dynamicCode: [],
+      unknown: [],
+      summary: { standard: 0, declared: 0, undeclared: 0, unknown: 0 },
+    },
     ...overrides,
   };
 }

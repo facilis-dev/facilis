@@ -10,6 +10,7 @@ import { gitRemoteIt } from "./it-git-remote";
 import { sourceControlIt } from "./it-source-control";
 import { commitGraphIt } from "./it-commit-graph";
 import { projectGraphIt } from "./it-project-graph";
+import { securitySurfaceIt } from "./it-security-surface";
 import { projectGraphAnswersIt } from "./it-project-graph-answers";
 import { projectGraphQuestionsIt } from "./it-project-graph-questions";
 import { projectGraphRailIt } from "./it-project-graph-rail";
@@ -209,6 +210,7 @@ export const it: Partial<Record<MessageKey, string>> = {
   ...sourceControlIt,
   ...commitGraphIt,
   ...projectGraphIt,
+  ...securitySurfaceIt,
   ...projectGraphAnswersIt,
   ...projectGraphQuestionsIt,
   ...projectGraphRailIt,

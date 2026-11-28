@@ -4,6 +4,7 @@ import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
 import type { JobsApi } from "./jobs.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 import type { SudoHandler } from "./sudo.ts";
 
@@ -58,10 +59,10 @@ interface FakeEventOptions {
 function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   const headers = new Headers();
   if (options.requestId !== undefined) headers.set("x-request-id", options.requestId);
-  return {
+  const event: FacilisRequestEvent = {
     context: {
       auth: options.auth === undefined ? AUTH : options.auth,
-      facilis: { db: FAKE_DB, defaultTenantId: "tenant-1", jobs: JOBS },
+      facilis: { defaultTenantId: "tenant-1", jobs: JOBS },
     },
     req: {
       headers,
@@ -69,6 +70,8 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
       method: options.method ?? "POST",
     },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

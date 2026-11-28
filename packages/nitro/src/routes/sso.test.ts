@@ -1,6 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FacilisConfig, FacilisRequestEvent } from "@facilis.dev/core";
-import { DEFAULT_LOGGING_CONFIG, defineConfig, NOOP_LOGGING_API } from "@facilis.dev/core";
+import {
+  attachRequestDatabase,
+  DEFAULT_LOGGING_CONFIG,
+  defineConfig,
+  NOOP_LOGGING_API,
+} from "@facilis.dev/core";
 import { createDb, ensureAppRole, type FacilisDb } from "@facilis.dev/db";
 
 vi.mock("../runtime/bootstrap.ts", () => ({ getBootstrap: vi.fn() }));
@@ -86,10 +91,11 @@ function makeEvent(
     ...(options.body === undefined ? {} : { body: options.body }),
   });
   const event: FacilisRequestEvent = {
-    context: { facilis: { db, defaultTenantId: TENANT_ID } },
+    context: { facilis: { defaultTenantId: TENANT_ID } },
     req: request,
     res: { headers: resHeaders },
   };
+  attachRequestDatabase(event, db);
   return { event, resHeaders };
 }
 

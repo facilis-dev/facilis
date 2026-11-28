@@ -4,6 +4,7 @@ import type { AuthContext } from "@facilis.dev/auth";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
 const dbMock = vi.hoisted(() => {
@@ -46,8 +47,11 @@ function makeEvent(options: FakeEventOptions = {}): FacilisRequestEvent {
   };
   const context: FacilisEventContext = { params: {} };
   if (options.auth !== undefined) context.auth = options.auth;
-  context.facilis = { db: FAKE_DB };
-  return { context, req };
+  // The middleware always sets this object; the client itself travels privately.
+  context.facilis = {};
+  const event: FacilisRequestEvent = { context, req };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 async function readBody(response: Response): Promise<{ code?: string }> {

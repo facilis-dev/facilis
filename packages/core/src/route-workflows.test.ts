@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { WorkflowError, type WorkflowsApi } from "./workflows.ts";
 import { defineAuthorizedHandler } from "./route.ts";
 
@@ -21,13 +22,15 @@ const FAKE_DB = { driver: "pglite", close: async () => {} } as unknown as Facili
 const WORKFLOWS = { start: vi.fn() } as unknown as WorkflowsApi;
 
 function makeEvent(workflows: WorkflowsApi | undefined): FacilisRequestEvent {
-  return {
+  const event: FacilisRequestEvent = {
     context: {
       auth: null,
-      facilis: { db: FAKE_DB, ...(workflows === undefined ? {} : { workflows }) },
+      facilis: workflows === undefined ? {} : { workflows },
     },
     req: { headers: new Headers(), url: "http://localhost/api/test", method: "POST" },
   };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 describe("ctx.workflows", () => {

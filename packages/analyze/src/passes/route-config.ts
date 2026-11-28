@@ -20,8 +20,10 @@ export interface RouteConfigFacts {
   readonly permission: readonly string[] | null;
   /** True when the wrapper opts the route into cross-origin calls; null when unreadable. */
   readonly crossSite: boolean | null;
-  /** rawSql: true allows `db.execute` (D-157); false when absent; null when unreadable. */
+  /** rawSql allows `db.execute`; false when absent; null when unreadable (D-157/D-226). */
   readonly rawSql: boolean | null;
+  /** Non-empty reason of the declared `rawSql: { reason }` form; null otherwise. */
+  readonly rawSqlReason: string | null;
   readonly dbTables: readonly string[] | null;
   readonly dbColumns: readonly string[] | null;
   readonly description: string | null;
@@ -93,15 +95,37 @@ export function routeConfigFacts(
 
   const rawSqlField = field("rawSql");
   let rawSql: boolean | null = false;
+  let rawSqlReason: string | null = null;
   if (rawSqlField !== undefined && !rawSqlField.ok) {
     rawSql = null;
     addUnknown(unknown, "route-config-static", unreadable("rawSql", rawSqlField), ref);
   } else if (rawSqlField !== undefined) {
-    if (typeof rawSqlField.value === "boolean") rawSql = rawSqlField.value;
-    else {
-      // An unreadable derogation is never assumed: db.execute then fails closed (D-157).
+    const value = rawSqlField.value;
+    if (typeof value === "boolean") {
+      // Legacy shape: the analyzer classifies it as undeclared surface, never as a grant.
+      rawSql = value;
+    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const reason = (value as { reason?: unknown }).reason;
+      if (typeof reason === "string" && reason.trim().length > 0) {
+        rawSql = true;
+        rawSqlReason = reason.trim();
+      } else {
+        rawSql = null;
+        addUnknown(
+          unknown,
+          "surface-undeclared",
+          "rawSql: { reason } requires a non-empty reason (D-226)",
+          ref,
+        );
+      }
+    } else {
       rawSql = null;
-      addUnknown(unknown, "route-config-static", "rawSql must be a boolean", ref);
+      addUnknown(
+        unknown,
+        "route-config-static",
+        "rawSql must be a boolean or { reason: string } (D-226)",
+        ref,
+      );
     }
   }
 
@@ -178,6 +202,7 @@ export function routeConfigFacts(
     permission,
     crossSite,
     rawSql,
+    rawSqlReason,
     dbTables,
     dbColumns,
     description,

@@ -38,8 +38,8 @@ export function routeSecurityErrors(state: EffectiveState): ValidationError[] {
       error(
         "route-security",
         route,
-        "Every API route must be written with defineAuthorizedHandler.",
-        "Wrap the handler in defineAuthorizedHandler (security invariant 1).",
+        "Every API route must be a declared wrapper (defineAuthorizedHandler or defineRawRoute).",
+        "Wrap the handler in defineAuthorizedHandler, or declare it with defineRawRoute({ reason, auth }, ...) (security invariant 1, D-226).",
       ),
     );
 }
@@ -63,28 +63,30 @@ export function routeDbTablesPresentErrors(state: EffectiveState): ValidationErr
  * for a JSON body, `form` for a multipart/form-data body (D-053).
  */
 export function routeInputErrors(state: EffectiveState): ValidationError[] {
-  return patchedRoutes(state).flatMap((route) => {
-    const errors: ValidationError[] = [];
-    if (route.handlerBodyRead && !route.input.body) {
-      errors.push(
-        error(
-          "route-input-validated",
-          route,
-          "The handler reads the request body but the route declares no body schema.",
-          "Declare body: <ZodSchema> in the defineAuthorizedHandler config for a JSON body (security invariant 3).",
-        ),
-      );
-    }
-    if (route.handlerFormRead && !route.input.form) {
-      errors.push(
-        error(
-          "route-input-validated",
-          route,
-          "The handler reads the multipart form but the route declares no form schema.",
-          "Declare form: <ZodSchema> in the defineAuthorizedHandler config for a multipart/form-data upload (security invariant 3).",
-        ),
-      );
-    }
-    return errors;
-  });
+  return patchedRoutes(state)
+    .filter((route) => !route.surface.declarations.some((entry) => entry.kind === "raw-route"))
+    .flatMap((route) => {
+      const errors: ValidationError[] = [];
+      if (route.handlerBodyRead && !route.input.body) {
+        errors.push(
+          error(
+            "route-input-validated",
+            route,
+            "The handler reads the request body but the route declares no body schema.",
+            "Declare body: <ZodSchema> in the defineAuthorizedHandler config for a JSON body (security invariant 3).",
+          ),
+        );
+      }
+      if (route.handlerFormRead && !route.input.form) {
+        errors.push(
+          error(
+            "route-input-validated",
+            route,
+            "The handler reads the multipart form but the route declares no form schema.",
+            "Declare form: <ZodSchema> in the defineAuthorizedHandler config for a multipart/form-data upload (security invariant 3).",
+          ),
+        );
+      }
+      return errors;
+    });
 }

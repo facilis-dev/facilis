@@ -99,6 +99,8 @@ export async function validatePatchesWithHost(
     writePolicy?: WritePolicy;
     /** Writes already applied this turn: the pre-patch project (incremental writes, D-181). */
     overlay?: readonly FilePatch[];
+    /** The post-confirmation revalidation: do not ask about the declarations again (D-226). */
+    confirmedSurface?: boolean;
   } = {},
 ): Promise<PatchesValidation> {
   let analyses: Analyses;
@@ -125,6 +127,7 @@ export async function validatePatchesWithHost(
       ? {}
       : { requiresConfirmation: options.requiresConfirmation }),
     writePolicy: options.writePolicy ?? aiWritePolicy,
+    ...(options.confirmedSurface === true ? { confirmedSurface: true } : {}),
   });
   return { validation, context };
 }

@@ -79,7 +79,9 @@ describe("facilis-context middleware", () => {
     expect(requestId).toMatch(REQUEST_ID_PATTERN);
     expect(harness.response.headers.get("x-request-id")).toBe(requestId);
     expect(harness.context.facilis?.logging).toBe(NOOP_LOGGING_API);
-    expect(harness.context.facilis?.db).toBe(DB);
+    // D-226: the client travels privately, never on the event surface; the reader is
+    // intentionally not exported from @facilis.dev/core.
+    expect(harness.context.facilis).not.toHaveProperty("db");
     expect(harness.context.facilis?.defaultTenantId).toEqual(expect.any(String));
     expect(harness.context.facilis?.client).toBeUndefined();
     // The CSRF gate needs an allow-list on every request, config default included.
@@ -135,9 +137,7 @@ describe("facilis-context middleware", () => {
   });
 
   it("takes the first x-forwarded-for value only behind a trusted proxy", async () => {
-    bootstrapMock.getBootstrap.mockResolvedValue(
-      state({ runtime: { logTrustProxy: true } }),
-    );
+    bootstrapMock.getBootstrap.mockResolvedValue(state({ runtime: { logTrustProxy: true } }));
     const harness = makeEvent({
       "user-agent": "test-agent/1.0",
       "x-forwarded-for": "203.0.113.7, 10.0.0.1",
@@ -155,9 +155,7 @@ describe("facilis-context middleware", () => {
     await handler(untrusted.event);
     expect(untrusted.context.facilis?.clientAddress).toBeUndefined();
 
-    bootstrapMock.getBootstrap.mockResolvedValue(
-      state({ runtime: { logTrustProxy: true } }),
-    );
+    bootstrapMock.getBootstrap.mockResolvedValue(state({ runtime: { logTrustProxy: true } }));
     const trusted = makeEvent({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" });
     await handler(trusted.event);
     expect(trusted.context.facilis?.clientAddress).toBe("203.0.113.7");

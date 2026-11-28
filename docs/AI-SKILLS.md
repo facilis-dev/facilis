@@ -1,7 +1,7 @@
 # AI and skills
 
 **Status:** accepted and implemented (2026-11-11): the provider/gateway policy, the "AI off by
-default in managed" behaviour, the 23-rule blocking validator (D-084/D-162), the PTC tool runtime —
+default in managed" behaviour, the 24-rule blocking validator (D-084/D-162), the PTC tool runtime —
 the chat's only mode (D-101/D-103) — and the MCP client on the same seam (D-118,
 `ide/src/ai/mcp/*`, wired in `chat-host.ts`) all landed. The skills supply chain (§8) is the D-067
 design record; the runtime it describes was never built and is withdrawn (D-205).

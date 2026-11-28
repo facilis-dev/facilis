@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { FacilisDb } from "@facilis.dev/db";
 
 import type { FacilisEventContext, FacilisRequestEvent } from "./event.ts";
+import { attachRequestDatabase } from "./request-database.ts";
 import { DEFAULT_MAX_JSON_BODY_BYTES, parseRequestInput } from "./request-input.ts";
 import type { StorageApi } from "./storage.ts";
 
@@ -11,12 +12,14 @@ const REQUEST_URL = "http://localhost/api/items";
 
 function makeContext(storage?: StorageApi): FacilisEventContext {
   const context: FacilisEventContext = { params: {} };
-  context.facilis = storage === undefined ? { db: FAKE_DB } : { db: FAKE_DB, storage };
+  if (storage !== undefined) context.facilis = { storage };
   return context;
 }
 
 function makeEvent(request: Request, storage?: StorageApi): FacilisRequestEvent {
-  return { context: makeContext(storage), req: request };
+  const event: FacilisRequestEvent = { context: makeContext(storage), req: request };
+  attachRequestDatabase(event, FAKE_DB);
+  return event;
 }
 
 function jsonRequest(body: string): Request {

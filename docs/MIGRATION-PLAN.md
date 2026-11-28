@@ -45,7 +45,9 @@ It completes D-109 (ADR entry missing, renderer orphaned).
 - **Release = a tag + an immutable migration artifact.** The release pipeline checks out the
   previous release tag and the new tag, reads both declared schemas (no DB), generates the SQL,
   classifies risk, and stores the artifact keyed by the new tag. This is the only place SQL is
-  generated for test/prod.
+  generated for test/prod. The same build writes `security-surface.json` (D-226) next to the
+  server output; the release step must copy it alongside the migration artifact under the same tag, so the
+  declared surface of a release is reviewable without rebuilding it.
 - **Applying the artifact is the operator's job (D-204).** The framework ships no applier: the
   release environment applies the immutable artifact to its database. The same artifact is used
   in every environment, so test and prod cannot silently diverge.
