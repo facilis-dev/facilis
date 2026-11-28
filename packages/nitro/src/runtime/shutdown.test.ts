@@ -6,6 +6,7 @@ import type { DevDbSnapshotter } from "./dev-db-persistence.ts";
 import type { JobsRuntime } from "./jobs/runtime.ts";
 import type { WorkflowsRuntime } from "./workflows/runner.ts";
 import {
+  disposePreviousRuntime,
   registerRuntimeCloseHook,
   shutdownRuntimes,
   type CloseHookTarget,
@@ -64,6 +65,33 @@ describe("registerRuntimeCloseHook", () => {
       "snapshotter.flush",
       "db.close",
     ]);
+  });
+});
+
+describe("disposePreviousRuntime", () => {
+  it("tears the previous evaluation's runtime down exactly once", async () => {
+    const { calls, deps } = fixtures();
+    registerRuntimeCloseHook(deps, { hook: () => {} });
+    await disposePreviousRuntime();
+    expect(calls).toEqual([
+      "jobs.stop",
+      "workflows.stop",
+      "snapshotter.stop",
+      "snapshotter.flush",
+      "db.close",
+    ]);
+    await disposePreviousRuntime();
+    expect(calls).toHaveLength(5);
+  });
+
+  it("only tears down the runtime registered last", async () => {
+    const first = fixtures();
+    const second = fixtures();
+    registerRuntimeCloseHook(first.deps, { hook: () => {} });
+    registerRuntimeCloseHook(second.deps, { hook: () => {} });
+    await disposePreviousRuntime();
+    expect(first.calls).toHaveLength(0);
+    expect(second.calls).toHaveLength(5);
   });
 });
 
