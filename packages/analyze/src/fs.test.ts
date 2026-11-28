@@ -11,6 +11,22 @@ function write(root: string, path: string, source: string): void {
   writeFileSync(full, source);
 }
 
+describe("loadProjectFiles skip list", () => {
+  it("skips the project's Vite optimizer cache (.vite-cache)", () => {
+    const root = mkdtempSync(join(tmpdir(), "facilis-fs-"));
+    try {
+      write(root, "src/app.tsx", "export const app = 1;\n");
+      write(root, ".vite-cache/deps/react.js", "export const react = 1;\n");
+      write(root, ".vite-cache/deps/react.js.map", "{}\n");
+      const files = loadProjectFiles(root);
+      expect(files.has("src/app.tsx")).toBe(true);
+      expect([...files.keys()].some((path) => path.startsWith(".vite-cache/"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("loadProjectFiles framework scope (D-199)", () => {
   it("loads an installed framework package's dist, not the project's build output", () => {
     const root = mkdtempSync(join(tmpdir(), "facilis-fs-"));
