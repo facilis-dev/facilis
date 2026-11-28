@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/i18n-db",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "type": "module",
   "description": "database i18n: translated content fields plus an optional catalogue overlay",
   "license": "MIT",
