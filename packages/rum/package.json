@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/rum",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "description": "Facilis framework-owned browser RUM: web vitals, errors and document/fetch spans exported as OTLP/JSON to the app's own ingestion route (D-203/D-209).",
   "license": "MIT",

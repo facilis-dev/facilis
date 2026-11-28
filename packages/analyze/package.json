@@ -1,6 +1,6 @@
 {
   "name": "@facilis.dev/analyze",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "description": "Facilis AST analyzer: static facts for the project DSL (routes, schema, relations, pages) with an injected parser.",
   "license": "MIT",
