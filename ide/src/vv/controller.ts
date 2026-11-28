@@ -22,6 +22,7 @@ import { ScmSession } from "./scm-session";
 import { DiffSession } from "./diff-session";
 import { EditorStatus } from "./editor-status";
 import { loadWordWrap, saveWordWrap } from "./editor-prefs";
+import { CHECKPOINT_IDENTITY } from "./git-config";
 import { PROJECTS_KEY, readRegistry, writeRegistry, type ProjectMeta } from "./project-registry";
 import { projectName } from "./project-name";
 import { ensureProjectOnDisk } from "./project-restore";
@@ -1577,6 +1578,22 @@ export class IdeController {
   }
 
   /**
+   * A new project starts as one commit of the scaffold the IDE just wrote. Without it the
+   * chat's clean-tree gate (D-181) pauses the FIRST turn on "Commit and continue" for files
+   * the user never edited. Best-effort: if the commit fails the gate still offers it.
+   */
+  private async commitScaffold(root: string, title: string): Promise<void> {
+    try {
+      await this.scm.init(root);
+      await this.scm.stageAll(root);
+      await this.scm.commit(root, "chore: create " + title, CHECKPOINT_IDENTITY);
+    } catch {
+      // A scaffold commit that cannot be made leaves the source tree exactly as the gate
+      // expects it, so the user can still commit it from the chat.
+    }
+  }
+
+  /**
    * Create a project from the template registry (D-168); the default is the full-stack
    * template. There is still no blank project and no second framework.
    */
@@ -1601,7 +1618,7 @@ export class IdeController {
     this.folderManifests.set(root, template.manifest);
     this.upsertProjectMeta({ rootPath: root, template: template.manifest.id });
     this.openFolder(root);
-    void this.scm.init(root);
+    void this.commitScaffold(root, title);
     this.openProjectGraph();
     if (input.runInit) {
       this.runProject(root);
