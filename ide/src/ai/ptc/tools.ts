@@ -13,7 +13,7 @@ import {
   assertSafeGlob,
   globMatcher,
   isReadablePath,
-  redactSecrets,
+  redactReadText,
 } from "./policy";
 import {
   findingsJson,
@@ -141,7 +141,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
     const end = Math.min(requestedEnd ?? totalLines, startLine + MAX_READ_LINES - 1, totalLines);
     const selected = lines.slice(startLine - 1, end);
     // Redact before the char cap: a secret cut in half at the boundary would slip through.
-    const redacted = redactSecrets(selected.join("\n"));
+    const redacted = redactReadText(path, selected.join("\n"));
     return {
       path,
       content: redacted.slice(0, MAX_READ_CHARS),

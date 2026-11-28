@@ -7,6 +7,7 @@ import {
   isExcludedPath,
   isReadablePath,
   isSafeProjectPath,
+  redactReadText,
   redactSecrets,
 } from "./policy";
 import { isPtcToolError } from "./protocol";
@@ -129,6 +130,16 @@ describe("globMatcher", () => {
     expect(matcher("server/index.get.ts")).toBe(true);
     expect(matcher("src/server/x.get.ts")).toBe(false);
     expect(matcher("server/routes/api/todos.post.ts")).toBe(false);
+  });
+});
+
+describe("redactReadText", () => {
+  it("keeps a locale catalog readable and redacts every other file", () => {
+    const catalog = '{"auth.password": "Password"}';
+    expect(redactReadText("locales/en.json", catalog)).toBe(catalog);
+    expect(redactReadText("locales/it.json", catalog)).toBe(catalog);
+    expect(redactReadText("src/config.ts", catalog)).toContain("[redacted]");
+    expect(redactReadText("locales/en.ts", catalog)).toContain("[redacted]");
   });
 });
 

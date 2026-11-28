@@ -66,7 +66,7 @@ const SOURCES: Record<string, string> = {
   "src/long.ts": LONG_LINE,
   "config/secrets.ts": SECRETS,
   ".env": "API_KEY=sk-live-123\n",
-  "locales/en.json": JSON.stringify({ "app.title": "Facilis" }),
+  "locales/en.json": JSON.stringify({ "app.title": "Facilis", "auth.password": "Password" }),
   "package.json": JSON.stringify({ dependencies: { "@facilis.dev/core": "workspace:*" } }),
   "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "~/*": ["./*"] } } }),
 };
@@ -170,6 +170,13 @@ describe("read_file", () => {
       "project-relative",
     );
     expect((await refusal(call("read_file", {}))).message).toContain("path is required");
+  });
+
+  it("keeps locale labels readable so a whole-file write can round-trip them", async () => {
+    const catalog = (await call<{ content: string }>("read_file", { path: "locales/en.json" }))
+      .content;
+    expect(JSON.parse(catalog)).toMatchObject({ "auth.password": "Password" });
+    expect(catalog).not.toContain("[redacted]");
   });
 });
 

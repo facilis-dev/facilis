@@ -97,6 +97,17 @@ const PRIVATE_KEY_BLOCK = /-----BEGIN[^\n]*PRIVATE KEY-----[\s\S]*?-----END[^\n]
 /** A capped read can cut a PEM block before its END marker; the tail is still key material. */
 const UNTERMINATED_PRIVATE_KEY = /-----BEGIN[^\n]*PRIVATE KEY-----[\s\S]*$/;
 
+/** A root locale catalog: browser-delivered UI copy, never a server secret. */
+function isLocaleCatalog(path: string): boolean {
+  return /^locales\/[^/]+$/.test(path);
+}
+
+/** Redact a read's text, except a locale catalog: its labels ("auth.password": "Password")
+ * must round-trip through the whole-file writes the AI tools require. */
+export function redactReadText(path: string, text: string): string {
+  return path.endsWith(".json") && isLocaleCatalog(path) ? text : redactSecrets(text);
+}
+
 /** Replace secret values in tool output so a read cannot exfiltrate credentials to the
  * provider (AI-SKILLS §3/§6, docs/PTC.md §11). */
 export function redactSecrets(text: string): string {
