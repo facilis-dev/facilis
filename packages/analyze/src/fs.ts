@@ -10,7 +10,18 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".json"];
-const ALWAYS_SKIPPED = new Set([".git", "dist", "coverage", ".turbo", ".facilis", ".output"]);
+// Build output and VCS/IDE state are never DSL facts. .vite-cache is Vite's optimizer
+// output when a project sets cacheDir (the template does): megabytes of bundled JS with
+// nothing for the analyzer to read — yet more than half the bytes of a full project walk.
+const ALWAYS_SKIPPED = new Set([
+  ".git",
+  "dist",
+  "coverage",
+  ".turbo",
+  ".facilis",
+  ".output",
+  ".vite-cache",
+]);
 
 export interface LoadProjectOptions {
   /** Package scopes allowed under node_modules (default: @facilis.dev). */
